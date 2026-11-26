@@ -14,10 +14,25 @@
 //! ```
 
 /// Import the reader under test and the values it produces.
-use super::{BatchReply, MAX_BATCH_HEADER_BYTES, ObjectKind, read_batch_reply, read_batch_reply_within};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{ObjectId, parse_object_id};
-use std::io::{BufRead, Read};
+use super::{
+    BatchReply,
+    MAX_BATCH_HEADER_BYTES,
+    ObjectKind,
+    read_batch_reply,
+    read_batch_reply_within,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
+use std::io::{
+    BufRead,
+    Read,
+};
 
 /// A complete SHA-1 object name used as the request in most controls.
 const NAME: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -37,9 +52,9 @@ fn failure_of(stream: &[u8]) -> CandidateFailure {
     let error: CandidateError =
         read_batch_reply(&mut remaining, NAME.as_bytes()).expect_err("rejected reply");
     assert!(
-        error
-            .message
-            .starts_with("monochromatic-git-policy-cli could not read a Git object: git cat-file --batch "),
+        error.message.starts_with(
+            "monochromatic-git-policy-cli could not read a Git object: git cat-file --batch "
+        ),
         "{error}"
     );
     return error.failure;
@@ -51,7 +66,10 @@ struct BrokenStream;
 
 /// Reading reports a broken pipe.
 impl Read for BrokenStream {
-    fn read(&mut self, _buffer: &mut [u8]) -> std::io::Result<usize> {
+    fn read(
+        &mut self,
+        _buffer: &mut [u8],
+    ) -> std::io::Result<usize> {
         return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
     }
 }
@@ -62,7 +80,11 @@ impl BufRead for BrokenStream {
         return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
     }
 
-    fn consume(&mut self, _amount: usize) {}
+    fn consume(
+        &mut self,
+        _amount: usize,
+    ) {
+    }
 }
 
 /// A found reply yields exactly the declared bytes,

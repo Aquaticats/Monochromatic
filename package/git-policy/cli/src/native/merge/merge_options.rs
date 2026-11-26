@@ -124,7 +124,10 @@ pub enum ParsedMerge {
 /// ```ts
 /// function appendMessage(buffer: Uint8Array, value: Uint8Array): Uint8Array;
 /// ```
-fn append_message(buffer: &mut Vec<u8>, value: &[u8]) {
+fn append_message(
+    buffer: &mut Vec<u8>,
+    value: &[u8],
+) {
     if !buffer.is_empty() {
         buffer.push(b'\n');
     }
@@ -149,8 +152,15 @@ fn append_message(buffer: &mut Vec<u8>, value: &[u8]) {
 fn is_ignorable(text: &str) -> bool {
     return matches!(
         text,
-        "-v" | "--verbose" | "--no-verbose" | "--progress" | "--no-progress" | "--no-verify" | "--verify"
-            | "--no-signoff" | "--no-autostash" | "--no-verify-signatures"
+        "-v" | "--verbose"
+            | "--no-verbose"
+            | "--progress"
+            | "--no-progress"
+            | "--no-verify"
+            | "--verify"
+            | "--no-signoff"
+            | "--no-autostash"
+            | "--no-verify-signatures"
     );
 }
 
@@ -239,7 +249,10 @@ pub fn parse_merge_shape(region: &[OsString]) -> ParsedMerge {
         return ParsedMerge::Unsupported(String::from("--log or --no-log together with -m"));
     }
     if positional.len() != 1 {
-        return ParsedMerge::Unsupported(format!("{} commits to merge, not exactly one", positional.len()));
+        return ParsedMerge::Unsupported(format!(
+            "{} commits to merge, not exactly one",
+            positional.len()
+        ));
     }
     shape.reference = positional.remove(0);
     if shape.reference.as_encoded_bytes().is_empty() {

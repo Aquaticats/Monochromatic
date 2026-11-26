@@ -19,8 +19,15 @@
 //! const run = sweep(context); // { children, reached, stopped }
 //! ```
 
-use super::sweep_dataset_reader::{Listing, each_child};
-use super::sweep_one_clone::{CloneOutcome, SweepContext, sweep_one_clone};
+use super::sweep_dataset_reader::{
+    Listing,
+    each_child,
+};
+use super::sweep_one_clone::{
+    CloneOutcome,
+    SweepContext,
+    sweep_one_clone,
+};
 
 /// What:
 ///  What one run reached and what it answered.
@@ -49,37 +56,65 @@ pub struct SweepRun {
 impl SweepRun {
     /// How many clones the run attached.
     pub fn attached(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Attached { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::Attached { .. }))
+            .count();
     }
 
     /// How many clones unmounted.
     pub fn unmounted(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Unmounted { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::Unmounted { .. }))
+            .count();
     }
 
     /// How many clones reattached.
     pub fn reattached(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Reattached { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::Reattached { .. }))
+            .count();
     }
 
     /// How many clones asked for nothing.
     pub fn nothing_asked(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::NothingAsked { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::NothingAsked { .. }))
+            .count();
     }
 
     /// How many clones the run refused.
     pub fn refused(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Refused { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::Refused { .. }))
+            .count();
     }
 
     /// How many clones failed at a step.
     pub fn failed(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Failed { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::Failed { .. }))
+            .count();
     }
 
     /// How many slots another sweep held.
     pub fn held(&self) -> usize {
-        return self.reached.iter().filter(|outcome| return matches!(outcome, CloneOutcome::Held { .. })).count();
+        return self
+            .reached
+            .iter()
+            .filter(|outcome| return matches!(outcome, CloneOutcome::Held { .. }))
+            .count();
     }
 
     /// Whether the listing reached the end of the parent's children.
@@ -135,7 +170,9 @@ pub fn sweep(context: &SweepContext<'_>) -> SweepRun {
     let mut reached: Vec<CloneOutcome> = Vec::new();
     // Each clone takes its turn as the listing gives it, so a listing that stops later costs the clones already reached
     // nothing: their mounts stand and the run says where it stopped.
-    let listing: Listing = each_child(context.reader, context.parent_dataset, &mut |name| return reached.push(sweep_one_clone(context, name)));
+    let listing: Listing = each_child(context.reader, context.parent_dataset, &mut |name| {
+        return reached.push(sweep_one_clone(context, name));
+    });
     return SweepRun {
         parent_dataset: String::from(context.parent_dataset),
         children: listing.seen,

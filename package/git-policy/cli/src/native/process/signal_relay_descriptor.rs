@@ -38,8 +38,12 @@ pub(crate) fn ensure_relay_descriptor() -> io::Result<()> {
     if crate::signal_relay::RELAY_FD.get().is_some() {
         return Ok(());
     }
-    let nothing: std::os::fd::OwnedFd = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .map_err(io::Error::from)?;
+    let nothing: std::os::fd::OwnedFd = rustix::fs::open(
+        "/dev/null",
+        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    )
+    .map_err(io::Error::from)?;
     let number: std::os::fd::RawFd = std::os::fd::IntoRawFd::into_raw_fd(nothing);
     // A guard that lost the race closes its own descriptor; the winner's number is the only one that is kept.
     if crate::signal_relay::RELAY_FD.set(number).is_err() {
@@ -70,8 +74,12 @@ pub(crate) fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result
     let source: std::os::fd::RawFd = match child {
         Some(pidfd) => std::os::fd::AsRawFd::as_raw_fd(pidfd),
         None => {
-            nothing = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-                .map_err(io::Error::from)?;
+            nothing = rustix::fs::open(
+                "/dev/null",
+                rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC,
+                rustix::fs::Mode::empty(),
+            )
+            .map_err(io::Error::from)?;
             std::os::fd::AsRawFd::as_raw_fd(&nothing)
         }
     };

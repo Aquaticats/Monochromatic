@@ -63,7 +63,10 @@ pub(crate) fn may_run(mode: &str) -> bool {
 /// ```ts
 /// async function setMode(file, bits): Promise<void>; // chmod(file, bits)
 /// ```
-pub(crate) fn set_mode(file: &Path, bits: u32) -> Result<(), String> {
+pub(crate) fn set_mode(
+    file: &Path,
+    bits: u32,
+) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -122,7 +125,12 @@ pub(crate) fn set_mode(file: &Path, bits: u32) -> Result<(), String> {
 /// ```ts
 /// function writeEntry(named, bytes, mode, bits): void; // symlink(target) for 120000, else create(...0666|0777) and chmod when bits are the person's
 /// ```
-pub(crate) fn write_entry(named: &Path, bytes: &[u8], mode: &str, the_persons_bits: Option<u32>) -> Result<(), String> {
+pub(crate) fn write_entry(
+    named: &Path,
+    bytes: &[u8],
+    mode: &str,
+    the_persons_bits: Option<u32>,
+) -> Result<(), String> {
     if mode == SYMBOLIC_LINK_MODE {
         #[cfg(unix)]
         {
@@ -136,14 +144,18 @@ pub(crate) fn write_entry(named: &Path, bytes: &[u8], mode: &str, the_persons_bi
         #[cfg(not(unix))]
         {
             let _ = (named, bytes);
-            return Err(String::from("a symbolic link cannot be made on this platform"));
+            return Err(String::from(
+                "a symbolic link cannot be made on this platform",
+            ));
         }
     }
     if let Err(error) = create_file(named, bytes, the_persons_bits, may_run(mode)) {
         let _left = std::fs::remove_file(named);
         return Err(error.to_string());
     }
-    let Some(bits) = the_persons_bits else { return Ok(()) };
+    let Some(bits) = the_persons_bits else {
+        return Ok(());
+    };
     return set_mode(named, bits & EVERY_PERMISSION_BIT);
 }
 
@@ -177,19 +189,32 @@ pub(crate) const EVERY_PERMISSION_BIT: u32 = 0o7777;
 /// ```ts
 /// function createFile(named, bytes, thePersonsBits, executable): void; // open(O_CREAT|O_EXCL|O_WRONLY, thePersonsBits ?? (executable ? 0o777 : 0o666)), write, close
 /// ```
-pub(crate) fn create_file(named: &Path, bytes: &[u8], the_persons_bits: Option<u32>, executable: bool) -> std::io::Result<()> {
+pub(crate) fn create_file(
+    named: &Path,
+    bytes: &[u8],
+    the_persons_bits: Option<u32>,
+    executable: bool,
+) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::io::Write as _;
         use std::os::unix::fs::OpenOptionsExt as _;
-        let gits: u32 = if executable { THE_BITS_A_CHECKOUT_CREATES_EXECUTABLE_WITH } else { THE_BITS_A_CHECKOUT_CREATES_WITH };
+        let gits: u32 = if executable {
+            THE_BITS_A_CHECKOUT_CREATES_EXECUTABLE_WITH
+        } else {
+            THE_BITS_A_CHECKOUT_CREATES_WITH
+        };
         // A file that holds the person's own entry is created narrow and only widened to what they set, so their 0600 is never
         //  readable by others, not even between the write and the change of its bits.
         let mode: u32 = match the_persons_bits {
             Some(bits) => bits & EVERY_PERMISSION_BIT,
             None => gits,
         };
-        let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(mode).open(named)?;
+        let mut file: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode)
+            .open(named)?;
         file.write_all(bytes)?;
         return Ok(());
     }

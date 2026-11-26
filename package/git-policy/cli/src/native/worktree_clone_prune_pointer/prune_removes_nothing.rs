@@ -101,11 +101,15 @@ pub fn a_prune_that_removes_nothing(words: &[OsString]) -> bool {
                 continue;
             }
             if is_an_option(token) {
-                if let Some(long) = bytes.strip_prefix(b"--").filter(|long| return !long.starts_with(b"-")) {
-                    let (name, value): (&[u8], Option<&[u8]>) = match long.iter().position(|byte| return *byte == b'=') {
-                        Some(at) => (&long[..at], Some(&long[at + 1..])),
-                        None => (long, None),
-                    };
+                if let Some(long) = bytes
+                    .strip_prefix(b"--")
+                    .filter(|long| return !long.starts_with(b"-"))
+                {
+                    let (name, value): (&[u8], Option<&[u8]>) =
+                        match long.iter().position(|byte| return *byte == b'=') {
+                            Some(at) => (&long[..at], Some(&long[at + 1..])),
+                            None => (long, None),
+                        };
                     if let Some(abbreviated) = name.strip_prefix(b"no-") {
                         if names_the_dry_run(abbreviated) {
                             // Git refuses a value on this option and prunes nothing.

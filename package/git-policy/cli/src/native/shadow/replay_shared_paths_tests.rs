@@ -4,11 +4,21 @@
 //! and the listing against real repositories.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// An entry with a mode and object of the given text.
-fn entry(mode: &str, oid: &str) -> Option<TreeEntry> {
+fn entry(
+    mode: &str,
+    oid: &str,
+) -> Option<TreeEntry> {
     return Some(TreeEntry {
         mode: String::from(mode),
         oid: String::from(oid),
@@ -65,7 +75,9 @@ fn regular_file_modes_are_the_only_regular_files() {
 ///  and the base regular or absent.
 #[test]
 fn the_predicates_follow_the_entries() {
-    let regular = |oid: &str| { return entry("100644", oid); };
+    let regular = |oid: &str| {
+        return entry("100644", oid);
+    };
     let all = SharedPath {
         path: b"p".to_vec(),
         base: regular("a"),
@@ -114,20 +126,26 @@ fn shared_paths_list_the_paths_both_sides_changed() {
     std::fs::write(repo.join("c.txt"), "c\n").expect("c");
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     git(repo.as_path(), &["checkout", "--quiet", "-b", "prepared"]);
     std::fs::write(repo.join("d.txt"), "prepared d\n").expect("prepared d");
     std::fs::write(repo.join("f.txt"), "prepared f\n").expect("prepared f");
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=prepared"]);
-    let prepared: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let prepared: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("d.txt"), "landed d\n").expect("landed d");
     std::fs::remove_file(repo.join("f.txt")).expect("remove f");
     std::fs::write(repo.join("e.txt"), "e\n").expect("e");
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=landed"]);
-    let current: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let current: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let shared: Vec<SharedPath> = list_shared_paths(
         &git_context(),
         repo.join(".git").as_path(),
@@ -137,7 +155,12 @@ fn shared_paths_list_the_paths_both_sides_changed() {
         prepared.as_str(),
     )
     .expect("shared paths");
-    let paths: Vec<&[u8]> = shared.iter().map(|entry| { return entry.path.as_slice(); }).collect();
+    let paths: Vec<&[u8]> = shared
+        .iter()
+        .map(|entry| {
+            return entry.path.as_slice();
+        })
+        .collect();
     assert_eq!(paths, vec![b"d.txt".as_slice(), b"f.txt".as_slice()]);
     assert!(shared[0].base.is_some() && shared[0].landed.is_some() && shared[0].prepared.is_some());
     assert_eq!(shared[1].landed, None);
@@ -154,17 +177,23 @@ fn sides_that_changed_different_paths_share_none() {
     std::fs::write(repo.join("base.txt"), "base\n").expect("base");
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     git(repo.as_path(), &["checkout", "--quiet", "-b", "prepared"]);
     std::fs::write(repo.join("mine.txt"), "mine\n").expect("mine");
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=prepared"]);
-    let prepared: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let prepared: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("theirs.txt"), "theirs\n").expect("theirs");
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=landed"]);
-    let current: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let current: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     let shared: Vec<SharedPath> = list_shared_paths(
         &git_context(),
         repo.join(".git").as_path(),
@@ -174,7 +203,10 @@ fn sides_that_changed_different_paths_share_none() {
         prepared.as_str(),
     )
     .expect("shared paths");
-    assert!(shared.is_empty(), "no path was changed on both sides: {shared:?}");
+    assert!(
+        shared.is_empty(),
+        "no path was changed on both sides: {shared:?}"
+    );
     remove(root.as_path());
 }
 
@@ -195,21 +227,33 @@ fn listing_shared_paths_reads_each_change_once() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let width: usize = 512;
     for number in 0..width {
-        std::fs::write(repo.join(format!("shared-{number:04}.txt")), format!("{number}\n")).expect("file");
+        std::fs::write(
+            repo.join(format!("shared-{number:04}.txt")),
+            format!("{number}\n"),
+        )
+        .expect("file");
     }
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     git(repo.as_path(), &["checkout", "--quiet", "-b", "prepared"]);
     for number in 0..width {
-        std::fs::write(repo.join(format!("shared-{number:04}.txt")), format!("prepared {number}\n")).expect("prepared file");
+        std::fs::write(
+            repo.join(format!("shared-{number:04}.txt")),
+            format!("prepared {number}\n"),
+        )
+        .expect("prepared file");
     }
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=prepared"]);
     let prepared: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     for number in 0..width {
-        std::fs::write(repo.join(format!("shared-{number:04}.txt")), format!("landed {number}\n")).expect("landed file");
+        std::fs::write(
+            repo.join(format!("shared-{number:04}.txt")),
+            format!("landed {number}\n"),
+        )
+        .expect("landed file");
     }
     // A path only the landed side changed shares nothing and must not join the listing.
     std::fs::write(repo.join("landed-only.txt"), "landed\n").expect("landed only");
@@ -227,12 +271,21 @@ fn listing_shared_paths_reads_each_change_once() {
     )
     .expect("shared paths");
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
-    assert_eq!(shared.len(), width, "the paths both sides changed, in the landed listing's order");
-    assert!(!shared.iter().any(|entry| return entry.path == b"landed-only.txt".to_vec()));
+    assert_eq!(
+        shared.len(),
+        width,
+        "the paths both sides changed, in the landed listing's order"
+    );
+    assert!(
+        !shared
+            .iter()
+            .any(|entry| return entry.path == b"landed-only.txt".to_vec())
+    );
     assert_eq!(
         looked,
         2 * width as u64 + 1,
-        "{looked} collected changes looked at for {width} prepared changes and {} landed ones; one pass over each listing is linear", width + 1
+        "{looked} collected changes looked at for {width} prepared changes and {} landed ones; one pass over each listing is linear",
+        width + 1
     );
     remove(root.as_path());
 }

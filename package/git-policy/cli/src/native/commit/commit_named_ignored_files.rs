@@ -25,14 +25,36 @@
 //! ```
 
 use crate::commit_index_selection::IndexSelection;
-use crate::commit_selection_staging::{Selected, names_one_file, pathspec_base, pattern_characters_are_literal, selection_items};
+use crate::commit_selection_staging::{
+    Selected,
+    names_one_file,
+    pathspec_base,
+    pattern_characters_are_literal,
+    selection_items,
+};
 use crate::path_bytes::path_message_text;
 use crate::private_index_request::indexed_request;
-use crate::private_storage::{ReadRefusal, read_regular_file};
-use crate::repo_read_index::{IndexEntry, parse_index};
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, command_text, run_git};
+use crate::private_storage::{
+    ReadRefusal,
+    read_regular_file,
+};
+use crate::repo_read_index::{
+    IndexEntry,
+    parse_index,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    command_text,
+    run_git,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The core of the finding:
 ///  the fixed behavior of an explicit-path commit's selection,
@@ -84,10 +106,11 @@ pub fn named_ignored_files(
         return Ok(Vec::new());
     }
     // The reader that declines the index leaves every name to Git, which is the answer that was right before this saving.
-    let untracked: Vec<&OsString> = match untracked_among(context, cwd, worktree_root, real_index, named.as_slice()) {
-        Some(found) => found,
-        None => named,
-    };
+    let untracked: Vec<&OsString> =
+        match untracked_among(context, cwd, worktree_root, real_index, named.as_slice()) {
+            Some(found) => found,
+            None => named,
+        };
     if untracked.is_empty() {
         return Ok(Vec::new());
     }
@@ -144,8 +167,12 @@ fn untracked_among<'named>(
     real_index: &Path,
     named: &[&'named OsString],
 ) -> Option<Vec<&'named OsString>> {
-    let overlay: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
-    let layout: crate::repo_read_layout::RepoLayout = crate::repo_read_layout::read_layout_in(cwd, overlay.as_slice())?;
+    let overlay: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(
+        context.overlay.as_slice(),
+        context.real_git.as_path(),
+    );
+    let layout: crate::repo_read_layout::RepoLayout =
+        crate::repo_read_layout::read_layout_in(cwd, overlay.as_slice())?;
     // The prefix and the entries answer for one worktree, so the reading is used only where it found the worktree the
     // staging and `git add` work on. A spelling that differs costs one `check-ignore` start and no wrong answer.
     if layout.worktree_root != worktree_root {
@@ -162,7 +189,10 @@ fn untracked_among<'named>(
     for name in named {
         let spelled: Vec<u8> = top_relative(layout.prefix.as_slice(), name.as_encoded_bytes());
         // The reader refuses an index whose entries are out of order, so a miss here is a path no entry holds.
-        if entries.binary_search_by_key(&spelled.as_slice(), held_path).is_err() {
+        if entries
+            .binary_search_by_key(&spelled.as_slice(), held_path)
+            .is_err()
+        {
             untracked.push(*name);
         }
     }
@@ -201,7 +231,10 @@ fn held_path(entry: &IndexEntry) -> &[u8] {
 /// ```ts
 /// const topRelative = (prefix, spelled) => prefix + spelled;
 /// ```
-fn top_relative(prefix: &[u8], spelled: &[u8]) -> Vec<u8> {
+fn top_relative(
+    prefix: &[u8],
+    spelled: &[u8],
+) -> Vec<u8> {
     let mut path: Vec<u8> = Vec::with_capacity(prefix.len() + spelled.len());
     path.extend_from_slice(prefix);
     path.extend_from_slice(spelled);
@@ -290,9 +323,18 @@ fn ignored_among(
 /// ```ts
 /// inTheCallersRepository({ cwd, prefix }) // { index: realIndex, input, args: ['check-ignore', '-z', '--stdin'] }
 /// ```
-fn refused_paths_request(context: &GitContext, cwd: &Path, real_index: &Path, paths: &[u8]) -> GitRequest {
-    let arguments: Vec<OsString> = ["check-ignore", "-z", "--stdin"].iter().map(OsString::from).collect();
-    let mut request: GitRequest = indexed_request(context, cwd, arguments.as_slice(), Some(real_index), None).own_pathspecs();
+fn refused_paths_request(
+    context: &GitContext,
+    cwd: &Path,
+    real_index: &Path,
+    paths: &[u8],
+) -> GitRequest {
+    let arguments: Vec<OsString> = ["check-ignore", "-z", "--stdin"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    let mut request: GitRequest =
+        indexed_request(context, cwd, arguments.as_slice(), Some(real_index), None).own_pathspecs();
     request.input = Some(paths.to_vec());
     return request;
 }

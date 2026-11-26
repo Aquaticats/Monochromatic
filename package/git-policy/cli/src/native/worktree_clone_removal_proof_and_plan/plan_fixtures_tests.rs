@@ -17,7 +17,11 @@
 
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanFacts, PlanSnapshot};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanFacts,
+    PlanSnapshot,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use std::path::PathBuf;
 
@@ -50,8 +54,16 @@ pub fn nonce(digits: &str) -> RequestNonce {
 /// The two own snapshots the sample plan verifies.
 pub fn sample_snapshots() -> Vec<PlanSnapshot> {
     return vec![
-        PlanSnapshot { name: String::from("tank/wt/fix-flaky-test@worktree-own"), guid: guid(SAMPLE_OWN_GUID), createtxg: 18 },
-        PlanSnapshot { name: String::from("tank/wt/fix-flaky-test@sanoid-hourly"), guid: guid(SAMPLE_SANOID_GUID), createtxg: 20 },
+        PlanSnapshot {
+            name: String::from("tank/wt/fix-flaky-test@worktree-own"),
+            guid: guid(SAMPLE_OWN_GUID),
+            createtxg: 18,
+        },
+        PlanSnapshot {
+            name: String::from("tank/wt/fix-flaky-test@sanoid-hourly"),
+            guid: guid(SAMPLE_SANOID_GUID),
+            createtxg: 20,
+        },
     ];
 }
 
@@ -79,7 +91,8 @@ pub fn sample_facts() -> PlanFacts {
 
 /// The sample plan as its first write leaves it.
 pub fn sample_plan() -> DestructionPlan {
-    let mut plan: DestructionPlan = DestructionPlan::first_write(sample_facts(), sample_snapshots().as_slice());
+    let mut plan: DestructionPlan =
+        DestructionPlan::first_write(sample_facts(), sample_snapshots().as_slice());
     plan.head = HeadWord::Present;
     return plan;
 }
@@ -87,12 +100,18 @@ pub fn sample_plan() -> DestructionPlan {
 /// The sample plan's bytes,
 /// which every control that plants a malformed form edits.
 pub fn sample_bytes() -> Vec<u8> {
-    return sample_plan().encode().expect("the sample plan is inside every bound");
+    return sample_plan()
+        .encode()
+        .expect("the sample plan is inside every bound");
 }
 
 /// The sample plan's bytes with one text replaced,
 /// which is how a control plants exactly one broken form.
-pub fn replaced(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
+pub fn replaced(
+    bytes: &[u8],
+    from: &str,
+    to: &str,
+) -> Vec<u8> {
     let text: String = String::from_utf8(bytes.to_vec()).expect("the sample is text");
     assert!(text.contains(from), "the sample holds `{from}`");
     return text.replacen(from, to, 1).into_bytes();

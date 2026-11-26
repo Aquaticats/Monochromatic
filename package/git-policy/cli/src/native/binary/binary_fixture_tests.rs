@@ -3,13 +3,35 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, missing_fixture_root_report, give_service_environment, remove_patiently, repository, service_runtime,
-    service_is_serving, settle_fixture, spawn_owned, start_fixture_service, system_temporary_directories,
+    FIXTURE_ROOT_VARIABLE,
+    Fixture,
+    FixtureService,
+    ServiceLaunch,
+    fixture,
+    give_service_environment,
+    missing_fixture_root_report,
+    remove_patiently,
+    repository,
+    service_is_serving,
+    service_runtime,
+    settle_fixture,
+    spawn_owned,
+    start_fixture_service,
+    system_temporary_directories,
 };
 use git_policy_cli::service_server::Bind;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What the report of a vanished fixture root says:
 /// that the root does not exist,
@@ -24,12 +46,30 @@ fn the_report_of_a_vanished_fixture_root_names_it_and_lists_its_parent_and_grand
     std::fs::write(grandparent.join("marker-file"), "x").expect("marker");
     let root: PathBuf = parent.join("root");
     let report: String = missing_fixture_root_report(root.as_path());
-    assert!(report.contains(format!("the fixture root {} does not exist", root.display()).as_str()), "{report}");
-    assert!(report.contains(format!("its parent {} does not exist", parent.display()).as_str()), "{report}");
-    assert!(report.contains(format!("its grandparent {} holds: marker-file", grandparent.display()).as_str()), "{report}");
+    assert!(
+        report.contains(format!("the fixture root {} does not exist", root.display()).as_str()),
+        "{report}"
+    );
+    assert!(
+        report.contains(format!("its parent {} does not exist", parent.display()).as_str()),
+        "{report}"
+    );
+    assert!(
+        report.contains(
+            format!(
+                "its grandparent {} holds: marker-file",
+                grandparent.display()
+            )
+            .as_str()
+        ),
+        "{report}"
+    );
     std::fs::create_dir_all(&root).expect("root");
     let existing: String = missing_fixture_root_report(root.as_path());
-    assert!(existing.contains(format!("the fixture root {} exists", root.display()).as_str()), "{existing}");
+    assert!(
+        existing.contains(format!("the fixture root {} exists", root.display()).as_str()),
+        "{existing}"
+    );
 }
 
 /// A fixture whose test panics after creating it leaves nothing behind.
@@ -76,7 +116,12 @@ const HELPER_LOOK: Duration = Duration::from_millis(50);
 fn a_helper_started_by_a_panicking_test_is_gone_when_the_test_ends() {
     let (sender, receiver) = std::sync::mpsc::channel::<u32>();
     let handle = std::thread::spawn(move || {
-        let mut child = spawn_owned(Command::new("sleep").arg(HELPER_SECONDS).stdin(Stdio::null())).expect("the helper starts");
+        let mut child = spawn_owned(
+            Command::new("sleep")
+                .arg(HELPER_SECONDS)
+                .stdin(Stdio::null()),
+        )
+        .expect("the helper starts");
         sender.send(child.id()).expect("send the pid");
         // A look that does not wait: the helper is still running when the test fails, as in the leak this control is for.
         let _still_running = child.try_wait();
@@ -135,11 +180,26 @@ fn fixtures_are_created_outside_the_system_temporary_directory() {
     if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_none() {
         // The build output above `test-fixtures` is shared by every checkout that builds here, and a moved root cannot
         //  satisfy this assertion, which is why only this one is inside the arm without the variable.
-        assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
+        assert!(
+            root.parent().is_some_and(|above| {
+                return above.ends_with("test-fixtures");
+            }),
+            "{}",
+            root.display()
+        );
     }
-    assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
+    assert!(
+        root.ends_with(format!("process-{}", std::process::id()).as_str()),
+        "{}",
+        root.display()
+    );
     let resolved_root: PathBuf = std::fs::canonicalize(&root).expect("the fixture root resolves");
-    assert!(created.root.starts_with(&resolved_root), "{} is not under the fixture root {}", created.root.display(), resolved_root.display());
+    assert!(
+        created.root.starts_with(&resolved_root),
+        "{} is not under the fixture root {}",
+        created.root.display(),
+        resolved_root.display()
+    );
     for directory in system_temporary_directories() {
         assert!(
             !created.root.starts_with(&directory),
@@ -177,18 +237,29 @@ fn shared_extent_count(path: &Path) -> Option<usize> {
     let mut buffer: Vec<u8> = vec![0; HEADER_BYTES + EXTENT_BYTES * EXTENT_SLOTS];
     // fm_start stays 0; fm_length covers the whole file; fm_flags stays 0 so no write-back is forced.
     buffer[8..16].copy_from_slice(&u64::MAX.to_ne_bytes());
-    buffer[24..28].copy_from_slice(&u32::try_from(EXTENT_SLOTS).expect("slot count").to_ne_bytes());
+    buffer[24..28].copy_from_slice(
+        &u32::try_from(EXTENT_SLOTS)
+            .expect("slot count")
+            .to_ne_bytes(),
+    );
     // SAFETY: `buffer` is a live allocation of the size the request describes and the kernel writes only inside it.
-    let result: i32 = unsafe { libc::ioctl(file.as_raw_fd(), FS_IOC_FIEMAP as _, buffer.as_mut_ptr()) };
+    let result: i32 =
+        unsafe { libc::ioctl(file.as_raw_fd(), FS_IOC_FIEMAP as _, buffer.as_mut_ptr()) };
     if result != 0 {
         return None;
     }
-    let mapped: usize = usize::try_from(u32::from_ne_bytes(buffer[20..24].try_into().expect("count bytes")))
-        .expect("mapped count");
+    let mapped: usize = usize::try_from(u32::from_ne_bytes(
+        buffer[20..24].try_into().expect("count bytes"),
+    ))
+    .expect("mapped count");
     let mut shared: usize = 0;
     for index in 0..mapped.min(EXTENT_SLOTS) {
         let flags_at: usize = HEADER_BYTES + EXTENT_BYTES * index + 40;
-        let flags: u32 = u32::from_ne_bytes(buffer[flags_at..flags_at + 4].try_into().expect("flag bytes"));
+        let flags: u32 = u32::from_ne_bytes(
+            buffer[flags_at..flags_at + 4]
+                .try_into()
+                .expect("flag bytes"),
+        );
         if flags & FIEMAP_EXTENT_SHARED != 0 {
             shared += 1;
         }
@@ -212,7 +283,10 @@ fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
             copy.display(),
             super::support::WRAPPER
         ),
-        None => eprintln!("the filesystem under {} reports no extents; nothing to check", created.root.display()),
+        None => eprintln!(
+            "the filesystem under {} reports no extents; nothing to check",
+            created.root.display()
+        ),
     }
 }
 
@@ -232,12 +306,25 @@ fn a_fixture_service_outlives_the_thread_that_started_it() {
     std::fs::create_dir_all(&git_dir).expect("a Git directory to serve");
     let service = super::support::start_fixture_service(&created);
     std::thread::scope(|scope| {
-        return scope.spawn(|| { service.serve(&created, git_dir.as_path()); }).join().expect("the thread that starts the service ends");
+        return scope
+            .spawn(|| {
+                service.serve(&created, git_dir.as_path());
+            })
+            .join()
+            .expect("the thread that starts the service ends");
     });
-    let socket: PathBuf = git_policy_cli::service_instance::socket_for(service.runtime.as_path(), std::fs::canonicalize(&git_dir).expect("canonical").as_path());
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(
+        service.runtime.as_path(),
+        std::fs::canonicalize(&git_dir)
+            .expect("canonical")
+            .as_path(),
+    );
     // The signal arrives as the thread ends, but the kernel delivers it asynchronously: give a killed service time to be gone.
     std::thread::sleep(std::time::Duration::from_millis(500));
-    assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the service stopped with the thread that started it");
+    assert!(
+        std::os::unix::net::UnixStream::connect(&socket).is_ok(),
+        "the service stopped with the thread that started it"
+    );
 }
 
 /// A directory that is still gaining entries when the removal looks (a child of a command finishing) is removed on a later try;
@@ -247,25 +334,53 @@ fn a_fixture_service_outlives_the_thread_that_started_it() {
 #[test]
 fn a_removal_waits_for_a_directory_that_is_still_gaining_entries() {
     let pause: std::time::Duration = std::time::Duration::from_millis(1);
-    let busy = || { return std::io::Error::from(std::io::ErrorKind::DirectoryNotEmpty); };
+    let busy = || {
+        return std::io::Error::from(std::io::ErrorKind::DirectoryNotEmpty);
+    };
     let calls: std::cell::Cell<usize> = std::cell::Cell::new(0);
     let twice_busy = |_: &Path| -> std::io::Result<()> {
         calls.set(calls.get() + 1);
-        return if calls.get() <= 2 { Err(busy()) } else { Ok(()) };
+        return if calls.get() <= 2 {
+            Err(busy())
+        } else {
+            Ok(())
+        };
     };
     assert!(remove_patiently(Path::new("/gone"), &twice_busy, 5, pause).is_ok());
     assert_eq!(calls.get(), 3, "removed on the third try");
     calls.set(0);
-    let missing = |_: &Path| -> std::io::Result<()> { calls.set(calls.get() + 1); return Err(std::io::Error::from(std::io::ErrorKind::NotFound)); };
-    assert!(remove_patiently(Path::new("/gone"), &missing, 5, pause).is_ok(), "a tree that is gone is removed");
+    let missing = |_: &Path| -> std::io::Result<()> {
+        calls.set(calls.get() + 1);
+        return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+    };
+    assert!(
+        remove_patiently(Path::new("/gone"), &missing, 5, pause).is_ok(),
+        "a tree that is gone is removed"
+    );
     assert_eq!(calls.get(), 1);
     calls.set(0);
-    let refused = |_: &Path| -> std::io::Result<()> { calls.set(calls.get() + 1); return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)); };
-    assert_eq!(remove_patiently(Path::new("/gone"), &refused, 5, pause).map_err(|error| { return error.kind(); }), Err(std::io::ErrorKind::PermissionDenied));
+    let refused = |_: &Path| -> std::io::Result<()> {
+        calls.set(calls.get() + 1);
+        return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+    };
+    assert_eq!(
+        remove_patiently(Path::new("/gone"), &refused, 5, pause).map_err(|error| {
+            return error.kind();
+        }),
+        Err(std::io::ErrorKind::PermissionDenied)
+    );
     assert_eq!(calls.get(), 1, "another error is not retried");
     calls.set(0);
-    let never = |_: &Path| -> std::io::Result<()> { calls.set(calls.get() + 1); return Err(busy()); };
-    assert_eq!(remove_patiently(Path::new("/gone"), &never, 3, pause).map_err(|error| { return error.kind(); }), Err(std::io::ErrorKind::DirectoryNotEmpty));
+    let never = |_: &Path| -> std::io::Result<()> {
+        calls.set(calls.get() + 1);
+        return Err(busy());
+    };
+    assert_eq!(
+        remove_patiently(Path::new("/gone"), &never, 3, pause).map_err(|error| {
+            return error.kind();
+        }),
+        Err(std::io::ErrorKind::DirectoryNotEmpty)
+    );
     assert_eq!(calls.get(), 3, "and gives up after its tries");
 }
 
@@ -290,20 +405,43 @@ const ENDED_SERVICE_VERDICT: std::time::Duration = std::time::Duration::from_sec
 #[test]
 fn a_fixture_service_that_ends_before_it_listens_fails_the_start_at_once() {
     let created: Fixture = fixture("service-ends-first");
-    *created.service_launch.lock().expect("the service launch") =
-        ServiceLaunch { prefix: vec![std::ffi::OsString::from("/usr/bin/false")], ..ServiceLaunch::default() };
+    *created.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: vec![std::ffi::OsString::from("/usr/bin/false")],
+        ..ServiceLaunch::default()
+    };
     let services: FixtureService = start_fixture_service(&created);
     let git_dir: PathBuf = created.root.join("repo").join(".git");
     let began: std::time::Instant = std::time::Instant::now();
-    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { services.serve(&created, git_dir.as_path()); }));
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        services.serve(&created, git_dir.as_path());
+    }));
     let said: String = match outcome {
         Ok(()) => panic!("the fixture reported a listening service although the service ended"),
-        Err(payload) => payload.downcast_ref::<String>().cloned().or_else(|| { return payload.downcast_ref::<&str>().map(ToString::to_string); }).unwrap_or_default(),
+        Err(payload) => payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| {
+                return payload.downcast_ref::<&str>().map(ToString::to_string);
+            })
+            .unwrap_or_default(),
     };
-    assert!(began.elapsed() < ENDED_SERVICE_VERDICT, "the fixture waited {:?} for a service that had ended: {said}", began.elapsed());
-    assert!(said.contains("ended"), "the failure must say that the service ended: {said}");
-    let status: String = std::process::Command::new("/usr/bin/false").status().expect("the stand-in program runs").to_string();
-    assert!(said.contains(status.as_str()), "the failure must give the exit status ({status}): {said}");
+    assert!(
+        began.elapsed() < ENDED_SERVICE_VERDICT,
+        "the fixture waited {:?} for a service that had ended: {said}",
+        began.elapsed()
+    );
+    assert!(
+        said.contains("ended"),
+        "the failure must say that the service ended: {said}"
+    );
+    let status: String = std::process::Command::new("/usr/bin/false")
+        .status()
+        .expect("the stand-in program runs")
+        .to_string();
+    assert!(
+        said.contains(status.as_str()),
+        "the failure must give the exit status ({status}): {said}"
+    );
 }
 
 /// How long the stand-in for an earlier service that is still dying keeps its listener.
@@ -336,20 +474,29 @@ fn a_fixture_service_starts_after_an_earlier_service_that_is_still_dying() {
     let created: Fixture = fixture("service-after-dying");
     let services: FixtureService = start_fixture_service(&created);
     let git_dir: PathBuf = created.root.join("repo").join(".git");
-    let socket: PathBuf = git_policy_cli::service_instance::socket_for(services.runtime.as_path(), git_dir.as_path());
-    let dying: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("the stand-in listener");
+    let socket: PathBuf =
+        git_policy_cli::service_instance::socket_for(services.runtime.as_path(), git_dir.as_path());
+    let dying: std::os::unix::net::UnixListener =
+        std::os::unix::net::UnixListener::bind(&socket).expect("the stand-in listener");
     let lingering = std::thread::spawn(move || {
         std::thread::sleep(DYING_SERVICE_LINGER);
         drop(dying);
     });
     services.serve(&created, git_dir.as_path());
     lingering.join().expect("the stand-in ends");
-    let stream = std::os::unix::net::UnixStream::connect(&socket).expect("the fixture's service listens once the earlier one is gone");
-    stream.set_read_timeout(Some(GREETING_PATIENCE)).expect("a read timeout");
+    let stream = std::os::unix::net::UnixStream::connect(&socket)
+        .expect("the fixture's service listens once the earlier one is gone");
+    stream
+        .set_read_timeout(Some(GREETING_PATIENCE))
+        .expect("a read timeout");
     let mut greeting: String = String::new();
-    std::io::BufRead::read_line(&mut std::io::BufReader::new(stream), &mut greeting).expect("the service greets");
+    std::io::BufRead::read_line(&mut std::io::BufReader::new(stream), &mut greeting)
+        .expect("the service greets");
     assert!(
-        matches!(git_policy_cli::service_protocol::decode_service(greeting.trim_end()), Ok(git_policy_cli::service_protocol::ServiceMessage::Welcome { .. })),
+        matches!(
+            git_policy_cli::service_protocol::decode_service(greeting.trim_end()),
+            Ok(git_policy_cli::service_protocol::ServiceMessage::Welcome { .. })
+        ),
         "the new service must greet, said {greeting:?}"
     );
 }
@@ -368,20 +515,39 @@ fn a_fixture_root_that_cannot_be_created_says_what_became_of_it() {
     let root: PathBuf = held.root.clone();
     let wanted: PathBuf = root.join("gone/parent");
     // A plain file where the root must be a folder, so creating the folder fails at once.
-    std::fs::write(root.join("gone"), b"a file where a folder is needed").expect("a file in place of the folder");
+    std::fs::write(root.join("gone"), b"a file where a folder is needed")
+        .expect("a file in place of the folder");
     let probe: PathBuf = wanted.clone();
     let caught = std::panic::catch_unwind(move || {
         // What: the run's shared fixture root is where a fixture under `probe` would link its wrapper from.
         // Why: the folder that cannot be made is `probe`, and the store is the one a fixture one folder down would use.
-        let _made = super::support::fixture_in(probe.as_path(), super::support::run_fixture_root().as_path(), "vanished");
+        let _made = super::support::fixture_in(
+            probe.as_path(),
+            super::support::run_fixture_root().as_path(),
+            "vanished",
+        );
     });
     let message: String = match caught {
-        Err(payload) => payload.downcast_ref::<String>().cloned().unwrap_or_else(|| { return String::from("<not text>"); }),
+        Err(payload) => payload
+            .downcast_ref::<String>()
+            .cloned()
+            .unwrap_or_else(|| {
+                return String::from("<not text>");
+            }),
         Ok(()) => panic!("a fixture root that cannot be created must be refused"),
     };
-    assert!(message.contains("fixture directory root"), "the failure names the step: {message}");
-    assert!(message.contains(wanted.display().to_string().as_str()), "the failure names the root: {message}");
-    assert!(message.contains("its parent"), "the failure names what became of the parent: {message}");
+    assert!(
+        message.contains("fixture directory root"),
+        "the failure names the step: {message}"
+    );
+    assert!(
+        message.contains(wanted.display().to_string().as_str()),
+        "the failure names the root: {message}"
+    );
+    assert!(
+        message.contains("its parent"),
+        "the failure names what became of the parent: {message}"
+    );
     std::fs::remove_dir_all(root.as_path()).expect("the fixture goes");
 }
 
@@ -395,8 +561,16 @@ fn a_fixture_root_that_cannot_be_created_says_what_became_of_it() {
 #[test]
 fn a_process_a_binary_test_starts_may_not_write_a_core_dump() {
     let fixture: Fixture = fixture("core-limit");
-    let output = std::process::Command::new("sh").args(["-c", "ulimit -c; ulimit -H -c"]).output().expect("sh runs");
-    assert_eq!(String::from_utf8_lossy(&output.stdout).split_whitespace().collect::<Vec<&str>>(), vec!["0", "0"]);
+    let output = std::process::Command::new("sh")
+        .args(["-c", "ulimit -c; ulimit -H -c"])
+        .output()
+        .expect("sh runs");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .collect::<Vec<&str>>(),
+        vec!["0", "0"]
+    );
     drop(fixture);
 }
 
@@ -434,7 +608,9 @@ fn two_threads_that_give_the_service_a_variable_and_start_it_do_not_wait_for_eac
         });
     }
     for _ in 0..2 {
-        receiver.recv_timeout(SERVICE_ENVIRONMENT_PATIENCE).expect("the thread ended: the service's two locks are taken in one order");
+        receiver
+            .recv_timeout(SERVICE_ENVIRONMENT_PATIENCE)
+            .expect("the thread ended: the service's two locks are taken in one order");
     }
     assert!(repo.exists());
 }
@@ -458,18 +634,27 @@ fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_i
     let runtime: PathBuf = super::support::short_runtime_directory(&held);
     let socket: PathBuf = runtime.join("socket");
     let listener = std::os::unix::net::UnixListener::bind(&socket).expect("a listening socket");
-    assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the kernel accepts a connection for a listener that has not answered");
+    assert!(
+        std::os::unix::net::UnixStream::connect(&socket).is_ok(),
+        "the kernel accepts a connection for a listener that has not answered"
+    );
     let began: Instant = Instant::now();
     let silent: bool = !service_is_serving(&Bind::Path(socket.clone()));
     assert!(silent, "no greeting came, so the service is not serving");
-    assert!(began.elapsed() < SILENT_LISTENER_WAIT * 20, "the check ended within its own bound");
+    assert!(
+        began.elapsed() < SILENT_LISTENER_WAIT * 20,
+        "the check ended within its own bound"
+    );
     let greeter = std::thread::spawn(move || {
         for connection in listener.incoming().take(3).flatten() {
             let mut stream = connection;
             let _greeted = stream.write_all(b"{\"greeting\":true}\n");
         }
     });
-    assert!(service_is_serving(&Bind::Path(socket)), "a listener that greets is serving");
+    assert!(
+        service_is_serving(&Bind::Path(socket)),
+        "a listener that greets is serving"
+    );
     greeter.join().expect("the greeter ends");
     let _removed = std::fs::remove_dir_all(runtime.as_path());
 }

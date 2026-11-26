@@ -2,7 +2,13 @@
 //! what the ignored-state copy takes from a source worktree.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::cmp::Ordering;
 
@@ -16,7 +22,11 @@ fn make_fifo(path: &Path) {
 }
 
 /// A repository whose `.gitignore` ignores the given patterns.
-fn ignoring(parent: &Path, name: &str, patterns: &str) -> PathBuf {
+fn ignoring(
+    parent: &Path,
+    name: &str,
+    patterns: &str,
+) -> PathBuf {
     let root: PathBuf = repository(parent, name);
     std::fs::write(root.join(".gitignore"), patterns.as_bytes()).expect("gitignore");
     return root;
@@ -36,8 +46,14 @@ fn repository_paths_are_compared_by_component() {
 #[test]
 fn a_repository_path_is_joined_from_its_parent_and_a_name() {
     assert_eq!(join_repository_path(b"cache", b"a"), b"cache/a".to_vec());
-    assert_eq!(join_repository_path(b"cache", b"a\xff"), b"cache/a\xff".to_vec());
-    assert_eq!(parent_of_repository_path(b"cache/a/b"), Some(b"cache/a".as_slice()));
+    assert_eq!(
+        join_repository_path(b"cache", b"a\xff"),
+        b"cache/a\xff".to_vec()
+    );
+    assert_eq!(
+        parent_of_repository_path(b"cache/a/b"),
+        Some(b"cache/a".as_slice())
+    );
     assert_eq!(parent_of_repository_path(b"only"), None);
 }
 
@@ -57,8 +73,8 @@ fn unsafe_repository_paths_are_refused() {
         b"a/..",
         b"a/",
     ] {
-        let failure: WorktreeCopyError =
-            assert_safe_repository_path(unsafe_path).expect_err(shown_repository_path(unsafe_path).as_str());
+        let failure: WorktreeCopyError = assert_safe_repository_path(unsafe_path)
+            .expect_err(shown_repository_path(unsafe_path).as_str());
         assert!(
             failure
                 .0
@@ -74,7 +90,11 @@ fn unsafe_repository_paths_are_refused() {
         b"a b/c",
         b"a/b\xff.bin",
     ] {
-        assert!(assert_safe_repository_path(safe_path).is_ok(), "{}", shown_repository_path(safe_path));
+        assert!(
+            assert_safe_repository_path(safe_path).is_ok(),
+            "{}",
+            shown_repository_path(safe_path)
+        );
     }
 }
 
@@ -86,7 +106,8 @@ fn filesystem_path_joins_validated_components() {
     let joined: PathBuf = filesystem_path(Path::new("/repo"), b"a/b.c").expect("joined");
     assert_eq!(joined, PathBuf::from("/repo/a/b.c"));
     assert!(filesystem_path(Path::new("/repo"), b"a/../b").is_err());
-    let awkward: PathBuf = filesystem_path(Path::new("/repo"), b"cache/bad\xff.bin").expect("joined");
+    let awkward: PathBuf =
+        filesystem_path(Path::new("/repo"), b"cache/bad\xff.bin").expect("joined");
     assert_eq!(
         awkward.file_name().expect("name").as_bytes(),
         b"bad\xff.bin",
@@ -139,7 +160,9 @@ fn ignored_directories_collapse_into_outermost_root() {
 #[cfg(unix)]
 #[test]
 fn an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_selection::tests::an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_selection::tests::an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStrExt;
@@ -244,7 +267,10 @@ fn listing_outside_a_repository_fails_with_cause() {
 
 /// A source with an ignored cache directory that holds the named file next to a sibling,
 /// and another ignored root.
-fn source_with_named_file(parent: &Path, name: &str) -> PathBuf {
+fn source_with_named_file(
+    parent: &Path,
+    name: &str,
+) -> PathBuf {
     let source: PathBuf = ignoring(parent, name, ".cache/\nnode_modules/\n");
     std::fs::create_dir_all(source.join(".cache")).expect("cache");
     std::fs::write(source.join(".cache/rules.txt"), b"rule").expect("rules");
@@ -278,10 +304,20 @@ fn a_named_ignored_file_is_selected_under_the_callers_conflicting_glob_modes() {
     let root: PathBuf = fixture("selection-named-glob-modes");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
     let mut inherited: crate::transaction_git::GitContext = git_context();
-    inherited.overlay.push((std::ffi::OsString::from("GIT_GLOB_PATHSPECS"), std::ffi::OsString::from("1")));
-    inherited.overlay.push((std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"), std::ffi::OsString::from("1")));
-    let roots: Vec<Vec<u8>> = read_named_ignored_roots(&inherited, source.as_path(), &[b".cache/rules.txt".to_vec()])
-        .expect("the listing answers despite the caller's modes");
+    inherited.overlay.push((
+        std::ffi::OsString::from("GIT_GLOB_PATHSPECS"),
+        std::ffi::OsString::from("1"),
+    ));
+    inherited.overlay.push((
+        std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"),
+        std::ffi::OsString::from("1"),
+    ));
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
+        &inherited,
+        source.as_path(),
+        &[b".cache/rules.txt".to_vec()],
+    )
+    .expect("the listing answers despite the caller's modes");
     assert_eq!(roots, vec![b".cache/rules.txt".to_vec()]);
     remove(root.as_path());
 }
@@ -357,12 +393,9 @@ fn named_path_with_glob_characters_is_found_literally() {
     let source: PathBuf = ignoring(root.as_path(), "source", "\\[x\\].txt\n");
     std::fs::write(source.join("[x].txt"), b"bracketed").expect("bracketed");
     std::fs::write(source.join("x.txt"), b"plain").expect("plain");
-    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
-        &git_context(),
-        source.as_path(),
-        &[b"[x].txt".to_vec()],
-    )
-    .expect("roots");
+    let roots: Vec<Vec<u8>> =
+        read_named_ignored_roots(&git_context(), source.as_path(), &[b"[x].txt".to_vec()])
+            .expect("roots");
     assert_eq!(roots, vec![b"[x].txt".to_vec()]);
     remove(root.as_path());
 }
@@ -371,7 +404,9 @@ fn named_path_with_glob_characters_is_found_literally() {
 #[cfg(unix)]
 #[test]
 fn a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes() {
-    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_selection::tests::a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree_copying::worktree_copy_selection::tests::a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStrExt;
@@ -380,12 +415,9 @@ fn a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes() {
     let mut named: PathBuf = source.clone();
     named.push(std::ffi::OsStr::from_bytes(b"bad\xff.env"));
     std::fs::write(named.as_path(), b"SECRET=1\n").expect("env");
-    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
-        &git_context(),
-        source.as_path(),
-        &[b"bad\xff.env".to_vec()],
-    )
-    .expect("roots");
+    let roots: Vec<Vec<u8>> =
+        read_named_ignored_roots(&git_context(), source.as_path(), &[b"bad\xff.env".to_vec()])
+            .expect("roots");
     assert_eq!(roots, vec![b"bad\xff.env".to_vec()]);
     remove(root.as_path());
 }
@@ -416,7 +448,10 @@ fn unsafe_named_path_is_refused() {
 /// as `GIT_LITERAL_PATHSPECS=1` in a person's shell does for every Git the copy starts.
 fn literal_pathspec_context() -> crate::transaction_git::GitContext {
     let mut context = git_context();
-    context.overlay.push((std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"), std::ffi::OsString::from("1")));
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"),
+        std::ffi::OsString::from("1"),
+    ));
     return context;
 }
 
@@ -428,8 +463,17 @@ fn named_ignored_file_is_selected_under_literal_pathspec_mode() {
     let root: PathBuf = fixture("selection-named-literal-mode");
     let source: PathBuf = ignoring(root.as_path(), "source", ".env\n");
     std::fs::write(source.join(".env"), b"SECRET=1\n").expect("env");
-    let roots: Vec<Vec<u8>> = read_named_ignored_roots(&literal_pathspec_context(), source.as_path(), &[b".env".to_vec()]).expect("roots");
-    assert_eq!(roots, vec![b".env".to_vec()], "a configured ignored file must be copied under the caller's literal pathspec mode");
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
+        &literal_pathspec_context(),
+        source.as_path(),
+        &[b".env".to_vec()],
+    )
+    .expect("roots");
+    assert_eq!(
+        roots,
+        vec![b".env".to_vec()],
+        "a configured ignored file must be copied under the caller's literal pathspec mode"
+    );
     remove(root.as_path());
 }
 
@@ -447,9 +491,13 @@ fn selection_modes_choose_the_roots() {
     )
     .expect("named");
     assert_eq!(named, vec![b".cache/rules.txt".to_vec()]);
-    let all: Vec<Vec<u8>> =
-        select_roots(&git_context(), source.as_path(), &[], &CopySelection::Ignored)
-            .expect("all");
+    let all: Vec<Vec<u8>> = select_roots(
+        &git_context(),
+        source.as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("all");
     assert_eq!(all, vec![b".cache".to_vec(), b"node_modules".to_vec()]);
     remove(root.as_path());
 }
@@ -461,16 +509,10 @@ fn selection_ignores_the_users_global_git_options() {
     let root: PathBuf = fixture("selection-global-options");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
     let mut context: GitContext = git_context();
-    context.global_prefix = vec![
-        "--git-dir".into(),
-        root.join("elsewhere").into_os_string(),
-    ];
-    let named: Vec<Vec<u8>> = read_named_ignored_roots(
-        &context,
-        source.as_path(),
-        &[b".cache/rules.txt".to_vec()],
-    )
-    .expect("named roots");
+    context.global_prefix = vec!["--git-dir".into(), root.join("elsewhere").into_os_string()];
+    let named: Vec<Vec<u8>> =
+        read_named_ignored_roots(&context, source.as_path(), &[b".cache/rules.txt".to_vec()])
+            .expect("named roots");
     assert_eq!(named, vec![b".cache/rules.txt".to_vec()]);
     let all: Vec<Vec<u8>> =
         read_ignored_roots(&context, source.as_path(), &[]).expect("ignored roots");
@@ -487,10 +529,7 @@ fn special_entry_check_ignores_the_users_global_git_options() {
     let source: PathBuf = ignoring(root.as_path(), "source", "ignored-pipe\n");
     make_fifo(source.join("ignored-pipe").as_path());
     let mut context: GitContext = git_context();
-    context.global_prefix = vec![
-        "--git-dir".into(),
-        root.join("elsewhere").into_os_string(),
-    ];
+    context.global_prefix = vec!["--git-dir".into(), root.join("elsewhere").into_os_string()];
     let roots: Vec<Vec<u8>> = read_ignored_roots(&context, source.as_path(), &[]).expect("roots");
     assert!(roots.contains(&b"ignored-pipe".to_vec()), "{roots:?}");
     remove(root.as_path());
@@ -540,7 +579,11 @@ fn special_entries_inside_a_private_stage_container_are_not_selected() {
     make_fifo(container.join("payload/pipe").as_path());
     let roots: Vec<Vec<u8>> =
         read_ignored_roots(&git_context(), source.as_path(), &[]).expect("roots");
-    assert_eq!(roots, vec![b"pipe".to_vec()], "only the source's own pipe is selected");
+    assert_eq!(
+        roots,
+        vec![b"pipe".to_vec()],
+        "only the source's own pipe is selected"
+    );
     remove(root.as_path());
 }
 
@@ -565,10 +608,25 @@ fn the_ignore_question_about_a_special_entry_starts_check_ignore_without_quiet()
     let root: PathBuf = fixture("selection-check-ignore-no-quiet");
     let repo: PathBuf = ignoring(root.as_path(), "repo", "ignored.fifo\n");
     let (context, log) = crate::recording_git::recording_context(root.as_path());
-    assert!(is_ignored_special_path(&context, repo.as_path(), b"ignored.fifo").expect("answer"), "an ignored path answers yes");
-    assert!(!is_ignored_special_path(&context, repo.as_path(), b"kept.fifo").expect("answer"), "any other path answers no");
-    let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("check-ignore"); }).collect();
+    assert!(
+        is_ignored_special_path(&context, repo.as_path(), b"ignored.fifo").expect("answer"),
+        "an ignored path answers yes"
+    );
+    assert!(
+        !is_ignored_special_path(&context, repo.as_path(), b"kept.fifo").expect("answer"),
+        "any other path answers no"
+    );
+    let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path())
+        .into_iter()
+        .filter(|start| {
+            return start.contains("check-ignore");
+        })
+        .collect();
     assert_eq!(asks.len(), 2, "one start for each question: {asks:?}");
-    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    assert_eq!(
+        crate::recording_git::quiet_starts(log.as_path()),
+        Vec::<String>::new(),
+        "no start carries --quiet or -q"
+    );
     remove(root.as_path());
 }

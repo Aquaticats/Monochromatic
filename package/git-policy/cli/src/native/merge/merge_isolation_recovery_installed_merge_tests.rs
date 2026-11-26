@@ -18,15 +18,26 @@
 
 use super::super::*;
 use super::fixtures::{
-    A_CONTROLS_MERGE, World, aside_names, deferred_record_of, directory_to_file_world, place,
-    stranded_name, world,
+    A_CONTROLS_MERGE,
+    World,
+    aside_names,
+    deferred_record_of,
+    directory_to_file_world,
+    place,
+    stranded_name,
+    world,
 };
 use super::readings::judged_changes;
 use crate::merge_isolation_changes::file_identity;
 /// The install of a merge's index entries and files,
 /// which a placement of the merge's own bytes makes.
 use crate::merge_isolation_recovery_steps::install_entries;
-use crate::test_support::{git, git_context, git_text, remove};
+use crate::test_support::{
+    git,
+    git_context,
+    git_text,
+    remove,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -46,15 +57,37 @@ use std::path::PathBuf;
 #[test]
 fn a_saved_merge_whose_installed_state_meets_a_foreign_file_stops_the_command() {
     let world: World = world("merge-recovery-installed-foreign");
-    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "27272727-0000-4000-8000-000000000027", "refs/cli-git/kept/27");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            "-u",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "27272727-0000-4000-8000-000000000027",
+        "refs/cli-git/kept/27",
+    );
     // An editor saves something else into a path the merge changes.
     std::fs::write(world.repo.join("f.txt"), b"an editor's own save\n").expect("the editor's file");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a begun merge stops the command");
-    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect_err("a begun merge stops the command");
+    assert!(
+        refused.0.contains("f.txt"),
+        "the path is named: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.old_oid,
+        "the branch did not move"
+    );
     remove(world.parent.as_path());
 }
 
@@ -77,20 +110,61 @@ fn a_saved_merge_whose_installed_state_meets_a_foreign_file_stops_the_command() 
 fn a_saved_merge_that_is_partly_installed_and_whose_branch_advanced_keeps_its_record() {
     let world: World = world("merge-recovery-advanced-partly-installed");
     // The merge's index is installed and its files are not: the command that installed them was killed here.
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "28282828-0000-4000-8000-000000000028", "refs/cli-git/kept/28");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "28282828-0000-4000-8000-000000000028",
+        "refs/cli-git/kept/28",
+    );
     std::fs::write(world.repo.join("z.txt"), b"committed meanwhile\n").expect("file");
     git(world.repo.as_path(), &["add", "--", "z.txt"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"],
+    );
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
-    let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
+    let staged_entry: String = git_text(
+        world.repo.as_path(),
+        &["ls-files", "--stage", "--", "f.txt"],
+    );
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a partly installed merge stops the command");
-    assert!(refused.0.contains("partly installed"), "it says the merge is partly installed: {}", refused.0);
-    assert!(refused.0.contains(record.to_string_lossy().as_ref()), "the record is named: {}", refused.0);
-    assert!(record.exists(), "the record is kept, so the install can still be settled");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
-    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the installed entry is kept");
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect_err("a partly installed merge stops the command");
+    assert!(
+        refused.0.contains("partly installed"),
+        "it says the merge is partly installed: {}",
+        refused.0
+    );
+    assert!(
+        refused.0.contains(record.to_string_lossy().as_ref()),
+        "the record is named: {}",
+        refused.0
+    );
+    assert!(
+        record.exists(),
+        "the record is kept, so the install can still be settled"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        moved,
+        "the branch is the moved one"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["ls-files", "--stage", "--", "f.txt"]
+        ),
+        staged_entry,
+        "the installed entry is kept"
+    );
     remove(world.parent.as_path());
 }
 
@@ -110,19 +184,42 @@ fn a_saved_merge_that_is_partly_installed_and_whose_branch_advanced_keeps_its_re
 #[test]
 fn a_take_whose_read_fails_after_the_rename_puts_the_file_back() {
     let world: World = world("merge-recovery-take-read-fails");
-    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=broken\n").expect("the attribute file");
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=broken\n")
+        .expect("the attribute file");
     let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
     let old: Vec<u8> = std::fs::read(world.repo.join("f.txt")).expect("the old content");
     // From here the clean filter is required and fails, so the read after the rename cannot run.
-    git(world.repo.as_path(), &["config", "filter.broken.clean", "false"]);
-    git(world.repo.as_path(), &["config", "filter.broken.required", "true"]);
+    git(
+        world.repo.as_path(),
+        &["config", "filter.broken.clean", "false"],
+    );
+    git(
+        world.repo.as_path(),
+        &["config", "filter.broken.required", "true"],
+    );
     let mut said: Vec<u8> = Vec::new();
-    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
-        .expect_err("a read that fails after the rename stops the merge");
+    let failed = install_entries(
+        &place(&world),
+        world.repo.as_path(),
+        changes.as_slice(),
+        judgements.as_slice(),
+        false,
+        A_CONTROLS_MERGE,
+        &mut said,
+    )
+    .expect_err("a read that fails after the rename stops the merge");
     assert!(!failed.began, "nothing of the merge was installed");
     assert!(!failed.error.0.is_empty(), "the failure is named");
-    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file is back"), old, "the file the take moved is put back");
-    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    assert_eq!(
+        std::fs::read(world.repo.join("f.txt")).expect("the file is back"),
+        old,
+        "the file the take moved is put back"
+    );
+    assert_eq!(
+        aside_names(world.repo.as_path()),
+        Vec::<String>::new(),
+        "nothing is left at a private name"
+    );
     remove(world.parent.as_path());
 }
 
@@ -143,18 +240,34 @@ fn a_take_whose_read_fails_after_the_rename_puts_the_file_back() {
 #[test]
 fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
     let world: World = world("merge-recovery-filtered-append");
-    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n").expect("the attribute file");
-    git(world.repo.as_path(), &["config", "filter.strip.clean", "sed /^NOTE:/d"]);
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n")
+        .expect("the attribute file");
+    git(
+        world.repo.as_path(),
+        &["config", "filter.strip.clean", "sed /^NOTE:/d"],
+    );
     let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
-    let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
-    let expected: String = judged.content.clone().expect("the object the judgement read");
+    let judged: &Judged = &judgements[changes
+        .iter()
+        .position(|change| {
+            return change.path == b"f.txt";
+        })
+        .expect("the path")];
+    let expected: String = judged
+        .content
+        .clone()
+        .expect("the object the judgement read");
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     // A writer that kept its descriptor appends a line the clean filter drops.
-        let mut file: std::fs::File = std::fs::File::options().append(true).open(aside.as_path()).expect("the writer's descriptor");
-    file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
+    let mut file: std::fs::File = std::fs::File::options()
+        .append(true)
+        .open(aside.as_path())
+        .expect("the writer's descriptor");
+    file.write_all(b"NOTE: locally saved data\n")
+        .expect("the appended line");
     drop(file);
     let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
         location: location.clone(),
@@ -164,11 +277,23 @@ fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
         expected,
     }];
     let mut said: Vec<u8> = Vec::new();
-    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said).expect("the asides are finished");
+    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said)
+        .expect("the asides are finished");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(aside.exists(), "a file whose bytes changed behind a filter is kept");
-    assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
-    assert!(std::fs::read(aside.as_path()).expect("the aside").ends_with(b"NOTE: locally saved data\n"), "the appended bytes are kept");
+    assert!(
+        aside.exists(),
+        "a file whose bytes changed behind a filter is kept"
+    );
+    assert!(
+        text.contains(aside.to_string_lossy().as_ref()),
+        "the private name is said: {text}"
+    );
+    assert!(
+        std::fs::read(aside.as_path())
+            .expect("the aside")
+            .ends_with(b"NOTE: locally saved data\n"),
+        "the appended bytes are kept"
+    );
     remove(world.parent.as_path());
 }
 
@@ -192,11 +317,23 @@ fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
 fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
     let world: World = world("merge-recovery-write-after-scan");
     // A clean filter that drops the line the writer appends, so only the identity can see the change.
-    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n").expect("the attribute file");
-    git(world.repo.as_path(), &["config", "filter.strip.clean", "sed /^NOTE:/d"]);
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n")
+        .expect("the attribute file");
+    git(
+        world.repo.as_path(),
+        &["config", "filter.strip.clean", "sed /^NOTE:/d"],
+    );
     let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
-    let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
-    let expected: String = judged.content.clone().expect("the object the judgement read");
+    let judged: &Judged = &judgements[changes
+        .iter()
+        .position(|change| {
+            return change.path == b"f.txt";
+        })
+        .expect("the path")];
+    let expected: String = judged
+        .content
+        .clone()
+        .expect("the object the judgement read");
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
@@ -213,8 +350,12 @@ fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
     crate::service_fault::hooks::set(
         "aside-scanned",
         std::rc::Rc::new(move || {
-                        let mut file: std::fs::File = std::fs::File::options().append(true).open(written.as_path()).expect("the writer's descriptor");
-            file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
+            let mut file: std::fs::File = std::fs::File::options()
+                .append(true)
+                .open(written.as_path())
+                .expect("the writer's descriptor");
+            file.write_all(b"NOTE: locally saved data\n")
+                .expect("the appended line");
         }),
     );
     let mut said: Vec<u8> = Vec::new();
@@ -223,7 +364,10 @@ fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
     outcome.expect("the asides are finished");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(aside.exists(), "a file written after the scan is kept");
-    assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
+    assert!(
+        text.contains(aside.to_string_lossy().as_ref()),
+        "the private name is said: {text}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -243,15 +387,36 @@ fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
 #[test]
 fn a_saved_merge_whose_index_was_installed_and_whose_checkout_changed_branch_stops_the_command() {
     let world: World = world("merge-recovery-installed-other-branch");
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "29292929-0000-4000-8000-000000000029", "refs/cli-git/kept/29");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "29292929-0000-4000-8000-000000000029",
+        "refs/cli-git/kept/29",
+    );
     git(world.repo.as_path(), &["branch", "--quiet", "other"]);
     git(world.repo.as_path(), &["switch", "--quiet", "other"]);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge stops the command");
-    assert!(refused.0.contains("refs/heads/main"), "the branch the merge is for is named: {}", refused.0);
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect_err("an installed merge stops the command");
+    assert!(
+        refused.0.contains("refs/heads/main"),
+        "the branch the merge is for is named: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the merge's branch did not move");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.old_oid,
+        "the merge's branch did not move"
+    );
     remove(world.parent.as_path());
 }
 
@@ -271,14 +436,34 @@ fn a_saved_merge_whose_index_was_installed_and_whose_checkout_changed_branch_sto
 #[test]
 fn a_saved_merge_whose_index_was_installed_and_a_file_cannot_be_read_stops_the_command() {
     let world: World = world("merge-recovery-installed-unreadable");
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "30303030-0000-4000-8000-000000000030", "refs/cli-git/kept/30");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "30303030-0000-4000-8000-000000000030",
+        "refs/cli-git/kept/30",
+    );
     // A clean filter the path requires now fails, so the worktree cannot be read.
-    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=broken\n").expect("the attribute file");
-    git(world.repo.as_path(), &["config", "filter.broken.clean", "false"]);
-    git(world.repo.as_path(), &["config", "filter.broken.required", "true"]);
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=broken\n")
+        .expect("the attribute file");
+    git(
+        world.repo.as_path(),
+        &["config", "filter.broken.clean", "false"],
+    );
+    git(
+        world.repo.as_path(),
+        &["config", "filter.broken.required", "true"],
+    );
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge stops the command");
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect_err("an installed merge stops the command");
     assert!(!refused.0.is_empty(), "the failure is named");
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
@@ -305,18 +490,40 @@ fn a_saved_merge_whose_index_was_installed_and_a_file_cannot_be_read_stops_the_c
 fn a_retry_after_an_earlier_install_that_fails_reports_the_install() {
     use std::os::unix::fs::PermissionsExt;
     if unsafe { libc::geteuid() } == 0 {
-        eprintln!("skipped: a directory that refuses writes does not stop root, so this control proves nothing here");
+        eprintln!(
+            "skipped: a directory that refuses writes does not stop root, so this control proves nothing here"
+        );
         return;
     }
     let world: World = directory_to_file_world("merge-recovery-retry-installed");
     // An earlier attempt installed the merge's index entries and died before it wrote the files.
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "31313131-0000-4000-8000-000000000031", "refs/cli-git/kept/31");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "31313131-0000-4000-8000-000000000031",
+        "refs/cli-git/kept/31",
+    );
     // The take of the file the merge deletes cannot rename into the directory that holds it.
-    std::fs::set_permissions(world.repo.join("dir"), std::fs::Permissions::from_mode(0o555)).expect("a directory that refuses writes");
+    std::fs::set_permissions(
+        world.repo.join("dir"),
+        std::fs::Permissions::from_mode(0o555),
+    )
+    .expect("a directory that refuses writes");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("the retry's failure stops the command");
-    let _writable = std::fs::set_permissions(world.repo.join("dir"), std::fs::Permissions::from_mode(0o755));
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect_err("the retry's failure stops the command");
+    let _writable = std::fs::set_permissions(
+        world.repo.join("dir"),
+        std::fs::Permissions::from_mode(0o755),
+    );
     assert!(!refused.0.is_empty(), "the failure is named");
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
@@ -343,8 +550,20 @@ fn a_retry_after_an_earlier_install_that_fails_reports_the_install() {
 fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
     let world: World = world("merge-recovery-ref-lookup-fails");
     // An earlier attempt installed the merge's index entries and died before moving the branch.
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "32323232-0000-4000-8000-000000000032", "refs/cli-git/kept/32");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "32323232-0000-4000-8000-000000000032",
+        "refs/cli-git/kept/32",
+    );
     // A Git that removes itself while the last judged file is read: the ref lookup that follows cannot start.
     let shim: PathBuf = world.parent.join("vanishing-git");
     crate::test_support::executable(
@@ -372,7 +591,8 @@ fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
         git_dir: world.git_dir.clone(),
     };
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said).expect_err("the refusal must report the install");
+    let refused = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said)
+        .expect_err("the refusal must report the install");
     assert!(!shim.exists(), "the seam ran");
     assert!(!refused.0.is_empty(), "the failure is named");
     assert!(record.exists(), "the record is kept");
@@ -401,22 +621,35 @@ fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
 #[test]
 fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_branch() {
     let world: World = world("merge-recovery-switch-before-write");
-    let record: PathBuf = deferred_record_of(&world, "34343434-0000-4000-8000-000000000034", "refs/cli-git/kept/34");
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "34343434-0000-4000-8000-000000000034",
+        "refs/cli-git/kept/34",
+    );
     git(world.repo.as_path(), &["branch", "--quiet", "other"]);
     let repository: PathBuf = world.repo.clone();
     crate::service_fault::hooks::set(
         "before-the-branch-write",
         std::rc::Rc::new(move || {
-            git(repository.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+            git(
+                repository.as_path(),
+                &["symbolic-ref", "HEAD", "refs/heads/other"],
+            );
         }),
     );
     let mut said: Vec<u8> = Vec::new();
     let attempted = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said);
     crate::service_fault::hooks::clear();
     let refused = attempted.expect_err("a switched worktree stops the command");
-    assert!(refused.0.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused.0);
     assert!(
-        refused.0.contains("index entries and files are still in this worktree"),
+        refused.0.contains("refs/heads/other"),
+        "the branch the worktree switched to is named: {}",
+        refused.0
+    );
+    assert!(
+        refused
+            .0
+            .contains("index entries and files are still in this worktree"),
         "it says the merge's entries and files stay: {}",
         refused.0
     );
@@ -425,12 +658,31 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         "it does not claim the checkout is clean: {}",
         refused.0
     );
-    let undo: String = format!("`git restore {} --staged --worktree -- <path>`", crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
-    assert!(refused.0.contains(undo.as_str()), "it names the way to undo the staged content, with the flag this wrapper's policy asks for, in the words a person can run: {}", refused.0);
-    assert!(!refused.0.contains(".."), "the sentence the refusal itself ends with is not followed by a second period: {}", refused.0);
+    let undo: String = format!(
+        "`git restore {} --staged --worktree -- <path>`",
+        crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH
+    );
+    assert!(
+        refused.0.contains(undo.as_str()),
+        "it names the way to undo the staged content, with the flag this wrapper's policy asks for, in the words a person can run: {}",
+        refused.0
+    );
+    assert!(
+        !refused.0.contains(".."),
+        "the sentence the refusal itself ends with is not followed by a second period: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
-    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.old_oid,
+        "the branch was put back"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]),
+        "refs/heads/other",
+        "the worktree is where the other command put it"
+    );
     remove(world.parent.as_path());
 }
 
@@ -454,15 +706,37 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
 fn an_installed_merge_whose_index_stays_held_stops_the_command() {
     let world: World = world("merge-recovery-installed-index-held");
     // An earlier attempt installed the merge's index entries and died.
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = deferred_record_of(&world, "35353535-0000-4000-8000-000000000035", "refs/cli-git/kept/35");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = deferred_record_of(
+        &world,
+        "35353535-0000-4000-8000-000000000035",
+        "refs/cli-git/kept/35",
+    );
     // A lock the removal proof does not cover, in the shape a person's editor-phase commit leaves.
-    std::fs::write(world.git_dir.join("index.lock"), b"an index written into the lock").expect("a lock with content");
-    std::fs::write(world.git_dir.join("index~pid.lock"), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    std::fs::write(
+        world.git_dir.join("index.lock"),
+        b"an index written into the lock",
+    )
+    .expect("a lock with content");
+    std::fs::write(world.git_dir.join("index~pid.lock"), b"pid 4294967\n")
+        .expect("the PID file of a process that is gone");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge behind a held index stops the command");
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect_err("an installed merge behind a held index stops the command");
     assert!(!refused.0.is_empty(), "the failure is named");
-    assert!(refused.0.contains("index.lock"), "the lock is named: {}", refused.0);
+    assert!(
+        refused.0.contains("index.lock"),
+        "the lock is named: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -487,15 +761,44 @@ fn an_installed_merge_whose_index_stays_held_stops_the_command() {
 fn a_directory_left_empty_by_a_killed_recovery_is_removed_on_the_retry() {
     let world: World = directory_to_file_world("merge-recovery-empty-directory-retry");
     // An earlier attempt installed the merge's index, finished the child's private name and died before removing the directory.
-    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    std::fs::remove_file(world.repo.join("dir/child.txt")).expect("the child's file goes, as a finished take leaves it");
-    assert!(world.repo.join("dir").is_dir(), "the emptied directory is still there");
-    assert_eq!(std::fs::read_dir(world.repo.join("dir")).expect("the directory").count(), 0, "and it is empty");
-    let _record: PathBuf = deferred_record_of(&world, "36363636-0000-4000-8000-000000000036", "refs/cli-git/kept/36");
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    std::fs::remove_file(world.repo.join("dir/child.txt"))
+        .expect("the child's file goes, as a finished take leaves it");
+    assert!(
+        world.repo.join("dir").is_dir(),
+        "the emptied directory is still there"
+    );
+    assert_eq!(
+        std::fs::read_dir(world.repo.join("dir"))
+            .expect("the directory")
+            .count(),
+        0,
+        "and it is empty"
+    );
+    let _record: PathBuf = deferred_record_of(
+        &world,
+        "36363636-0000-4000-8000-000000000036",
+        "refs/cli-git/kept/36",
+    );
     let mut said: Vec<u8> = Vec::new();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the retry finishes the merge");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the retry finishes the merge");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
-    assert_eq!(std::fs::read(world.repo.join("dir")).expect("the merge's file"), b"the merge's file\n");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    assert_eq!(
+        std::fs::read(world.repo.join("dir")).expect("the merge's file"),
+        b"the merge's file\n"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.new_oid
+    );
     remove(world.parent.as_path());
 }

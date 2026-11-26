@@ -205,7 +205,11 @@ fn is_double_star(pair: &[u8]) -> bool {
 
 /// The pieces of `line` separated by blank bytes.
 fn blank_separated(line: &[u8]) -> Vec<Vec<u8>> {
-    return line.split(is_blank).filter(is_nonempty_piece).map(<[u8]>::to_vec).collect();
+    return line
+        .split(is_blank)
+        .filter(is_nonempty_piece)
+        .map(<[u8]>::to_vec)
+        .collect();
 }
 
 /// What:
@@ -231,7 +235,11 @@ fn blank_separated(line: &[u8]) -> Vec<Vec<u8>> {
 pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
     let mut lines: Vec<AttributeLine> = Vec::new();
     for (number, raw) in bytes.split(is_newline).enumerate() {
-        let without_mark: &[u8] = if number == 0 { raw.strip_prefix(BYTE_ORDER_MARK).unwrap_or(raw) } else { raw };
+        let without_mark: &[u8] = if number == 0 {
+            raw.strip_prefix(BYTE_ORDER_MARK).unwrap_or(raw)
+        } else {
+            raw
+        };
         let text: &[u8] = without_mark.split(is_nul).next().unwrap_or(&[]);
         let start: usize = text.iter().position(is_not_blank).unwrap_or(text.len());
         let line: &[u8] = &text[start..];
@@ -240,15 +248,30 @@ pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
         }
         if line[0] == b'"' {
             // A quoted line is never read for its tokens or its macro marker: the caller refuses on the quote itself.
-            lines.push(AttributeLine { subject: line.to_vec(), is_macro: false, quoted: true, tokens: Vec::new() });
+            lines.push(AttributeLine {
+                subject: line.to_vec(),
+                is_macro: false,
+                quoted: true,
+                tokens: Vec::new(),
+            });
             continue;
         }
         let mut pieces: Vec<Vec<u8>> = blank_separated(line);
         let name: Vec<u8> = pieces.remove(0);
         if name.len() > MACRO_PREFIX.len() && name.starts_with(MACRO_PREFIX) {
-            lines.push(AttributeLine { subject: name[MACRO_PREFIX.len()..].to_vec(), is_macro: true, quoted: false, tokens: pieces });
+            lines.push(AttributeLine {
+                subject: name[MACRO_PREFIX.len()..].to_vec(),
+                is_macro: true,
+                quoted: false,
+                tokens: pieces,
+            });
         } else {
-            lines.push(AttributeLine { subject: name, is_macro: false, quoted: false, tokens: pieces });
+            lines.push(AttributeLine {
+                subject: name,
+                is_macro: false,
+                quoted: false,
+                tokens: pieces,
+            });
         }
     }
     return lines;
@@ -258,7 +281,10 @@ pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
 /// unsets or leaves unspecified,
 /// without the sign and the value.
 pub fn attribute_name(token: &[u8]) -> &[u8] {
-    let start: usize = token.iter().position(is_not_negation_mark).unwrap_or(token.len());
+    let start: usize = token
+        .iter()
+        .position(is_not_negation_mark)
+        .unwrap_or(token.len());
     let rest: &[u8] = &token[start..];
     return rest.split(is_equals_sign).next().unwrap_or(&[]);
 }
@@ -276,7 +302,10 @@ pub fn attribute_name(token: &[u8]) -> &[u8] {
 /// ```ts
 /// function wildcard(pattern: Buffer, text: Buffer): boolean;
 /// ```
-pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
+pub fn wildcard(
+    pattern: &[u8],
+    text: &[u8],
+) -> bool {
     // `reach[j]` says the pattern consumed so far can match the first `j` bytes of the text; two rows are reused.
     let mut reach: Vec<bool> = vec![false; text.len() + 1];
     let mut next: Vec<bool> = vec![false; text.len() + 1];
@@ -290,7 +319,11 @@ pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
             }
         } else {
             for at in 1..=text.len() {
-                let same: bool = if symbol == b'?' { text[at - 1] != b'/' } else { symbol.eq_ignore_ascii_case(&text[at - 1]) };
+                let same: bool = if symbol == b'?' {
+                    text[at - 1] != b'/'
+                } else {
+                    symbol.eq_ignore_ascii_case(&text[at - 1])
+                };
                 next[at] = reach[at - 1] && same;
             }
         }
@@ -321,11 +354,19 @@ pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
 /// ```ts
 /// function mayApply(pattern: Buffer, base: Buffer, path: Buffer): boolean;
 /// ```
-pub fn may_apply(pattern: &[u8], base: &[u8], path: &[u8]) -> bool {
+pub fn may_apply(
+    pattern: &[u8],
+    base: &[u8],
+    path: &[u8],
+) -> bool {
     if pattern.is_empty() {
         return false;
     }
-    if pattern[0] == b'"' || pattern.iter().any(is_backslash_or_bracket) || pattern.windows(2).any(is_double_star) || pattern.ends_with(b"/") {
+    if pattern[0] == b'"'
+        || pattern.iter().any(is_backslash_or_bracket)
+        || pattern.windows(2).any(is_double_star)
+        || pattern.ends_with(b"/")
+    {
         return true;
     }
     let relative: &[u8] = if base.is_empty() {
@@ -340,7 +381,11 @@ pub fn may_apply(pattern: &[u8], base: &[u8], path: &[u8]) -> bool {
             None => return false,
         }
     };
-    let compared: &[u8] = if pattern.contains(&b'/') { relative } else { relative.rsplit(is_slash).next().unwrap_or(&[]) };
+    let compared: &[u8] = if pattern.contains(&b'/') {
+        relative
+    } else {
+        relative.rsplit(is_slash).next().unwrap_or(&[])
+    };
     // The table has one cell per pattern byte and text byte; past the budget the comparison is not made and the answer is yes.
     if pattern.len().saturating_mul(compared.len() + 1) > MATCH_WORK_LIMIT {
         return true;

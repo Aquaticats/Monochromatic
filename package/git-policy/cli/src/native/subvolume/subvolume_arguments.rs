@@ -142,10 +142,13 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
         discard_left_out: false,
         help: false,
     };
-    let (mut rollback, mut remove_old, mut migrate_switch): (bool, bool, bool) = (false, false, false);
+    let (mut rollback, mut remove_old, mut migrate_switch): (bool, bool, bool) =
+        (false, false, false);
     for token in arguments {
         let Some(text) = token.to_str() else {
-            return Err(String::from("an argument is not valid UTF-8 text; the options are ASCII"));
+            return Err(String::from(
+                "an argument is not valid UTF-8 text; the options are ASCII",
+            ));
         };
         match text {
             "--dry-run" => parsed.dry_run = true,
@@ -162,23 +165,35 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
                 migrate_switch = true;
             }
             "--help" | "-h" => parsed.help = true,
-            other => return Err(format!("unknown argument {other}; the options are listed by `git monochromatic-git-policy-cli migrate-to-subvolume --help`")),
+            other => {
+                return Err(format!(
+                    "unknown argument {other}; the options are listed by `git monochromatic-git-policy-cli migrate-to-subvolume --help`"
+                ));
+            }
         }
     }
     if parsed.help {
         return Ok(parsed);
     }
     if rollback && remove_old {
-        return Err(String::from("--rollback and --remove-old exclude each other: --rollback restores the original tree, --remove-old deletes it. Run one, then the other if you still want it."));
+        return Err(String::from(
+            "--rollback and --remove-old exclude each other: --rollback restores the original tree, --remove-old deletes it. Run one, then the other if you still want it.",
+        ));
     }
     if (rollback || remove_old) && migrate_switch {
-        return Err(String::from("--no-nested-worktrees and --no-refresh-indexes change how the migration runs, so they apply only without --rollback and --remove-old."));
+        return Err(String::from(
+            "--no-nested-worktrees and --no-refresh-indexes change how the migration runs, so they apply only without --rollback and --remove-old.",
+        ));
     }
     if parsed.discard_unreadable && !remove_old && !rollback {
-        return Err(String::from("--discard-unreadable applies only with --remove-old or --rollback."));
+        return Err(String::from(
+            "--discard-unreadable applies only with --remove-old or --rollback.",
+        ));
     }
     if parsed.discard_left_out && !remove_old && !rollback {
-        return Err(String::from("--discard-left-out applies only with --remove-old or --rollback."));
+        return Err(String::from(
+            "--discard-left-out applies only with --remove-old or --rollback.",
+        ));
     }
     if rollback {
         parsed.mode = MigrateMode::Rollback;

@@ -24,7 +24,10 @@
 //! const verdict = report.verdict(); // { kind: 'failed', step: 'move' }
 //! ```
 
-use super::probe_arms::{ProbeArm, ProbeStep};
+use super::probe_arms::{
+    ProbeArm,
+    ProbeStep,
+};
 use super::probe_errno_names::ErrnoWord;
 use super::probe_status_line::StepAnswer;
 use super::probe_status_line::StepLine;
@@ -143,10 +146,18 @@ impl ProbeVerdict {
     pub fn word(self) -> &'static str {
         return match self {
             ProbeVerdict::Passed => "passed",
-            ProbeVerdict::Failed { .. } => "failed",
-            ProbeVerdict::Blocked { .. } => "blocked",
-            ProbeVerdict::TimedOut { .. } => "timed-out",
-            ProbeVerdict::Skipped { .. } => "skipped",
+            ProbeVerdict::Failed {
+                ..
+            } => "failed",
+            ProbeVerdict::Blocked {
+                ..
+            } => "blocked",
+            ProbeVerdict::TimedOut {
+                ..
+            } => "timed-out",
+            ProbeVerdict::Skipped {
+                ..
+            } => "skipped",
         };
     }
 
@@ -154,11 +165,21 @@ impl ProbeVerdict {
     /// where it names one.
     pub fn named_step(self) -> Option<ProbeStep> {
         return match self {
-            ProbeVerdict::Failed { step } => Some(step),
-            ProbeVerdict::Passed | ProbeVerdict::Blocked { .. } | ProbeVerdict::TimedOut { .. } | ProbeVerdict::Skipped { .. } => None,
+            ProbeVerdict::Failed {
+                step,
+            } => Some(step),
+            ProbeVerdict::Passed
+            | ProbeVerdict::Blocked {
+                ..
+            }
+            | ProbeVerdict::TimedOut {
+                ..
+            }
+            | ProbeVerdict::Skipped {
+                ..
+            } => None,
         };
     }
-
 }
 
 /// What:
@@ -187,16 +208,25 @@ pub struct ProbeReport {
 impl ProbeReport {
     /// An empty report.
     pub fn new() -> Self {
-        return ProbeReport { lines: Vec::new(), ending: None };
+        return ProbeReport {
+            lines: Vec::new(),
+            ending: None,
+        };
     }
 
     /// Keep one step's line.
-    pub fn record(&mut self, line: StepLine) {
+    pub fn record(
+        &mut self,
+        line: StepLine,
+    ) {
         self.lines.push(line);
     }
 
     /// Keep how a child's pipe ended.
-    pub fn finish_with(&mut self, ending: ChildEnding) {
+    pub fn finish_with(
+        &mut self,
+        ending: ChildEnding,
+    ) {
         self.ending = Some(ending);
     }
 
@@ -216,7 +246,9 @@ impl ProbeReport {
     /// the step after the last one the worker answered,
     /// or the worker's first step when it answered none.
     pub fn in_flight(&self) -> Option<ProbeStep> {
-        let last: Option<usize> = ProbeStep::WORKER_ORDER.iter().rposition(|step| return self.line_for(*step).is_some());
+        let last: Option<usize> = ProbeStep::WORKER_ORDER
+            .iter()
+            .rposition(|step| return self.line_for(*step).is_some());
         return match last {
             None => ProbeStep::WORKER_ORDER.first().copied(),
             Some(index) => ProbeStep::WORKER_ORDER.get(index + 1).copied(),
@@ -226,12 +258,19 @@ impl ProbeReport {
     /// The last worker step that answered,
     /// where one did.
     pub fn last_finished(&self) -> Option<ProbeStep> {
-        return ProbeStep::WORKER_ORDER.iter().rev().copied().find(|step| return self.line_for(*step).is_some());
+        return ProbeStep::WORKER_ORDER
+            .iter()
+            .rev()
+            .copied()
+            .find(|step| return self.line_for(*step).is_some());
     }
 
     /// The line one step wrote,
     /// where it wrote one.
-    fn line_for(&self, step: ProbeStep) -> Option<&StepLine> {
+    fn line_for(
+        &self,
+        step: ProbeStep,
+    ) -> Option<&StepLine> {
         return self.lines.iter().find(|line| return line.step == step);
     }
 
@@ -239,7 +278,10 @@ impl ProbeReport {
     /// in the worker's own order.
     pub fn first_failed_step(&self) -> Option<ProbeStep> {
         return ProbeStep::WORKER_ORDER.iter().copied().find(|step| {
-            return matches!(self.line_for(*step).map(|line| return &line.answer), Some(StepAnswer::Failed { .. }));
+            return matches!(
+                self.line_for(*step).map(|line| return &line.answer),
+                Some(StepAnswer::Failed { .. })
+            );
         });
     }
 
@@ -252,47 +294,89 @@ impl ProbeReport {
     ///  child that died without answering.
     pub fn stopped_on_purpose(&self) -> bool {
         return self.lines().iter().any(|line| {
-            return matches!(line.answer, StepAnswer::Failed { .. } | StepAnswer::NotExercised { .. });
+            return matches!(
+                line.answer,
+                StepAnswer::Failed { .. } | StepAnswer::NotExercised { .. }
+            );
         });
     }
 
     /// What became of one arm.
-    pub fn arm_outcome(&self, arm: ProbeArm) -> ArmOutcome {
+    pub fn arm_outcome(
+        &self,
+        arm: ProbeArm,
+    ) -> ArmOutcome {
         let mut every_step_passed: bool = true;
-        for step in ProbeStep::ALL.iter().copied().filter(|step| return step.arm() == arm) {
+        for step in ProbeStep::ALL
+            .iter()
+            .copied()
+            .filter(|step| return step.arm() == arm)
+        {
             match self.line_for(step).map(|line| return &line.answer) {
                 Some(StepAnswer::Passed) => {}
-                Some(StepAnswer::Failed { errno }) => {
-                    return ArmOutcome { arm, answer: ArmAnswer::Failed, errno: *errno };
+                Some(StepAnswer::Failed {
+                    errno,
+                }) => {
+                    return ArmOutcome {
+                        arm,
+                        answer: ArmAnswer::Failed,
+                        errno: *errno,
+                    };
                 }
-                Some(StepAnswer::NotExercised { .. }) | None => every_step_passed = false,
+                Some(StepAnswer::NotExercised {
+                    ..
+                })
+                | None => every_step_passed = false,
             }
         }
-        return ArmOutcome { arm, answer: if every_step_passed { ArmAnswer::Passed } else { ArmAnswer::NotExercised }, errno: ErrnoWord::None };
+        return ArmOutcome {
+            arm,
+            answer: if every_step_passed {
+                ArmAnswer::Passed
+            } else {
+                ArmAnswer::NotExercised
+            },
+            errno: ErrnoWord::None,
+        };
     }
 
     /// Every arm's outcome,
     /// in the design's order.
     pub fn arms(&self) -> Vec<ArmOutcome> {
-        return ProbeArm::ALL.iter().map(|arm| return self.arm_outcome(*arm)).collect();
+        return ProbeArm::ALL
+            .iter()
+            .map(|arm| return self.arm_outcome(*arm))
+            .collect();
     }
 
     /// Whether every arm passed.
     pub fn passed(&self) -> bool {
-        return self.arms().iter().all(|outcome| return outcome.answer == ArmAnswer::Passed);
+        return self
+            .arms()
+            .iter()
+            .all(|outcome| return outcome.answer == ArmAnswer::Passed);
     }
 
     /// The verdict this report's lines and ending add up to.
     pub fn verdict(&self) -> ProbeVerdict {
         if self.ending.is_some() {
-            return ProbeVerdict::Failed { step: self.in_flight().unwrap_or(ProbeStep::Teardown) };
+            return ProbeVerdict::Failed {
+                step: self.in_flight().unwrap_or(ProbeStep::Teardown),
+            };
         }
         if let Some(step) = self.first_failed_step() {
-            return ProbeVerdict::Failed { step };
+            return ProbeVerdict::Failed {
+                step,
+            };
         }
         let arms: Vec<ArmOutcome> = self.arms();
-        if let Some(outcome) = arms.iter().find(|outcome| return outcome.answer != ArmAnswer::Passed) {
-            return ProbeVerdict::Blocked { arm: outcome.arm };
+        if let Some(outcome) = arms
+            .iter()
+            .find(|outcome| return outcome.answer != ArmAnswer::Passed)
+        {
+            return ProbeVerdict::Blocked {
+                arm: outcome.arm,
+            };
         }
         return ProbeVerdict::Passed;
     }

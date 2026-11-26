@@ -33,7 +33,10 @@
 //! ```
 
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Directory of the sockets under the user's runtime directory.
 pub const SOCKET_DIRECTORY: &str = SERVICE_UNIT.current;
@@ -137,8 +140,16 @@ pub struct GitDirUnreachable {
 }
 
 impl std::fmt::Display for GitDirUnreachable {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return write!(formatter, "the Git directory {} cannot be resolved: {}", self.path.display(), self.reason);
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return write!(
+            formatter,
+            "the Git directory {} cannot be resolved: {}",
+            self.path.display(),
+            self.reason
+        );
     }
 }
 
@@ -160,7 +171,10 @@ impl std::error::Error for GitDirUnreachable {}
 pub fn try_instance_of(git_dir: &Path) -> Result<String, GitDirUnreachable> {
     return match std::fs::canonicalize(git_dir) {
         Ok(real) => Ok(instance_named_by(real.as_path())),
-        Err(error) => Err(GitDirUnreachable { path: git_dir.to_path_buf(), reason: error.to_string() }),
+        Err(error) => Err(GitDirUnreachable {
+            path: git_dir.to_path_buf(),
+            reason: error.to_string(),
+        }),
     };
 }
 
@@ -191,8 +205,13 @@ pub const SOCKET_ADDRESS_BYTES: usize = 108;
 pub const LONGEST_SOCKET_PATH: usize = SOCKET_ADDRESS_BYTES - 1;
 
 /// The socket of an instance under the user's runtime directory.
-pub fn socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_dir.join(SOCKET_DIRECTORY).join(format!("{instance}.sock"));
+pub fn socket_path(
+    runtime_dir: &Path,
+    instance: &str,
+) -> PathBuf {
+    return runtime_dir
+        .join(SOCKET_DIRECTORY)
+        .join(format!("{instance}.sock"));
 }
 
 /// What:
@@ -292,7 +311,10 @@ pub fn longest_runtime_directory(instance: &str) -> usize {
 }
 
 /// The socket of the worktree whose own Git directory is `git_dir`.
-pub fn socket_for(runtime_dir: &Path, git_dir: &Path) -> PathBuf {
+pub fn socket_for(
+    runtime_dir: &Path,
+    git_dir: &Path,
+) -> PathBuf {
     return socket_path(runtime_dir, instance_of(git_dir).as_str());
 }
 
@@ -326,8 +348,13 @@ pub fn earlier_service_unit_instance(instance: &str) -> String {
 /// The socket file of the earlier release's unit for an instance (`ListenStream=%t/cli-git/%i.sock`),
 /// which the manager makes
 ///  and removes.
-pub fn earlier_socket_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_dir.join(SERVICE_UNIT.earlier).join(format!("{instance}.sock"));
+pub fn earlier_socket_path(
+    runtime_dir: &Path,
+    instance: &str,
+) -> PathBuf {
+    return runtime_dir
+        .join(SERVICE_UNIT.earlier)
+        .join(format!("{instance}.sock"));
 }
 
 /// Instance controls stay out of the release executable.

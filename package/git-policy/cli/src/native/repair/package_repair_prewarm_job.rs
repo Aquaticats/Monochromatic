@@ -51,7 +51,11 @@
 //!   the clean and the publish of one workspace's build directory.
 
 /// Import the filling work one entry is handed and the one workspace it fills.
-use self::filling::{Fill, Filled, fill_one};
+use self::filling::{
+    Fill,
+    Filled,
+    fill_one,
+};
 /// Import the tag every line of this module's diagnostic log carries.
 use self::names::TAG;
 /// Import the one diagnostic log this crate writes.
@@ -59,7 +63,10 @@ use crate::diagnostic_log::debug;
 /// Import the lookup of the program a filling runs.
 use crate::package_repair_command::find_program;
 /// Import the record's entries and the reading of them.
-use crate::package_repair_prewarm::{PrewarmEntry, decode};
+use crate::package_repair_prewarm::{
+    PrewarmEntry,
+    decode,
+};
 /// Import what the process offers a filling.
 use crate::package_repair_request::RepairEnvironment;
 /// Import what one work item came to.
@@ -67,7 +74,10 @@ use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 /// Import the one item a record of the service holds.
 use crate::work_item::WorkItem;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The program the filling resolves,
 /// as the repair does.
@@ -93,7 +103,10 @@ const OWN_CARGO_LINK: &str = ".cache/toolchain-bin/cargo";
 /// ```ts
 /// const cargoFor = (worktreeRoot, environment) => findProgram('cargo', environment.path()) ?? (exists(join(worktreeRoot, OWN_CARGO_LINK)) ? join(worktreeRoot, OWN_CARGO_LINK) : undefined);
 /// ```
-fn cargo_for(root: &Path, environment: &RepairEnvironment) -> Option<PathBuf> {
+fn cargo_for(
+    root: &Path,
+    environment: &RepairEnvironment,
+) -> Option<PathBuf> {
     if let Some(found) = find_program(PROGRAM, environment.path(), &environment.start_directory) {
         return Some(found);
     }
@@ -132,7 +145,10 @@ pub async fn prewarm_awaiting(item: &WorkItem) -> Verdict {
 /// ```ts
 /// prewarmAwaitingWith(item, environment);
 /// ```
-async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdict {
+async fn prewarm_awaiting_with(
+    item: &WorkItem,
+    environment: &RepairEnvironment,
+) -> Verdict {
     let entries: Vec<PrewarmEntry> = match decode(item.parent.as_str()) {
         Ok(decoded) => decoded,
         Err(reason) => return Verdict::Failed(reason),
@@ -143,9 +159,15 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
     // The worktree's own link to the toolchain's Cargo sits at the worktree's root, whatever workspace the first entry
     //  names, so the record's repository is what the lookup starts from.
     let Some(cargo) = cargo_for(item.repository.as_path(), environment) else {
-        return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
+        return Verdict::Failed(format!(
+            "no `{PROGRAM}` could be found to clean the copies with"
+        ));
     };
-    let fill: Fill = Fill { cargo, limits: environment.limits(), kept_in: Some(item.git_dir.clone()) };
+    let fill: Fill = Fill {
+        cargo,
+        limits: environment.limits(),
+        kept_in: Some(item.git_dir.clone()),
+    };
     let mut published: usize = 0;
     let mut kept: usize = 0;
     let mut failures: Vec<String> = Vec::new();
@@ -156,7 +178,15 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
             Err(reason) => failures.push(reason),
         }
     }
-    debug(TAG, format!("{}: {published} published, {kept} kept, {} failed", item.repository.display(), failures.len()).as_str());
+    debug(
+        TAG,
+        format!(
+            "{}: {published} published, {kept} kept, {} failed",
+            item.repository.display(),
+            failures.len()
+        )
+        .as_str(),
+    );
     return match failures.first() {
         None => Verdict::Done,
         Some(first_failure) => Verdict::Failed(first_failure.clone()),
@@ -175,39 +205,55 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
 /// const fillOneInAControl = (fill, entry) => runOnRuntime(fillOne(fill, entry));
 /// ```
 #[cfg(test)]
-pub(crate) fn fill_one_in_a_control(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
+pub(crate) fn fill_one_in_a_control(
+    fill: &Fill,
+    entry: &PrewarmEntry,
+) -> Result<Filled, String> {
     return match crate::lazy_runtime::run_on_runtime(fill_one(fill, entry)) {
         Ok(filled) => filled,
         Err(refusal) => Err(format!("the filling could not run ({refusal})")),
     };
 }
 
+/// The clone,
+/// the clean and the publish of one workspace's build directory.
+#[path = "package_repair_prewarm_job_filling.rs"]
+mod filling;
 /// The names one filling works in and the marker that proves they are this job's.
 #[path = "package_repair_prewarm_job_names.rs"]
 mod names;
 /// The add's own move of the worktree's copied build state.
 #[path = "package_repair_prewarm_job_staged_state.rs"]
 mod staged_state;
-/// The clone,
-/// the clean and the publish of one workspace's build directory.
-#[path = "package_repair_prewarm_job_filling.rs"]
-mod filling;
 
 /// The staging name of a workspace's build directory,
 /// which the add also names.
 pub use self::names::staging_of;
 /// What the add's move of the copied build state came to,
 /// and the move itself.
-pub(crate) use self::staged_state::{Staged, stage_the_worktrees_own_state};
+pub(crate) use self::staged_state::{
+    Staged,
+    stage_the_worktrees_own_state,
+};
 
 // The names this module's controls reach through `super::`,
 // re-exported so a control sees the whole module.
 #[cfg(test)]
-pub(crate) use self::filling::{publish, what_to_do_next};
+pub(crate) use self::filling::{
+    publish,
+    what_to_do_next,
+};
 #[cfg(test)]
-pub(crate) use self::names::{marker_of, target_of, write_marker};
+pub(crate) use self::names::{
+    marker_of,
+    target_of,
+    write_marker,
+};
 #[cfg(test)]
-pub(crate) use self::staged_state::{EXCLUDED_STAGING_PATTERNS, exclude_the_staging_names};
+pub(crate) use self::staged_state::{
+    EXCLUDED_STAGING_PATTERNS,
+    exclude_the_staging_names,
+};
 
 /// The filling's controls stay out of the release executable.
 #[cfg(test)]

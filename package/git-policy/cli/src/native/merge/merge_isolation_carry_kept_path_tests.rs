@@ -8,21 +8,44 @@ use crate::merge_isolation_carry_parts::CapturedFile;
 
 /// A captured worktree entry of one path,
 /// as the capture records it.
-fn captured(path: &str, mode: &str) -> CapturedPath {
-    let file: CapturedFile = CapturedFile { mode: String::from(mode), raw: String::from("raw"), blob: String::from("blob"), permissions: None };
-    return CapturedPath { path: path.as_bytes().to_vec(), worktree: Some(file), index: None };
+fn captured(
+    path: &str,
+    mode: &str,
+) -> CapturedPath {
+    let file: CapturedFile = CapturedFile {
+        mode: String::from(mode),
+        raw: String::from("raw"),
+        blob: String::from("blob"),
+        permissions: None,
+    };
+    return CapturedPath {
+        path: path.as_bytes().to_vec(),
+        worktree: Some(file),
+        index: None,
+    };
 }
 
 /// A captured path the person deleted,
 /// which the index does not hold either.
 fn deleted(path: &str) -> CapturedPath {
-    return CapturedPath { path: path.as_bytes().to_vec(), worktree: None, index: None };
+    return CapturedPath {
+        path: path.as_bytes().to_vec(),
+        worktree: None,
+        index: None,
+    };
 }
 
 /// The merge's change at one path,
 /// either a version of it or a deletion.
-fn change(path: &str, exists_after: bool) -> Change {
-    let after: (&str, &str) = if exists_after { ("100644", "after") } else { ("000000", "0000000") };
+fn change(
+    path: &str,
+    exists_after: bool,
+) -> Change {
+    let after: (&str, &str) = if exists_after {
+        ("100644", "after")
+    } else {
+        ("000000", "0000000")
+    };
     return Change {
         path: path.as_bytes().to_vec(),
         old_mode: String::from("100644"),
@@ -41,11 +64,24 @@ fn change(path: &str, exists_after: bool) -> Change {
 /// and the file is not there.
 #[test]
 fn a_deleted_path_names_the_deletion_and_the_way_to_the_merges_version() {
-    let kept: Kept = kept_path(&deleted("a.txt"), &change("a.txt", true), "you deleted it, and the merge changes it", Staged::Nothing);
+    let kept: Kept = kept_path(
+        &deleted("a.txt"),
+        &change("a.txt", true),
+        "you deleted it, and the merge changes it",
+        Staged::Nothing,
+    );
     let line: String = kept_line("git merge feature", &kept);
     assert!(line.contains("a.txt holds nothing of yours"), "{line}");
-    assert!(line.contains("the merge's version of a.txt is in the merge commit"), "{line}");
-    assert!(line.contains("git restore --no-enforce-worktree --source=HEAD --staged --worktree -- a.txt"), "{line}");
+    assert!(
+        line.contains("the merge's version of a.txt is in the merge commit"),
+        "{line}"
+    );
+    assert!(
+        line.contains(
+            "git restore --no-enforce-worktree --source=HEAD --staged --worktree -- a.txt"
+        ),
+        "{line}"
+    );
     assert!(!line.contains("holds your own bytes"), "{line}");
     assert!(!line.contains("holds what you wrote"), "{line}");
 }
@@ -54,10 +90,18 @@ fn a_deleted_path_names_the_deletion_and_the_way_to_the_merges_version() {
 ///  A path whose own bytes the carry kept whole names those bytes and the merge's version beside them.
 #[test]
 fn a_kept_file_names_the_bytes_that_stand_and_the_merges_version() {
-    let kept: Kept = kept_path(&captured("a.txt", "100644"), &change("a.txt", true), "its changes cannot be merged as text", Staged::Nothing);
+    let kept: Kept = kept_path(
+        &captured("a.txt", "100644"),
+        &change("a.txt", true),
+        "its changes cannot be merged as text",
+        Staged::Nothing,
+    );
     let line: String = kept_line("git merge feature", &kept);
     assert!(line.contains("a.txt holds your own bytes"), "{line}");
-    assert!(line.contains("git restore --no-enforce-worktree --source=HEAD -- a.txt"), "{line}");
+    assert!(
+        line.contains("git restore --no-enforce-worktree --source=HEAD -- a.txt"),
+        "{line}"
+    );
     assert!(!line.contains("holds nothing of yours"), "{line}");
 }
 
@@ -66,7 +110,12 @@ fn a_kept_file_names_the_bytes_that_stand_and_the_merges_version() {
 /// not as bytes of a file.
 #[test]
 fn a_kept_link_is_named_as_a_link() {
-    let kept: Kept = kept_path(&captured("a.txt", "120000"), &change("a.txt", true), "its changes cannot be merged as text", Staged::Nothing);
+    let kept: Kept = kept_path(
+        &captured("a.txt", "120000"),
+        &change("a.txt", true),
+        "its changes cannot be merged as text",
+        Staged::Nothing,
+    );
     let line: String = kept_line("git merge feature", &kept);
     assert!(line.contains("a.txt is your own symbolic link"), "{line}");
     assert!(!line.contains("holds your own bytes"), "{line}");
@@ -79,11 +128,22 @@ fn a_kept_link_is_named_as_a_link() {
 ///  for a file the index does not hold.
 #[test]
 fn a_path_the_merge_deletes_names_its_absence_and_the_command_for_it() {
-    let kept: Kept = kept_path(&captured("gone.txt", "100644"), &change("gone.txt", false), "the merge deletes it", Staged::Nothing);
+    let kept: Kept = kept_path(
+        &captured("gone.txt", "100644"),
+        &change("gone.txt", false),
+        "the merge deletes it",
+        Staged::Nothing,
+    );
     let line: String = kept_line("git merge feature", &kept);
     assert!(line.contains("gone.txt holds your own bytes"), "{line}");
-    assert!(line.contains("The merge commit holds no gone.txt"), "{line}");
-    assert!(line.contains("`rm -- gone.txt` takes the merge's deletion"), "{line}");
+    assert!(
+        line.contains("The merge commit holds no gone.txt"),
+        "{line}"
+    );
+    assert!(
+        line.contains("`rm -- gone.txt` takes the merge's deletion"),
+        "{line}"
+    );
     assert!(!line.contains("git restore --"), "{line}");
 }
 
@@ -93,9 +153,19 @@ fn a_path_the_merge_deletes_names_its_absence_and_the_command_for_it() {
 ///  entry `rm` alone leaves behind.
 #[test]
 fn a_path_the_merge_deletes_that_the_index_holds_names_git_rm() {
-    let kept: Kept = kept_path(&captured("gone.txt", "100644"), &change("gone.txt", false), "the merge deletes it", Staged::ThePathsBytes);
+    let kept: Kept = kept_path(
+        &captured("gone.txt", "100644"),
+        &change("gone.txt", false),
+        "the merge deletes it",
+        Staged::ThePathsBytes,
+    );
     let line: String = kept_line("git merge feature", &kept);
-    assert!(line.contains("`git rm --no-enforce-worktree --force -- gone.txt` takes the merge's deletion"), "{line}");
+    assert!(
+        line.contains(
+            "`git rm --no-enforce-worktree --force -- gone.txt` takes the merge's deletion"
+        ),
+        "{line}"
+    );
     assert!(!line.contains("`rm -- gone.txt`"), "{line}");
 }
 
@@ -112,14 +182,39 @@ fn a_path_the_merge_deletes_that_the_index_holds_names_git_rm() {
 /// finding 1).
 #[test]
 fn a_path_with_a_space_is_quoted_inside_every_command_the_line_prints() {
-    let kept: Kept = kept_path(&captured("gone with space.txt", "100644"), &change("gone with space.txt", false), "the merge deletes it", Staged::Nothing);
+    let kept: Kept = kept_path(
+        &captured("gone with space.txt", "100644"),
+        &change("gone with space.txt", false),
+        "the merge deletes it",
+        Staged::Nothing,
+    );
     let line: String = kept_line("git merge feature", &kept);
-    assert!(line.contains("`rm -- 'gone with space.txt'` takes the merge's deletion"), "{line}");
-    assert!(line.contains("`git add -- 'gone with space.txt'`"), "{line}");
-    let standing: Kept = kept_path(&captured("gone with space.txt", "100644"), &change("gone with space.txt", true), "its changes cannot be merged as text", Staged::Nothing);
+    assert!(
+        line.contains("`rm -- 'gone with space.txt'` takes the merge's deletion"),
+        "{line}"
+    );
+    assert!(
+        line.contains("`git add -- 'gone with space.txt'`"),
+        "{line}"
+    );
+    let standing: Kept = kept_path(
+        &captured("gone with space.txt", "100644"),
+        &change("gone with space.txt", true),
+        "its changes cannot be merged as text",
+        Staged::Nothing,
+    );
     let standing_line: String = kept_line("git merge feature", &standing);
-    assert!(standing_line.contains("`git restore --no-enforce-worktree --source=HEAD -- 'gone with space.txt'`"), "{standing_line}");
-    let gone: Kept = kept_path(&deleted("gone with space.txt"), &change("gone with space.txt", true), "you deleted it, and the merge changes it", Staged::Nothing);
+    assert!(
+        standing_line
+            .contains("`git restore --no-enforce-worktree --source=HEAD -- 'gone with space.txt'`"),
+        "{standing_line}"
+    );
+    let gone: Kept = kept_path(
+        &deleted("gone with space.txt"),
+        &change("gone with space.txt", true),
+        "you deleted it, and the merge changes it",
+        Staged::Nothing,
+    );
     let gone_line: String = kept_line("git merge feature", &gone);
     assert!(gone_line.contains("`git restore --no-enforce-worktree --source=HEAD --staged --worktree -- 'gone with space.txt'`"), "{gone_line}");
 }
@@ -130,7 +225,12 @@ fn a_path_with_a_space_is_quoted_inside_every_command_the_line_prints() {
 ///  true even where no layer could decide it.
 #[test]
 fn a_path_neither_side_holds_is_named_as_nothing() {
-    let kept: Kept = kept_path(&deleted("a.txt"), &change("a.txt", false), "the merge deletes it", Staged::Nothing);
+    let kept: Kept = kept_path(
+        &deleted("a.txt"),
+        &change("a.txt", false),
+        "the merge deletes it",
+        Staged::Nothing,
+    );
     let line: String = kept_line("git merge feature", &kept);
     assert!(line.contains("a.txt holds nothing"), "{line}");
     assert!(line.contains("The merge commit holds no a.txt"), "{line}");
@@ -145,10 +245,22 @@ fn a_path_neither_side_holds_is_named_as_nothing() {
 ///  only where the index holds no version of theirs.
 #[test]
 fn the_index_layer_is_told_by_the_bytes_a_command_would_write() {
-    assert_eq!(staged_of(None, Some("the-path"), Some("the-merge")), Staged::Nothing);
-    assert_eq!(staged_of(Some("the-path"), Some("the-path"), Some("the-merge")), Staged::ThePathsBytes);
-    assert_eq!(staged_of(Some("the-merge"), None, Some("the-merge")), Staged::TheMergesVersion);
-    assert_eq!(staged_of(Some("staged"), Some("saved"), Some("the-merge")), Staged::OwnVersion);
+    assert_eq!(
+        staged_of(None, Some("the-path"), Some("the-merge")),
+        Staged::Nothing
+    );
+    assert_eq!(
+        staged_of(Some("the-path"), Some("the-path"), Some("the-merge")),
+        Staged::ThePathsBytes
+    );
+    assert_eq!(
+        staged_of(Some("the-merge"), None, Some("the-merge")),
+        Staged::TheMergesVersion
+    );
+    assert_eq!(
+        staged_of(Some("staged"), Some("saved"), Some("the-merge")),
+        Staged::OwnVersion
+    );
 }
 
 /// What:
@@ -165,12 +277,31 @@ fn the_index_layer_is_told_by_the_bytes_a_command_would_write() {
 /// finding 2).
 #[test]
 fn a_staged_version_of_the_persons_is_never_told_to_run_git_add() {
-    let kept: Kept = kept_path(&captured("gone.txt", "100644"), &change("gone.txt", false), "the merge deletes it", Staged::OwnVersion);
+    let kept: Kept = kept_path(
+        &captured("gone.txt", "100644"),
+        &change("gone.txt", false),
+        "the merge deletes it",
+        Staged::OwnVersion,
+    );
     let line: String = kept_line("git merge feature", &kept);
-    assert!(!line.contains("keeps your bytes in the index instead"), "no command writes over the staged version: {line}");
-    assert!(line.contains("would replace the version the index holds"), "the line says why `git add` is not the command to run: {line}");
-    assert!(line.contains("leave the path as it is and both stand"), "the line says both layers stand: {line}");
-    assert!(line.contains("`git rm --no-enforce-worktree --force -- gone.txt` takes the merge's deletion"), "{line}");
+    assert!(
+        !line.contains("keeps your bytes in the index instead"),
+        "no command writes over the staged version: {line}"
+    );
+    assert!(
+        line.contains("would replace the version the index holds"),
+        "the line says why `git add` is not the command to run: {line}"
+    );
+    assert!(
+        line.contains("leave the path as it is and both stand"),
+        "the line says both layers stand: {line}"
+    );
+    assert!(
+        line.contains(
+            "`git rm --no-enforce-worktree --force -- gone.txt` takes the merge's deletion"
+        ),
+        "{line}"
+    );
 }
 
 /// What:
@@ -184,9 +315,25 @@ fn a_staged_version_of_the_persons_is_never_told_to_run_git_add() {
 /// finding 2).
 #[test]
 fn a_staged_version_of_the_persons_stays_through_a_restore_of_the_merges_version() {
-    let kept: Kept = kept_path(&deleted("a.txt"), &change("a.txt", true), "you deleted it, and the merge changes it", Staged::OwnVersion);
+    let kept: Kept = kept_path(
+        &deleted("a.txt"),
+        &change("a.txt", true),
+        "you deleted it, and the merge changes it",
+        Staged::OwnVersion,
+    );
     let line: String = kept_line("git merge feature", &kept);
-    assert!(line.contains("`git restore --no-enforce-worktree --source=HEAD -- a.txt` puts it in the checkout"), "{line}");
-    assert!(!line.contains("--staged"), "the command writes no index entry over theirs: {line}");
-    assert!(line.contains("the version of yours that the index holds stays there"), "{line}");
+    assert!(
+        line.contains(
+            "`git restore --no-enforce-worktree --source=HEAD -- a.txt` puts it in the checkout"
+        ),
+        "{line}"
+    );
+    assert!(
+        !line.contains("--staged"),
+        "the command writes no index entry over theirs: {line}"
+    );
+    assert!(
+        line.contains("the version of yours that the index holds stays there"),
+        "{line}"
+    );
 }

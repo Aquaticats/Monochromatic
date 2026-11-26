@@ -1,7 +1,14 @@
 //! Controls for reading the index marks that hide a person's edit from `git status`.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 /// `PathBuf` is an owned filesystem path.
 use std::path::PathBuf;
 
@@ -31,18 +38,47 @@ fn only_a_marked_path_whose_bytes_differ_is_hidden_work() {
         git(repo.as_path(), &["add", "--", name]);
     }
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "hidden.txt"]);
-    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "clean.txt"]);
-    git(repo.as_path(), &["update-index", "--skip-worktree", "--", "sparse.txt"]);
+    git(
+        repo.as_path(),
+        &["update-index", "--assume-unchanged", "--", "hidden.txt"],
+    );
+    git(
+        repo.as_path(),
+        &["update-index", "--assume-unchanged", "--", "clean.txt"],
+    );
+    git(
+        repo.as_path(),
+        &["update-index", "--skip-worktree", "--", "sparse.txt"],
+    );
     std::fs::write(repo.join("hidden.txt"), b"the person's own line\n").expect("file");
     std::fs::write(repo.join("plain.txt"), b"an edit no mark hides\n").expect("file");
     // The sparse checkout's own state: the mark says the worktree copy is not the index's, and no file stands there at all.
     std::fs::remove_file(repo.join("sparse.txt")).expect("the sparse path has no worktree copy");
-    let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
-    assert_eq!(status, " M plain.txt", "Git's own status hides the marked edits: {status}");
-    let touched: Vec<Vec<u8>> = ["hidden.txt", "clean.txt", "sparse.txt"].iter().map(|name| { return name.as_bytes().to_vec(); }).collect();
-    let hidden: Vec<Vec<u8>> = paths_the_status_hides(&context_in(repo.as_path()), repo.as_path(), touched.as_slice()).expect("the marks are read");
-    assert_eq!(hidden, vec![b"hidden.txt".to_vec()], "only the marked edit whose bytes differ is work to carry");
+    let status: String = git_text(
+        repo.as_path(),
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    );
+    assert_eq!(
+        status, " M plain.txt",
+        "Git's own status hides the marked edits: {status}"
+    );
+    let touched: Vec<Vec<u8>> = ["hidden.txt", "clean.txt", "sparse.txt"]
+        .iter()
+        .map(|name| {
+            return name.as_bytes().to_vec();
+        })
+        .collect();
+    let hidden: Vec<Vec<u8>> = paths_the_status_hides(
+        &context_in(repo.as_path()),
+        repo.as_path(),
+        touched.as_slice(),
+    )
+    .expect("the marks are read");
+    assert_eq!(
+        hidden,
+        vec![b"hidden.txt".to_vec()],
+        "only the marked edit whose bytes differ is work to carry"
+    );
     remove(parent.as_path());
 }
 
@@ -61,12 +97,35 @@ fn the_tags_git_prints_for_each_mark_are_read_and_no_other() {
         s 100644 6666666666666666666666666666666666666666 0\ta\tpath\twith\ttabs.txt\0"
         .to_vec();
     let marked: Vec<Marked> = marked_entries(output.as_slice());
-    let names: Vec<String> = marked.iter().map(|entry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }).collect();
-    assert_eq!(names, vec!["skip.txt", "both.txt", "assumed.txt", "a\tpath\twith\ttabs.txt"], "every hidden mark is read, unmerged and plain entries are not");
+    let names: Vec<String> = marked
+        .iter()
+        .map(|entry| {
+            return String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            "skip.txt",
+            "both.txt",
+            "assumed.txt",
+            "a\tpath\twith\ttabs.txt"
+        ],
+        "every hidden mark is read, unmerged and plain entries are not"
+    );
     // A `skip-worktree` entry that also carries the assume-unchanged bit prints as a lower-case `s`, and stays the sparse
     //  checkout's mark: neither is a deletion of the person's.
-    let marks: Vec<bool> = marked.iter().map(|entry| { return entry.mark.absence_is_the_marks_own(); }).collect();
-    assert_eq!(marks, vec![true, true, false, true], "a lower-case `s` still says skip-worktree, and `h` alone is assume-unchanged");
+    let marks: Vec<bool> = marked
+        .iter()
+        .map(|entry| {
+            return entry.mark.absence_is_the_marks_own();
+        })
+        .collect();
+    assert_eq!(
+        marks,
+        vec![true, true, false, true],
+        "a lower-case `s` still says skip-worktree, and `h` alone is assume-unchanged"
+    );
     assert_eq!(marked[0].mode, "100644");
     assert_eq!(marked[0].object, "1111111111111111111111111111111111111111");
 }
@@ -92,14 +151,32 @@ fn a_marked_path_whose_mode_differs_is_hidden_work() {
     std::fs::write(repo.join("a.txt"), b"the branch's bytes\n").expect("file");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
-    let mut permissions: std::fs::Permissions = std::fs::metadata(repo.join("a.txt")).expect("metadata").permissions();
+    git(
+        repo.as_path(),
+        &["update-index", "--assume-unchanged", "--", "a.txt"],
+    );
+    let mut permissions: std::fs::Permissions = std::fs::metadata(repo.join("a.txt"))
+        .expect("metadata")
+        .permissions();
     permissions.set_mode(0o755);
     std::fs::set_permissions(repo.join("a.txt"), permissions).expect("the person's mode");
-    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "", "Git's own status hides a mode the mark covers");
+    assert_eq!(
+        git_text(repo.as_path(), &["status", "--porcelain=v1"]),
+        "",
+        "Git's own status hides a mode the mark covers"
+    );
     let touched: Vec<Vec<u8>> = vec![b"a.txt".to_vec()];
-    let hidden: Vec<Vec<u8>> = paths_the_status_hides(&context_in(repo.as_path()), repo.as_path(), touched.as_slice()).expect("the marks are read");
-    assert_eq!(hidden, vec![b"a.txt".to_vec()], "a mode the person set is work to carry");
+    let hidden: Vec<Vec<u8>> = paths_the_status_hides(
+        &context_in(repo.as_path()),
+        repo.as_path(),
+        touched.as_slice(),
+    )
+    .expect("the marks are read");
+    assert_eq!(
+        hidden,
+        vec![b"a.txt".to_vec()],
+        "a mode the person set is work to carry"
+    );
     remove(parent.as_path());
 }
 
@@ -128,10 +205,21 @@ fn crlf_bytes_that_clean_to_the_index_object_are_no_hidden_work() {
     std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("file");
     git(repo.as_path(), &["add", "--", ".gitattributes", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
+    git(
+        repo.as_path(),
+        &["update-index", "--assume-unchanged", "--", "a.txt"],
+    );
     std::fs::write(repo.join("a.txt"), b"one\r\ntwo\r\n").expect("the same text with CRLF endings");
     let touched: Vec<Vec<u8>> = vec![b"a.txt".to_vec()];
-    let hidden: Vec<Vec<u8>> = paths_the_status_hides(&context_in(repo.as_path()), repo.as_path(), touched.as_slice()).expect("the marks are read");
-    assert!(hidden.is_empty(), "the cleaned bytes are the index's own object, so nothing is carried: {hidden:?}");
+    let hidden: Vec<Vec<u8>> = paths_the_status_hides(
+        &context_in(repo.as_path()),
+        repo.as_path(),
+        touched.as_slice(),
+    )
+    .expect("the marks are read");
+    assert!(
+        hidden.is_empty(),
+        "the cleaned bytes are the index's own object, so nothing is carried: {hidden:?}"
+    );
     remove(parent.as_path());
 }

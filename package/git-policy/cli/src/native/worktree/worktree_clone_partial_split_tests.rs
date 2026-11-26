@@ -6,7 +6,10 @@
 
 use super::*;
 use crate::repo_read_index::IndexEntry;
-use crate::subvolume_index::{StatFields, StoredStat};
+use crate::subvolume_index::{
+    StatFields,
+    StoredStat,
+};
 use crate::subvolume_index_files::fields_of;
 use crate::worktree_clean::StatEntry;
 use crate::worktree_clean_stat_verdicts::ASSUME_VALID;
@@ -84,10 +87,15 @@ fn recorded(path: &std::path::Path) -> (crate::subvolume_index::StoredStat, Stat
 /// A fixture directory with the files of `files`,
 /// and the index entries their own stat data justifies,
 /// in path order.
-fn world(name: &str, files: &[Filed]) -> World {
+fn world(
+    name: &str,
+    files: &[Filed],
+) -> World {
     let root: PathBuf = crate::test_support::fixture(name);
     let mut sorted: Vec<&Filed> = files.iter().collect();
-    sorted.sort_by_key(|filed| { return filed.path; });
+    sorted.sort_by_key(|filed| {
+        return filed.path;
+    });
     for filed in &sorted {
         if filed.mode == 0o120_000 {
             std::os::unix::fs::symlink("plain.txt", root.join(filed.path)).expect("link");
@@ -103,13 +111,34 @@ fn world(name: &str, files: &[Filed]) -> World {
     for filed in &sorted {
         let (stored, fields) = recorded(root.join(filed.path).as_path());
         latest = latest.max(fields.mtime_seconds);
-        entries.push(StatEntry { path: filed.path.as_bytes().to_vec(), flags: 0, mode: filed.mode, stored });
-        indexed.push(IndexEntry { path: filed.path.as_bytes().to_vec(), mode: filed.mode, id: object_name(filed.index), stage: 0, extended: 0 });
-        tree.push(FlatEntry { path: filed.path.as_bytes().to_vec(), mode: filed.mode, id: object_name(filed.tree) });
+        entries.push(StatEntry {
+            path: filed.path.as_bytes().to_vec(),
+            flags: 0,
+            mode: filed.mode,
+            stored,
+        });
+        indexed.push(IndexEntry {
+            path: filed.path.as_bytes().to_vec(),
+            mode: filed.mode,
+            id: object_name(filed.index),
+            stage: 0,
+            extended: 0,
+        });
+        tree.push(FlatEntry {
+            path: filed.path.as_bytes().to_vec(),
+            mode: filed.mode,
+            id: object_name(filed.tree),
+        });
     }
     // A whole second after every file, so no entry of these controls is racy.
     let index_seconds: u32 = latest + 1;
-    return World { root: std::fs::canonicalize(root).expect("canonical"), entries, indexed, tree, index_seconds };
+    return World {
+        root: std::fs::canonicalize(root).expect("canonical"),
+        entries,
+        indexed,
+        tree,
+        index_seconds,
+    };
 }
 
 impl World {
@@ -120,24 +149,53 @@ impl World {
 
     /// The split of this world.
     fn split(&self) -> Result<Split, CleanRefusal> {
-        return split_the_tree(self.entries.as_slice(), self.indexed.as_slice(), self.tree.as_slice(), self.root.as_path(), self.index_seconds);
+        return split_the_tree(
+            self.entries.as_slice(),
+            self.indexed.as_slice(),
+            self.tree.as_slice(),
+            self.root.as_path(),
+            self.index_seconds,
+        );
     }
 
     /// The names the split clones.
     fn cloned(&self) -> Vec<String> {
         let split: Split = self.split().expect("the split");
-        return split.clones.iter().filter_map(|at| { return self.entries.get(*at).map(|entry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }); }).collect();
+        return split
+            .clones
+            .iter()
+            .filter_map(|at| {
+                return self.entries.get(*at).map(|entry| {
+                    return String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+                });
+            })
+            .collect();
     }
 
     /// The names the split hands to Git.
     fn written(&self) -> Vec<String> {
         let split: Split = self.split().expect("the split");
-        return split.writes.iter().map(|path| { return String::from_utf8_lossy(path.as_slice()).into_owned(); }).collect();
+        return split
+            .writes
+            .iter()
+            .map(|path| {
+                return String::from_utf8_lossy(path.as_slice()).into_owned();
+            })
+            .collect();
     }
 
     /// Where `name` sits in the index and in the tree.
-    fn position(&self, name: &str) -> usize {
-        return self.tree.iter().position(|entry| { return entry.path.as_slice() == name.as_bytes(); }).expect("a tree path of the fixture");
+    fn position(
+        &self,
+        name: &str,
+    ) -> usize {
+        return self
+            .tree
+            .iter()
+            .position(|entry| {
+                return entry.path.as_slice() == name.as_bytes();
+            })
+            .expect("a tree path of the fixture");
     }
 }
 
@@ -148,9 +206,24 @@ impl World {
 /// and one whose bytes a control may change.
 fn three_files() -> Vec<Filed> {
     return vec![
-        Filed { path: "edited.txt", mode: 0o100_644, tree: 3, index: 3 },
-        Filed { path: "link", mode: 0o120_000, tree: 2, index: 2 },
-        Filed { path: "plain.txt", mode: 0o100_644, tree: 1, index: 1 },
+        Filed {
+            path: "edited.txt",
+            mode: 0o100_644,
+            tree: 3,
+            index: 3,
+        },
+        Filed {
+            path: "link",
+            mode: 0o120_000,
+            tree: 2,
+            index: 2,
+        },
+        Filed {
+            path: "plain.txt",
+            mode: 0o100_644,
+            tree: 1,
+            index: 1,
+        },
     ];
 }
 
@@ -171,9 +244,16 @@ fn the_files_their_entries_prove_are_cloned() {
 #[test]
 fn a_changed_file_is_written_not_cloned() {
     let world: World = world("changed", three_files().as_slice());
-    std::fs::write(world.root.join("edited.txt"), b"longer than what the entry recorded\n").expect("the edit");
+    std::fs::write(
+        world.root.join("edited.txt"),
+        b"longer than what the entry recorded\n",
+    )
+    .expect("the edit");
     assert_eq!(world.written(), vec![String::from("edited.txt")]);
-    assert_eq!(world.cloned(), vec![String::from("link"), String::from("plain.txt")]);
+    assert_eq!(
+        world.cloned(),
+        vec![String::from("link"), String::from("plain.txt")]
+    );
     world.remove();
 }
 
@@ -199,10 +279,19 @@ fn a_missing_file_is_written() {
 /// ```ts
 /// setModified(path, seconds);
 /// ```
-fn set_modified(path: &std::path::Path, seconds: u64) {
-    let when: std::time::SystemTime = std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds);
-    let times: std::fs::FileTimes = std::fs::FileTimes::new().set_modified(when).set_accessed(when);
-    std::fs::File::open(path).expect("the file whose times are set").set_times(times).expect("the modification time");
+fn set_modified(
+    path: &std::path::Path,
+    seconds: u64,
+) {
+    let when: std::time::SystemTime =
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds);
+    let times: std::fs::FileTimes = std::fs::FileTimes::new()
+        .set_modified(when)
+        .set_accessed(when);
+    std::fs::File::open(path)
+        .expect("the file whose times are set")
+        .set_times(times)
+        .expect("the modification time");
 }
 
 /// An entry as new as the index file proves nothing,
@@ -215,8 +304,19 @@ fn a_racy_entry_is_written() {
     set_modified(world.root.join("plain.txt").as_path(), later);
     let mut entries: Vec<StatEntry> = world.entries.clone();
     entries[at].stored = recorded(world.root.join("plain.txt").as_path()).0;
-    let split: Split = split_the_tree(entries.as_slice(), world.indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), later as u32).expect("a split");
-    assert_eq!(split.writes, vec![b"plain.txt".to_vec()], "the entry as new as the index is not cloned");
+    let split: Split = split_the_tree(
+        entries.as_slice(),
+        world.indexed.as_slice(),
+        world.tree.as_slice(),
+        world.root.as_path(),
+        later as u32,
+    )
+    .expect("a split");
+    assert_eq!(
+        split.writes,
+        vec![b"plain.txt".to_vec()],
+        "the entry as new as the index is not cloned"
+    );
     assert_eq!(split.clones.len(), 2);
     world.remove();
 }
@@ -230,7 +330,14 @@ fn an_entry_without_nanoseconds_is_written() {
     let mut entries: Vec<StatEntry> = world.entries.clone();
     let nanos: u32 = entries[at].stored.mtime_nanos;
     entries[at].stored.mtime_nanos = if nanos == 0 { 1 } else { 0 };
-    let split: Split = split_the_tree(entries.as_slice(), world.indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), world.index_seconds).expect("a split");
+    let split: Split = split_the_tree(
+        entries.as_slice(),
+        world.indexed.as_slice(),
+        world.tree.as_slice(),
+        world.root.as_path(),
+        world.index_seconds,
+    )
+    .expect("a split");
     assert_eq!(split.writes, vec![b"plain.txt".to_vec()]);
     world.remove();
 }
@@ -257,7 +364,14 @@ fn a_path_the_index_lacks_is_written() {
     let mut indexed: Vec<IndexEntry> = world.indexed.clone();
     entries.remove(at);
     indexed.remove(at);
-    let split: Split = split_the_tree(entries.as_slice(), indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), world.index_seconds).expect("a split");
+    let split: Split = split_the_tree(
+        entries.as_slice(),
+        indexed.as_slice(),
+        world.tree.as_slice(),
+        world.root.as_path(),
+        world.index_seconds,
+    )
+    .expect("a split");
     assert_eq!(split.writes, vec![b"plain.txt".to_vec()]);
     world.remove();
 }
@@ -269,10 +383,39 @@ fn a_staged_addition_reaches_nothing() {
     let world: World = world("added", three_files().as_slice());
     let mut entries: Vec<StatEntry> = world.entries.clone();
     let mut indexed: Vec<IndexEntry> = world.indexed.clone();
-    entries.insert(0, StatEntry { path: b"added.txt".to_vec(), flags: 0, mode: 0o100_644, stored: world.entries[0].stored });
-    indexed.insert(0, IndexEntry { path: b"added.txt".to_vec(), mode: 0o100_644, id: object_name(7), stage: 0, extended: 0 });
-    let split: Split = split_the_tree(entries.as_slice(), indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), world.index_seconds).expect("a split");
-    assert!(split.writes.iter().all(|path| { return path.as_slice() != b"added.txt"; }), "the staged addition is no tree path");
+    entries.insert(
+        0,
+        StatEntry {
+            path: b"added.txt".to_vec(),
+            flags: 0,
+            mode: 0o100_644,
+            stored: world.entries[0].stored,
+        },
+    );
+    indexed.insert(
+        0,
+        IndexEntry {
+            path: b"added.txt".to_vec(),
+            mode: 0o100_644,
+            id: object_name(7),
+            stage: 0,
+            extended: 0,
+        },
+    );
+    let split: Split = split_the_tree(
+        entries.as_slice(),
+        indexed.as_slice(),
+        world.tree.as_slice(),
+        world.root.as_path(),
+        world.index_seconds,
+    )
+    .expect("a split");
+    assert!(
+        split.writes.iter().all(|path| {
+            return path.as_slice() != b"added.txt";
+        }),
+        "the staged addition is no tree path"
+    );
     assert_eq!(split.clones.len(), 3);
     world.remove();
 }
@@ -283,7 +426,10 @@ fn a_submodule_ends_the_split() {
     let mut files: Vec<Filed> = three_files();
     files[2].mode = 0o160_000;
     let world: World = world("submodule", files.as_slice());
-    assert_eq!(world.split().expect_err("a refusal").kind, CleanRefusalKind::NotPlain);
+    assert_eq!(
+        world.split().expect_err("a refusal").kind,
+        CleanRefusalKind::NotPlain
+    );
     world.remove();
 }
 
@@ -293,7 +439,18 @@ fn an_entry_git_does_not_judge_ends_the_split() {
     let world: World = world("skip-worktree", three_files().as_slice());
     let mut indexed: Vec<IndexEntry> = world.indexed.clone();
     indexed[0].extended = 0x4000;
-    assert_eq!(split_the_tree(world.entries.as_slice(), indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), world.index_seconds).expect_err("a refusal").kind, CleanRefusalKind::NotPlain);
+    assert_eq!(
+        split_the_tree(
+            world.entries.as_slice(),
+            indexed.as_slice(),
+            world.tree.as_slice(),
+            world.root.as_path(),
+            world.index_seconds
+        )
+        .expect_err("a refusal")
+        .kind,
+        CleanRefusalKind::NotPlain
+    );
     world.remove();
 }
 
@@ -303,7 +460,18 @@ fn an_unmerged_entry_ends_the_split() {
     let world: World = world("unmerged", three_files().as_slice());
     let mut indexed: Vec<IndexEntry> = world.indexed.clone();
     indexed[0].stage = 2;
-    assert_eq!(split_the_tree(world.entries.as_slice(), indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), world.index_seconds).expect_err("a refusal").kind, CleanRefusalKind::NotPlain);
+    assert_eq!(
+        split_the_tree(
+            world.entries.as_slice(),
+            indexed.as_slice(),
+            world.tree.as_slice(),
+            world.root.as_path(),
+            world.index_seconds
+        )
+        .expect_err("a refusal")
+        .kind,
+        CleanRefusalKind::NotPlain
+    );
     world.remove();
 }
 
@@ -315,7 +483,18 @@ fn an_assume_unchanged_entry_ends_the_split() {
     let world: World = world("assume-valid", three_files().as_slice());
     let mut entries: Vec<StatEntry> = world.entries.clone();
     entries[0].flags |= ASSUME_VALID;
-    assert_eq!(split_the_tree(entries.as_slice(), world.indexed.as_slice(), world.tree.as_slice(), world.root.as_path(), world.index_seconds).expect_err("a refusal").kind, CleanRefusalKind::NotPlain);
+    assert_eq!(
+        split_the_tree(
+            entries.as_slice(),
+            world.indexed.as_slice(),
+            world.tree.as_slice(),
+            world.root.as_path(),
+            world.index_seconds
+        )
+        .expect_err("a refusal")
+        .kind,
+        CleanRefusalKind::NotPlain
+    );
     world.remove();
 }
 
@@ -324,8 +503,18 @@ fn an_assume_unchanged_entry_ends_the_split() {
 #[test]
 fn a_path_below_a_link_is_written() {
     let files: Vec<Filed> = vec![
-        Filed { path: "plain.txt", mode: 0o100_644, tree: 1, index: 1 },
-        Filed { path: "sub/leaf.txt", mode: 0o100_644, tree: 2, index: 2 },
+        Filed {
+            path: "plain.txt",
+            mode: 0o100_644,
+            tree: 1,
+            index: 1,
+        },
+        Filed {
+            path: "sub/leaf.txt",
+            mode: 0o100_644,
+            tree: 2,
+            index: 2,
+        },
     ];
     let world: World = world("below-a-link", files.as_slice());
     std::fs::rename(world.root.join("sub"), world.root.join("elsewhere")).expect("the move");

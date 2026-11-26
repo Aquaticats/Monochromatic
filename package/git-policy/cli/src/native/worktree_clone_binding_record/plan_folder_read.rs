@@ -36,7 +36,10 @@
 
 use crate::worktree_clone_binding_record::add_state_commands::PlanHeadWord;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The largest one plan file this reader reads.
 /// A plan records names and identities rather than history,
@@ -77,7 +80,8 @@ const ATTEMPT_WORDS_BEFORE_THE_OUTCOME: usize = 2;
 /// Why:
 ///  A file under a clone's GUID that does not carry it is not a plan this add can read,
 ///  and nothing proves such a file does not name this clone.
-pub const PLAN_HEADER: &str = "# monochromatic-git-policy-cli zfs worktree clone destruction plan, version 1";
+pub const PLAN_HEADER: &str =
+    "# monochromatic-git-policy-cli zfs worktree clone destruction plan, version 1";
 
 /// What:
 ///  Whether one entry's name is a clone's canonical numeric dataset GUID,
@@ -161,16 +165,24 @@ pub struct PlanUnreadable {
 
 /// Whether one plan's bytes name this clone,
 /// looking only at the two fields a plan may carry it in.
-fn names_the_clone(bytes: &[u8], clone_guid: Option<DatasetGuid>, clone_dataset: &str) -> bool {
+fn names_the_clone(
+    bytes: &[u8],
+    clone_guid: Option<DatasetGuid>,
+    clone_dataset: &str,
+) -> bool {
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes);
     for line in text.lines() {
         for field in CLONE_FIELDS {
-            let Some(found) = line.strip_prefix(field) else { continue };
+            let Some(found) = line.strip_prefix(field) else {
+                continue;
+            };
             let trimmed: &str = found.trim();
             if field == CLONE_DATASET_FIELD && trimmed == clone_dataset {
                 return true;
             }
-            if field == CLONE_GUID_FIELD && clone_guid.is_some_and(|guid| return trimmed == guid.file_name()) {
+            if field == CLONE_GUID_FIELD
+                && clone_guid.is_some_and(|guid| return trimmed == guid.file_name())
+            {
                 return true;
             }
         }
@@ -201,7 +213,11 @@ fn names_the_clone(bytes: &[u8], clone_guid: Option<DatasetGuid>, clone_dataset:
 /// ```ts
 /// const found = thePlanNamingTheClone(commonDir, cloneGuid, cloneDataset); // undefined when none stands
 /// ```
-pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGuid>, clone_dataset: &str) -> Result<Option<APlanThatNamesTheClone>, PlanUnreadable> {
+pub fn the_plan_naming_the_clone(
+    common_dir: &Path,
+    clone_guid: Option<DatasetGuid>,
+    clone_dataset: &str,
+) -> Result<Option<APlanThatNamesTheClone>, PlanUnreadable> {
     let folder: PathBuf = super::registration_home::plans_folder(common_dir);
     let entries = match std::fs::read_dir(folder.as_path()) {
         Ok(found) => found,
@@ -209,7 +225,9 @@ pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGu
         Err(error) => {
             return Err(PlanUnreadable {
                 plan: folder,
-                sentence: format!("the plan folder could not be listed ({error}), so nothing proves no plan names this clone. Nothing was changed. Ways forward: fix the folder's access and run the command again."),
+                sentence: format!(
+                    "the plan folder could not be listed ({error}), so nothing proves no plan names this clone. Nothing was changed. Ways forward: fix the folder's access and run the command again."
+                ),
             });
         }
     };
@@ -221,17 +239,25 @@ pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGu
             };
         })?;
         let path: PathBuf = found_entry.path();
-        let Some(file_name) = path.file_name() else { continue };
+        let Some(file_name) = path.file_name() else {
+            continue;
+        };
         if file_name.as_encoded_bytes().starts_with(b".") {
             continue;
         }
-        let Some(name) = file_name.to_str() else { continue };
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
         // The plan's key is the clone's GUID, and its name is that key:
         // every other entry is foreign, reported by `doctor` and read by nobody here.
         if !is_canonical_guid_name(name) {
             continue;
         }
-        if !found_entry.file_type().map(|kind| return kind.is_file()).unwrap_or(false) {
+        if !found_entry
+            .file_type()
+            .map(|kind| return kind.is_file())
+            .unwrap_or(false)
+        {
             continue;
         }
         // A plan filed under this clone's own GUID is this clone's whatever its fields say,
@@ -241,7 +267,10 @@ pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGu
         if !by_its_key && !names_the_clone(bytes.as_slice(), clone_guid, clone_dataset) {
             continue;
         }
-        return Ok(Some(what_the_plan_records(path.as_path(), bytes.as_slice())?));
+        return Ok(Some(what_the_plan_records(
+            path.as_path(),
+            bytes.as_slice(),
+        )?));
     }
     return Ok(None);
 }
@@ -262,7 +291,10 @@ pub fn the_plan_naming_the_clone(common_dir: &Path, clone_guid: Option<DatasetGu
 /// ```ts
 /// const plan = whatThePlanRecords(path, bytes); // throws the sentence for a field it cannot read
 /// ```
-fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheClone, PlanUnreadable> {
+fn what_the_plan_records(
+    path: &Path,
+    bytes: &[u8],
+) -> Result<APlanThatNamesTheClone, PlanUnreadable> {
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes);
     let mut recorded_dataset: Option<String> = None;
     let mut recorded_guid: Option<DatasetGuid> = None;
@@ -275,7 +307,15 @@ fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheC
         }
         if let Some(found) = line.strip_prefix(CLONE_GUID_FIELD) {
             let word: &str = found.trim();
-            let guid: DatasetGuid = DatasetGuid::parse(word).map_err(|refusal| return unreadable(path, format!("its `cloneGuid=` line does not hold a canonical dataset GUID ({refusal:?})").as_str()))?;
+            let guid: DatasetGuid = DatasetGuid::parse(word).map_err(|refusal| {
+                return unreadable(
+                    path,
+                    format!(
+                        "its `cloneGuid=` line does not hold a canonical dataset GUID ({refusal:?})"
+                    )
+                    .as_str(),
+                );
+            })?;
             recorded_guid = Some(guid);
             continue;
         }
@@ -290,13 +330,22 @@ fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheC
         }
     }
     let Some(clone_dataset) = recorded_dataset else {
-        return Err(unreadable(path, "it carries no `cloneDataset=` line, so this add cannot tell which clone's record it is"));
+        return Err(unreadable(
+            path,
+            "it carries no `cloneDataset=` line, so this add cannot tell which clone's record it is",
+        ));
     };
     let Some(clone_guid) = recorded_guid else {
-        return Err(unreadable(path, "it carries no `cloneGuid=` line, so nothing proves which clone's absence the pool would be asked about"));
+        return Err(unreadable(
+            path,
+            "it carries no `cloneGuid=` line, so nothing proves which clone's absence the pool would be asked about",
+        ));
     };
     let Some(head) = recorded_head else {
-        return Err(unreadable(path, "it carries no `head=` line, so this add cannot tell which command the plan's head gives"));
+        return Err(unreadable(
+            path,
+            "it carries no `head=` line, so this add cannot tell which command the plan's head gives",
+        ));
     };
     // What:     `Ok(APlanThatNamesTheClone { .. })` builds the success variant
     //           of `Result`, wrapping the four values the stop reads.
@@ -307,7 +356,13 @@ fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheC
     // ```ts
     // return { plan, cloneDataset: clone_dataset, cloneGuid: clone_guid, head, everyTuplePlanned: every_tuple_planned };
     // ```
-    return Ok(APlanThatNamesTheClone { plan: PathBuf::from(path), clone_dataset, clone_guid, head, every_tuple_planned });
+    return Ok(APlanThatNamesTheClone {
+        plan: PathBuf::from(path),
+        clone_dataset,
+        clone_guid,
+        head,
+        every_tuple_planned,
+    });
 }
 
 /// Whether one attempt line records the `planned` outcome,
@@ -319,33 +374,55 @@ fn what_the_plan_records(path: &Path, bytes: &[u8]) -> Result<APlanThatNamesTheC
 fn says_planned(line: &str) -> bool {
     let mut words = line.split_ascii_whitespace();
     for _ in 0..ATTEMPT_WORDS_BEFORE_THE_OUTCOME {
-        let Some(_word) = words.next() else { return false };
+        let Some(_word) = words.next() else {
+            return false;
+        };
     }
     return words.next() == Some(PLANNED_OUTCOME);
 }
 
 /// The sentence for a plan this reader cannot read,
 /// which names the file and what the plan failed to say.
-fn unreadable(path: &Path, what: &str) -> PlanUnreadable {
+fn unreadable(
+    path: &Path,
+    what: &str,
+) -> PlanUnreadable {
     return PlanUnreadable {
         plan: PathBuf::from(path),
-        sentence: format!("the plan at {} was not read as a plan: {what}. Nothing was changed. Ways forward: inspect the plan's file and run the command again.", path.display()),
+        sentence: format!(
+            "the plan at {} was not read as a plan: {what}. Nothing was changed. Ways forward: inspect the plan's file and run the command again.",
+            path.display()
+        ),
     };
 }
 
 /// One plan's bytes,
 /// or the sentence that says why they were not read.
 fn read_a_plan(path: &Path) -> Result<Vec<u8>, PlanUnreadable> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return unreadable(path, format!("it could not be examined ({error})").as_str()))?;
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        return unreadable(path, format!("it could not be examined ({error})").as_str());
+    })?;
     if !metadata.is_file() {
         return Err(unreadable(path, "it is not a regular file"));
     }
     if metadata.len() > PLAN_READ_MAXIMUM_BYTES {
-        return Err(unreadable(path, format!("it holds more bytes ({}) than this reader reads ({PLAN_READ_MAXIMUM_BYTES})", metadata.len()).as_str()));
+        return Err(unreadable(
+            path,
+            format!(
+                "it holds more bytes ({}) than this reader reads ({PLAN_READ_MAXIMUM_BYTES})",
+                metadata.len()
+            )
+            .as_str(),
+        ));
     }
-    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| return unreadable(path, format!("it could not be read ({error})").as_str()))?;
+    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| {
+        return unreadable(path, format!("it could not be read ({error})").as_str());
+    })?;
     if !bytes.starts_with(PLAN_HEADER.as_bytes()) {
-        return Err(unreadable(path, "it does not begin with this route's plan header"));
+        return Err(unreadable(
+            path,
+            "it does not begin with this route's plan header",
+        ));
     }
     // What:     `Ok(bytes)` wraps the plan's bytes in the success variant of
     //           `Result`.

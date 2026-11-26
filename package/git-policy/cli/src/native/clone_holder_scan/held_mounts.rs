@@ -23,7 +23,10 @@
 //! ```
 
 use crate::fs_mount_options::MountFacts;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One mount of the dataset a scan reports on.
@@ -50,7 +53,11 @@ pub struct HeldMount {
 impl HeldMount {
     /// One table row as the mount a report names.
     pub fn of(facts: &MountFacts) -> Self {
-        return HeldMount { mount_id: facts.mount_id, root: facts.root.clone(), mount_point: facts.mount_point.clone() };
+        return HeldMount {
+            mount_id: facts.mount_id,
+            root: facts.root.clone(),
+            mount_point: facts.mount_point.clone(),
+        };
     }
 
     /// Whether this mount shows the dataset's own root.

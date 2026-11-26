@@ -24,7 +24,11 @@
 //! expect(codeLines(readFileSync('worktree_clone_mount_handler/root_mode_names.rs', 'utf8'))).toEqual(NAMES_CODE);
 //! ```
 
-use super::{assert_whole_line_comments_only, pinned_code_lines, squeezed};
+use super::{
+    assert_whole_line_comments_only,
+    pinned_code_lines,
+    squeezed,
+};
 use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
 use std::path::Path;
 
@@ -39,13 +43,17 @@ const CRATE_ROOT_SOURCE: &str = include_str!("../lib.rs");
 
 /// The paths module, read as text: its `ZEDLET_INSTALL_PATH` is one of the two spellings this
 /// guard ties to the pinned start name.
-const INSTALL_PATHS_SOURCE: &str = include_str!("../worktree_clone_mount_handler/handler_install_paths.rs");
+const INSTALL_PATHS_SOURCE: &str =
+    include_str!("../worktree_clone_mount_handler/handler_install_paths.rs");
 
 /// `root_mode_names.rs`'s code text, whole and in order: comments cut, blanks trimmed.
 /// A change to any line here is a change to what the module decides, so the pin and the code
 /// change in one commit.
-const NAMES_CODE: [&str; 53] = [
-    "use std::ffi::{OsStr, OsString};",
+const NAMES_CODE: &[&str] = &[
+    "use std::ffi::{",
+    "OsStr,",
+    "OsString,",
+    "};",
     "use std::path::Path;",
     "use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;",
     "pub const ZEDLET_START_NAME: &str = \"history_event-mount_git_worktree_clone_datasets\";",
@@ -71,13 +79,20 @@ const NAMES_CODE: [&str; 53] = [
     "if !names_the_zedlet(start_name) {",
     "return RootModeStart::Wrapper;",
     "}",
-    "if handed.is_empty() || (handed.len() == 1 && (handed[0] == OsStr::new(\"--help\") || handed[0] == OsStr::new(\"--version\"))) {",
+    "if handed.is_empty()",
+    "|| (handed.len() == 1",
+    "&& (handed[0] == OsStr::new(\"--help\") || handed[0] == OsStr::new(\"--version\")))",
+    "{",
     "return RootModeStart::Arguments(handed);",
     "}",
-    "return RootModeStart::Refused(RootModeMisuse::WordUnderTheZedletName(word_that_cannot_be_honoured(handed)));",
+    "return RootModeStart::Refused(RootModeMisuse::WordUnderTheZedletName(",
+    "word_that_cannot_be_honoured(handed),",
+    "));",
     "}",
     "fn starts_with_the_group_words(handed: &[OsString]) -> bool {",
-    "return handed.len() >= 2 && handed[0] == OsStr::new(COMMAND_WORD.current) && handed[1] == OsStr::new(ROOT_GROUP_WORD);",
+    "return handed.len() >= 2",
+    "&& handed[0] == OsStr::new(COMMAND_WORD.current)",
+    "&& handed[1] == OsStr::new(ROOT_GROUP_WORD);",
     "}",
     "fn names_the_zedlet(start_name: Option<&OsStr>) -> bool {",
     "return start_name.and_then(last_component) == Some(ZEDLET_START_NAME);",
@@ -93,7 +108,11 @@ const NAMES_CODE: [&str; 53] = [
     "}",
     "fn word_that_cannot_be_honoured(handed: &[OsString]) -> &OsStr {",
     "let first: &OsStr = handed[0].as_os_str();",
-    "if handed.len() > 1 && (first == OsStr::new(COMMAND_WORD.current) || first == OsStr::new(\"--help\") || first == OsStr::new(\"--version\")) {",
+    "if handed.len() > 1",
+    "&& (first == OsStr::new(COMMAND_WORD.current)",
+    "|| first == OsStr::new(\"--help\")",
+    "|| first == OsStr::new(\"--version\"))",
+    "{",
     "return handed[1].as_os_str();",
     "}",
     "return first;",
@@ -104,10 +123,26 @@ const NAMES_CODE: [&str; 53] = [
 #[test]
 fn the_one_start_name_is_written_in_one_place() {
     assert_whole_line_comments_only("root_mode_names.rs", NAMES_SOURCE);
-    let code: Vec<String> = pinned_code_lines(NAMES_SOURCE, "root_mode_names.rs").into_iter().filter(|line| { return !line.is_empty(); }).collect();
-    assert_eq!(code.len(), NAMES_CODE.len(), "root_mode_names.rs has {} code line(s), and the reviewed text has {}: {code:#?}", code.len(), NAMES_CODE.len());
+    let code: Vec<String> = pinned_code_lines(NAMES_SOURCE, "root_mode_names.rs")
+        .into_iter()
+        .filter(|line| {
+            return !line.is_empty();
+        })
+        .collect();
+    assert_eq!(
+        code.len(),
+        NAMES_CODE.len(),
+        "root_mode_names.rs has {} code line(s), and the reviewed text has {}: {code:#?}",
+        code.len(),
+        NAMES_CODE.len()
+    );
     for (at, (found, want)) in code.iter().zip(NAMES_CODE.iter()).enumerate() {
-        assert_eq!(found.as_str(), *want, "root_mode_names.rs's code line {} is not the reviewed one", at + 1);
+        assert_eq!(
+            found.as_str(),
+            *want,
+            "root_mode_names.rs's code line {} is not the reviewed one",
+            at + 1
+        );
     }
 }
 
@@ -119,9 +154,21 @@ fn the_one_start_name_is_written_in_one_place() {
 ///  would keep passing the old one;
 ///  and the attribute run, not the file, is the thing that decides which file a `mod` names,
 ///  which is why `lib.rs`'s own `#[path]` on another module is allowed to stand.
-fn declaration_run(source: &str, declaration: &str) -> (usize, String) {
+fn declaration_run(
+    source: &str,
+    declaration: &str,
+) -> (usize, String) {
     let lines: Vec<&str> = source.lines().collect();
-    let declared: Vec<usize> = lines.iter().enumerate().filter(|(_at, line)| { return line.trim() == declaration; }).map(|(at, _line)| { return at; }).collect();
+    let declared: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_at, line)| {
+            return line.trim() == declaration;
+        })
+        .map(|(at, _line)| {
+            return at;
+        })
+        .collect();
     let Some(at) = declared.first().copied() else {
         return (0, String::new());
     };
@@ -149,24 +196,42 @@ fn declaration_run(source: &str, declaration: &str) -> (usize, String) {
 /// module while the pin above kept passing the old one.
 #[test]
 fn the_pinned_module_is_the_module_the_crate_compiles() {
-    let (declarations, run): (usize, String) = declaration_run(HANDLER_MODULE_SOURCE, "pub mod root_mode_names;");
-    assert_eq!(declarations, 1, "worktree_clone_mount_handler/mod.rs must declare `pub mod root_mode_names;` exactly once, and it declares it {declarations} time(s)");
-    assert_eq!(run, "", "worktree_clone_mount_handler/mod.rs's declaration of root_mode_names must stand under no attribute, and it stands under {run:?}");
+    let (declarations, run): (usize, String) =
+        declaration_run(HANDLER_MODULE_SOURCE, "pub mod root_mode_names;");
+    assert_eq!(
+        declarations, 1,
+        "worktree_clone_mount_handler/mod.rs must declare `pub mod root_mode_names;` exactly once, and it declares it {declarations} time(s)"
+    );
+    assert_eq!(
+        run, "",
+        "worktree_clone_mount_handler/mod.rs's declaration of root_mode_names must stand under no attribute, and it stands under {run:?}"
+    );
 }
 
 /// The folder itself is declared once, under the one attribute that makes it a Linux build's.
 #[test]
 fn the_handler_folder_is_declared_once_and_under_its_one_attribute() {
-    let (declarations, run): (usize, String) = declaration_run(CRATE_ROOT_SOURCE, "pub mod worktree_clone_mount_handler;");
-    assert_eq!(declarations, 1, "lib.rs must declare `pub mod worktree_clone_mount_handler;` exactly once, and it declares it {declarations} time(s)");
-    assert_eq!(run, squeezed("#[cfg(target_os = \"linux\")]"), "lib.rs's declaration of the handler folder must stand under `#[cfg(target_os = \"linux\")]` alone, and it stands under {run:?}");
+    let (declarations, run): (usize, String) =
+        declaration_run(CRATE_ROOT_SOURCE, "pub mod worktree_clone_mount_handler;");
+    assert_eq!(
+        declarations, 1,
+        "lib.rs must declare `pub mod worktree_clone_mount_handler;` exactly once, and it declares it {declarations} time(s)"
+    );
+    assert_eq!(
+        run,
+        squeezed("#[cfg(target_os = \"linux\")]"),
+        "lib.rs's declaration of the handler folder must stand under `#[cfg(target_os = \"linux\")]` alone, and it stands under {run:?}"
+    );
 }
 
 /// The words' first word is the program's own name,
 /// taken from the one constant the crate keeps it in.
 #[test]
 fn the_words_first_word_is_the_programs_own_name() {
-    assert_eq!(COMMAND_WORD.current, "monochromatic-git-policy-cli", "the words are `monochromatic-git-policy-cli <the group word> <mode>`, and root_mode_names.rs reads this constant for the first of them");
+    assert_eq!(
+        COMMAND_WORD.current, "monochromatic-git-policy-cli",
+        "the words are `monochromatic-git-policy-cli <the group word> <mode>`, and root_mode_names.rs reads this constant for the first of them"
+    );
 }
 
 /// The installed ZED path's file name is the one start name the module compares,
@@ -175,7 +240,23 @@ fn the_words_first_word_is_the_programs_own_name() {
 /// this guard runs on every developer's machine.
 #[test]
 fn the_installed_zedlet_path_carries_the_one_start_name() {
-    let installed: &str = INSTALL_PATHS_SOURCE.lines().find_map(|line| { return line.trim().strip_prefix("pub const ZEDLET_INSTALL_PATH: &str = \"") }).and_then(|rest| { return rest.split('"').next(); }).expect("ZEDLET_INSTALL_PATH's text in handler_install_paths.rs");
-    let file_name: Option<&str> = Path::new(installed).file_name().and_then(|name| { return name.to_str(); });
-    assert_eq!(file_name, Some("history_event-mount_git_worktree_clone_datasets"), "ZEDLET_INSTALL_PATH's file name must be ZEDLET_START_NAME, which root_mode_names.rs compares a start's last component against");
+    // rustfmt puts a value too long for the declaration's line on the next one,
+    //  so the value is the first quoted text after the declaration, on whichever line it sits.
+    let installed: &str = INSTALL_PATHS_SOURCE
+        .split_once("pub const ZEDLET_INSTALL_PATH: &str =")
+        .and_then(|(_, rest)| {
+            return rest.trim_start().strip_prefix('"');
+        })
+        .and_then(|rest| {
+            return rest.split('"').next();
+        })
+        .expect("ZEDLET_INSTALL_PATH's text in handler_install_paths.rs");
+    let file_name: Option<&str> = Path::new(installed).file_name().and_then(|name| {
+        return name.to_str();
+    });
+    assert_eq!(
+        file_name,
+        Some("history_event-mount_git_worktree_clone_datasets"),
+        "ZEDLET_INSTALL_PATH's file name must be ZEDLET_START_NAME, which root_mode_names.rs compares a start's last component against"
+    );
 }

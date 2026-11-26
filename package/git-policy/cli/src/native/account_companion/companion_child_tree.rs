@@ -22,8 +22,15 @@
 
 use super::companion_buffers::CompanionBuffers;
 use super::companion_calls::Failure;
-use super::companion_descriptor_calls::{open_directory, open_directory_beneath};
-use super::companion_file_calls::{Identity, identity_of, make_directory};
+use super::companion_descriptor_calls::{
+    open_directory,
+    open_directory_beneath,
+};
+use super::companion_file_calls::{
+    Identity,
+    identity_of,
+    make_directory,
+};
 use std::os::fd::RawFd;
 
 /// What:
@@ -58,7 +65,11 @@ pub fn walk_to_the_slot(buffers: &CompanionBuffers) -> Result<Slots, Failure> {
     let root: RawFd = open_directory(buffers.scratch.as_c_str())?;
     let slot: RawFd = open_directory_beneath(root, buffers.slot_name.as_c_str())?;
     let identity: Identity = identity_of(slot)?;
-    return Ok(Slots { root, slot, identity });
+    return Ok(Slots {
+        root,
+        slot,
+        identity,
+    });
 }
 
 /// What:

@@ -27,13 +27,25 @@
 //! rememberWhyTheReferenceWasNotProven('Git refused it'); /* the batch lands */ sayOnceWhatTheWindowWas(); // and, for a held batch: keepTheCommitOnItsKeptName()
 //! ```
 
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
-use crate::service_index_lock::{Announce, Announcer};
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
 use crate::service_land_context::LandContext;
 use crate::service_land_outcomes::Outcome;
-use crate::service_land_side_reference_write::{keep_the_batches_commit, the_batch_reference_names};
+use crate::service_land_side_reference_write::{
+    keep_the_batches_commit,
+    the_batch_reference_names,
+};
 use crate::service_protocol::CommitRequest;
-use crate::service_scratch_ref_of_a_dropped_batch::{kept_ref, scratch_ref};
+use crate::service_scratch_ref_of_a_dropped_batch::{
+    kept_ref,
+    scratch_ref,
+};
 use crate::transaction_git::GitContext;
 use std::path::Path;
 
@@ -55,7 +67,10 @@ pub(crate) fn remember_why_it_has_none(why: String) {
 }
 
 /// Keeps the reason in the landing's state.
-fn keep_the_reason(state: &LandingState, why: String) {
+fn keep_the_reason(
+    state: &LandingState,
+    why: String,
+) {
     *state.without_its_scratch_reference.borrow_mut() = Some(why);
 }
 
@@ -75,7 +90,10 @@ pub(crate) fn forget_why_it_had_none() {
 }
 
 /// Clears the reason in the landing's state.
-fn clear_the_reason(state: &LandingState, (): ()) {
+fn clear_the_reason(
+    state: &LandingState,
+    (): (),
+) {
     *state.without_its_scratch_reference.borrow_mut() = None;
 }
 
@@ -106,7 +124,10 @@ pub(crate) fn the_removal_of_the_scratch_reference(scratch: &str) -> String {
 
 /// Whether the state holds no reason,
 /// which is the reference having been proven.
-fn the_reference_is_proven(state: &LandingState, (): ()) -> bool {
+fn the_reference_is_proven(
+    state: &LandingState,
+    (): (),
+) -> bool {
     return state.without_its_scratch_reference.borrow().is_none();
 }
 
@@ -145,14 +166,23 @@ pub(crate) fn say_what_it_cost_and_keep_a_held_commit(
     seq: u64,
     outcomes: Option<&[Outcome]>,
 ) {
-    let Some(why) = on_the_landing_state((), take_the_reason) else { return };
-    let Some(made) = made_of(outcomes) else { return };
+    let Some(why) = on_the_landing_state((), take_the_reason) else {
+        return;
+    };
+    let Some(made) = made_of(outcomes) else {
+        return;
+    };
     announce.announce(Announce::Waiting(the_line(why.as_str(), made.1)));
     if made.1 {
         return;
     }
-    let Some(first) = requests.first() else { return };
-    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    let Some(first) = requests.first() else {
+        return;
+    };
+    let git: GitContext = GitContext {
+        common_dir: Some(first.common_dir.clone()),
+        ..context.git.clone()
+    };
     let repository: &Path = first.repository.as_path();
     let scratch: String = scratch_ref(seq);
     // A write that finished after its wait ended names the commit already, and the reference it wrote is what holds the commit
@@ -181,12 +211,19 @@ pub(crate) fn say_what_it_cost_and_keep_a_held_commit(
 fn made_of(outcomes: Option<&[Outcome]>) -> Option<Made> {
     let answered: &[Outcome] = outcomes?;
     for outcome in answered {
-        if let Outcome::Landed { commit } = outcome {
+        if let Outcome::Landed {
+            commit,
+        } = outcome
+        {
             return Some((commit.clone(), true));
         }
     }
     for outcome in answered {
-        if let Outcome::Held { commit, .. } = outcome {
+        if let Outcome::Held {
+            commit,
+            ..
+        } = outcome
+        {
             return Some((commit.clone(), false));
         }
     }
@@ -195,7 +232,10 @@ fn made_of(outcomes: Option<&[Outcome]>) -> Option<Made> {
 
 /// Takes the reason the batch has no scratch reference,
 /// once.
-fn take_the_reason(state: &LandingState, (): ()) -> Option<String> {
+fn take_the_reason(
+    state: &LandingState,
+    (): (),
+) -> Option<String> {
     return state.without_its_scratch_reference.take();
 }
 
@@ -239,10 +279,15 @@ pub(crate) fn the_words_for_a_commit_no_reference_names(tip: &str) -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: your commit was made, and ... was not written (${why}), so ... ${branchNamesIt ? 'The branch names the commit now ...' : 'The branch has not moved yet ...'}`
 /// ```
-fn the_line(why: &str, branch_names_it: bool) -> String {
+fn the_line(
+    why: &str,
+    branch_names_it: bool,
+) -> String {
     let named: &str = match branch_names_it {
         true => "The branch names the commit now, so no later maintenance takes it.",
-        false => "The branch has not moved yet: a reference lock stands in the way of its write, and it names the commit as soon as the lock goes. Until then the commit is kept where this command says.",
+        false => {
+            "The branch has not moved yet: a reference lock stands in the way of its write, and it names the commit as soon as the lock goes. Until then the commit is kept where this command says."
+        }
     };
     return format!(
         "monochromatic-git-policy-cli: your commit was made, and the reference that keeps a commit out of a `git gc` started while it is \

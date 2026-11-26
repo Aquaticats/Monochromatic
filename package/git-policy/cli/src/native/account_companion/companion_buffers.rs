@@ -180,8 +180,16 @@ pub struct BufferRefusal {
 
 /// A NUL-terminated copy of one path or name,
 /// or the refusal that says why it has none.
-fn c_string(bytes: &[u8], path: &Path) -> Result<CString, BufferRefusal> {
-    return CString::new(bytes).map_err(|_zero| return BufferRefusal { path: path.display().to_string(), why: "it holds a NUL byte" });
+fn c_string(
+    bytes: &[u8],
+    path: &Path,
+) -> Result<CString, BufferRefusal> {
+    return CString::new(bytes).map_err(|_zero| {
+        return BufferRefusal {
+            path: path.display().to_string(),
+            why: "it holds a NUL byte",
+        };
+    });
 }
 
 /// A NUL-terminated copy of one fixed word.
@@ -200,7 +208,13 @@ fn word(text: &str) -> CString {
 /// # Errors
 /// The scratch path holds a NUL byte,
 ///  so no call could name it.
-pub fn build(scratch: &Path, user: u32, group: u32, fixture: Option<Fixture>, hold: Option<CompanionStep>) -> Result<CompanionBuffers, BufferRefusal> {
+pub fn build(
+    scratch: &Path,
+    user: u32,
+    group: u32,
+    fixture: Option<Fixture>,
+    hold: Option<CompanionStep>,
+) -> Result<CompanionBuffers, BufferRefusal> {
     let bytes: &[u8] = scratch.as_os_str().as_bytes();
     let joined = |name: &str| -> Vec<u8> {
         let mut path: Vec<u8> = bytes.to_vec();

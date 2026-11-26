@@ -28,17 +28,30 @@
 
 /// One argument as the operating system holds it,
 /// and the bytes it is made of.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// Pathspec separator token,
 /// shared with the escape hatch module.
 /// The pathspec separator that ends option parsing in Git and in the incumbent.
 const PATHSPEC_SEPARATOR: &str = "--";
-/// One token of a command line as bytes.
-use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 /// The byte-level readings of one token:
 /// an option's name and a cluster's letters and values.
 use crate::commit_args_token_bytes::{
-    OPTIONAL_VALUE_LETTERS, cluster_letters, is_a_short_cluster, is_a_short_value_letter, is_an_equals_sign, is_one_of, is_optional_value_letter, normalise_inline_short,
+    OPTIONAL_VALUE_LETTERS,
+    cluster_letters,
+    is_a_short_cluster,
+    is_a_short_value_letter,
+    is_an_equals_sign,
+    is_one_of,
+    is_optional_value_letter,
+    normalise_inline_short,
+};
+/// One token of a command line as bytes.
+use crate::path_bytes::{
+    argument_bytes,
+    os_from_path_bytes,
 };
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
@@ -204,7 +217,10 @@ fn global_name(token: &[u8]) -> &[u8] {
 /// ```ts
 /// splitCommitInvocation({ args, subcommandIndex });
 /// ```
-pub fn split_commit_invocation(args: &[OsString], subcommand_index: usize) -> (Vec<OsString>, Vec<OsString>) {
+pub fn split_commit_invocation(
+    args: &[OsString],
+    subcommand_index: usize,
+) -> (Vec<OsString>, Vec<OsString>) {
     let globals: &[OsString] = &args[..subcommand_index];
     let mut kept: Vec<OsString> = Vec::new();
     let mut index: usize = 0;
@@ -338,7 +354,10 @@ fn value_positions(tokens: &[OsString]) -> Vec<usize> {
 /// ```ts
 /// privateExplicitCommitArgs({ args, pathspecs });
 /// ```
-pub fn private_explicit_commit_args(args: &[OsString], pathspecs: &[OsString]) -> Vec<OsString> {
+pub fn private_explicit_commit_args(
+    args: &[OsString],
+    pathspecs: &[OsString],
+) -> Vec<OsString> {
     let person_values: Vec<usize> = value_positions(args);
     let mut without_file: Vec<OsString> = Vec::new();
     let mut index: usize = 0;
@@ -430,10 +449,16 @@ pub fn private_explicit_commit_args(args: &[OsString], pathspecs: &[OsString]) -
 /// ```ts
 /// privateSelectionCommitArgs({ args, pathspecs });
 /// ```
-pub fn private_selection_commit_args(args: &[OsString], pathspecs: &[OsString]) -> Vec<OsString> {
+pub fn private_selection_commit_args(
+    args: &[OsString],
+    pathspecs: &[OsString],
+) -> Vec<OsString> {
     let mut kept: Vec<OsString> = Vec::new();
     for token in private_explicit_commit_args(args, pathspecs) {
-        if !is_one_of(argument_bytes(token.as_os_str()), &["-i", "-p", "--include", "--interactive", "--patch"]) {
+        if !is_one_of(
+            argument_bytes(token.as_os_str()),
+            &["-i", "-p", "--include", "--interactive", "--patch"],
+        ) {
             kept.push(token);
         }
     }

@@ -26,20 +26,39 @@
 
 /// One thread per draw,
 /// which the system may refuse.
-use crate::scoped_start::{refused_thread_sentence, spawn_named};
+use crate::scoped_start::{
+    refused_thread_sentence,
+    spawn_named,
+};
 /// What a commit request names.
 use crate::service_protocol::CommitRequest;
 /// The facts a creation is made from,
 /// and where the pool's members are made from them.
 use crate::shadow_create::ShadowTemplate;
-use crate::shadow_drawn::{DRAWN_LIMIT, draw, sweep_drawn};
+use crate::shadow_drawn::{
+    DRAWN_LIMIT,
+    draw,
+    sweep_drawn,
+};
 /// Where the pool holds what a draw moves out of it, and what a fill makes when it holds nothing.
-use crate::shadow_pool::{members, pool_root_for};
+use crate::shadow_pool::{
+    members,
+    pool_root_for,
+};
 /// The service's own log.
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::time::SystemTime;
 
 /// Lock kept:
@@ -109,8 +128,14 @@ impl DrawnShadows {
     /// ```ts
     /// stock.note(tree)
     /// ```
-    pub fn note_ready(&self, tree: PathBuf) {
-        let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    pub fn note_ready(
+        &self,
+        tree: PathBuf,
+    ) {
+        let mut ready = self
+            .ready
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         ready.push(tree);
     }
 
@@ -128,14 +153,20 @@ impl DrawnShadows {
     /// const tree = stock.handOut(); // the tree, or undefined
     /// ```
     pub fn hand_out(&self) -> Option<PathBuf> {
-        let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut ready = self
+            .ready
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         return ready.pop();
     }
 
     /// How many trees the stock holds now.
     ///  The draw asks it, and a control reads it.
     pub fn ready(&self) -> usize {
-        let ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ready = self
+            .ready
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         return ready.len();
     }
 }
@@ -154,7 +185,11 @@ impl DrawnShadows {
 /// ```ts
 /// start({ context, request, stock }) // void
 /// ```
-pub fn start(context: &GitContext, request: &CommitRequest, stock: &Arc<DrawnShadows>) {
+pub fn start(
+    context: &GitContext,
+    request: &CommitRequest,
+    stock: &Arc<DrawnShadows>,
+) {
     if stock.ready() >= DRAWN_LIMIT {
         return;
     }
@@ -169,10 +204,14 @@ pub fn start(context: &GitContext, request: &CommitRequest, stock: &Arc<DrawnSha
     let held: Arc<DrawnShadows> = Arc::clone(stock);
     let started = spawn_named("shadow-pool-draw", move || {
         // The flag is cleared however the draw ends, so one refused Git start does not stop every later draw.
-        let outcome: Result<(), GitFailure> = draw_one(&own, &common_dir, &git_dir, &repository, held.as_ref());
+        let outcome: Result<(), GitFailure> =
+            draw_one(&own, &common_dir, &git_dir, &repository, held.as_ref());
         DRAWING.store(false, Ordering::Release);
         if let Err(error) = outcome {
-            crate::service_warn!("the shadow drawn ahead for {named} was not drawn: {}", error.0);
+            crate::service_warn!(
+                "the shadow drawn ahead for {named} was not drawn: {}",
+                error.0
+            );
         }
     });
     if let Err(error) = started {
@@ -204,7 +243,8 @@ fn draw_one(
     repository: &std::path::Path,
     stock: &DrawnShadows,
 ) -> Result<(), GitFailure> {
-    let template: ShadowTemplate = crate::service_shadow_pool_fill::template_of(context, common_dir, git_dir, repository)?;
+    let template: ShadowTemplate =
+        crate::service_shadow_pool_fill::template_of(context, common_dir, git_dir, repository)?;
     let _swept: Vec<PathBuf> = sweep_drawn(common_dir, SystemTime::now());
     // A pool with no member yet is the fill's work, and this thread does that work too: a draw that found the pool empty
     //  at the moment the landing started its fill drew nothing, which is every commit after the first on a repository
@@ -214,8 +254,13 @@ fn draw_one(
     }
     // A pool that stays empty (a reftable repository, a worktree that keeps its own info, a refused fill) is no reason to
     //  say anything: the next landing draws again, and the commit that asked took its own path.
-    let Some(tree) = draw(context, &template)? else { return Ok(()) };
-    crate::diagnostic_log::debug("shadowDrawn", format!("drew {} ahead of a commit", tree.display()).as_str());
+    let Some(tree) = draw(context, &template)? else {
+        return Ok(());
+    };
+    crate::diagnostic_log::debug(
+        "shadowDrawn",
+        format!("drew {} ahead of a commit", tree.display()).as_str(),
+    );
     stock.note_ready(tree);
     return Ok(());
 }

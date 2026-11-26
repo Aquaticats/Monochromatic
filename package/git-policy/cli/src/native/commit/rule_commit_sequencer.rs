@@ -80,7 +80,10 @@ pub struct SequencerOutputError;
 impl std::fmt::Display for SequencerOutputError {
     /// `&self` borrows the error read-only;
     ///  `&mut` lends the formatter for writing.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(
             "git rev-parse --git-path did not print the three sequencer head paths of one Git directory",
         );

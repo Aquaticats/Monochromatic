@@ -18,7 +18,10 @@
 /// The decision under test,
 ///  the fact types and the shared argument builder.
 use super::{
-    CommitOnlyDecision, CommitOnlyViolationCode, decide_commit_only, resolve_index_state,
+    CommitOnlyDecision,
+    CommitOnlyViolationCode,
+    decide_commit_only,
+    resolve_index_state,
     resolve_sequencer_state,
 };
 use crate::command_test_support::os_arguments;
@@ -40,7 +43,10 @@ fn rewritten(values: &[&str]) -> CommitOnlyDecision {
 /// Decide,
 ///  require the index question,
 ///  and answer it.
-fn decide_with_index(values: &[&str], state: IndexVsHead) -> CommitOnlyDecision {
+fn decide_with_index(
+    values: &[&str],
+    state: IndexVsHead,
+) -> CommitOnlyDecision {
     let arguments: Vec<OsString> = os_arguments(values);
     let first: CommitOnlyDecision =
         decide_commit_only(arguments.as_slice(), &[]).expect("Git accepts");
@@ -53,7 +59,10 @@ fn decide_with_index(values: &[&str], state: IndexVsHead) -> CommitOnlyDecision 
 /// Decide,
 ///  require the sequencer question,
 ///  and answer it.
-fn decide_with_sequencer(values: &[&str], state: SequencerState) -> CommitOnlyDecision {
+fn decide_with_sequencer(
+    values: &[&str],
+    state: SequencerState,
+) -> CommitOnlyDecision {
     let first: CommitOnlyDecision = decide(values);
     assert_eq!(first, CommitOnlyDecision::NeedsSequencerState, "{values:?}");
     return resolve_sequencer_state(state);

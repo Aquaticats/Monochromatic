@@ -25,7 +25,10 @@
 
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder under the wrapper's own Git-directory folder that holds this record family.
 pub const WORKTREE_CLONES_FOLDER: &str = "worktree-clones";
@@ -76,7 +79,9 @@ pub fn wrapper_folder(common_dir: &Path) -> PathBuf {
 
 /// The folder this record family lives in.
 pub fn home_folder(common_dir: &Path) -> PathBuf {
-    return wrapper_folder(common_dir).join(WORKTREE_CLONES_FOLDER).join(GRAMMAR_VERSION_FOLDER);
+    return wrapper_folder(common_dir)
+        .join(WORKTREE_CLONES_FOLDER)
+        .join(GRAMMAR_VERSION_FOLDER);
 }
 
 /// The folder of the removal's destruction plans.
@@ -100,7 +105,11 @@ pub fn plans_folder(common_dir: &Path) -> PathBuf {
 pub fn slot_of(destination: &Path) -> Result<String, String> {
     let name: OsString = destination
         .file_name()
-        .ok_or_else(|| return String::from("the destination names no folder, so no slot name can key its record"))?
+        .ok_or_else(|| {
+            return String::from(
+                "the destination names no folder, so no slot name can key its record",
+            );
+        })?
         .to_os_string();
     let slot: String = name.into_string().map_err(|_| return String::from("the destination's last path component is not UTF-8, and the record's key is a name a person types"))?;
     if let Some(reason) = crate::worktree_clone_mount::slot_name_refusal(&slot) {
@@ -172,7 +181,10 @@ pub fn record_name_of(name: &str) -> Option<RecordName> {
             if slot.is_empty() {
                 return None;
             }
-            return Some(RecordName { kind, slot: String::from(slot) });
+            return Some(RecordName {
+                kind,
+                slot: String::from(slot),
+            });
         }
     }
     return None;
@@ -191,41 +203,71 @@ pub fn is_known_staging_name(name: &str) -> bool {
 /// `.cli-git-claim.tmp.<pid>.<nanos>.<counter>`,
 /// which a kill between its bytes and its link leaves.
 pub fn is_claim_staging_name(name: &str) -> bool {
-    let Some(rest) = name.strip_prefix(".cli-git-claim.tmp.") else { return false };
+    let Some(rest) = name.strip_prefix(".cli-git-claim.tmp.") else {
+        return false;
+    };
     let parts: Vec<&str> = rest.split('.').collect();
     if parts.len() != 3 {
         return false;
     }
-    return parts.iter().all(|part| return !part.is_empty() && part.len() <= 20 && part.bytes().all(|byte| return byte.is_ascii_digit()));
+    return parts.iter().all(|part| {
+        return !part.is_empty()
+            && part.len() <= 20
+            && part.bytes().all(|byte| return byte.is_ascii_digit());
+    });
 }
 
 /// Whether one name is a record's `.partial` staging name.
 fn is_record_staging_name(name: &str) -> bool {
-    let Some(body) = name.strip_prefix('.') else { return false };
-    let Some(stem) = body.strip_suffix(STAGING_SUFFIX) else { return false };
-    let Some((record, random)) = stem.rsplit_once('.') else { return false };
+    let Some(body) = name.strip_prefix('.') else {
+        return false;
+    };
+    let Some(stem) = body.strip_suffix(STAGING_SUFFIX) else {
+        return false;
+    };
+    let Some((record, random)) = stem.rsplit_once('.') else {
+        return false;
+    };
     if record.is_empty() || random.len() != STAGING_RANDOM_BYTES * 2 {
         return false;
     }
-    return random.bytes().all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    return random
+        .bytes()
+        .all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
 }
 
 /// The staging name one record write fills before it takes the record's name.
-pub fn record_staging_name(record_name: &str, random: &[u8; STAGING_RANDOM_BYTES]) -> String {
-    let random_text: String = random.iter().map(|byte| return format!("{byte:02x}")).collect();
+pub fn record_staging_name(
+    record_name: &str,
+    random: &[u8; STAGING_RANDOM_BYTES],
+) -> String {
+    let random_text: String = random
+        .iter()
+        .map(|byte| return format!("{byte:02x}"))
+        .collect();
     return format!(".{record_name}.{random_text}{STAGING_SUFFIX}");
 }
 
 /// The claim generation one name holds for `slot`,
 /// or nothing when the name is another slot's or another form.
-pub fn claim_generation_of(name: &str, slot: &str) -> Option<u64> {
+pub fn claim_generation_of(
+    name: &str,
+    slot: &str,
+) -> Option<u64> {
     let prefix: String = format!("{slot}{CLAIM_PREFIX_SEPARATOR}{CLAIM_WORD}.");
     let number: &str = name.strip_prefix(prefix.as_str())?;
-    if number.is_empty() || number.len() > 20 || !number.bytes().all(|byte| return byte.is_ascii_digit()) {
+    if number.is_empty()
+        || number.len() > 20
+        || !number.bytes().all(|byte| return byte.is_ascii_digit())
+    {
         return None;
     }
     let generation: u64 = number.parse().ok()?;
-    return if generation == 0 { None } else { Some(generation) };
+    return if generation == 0 {
+        None
+    } else {
+        Some(generation)
+    };
 }
 
 /// What:

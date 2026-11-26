@@ -30,7 +30,8 @@ use std::time::Duration;
 ///  (Recommended)",
 /// is that the service's retry plan keeps the push and tries it again,
 /// and the line says so.
-pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
+pub const PUSH_QUEUED_LINE: &str =
+    "The push is queued: the commit service keeps it in its retry plan and tries it again.";
 
 /// What a person is told about the remote when a push was stopped:
 /// that the wrapper does not know,
@@ -42,7 +43,8 @@ pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps
 /// so the report says what is known and the retry
 ///  answers the question,
 /// because a push of something the remote already has succeeds.
-pub const STOPPED_DELIVERY_IS_NOT_KNOWN: &str = "the remote may or may not have taken the push, and only the next push settles which";
+pub const STOPPED_DELIVERY_IS_NOT_KNOWN: &str =
+    "the remote may or may not have taken the push, and only the next push settles which";
 
 /// Exit code recorded for a push that this wrapper stopped,
 ///  the convention of `timeout(1)`.
@@ -187,7 +189,11 @@ pub(crate) fn floor_clause(report: &StopReport) -> String {
 /// ```ts
 /// `${label} held its connection to ${server ? `the server \`${server}\`` : 'the remote'} open ... fixed at ${limit} seconds`
 /// ```
-pub(crate) fn stalled_reason(label: &str, report: &StopReport, named: Option<&str>) -> String {
+pub(crate) fn stalled_reason(
+    label: &str,
+    report: &StopReport,
+    named: Option<&str>,
+) -> String {
     // What the line calls the other end: the server the run named, or the remote a destination says nothing about.
     let other_end: String = match named {
         Some(host) => format!("the server `{host}`"),

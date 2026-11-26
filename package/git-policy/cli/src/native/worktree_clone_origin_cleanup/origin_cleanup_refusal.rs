@@ -100,18 +100,36 @@ pub struct CleanupRefusal {
 
 impl CleanupRefusal {
     /// One refusal of one field.
-    pub fn at(cause: CleanupRefusalCause, field: &str, said: String) -> CleanupRefusal {
-        return CleanupRefusal { cause, field: String::from(field), said };
+    pub fn at(
+        cause: CleanupRefusalCause,
+        field: &str,
+        said: String,
+    ) -> CleanupRefusal {
+        return CleanupRefusal {
+            cause,
+            field: String::from(field),
+            said,
+        };
     }
 
     /// One refusal that names no field.
-    pub fn of(cause: CleanupRefusalCause, said: String) -> CleanupRefusal {
-        return CleanupRefusal { cause, field: String::from("record"), said };
+    pub fn of(
+        cause: CleanupRefusalCause,
+        said: String,
+    ) -> CleanupRefusal {
+        return CleanupRefusal {
+            cause,
+            field: String::from("record"),
+            said,
+        };
     }
 
     /// The sentence a person reads,
     /// with the file it was found in.
-    pub fn message(&self, path: &std::path::Path) -> String {
+    pub fn message(
+        &self,
+        path: &std::path::Path,
+    ) -> String {
         return format!(
             "the origin cleanup record at {} is not one this reader accepts ({} on `{}`: {}). Nothing was destroyed, the record is unchanged, and the origin snapshot stays until a person acts. Ways forward: read the record, destroy the snapshot it names by hand if you can, and remove the file once it is gone; the wrapper never rewrites a record it cannot read.",
             path.display(),

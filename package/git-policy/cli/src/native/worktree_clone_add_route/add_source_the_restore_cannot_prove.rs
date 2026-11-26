@@ -30,13 +30,28 @@
 //! ```
 
 use crate::command_clean_nested_repositories::repositories_beneath;
-use crate::fs_beneath::{entry_metadata_at, open_root, plain_components};
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_root,
+    plain_components,
+};
 use crate::fs_beneath_directory_chain::DirectoryChain;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::worktree_clean::stored_stats;
 use crate::worktree_clean_untracked_scan::UNTRACKED_LISTING_WORDS;
-use crate::worktree_snapshot_source::{SnapshotSource, plain};
-use std::ffi::{OsStr, OsString};
+use crate::worktree_snapshot_source::{
+    SnapshotSource,
+    plain,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
@@ -58,7 +73,9 @@ const TAG: &str = "addSourceTheRestoreCannotProve";
 /// ```ts
 /// function reasonsTheRestoreCannotProve({ context, source }): string[]; // throws when a question cannot be asked
 /// ```
-pub fn reasons_the_restore_cannot_prove((context, source): (&GitContext, &SnapshotSource)) -> Result<Vec<String>, String> {
+pub fn reasons_the_restore_cannot_prove(
+    (context, source): (&GitContext, &SnapshotSource)
+) -> Result<Vec<String>, String> {
     let mut reasons: Vec<String> = Vec::new();
     if source.dirty.is_none() {
         return Ok(reasons);
@@ -106,17 +123,37 @@ fn shown(path: &[u8]) -> String {
 /// ```ts
 /// function aDirectoryWhereTheIndexRecordsAFile(source): string | undefined;
 /// ```
-fn a_directory_where_the_index_records_a_file(source: &SnapshotSource) -> Result<Option<Vec<u8>>, String> {
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
-        return Err(String::from("the index of the main checkout has a layout the reader does not know"));
+fn a_directory_where_the_index_records_a_file(
+    source: &SnapshotSource
+) -> Result<Option<Vec<u8>>, String> {
+    let Some(entries) = stored_stats(
+        source.clean.index_bytes.as_slice(),
+        source.clean.hash_length,
+    ) else {
+        return Err(String::from(
+            "the index of the main checkout has a layout the reader does not know",
+        ));
     };
-    let held: std::fs::File = open_root(source.root.as_path()).map_err(|error| return format!("the main checkout cannot be opened without following a link ({error})"))?;
-    let Ok(mut chain) = DirectoryChain::new(&held) else { return Err(String::from("the main checkout cannot be examined")) };
+    let held: std::fs::File = open_root(source.root.as_path()).map_err(|error| {
+        return format!("the main checkout cannot be opened without following a link ({error})");
+    })?;
+    let Ok(mut chain) = DirectoryChain::new(&held) else {
+        return Err(String::from("the main checkout cannot be examined"));
+    };
     for entry in &entries {
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { continue };
-        let Some((name, parents)) = names.split_last() else { continue };
-        let Some(directory) = chain.directory(parents).ok() else { continue };
-        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { continue };
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice())))
+        else {
+            continue;
+        };
+        let Some((name, parents)) = names.split_last() else {
+            continue;
+        };
+        let Some(directory) = chain.directory(parents).ok() else {
+            continue;
+        };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else {
+            continue;
+        };
         if metadata.is_dir() {
             return Ok(Some(entry.path.clone()));
         }
@@ -143,14 +180,22 @@ fn a_directory_where_the_index_records_a_file(source: &SnapshotSource) -> Result
 /// ```ts
 /// function repositoriesTheCleanKeepsUntracked(context, source): string[]; // throws when Git cannot answer
 /// ```
-fn repositories_the_clean_keeps_untracked((context, source): (&GitContext, &SnapshotSource)) -> Result<Vec<String>, String> {
-    let untracked: Vec<Vec<u8>> = listed_names((context, source.root.as_path(), UNTRACKED_LISTING_WORDS.as_slice()))?;
+fn repositories_the_clean_keeps_untracked(
+    (context, source): (&GitContext, &SnapshotSource)
+) -> Result<Vec<String>, String> {
+    let untracked: Vec<Vec<u8>> = listed_names((
+        context,
+        source.root.as_path(),
+        UNTRACKED_LISTING_WORDS.as_slice(),
+    ))?;
     let mut reasons: Vec<String> = Vec::new();
     for name in untracked {
         if !name.ends_with(b"/") {
             continue;
         }
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(name.as_slice()))) else { continue };
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(name.as_slice()))) else {
+            continue;
+        };
         if repositories_beneath(source.root.as_path(), names.as_slice())?.is_empty() {
             continue;
         }
@@ -170,13 +215,31 @@ fn repositories_the_clean_keeps_untracked((context, source): (&GitContext, &Snap
 /// ```ts
 /// function listedNames({ context, root, words }): Buffer[]; // throws
 /// ```
-fn listed_names((context, root, words): (&GitContext, &Path, &[&str])) -> Result<Vec<Vec<u8>>, String> {
-    let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: words.iter().copied().map(OsString::from).collect(), without_prefix: true, ..GitRequest::default() };
-    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("`git {}` could not start ({error})", words.join(" ")))?;
+fn listed_names(
+    (context, root, words): (&GitContext, &Path, &[&str])
+) -> Result<Vec<Vec<u8>>, String> {
+    let request: GitRequest = GitRequest {
+        cwd: root.to_path_buf(),
+        arguments: words.iter().copied().map(OsString::from).collect(),
+        without_prefix: true,
+        ..GitRequest::default()
+    };
+    let output: GitOutput = run_git(context, &request)
+        .map_err(|error| return format!("`git {}` could not start ({error})", words.join(" ")))?;
     if output.code != Some(0) {
-        return Err(format!("`git {}` ended with {:?} ({})", words.join(" "), output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim()));
+        return Err(format!(
+            "`git {}` ended with {:?} ({})",
+            words.join(" "),
+            output.code,
+            String::from_utf8_lossy(output.stderr.as_slice()).trim()
+        ));
     }
-    return Ok(output.stdout.split(is_nul_byte).filter(is_nonempty).map(<[u8]>::to_vec).collect());
+    return Ok(output
+        .stdout
+        .split(is_nul_byte)
+        .filter(is_nonempty)
+        .map(<[u8]>::to_vec)
+        .collect());
 }
 
 /// Whether a byte is the NUL that ends each name in Git's `-z` output.

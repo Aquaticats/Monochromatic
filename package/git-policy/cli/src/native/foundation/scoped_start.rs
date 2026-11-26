@@ -25,8 +25,14 @@
 
 /// The panic-catching call that runs the job here when no thread starts.
 use crate::call_catching_panics::call_catching_panics;
-use std::sync::{Arc, Mutex};
-use std::thread::{Scope, ScopedJoinHandle};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+use std::thread::{
+    Scope,
+    ScopedJoinHandle,
+};
 
 #[cfg(test)]
 thread_local! {
@@ -45,7 +51,9 @@ pub(crate) struct RefusedStarts;
 impl RefusedStarts {
     /// Refuse the starts of the current thread until the value is dropped.
     pub(crate) fn here() -> Self {
-        STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(true); });
+        STARTS_FAIL_ON_THIS_THREAD.with(|flag| {
+            flag.set(true);
+        });
         return Self;
     }
 }
@@ -53,7 +61,9 @@ impl RefusedStarts {
 #[cfg(test)]
 impl Drop for RefusedStarts {
     fn drop(&mut self) {
-        STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(false); });
+        STARTS_FAIL_ON_THIS_THREAD.with(|flag| {
+            flag.set(false);
+        });
     }
 }
 
@@ -144,7 +154,9 @@ where
             let taken: Option<(S, fn(S) -> T)> = take_job(&theirs);
             return match taken {
                 Some((their_state, their_work)) => their_work(their_state),
-                None => panic!("the job of a started thread was taken by the thread that started it"),
+                None => {
+                    panic!("the job of a started thread was taken by the thread that started it")
+                }
             };
         }),
         Err(error) => Err(error),
@@ -154,8 +166,12 @@ where
         Err(_refused) => {
             let taken: Option<(S, fn(S) -> T)> = take_job(&slot);
             match taken {
-                Some((our_state, our_work)) => Started::Inline(call_catching_panics(our_state, our_work)),
-                None => Started::Inline(Err(Box::new("the job of a thread that did not start was already taken"))),
+                Some((our_state, our_work)) => {
+                    Started::Inline(call_catching_panics(our_state, our_work))
+                }
+                None => Started::Inline(Err(Box::new(
+                    "the job of a thread that did not start was already taken",
+                ))),
             }
         }
     };
@@ -173,13 +189,18 @@ where
 /// ```ts
 /// const worker = spawnNamed('name', () => work()); // throws when no thread can start
 /// ```
-pub fn spawn_named<F, T>(name: &str, work: F) -> std::io::Result<std::thread::JoinHandle<T>>
+pub fn spawn_named<F, T>(
+    name: &str,
+    work: F,
+) -> std::io::Result<std::thread::JoinHandle<T>>
 where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
     starts()?;
-    return std::thread::Builder::new().name(String::from(name)).spawn(work);
+    return std::thread::Builder::new()
+        .name(String::from(name))
+        .spawn(work);
 }
 
 /// Whether a thread may start now:
@@ -213,7 +234,10 @@ fn starts() -> std::io::Result<()> {
 /// ```ts
 /// refusedThreadSentence('wait for the step a write started', error); // 'no thread could be started to wait for ... Hint: check `ulimit -u` ...'
 /// ```
-pub fn refused_thread_sentence(what: &str, error: &std::io::Error) -> String {
+pub fn refused_thread_sentence(
+    what: &str,
+    error: &std::io::Error,
+) -> String {
     return format!(
         "no thread could be started to {what}: the system refused the thread ({error}). Hint: check the process limit \
          (`ulimit -u`), the address-space limit (`ulimit -v`) and the control group's `pids.max`, free some, and run the \

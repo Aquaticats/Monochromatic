@@ -37,19 +37,33 @@ fn a_thread_that_starts_runs_the_closure_on_another_thread() {
 /// a panic is handed to `join`.
 #[test]
 fn a_thread_that_cannot_start_runs_the_closure_on_the_calling_thread_once() {
-    STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(true); });
+    STARTS_FAIL_ON_THIS_THREAD.with(|flag| {
+        flag.set(true);
+    });
     let here: std::thread::ThreadId = std::thread::current().id();
     let calls = std::sync::atomic::AtomicU32::new(0);
     let (ran_on, panicked) = std::thread::scope(|scope| {
         let started = start_or_run_with(scope, &calls, count_run);
         assert!(started.ran_inline());
         let panicking = start_or_run_with(scope, (), fail);
-        return (started.join().expect("the value"), panicking.join().is_err());
+        return (
+            started.join().expect("the value"),
+            panicking.join().is_err(),
+        );
     });
-    STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(false); });
+    STARTS_FAIL_ON_THIS_THREAD.with(|flag| {
+        flag.set(false);
+    });
     assert_eq!(ran_on, here, "run on the calling thread");
-    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1, "the job ran once");
-    assert!(panicked, "a panic of the work is a join error, as on a thread");
+    assert_eq!(
+        calls.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "the job ran once"
+    );
+    assert!(
+        panicked,
+        "a panic of the work is a join error, as on a thread"
+    );
 }
 
 /// A thread of the plain kind that the system refuses is an error to the caller,

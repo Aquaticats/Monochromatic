@@ -17,9 +17,20 @@
 //! expect(releaseTheManagedLock(registration, path, slot, facts, proof)).toEqual({ registration: path });
 //! ```
 
-use super::{ReleaseRefusal, release_the_managed_lock};
-use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec};
-use crate::worktree_clone_managed_lock::{CloneDestructionProof, TheLiveCloneAnswer, prove_the_recorded_clone_is_gone, read_the_recorded_facts};
+use super::{
+    ReleaseRefusal,
+    release_the_managed_lock,
+};
+use crate::worktree_clone_managed_lock::test_fixtures::{
+    Fixture,
+    RecordSpec,
+};
+use crate::worktree_clone_managed_lock::{
+    CloneDestructionProof,
+    TheLiveCloneAnswer,
+    prove_the_recorded_clone_is_gone,
+    read_the_recorded_facts,
+};
 use std::path::PathBuf;
 
 /// The fixture's nonce.
@@ -42,7 +53,10 @@ struct Settling {
 }
 
 /// A fixture with one lock and a proof that its clone is gone.
-fn settling(label: &str, lock: &[u8]) -> Settling {
+fn settling(
+    label: &str,
+    lock: &[u8],
+) -> Settling {
     let fixture: Fixture = Fixture::new(label);
     let registration: PathBuf = fixture.write_registration("locked-slot");
     fixture.write_pointer(registration.as_path());
@@ -51,10 +65,23 @@ fn settling(label: &str, lock: &[u8]) -> Settling {
     spec.registration = Some(registration.clone());
     fixture.write_record(&spec);
     fixture.write_lock(registration.as_path(), lock);
-    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
-    let proof: CloneDestructionProof = prove_the_recorded_clone_is_gone(fixture.slot.as_str(), &facts.clone, &TheLiveCloneAnswer::Absent).expect("the clone is gone");
-    let held: std::fs::File = std::fs::File::open(registration.as_path()).expect("the registration is held open");
-    return Settling { fixture, registration, held, facts, proof };
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str())
+        .expect("the record reads");
+    let proof: CloneDestructionProof = prove_the_recorded_clone_is_gone(
+        fixture.slot.as_str(),
+        &facts.clone,
+        &TheLiveCloneAnswer::Absent,
+    )
+    .expect("the clone is gone");
+    let held: std::fs::File =
+        std::fs::File::open(registration.as_path()).expect("the registration is held open");
+    return Settling {
+        fixture,
+        registration,
+        held,
+        facts,
+        proof,
+    };
 }
 
 /// The verified lock is removed through the held descriptor,
@@ -62,10 +89,23 @@ fn settling(label: &str, lock: &[u8]) -> Settling {
 #[test]
 fn the_verified_lock_is_released() {
     let settling: Settling = settling("release-verified", settling_sentence().as_slice());
-    let outcome = release_the_managed_lock(&settling.held, settling.registration.as_path(), settling.fixture.slot.as_str(), &settling.facts, &settling.proof).expect("the lock is released");
+    let outcome = release_the_managed_lock(
+        &settling.held,
+        settling.registration.as_path(),
+        settling.fixture.slot.as_str(),
+        &settling.facts,
+        &settling.proof,
+    )
+    .expect("the lock is released");
     assert_eq!(outcome.registration, settling.registration);
-    assert!(!settling.registration.join("locked").exists(), "the lock is gone");
-    assert!(settling.registration.join("gitdir").exists(), "the registration stays, because the recipe removes it next");
+    assert!(
+        !settling.registration.join("locked").exists(),
+        "the lock is gone"
+    );
+    assert!(
+        settling.registration.join("gitdir").exists(),
+        "the registration stays, because the recipe removes it next"
+    );
 }
 
 /// A cut-short lock is released as the removal's own state,
@@ -75,7 +115,16 @@ fn the_cut_short_lock_is_released() {
     let sentence: Vec<u8> = settling_sentence();
     let covering: usize = crate::worktree_clone_binding_record::LOCK_WORDS_PREFIX.len() + 32 + 1;
     let settling: Settling = settling("release-cut-short", &sentence[..covering]);
-    assert!(release_the_managed_lock(&settling.held, settling.registration.as_path(), settling.fixture.slot.as_str(), &settling.facts, &settling.proof).is_ok());
+    assert!(
+        release_the_managed_lock(
+            &settling.held,
+            settling.registration.as_path(),
+            settling.fixture.slot.as_str(),
+            &settling.facts,
+            &settling.proof
+        )
+        .is_ok()
+    );
     assert!(!settling.registration.join("locked").exists());
 }
 
@@ -83,9 +132,18 @@ fn the_cut_short_lock_is_released() {
 #[test]
 fn a_proof_for_another_slot_releases_nothing() {
     let settling: Settling = settling("release-other-slot", settling_sentence().as_slice());
-    let refused = release_the_managed_lock(&settling.held, settling.registration.as_path(), "another-slot", &settling.facts, &settling.proof)
-        .expect_err("another slot's proof releases nothing");
-    assert!(matches!(refused, ReleaseRefusal::TheProofIsForAnotherSlot { .. }), "{refused:?}");
+    let refused = release_the_managed_lock(
+        &settling.held,
+        settling.registration.as_path(),
+        "another-slot",
+        &settling.facts,
+        &settling.proof,
+    )
+    .expect_err("another slot's proof releases nothing");
+    assert!(
+        matches!(refused, ReleaseRefusal::TheProofIsForAnotherSlot { .. }),
+        "{refused:?}"
+    );
     assert!(settling.registration.join("locked").exists());
 }
 
@@ -95,11 +153,28 @@ fn a_proof_for_another_slot_releases_nothing() {
 #[test]
 fn a_proof_for_another_clone_releases_nothing() {
     let settling: Settling = settling("release-other-clone", settling_sentence().as_slice());
-    let elsewhere = crate::worktree_clone_managed_lock::RecordedClone { dataset: String::from("pool/clones/another"), guid: settling.facts.clone.guid };
-    let other: CloneDestructionProof = prove_the_recorded_clone_is_gone(settling.fixture.slot.as_str(), &elsewhere, &TheLiveCloneAnswer::Absent).expect("the other clone is gone too");
-    let refused = release_the_managed_lock(&settling.held, settling.registration.as_path(), settling.fixture.slot.as_str(), &settling.facts, &other)
-        .expect_err("another clone's proof releases nothing");
-    assert!(matches!(refused, ReleaseRefusal::TheProofIsForAnotherClone { .. }), "{refused:?}");
+    let elsewhere = crate::worktree_clone_managed_lock::RecordedClone {
+        dataset: String::from("pool/clones/another"),
+        guid: settling.facts.clone.guid,
+    };
+    let other: CloneDestructionProof = prove_the_recorded_clone_is_gone(
+        settling.fixture.slot.as_str(),
+        &elsewhere,
+        &TheLiveCloneAnswer::Absent,
+    )
+    .expect("the other clone is gone too");
+    let refused = release_the_managed_lock(
+        &settling.held,
+        settling.registration.as_path(),
+        settling.fixture.slot.as_str(),
+        &settling.facts,
+        &other,
+    )
+    .expect_err("another clone's proof releases nothing");
+    assert!(
+        matches!(refused, ReleaseRefusal::TheProofIsForAnotherClone { .. }),
+        "{refused:?}"
+    );
     assert!(settling.registration.join("locked").exists());
 }
 
@@ -109,8 +184,14 @@ fn a_proof_for_another_clone_releases_nothing() {
 fn a_settle_with_no_lock_refuses() {
     let settling: Settling = settling("release-no-lock", b"");
     std::fs::remove_file(settling.registration.join("locked")).expect("the lock goes");
-    let refused = release_the_managed_lock(&settling.held, settling.registration.as_path(), settling.fixture.slot.as_str(), &settling.facts, &settling.proof)
-        .expect_err("nothing stands to release");
+    let refused = release_the_managed_lock(
+        &settling.held,
+        settling.registration.as_path(),
+        settling.fixture.slot.as_str(),
+        &settling.facts,
+        &settling.proof,
+    )
+    .expect_err("nothing stands to release");
     assert_eq!(refused, ReleaseRefusal::NoLockStands);
 }
 
@@ -119,14 +200,27 @@ fn a_settle_with_no_lock_refuses() {
 #[test]
 fn a_persons_lock_survives_the_release() {
     let settling: Settling = settling("release-persons-lock", b"held by a person\n");
-    let refused = release_the_managed_lock(&settling.held, settling.registration.as_path(), settling.fixture.slot.as_str(), &settling.facts, &settling.proof)
-        .expect_err("a person's lock is not this add's");
-    assert!(matches!(refused, ReleaseRefusal::NotTheAddsLock { .. }), "{refused:?}");
-    assert_eq!(std::fs::read(settling.registration.join("locked")).expect("the lock reads"), b"held by a person\n");
+    let refused = release_the_managed_lock(
+        &settling.held,
+        settling.registration.as_path(),
+        settling.fixture.slot.as_str(),
+        &settling.facts,
+        &settling.proof,
+    )
+    .expect_err("a person's lock is not this add's");
+    assert!(
+        matches!(refused, ReleaseRefusal::NotTheAddsLock { .. }),
+        "{refused:?}"
+    );
+    assert_eq!(
+        std::fs::read(settling.registration.join("locked")).expect("the lock reads"),
+        b"held by a person\n"
+    );
 }
 
 /// The sentence the add writes for the fixture's nonce.
 fn settling_sentence() -> Vec<u8> {
-    let nonce = crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE).expect("the fixture nonce reads");
+    let nonce = crate::worktree_clone_mount_protocol::RequestNonce::parse(NONCE)
+        .expect("the fixture nonce reads");
     return crate::worktree_clone_binding_record::lock_words::lock_file_bytes(&nonce);
 }

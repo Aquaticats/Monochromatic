@@ -37,7 +37,10 @@
 //! ```
 
 /// The block document reader and its problems.
-use crate::dependent_version_yaml::{YamlNode, parse_yaml_document};
+use crate::dependent_version_yaml::{
+    YamlNode,
+    parse_yaml_document,
+};
 
 /// What:
 /// The key of the OIDC providers in the configuration's top-level mapping.
@@ -148,9 +151,8 @@ pub fn read_publishable_names(config_text: &str) -> Result<Vec<String>, String> 
                 ));
             };
             for item in items {
-                let place: String = format!(
-                    "`auth.oidc[{provider_index}].workloads[{workload_index}].packages`"
-                );
+                let place: String =
+                    format!("`auth.oidc[{provider_index}].workloads[{workload_index}].packages`");
                 let Some(name) = item.text() else {
                     return Err(format!("{place} holds a value that is not a package name"));
                 };
@@ -164,9 +166,7 @@ pub fn read_publishable_names(config_text: &str) -> Result<Vec<String>, String> 
         }
     }
     if names.is_empty() {
-        return Err(String::from(
-            "no `auth.oidc` workload lists a package name",
-        ));
+        return Err(String::from("no `auth.oidc` workload lists a package name"));
     }
     return Ok(names);
 }
@@ -182,7 +182,10 @@ pub fn read_publishable_names(config_text: &str) -> Result<Vec<String>, String> 
 /// ```ts
 /// names.includes(name);
 /// ```
-fn already_listed(names: &[String], name: &str) -> bool {
+fn already_listed(
+    names: &[String],
+    name: &str,
+) -> bool {
     for found in names {
         if found == name {
             return true;

@@ -4,8 +4,18 @@
 //!  and a reading of the object store that gives no answer asks Git rather than the last resort.
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::a_controls_answer::{AStatesAnswer, state_the_answer};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::blocking_jobs_within_the_budget::a_controls_answer::{
+    AStatesAnswer,
+    state_the_answer,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 
 /// What:
 ///  A repository whose `core.abbrev` asks for a name longer than the last resort,
@@ -26,7 +36,9 @@ fn a_repository_whose_name_git_answers(name: &str) -> (PathBuf, String) {
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     git(repo.as_path(), &["config", "core.abbrev", "13"]);
-    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     return (root, commit);
 }
 
@@ -35,7 +47,18 @@ fn a_repository_whose_name_git_answers(name: &str) -> (PathBuf, String) {
 fn snapshot_with(abbreviation: &str) -> ConfigSnapshot {
     let root: PathBuf = fixture("landed-summary-awaiting-snapshot");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    let listing: Vec<u8> = git_text(repo.as_path(), &["-c", format!("core.abbrev={abbreviation}").as_str(), "config", "--list", "-z", "--show-scope"]).into_bytes();
+    let listing: Vec<u8> = git_text(
+        repo.as_path(),
+        &[
+            "-c",
+            format!("core.abbrev={abbreviation}").as_str(),
+            "config",
+            "--list",
+            "-z",
+            "--show-scope",
+        ],
+    )
+    .into_bytes();
     remove(root.as_path());
     return ConfigSnapshot::parse(listing.as_slice(), true).expect("a snapshot");
 }
@@ -64,17 +87,53 @@ fn the_awaited_name_answers_what_the_synchronous_one_answers_inside_the_runtime(
     let context: GitContext = git_context();
     let objects: PathBuf = repo.join(".git/objects");
     let snapshot: ConfigSnapshot = snapshot_with("12");
-    let from_the_files_expected: String = git_text(repo.as_path(), &["-c", "core.abbrev=12", "rev-parse", "--short", commit.as_str()]).trim().to_string();
-    let from_git_expected: String = git_text(repo.as_path(), &["rev-parse", "--short", commit.as_str()]).trim().to_string();
+    let from_the_files_expected: String = git_text(
+        repo.as_path(),
+        &[
+            "-c",
+            "core.abbrev=12",
+            "rev-parse",
+            "--short",
+            commit.as_str(),
+        ],
+    )
+    .trim()
+    .to_string();
+    let from_git_expected: String =
+        git_text(repo.as_path(), &["rev-parse", "--short", commit.as_str()])
+            .trim()
+            .to_string();
     for (label, config, expected) in [
-        ("the files answer", Some(&snapshot), from_the_files_expected.as_str()),
+        (
+            "the files answer",
+            Some(&snapshot),
+            from_the_files_expected.as_str(),
+        ),
         ("Git answers", None, from_git_expected.as_str()),
     ] {
-        let synchronous: String = short_name(&context, repo.as_path(), objects.as_path(), config, commit.as_str());
-        let awaited: String =
-            crate::lazy_runtime::run_on_runtime(short_name_awaiting(&context, repo.as_path(), objects.as_path(), config, commit.as_str())).expect("the runtime");
-        assert_eq!(synchronous, expected, "{label}: the synchronous face is the one the two faces are compared on");
-        assert_eq!(awaited, synchronous, "{label}: the two faces answer one name for the same commit");
+        let synchronous: String = short_name(
+            &context,
+            repo.as_path(),
+            objects.as_path(),
+            config,
+            commit.as_str(),
+        );
+        let awaited: String = crate::lazy_runtime::run_on_runtime(short_name_awaiting(
+            &context,
+            repo.as_path(),
+            objects.as_path(),
+            config,
+            commit.as_str(),
+        ))
+        .expect("the runtime");
+        assert_eq!(
+            synchronous, expected,
+            "{label}: the synchronous face is the one the two faces are compared on"
+        );
+        assert_eq!(
+            awaited, synchronous,
+            "{label}: the two faces answer one name for the same commit"
+        );
     }
     remove(root.as_path());
 }
@@ -106,11 +165,26 @@ fn a_reading_of_the_object_store_that_gives_no_answer_asks_git() {
     let context: GitContext = git_context();
     let objects: PathBuf = repo.join(".git/objects");
     let snapshot: ConfigSnapshot = snapshot_with("12");
-    let expected: String = git_text(repo.as_path(), &["rev-parse", "--short", commit.as_str()]).trim().to_string();
+    let expected: String = git_text(repo.as_path(), &["rev-parse", "--short", commit.as_str()])
+        .trim()
+        .to_string();
     let _stated = state_the_answer(AStatesAnswer::NoAnswer);
-    let awaited: String = crate::lazy_runtime::run_on_runtime(short_name_awaiting(&context, repo.as_path(), objects.as_path(), Some(&snapshot), commit.as_str()))
-        .expect("the runtime");
-    assert_eq!(awaited, expected, "a reading of the object store that gave no answer is answered by Git's own name, not by the last resort");
-    assert_ne!(awaited.len(), LAST_RESORT_LENGTH, "the seven characters Git did not print are not the name the person is given");
+    let awaited: String = crate::lazy_runtime::run_on_runtime(short_name_awaiting(
+        &context,
+        repo.as_path(),
+        objects.as_path(),
+        Some(&snapshot),
+        commit.as_str(),
+    ))
+    .expect("the runtime");
+    assert_eq!(
+        awaited, expected,
+        "a reading of the object store that gave no answer is answered by Git's own name, not by the last resort"
+    );
+    assert_ne!(
+        awaited.len(),
+        LAST_RESORT_LENGTH,
+        "the seven characters Git did not print are not the name the person is given"
+    );
     remove(root.as_path());
 }

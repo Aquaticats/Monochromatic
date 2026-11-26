@@ -64,7 +64,9 @@ pub enum TypedNetworkCommand {
 /// ```ts
 /// typedCommand(argv): { command: TypedNetworkCommand; region: string[]; prefix: string[] } | undefined
 /// ```
-pub fn typed_command(arguments: &[OsString]) -> Option<(TypedNetworkCommand, &[OsString], &[OsString])> {
+pub fn typed_command(
+    arguments: &[OsString]
+) -> Option<(TypedNetworkCommand, &[OsString], &[OsString])> {
     // What: `(word, region)` is a pair: the subcommand and the words after it.
     // Why:   The global options and the command word are not the command's own arguments.
     //
@@ -127,7 +129,10 @@ pub enum RemoteRead<'a> {
 /// ```ts
 /// command === 'clone' ? { operand: region[0] } : { named: region[0] }
 /// ```
-pub fn remote_read_for<'a>(command: TypedNetworkCommand, region: &'a [OsString]) -> Option<RemoteRead<'a>> {
+pub fn remote_read_for<'a>(
+    command: TypedNetworkCommand,
+    region: &'a [OsString],
+) -> Option<RemoteRead<'a>> {
     let operand: Option<&'a OsString> = remote_operand(command, region);
     // What: `?` answers nothing when a clone names no URL, which is Git's own error to print.
     // Why:   A clone without a URL is not a command the wrapper can read a remote for.
@@ -198,7 +203,10 @@ pub fn remote_url(
     };
     let mut questions: Vec<Vec<OsString>> = Vec::new();
     if command == TypedNetworkCommand::Clone {
-        questions.push(vec![OsString::from("ls-remote"), OsString::from("--get-url")]);
+        questions.push(vec![
+            OsString::from("ls-remote"),
+            OsString::from("--get-url"),
+        ]);
     } else {
         let mut by_name: Vec<OsString> = vec![OsString::from("remote"), OsString::from("get-url")];
         if command == TypedNetworkCommand::Push {
@@ -206,7 +214,10 @@ pub fn remote_url(
             by_name.push(OsString::from("--push"));
         }
         questions.push(by_name);
-        questions.push(vec![OsString::from("ls-remote"), OsString::from("--get-url")]);
+        questions.push(vec![
+            OsString::from("ls-remote"),
+            OsString::from("--get-url"),
+        ]);
     }
     for mut words in questions {
         // What: `Some(word)` is the present variant of `Option`, pushed onto the question when the command names a remote.
@@ -248,7 +259,11 @@ pub fn remote_url(
 ///   return out.status === 0 && out.stdout.trim() ? out.stdout.trim() : undefined;
 /// }
 /// ```
-fn ask_for_a_url(asking: Vec<OsString>, real_git: &Path, overlay: &[(OsString, OsString)]) -> Option<String> {
+fn ask_for_a_url(
+    asking: Vec<OsString>,
+    real_git: &Path,
+    overlay: &[(OsString, OsString)],
+) -> Option<String> {
     // What: The captured run starts Git with the wrapper's own options and keeps at most one step's output.
     // Why:   The read is the wrapper's own work and must never wait for a person.
     //
@@ -256,11 +271,17 @@ fn ask_for_a_url(asking: Vec<OsString>, real_git: &Path, overlay: &[(OsString, O
     // ```ts
     // const output = runCaptured(gitCommand(git, asking, overlay, 'wrapper'), PLUMBING_STEP_CEILING);
     // ```
-    let output: std::process::Output = crate::captured_child_run_to_its_end::output_of_within_bound(
-        &mut crate::forwarding::git_command(real_git, asking.as_slice(), overlay, crate::hooks_off::StartOwner::Wrapper),
-        crate::wait_ceilings::PLUMBING_STEP_CEILING,
-    )
-    .ok()?;
+    let output: std::process::Output =
+        crate::captured_child_run_to_its_end::output_of_within_bound(
+            &mut crate::forwarding::git_command(
+                real_git,
+                asking.as_slice(),
+                overlay,
+                crate::hooks_off::StartOwner::Wrapper,
+            ),
+            crate::wait_ceilings::PLUMBING_STEP_CEILING,
+        )
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -304,7 +325,10 @@ pub fn ssh_carries(url: &str) -> bool {
     // const parts = url.split('://');
     // ```
     if let Some((scheme, _rest)) = url.split_once("://") {
-        return matches!(scheme.to_ascii_lowercase().as_str(), "ssh" | "git+ssh" | "ssh+git");
+        return matches!(
+            scheme.to_ascii_lowercase().as_str(),
+            "ssh" | "git+ssh" | "ssh+git"
+        );
     }
     // What: `rfind('@')` finds the last user separator, so a user with an `@` is still one user.
     // Why:   Git reads the part after the last `@` as the host.
@@ -330,7 +354,8 @@ pub fn ssh_carries(url: &str) -> bool {
     let Some(where_the_colon_is) = colon else {
         return false;
     };
-    return where_the_colon_is > 0 && slash.is_none_or(|where_the_slash_is| return where_the_colon_is < where_the_slash_is);
+    return where_the_colon_is > 0
+        && slash.is_none_or(|where_the_slash_is| return where_the_colon_is < where_the_slash_is);
 }
 
 /// Pure readings are controlled in the test module.

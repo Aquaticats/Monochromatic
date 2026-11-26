@@ -44,30 +44,107 @@
 //! const reports = route_checks(facts); // one CheckReport per check, in print order
 //! ```
 
-use super::check_outcome::{Check, CheckOutcome, CheckReport};
-use super::clone_origin_checks::{CloneOriginFacts, check_clone_origin};
-use super::clone_retention_checks::{CloneRetentionFacts, check_clone_retention};
-use super::clone_snapshot_checks::{CloneSnapshotFacts, check_clone_snapshots};
-use super::clone_state_checks::{CloneStateFacts, check_clone_state};
+use super::binding_record_checks::check_binding_record;
+use super::blocked_removal_checks::{
+    BlockedRemovalFacts,
+    check_blocked_removal,
+};
+use super::check_outcome::{
+    Check,
+    CheckOutcome,
+    CheckReport,
+};
+use super::clone_origin_checks::{
+    CloneOriginFacts,
+    check_clone_origin,
+};
+use super::clone_retention_checks::{
+    CloneRetentionFacts,
+    check_clone_retention,
+};
+use super::clone_snapshot_checks::{
+    CloneSnapshotFacts,
+    check_clone_snapshots,
+};
+use super::clone_state_checks::{
+    CloneStateFacts,
+    check_clone_state,
+};
 use super::delegation_checks::check_delegation;
 use super::delegation_reply::DelegationFacts;
-use super::blocked_removal_checks::{BlockedRemovalFacts, check_blocked_removal};
-use super::binding_record_checks::check_binding_record;
 use super::handler_checks::{
-    FolderFacts, HandlerConfigurationFacts, HandlerInstallationFacts, HandlerWiringFacts, ReadinessFacts, RequestFacts, check_handler_configuration, check_handler_folders, check_handler_installation, check_readiness,
-    check_root_modes, check_unresolved_requests, check_zed_wiring,
+    FolderFacts,
+    HandlerConfigurationFacts,
+    HandlerInstallationFacts,
+    HandlerWiringFacts,
+    ReadinessFacts,
+    RequestFacts,
+    check_handler_configuration,
+    check_handler_folders,
+    check_handler_installation,
+    check_readiness,
+    check_root_modes,
+    check_unresolved_requests,
+    check_zed_wiring,
 };
-use super::holder_checks::{HolderFacts, check_holders};
-use super::identity_checks::{ParentIdentityFacts, SlotIdentityFacts, check_parent_identity, check_slot_identity};
-use super::later_step_checks::{LaterStep, check_later_step};
-use super::managed_lock_checks::{ManagedLockFacts, check_managed_lock};
-use super::mount_checks::{MountCheckFacts, check_checkout_mount, check_checkout_propagation, check_nested_reachability};
-use super::registration_checks::{RegistrationFacts, check_registration};
-use super::removal_plan_checks::{RemovalPlanFacts, check_removal_plan};
+use super::holder_checks::{
+    HolderFacts,
+    check_holders,
+};
+use super::identity_checks::{
+    ParentIdentityFacts,
+    SlotIdentityFacts,
+    check_parent_identity,
+    check_slot_identity,
+};
+use super::later_step_checks::{
+    LaterStep,
+    check_later_step,
+};
+use super::managed_lock_checks::{
+    ManagedLockFacts,
+    check_managed_lock,
+};
+use super::mount_checks::{
+    MountCheckFacts,
+    check_checkout_mount,
+    check_checkout_propagation,
+    check_nested_reachability,
+};
+use super::registration_checks::{
+    RegistrationFacts,
+    check_registration,
+};
+use super::removal_plan_checks::{
+    RemovalPlanFacts,
+    check_removal_plan,
+};
 use super::snapshot_directory_checks::snapdir_report;
-use super::staging_folder_checks::{StagingBind, StagingFolderFacts, check_staging_bind_propagation, check_staging_folder};
-use super::store_listing::{StoreListingFacts, check_staging_forms, check_store_entries, check_unknown_dot_entries};
-use super::zfs_checks::{AbiFacts, DatasetFacts, DatasetRole, DeviceFacts, PoolFacts, check_abi, check_clone_properties, check_dataset, check_device, check_key, check_pool};
+use super::staging_folder_checks::{
+    StagingBind,
+    StagingFolderFacts,
+    check_staging_bind_propagation,
+    check_staging_folder,
+};
+use super::store_listing::{
+    StoreListingFacts,
+    check_staging_forms,
+    check_store_entries,
+    check_unknown_dot_entries,
+};
+use super::zfs_checks::{
+    AbiFacts,
+    DatasetFacts,
+    DatasetRole,
+    DeviceFacts,
+    PoolFacts,
+    check_abi,
+    check_clone_properties,
+    check_dataset,
+    check_device,
+    check_key,
+    check_pool,
+};
 
 /// What:
 ///  Every removal-side fact one managed clone's checks read,
@@ -185,28 +262,87 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
         }
     }
     reports.push(CheckReport::new(Check::Key, check_key(&facts.datasets)));
-    let clones: Vec<DatasetFacts> = facts.datasets.iter().filter(|dataset| return matches!(dataset.role, DatasetRole::Clone)).cloned().collect();
-    reports.push(CheckReport::new(Check::CloneProperties, check_clone_properties(&clones)));
-    reports.push(CheckReport::new(Check::CheckoutMount, check_checkout_mount(&facts.mounts)));
-    reports.push(CheckReport::new(Check::CheckoutPropagation, check_checkout_propagation(&facts.mounts)));
-    reports.push(CheckReport::new(Check::NestedReachability, check_nested_reachability(&facts.mounts)));
-    reports.push(CheckReport::new(Check::ParentIdentity, check_parent_identity(&facts.parent_identity)));
+    let clones: Vec<DatasetFacts> = facts
+        .datasets
+        .iter()
+        .filter(|dataset| return matches!(dataset.role, DatasetRole::Clone))
+        .cloned()
+        .collect();
+    reports.push(CheckReport::new(
+        Check::CloneProperties,
+        check_clone_properties(&clones),
+    ));
+    reports.push(CheckReport::new(
+        Check::CheckoutMount,
+        check_checkout_mount(&facts.mounts),
+    ));
+    reports.push(CheckReport::new(
+        Check::CheckoutPropagation,
+        check_checkout_propagation(&facts.mounts),
+    ));
+    reports.push(CheckReport::new(
+        Check::NestedReachability,
+        check_nested_reachability(&facts.mounts),
+    ));
+    reports.push(CheckReport::new(
+        Check::ParentIdentity,
+        check_parent_identity(&facts.parent_identity),
+    ));
     for slot in &facts.slots {
-        reports.push(CheckReport::new(Check::SlotIdentity, check_slot_identity(slot)));
+        reports.push(CheckReport::new(
+            Check::SlotIdentity,
+            check_slot_identity(slot),
+        ));
     }
-    reports.push(CheckReport::new(Check::StoreEntries, check_store_entries(&facts.store)));
-    reports.push(CheckReport::new(Check::StagingForms, check_staging_forms(&facts.store)));
-    reports.push(CheckReport::new(Check::UnknownDotEntry, check_unknown_dot_entries(&facts.store)));
-    reports.push(CheckReport::new(Check::Delegation, check_delegation(&facts.delegation)));
-    reports.push(CheckReport::new(Check::HandlerInstallation, check_handler_installation(&facts.installation)));
+    reports.push(CheckReport::new(
+        Check::StoreEntries,
+        check_store_entries(&facts.store),
+    ));
+    reports.push(CheckReport::new(
+        Check::StagingForms,
+        check_staging_forms(&facts.store),
+    ));
+    reports.push(CheckReport::new(
+        Check::UnknownDotEntry,
+        check_unknown_dot_entries(&facts.store),
+    ));
+    reports.push(CheckReport::new(
+        Check::Delegation,
+        check_delegation(&facts.delegation),
+    ));
+    reports.push(CheckReport::new(
+        Check::HandlerInstallation,
+        check_handler_installation(&facts.installation),
+    ));
     reports.push(CheckReport::new(Check::RootModes, check_root_modes()));
-    reports.push(CheckReport::new(Check::HandlerConfiguration, check_handler_configuration(&facts.configuration)));
-    reports.push(CheckReport::new(Check::HandlerFolders, check_handler_folders(&facts.folders)));
-    reports.push(CheckReport::new(Check::ZedWiring, check_zed_wiring(&facts.wiring)));
-    reports.push(CheckReport::new(Check::Readiness, check_readiness(&facts.readiness, facts.live_boot.as_str())));
-    reports.push(CheckReport::new(Check::UnresolvedRequests, check_unresolved_requests(&facts.requests, facts.live_boot.as_str())));
-    reports.push(CheckReport::new(Check::StagingFolder, check_staging_folder(&facts.staging)));
-    reports.push(CheckReport::new(Check::StagingBindPropagation, check_staging_bind_propagation(&facts.staging_binds)));
+    reports.push(CheckReport::new(
+        Check::HandlerConfiguration,
+        check_handler_configuration(&facts.configuration),
+    ));
+    reports.push(CheckReport::new(
+        Check::HandlerFolders,
+        check_handler_folders(&facts.folders),
+    ));
+    reports.push(CheckReport::new(
+        Check::ZedWiring,
+        check_zed_wiring(&facts.wiring),
+    ));
+    reports.push(CheckReport::new(
+        Check::Readiness,
+        check_readiness(&facts.readiness, facts.live_boot.as_str()),
+    ));
+    reports.push(CheckReport::new(
+        Check::UnresolvedRequests,
+        check_unresolved_requests(&facts.requests, facts.live_boot.as_str()),
+    ));
+    reports.push(CheckReport::new(
+        Check::StagingFolder,
+        check_staging_folder(&facts.staging),
+    ));
+    reports.push(CheckReport::new(
+        Check::StagingBindPropagation,
+        check_staging_bind_propagation(&facts.staging_binds),
+    ));
     reports.extend(clone_reports(facts));
     for step in LaterStep::ALL {
         reports.push(CheckReport::new(step.check(), check_later_step(step)));
@@ -230,16 +366,43 @@ fn clone_reports(facts: &RouteFacts) -> Vec<CheckReport> {
     let mut reports: Vec<CheckReport> = Vec::new();
     for clone in &facts.clones {
         let binding: CheckOutcome = check_binding_record(&clone.state.readings.binding);
-        reports.push(CheckReport::new(Check::CloneState, check_clone_state(&clone.state)));
-        reports.push(CheckReport::new(Check::Registration, check_registration(&clone.registration)));
-        reports.push(CheckReport::new(Check::ManagedLock, check_managed_lock(&clone.lock)));
+        reports.push(CheckReport::new(
+            Check::CloneState,
+            check_clone_state(&clone.state),
+        ));
+        reports.push(CheckReport::new(
+            Check::Registration,
+            check_registration(&clone.registration),
+        ));
+        reports.push(CheckReport::new(
+            Check::ManagedLock,
+            check_managed_lock(&clone.lock),
+        ));
         reports.push(CheckReport::new(Check::BindingRecord, binding));
-        reports.push(CheckReport::new(Check::RemovalPlan, check_removal_plan(&clone.plan)));
-        reports.push(CheckReport::new(Check::CloneSnapshots, check_clone_snapshots(&clone.snapshots)));
-        reports.push(CheckReport::new(Check::CloneOrigin, check_clone_origin(&clone.origin)));
-        reports.push(CheckReport::new(Check::CloneRetention, check_clone_retention(&clone.retention)));
-        reports.push(CheckReport::new(Check::BlockedRemoval, check_blocked_removal(&clone.blocked)));
-        reports.push(CheckReport::new(Check::Holders, check_holders(&clone.holders)));
+        reports.push(CheckReport::new(
+            Check::RemovalPlan,
+            check_removal_plan(&clone.plan),
+        ));
+        reports.push(CheckReport::new(
+            Check::CloneSnapshots,
+            check_clone_snapshots(&clone.snapshots),
+        ));
+        reports.push(CheckReport::new(
+            Check::CloneOrigin,
+            check_clone_origin(&clone.origin),
+        ));
+        reports.push(CheckReport::new(
+            Check::CloneRetention,
+            check_clone_retention(&clone.retention),
+        ));
+        reports.push(CheckReport::new(
+            Check::BlockedRemoval,
+            check_blocked_removal(&clone.blocked),
+        ));
+        reports.push(CheckReport::new(
+            Check::Holders,
+            check_holders(&clone.holders),
+        ));
     }
     return reports;
 }

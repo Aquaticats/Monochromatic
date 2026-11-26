@@ -37,11 +37,22 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone_conversion_fence::{ChangeNotServed, WhyNotServed};
+use crate::worktree_clone_conversion_fence::{
+    ChangeNotServed,
+    WhyNotServed,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLadderTargetTree";
@@ -106,7 +117,13 @@ struct TargetTree {
 ///   const served = first(changed); return served && theSentence(tree.shown, served);
 /// };
 /// ```
-pub fn skip_reason_for_the_target_tree(source: &SnapshotSource, context: &GitContext, plan: &AddPlan, the_rung_hands_a_path_to_git: bool, first: &dyn Fn(&[Vec<u8>]) -> Option<ChangeNotServed>) -> Option<String> {
+pub fn skip_reason_for_the_target_tree(
+    source: &SnapshotSource,
+    context: &GitContext,
+    plan: &AddPlan,
+    the_rung_hands_a_path_to_git: bool,
+    first: &dyn Fn(&[Vec<u8>]) -> Option<ChangeNotServed>,
+) -> Option<String> {
     if !the_rung_hands_a_path_to_git {
         return None;
     }
@@ -121,7 +138,14 @@ pub fn skip_reason_for_the_target_tree(source: &SnapshotSource, context: &GitCon
     let changed: Vec<Vec<u8>> = match changed_paths(context, source, tree.read.as_os_str()) {
         Ok(found) => found,
         Err(reason) => {
-            debug(TAG, format!("the tree of {} cannot be read ({reason}); the rung runs as it did", String::from_utf8_lossy(tree.shown.as_encoded_bytes())).as_str());
+            debug(
+                TAG,
+                format!(
+                    "the tree of {} cannot be read ({reason}); the rung runs as it did",
+                    String::from_utf8_lossy(tree.shown.as_encoded_bytes())
+                )
+                .as_str(),
+            );
             return None;
         }
     };
@@ -146,20 +170,43 @@ pub fn skip_reason_for_the_target_tree(source: &SnapshotSource, context: &GitCon
 /// ```ts
 /// function theTreeTheAddStartsAt(source, context, plan): TargetTree | undefined | Error;
 /// ```
-fn the_tree_the_add_starts_at(source: &SnapshotSource, context: &GitContext, plan: &AddPlan) -> Result<Option<TargetTree>, String> {
+fn the_tree_the_add_starts_at(
+    source: &SnapshotSource,
+    context: &GitContext,
+    plan: &AddPlan,
+) -> Result<Option<TargetTree>, String> {
     let Some(named) = plan.target.as_deref() else {
         // Git starts at `HEAD` itself when there is no commit-ish and it creates a branch: `-b` names the branch.
         if !plan.checks_out_a_branch {
             return Ok(None);
         }
-        let Some(branch_name) = plan.destination.file_name() else { return Ok(None) };
-        let Some((branch, commit)) = the_local_branch(context, source, branch_name)? else { return Ok(None) };
-        return Ok(branch_tree(source, branch_name.to_os_string(), branch, commit.as_str()));
+        let Some(branch_name) = plan.destination.file_name() else {
+            return Ok(None);
+        };
+        let Some((branch, commit)) = the_local_branch(context, source, branch_name)? else {
+            return Ok(None);
+        };
+        return Ok(branch_tree(
+            source,
+            branch_name.to_os_string(),
+            branch,
+            commit.as_str(),
+        ));
     };
-    if plan.checks_out_a_branch && let Some((branch, commit)) = the_local_branch(context, source, named)? {
-        return Ok(branch_tree(source, named.to_os_string(), branch, commit.as_str()));
+    if plan.checks_out_a_branch
+        && let Some((branch, commit)) = the_local_branch(context, source, named)?
+    {
+        return Ok(branch_tree(
+            source,
+            named.to_os_string(),
+            branch,
+            commit.as_str(),
+        ));
     }
-    return Ok(Some(TargetTree { shown: named.to_os_string(), read: named.to_os_string() }));
+    return Ok(Some(TargetTree {
+        shown: named.to_os_string(),
+        read: named.to_os_string(),
+    }));
 }
 
 /// What:
@@ -173,11 +220,19 @@ fn the_tree_the_add_starts_at(source: &SnapshotSource, context: &GitContext, pla
 /// ```ts
 /// const branchTree = (source, shown, branch, commit) => commit === source.headCommit ? undefined : { shown, read: branch };
 /// ```
-fn branch_tree(source: &SnapshotSource, shown: OsString, branch: OsString, commit: &str) -> Option<TargetTree> {
+fn branch_tree(
+    source: &SnapshotSource,
+    shown: OsString,
+    branch: OsString,
+    commit: &str,
+) -> Option<TargetTree> {
     if commit == source.clean.head_commit.as_str() {
         return None;
     }
-    return Some(TargetTree { shown, read: branch });
+    return Some(TargetTree {
+        shown,
+        read: branch,
+    });
 }
 
 /// What:
@@ -197,17 +252,41 @@ fn branch_tree(source: &SnapshotSource, shown: OsString, branch: OsString, commi
 /// ```ts
 /// const localBranch = (context, source, name) => git(context, source.root, ['for-each-ref', '--format=%(objectname) %(refname)', '--end-of-options', `refs/heads/${name}`]).split('\n');
 /// ```
-fn the_local_branch(context: &GitContext, source: &SnapshotSource, name: &OsStr) -> Result<Option<(OsString, String)>, String> {
-    if name.as_encoded_bytes().starts_with(b"-") || NAMES_NEVER_A_BRANCH.iter().any(|rejected| return name == OsStr::new(rejected)) {
+fn the_local_branch(
+    context: &GitContext,
+    source: &SnapshotSource,
+    name: &OsStr,
+) -> Result<Option<(OsString, String)>, String> {
+    if name.as_encoded_bytes().starts_with(b"-")
+        || NAMES_NEVER_A_BRANCH
+            .iter()
+            .any(|rejected| return name == OsStr::new(rejected))
+    {
         return Ok(None);
     }
     let mut wanted: OsString = OsString::from(BRANCH_NAMESPACE);
     wanted.push(name);
-    let arguments: Vec<OsString> = vec![OsString::from("for-each-ref"), OsString::from("--format=%(objectname) %(refname)"), OsString::from("--end-of-options"), wanted.clone()];
-    let request: GitRequest = GitRequest { cwd: source.root.clone(), arguments, without_prefix: true, ..GitRequest::default() };
-    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("a Git run of the local branch could not start ({error})"))?;
+    let arguments: Vec<OsString> = vec![
+        OsString::from("for-each-ref"),
+        OsString::from("--format=%(objectname) %(refname)"),
+        OsString::from("--end-of-options"),
+        wanted.clone(),
+    ];
+    let request: GitRequest = GitRequest {
+        cwd: source.root.clone(),
+        arguments,
+        without_prefix: true,
+        ..GitRequest::default()
+    };
+    let output: GitOutput = run_git(context, &request).map_err(|error| {
+        return format!("a Git run of the local branch could not start ({error})");
+    })?;
     if output.code != Some(0) {
-        return Err(format!("`git for-each-ref` ended with {:?} ({})", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim()));
+        return Err(format!(
+            "`git for-each-ref` ended with {:?} ({})",
+            output.code,
+            String::from_utf8_lossy(output.stderr.as_slice()).trim()
+        ));
     }
     return Ok(the_one_branch(output.stdout.as_slice(), wanted));
 }
@@ -227,11 +306,22 @@ fn the_local_branch(context: &GitContext, source: &SnapshotSource, name: &OsStr)
 /// ```ts
 /// const theOneBranch = (stdout, wanted) => { for (const line of stdout.split('\n').filter(Boolean)) { const space = line.indexOf(' '); if (space >= 0 && line.slice(space + 1) === wanted) return [line.slice(0, space), wanted]; } return undefined; };
 /// ```
-fn the_one_branch(stdout: &[u8], wanted: OsString) -> Option<(OsString, String)> {
-    for record in stdout.split(|byte| return *byte == b'\n').filter(|line| return !line.is_empty()) {
-        let Some(space) = record.iter().position(|byte| return *byte == b' ') else { continue };
+fn the_one_branch(
+    stdout: &[u8],
+    wanted: OsString,
+) -> Option<(OsString, String)> {
+    for record in stdout
+        .split(|byte| return *byte == b'\n')
+        .filter(|line| return !line.is_empty())
+    {
+        let Some(space) = record.iter().position(|byte| return *byte == b' ') else {
+            continue;
+        };
         if &record[space + 1..] == wanted.as_encoded_bytes() {
-            return Some((wanted, String::from_utf8_lossy(&record[..space]).into_owned()));
+            return Some((
+                wanted,
+                String::from_utf8_lossy(&record[..space]).into_owned(),
+            ));
         }
     }
     return None;
@@ -250,7 +340,10 @@ fn the_one_branch(stdout: &[u8], wanted: OsString) -> Option<(OsString, String)>
 /// ```ts
 /// const theSentence = (shown, served) => `the tree of ${shown} differs from the source's index at ${served.path}, ${clause(served.why)}, so this rung declines and Git's checkout writes the worktree`;
 /// ```
-fn the_sentence(shown: &OsStr, served: &ChangeNotServed) -> String {
+fn the_sentence(
+    shown: &OsStr,
+    served: &ChangeNotServed,
+) -> String {
     let clause: &str = match served.why {
         WhyNotServed::TheFenceWritesIt => "which this rung must leave for Git to write",
         WhyNotServed::ALinkIsCopied => "which this rung makes again as a link it cannot vouch for",
@@ -277,16 +370,41 @@ fn the_sentence(shown: &OsStr, served: &ChangeNotServed) -> String {
 /// ```ts
 /// const changed = (context, source, target) => git(context, source.root, ['diff-tree', '-r', '-z', '--name-only', '--no-renames', '--end-of-options', source.clean.headCommit, `${target}^{commit}`]).split('\0');
 /// ```
-fn changed_paths(context: &GitContext, source: &SnapshotSource, target: &OsStr) -> Result<Vec<Vec<u8>>, String> {
+fn changed_paths(
+    context: &GitContext,
+    source: &SnapshotSource,
+    target: &OsStr,
+) -> Result<Vec<Vec<u8>>, String> {
     let mut peeled: OsString = target.to_os_string();
     peeled.push("^{commit}");
-    let mut arguments: Vec<OsString> = ["diff-tree", "-r", "-z", "--name-only", "--no-renames", "--end-of-options"].iter().map(|word: &&str| return OsString::from(word)).collect();
+    let mut arguments: Vec<OsString> = [
+        "diff-tree",
+        "-r",
+        "-z",
+        "--name-only",
+        "--no-renames",
+        "--end-of-options",
+    ]
+    .iter()
+    .map(|word: &&str| return OsString::from(word))
+    .collect();
     arguments.push(OsString::from(source.clean.head_commit.as_str()));
     arguments.push(peeled);
-    let request: GitRequest = GitRequest { cwd: source.root.clone(), arguments, without_prefix: true, ..GitRequest::default() };
-    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("a Git run of the target tree could not start ({error})"))?;
+    let request: GitRequest = GitRequest {
+        cwd: source.root.clone(),
+        arguments,
+        without_prefix: true,
+        ..GitRequest::default()
+    };
+    let output: GitOutput = run_git(context, &request).map_err(|error| {
+        return format!("a Git run of the target tree could not start ({error})");
+    })?;
     if output.code != Some(0) {
-        return Err(format!("`git diff-tree` ended with {:?} ({})", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim()));
+        return Err(format!(
+            "`git diff-tree` ended with {:?} ({})",
+            output.code,
+            String::from_utf8_lossy(output.stderr.as_slice()).trim()
+        ));
     }
     let mut changed: Vec<Vec<u8>> = Vec::new();
     for path in output.stdout.split(|byte| return *byte == 0) {

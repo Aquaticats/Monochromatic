@@ -4,13 +4,27 @@
 //!  decides them inside the runtime,
 //! where the synchronous walk cannot start Git at all.
 
-use super::tests::{History, captured_of, history, landed, path_of, shared};
+use super::tests::{
+    History,
+    captured_of,
+    history,
+    landed,
+    path_of,
+    shared,
+};
 use super::*;
 use crate::commit_transaction::TransactionStop;
 use crate::replay_capture_order::CaptureOrderDecision;
 use crate::replay_shared_paths::SharedPath;
-use crate::service_replay::{Captured, MergeSite};
-use crate::test_support::{git_context, git_text, remove};
+use crate::service_replay::{
+    Captured,
+    MergeSite,
+};
+use crate::test_support::{
+    git_context,
+    git_text,
+    remove,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -29,10 +43,17 @@ fn both_walks(
     captured: &Captured,
     tip: &str,
     paths: &[SharedPath],
-) -> (Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop>, Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop>) {
-    let synchronous: Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop> = capture_order_of_each(site, captured, tip, paths);
+) -> (
+    Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop>,
+    Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop>,
+) {
+    let synchronous: Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop> =
+        capture_order_of_each(site, captured, tip, paths);
     let awaited: Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop> =
-        crate::lazy_runtime::run_on_runtime(capture_order_of_each_awaiting(site, captured, tip, paths)).expect("the runtime");
+        crate::lazy_runtime::run_on_runtime(capture_order_of_each_awaiting(
+            site, captured, tip, paths,
+        ))
+        .expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -62,16 +83,36 @@ fn the_awaited_walk_decides_what_the_synchronous_one_decides() {
     let context: crate::transaction_git::GitContext = git_context();
     let common: PathBuf = history.repo.join(".git");
     let objects: PathBuf = common.join("objects");
-    let site: MergeSite<'_> = MergeSite { context: &context, cwd: history.repo.as_path(), common_dir: common.as_path(), object_directory: objects.as_path(), scratch: scratch.as_path() };
+    let site: MergeSite<'_> = MergeSite {
+        context: &context,
+        cwd: history.repo.as_path(),
+        common_dir: common.as_path(),
+        object_directory: objects.as_path(),
+        scratch: scratch.as_path(),
+    };
     let tip: String = git_text(history.repo.as_path(), &["rev-parse", "HEAD"]);
     let early: &str = history.commits[0].as_str();
     let late: &str = history.commits[1].as_str();
     let captured: Captured = captured_of(&history, 100, vec![landed(early, 10), landed(late, 200)]);
-    let paths: Vec<SharedPath> = vec![shared(path_of(0).as_slice()), shared(path_of(1).as_slice()), shared(path_of(2).as_slice()), shared(b"never-changed.txt")];
+    let paths: Vec<SharedPath> = vec![
+        shared(path_of(0).as_slice()),
+        shared(path_of(1).as_slice()),
+        shared(path_of(2).as_slice()),
+        shared(b"never-changed.txt"),
+    ];
     let (synchronous, awaited) = both_walks(&site, &captured, tip.as_str(), paths.as_slice());
-    let decided: &BTreeMap<Vec<u8>, CaptureOrderDecision> = synchronous.as_ref().expect("the synchronous walk decides");
-    assert_eq!(decided.get(path_of(0).as_slice()), Some(&CaptureOrderDecision::Prepared), "a commit captured before this one keeps the captured bytes");
-    assert_eq!(decided.get(path_of(1).as_slice()), Some(&CaptureOrderDecision::Landed), "a commit captured after this one keeps the landed bytes");
+    let decided: &BTreeMap<Vec<u8>, CaptureOrderDecision> =
+        synchronous.as_ref().expect("the synchronous walk decides");
+    assert_eq!(
+        decided.get(path_of(0).as_slice()),
+        Some(&CaptureOrderDecision::Prepared),
+        "a commit captured before this one keeps the captured bytes"
+    );
+    assert_eq!(
+        decided.get(path_of(1).as_slice()),
+        Some(&CaptureOrderDecision::Landed),
+        "a commit captured after this one keeps the landed bytes"
+    );
     assert_eq!(
         awaited.as_ref().expect("the awaited walk decides"),
         decided,
@@ -101,12 +142,19 @@ fn a_capture_with_no_stamp_is_decided_the_same_way_by_both_faces() {
     let context: crate::transaction_git::GitContext = git_context();
     let common: PathBuf = history.repo.join(".git");
     let objects: PathBuf = common.join("objects");
-    let site: MergeSite<'_> = MergeSite { context: &context, cwd: history.repo.as_path(), common_dir: common.as_path(), object_directory: objects.as_path(), scratch: scratch.as_path() };
+    let site: MergeSite<'_> = MergeSite {
+        context: &context,
+        cwd: history.repo.as_path(),
+        common_dir: common.as_path(),
+        object_directory: objects.as_path(),
+        scratch: scratch.as_path(),
+    };
     let tip: String = git_text(history.repo.as_path(), &["rev-parse", "HEAD"]);
     let unsampled: Captured = captured_of(&history, 0, Vec::new());
     let paths: Vec<SharedPath> = vec![shared(path_of(0).as_slice())];
     let (synchronous, awaited) = both_walks(&site, &unsampled, tip.as_str(), paths.as_slice());
-    let decided: &BTreeMap<Vec<u8>, CaptureOrderDecision> = synchronous.as_ref().expect("the synchronous walk answers");
+    let decided: &BTreeMap<Vec<u8>, CaptureOrderDecision> =
+        synchronous.as_ref().expect("the synchronous walk answers");
     assert_eq!(
         awaited.as_ref().expect("the awaited walk answers"),
         decided,

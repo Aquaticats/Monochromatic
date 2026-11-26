@@ -34,7 +34,11 @@
 use super::open_file_of_a_descriptor::OpenedFile;
 use crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon_pid;
 /// `CString` and `CStr` are the names a system call takes.
-use std::ffi::{CStr, CString, OsStr};
+use std::ffi::{
+    CStr,
+    CString,
+    OsStr,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// `Duration` is the ceiling.
@@ -68,7 +72,10 @@ pub type Ask = fn(&CStr) -> std::io::Result<OpenedFile>;
 /// ```ts
 /// openedFileInAChild({ process: '/proc/1234', fd: '3' });
 /// ```
-pub fn opened_file_of_in_a_child(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile> {
+pub fn opened_file_of_in_a_child(
+    process: &Path,
+    fd: &OsStr,
+) -> std::io::Result<OpenedFile> {
     return read_in_a_child_with(process, fd, CHILD_READ_CEILING, attributes_through_the_link);
 }
 
@@ -94,7 +101,12 @@ fn refusal_number(number: i32) -> Option<u64> {
 /// ```ts
 /// readInAChildWith({ process, fd, ceiling, ask: sleepForAnHour });
 /// ```
-pub fn read_in_a_child_with(process: &Path, fd: &OsStr, ceiling: Duration, ask: Ask) -> std::io::Result<OpenedFile> {
+pub fn read_in_a_child_with(
+    process: &Path,
+    fd: &OsStr,
+    ceiling: Duration,
+    ask: Ask,
+) -> std::io::Result<OpenedFile> {
     let name: CString = link_name(process, fd)?;
     // The child allocates nothing, so every name and buffer it needs is made here first.
     let mut ends: [libc::c_int; 2] = [0; 2];
@@ -134,7 +146,10 @@ pub fn read_in_a_child_with(process: &Path, fd: &OsStr, ceiling: Duration, ask: 
     match answer {
         Some([0, device, inode, _refusal]) => {
             collected(child);
-            return Ok(OpenedFile { device, inode });
+            return Ok(OpenedFile {
+                device,
+                inode,
+            });
         }
         Some([_, _, _, refusal]) => {
             collected(child);
@@ -172,12 +187,21 @@ fn attributes_through_the_link(name: &CStr) -> std::io::Result<OpenedFile> {
     // SAFETY: the name outlives the call, `found` is a live `statx`, and the flag only says what may be answered from what
     //  the kernel already holds.
     let answer: libc::c_int = unsafe {
-        libc::statx(libc::AT_FDCWD, name.as_ptr(), libc::AT_STATX_DONT_SYNC, libc::STATX_BASIC_STATS, &mut found)
+        libc::statx(
+            libc::AT_FDCWD,
+            name.as_ptr(),
+            libc::AT_STATX_DONT_SYNC,
+            libc::STATX_BASIC_STATS,
+            &mut found,
+        )
     };
     if answer < 0 {
         return Err(std::io::Error::last_os_error());
     }
-    return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
+    return Ok(OpenedFile {
+        device: libc::makedev(found.stx_dev_major, found.stx_dev_minor),
+        inode: found.stx_ino,
+    });
 }
 
 /// What:
@@ -188,7 +212,10 @@ fn attributes_through_the_link(name: &CStr) -> std::io::Result<OpenedFile> {
 ///  so an interior one names no descriptor,
 ///  and both the guard and the conversion below answer with these words.
 fn a_path_with_a_zero_byte() -> std::io::Error {
-    return std::io::Error::new(std::io::ErrorKind::InvalidInput, "the descriptor's path holds a zero byte");
+    return std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        "the descriptor's path holds a zero byte",
+    );
 }
 
 /// What:
@@ -201,7 +228,10 @@ fn a_path_with_a_zero_byte() -> std::io::Error {
 /// ```ts
 /// Buffer.from(`${process}/fd/${fd}\0`)
 /// ```
-fn link_name(process: &Path, fd: &OsStr) -> std::io::Result<CString> {
+fn link_name(
+    process: &Path,
+    fd: &OsStr,
+) -> std::io::Result<CString> {
     use std::os::unix::ffi::OsStrExt as _;
     let mut name: Vec<u8> = process.as_os_str().as_bytes().to_vec();
     name.extend_from_slice(b"/fd/");
@@ -226,9 +256,16 @@ fn link_name(process: &Path, fd: &OsStr) -> std::io::Result<CString> {
 /// ```ts
 /// poll([{ fd, events: POLLIN }], ceilingMs) > 0 ? readWhole(fd) : null;
 /// ```
-fn wait_for_answer(read_end: libc::c_int, ceiling: Duration) -> Option<[u64; 4]> {
+fn wait_for_answer(
+    read_end: libc::c_int,
+    ceiling: Duration,
+) -> Option<[u64; 4]> {
     let milliseconds: i32 = i32::try_from(ceiling.as_millis()).unwrap_or(i32::MAX);
-    let mut watched: libc::pollfd = libc::pollfd { fd: read_end, events: libc::POLLIN, revents: 0 };
+    let mut watched: libc::pollfd = libc::pollfd {
+        fd: read_end,
+        events: libc::POLLIN,
+        revents: 0,
+    };
     // SAFETY: `watched` is one live entry, which is what the count says.
     let ready: libc::c_int = unsafe { libc::poll(&raw mut watched, 1, milliseconds) };
     if ready <= 0 {
@@ -240,7 +277,11 @@ fn wait_for_answer(read_end: libc::c_int, ceiling: Duration) -> Option<[u64; 4]>
     while read < bytes.len() {
         // SAFETY: the buffer holds the room the call is given, from the offset it is read at.
         let taken: libc::ssize_t = unsafe {
-            libc::read(read_end, bytes.as_mut_ptr().add(read).cast::<libc::c_void>(), bytes.len() - read)
+            libc::read(
+                read_end,
+                bytes.as_mut_ptr().add(read).cast::<libc::c_void>(),
+                bytes.len() - read,
+            )
         };
         if taken <= 0 {
             return None;
@@ -265,7 +306,10 @@ fn wait_for_answer(read_end: libc::c_int, ceiling: Duration) -> Option<[u64; 4]>
 /// ```ts
 /// writeAll(fd, words);
 /// ```
-fn write_whole(write_end: libc::c_int, answer: &[u64; 4]) {
+fn write_whole(
+    write_end: libc::c_int,
+    answer: &[u64; 4],
+) {
     let mut bytes: [u8; 32] = [0; 32];
     for (index, field) in answer.iter().enumerate() {
         bytes[index * 8..(index + 1) * 8].copy_from_slice(&field.to_ne_bytes());
@@ -274,7 +318,11 @@ fn write_whole(write_end: libc::c_int, answer: &[u64; 4]) {
     while written < bytes.len() {
         // SAFETY: the buffer holds the room the call is given, from the offset it is written at.
         let put: libc::ssize_t = unsafe {
-            libc::write(write_end, bytes.as_ptr().add(written).cast::<libc::c_void>(), bytes.len() - written)
+            libc::write(
+                write_end,
+                bytes.as_ptr().add(written).cast::<libc::c_void>(),
+                bytes.len() - written,
+            )
         };
         if put <= 0 {
             return;

@@ -27,7 +27,11 @@
 
 /// Whether a byte is one a POSIX shell leaves alone in a word.
 fn is_bare(byte: u8) -> bool {
-    return byte.is_ascii_alphanumeric() || matches!(byte, b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'_' | b'-');
+    return byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'_' | b'-'
+        );
 }
 
 /// Whether a character is a C0 control,
@@ -38,7 +42,10 @@ fn is_control(character: char) -> bool {
 
 /// The ANSI-C spelling of one byte.
 fn escaped_byte(byte: u8) -> String {
-    return format!("\\x{}", crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte));
+    return format!(
+        "\\x{}",
+        crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte)
+    );
 }
 
 /// The ANSI-C spelling of one character.
@@ -50,7 +57,11 @@ fn ansi_character(character: char) -> String {
         '\t' => String::from("\\t"),
         other if is_control(other) => {
             let mut buffer: [u8; 4] = [0; 4];
-            other.encode_utf8(&mut buffer).bytes().map(escaped_byte).collect()
+            other
+                .encode_utf8(&mut buffer)
+                .bytes()
+                .map(escaped_byte)
+                .collect()
         }
         other => other.to_string(),
     };

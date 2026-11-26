@@ -17,9 +17,15 @@
 //! ```
 
 /// Import the validated object name and the candidate modes.
-use crate::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+};
 /// Import the parsed listing records and their change kinds.
-use crate::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_record::{
+    CandidateChange,
+    CandidateRecord,
+};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,
@@ -161,7 +167,10 @@ pub struct CandidateVersion {
 /// ```ts
 /// function buildVersion(generation: bigint, records: CandidateRecord[]): CandidateVersion;
 /// ```
-pub fn build_version(generation: u64, records: Vec<CandidateRecord>) -> CandidateVersion {
+pub fn build_version(
+    generation: u64,
+    records: Vec<CandidateRecord>,
+) -> CandidateVersion {
     // `Vec::new()` and `HashMap::new()` are empty containers; `mut` lets the loop fill them.
     let mut candidates: Vec<Candidate> = Vec::new();
     let mut by_path: HashMap<Vec<u8>, usize> = HashMap::new();
@@ -174,7 +183,10 @@ pub fn build_version(generation: u64, records: Vec<CandidateRecord>) -> Candidat
         // `.clone()` copies the pathname so the table owns its key.
         by_path.insert(record.path.clone(), index);
         candidates.push(Candidate {
-            identity: CandidateIdentity { generation, index },
+            identity: CandidateIdentity {
+                generation,
+                index,
+            },
             path: record.path,
             mode: record.mode,
             change: record.change,
@@ -226,7 +238,10 @@ impl CandidateVersion {
     /// ```ts
     /// candidateAtPath(path: Buffer): Candidate | undefined
     /// ```
-    pub fn candidate_at_path(&self, path: &[u8]) -> Option<&Candidate> {
+    pub fn candidate_at_path(
+        &self,
+        path: &[u8],
+    ) -> Option<&Candidate> {
         // What: `.get(path)` is `Option<&usize>`; a trailing `?` returns `None` when absent;
         //       `*` reads the position through the borrow.
         // Why:  The table stores positions, so the candidate itself is fetched from the list.

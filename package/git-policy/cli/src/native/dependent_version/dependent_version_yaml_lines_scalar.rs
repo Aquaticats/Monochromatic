@@ -18,7 +18,10 @@
 //! ```
 
 /// The whitespace test and the indicator test the line reader owns.
-use super::{is_space_or_tab, refused_indicator};
+use super::{
+    is_space_or_tab,
+    refused_indicator,
+};
 
 /// What:
 /// The scalar a line holds after its key or its dash.

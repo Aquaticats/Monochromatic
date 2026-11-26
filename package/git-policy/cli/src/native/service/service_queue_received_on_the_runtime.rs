@@ -42,7 +42,10 @@ fn from_next<Item>(next: Option<Item>) -> Received<Item> {
 
 /// The next item of `receiver`,
 /// within `wait` when there is a bound.
-async fn next_item<Item>(receiver: &mut UnboundedReceiver<Item>, wait: Option<Duration>) -> Received<Item> {
+async fn next_item<Item>(
+    receiver: &mut UnboundedReceiver<Item>,
+    wait: Option<Duration>,
+) -> Received<Item> {
     let Some(limit) = wait else {
         return from_next(receiver.recv().await);
     };
@@ -65,7 +68,10 @@ async fn next_item<Item>(receiver: &mut UnboundedReceiver<Item>, wait: Option<Du
 /// ```ts
 /// const received = wait === undefined ? await next(queue) : await nextWithin(queue, wait);
 /// ```
-pub(crate) async fn receive_for_at_most_awaiting<Item>(receiver: &mut UnboundedReceiver<Item>, wait: Option<Duration>) -> Received<Item> {
+pub(crate) async fn receive_for_at_most_awaiting<Item>(
+    receiver: &mut UnboundedReceiver<Item>,
+    wait: Option<Duration>,
+) -> Received<Item> {
     return next_item(receiver, wait).await;
 }
 
@@ -83,7 +89,10 @@ pub(crate) async fn receive_for_at_most_awaiting<Item>(receiver: &mut UnboundedR
 /// ```ts
 /// const received = wait === undefined ? await next(queue) : await nextWithin(queue, wait);
 /// ```
-pub(crate) fn receive_for_at_most<Item>(receiver: &mut UnboundedReceiver<Item>, wait: Option<Duration>) -> Received<Item> {
+pub(crate) fn receive_for_at_most<Item>(
+    receiver: &mut UnboundedReceiver<Item>,
+    wait: Option<Duration>,
+) -> Received<Item> {
     return match run_on_runtime(receive_for_at_most_awaiting(receiver, wait)) {
         Ok(received) => received,
         Err(refusal) => {

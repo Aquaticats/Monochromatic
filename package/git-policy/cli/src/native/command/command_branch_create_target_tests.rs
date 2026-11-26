@@ -14,20 +14,33 @@
 
 /// The parser,
 ///  the command names and the argument builders.
-use super::BranchCreationCommand::{Checkout, Switch};
-use super::{BranchCreationCommand, BranchCreationRegion, parse_branch_creation_region};
+use super::BranchCreationCommand::{
+    Checkout,
+    Switch,
+};
+use super::{
+    BranchCreationCommand,
+    BranchCreationRegion,
+    parse_branch_creation_region,
+};
 use crate::command_test_support::os_arguments;
 
 /// Parse a space-separated region Git accepts,
 ///  with no other wrapper flags.
-fn region(command: BranchCreationCommand, line: &str) -> BranchCreationRegion {
+fn region(
+    command: BranchCreationCommand,
+    line: &str,
+) -> BranchCreationRegion {
     let values: Vec<&str> = line.split_whitespace().collect();
     return parse_branch_creation_region(command, os_arguments(values.as_slice()).as_slice(), &[])
         .expect("valid region");
 }
 
 /// Require that a region neither creates explicitly nor names another candidate.
-fn assert_targets(command: BranchCreationCommand, cases: &[(&str, Option<usize>)]) {
+fn assert_targets(
+    command: BranchCreationCommand,
+    cases: &[(&str, Option<usize>)],
+) {
     for (line, target) in cases {
         let found: BranchCreationRegion = region(command, line);
         assert!(!found.creates_branch, "{command:?} {line}");
@@ -40,7 +53,10 @@ fn assert_targets(command: BranchCreationCommand, cases: &[(&str, Option<usize>)
 
 /// Require explicit creation,
 ///  which leaves no candidate to probe.
-fn assert_creates(command: BranchCreationCommand, lines: &[&str]) {
+fn assert_creates(
+    command: BranchCreationCommand,
+    lines: &[&str],
+) {
     for line in lines {
         let found: BranchCreationRegion = region(command, line);
         assert!(found.creates_branch, "{command:?} {line}");

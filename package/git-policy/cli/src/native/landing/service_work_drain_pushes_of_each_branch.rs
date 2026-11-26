@@ -23,16 +23,35 @@ use crate::journald_native::Priority;
 use crate::parallel_budget::HostResources;
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_timing::log_entry;
-use crate::service_work_handlers_replanning_and_acceptance::{Replanning, Verdict, WorkHandlers};
-use crate::service_work_items_side_by_side::{pushes_side_by_side, waves_of};
+use crate::service_work_handlers_replanning_and_acceptance::{
+    Replanning,
+    Verdict,
+    WorkHandlers,
+};
+use crate::service_work_items_side_by_side::{
+    pushes_side_by_side,
+    waves_of,
+};
 use crate::service_work_settling_a_verdict::settle_after_the_push;
 use crate::service_work_storage_awaited::still_held_awaiting;
-use crate::side_by_side_on_the_current_task::{AnAnswer, AnswersAsTheyCome};
-use crate::work_item::{Claimed, WorkItem};
+use crate::side_by_side_on_the_current_task::{
+    AnAnswer,
+    AnswersAsTheyCome,
+};
+use crate::work_item::{
+    Claimed,
+    WorkItem,
+};
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::pin::Pin;
-use std::time::{Instant, SystemTime};
+use std::time::{
+    Instant,
+    SystemTime,
+};
 
 /// The key two pushes may stand in each other's way over:
 /// the repository and the branch the group's newest record names.
@@ -40,7 +59,10 @@ use std::time::{Instant, SystemTime};
 /// so a group with no newest record is a state this module cannot make.
 fn branch_of(members: &[Claimed]) -> (PathBuf, String) {
     return match members.last() {
-        Some(newest) => (newest.item.repository.clone(), newest.item.branch_ref.clone()),
+        Some(newest) => (
+            newest.item.repository.clone(),
+            newest.item.branch_ref.clone(),
+        ),
         None => (PathBuf::new(), String::new()),
     };
 }
@@ -88,7 +110,8 @@ pub(super) async fn push_the_branches_awaiting<H: WorkHandlers + Sync + ?Sized>(
     //  them all, and a branch another instance took over is left to it.
     let mut branches: Vec<Vec<Claimed>> = Vec::new();
     for (_, claimed_members) in groups {
-        let members: Vec<Claimed> = match still_held_awaiting(held, work_dir, claimed_members).await {
+        let members: Vec<Claimed> = match still_held_awaiting(held, work_dir, claimed_members).await
+        {
             Some((back, mine)) => {
                 held = back;
                 mine
@@ -103,9 +126,12 @@ pub(super) async fn push_the_branches_awaiting<H: WorkHandlers + Sync + ?Sized>(
     //  repository's store, and only the branch it updates and the reference it tracks are its own. The same branch's
     //  records are one group, so one branch is never pushed twice at once.
     let branches_wide: usize = pushes_side_by_side(branches.len(), host);
-    let branch_keys: Vec<(PathBuf, String)> = branches.iter().map(Vec::as_slice).map(branch_of).collect();
+    let branch_keys: Vec<(PathBuf, String)> =
+        branches.iter().map(Vec::as_slice).map(branch_of).collect();
     for wave in waves_of(branch_keys.as_slice(), branches_wide) {
-        let mut running: Vec<Pin<Box<dyn Future<Output = (Verdict, SystemTime, u128)> + Send + '_>>> = Vec::with_capacity(wave.len());
+        let mut running: Vec<
+            Pin<Box<dyn Future<Output = (Verdict, SystemTime, u128)> + Send + '_>>,
+        > = Vec::with_capacity(wave.len());
         for index in &wave {
             let mut items: Vec<WorkItem> = Vec::new();
             for member in &branches[*index] {
@@ -122,7 +148,8 @@ pub(super) async fn push_the_branches_awaiting<H: WorkHandlers + Sync + ?Sized>(
         // Each branch is settled, and its notice written, as its own push ends:
         //  a silent server holds its sibling for the push deadline or the connected push's quiet window, and the
         //  refusal Git already gave must not wait for that.
-        let mut answers: AnswersAsTheyCome<'_, (Verdict, SystemTime, u128)> = AnswersAsTheyCome::starting(running);
+        let mut answers: AnswersAsTheyCome<'_, (Verdict, SystemTime, u128)> =
+            AnswersAsTheyCome::starting(running);
         while let Some((at, answer)) = answers.the_next_answer().await {
             let (verdict, pushing_since, push_ms): (Verdict, SystemTime, u128) = match answer {
                 AnAnswer::Answered(answered) => answered,
@@ -133,7 +160,10 @@ pub(super) async fn push_the_branches_awaiting<H: WorkHandlers + Sync + ?Sized>(
             if let Some(newest) = members.last() {
                 // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
                 let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
-                    Verdict::Done | Verdict::Delivered { .. } => (Priority::Info, "done", ""),
+                    Verdict::Done
+                    | Verdict::Delivered {
+                        ..
+                    } => (Priority::Info, "done", ""),
                     Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
                     Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
                     Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
@@ -156,7 +186,17 @@ pub(super) async fn push_the_branches_awaiting<H: WorkHandlers + Sync + ?Sized>(
                     &fields,
                 );
             }
-            match settle_after_the_push(held, work_dir, git_dir, members, verdict, pushing_since, replanning).await {
+            match settle_after_the_push(
+                held,
+                work_dir,
+                git_dir,
+                members,
+                verdict,
+                pushing_since,
+                replanning,
+            )
+            .await
+            {
                 Some(back) => held = back,
                 None => {
                     // The set went with a job the system refused a thread for, so the branches still pushing are

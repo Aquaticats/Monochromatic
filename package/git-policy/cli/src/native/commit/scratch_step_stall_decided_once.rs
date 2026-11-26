@@ -156,7 +156,9 @@ impl TheStallDecidedOnce {
     /// new TheStallDecidedOnce();
     /// ```
     pub fn new() -> Self {
-        return Self { decided: Mutex::new(TheStall::Undecided) };
+        return Self {
+            decided: Mutex::new(TheStall::Undecided),
+        };
     }
 
     /// What:
@@ -173,7 +175,10 @@ impl TheStallDecidedOnce {
     /// ```
     pub fn state(&self) -> TheStall {
         // A poisoned lock means an enforcer panicked while deciding; the value it left is still one of the three states.
-        let kept = self.decided.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let kept = self
+            .decided
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         return kept.clone();
     }
 
@@ -189,8 +194,14 @@ impl TheStallDecidedOnce {
     /// ```ts
     /// const after = stall.standAside({ stoodAsideAfter, bound, why }); // { stoodAside } | 'the-usual-ceiling-ends-it'
     /// ```
-    pub fn stand_aside(&self, stall: TheStallItWaitsThrough) -> TheStall {
-        let mut kept = self.decided.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    pub fn stand_aside(
+        &self,
+        stall: TheStallItWaitsThrough,
+    ) -> TheStall {
+        let mut kept = self
+            .decided
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let TheStall::Undecided = &*kept {
             *kept = TheStall::StoodAside(stall);
         }
@@ -211,7 +222,10 @@ impl TheStallDecidedOnce {
     /// if (!stall.theUsualCeilingEndsIt()) { /* the ceiling stood aside: wait instead */ }
     /// ```
     pub fn the_usual_ceiling_ends_it(&self) -> bool {
-        let mut kept = self.decided.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut kept = self
+            .decided
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let TheStall::Undecided = &*kept {
             *kept = TheStall::TheUsualCeilingEndsIt;
         }

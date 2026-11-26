@@ -23,21 +23,62 @@
 //! const ran = await observe(wrappedCommit(fixture, repo)); expect(ran.code).toBe(1);
 //! ```
 
-use super::commit::{COMMIT_BOUND_SECONDS, remove_settled};
-use super::support::{
-    Fixture, FixtureService, Observed, bounded_for, fixture, git, hermetic, observe, repository, service_runtime, start_fixture_service, wrapper_first_path,
+use super::commit::{
+    COMMIT_BOUND_SECONDS,
+    remove_settled,
 };
-use git_policy_cli::service_instance::socket_for;
-use git_policy_cli::service_protocol::{HEARTBEAT_SILENCE, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service};
+use super::support::{
+    Fixture,
+    FixtureService,
+    Observed,
+    bounded_for,
+    fixture,
+    git,
+    hermetic,
+    observe,
+    repository,
+    service_runtime,
+    start_fixture_service,
+    wrapper_first_path,
+};
 use git_policy_cli::service_client::START_WAIT;
+use git_policy_cli::service_instance::socket_for;
+use git_policy_cli::service_protocol::{
+    HEARTBEAT_SILENCE,
+    PROTOCOL_VERSION,
+    RELEASE,
+    ServiceMessage,
+    encode_service,
+};
 use std::ffi::OsStr;
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a control waits for something that must happen,
 /// so a broken bound fails the control instead of holding the run.
@@ -113,12 +154,19 @@ impl Drop for StandIn {
 /// ```ts
 /// const standIn = standIn(fixture, repo, 'read-nothing'); // greets, reads nothing
 /// ```
-fn stand_in(fixture: &Fixture, repo: &Path, duty: Duty) -> StandIn {
+fn stand_in(
+    fixture: &Fixture,
+    repo: &Path,
+    duty: Duty,
+) -> StandIn {
     let service: FixtureService = start_fixture_service(fixture);
-    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the worktree's Git directory");
+    let git_dir: PathBuf =
+        std::fs::canonicalize(repo.join(".git")).expect("the worktree's Git directory");
     let socket: PathBuf = socket_for(service.runtime.as_path(), git_dir.as_path());
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind the stand-in");
-    listener.set_nonblocking(true).expect("a listener that does not block");
+    listener
+        .set_nonblocking(true)
+        .expect("a listener that does not block");
     let greeted: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let accepted: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let read_all: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
@@ -130,7 +178,13 @@ fn stand_in(fixture: &Fixture, repo: &Path, duty: Duty) -> StandIn {
     let serving_recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>> = Arc::clone(&recorded);
     let serving_stop: Arc<AtomicBool> = Arc::clone(&stop);
     std::thread::spawn(move || {
-        let greeting: String = format!("{}\n", encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(RELEASE.to_string()) }));
+        let greeting: String = format!(
+            "{}\n",
+            encode_service(&ServiceMessage::Welcome {
+                version: PROTOCOL_VERSION,
+                release: Some(RELEASE.to_string())
+            })
+        );
         while !serving_stop.load(Ordering::SeqCst) {
             let Ok((stream, _address)) = listener.accept() else {
                 std::thread::sleep(Duration::from_millis(5));
@@ -142,14 +196,31 @@ fn stand_in(fixture: &Fixture, repo: &Path, duty: Duty) -> StandIn {
             let one_greeting: String = greeting.clone();
             let one_greeted: Arc<AtomicUsize> = Arc::clone(&serving_greeted);
             let one_read: Arc<AtomicBool> = Arc::clone(&serving_read);
-            let one_recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>> = Arc::clone(&serving_recorded);
+            let one_recorded: Arc<std::sync::Mutex<Option<Vec<u8>>>> =
+                Arc::clone(&serving_recorded);
             let one_stop: Arc<AtomicBool> = Arc::clone(&serving_stop);
             std::thread::spawn(move || {
-                serve_one(stream, one_greeting.as_str(), duty, &one_greeted, &one_read, &one_recorded, &one_stop);
+                serve_one(
+                    stream,
+                    one_greeting.as_str(),
+                    duty,
+                    &one_greeted,
+                    &one_read,
+                    &one_recorded,
+                    &one_stop,
+                );
             });
         }
     });
-    return StandIn { runtime: service.runtime.clone(), greeted, accepted, read_all, recorded, stop, _service: service };
+    return StandIn {
+        runtime: service.runtime.clone(),
+        greeted,
+        accepted,
+        read_all,
+        recorded,
+        stop,
+        _service: service,
+    };
 }
 
 /// What the stand-in does for one connection,
@@ -167,23 +238,40 @@ fn serve_one(
 ) {
     if !matches!(duty, Duty::SilentThroughout) {
         let _timeout = stream.set_write_timeout(Some(PATIENCE));
-        if stream.try_clone().is_ok_and(|mut welcome| { return welcome.write_all(greeting.as_bytes()).is_ok() }) {
+        if stream
+            .try_clone()
+            .is_ok_and(|mut welcome| return welcome.write_all(greeting.as_bytes()).is_ok())
+        {
             _ = greeted.fetch_add(1, Ordering::SeqCst);
         }
     }
     if matches!(duty, Duty::ReadsAndSilent | Duty::ReadsAndRefuses) {
-        let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a reader of the connection"));
+        let mut reader: BufReader<UnixStream> =
+            BufReader::new(stream.try_clone().expect("a reader of the connection"));
         let _held = reader.get_ref().set_read_timeout(Some(PATIENCE));
         let mut line: Vec<u8> = Vec::new();
-        if reader.read_until(b'\n', &mut line).is_ok_and(|read| { return read > 0 }) {
+        if reader
+            .read_until(b'\n', &mut line)
+            .is_ok_and(|read| return read > 0)
+        {
             read_all.store(true, Ordering::SeqCst);
-            *recorded.lock().expect("the stand-in's record of the request") = Some(line.clone());
+            *recorded
+                .lock()
+                .expect("the stand-in's record of the request") = Some(line.clone());
         }
         if matches!(duty, Duty::ReadsAndRefuses) {
             // A refusal the client reads as "the service answered and did not take it", so the commit ends at once and the
             //  request line this control needs is the one it just recorded.
-            let refused: String = format!("{}\n", encode_service(&ServiceMessage::Failed { id: String::new(), code: code_of("unavailable") }));
-            let _sent = stream.try_clone().is_ok_and(|mut answer| { return answer.write_all(refused.as_bytes()).is_ok() });
+            let refused: String = format!(
+                "{}\n",
+                encode_service(&ServiceMessage::Failed {
+                    id: String::new(),
+                    code: code_of("unavailable")
+                })
+            );
+            let _sent = stream
+                .try_clone()
+                .is_ok_and(|mut answer| return answer.write_all(refused.as_bytes()).is_ok());
         }
     }
     // Nothing is read of a connection whose duty is to read nothing, so the wrapper's write fills its buffers and waits in the
@@ -206,10 +294,23 @@ fn code_of(name: &str) -> git_policy_cli::service_protocol::FailureCode {
 /// A command for the fixture's `bin/git` against the stand-in's runtime,
 /// which is the address the wrapper looks for,
 /// killed after `seconds`.
-fn wrapped_against_stand_in(fixture: &Fixture, stand_in: &StandIn, directory: &Path, arguments: &[&str], seconds: &str) -> Command {
+fn wrapped_against_stand_in(
+    fixture: &Fixture,
+    stand_in: &StandIn,
+    directory: &Path,
+    arguments: &[&str],
+    seconds: &str,
+) -> Command {
     let mut command: Command = Command::new("/usr/bin/timeout");
-    command.arg("--signal=KILL").arg(seconds).arg(fixture.root.join("bin/git"));
-    hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
+    command
+        .arg("--signal=KILL")
+        .arg(seconds)
+        .arg(fixture.root.join("bin/git"));
+    hermetic(
+        &mut command,
+        fixture,
+        wrapper_first_path(fixture).as_os_str(),
+    );
     command.env("XDG_RUNTIME_DIR", stand_in.runtime.as_path());
     command.env(git_policy_cli::wait_ceilings::WAITING_NOTICE_VARIABLE, "1");
     command.current_dir(directory).args(arguments);
@@ -218,8 +319,17 @@ fn wrapped_against_stand_in(fixture: &Fixture, stand_in: &StandIn, directory: &P
 
 /// The commit of a worktree whose service the control stopped:
 /// the fixture's own service, bounded like every commit.
-fn wrapped_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Command {
-    let mut command: Command = bounded_for(fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(fixture).as_os_str(), COMMIT_BOUND_SECONDS);
+fn wrapped_commit(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Command {
+    let mut command: Command = bounded_for(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+        COMMIT_BOUND_SECONDS,
+    );
     command.current_dir(directory).args(arguments);
     return command;
 }
@@ -234,7 +344,11 @@ fn long_name(index: usize) -> String {
 
 /// A repository with a base commit,
 /// `changed` files edited and staged.
-fn staged_repository(fixture: &Fixture, name: &str, changed: usize) -> PathBuf {
+fn staged_repository(
+    fixture: &Fixture,
+    name: &str,
+    changed: usize,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     for index in 0..changed {
         std::fs::write(repo.join(long_name(index)), format!("line {index}\n")).expect("a file");
@@ -248,7 +362,11 @@ fn staged_repository(fixture: &Fixture, name: &str, changed: usize) -> PathBuf {
     std::fs::write(paths.as_path(), listed).expect("the list of paths");
     git(fixture, repo.as_path(), &["add", "--all"]);
     for index in 0..changed {
-        std::fs::write(repo.join(long_name(index)), format!("line {index}, edited\n")).expect("an edit");
+        std::fs::write(
+            repo.join(long_name(index)),
+            format!("line {index}, edited\n"),
+        )
+        .expect("an edit");
     }
     git(fixture, repo.as_path(), &["add", "--all"]);
     return repo;
@@ -256,7 +374,10 @@ fn staged_repository(fixture: &Fixture, name: &str, changed: usize) -> PathBuf {
 
 /// The commit line of a control: every named path,
 /// which is the route whose request carries the changed paths.
-fn commit_arguments(fixture: &Fixture, name: &str) -> Vec<String> {
+fn commit_arguments(
+    fixture: &Fixture,
+    name: &str,
+) -> Vec<String> {
     let paths: PathBuf = fixture.root.join(format!("{name}-paths.txt"));
     return vec![
         String::from("commit"),
@@ -267,9 +388,14 @@ fn commit_arguments(fixture: &Fixture, name: &str) -> Vec<String> {
 }
 
 /// The commit a worktree is at.
-fn head_of(fixture: &Fixture, repo: &Path) -> String {
+fn head_of(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     let output = git(fixture, repo, &["rev-parse", "HEAD"]);
-    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    return String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string();
 }
 
 /// Whether the worktree holds Git's own index lock,
@@ -280,10 +406,16 @@ fn index_locked(repo: &Path) -> bool {
 
 /// Waits until `condition` holds,
 /// and fails the control naming it when it does not.
-fn wait_for(what: &str, condition: &dyn Fn() -> bool) {
+fn wait_for(
+    what: &str,
+    condition: &dyn Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
-        assert!(began.elapsed() < PATIENCE, "{what} never happened within {PATIENCE:?}");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "{what} never happened within {PATIENCE:?}"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
 }
@@ -296,8 +428,12 @@ fn service_process(fixture: &Fixture) -> u32 {
     let running: Vec<u32> = started.process_ids();
     assert_eq!(running.len(), 1, "one worktree has one service");
     let pid: u32 = running[0];
-    let command_line: String = std::fs::read_to_string(format!("/proc/{pid}/cmdline")).expect("the process's own command line");
-    assert!(command_line.contains("service"), "the process {pid} is the fixture's commit service: {command_line}");
+    let command_line: String = std::fs::read_to_string(format!("/proc/{pid}/cmdline"))
+        .expect("the process's own command line");
+    assert!(
+        command_line.contains("service"),
+        "the process {pid} is the fixture's commit service: {command_line}"
+    );
     return pid;
 }
 
@@ -324,28 +460,77 @@ fn a_commit_whose_service_stopped_names_the_wait_and_leaves_the_staged_work() {
     let pid: u32 = service_process(&fixture);
     // SAFETY: `kill` takes a process identifier and a signal, and this one is the fixture's own service, which the check
     //  above named.
-    assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGSTOP) }, 0, "the fixture's service is stopped");
+    assert_eq!(
+        unsafe { libc::kill(pid.cast_signed(), libc::SIGSTOP) },
+        0,
+        "the fixture's service is stopped"
+    );
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let began: Instant = Instant::now();
-    let ran: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
+    let ran: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()),
+        b"",
+    );
     let took: Duration = began.elapsed();
     // SAFETY: as above, with the signal that lets the fixture's service run again.
-    assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) }, 0, "the fixture's service runs again");
+    assert_eq!(
+        unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) },
+        0,
+        "the fixture's service runs again"
+    );
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
-    assert_eq!(ran.code, Some(1), "a commit whose service stopped fails: {words}");
-    assert!(took >= Duration::from_secs(10), "the greeting is waited for no less than the start wait: {took:?}");
+    assert_eq!(
+        ran.code,
+        Some(1),
+        "a commit whose service stopped fails: {words}"
+    );
+    assert!(
+        took >= Duration::from_secs(10),
+        "the greeting is waited for no less than the start wait: {took:?}"
+    );
     assert!(took < PATIENCE, "and the wait ends: {took:?}");
-    assert!(words.contains("was not made"), "the commit says it was not made: {words}");
-    assert!(words.contains("staged changes and your working files are as they were"), "it says the staged work is untouched: {words}");
-    assert!(words.contains("service status"), "it names the step that shows the service's state: {words}");
-    assert!(words.contains("restart"), "it names the step that restarts the service: {words}");
-    assert!(words.contains("Run the same commit again"), "it says running it again is safe: {words}");
-    assert!(!index_locked(repo.as_path()), "no index lock is left: {}", index_locked(repo.as_path()));
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
+    assert!(
+        words.contains("was not made"),
+        "the commit says it was not made: {words}"
+    );
+    assert!(
+        words.contains("staged changes and your working files are as they were"),
+        "it says the staged work is untouched: {words}"
+    );
+    assert!(
+        words.contains("service status"),
+        "it names the step that shows the service's state: {words}"
+    );
+    assert!(
+        words.contains("restart"),
+        "it names the step that restarts the service: {words}"
+    );
+    assert!(
+        words.contains("Run the same commit again"),
+        "it says running it again is safe: {words}"
+    );
+    assert!(
+        !index_locked(repo.as_path()),
+        "no index lock is left: {}",
+        index_locked(repo.as_path())
+    );
+    assert_eq!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "no commit was made"
+    );
     // The same command lands once the service answers again, so nothing of the failure outlives it.
-    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(again.code, Some(0), "the retry lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
+    let again: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()),
+        b"",
+    );
+    assert_eq!(
+        again.code,
+        Some(0),
+        "the retry lands: {}",
+        String::from_utf8_lossy(again.stderr.as_slice())
+    );
     remove_settled(&fixture);
 }
 
@@ -373,21 +558,60 @@ fn a_commit_whose_service_stopped_reading_fails_at_the_write_bound() {
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let began: Instant = Instant::now();
-    let ran: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
+    let ran: Observed = observe(
+        &mut wrapped_against_stand_in(
+            &fixture,
+            &stand_in,
+            repo.as_path(),
+            borrowed.as_slice(),
+            COMMIT_BOUND_SECONDS,
+        ),
+        b"",
+    );
     let took: Duration = began.elapsed();
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
-    assert_eq!(stand_in.greeted.load(Ordering::SeqCst), 1, "the stand-in greeted the commit once");
-    assert_eq!(ran.code, Some(1), "a commit whose service stopped reading fails: {words}");
+    assert_eq!(
+        stand_in.greeted.load(Ordering::SeqCst),
+        1,
+        "the stand-in greeted the commit once"
+    );
+    assert_eq!(
+        ran.code,
+        Some(1),
+        "a commit whose service stopped reading fails: {words}"
+    );
     // The write waits on progress and not on a clock: its silence window is the one a service that works may keep, and the
     //  whole request has the wait a start is granted.
-    assert!(took >= HEARTBEAT_SILENCE, "the write is waited for no less than its silence bound: {took:?}");
-    assert!(took < HEARTBEAT_SILENCE + START_WAIT, "and it ends at the write's own bound: {took:?}");
-    assert!(words.contains("stopped reading"), "the words name what stopped: {words}");
-    assert!(words.contains("took no part of this commit's request"), "they name what the service did not take: {words}");
-    assert!(words.contains("was not made"), "the commit says it was not made: {words}");
-    assert!(words.contains("staged changes and your working files are as they were"), "it says the staged work is untouched: {words}");
+    assert!(
+        took >= HEARTBEAT_SILENCE,
+        "the write is waited for no less than its silence bound: {took:?}"
+    );
+    assert!(
+        took < HEARTBEAT_SILENCE + START_WAIT,
+        "and it ends at the write's own bound: {took:?}"
+    );
+    assert!(
+        words.contains("stopped reading"),
+        "the words name what stopped: {words}"
+    );
+    assert!(
+        words.contains("took no part of this commit's request"),
+        "they name what the service did not take: {words}"
+    );
+    assert!(
+        words.contains("was not made"),
+        "the commit says it was not made: {words}"
+    );
+    assert!(
+        words.contains("staged changes and your working files are as they were"),
+        "it says the staged work is untouched: {words}"
+    );
     assert!(!index_locked(repo.as_path()), "no index lock is left");
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
+    assert_eq!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "no commit was made"
+    );
     remove_settled(&fixture);
 }
 
@@ -414,17 +638,42 @@ fn a_commit_whose_service_reads_and_says_nothing_ends_at_the_silence_bound() {
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let began: Instant = Instant::now();
-    let ran: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
+    let ran: Observed = observe(
+        &mut wrapped_against_stand_in(
+            &fixture,
+            &stand_in,
+            repo.as_path(),
+            borrowed.as_slice(),
+            COMMIT_BOUND_SECONDS,
+        ),
+        b"",
+    );
     let took: Duration = began.elapsed();
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
-    assert!(stand_in.read_all.load(Ordering::SeqCst), "the stand-in read the whole request");
+    assert!(
+        stand_in.read_all.load(Ordering::SeqCst),
+        "the stand-in read the whole request"
+    );
     assert_eq!(ran.code, Some(1), "a commit nothing answers fails: {words}");
-    assert!(took >= HEARTBEAT_SILENCE, "the answer is waited for no less than the silence bound: {took:?}");
+    assert!(
+        took >= HEARTBEAT_SILENCE,
+        "the answer is waited for no less than the silence bound: {took:?}"
+    );
     assert!(took < PATIENCE, "and the wait ends: {took:?}");
-    assert!(words.contains("stopped answering"), "the words name what stopped: {words}");
-    assert!(words.contains("service status"), "it names the step that shows the service's state: {words}");
+    assert!(
+        words.contains("stopped answering"),
+        "the words name what stopped: {words}"
+    );
+    assert!(
+        words.contains("service status"),
+        "it names the step that shows the service's state: {words}"
+    );
     assert!(!index_locked(repo.as_path()), "no index lock is left");
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
+    assert_eq!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "no commit was made"
+    );
     remove_settled(&fixture);
 }
 
@@ -432,7 +681,11 @@ impl StandIn {
     /// The whole request line the stand-in read,
     /// with its framing newline.
     fn recording(&self) -> Option<Vec<u8>> {
-        return self.recorded.lock().expect("the stand-in's record of the request").clone();
+        return self
+            .recorded
+            .lock()
+            .expect("the stand-in's record of the request")
+            .clone();
     }
 }
 
@@ -452,19 +705,27 @@ impl StandIn {
 fn connect_and_greet(socket: &Path) -> (UnixStream, String) {
     let began: Instant = Instant::now();
     loop {
-        let mut connection: UnixStream = UnixStream::connect(socket).expect("the real service listens");
+        let mut connection: UnixStream =
+            UnixStream::connect(socket).expect("the real service listens");
         let greeting: String = read_for(&mut connection, Duration::from_secs(2)).0;
         if greeting.contains("welcome") {
             return (connection, greeting);
         }
-        assert!(began.elapsed() < PATIENCE, "the service at {} never greeted a connection", socket.display());
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the service at {} never greeted a connection",
+            socket.display()
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
 }
 
 /// What a connection to the service said within `within`,
 /// and whether the service closed it.
-fn read_for(connection: &mut UnixStream, within: Duration) -> (String, bool) {
+fn read_for(
+    connection: &mut UnixStream,
+    within: Duration,
+) -> (String, bool) {
     let until: Instant = Instant::now() + within;
     let mut said: String = String::new();
     let mut chunk: [u8; 4096] = [0; 4096];
@@ -477,7 +738,14 @@ fn read_for(connection: &mut UnixStream, within: Duration) -> (String, bool) {
         match std::io::Read::read(connection, &mut chunk) {
             Ok(0) => return (said, true),
             Ok(read) => said.push_str(String::from_utf8_lossy(&chunk[..read]).as_ref()),
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return (said, false),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return (said, false);
+            }
             Err(_ended) => return (said, true),
         }
     }
@@ -509,13 +777,30 @@ fn a_commit_that_waits_longer_than_the_silence_still_lands() {
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let began: Instant = Instant::now();
-    let ran: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
+    let ran: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()),
+        b"",
+    );
     let took: Duration = began.elapsed();
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
-    assert_eq!(ran.code, Some(0), "a commit whose landing is slower than the silence bound lands: {words}");
-    assert!(took > HEARTBEAT_SILENCE, "the landing it waited for is longer than the silence bound: {took:?}");
-    assert!(!words.contains("said nothing"), "a working service is never taken for one that stopped: {words}");
-    assert_ne!(head_of(&fixture, repo.as_path()), before, "and the branch is at a new commit");
+    assert_eq!(
+        ran.code,
+        Some(0),
+        "a commit whose landing is slower than the silence bound lands: {words}"
+    );
+    assert!(
+        took > HEARTBEAT_SILENCE,
+        "the landing it waited for is longer than the silence bound: {took:?}"
+    );
+    assert!(
+        !words.contains("said nothing"),
+        "a working service is never taken for one that stopped: {words}"
+    );
+    assert_ne!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "and the branch is at a new commit"
+    );
     remove_settled(&fixture);
 }
 
@@ -546,23 +831,66 @@ fn a_service_that_wakes_after_the_failure_makes_no_commit() {
     let pid: u32 = service_process(&fixture);
     // SAFETY: `kill` takes a process identifier and a signal, and this one is the fixture's own service, which the check above
     //  named.
-    assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGSTOP) }, 0, "the fixture's service is stopped");
+    assert_eq!(
+        unsafe { libc::kill(pid.cast_signed(), libc::SIGSTOP) },
+        0,
+        "the fixture's service is stopped"
+    );
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let failed: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(failed.code, Some(1), "the commit whose service is stopped fails: {}", String::from_utf8_lossy(failed.stderr.as_slice()));
+    let failed: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()),
+        b"",
+    );
+    assert_eq!(
+        failed.code,
+        Some(1),
+        "the commit whose service is stopped fails: {}",
+        String::from_utf8_lossy(failed.stderr.as_slice())
+    );
     // SAFETY: as above, with the signal that lets the fixture's service run again.
-    assert_eq!(unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) }, 0, "the fixture's service runs again");
+    assert_eq!(
+        unsafe { libc::kill(pid.cast_signed(), libc::SIGCONT) },
+        0,
+        "the fixture's service runs again"
+    );
     // What a service that woke with a request to land would do within a second of running again.
     std::thread::sleep(Duration::from_secs(6));
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "the waking service made no commit");
-    let staged: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["status", "--porcelain=v1"]).stdout.as_slice()).into_owned();
-    assert!(staged.contains(long_name(0).as_str()), "the staged edit is still staged: {staged}");
-    assert!(!index_locked(repo.as_path()), "no index lock is left behind");
+    assert_eq!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "the waking service made no commit"
+    );
+    let staged: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &["status", "--porcelain=v1"])
+            .stdout
+            .as_slice(),
+    )
+    .into_owned();
+    assert!(
+        staged.contains(long_name(0).as_str()),
+        "the staged edit is still staged: {staged}"
+    );
+    assert!(
+        !index_locked(repo.as_path()),
+        "no index lock is left behind"
+    );
     // The next command of the worktree is not stopped by anything the failure left.
-    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(again.code, Some(0), "the retry lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
-    assert_ne!(head_of(&fixture, repo.as_path()), before, "and it is the commit the person asked for once");
+    let again: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()),
+        b"",
+    );
+    assert_eq!(
+        again.code,
+        Some(0),
+        "the retry lands: {}",
+        String::from_utf8_lossy(again.stderr.as_slice())
+    );
+    assert_ne!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "and it is the commit the person asked for once"
+    );
     remove_settled(&fixture);
 }
 
@@ -593,20 +921,60 @@ fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::SilentThroughout);
     let began: Instant = Instant::now();
-    let ran: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
+    let ran: Observed = observe(
+        &mut wrapped_against_stand_in(
+            &fixture,
+            &stand_in,
+            repo.as_path(),
+            borrowed.as_slice(),
+            COMMIT_BOUND_SECONDS,
+        ),
+        b"",
+    );
     let took: Duration = began.elapsed();
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
-    assert!(stand_in.accepted.load(Ordering::SeqCst) > 0, "the stand-in took the connection of the commit");
-    assert_eq!(ran.code, Some(1), "a commit whose service answers nothing fails: {words}");
-    assert!(took >= START_WAIT, "the wait is the one a start is granted: {took:?}");
-    assert!(took < START_WAIT + HEARTBEAT_SILENCE + HEARTBEAT_SILENCE, "and it ends there rather than waiting for the instance: {took:?}");
-    assert!(words.contains("Nothing has answered"), "the words name what did not answer: {words}");
-    assert!(words.contains("was not made"), "and that the commit was not made: {words}");
+    assert!(
+        stand_in.accepted.load(Ordering::SeqCst) > 0,
+        "the stand-in took the connection of the commit"
+    );
+    assert_eq!(
+        ran.code,
+        Some(1),
+        "a commit whose service answers nothing fails: {words}"
+    );
+    assert!(
+        took >= START_WAIT,
+        "the wait is the one a start is granted: {took:?}"
+    );
+    assert!(
+        took < START_WAIT + HEARTBEAT_SILENCE + HEARTBEAT_SILENCE,
+        "and it ends there rather than waiting for the instance: {took:?}"
+    );
+    assert!(
+        words.contains("Nothing has answered"),
+        "the words name what did not answer: {words}"
+    );
+    assert!(
+        words.contains("was not made"),
+        "and that the commit was not made: {words}"
+    );
     // The instance that held the socket is gone, which is what the manager waits for before it starts the next one.
     drop(stand_in);
-    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
-    assert_eq!(again.code, Some(0), "the same commit reaches a live service and lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
-    assert_ne!(head_of(&fixture, repo.as_path()), before, "and the branch is at a new commit");
+    let again: Observed = observe(
+        &mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()),
+        b"",
+    );
+    assert_eq!(
+        again.code,
+        Some(0),
+        "the same commit reaches a live service and lands: {}",
+        String::from_utf8_lossy(again.stderr.as_slice())
+    );
+    assert_ne!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "and the branch is at a new commit"
+    );
     remove_settled(&fixture);
 }
 
@@ -625,37 +993,77 @@ fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
 /// ```
 #[test]
 fn a_commit_killed_at_each_step_leaves_nothing_behind() {
-    for (duty, at) in [(Duty::SilentThroughout, "the greeting"), (Duty::ReadNothing, "the write of the request"), (Duty::ReadsAndSilent, "the wait for the answer")] {
+    for (duty, at) in [
+        (Duty::SilentThroughout, "the greeting"),
+        (Duty::ReadNothing, "the write of the request"),
+        (Duty::ReadsAndSilent, "the wait for the answer"),
+    ] {
         let fixture: Fixture = fixture(format!("killed-at-{at}").replace(' ', "-").as_str());
-        let changed: usize = if matches!(duty, Duty::ReadNothing) { MANY_FILES } else { 1 };
+        let changed: usize = if matches!(duty, Duty::ReadNothing) {
+            MANY_FILES
+        } else {
+            1
+        };
         let repo: PathBuf = staged_repository(&fixture, "repo", changed);
         let before: String = head_of(&fixture, repo.as_path());
         let stand_in: StandIn = stand_in(&fixture, repo.as_path(), duty);
         let arguments: Vec<String> = commit_arguments(&fixture, "repo");
         let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-        let mut child: Child = wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("the commit starts");
+        let mut child: Child = wrapped_against_stand_in(
+            &fixture,
+            &stand_in,
+            repo.as_path(),
+            borrowed.as_slice(),
+            COMMIT_BOUND_SECONDS,
+        )
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the commit starts");
         // A stand-in that greets nothing is known by the connection it took; every other one by the greeting it sent.
-        let marker: &Arc<AtomicUsize> = if matches!(duty, Duty::SilentThroughout) { &stand_in.accepted } else { &stand_in.greeted };
-        let reached: &dyn Fn() -> bool = &|| { return marker.load(Ordering::SeqCst) > 0; };
-        wait_for(format!("the stand-in to answer the commit ({at})").as_str(), reached);
+        let marker: &Arc<AtomicUsize> = if matches!(duty, Duty::SilentThroughout) {
+            &stand_in.accepted
+        } else {
+            &stand_in.greeted
+        };
+        let reached: &dyn Fn() -> bool = &|| {
+            return marker.load(Ordering::SeqCst) > 0;
+        };
+        wait_for(
+            format!("the stand-in to answer the commit ({at})").as_str(),
+            reached,
+        );
         if matches!(duty, Duty::ReadsAndSilent) {
             // The kill lands while the wrapper waits for an answer to a request the service has read.
-            let read: &dyn Fn() -> bool = &|| { return stand_in.read_all.load(Ordering::SeqCst); };
+            let read: &dyn Fn() -> bool = &|| {
+                return stand_in.read_all.load(Ordering::SeqCst);
+            };
             wait_for("the stand-in to read the whole request", read);
         } else {
             std::thread::sleep(Duration::from_millis(300));
         }
         let _killed = child.kill();
         let _reaped = child.wait();
-        assert!(!index_locked(repo.as_path()), "a commit killed at {at} leaves no index lock");
-        assert_eq!(head_of(&fixture, repo.as_path()), before, "a commit killed at {at} makes no commit");
-        let staged: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["status", "--porcelain=v1"]).stdout.as_slice()).into_owned();
-        assert!(staged.contains(long_name(0).as_str()), "the staged edit survives a kill at {at}: {staged}");
+        assert!(
+            !index_locked(repo.as_path()),
+            "a commit killed at {at} leaves no index lock"
+        );
+        assert_eq!(
+            head_of(&fixture, repo.as_path()),
+            before,
+            "a commit killed at {at} makes no commit"
+        );
+        let staged: String = String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["status", "--porcelain=v1"])
+                .stdout
+                .as_slice(),
+        )
+        .into_owned();
+        assert!(
+            staged.contains(long_name(0).as_str()),
+            "the staged edit survives a kill at {at}: {staged}"
+        );
         remove_settled(&fixture);
     }
 }
@@ -684,16 +1092,37 @@ fn a_commit_killed_at_each_step_leaves_nothing_behind() {
 fn a_request_line_whose_newline_never_arrived_is_refused_and_lands_nothing() {
     let fixture: Fixture = fixture("request-line-never-framed");
     let repo: PathBuf = staged_repository(&fixture, "repo", 1);
-    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the worktree's Git directory");
+    let git_dir: PathBuf =
+        std::fs::canonicalize(repo.join(".git")).expect("the worktree's Git directory");
     let before: String = head_of(&fixture, repo.as_path());
     // The client's own request line, recorded by a stand-in that refuses it, so the control sends the bytes a commit sends.
     let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::ReadsAndRefuses);
     let arguments: Vec<String> = commit_arguments(&fixture, "repo");
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let refused: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
-    assert_eq!(refused.code, Some(1), "the commit the stand-in refuses fails: {}", String::from_utf8_lossy(refused.stderr.as_slice()));
-    let request: Vec<u8> = stand_in.recording().expect("the stand-in recorded the client's request line");
-    assert!(request.ends_with(b"\n"), "a request line ends with its framing newline: {:?}", String::from_utf8_lossy(request.as_slice()));
+    let refused: Observed = observe(
+        &mut wrapped_against_stand_in(
+            &fixture,
+            &stand_in,
+            repo.as_path(),
+            borrowed.as_slice(),
+            COMMIT_BOUND_SECONDS,
+        ),
+        b"",
+    );
+    assert_eq!(
+        refused.code,
+        Some(1),
+        "the commit the stand-in refuses fails: {}",
+        String::from_utf8_lossy(refused.stderr.as_slice())
+    );
+    let request: Vec<u8> = stand_in
+        .recording()
+        .expect("the stand-in recorded the client's request line");
+    assert!(
+        request.ends_with(b"\n"),
+        "a request line ends with its framing newline: {:?}",
+        String::from_utf8_lossy(request.as_slice())
+    );
     // The stand-in is dropped whole, and the real service of this worktree starts in a runtime directory of its own: the
     //  socket's name is the worktree's instance and only the directory differs, so a control still talks about this worktree,
     //  and no straggling connection of the stand-in can answer it.
@@ -702,28 +1131,54 @@ fn a_request_line_whose_newline_never_arrived_is_refused_and_lands_nothing() {
     service.serve(&fixture, git_dir.as_path());
     let socket: PathBuf = socket_for(service.runtime.as_path(), git_dir.as_path());
     let (mut connection, greeting): (UnixStream, String) = connect_and_greet(socket.as_path());
-    assert!(greeting.contains("welcome"), "the real service greets the connection: {greeting}");
+    assert!(
+        greeting.contains("welcome"),
+        "the real service greets the connection: {greeting}"
+    );
     // The exact line the client sent, without its framing newline, and then the client's half of the connection closed.
     if let Err(error) = std::io::Write::write_all(&mut connection, &request[..request.len() - 1]) {
-        let log: String = std::fs::read_to_string(fixture.root.join("service.log")).unwrap_or_default();
+        let log: String =
+            std::fs::read_to_string(fixture.root.join("service.log")).unwrap_or_default();
         panic!("the request line goes out without its newline: {error}; service log: {log}");
     }
-    connection.shutdown(std::net::Shutdown::Write).expect("the client's half of the connection is closed");
+    connection
+        .shutdown(std::net::Shutdown::Write)
+        .expect("the client's half of the connection is closed");
     let (said, _refused_closed): (String, bool) = read_for(&mut connection, Duration::from_secs(3));
     drop(connection);
-    assert!(said.is_empty(), "a line that ended with the connection is refused, so no answer comes back: {said}");
-    assert_eq!(head_of(&fixture, repo.as_path()), before, "no commit was made");
+    assert!(
+        said.is_empty(),
+        "a line that ended with the connection is refused, so no answer comes back: {said}"
+    );
+    assert_eq!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "no commit was made"
+    );
     let journal: PathBuf = fixture.root.join("journal");
     let queued: Vec<(PathBuf, Option<git_policy_cli::service_journal::Intent>)> =
-        git_policy_cli::service_journal::list_intents_read_only(journal.as_path(), git_policy_cli::service_journal::OPEN_EXTENSION);
+        git_policy_cli::service_journal::list_intents_read_only(
+            journal.as_path(),
+            git_policy_cli::service_journal::OPEN_EXTENSION,
+        );
     assert!(queued.is_empty(), "nothing was queued: {queued:?}");
     let log: String = std::fs::read_to_string(fixture.root.join("service.log")).unwrap_or_default();
-    assert!(log.contains("framing newline"), "the service says in its log that it refused the line: {log}");
+    assert!(
+        log.contains("framing newline"),
+        "the service says in its log that it refused the line: {log}"
+    );
     // The same bytes with their framing newline are taken: the refusal is the missing newline and nothing else.
     let (mut framed, _greeting): (UnixStream, String) = connect_and_greet(socket.as_path());
     std::io::Write::write_all(&mut framed, request.as_slice()).expect("the line goes out whole");
     let (answered, _framed_closed): (String, bool) = read_for(&mut framed, PATIENCE);
-    assert!(answered.contains("\"landed\""), "the same request with its newline is taken and lands: {answered}");
-    assert_ne!(head_of(&fixture, repo.as_path()), before, "and the branch is at a new commit");
+    assert!(
+        answered.contains("\"landed\""),
+        "the same request with its newline is taken and lands: {answered}"
+    );
+    assert_ne!(
+        head_of(&fixture, repo.as_path()),
+        before,
+        "and the branch is at a new commit"
+    );
     remove_settled(&fixture);
 }

@@ -14,26 +14,59 @@
 //! ```
 #![cfg(unix)]
 
-use super::{os, write};
+use super::{
+    os,
+    write,
+};
 use crate::candidate_prediction::CandidateRequest;
 use crate::config_schema::PolicyConfig;
-use crate::policy_checks::{ShippedChecks, shipped_checks};
-use crate::policy_content::LifecycleContent;
-use crate::policy_engine::{StageEnd, StageRequest, StageResult, pass_exit_code, run_policy_stage};
-use crate::policy_events::PolicyEvent;
-use crate::policy_registry::{PolicyId, Severity};
 /// The tool-cache exemption entry these checks are built with.
 use crate::effective_target::ToolCacheDirectory;
-use crate::policy_test_support::{ScriptedFacts, scripted_facts, with_severity};
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
+use crate::policy_content::LifecycleContent;
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    StageResult,
+    pass_exit_code,
+    run_policy_stage,
+};
+use crate::policy_events::PolicyEvent;
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+    with_severity,
+};
 use crate::policy_trigger::Trigger;
-use crate::test_support::{fixture, remove, repository};
-use crate::wrapper_controls::{Controls, no_controls};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    remove,
+    repository,
+};
+use crate::wrapper_controls::{
+    Controls,
+    no_controls,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A repository with one manifest that holds a literal version,
 /// and the shipped checks over `git add package.json`.
 fn checks_over(repo: &Path) -> ShippedChecks<ScriptedFacts> {
-    write(repo, "package.json", br#"{"dependencies": {"zod": "^4.6.7"}}"#);
+    write(
+        repo,
+        "package.json",
+        br#"{"dependencies": {"zod": "^4.6.7"}}"#,
+    );
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.to_path_buf());
     return shipped_checks(
@@ -58,7 +91,12 @@ fn stage(
         Some(chosen) => with_severity(&defaults, PolicyId::CatalogSpecifiers, chosen),
         None => defaults,
     };
-    let request: StageRequest = StageRequest { trigger, config, controls, selected: Vec::new() };
+    let request: StageRequest = StageRequest {
+        trigger,
+        config,
+        controls,
+        selected: Vec::new(),
+    };
     return run_policy_stage(&request, &[PolicyId::CatalogSpecifiers], checks);
 }
 
@@ -71,14 +109,27 @@ fn an_unlisted_or_off_policy_runs_nothing_and_reads_nothing() {
     let root: PathBuf = fixture("catalog-stage-off");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let mut checks: ShippedChecks<ScriptedFacts> = checks_over(repo.as_path());
-    for trigger in [Trigger::PreForward, Trigger::PostCommit, Trigger::ManualPush, Trigger::DirectCheck] {
+    for trigger in [
+        Trigger::PreForward,
+        Trigger::PostCommit,
+        Trigger::ManualPush,
+        Trigger::DirectCheck,
+    ] {
         for severity in [None, Some(Severity::Off)] {
             let result: StageResult = stage(&mut checks, trigger, severity, no_controls());
-            assert_eq!(result.events, Vec::<PolicyEvent>::new(), "{trigger:?} {severity:?}");
+            assert_eq!(
+                result.events,
+                Vec::<PolicyEvent>::new(),
+                "{trigger:?} {severity:?}"
+            );
             assert_eq!(result.end, StageEnd::Completed);
         }
     }
-    assert_eq!(checks.facts.asked, Vec::<String>::new(), "a skipped policy must not prepare candidates");
+    assert_eq!(
+        checks.facts.asked,
+        Vec::<String>::new(),
+        "a skipped policy must not prepare candidates"
+    );
     remove(root.as_path());
 }
 
@@ -91,17 +142,38 @@ fn warn_reports_and_error_blocks() {
     let root: PathBuf = fixture("catalog-stage-severity");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let mut checks: ShippedChecks<ScriptedFacts> = checks_over(repo.as_path());
-    let blocked: StageResult = stage(&mut checks, Trigger::PreForward, Some(Severity::Error), no_controls());
+    let blocked: StageResult = stage(
+        &mut checks,
+        Trigger::PreForward,
+        Some(Severity::Error),
+        no_controls(),
+    );
     assert_eq!(blocked.end, StageEnd::Stopped);
     assert_eq!(blocked.events.len(), 1);
     assert_eq!(pass_exit_code(blocked.events.as_slice(), blocked.end), 1);
     let PolicyEvent::Finding(finding) = &blocked.events[0] else {
         panic!("a finding event, not {:?}", blocked.events[0]);
     };
-    assert_eq!((finding.policy, finding.severity, finding.code), (PolicyId::CatalogSpecifiers, Severity::Error, "disallowed-specifier"));
-    let warned: StageResult = stage(&mut checks, Trigger::PreForward, Some(Severity::Warn), no_controls());
+    assert_eq!(
+        (finding.policy, finding.severity, finding.code),
+        (
+            PolicyId::CatalogSpecifiers,
+            Severity::Error,
+            "disallowed-specifier"
+        )
+    );
+    let warned: StageResult = stage(
+        &mut checks,
+        Trigger::PreForward,
+        Some(Severity::Warn),
+        no_controls(),
+    );
     assert_eq!(warned.end, StageEnd::Completed);
-    assert_eq!(warned.events.len(), 2, "the finding and the unsafe-warn notice");
+    assert_eq!(
+        warned.events.len(),
+        2,
+        "the finding and the unsafe-warn notice"
+    );
     assert_eq!(pass_exit_code(warned.events.as_slice(), warned.end), 0);
     remove(root.as_path());
 }
@@ -114,12 +186,28 @@ fn a_direct_fix_and_an_escape_skip_the_policy() {
     let root: PathBuf = fixture("catalog-stage-skips");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let mut checks: ShippedChecks<ScriptedFacts> = checks_over(repo.as_path());
-    let fix: StageResult = stage(&mut checks, Trigger::DirectFix, Some(Severity::Error), no_controls());
-    assert_eq!((fix.events, fix.end), (Vec::<PolicyEvent>::new(), StageEnd::Completed));
+    let fix: StageResult = stage(
+        &mut checks,
+        Trigger::DirectFix,
+        Some(Severity::Error),
+        no_controls(),
+    );
+    assert_eq!(
+        (fix.events, fix.end),
+        (Vec::<PolicyEvent>::new(), StageEnd::Completed)
+    );
     let mut escaped: Controls = no_controls();
     escaped.escaped.push(PolicyId::CatalogSpecifiers);
-    let result: StageResult = stage(&mut checks, Trigger::PreForward, Some(Severity::Error), escaped);
-    assert_eq!((result.events, result.end), (Vec::<PolicyEvent>::new(), StageEnd::Completed));
+    let result: StageResult = stage(
+        &mut checks,
+        Trigger::PreForward,
+        Some(Severity::Error),
+        escaped,
+    );
+    assert_eq!(
+        (result.events, result.end),
+        (Vec::<PolicyEvent>::new(), StageEnd::Completed)
+    );
     assert_eq!(checks.facts.asked, Vec::<String>::new());
     remove(root.as_path());
 }

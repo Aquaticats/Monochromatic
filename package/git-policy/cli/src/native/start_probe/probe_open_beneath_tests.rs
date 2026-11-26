@@ -13,7 +13,10 @@
 //! expect(openDirectoryBeneath(held, '../escape').errno).toBe(EXDEV);
 //! ```
 
-use super::{open_directory_beneath, open_path_handle};
+use super::{
+    open_directory_beneath,
+    open_path_handle,
+};
 use crate::testing::test_support::fixture;
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;

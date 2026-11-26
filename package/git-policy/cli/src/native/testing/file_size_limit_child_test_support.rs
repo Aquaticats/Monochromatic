@@ -16,7 +16,10 @@
 //! ```
 
 /// The one request for a child of this test binary, and the wait that ends it.
-use super::child_test_process::{ChildTest, finished};
+use super::child_test_process::{
+    ChildTest,
+    finished,
+};
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
 /// `ExitStatus` is how a process ended: an exit code or the signal that ended it.
@@ -44,7 +47,11 @@ pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIREC
 ///   return ended.status;
 /// }
 /// ```
-pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, directory: &std::path::Path) -> ExitStatus {
+pub(crate) fn run_child_under_file_size_limit(
+    test_name: &str,
+    limit: u64,
+    directory: &std::path::Path,
+) -> ExitStatus {
     let environment: [(&str, &OsStr); 1] = [(LIMITED_DIRECTORY_VARIABLE, directory.as_os_str())];
     let ended = finished(ChildTest {
         exact_test: test_name,
@@ -54,7 +61,10 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
             // SAFETY: between fork and exec only `signal` and `setrlimit`, both async-signal-safe, run.
             unsafe {
                 libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
-                let cap: libc::rlimit = libc::rlimit { rlim_cur: limit, rlim_max: limit };
+                let cap: libc::rlimit = libc::rlimit {
+                    rlim_cur: limit,
+                    rlim_max: limit,
+                };
                 if libc::setrlimit(libc::RLIMIT_FSIZE, &cap) != 0 {
                     return Err(std::io::Error::last_os_error());
                 }

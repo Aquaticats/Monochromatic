@@ -19,12 +19,15 @@
 //! // indexOnlyPaths(facts, ['new.txt', 'a.txt']) => ['new.txt']
 //! ```
 
+/// The captured-query runner's output type,
+///  the path of raw Git bytes and its reading.
+use crate::git_metadata::{
+    MetadataOutput,
+    path_from_git_bytes,
+};
 /// The provider whose Git,
 ///  global options and environment answer the two listings.
 use crate::repository_facts::GitFacts;
-/// The captured-query runner's output type,
-///  the path of raw Git bytes and its reading.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 
@@ -45,14 +48,21 @@ use std::ffi::OsString;
 /// ```ts
 /// const args = [...pre, 'ls-files', '--stage', '--full-name', '-z', '--', ':(top,literal)new.txt'];
 /// ```
-fn listing_arguments(global_prefix: &[OsString], option: &str, paths: &[Vec<u8>]) -> Result<Vec<OsString>, String> {
+fn listing_arguments(
+    global_prefix: &[OsString],
+    option: &str,
+    paths: &[Vec<u8>],
+) -> Result<Vec<OsString>, String> {
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     for token in ["ls-files", option, "--full-name", "-z", "--"] {
         arguments.push(OsString::from(token));
     }
     for path in paths {
         let Some(native) = path_from_git_bytes(path.as_slice()) else {
-            return Err(format!("could not read the path {} as a path here.", String::from_utf8_lossy(path.as_slice())));
+            return Err(format!(
+                "could not read the path {} as a path here.",
+                String::from_utf8_lossy(path.as_slice())
+            ));
         };
         let mut literal: OsString = OsString::from(":(top,literal)");
         literal.push(native.as_os_str());
@@ -103,7 +113,8 @@ fn staged_paths(answer: &[u8]) -> Vec<Vec<u8>> {
             continue;
         };
         let mut words = record[..tab].split(is_space);
-        let (Some(_mode), Some(_oid), Some(stage)) = (words.next(), words.next(), words.next()) else {
+        let (Some(_mode), Some(_oid), Some(stage)) = (words.next(), words.next(), words.next())
+        else {
             continue;
         };
         if stage == b"0" {
@@ -124,8 +135,14 @@ fn staged_paths(answer: &[u8]) -> Vec<Vec<u8>> {
 /// ```ts
 /// function listing(facts: GitFacts, option: string, paths: Buffer[], subject: string): MetadataOutput; // throws
 /// ```
-fn listing(facts: &mut GitFacts, option: &str, paths: &[Vec<u8>], subject: &str) -> Result<MetadataOutput, String> {
-    let arguments: Vec<OsString> = listing_arguments(facts.global_prefix.as_slice(), option, paths)?;
+fn listing(
+    facts: &mut GitFacts,
+    option: &str,
+    paths: &[Vec<u8>],
+    subject: &str,
+) -> Result<MetadataOutput, String> {
+    let arguments: Vec<OsString> =
+        listing_arguments(facts.global_prefix.as_slice(), option, paths)?;
     let answer: MetadataOutput = facts.query(arguments, subject)?;
     if !answer.success {
         let detail: String = String::from_utf8_lossy(answer.stderr.as_slice())
@@ -152,7 +169,10 @@ fn listing(facts: &mut GitFacts, option: &str, paths: &[Vec<u8>], subject: &str)
 /// ```ts
 /// stagedEntries(facts, listedPaths) => listedPaths with a stage-zero entry;
 /// ```
-pub(super) fn staged_entries(facts: &mut GitFacts, paths: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+pub(super) fn staged_entries(
+    facts: &mut GitFacts,
+    paths: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, String> {
     if paths.is_empty() {
         return Ok(Vec::<Vec<u8>>::new());
     }

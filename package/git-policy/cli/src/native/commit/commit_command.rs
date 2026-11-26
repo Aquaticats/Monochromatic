@@ -19,37 +19,76 @@
 //! renderPolicyEvents(commit.policyResult.events);
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
-use crate::commit_timing::CommitTiming;
+use crate::command_commit::CommitRegion;
+use crate::commit_form_refusal_from_git::{
+    Decision,
+    Unanswered,
+    ask_git,
+    unavailable_words,
+};
 /// Why the commit did not land,
 /// by the route that stopped it.
-use crate::commit_stop_reason::{CommitStopReason, reason_of_events, reason_of_stop};
+use crate::commit_stop_reason::{
+    CommitStopReason,
+    reason_of_events,
+    reason_of_stop,
+};
+use crate::commit_timing::CommitTiming;
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionResult,
+    TransactionStop,
+};
+use crate::config_schema::CliGitConfig;
+use crate::diagnostic_log::debug;
+use crate::diagnostics::{
+    EngineFailureCode,
+    render_engine_failure,
+};
+use crate::git_version::check_git_version;
+use crate::global_arguments::without_directory_changes;
+use crate::policy_checks::ShippedChecks;
+use crate::policy_engine::StageRequest;
+use crate::policy_events::{
+    PolicyEvent,
+    render_policy_events,
+};
+use crate::policy_trigger::Trigger;
+use crate::post_commit::{
+    NO_BLOCKING_CAUSE,
+    POST_COMMIT_BLOCKED_EXIT_CODE,
+    PostCommitRequest,
+    blocked_reason,
+    run_post_commit_gate,
+};
+use crate::repository_facts::RepositoryFacts;
+use crate::rule_commit_region_git_refuses::{
+    GitRefusedForm,
+    form_git_refuses,
+};
+use crate::service_commit::{
+    ServiceCommit,
+    service_commit,
+};
+use crate::service_handoff::{
+    ServiceHandoff,
+    forget_the_push,
+    hand_over,
+    promote_the_push,
+};
+use crate::service_messages::render;
 /// Standard error as a stream whose whole lines a thread of their own writes,
 /// and the writer that counts the time they took.
 use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
-use crate::service_commit::{ServiceCommit, service_commit};
-use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
-use crate::service_messages::render;
-use crate::commit_form_refusal_from_git::{Decision, Unanswered, ask_git, unavailable_words};
-use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
-use crate::config_schema::CliGitConfig;
-use crate::command_commit::CommitRegion;
-use crate::rule_commit_region_git_refuses::{GitRefusedForm, form_git_refuses};
-use crate::diagnostics::{EngineFailureCode, render_engine_failure};
-use crate::git_version::check_git_version;
-use crate::policy_checks::ShippedChecks;
-use crate::policy_engine::StageRequest;
-use crate::policy_events::{PolicyEvent, render_policy_events};
-use crate::policy_trigger::Trigger;
-use crate::post_commit::{NO_BLOCKING_CAUSE, POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, blocked_reason, run_post_commit_gate};
-use crate::diagnostic_log::debug;
-use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
-use crate::global_arguments::without_directory_changes;
 use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// What:
@@ -62,7 +101,10 @@ use std::time::Instant;
 /// ```ts
 /// parseGlobalOptions(args).effectiveCwd
 /// ```
-pub fn effective_directory(start: &Path, global_prefix: &[OsString]) -> PathBuf {
+pub fn effective_directory(
+    start: &Path,
+    global_prefix: &[OsString],
+) -> PathBuf {
     let mut directory: PathBuf = start.to_path_buf();
     let mut index: usize = 0;
     while index < global_prefix.len() {
@@ -144,7 +186,8 @@ fn stop_of_an_ending(result: &TransactionResult) -> Option<CommitStopReason> {
 /// process.stderr.write(text); // handed to the thread that writes it, waited for at most one bound
 /// ```
 fn write_stderr(text: &str) {
-    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> =
+        MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(text.as_bytes());
     let _ = stream.flush();
 }
@@ -162,21 +205,38 @@ fn write_stderr(text: &str) {
 /// ```ts
 /// catch (error) { ... process.exitCode = ... }
 /// ```
-fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding {
+fn report_stop(
+    stop: TransactionStop,
+    timing: &mut CommitTiming,
+) -> CommitEnding {
     // Why the command stopped is written down here, before the process is told how it ended, so a record of a commit that
     //  did not land names the route that stopped it and not only the status it returned (`commit_stop_reason.rs`).
-    timing.stop = Some(reason_of_stop(&stop, crate::git_step_failure::drain_failed_step()));
+    timing.stop = Some(reason_of_stop(
+        &stop,
+        crate::git_step_failure::drain_failed_step(),
+    ));
     match stop {
-        TransactionStop::NativeExit(code) => return CommitEnding { code, signal: None },
+        TransactionStop::NativeExit(code) => {
+            return CommitEnding {
+                code,
+                signal: None,
+            };
+        }
         TransactionStop::Message(message) => {
             write_stderr(format!("{message}\n").as_str());
-            return CommitEnding { code: 1, signal: None };
+            return CommitEnding {
+                code: 1,
+                signal: None,
+            };
         }
         // A stop the command decided itself: the words the failure renders are what the person reads, and the failure is what
         //  the record named (`commit_stop_reason.rs`), so both ends of the command carry the same cause.
         TransactionStop::Client(failure) => {
             write_stderr(format!("{}\n", render(&failure)).as_str());
-            return CommitEnding { code: 1, signal: None };
+            return CommitEnding {
+                code: 1,
+                signal: None,
+            };
         }
         // The person stopped this command with a signal, and the commit it waited for is not made: the words say so, and the
         //  command ends as that signal ends a program, which is what a shell reports for an interrupted native Git (`128 + the
@@ -184,11 +244,21 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
         // What: The person is told in one line, and the command ends by that signal once the record is written.
         // Why:  The record is the only account of a stopped commit that outlives the terminal;
         //       a raise here ended the process before `run_commit_command` wrote it, so an interrupted commit left none.
-        TransactionStop::EndedBySignal { signal, message, .. } => {
+        TransactionStop::EndedBySignal {
+            signal,
+            message,
+            ..
+        } => {
             write_stderr(format!("{message}\n").as_str());
-            return CommitEnding { code: crate::forwarding::SIGNAL_EXIT_BASE + signal, signal: Some(signal) };
+            return CommitEnding {
+                code: crate::forwarding::SIGNAL_EXIT_BASE + signal,
+                signal: Some(signal),
+            };
         }
-        TransactionStop::Failed { code, message } => {
+        TransactionStop::Failed {
+            code,
+            message,
+        } => {
             let event: PolicyEvent = PolicyEvent::EngineFailure {
                 code,
                 hint: crate::policy_events::EngineFailureHint::OfCode,
@@ -198,7 +268,10 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
                 path: None,
             };
             write_stderr(render_policy_events(0, std::slice::from_ref(&event)).as_str());
-            return CommitEnding { code: 2, signal: None };
+            return CommitEnding {
+                code: 2,
+                signal: None,
+            };
         }
     }
 }
@@ -247,7 +320,10 @@ pub struct CommitCommand<'a> {
 /// ```ts
 /// await runCommitCommand({ ... });
 /// ```
-pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>) -> CommitEnding {
+pub fn run_commit_command<F: RepositoryFacts>(
+    command: &CommitCommand<'_>,
+    checks: &mut ShippedChecks<F>,
+) -> CommitEnding {
     // A command line real Git refuses is refused here, before the transaction reads an index or reaches the service, so the
     //  mistyped command changes nothing at all: no staged path, no reference, no record of a commit that never existed.
     if let Some(ending) = refuse_a_form_git_refuses(command) {
@@ -337,15 +413,31 @@ fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding
     let (context, cwd): (GitContext, PathBuf) = where_the_commit_runs(command);
     let asked: &[OsString] = &command.arguments[command.subcommand_index + 1..];
     match ask_git(&context, cwd.as_path(), asked).decide() {
-        Decision::EndWithGit { status, stderr } => {
-            debug("commit-form-refusal", format!("real Git answers {} with status {status}", form.name()).as_str());
+        Decision::EndWithGit {
+            status,
+            stderr,
+        } => {
+            debug(
+                "commit-form-refusal",
+                format!("real Git answers {} with status {status}", form.name()).as_str(),
+            );
             write_stderr_bytes(stderr.as_slice());
-            return Some(CommitEnding { code: status, signal: None });
+            return Some(CommitEnding {
+                code: status,
+                signal: None,
+            });
         }
         Decision::Accept => {
             // Git runs this command line, so the rule's word is not enough to refuse it. The question was a dry run, so
             //  no commit was made by it, and the transaction that goes on is the only writer of this commit.
-            debug("commit-form-refusal", format!("real Git accepts {} here, so the commit goes on", form.name()).as_str());
+            debug(
+                "commit-form-refusal",
+                format!(
+                    "real Git accepts {} here, so the commit goes on",
+                    form.name()
+                )
+                .as_str(),
+            );
             return None;
         }
         Decision::RefuseInOurWords(why) => {
@@ -354,7 +446,10 @@ fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding
                 format!("real Git gave no answer about {} ({}), so the wrapper refuses it in its own words", form.name(), reason_name(why)).as_str(),
             );
             write_stderr(unavailable_words(form.name(), why).as_str());
-            return Some(CommitEnding { code: 128, signal: None });
+            return Some(CommitEnding {
+                code: 128,
+                signal: None,
+            });
         }
     }
 }
@@ -392,17 +487,28 @@ fn reason_name(why: Unanswered) -> &'static str {
 /// process.stderr.write(bytes); // handed to the thread that writes it
 /// ```
 fn write_stderr_bytes(bytes: &[u8]) {
-    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
+    let mut stream: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> =
+        MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     let _ = stream.write_all(bytes);
     let _ = stream.flush();
 }
 
 /// `run_commit_command`,
 /// recording in `timing` how the command's time was spent and how it ended.
-fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>, timing: &mut CommitTiming) -> CommitEnding {
+fn run_timed<F: RepositoryFacts>(
+    command: &CommitCommand<'_>,
+    checks: &mut ShippedChecks<F>,
+    timing: &mut CommitTiming,
+) -> CommitEnding {
     if let Err(reason) = check_git_version(command.context) {
-        write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());
-        return CommitEnding { code: 2, signal: None };
+        write_stderr(
+            render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str())
+                .as_str(),
+        );
+        return CommitEnding {
+            code: 2,
+            signal: None,
+        };
     }
     // Every Git of this commit runs where the caller's `-C` chain already reached, with those tokens dropped, so one of
     //  them reaches no start twice (`where_the_commit_runs`).
@@ -446,7 +552,10 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
         timing.stop = ended;
-        return CommitEnding { code: served.result.exit_code, signal: None };
+        return CommitEnding {
+            code: served.result.exit_code,
+            signal: None,
+        };
     };
     timing.outcome = "landed";
     let landed_ending: CommitEnding = post_commit(command, &handoff, landed.as_str(), timing);
@@ -473,7 +582,12 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
 /// ```ts
 /// const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
 /// ```
-fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &str, timing: &mut CommitTiming) -> CommitEnding {
+fn post_commit(
+    command: &CommitCommand<'_>,
+    handoff: &ServiceHandoff,
+    landed: &str,
+    timing: &mut CommitTiming,
+) -> CommitEnding {
     let request: PostCommitRequest<'_> = PostCommitRequest {
         real_git: command.context.real_git.as_path(),
         landed_oid: landed,
@@ -488,7 +602,8 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     // What: The notes of the hand-off go to the thread that writes standard error.
     // Why:  The push record outlives the command, and a reader that stopped draining must cost the
     //       hand-off one bound rather than the command itself.
-    let mut stderr: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> = MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
+    let mut stderr: MeasuredStandardError<StandardErrorOffTheCallingThread<fn(&[u8])>> =
+        MeasuredStandardError::over(StandardErrorOffTheCallingThread::new());
     // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
     //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.
 
@@ -509,14 +624,23 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         let unkept: Option<String> = forget_the_push(
             handoff,
             landed,
-            if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() },
-            &crate::held_push_release_wakes_the_service::AskTheService { context: command.context },
+            if said.is_empty() {
+                NO_BLOCKING_CAUSE
+            } else {
+                said.as_str()
+            },
+            &crate::held_push_release_wakes_the_service::AskTheService {
+                context: command.context,
+            },
         );
         timing.handoff += taking_back.elapsed();
         if let Some(kept) = unkept {
             write_stderr(format!("{kept}\n").as_str());
         }
-        return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE, signal: None };
+        return CommitEnding {
+            code: POST_COMMIT_BLOCKED_EXIT_CODE,
+            signal: None,
+        };
     }
     // What: The push the gate approved becomes runnable inside the hand-off phase.
     // Why:  Promoting it renames the record the service held and writes the verdict that approved it; those are the hand-over's
@@ -538,7 +662,10 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     if let Err(failure) = handed {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
-    return CommitEnding { code: 0, signal: None };
+    return CommitEnding {
+        code: 0,
+        signal: None,
+    };
 }
 
 /// Controls for this module stay out of the release executable.

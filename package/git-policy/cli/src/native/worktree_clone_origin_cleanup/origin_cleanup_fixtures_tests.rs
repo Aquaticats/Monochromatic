@@ -19,8 +19,14 @@ use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRe
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_removal_deferred_origin_check::fixtures::origin_properties;
-use crate::worktree_removal_deferred_origin_check::origin_mark::{MARK_OFF, MARK_ON};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
+use crate::worktree_removal_deferred_origin_check::origin_mark::{
+    MARK_OFF,
+    MARK_ON,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    NvList,
+};
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -78,7 +84,8 @@ pub fn an_owed_record() -> OriginCleanupRecord {
 
 /// The owed record's own bytes as text.
 pub fn the_bytes() -> String {
-    return String::from_utf8(an_owed_record().encode().expect("the record encodes")).expect("the record is text");
+    return String::from_utf8(an_owed_record().encode().expect("the record encodes"))
+        .expect("the record is text");
 }
 
 /// What:
@@ -105,44 +112,82 @@ pub struct VisiblePool {
 impl VisiblePool {
     /// The snapshot is there and free.
     pub fn free() -> VisiblePool {
-        return VisiblePool { present: Rc::new(Cell::new(true)), clones: 0, mark: MARK_OFF };
+        return VisiblePool {
+            present: Rc::new(Cell::new(true)),
+            clones: 0,
+            mark: MARK_OFF,
+        };
     }
 
     /// The snapshot is pinned by one clone.
     pub fn pinned() -> VisiblePool {
-        return VisiblePool { present: Rc::new(Cell::new(true)), clones: 1, mark: MARK_OFF };
+        return VisiblePool {
+            present: Rc::new(Cell::new(true)),
+            clones: 1,
+            mark: MARK_OFF,
+        };
     }
 
     /// The snapshot is pinned by two clones.
     pub fn pinned_by_two() -> VisiblePool {
-        return VisiblePool { present: Rc::new(Cell::new(true)), clones: 2, mark: MARK_OFF };
+        return VisiblePool {
+            present: Rc::new(Cell::new(true)),
+            clones: 2,
+            mark: MARK_OFF,
+        };
     }
 
     /// The snapshot is there and held,
     /// which the counts also call a dependency.
     pub fn holding() -> VisiblePool {
-        return VisiblePool { present: Rc::new(Cell::new(true)), clones: 0, mark: MARK_ON };
+        return VisiblePool {
+            present: Rc::new(Cell::new(true)),
+            clones: 0,
+            mark: MARK_ON,
+        };
     }
 }
 
 impl RemovalPoolReads for VisiblePool {
-    fn identity(&self, name: &str) -> Result<DatasetIdentity, String> {
+    fn identity(
+        &self,
+        name: &str,
+    ) -> Result<DatasetIdentity, String> {
         if name == ORIGIN_DATASET {
-            return Ok(DatasetIdentity { stats: crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(ORIGIN_DATASET_GUID, false, 2, 1, ""), properties: NvList::new() });
+            return Ok(DatasetIdentity {
+                stats: crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(
+                    ORIGIN_DATASET_GUID,
+                    false,
+                    2,
+                    1,
+                    "",
+                ),
+                properties: NvList::new(),
+            });
         }
         if name == the_full_name().as_str() {
             if !self.present.get() {
                 return Err(String::from("the snapshot is gone"));
             }
             return Ok(DatasetIdentity {
-                stats: crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_TXG, self.clones, ""),
+                stats: crate::worktree_clone_removal_proof_and_plan::removal_fixtures::the_stats(
+                    ORIGIN_SNAPSHOT_GUID,
+                    true,
+                    ORIGIN_TXG,
+                    self.clones,
+                    "",
+                ),
                 properties: origin_properties(Some(self.mark), Some(0)),
             });
         }
         return Err(format!("`{name}` does not answer this scripted pool"));
     }
 
-    fn snapshots_of(&self, dataset: &str, _dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn snapshots_of(
+        &self,
+        dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         if dataset != ORIGIN_DATASET || !self.present.get() {
             return Ok(Vec::new());
         }
@@ -156,7 +201,11 @@ impl RemovalPoolReads for VisiblePool {
         }]);
     }
 
-    fn bookmarks_of(&self, _dataset: &str, _dataset_guid: DatasetGuid) -> Result<Vec<LiveObject>, String> {
+    fn bookmarks_of(
+        &self,
+        _dataset: &str,
+        _dataset_guid: DatasetGuid,
+    ) -> Result<Vec<LiveObject>, String> {
         return Ok(Vec::new());
     }
 }

@@ -23,9 +23,23 @@
 //! ```
 
 use crate::auto_push_branch_key::encode_branch_key;
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
-use crate::push_failure_notice::{BRANCH_FIELD, COMMIT_FIELD, LONGEST_KEY, NAME_SEPARATOR, clean_words, fnv_hex, notice_directory};
-use std::path::{Path, PathBuf};
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file_unsynced,
+};
+use crate::push_failure_notice::{
+    BRANCH_FIELD,
+    COMMIT_FIELD,
+    LONGEST_KEY,
+    NAME_SEPARATOR,
+    clean_words,
+    fnv_hex,
+    notice_directory,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// First line of a record of what a push that succeeded did,
 /// which the command that ran it could not print.
@@ -50,9 +64,16 @@ pub(crate) const REPORT_MAGIC: &str = "monochromatic-git-policy-cli push report 
 /// ```ts
 /// const reportName = (branchRef, commit) => `report+${branchKey(branchRef)}+${commit}.txt`;
 /// ```
-fn report_name(branch_ref: &str, commit: &str) -> String {
+fn report_name(
+    branch_ref: &str,
+    commit: &str,
+) -> String {
     let key: String = encode_branch_key(branch_ref);
-    let shown: String = if key.len() > LONGEST_KEY { format!("{}~{}", &key[..LONGEST_KEY], fnv_hex(key.as_str())) } else { key };
+    let shown: String = if key.len() > LONGEST_KEY {
+        format!("{}~{}", &key[..LONGEST_KEY], fnv_hex(key.as_str()))
+    } else {
+        key
+    };
     return format!("report{NAME_SEPARATOR}{shown}{NAME_SEPARATOR}{commit}.txt");
 }
 
@@ -82,13 +103,21 @@ fn report_name(branch_ref: &str, commit: &str) -> String {
 /// ```ts
 /// await recordPushReport(gitDir, { branchRef, commit, said })
 /// ```
-pub fn record_push_report(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+pub fn record_push_report(
+    git_dir: &Path,
+    branch_ref: &str,
+    commit: &str,
+    said: &str,
+) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(report_name(branch_ref, commit));
-    let text: String = format!("{REPORT_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_words(said));
+    let text: String = format!(
+        "{REPORT_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}",
+        clean_words(said)
+    );
     return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),

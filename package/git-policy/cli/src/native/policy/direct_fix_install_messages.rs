@@ -13,10 +13,13 @@
 //! // installFailure(detail); keptNotice(site); unchangedFailure(why); restoreFailed(error);
 //! ```
 
-/// The journal a prepared site keeps its bytes in.
-use crate::direct_fix_install_journal::{JournalFailure, content_of};
 /// The site a message is about.
 use crate::direct_fix_install::Prepared;
+/// The journal a prepared site keeps its bytes in.
+use crate::direct_fix_install_journal::{
+    JournalFailure,
+    content_of,
+};
 
 /// The start of every installation failure message.
 pub(crate) const INSTALL_FAILED: &str =

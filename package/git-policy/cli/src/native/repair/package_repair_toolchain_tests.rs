@@ -3,25 +3,45 @@
 //! and the order and gating of the two mpm-shadow runs.
 
 use super::*;
-use crate::test_support::executable;
+use crate::package_repair_report::{
+    Finding,
+    Outcome,
+    Tool,
+};
 use crate::package_repair_request::RepairEnvironment;
-use crate::package_repair_report::{Finding, Outcome, Tool};
-use crate::test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::executable;
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// Import the lock file's name and the record byte bound the controls write at.
-use super::names_and_bounds::{LOCK_FILE, LONGEST_RECORD};
+use super::names_and_bounds::{
+    LOCK_FILE,
+    LONGEST_RECORD,
+};
 
 /// The launcher directory of a worktree,
 /// relative to its root.
 const LAUNCHERS: &str = ".cache/toolchain-launchers";
 
 /// Write a launcher record that names `lock`.
-fn record(destination: &Path, name: &str, lock: &Path) {
+fn record(
+    destination: &Path,
+    name: &str,
+    lock: &Path,
+) {
     let directory: PathBuf = destination.join(LAUNCHERS);
     std::fs::create_dir_all(&directory).expect("launchers");
-    let text: String = format!("{{\"toolId\":\"{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/real\",\"scope\":\"repo\"}}", lock.display());
+    let text: String = format!(
+        "{{\"toolId\":\"{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/real\",\"scope\":\"repo\"}}",
+        lock.display()
+    );
     std::fs::write(directory.join(format!("{name}.launch")), text).expect("record");
 }
 
@@ -48,12 +68,23 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
 #[test]
 fn finds_the_records_that_name_another_lock() {
     let (root, destination, _bin, _environment) = scene("toolchain-stale");
-    record(&destination, "own", destination.join("toolchain.lock.json").as_path());
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "own",
+        destination.join("toolchain.lock.json").as_path(),
+    );
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     std::fs::write(destination.join(LAUNCHERS).join("junk.launch"), b"not json").expect("junk");
     std::fs::write(destination.join(LAUNCHERS).join("tool"), b"binary").expect("launcher");
     let stale: Vec<PathBuf> = stale_launch_records(destination.as_path());
-    assert_eq!(stale, vec![destination.join(LAUNCHERS).join("foreign.launch")]);
+    assert_eq!(
+        stale,
+        vec![destination.join(LAUNCHERS).join("foreign.launch")]
+    );
     remove(&root);
 }
 
@@ -73,13 +104,22 @@ const SUMMARY: &str = "toolchain install: 3 installed, 62 unchanged, 0 failed";
 /// rewrites the record of the launcher named `rewrites` (which is the one an install of a real lock answers for),
 /// and exits
 ///  with `install_status`.
-fn fake_mpm(root: &Path, bin: &Path, destination: &Path, rewrites: &str, install_status: i32) {
+fn fake_mpm(
+    root: &Path,
+    bin: &Path,
+    destination: &Path,
+    rewrites: &str,
+    install_status: i32,
+) {
     let script: String = format!(
         // The install's own children read the search path the repair resolved it on, so the fixture rewrites its launcher
         //  record with the shell's own `printf` and reaches no other program.
         "#!/bin/sh\necho \"$* in $(pwd -P) root=$MONOCHROMATIC_WORKTREE_ROOT\" >> '{record}'\necho '{SUMMARY}'\nif [ {install_status} -eq 0 ]; then printf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{launch}'; fi\nexit {install_status}\n",
         record = root.join("record").display(),
-        launch = destination.join(LAUNCHERS).join(format!("{rewrites}.launch")).display(),
+        launch = destination
+            .join(LAUNCHERS)
+            .join(format!("{rewrites}.launch"))
+            .display(),
         own = destination.join(LOCK_FILE).display(),
     );
     executable(bin.join("mpm-shadow").as_path(), script.as_bytes());
@@ -88,17 +128,30 @@ fn fake_mpm(root: &Path, bin: &Path, destination: &Path, rewrites: &str, install
 /// Write the worktree's own lock,
 /// declaring one tool with these bins,
 /// which are the launcher names an install of that lock rewrites.
-fn lock(destination: &Path, bins: &[&str]) {
+fn lock(
+    destination: &Path,
+    bins: &[&str],
+) {
     let declared: Vec<String> = bins.iter().map(|bin| format!("\"{bin}\"")).collect();
-    let text: String = format!("{{\"schemaVersion\":1,\"tools\":{{\"cargo:own\":{{\"bins\":[{}]}}}}}}", declared.join(","));
+    let text: String = format!(
+        "{{\"schemaVersion\":1,\"tools\":{{\"cargo:own\":{{\"bins\":[{}]}}}}}}",
+        declared.join(",")
+    );
     std::fs::write(destination.join(LOCK_FILE), text).expect("lock");
 }
 
 /// Write the launcher a record sits beside,
 /// which is a file an install writes and nothing but a copy leaves behind.
-fn launcher(destination: &Path, name: &str) {
+fn launcher(
+    destination: &Path,
+    name: &str,
+) {
     std::fs::create_dir_all(destination.join(LAUNCHERS)).expect("launchers");
-    std::fs::write(destination.join(LAUNCHERS).join(name), b"#!/bin/sh\nexit 0\n").expect("launcher");
+    std::fs::write(
+        destination.join(LAUNCHERS).join(name),
+        b"#!/bin/sh\nexit 0\n",
+    )
+    .expect("launcher");
 }
 
 /// The install runs once,
@@ -110,17 +163,37 @@ fn launcher(destination: &Path, name: &str) {
 #[test]
 fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
     let (root, destination, bin, environment) = scene("toolchain-install");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     fake_mpm(&root, &bin, &destination, "foreign", 0);
-    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    let finding: Finding =
+        repair_toolchain(destination.as_path(), &environment).expect("a finding");
     assert_eq!(finding.tool, Tool::Toolchain);
-    let Outcome::Repaired { detail, .. } = &finding.outcome else { panic!("expected a success: {finding:?}") };
-    assert!(detail.contains("3 installed"), "the summary of what was installed is kept: {detail}");
+    let Outcome::Repaired {
+        detail,
+        ..
+    } = &finding.outcome
+    else {
+        panic!("expected a success: {finding:?}")
+    };
+    assert!(
+        detail.contains("3 installed"),
+        "the summary of what was installed is kept: {detail}"
+    );
     let recorded: String = std::fs::read_to_string(root.join("record")).expect("record");
     let lines: Vec<&str> = recorded.lines().collect();
     assert_eq!(lines.len(), 1, "{recorded}");
-    assert!(lines[0].starts_with("install") && lines[0].contains("--frozen-lockfile"), "{recorded}");
-    assert!(lines[0].contains(destination.to_str().expect("utf8")), "{recorded}");
+    assert!(
+        lines[0].starts_with("install") && lines[0].contains("--frozen-lockfile"),
+        "{recorded}"
+    );
+    assert!(
+        lines[0].contains(destination.to_str().expect("utf8")),
+        "{recorded}"
+    );
     remove(&root);
 }
 
@@ -129,10 +202,21 @@ fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
 #[test]
 fn a_failing_install_names_its_reason_and_the_command() {
     let (root, destination, bin, environment) = scene("toolchain-install-fails");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     fake_mpm(&root, &bin, &destination, "foreign", 1);
-    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
-    let Outcome::Failed { reason, run_instead } = finding.outcome else { panic!("expected a failure") };
+    let finding: Finding =
+        repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    let Outcome::Failed {
+        reason,
+        run_instead,
+    } = finding.outcome
+    else {
+        panic!("expected a failure")
+    };
     assert!(reason.contains("exit status"), "{reason}");
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
     remove(&root);
@@ -143,10 +227,18 @@ fn a_failing_install_names_its_reason_and_the_command() {
 #[test]
 fn a_record_that_stays_stale_is_a_failure() {
     let (root, destination, bin, environment) = scene("toolchain-stays");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     executable(bin.join("mpm-shadow").as_path(), b"#!/bin/sh\nexit 0\n");
-    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
-    assert!(matches!(finding.outcome, Outcome::Failed { .. }), "{finding:?}");
+    let finding: Finding =
+        repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    assert!(
+        matches!(finding.outcome, Outcome::Failed { .. }),
+        "{finding:?}"
+    );
     remove(&root);
 }
 
@@ -157,13 +249,37 @@ fn a_record_that_stays_stale_is_a_failure() {
 #[test]
 fn applies_only_to_stale_records_and_reports_a_missing_tool() {
     let (root, destination, bin, environment) = scene("toolchain-applies");
-    executable(bin.join("mpm-shadow").as_path(), format!("#!/bin/sh\necho started >> '{}'\n", root.join("record").display()).as_bytes());
-    record(&destination, "own", destination.join("toolchain.lock.json").as_path());
+    executable(
+        bin.join("mpm-shadow").as_path(),
+        format!(
+            "#!/bin/sh\necho started >> '{}'\n",
+            root.join("record").display()
+        )
+        .as_bytes(),
+    );
+    record(
+        &destination,
+        "own",
+        destination.join("toolchain.lock.json").as_path(),
+    );
     assert!(repair_toolchain(destination.as_path(), &environment).is_none());
     assert!(!root.join("record").exists());
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     std::fs::remove_file(bin.join("mpm-shadow")).expect("remove tool");
-    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = repair_toolchain(destination.as_path(), &environment) else { panic!("expected a failure") };
+    let Some(Finding {
+        outcome: Outcome::Failed {
+            run_instead,
+            ..
+        },
+        ..
+    }) = repair_toolchain(destination.as_path(), &environment)
+    else {
+        panic!("expected a failure")
+    };
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
     remove(&root);
 }
@@ -175,7 +291,8 @@ const PATIENCE: Duration = Duration::from_secs(10);
 /// which blocks whoever opens it for reading until a writer comes.
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(result, 0, "mkfifo {}", path.display());
@@ -192,20 +309,43 @@ fn make_pipe(path: &Path) {
 #[test]
 fn a_record_that_is_a_named_pipe_is_left_alone() {
     let (root, destination, _bin, environment) = scene("toolchain-pipe");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     make_pipe(destination.join(LAUNCHERS).join("stalled.launch").as_path());
     // Two workers, so a read that blocks on the pipe leaves a worker to time the answer.
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a runtime");
-    let repair = runtime.spawn(async move { return repair_toolchain_awaiting(destination.as_path(), &environment).await; });
-    let answered = runtime.block_on(async { return tokio::time::timeout(PATIENCE, repair).await; });
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("a runtime");
+    let repair = runtime.spawn(async move {
+        return repair_toolchain_awaiting(destination.as_path(), &environment).await;
+    });
+    let answered = runtime.block_on(async {
+        return tokio::time::timeout(PATIENCE, repair).await;
+    });
     // The runtime is never dropped: a read that did block on the pipe holds a worker for ever, and dropping the runtime
     // would wait for that worker, so a control that caught the defect would hang instead of reporting it.
     std::mem::forget(runtime);
     remove(&root);
     let Ok(joined) = answered else {
-        panic!("a launcher record that is a named pipe with no writer stopped the repair and every wait that shares its task, and nothing ended the wait")
+        panic!(
+            "a launcher record that is a named pipe with no writer stopped the repair and every wait that shares its task, and nothing ended the wait"
+        )
     };
-    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = joined.expect("the repair task") else { panic!("the stale record beside the pipe is still repaired") };
+    let Some(Finding {
+        outcome: Outcome::Failed {
+            run_instead,
+            ..
+        },
+        ..
+    }) = joined.expect("the repair task")
+    else {
+        panic!("the stale record beside the pipe is still repaired")
+    };
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
 }
 
@@ -229,25 +369,40 @@ fn a_record_that_is_a_named_pipe_is_left_alone() {
 #[test]
 fn a_record_replaced_by_a_named_pipe_as_it_is_read_is_left_alone() {
     let (root, destination, _bin, environment) = scene("toolchain-record-replaced-by-a-pipe");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     let launchers: PathBuf = destination.join(LAUNCHERS);
     let record_path: PathBuf = launchers.join("foreign.launch");
     let replacing: PathBuf = launchers.join("foreign.launch.replacing");
     // The other command: make the pipe first, then put it at the record's name in one step, which is what a rename is.
     make_pipe(replacing.as_path());
-    let answered: Option<Option<Finding>> = crate::test_support::finished_within_at(PATIENCE, move || {
-        crate::package_repair_toolchain::WHEN_THE_RECORD_IS_OPENED.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| {
-            *cell.borrow_mut() = Some(Box::new(move || std::fs::rename(replacing.as_path(), record_path.as_path()).expect("the pipe takes the record's name")));
+    let answered: Option<Option<Finding>> =
+        crate::test_support::finished_within_at(PATIENCE, move || {
+            crate::package_repair_toolchain::WHEN_THE_RECORD_IS_OPENED.with(
+                |cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| {
+                    *cell.borrow_mut() = Some(Box::new(move || {
+                        std::fs::rename(replacing.as_path(), record_path.as_path())
+                            .expect("the pipe takes the record's name")
+                    }));
+                },
+            );
+            return repair_toolchain(destination.as_path(), &environment);
         });
-        return repair_toolchain(destination.as_path(), &environment);
-    });
     // A thread that did block on the pipe is abandoned with the process, so a control that caught the defect reports it
     //  at its own deadline rather than waiting for that thread for ever.
     remove(&root);
     let Some(answered_with) = answered else {
-        panic!("a launcher record replaced by a named pipe with no writer stopped the add's toolchain repair, and nothing ended the wait")
+        panic!(
+            "a launcher record replaced by a named pipe with no writer stopped the add's toolchain repair, and nothing ended the wait"
+        )
     };
-    assert!(answered_with.is_none(), "the pipe is no record this release reads, so the repair has nothing to do: {answered_with:?}");
+    assert!(
+        answered_with.is_none(),
+        "the pipe is no record this release reads, so the repair has nothing to do: {answered_with:?}"
+    );
 }
 
 /// What:
@@ -269,15 +424,28 @@ fn a_record_larger_than_the_bound_is_left_alone() {
     let launchers: PathBuf = destination.join(LAUNCHERS);
     std::fs::create_dir_all(launchers.as_path()).expect("launchers");
     // A record that would be stale if it were read: it names another checkout's lock, and JSON allows the padding.
-    let named: String = format!("{{\"lockFile\":\"{}\"}}", root.join("source/toolchain.lock.json").display());
-    let padding: usize = usize::try_from(LONGEST_RECORD).expect("a bound that fits this host") + 1 - named.len();
+    let named: String = format!(
+        "{{\"lockFile\":\"{}\"}}",
+        root.join("source/toolchain.lock.json").display()
+    );
+    let padding: usize =
+        usize::try_from(LONGEST_RECORD).expect("a bound that fits this host") + 1 - named.len();
     let too_large: String = format!("{named}{}", " ".repeat(padding));
     let record_path: PathBuf = launchers.join("foreign.launch");
     std::fs::write(record_path.as_path(), too_large.as_bytes()).expect("the oversized record");
-    assert_eq!(std::fs::metadata(record_path.as_path()).expect("the record").len(), LONGEST_RECORD + 1, "the fixture is past the bound by one byte");
+    assert_eq!(
+        std::fs::metadata(record_path.as_path())
+            .expect("the record")
+            .len(),
+        LONGEST_RECORD + 1,
+        "the fixture is past the bound by one byte"
+    );
     let answered: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
     remove(&root);
-    assert!(answered.is_none(), "a record larger than the bound is no record this release reads, so the repair has nothing to do: {answered:?}");
+    assert!(
+        answered.is_none(),
+        "a record larger than the bound is no record this release reads, so the repair has nothing to do: {answered:?}"
+    );
 }
 
 /// What:
@@ -290,11 +458,22 @@ fn a_record_larger_than_the_bound_is_left_alone() {
 #[test]
 fn the_launcher_records_are_read_as_a_job_of_the_pool() {
     let (root, destination, _bin, environment) = scene("toolchain-asks-for-a-place");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
-    let repair = crate::lazy_runtime::spawn_on_runtime(async move { return repair_toolchain_awaiting(destination.as_path(), &environment).await; });
-    assert!(repair.is_some(), "this process's runtime has a worker of its own");
-    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the control that holds the only place answered");
+    let repair = crate::lazy_runtime::spawn_on_runtime(async move {
+        return repair_toolchain_awaiting(destination.as_path(), &environment).await;
+    });
+    assert!(
+        repair.is_some(),
+        "this process's runtime has a worker of its own"
+    );
+    let asked: bool = finished
+        .recv_timeout(crate::parallel_test_support::PATIENCE)
+        .expect("the control that holds the only place answered");
     remove(&root);
     assert!(
         asked,
@@ -322,16 +501,37 @@ fn the_launcher_records_are_read_as_a_job_of_the_pool() {
 fn a_record_the_lock_declares_nowhere_is_removed_instead_of_failing_the_relink() {
     let (root, destination, bin, environment) = scene("toolchain-copy-of-an-older-layout");
     lock(&destination, &["own"]);
-    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
-    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "own",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
+    record(
+        &destination,
+        "renamed",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     launcher(&destination, "renamed");
     // The install rewrites the record of the name the lock declares, which is all a real install does.
     fake_mpm(&root, &bin, &destination, "own", 0);
-    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
-    assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "an install that did everything its lock asks is not a failed relink: {finding:?}");
-    assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the record no install rewrites is left in the worktree");
-    assert!(!destination.join(LAUNCHERS).join("renamed").exists(), "the launcher beside that record is left in the worktree");
-    assert!(destination.join(LAUNCHERS).join("own.launch").exists(), "the record the install rewrote is still there");
+    let finding: Finding =
+        repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    assert!(
+        matches!(finding.outcome, Outcome::Repaired { .. }),
+        "an install that did everything its lock asks is not a failed relink: {finding:?}"
+    );
+    assert!(
+        !destination.join(LAUNCHERS).join("renamed.launch").exists(),
+        "the record no install rewrites is left in the worktree"
+    );
+    assert!(
+        !destination.join(LAUNCHERS).join("renamed").exists(),
+        "the launcher beside that record is left in the worktree"
+    );
+    assert!(
+        destination.join(LAUNCHERS).join("own.launch").exists(),
+        "the record the install rewrote is still there"
+    );
     remove(&root);
 }
 
@@ -351,11 +551,24 @@ fn a_record_the_lock_declares_nowhere_is_removed_instead_of_failing_the_relink()
 fn a_worktree_whose_only_stale_records_are_copies_starts_no_install() {
     let (root, destination, bin, environment) = scene("toolchain-only-copies");
     lock(&destination, &["own"]);
-    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "renamed",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     fake_mpm(&root, &bin, &destination, "own", 0);
-    assert!(repair_toolchain(destination.as_path(), &environment).is_none(), "an install was reported for records no install answers for");
-    assert!(!root.join("record").exists(), "an install was started for records no install answers for");
-    assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the copy is left in the worktree");
+    assert!(
+        repair_toolchain(destination.as_path(), &environment).is_none(),
+        "an install was reported for records no install answers for"
+    );
+    assert!(
+        !root.join("record").exists(),
+        "an install was started for records no install answers for"
+    );
+    assert!(
+        !destination.join(LAUNCHERS).join("renamed.launch").exists(),
+        "the copy is left in the worktree"
+    );
     remove(&root);
 }
 
@@ -377,14 +590,35 @@ fn a_worktree_whose_only_stale_records_are_copies_starts_no_install() {
 fn a_record_the_lock_declares_is_still_a_failed_relink_when_the_install_leaves_it_stale() {
     let (root, destination, bin, environment) = scene("toolchain-declared-stays");
     lock(&destination, &["own", "declared"]);
-    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
-    record(&destination, "declared", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "own",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
+    record(
+        &destination,
+        "declared",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     fake_mpm(&root, &bin, &destination, "own", 0);
-    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
-    let Outcome::Failed { reason, run_instead } = finding.outcome else { panic!("a record the lock declares and the install leaves stale is a failure: {finding:?}") };
-    assert!(reason.contains("1 launcher records still name another lock file"), "{reason}");
+    let finding: Finding =
+        repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    let Outcome::Failed {
+        reason,
+        run_instead,
+    } = finding.outcome
+    else {
+        panic!("a record the lock declares and the install leaves stale is a failure: {finding:?}")
+    };
+    assert!(
+        reason.contains("1 launcher records still name another lock file"),
+        "{reason}"
+    );
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
-    assert!(destination.join(LAUNCHERS).join("declared.launch").exists(), "a record the check counts is never removed");
+    assert!(
+        destination.join(LAUNCHERS).join("declared.launch").exists(),
+        "a record the check counts is never removed"
+    );
     remove(&root);
 }
 
@@ -403,15 +637,37 @@ fn a_record_the_lock_declares_is_still_a_failed_relink_when_the_install_leaves_i
 fn the_service_face_removes_the_copies_as_well() {
     let (root, destination, bin, environment) = scene("toolchain-service-copies");
     lock(&destination, &["own"]);
-    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
-    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "own",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
+    record(
+        &destination,
+        "renamed",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     launcher(&destination, "renamed");
     fake_mpm(&root, &bin, &destination, "own", 0);
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime");
-    let finding: Option<Finding> = runtime.block_on(async { return repair_toolchain_awaiting(destination.as_path(), &environment).await });
-    let Some(answered) = finding else { panic!("the record the lock declares is still relinked") };
-    assert!(matches!(answered.outcome, Outcome::Repaired { .. }), "{answered:?}");
-    assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the service face leaves the copy in the worktree");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("a runtime");
+    let finding: Option<Finding> = runtime.block_on(async {
+        return repair_toolchain_awaiting(destination.as_path(), &environment).await;
+    });
+    let Some(answered) = finding else {
+        panic!("the record the lock declares is still relinked")
+    };
+    assert!(
+        matches!(answered.outcome, Outcome::Repaired { .. }),
+        "{answered:?}"
+    );
+    assert!(
+        !destination.join(LAUNCHERS).join("renamed.launch").exists(),
+        "the service face leaves the copy in the worktree"
+    );
     remove(&root);
 }
 
@@ -434,21 +690,44 @@ fn the_service_face_removes_the_copies_as_well() {
 #[test]
 fn a_lock_that_is_a_named_pipe_is_refused_without_waiting() {
     let (root, destination, _bin, environment) = scene("toolchain-lock-pipe");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     make_pipe(destination.join(LOCK_FILE).as_path());
     // Two workers, so a read that blocks on the pipe leaves a worker to time the answer.
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a runtime");
-    let repair = runtime.spawn(async move { return repair_toolchain_awaiting(destination.as_path(), &environment).await; });
-    let answered = runtime.block_on(async { return tokio::time::timeout(PATIENCE, repair).await; });
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("a runtime");
+    let repair = runtime.spawn(async move {
+        return repair_toolchain_awaiting(destination.as_path(), &environment).await;
+    });
+    let answered = runtime.block_on(async {
+        return tokio::time::timeout(PATIENCE, repair).await;
+    });
     // The runtime is never dropped: a read that did block on the pipe holds a worker for ever, and dropping the runtime
     // would wait for that worker, so a control that caught the defect would hang instead of reporting it.
     std::mem::forget(runtime);
     remove(&root);
     let Ok(joined) = answered else {
-        panic!("a toolchain.lock.json that is a named pipe with no writer stopped the repair and every wait that shares its task, and nothing ended the wait")
+        panic!(
+            "a toolchain.lock.json that is a named pipe with no writer stopped the repair and every wait that shares its task, and nothing ended the wait"
+        )
     };
-    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = joined.expect("the repair task") else {
-        panic!("a lock that cannot be read leaves every record counted, which is a failure that names the command")
+    let Some(Finding {
+        outcome: Outcome::Failed {
+            run_instead,
+            ..
+        },
+        ..
+    }) = joined.expect("the repair task")
+    else {
+        panic!(
+            "a lock that cannot be read leaves every record counted, which is a failure that names the command"
+        )
     };
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
 }
@@ -467,7 +746,11 @@ fn a_lock_that_is_a_named_pipe_is_refused_without_waiting() {
 #[test]
 fn the_adds_face_refuses_a_lock_that_is_a_named_pipe_without_waiting() {
     let (root, destination, _bin, environment) = scene("toolchain-lock-pipe-add");
-    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "foreign",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     make_pipe(destination.join(LOCK_FILE).as_path());
     let (answered, answer) = std::sync::mpsc::channel::<Option<Finding>>();
     let thread = std::thread::spawn(move || {
@@ -483,8 +766,23 @@ fn the_adds_face_refuses_a_lock_that_is_a_named_pipe_without_waiting() {
         std::mem::forget(thread);
     }
     remove(&root);
-    let Ok(answered_with) = within_the_patience else { panic!("the add's own repair waited for a toolchain.lock.json that is a named pipe, and nothing ended it") };
-    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = answered_with else { panic!("a lock that cannot be read leaves every record counted, which is a failure that names the command") };
+    let Ok(answered_with) = within_the_patience else {
+        panic!(
+            "the add's own repair waited for a toolchain.lock.json that is a named pipe, and nothing ended it"
+        )
+    };
+    let Some(Finding {
+        outcome: Outcome::Failed {
+            run_instead,
+            ..
+        },
+        ..
+    }) = answered_with
+    else {
+        panic!(
+            "a lock that cannot be read leaves every record counted, which is a failure that names the command"
+        )
+    };
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
 }
 
@@ -511,10 +809,22 @@ fn the_adds_face_refuses_a_lock_that_is_a_named_pipe_without_waiting() {
 fn a_record_the_installer_wrote_in_the_removals_window_is_left_as_it_wrote_it() {
     let (root, destination, _bin, environment) = scene("toolchain-removal-window");
     lock(&destination, &["own"]);
-    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
-    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "own",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
+    record(
+        &destination,
+        "renamed",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     launcher(&destination, "renamed");
-    record(&destination, "gone", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "gone",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     let own_lock: PathBuf = destination.join(LOCK_FILE);
     let launchers: PathBuf = destination.join(LAUNCHERS);
     let installer_lock: PathBuf = own_lock.clone();
@@ -534,11 +844,21 @@ fn a_record_the_installer_wrote_in_the_removals_window_is_left_as_it_wrote_it() 
     });
     let _finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
     // The installer's record names this worktree's lock, so nothing in the pass may remove it or the launcher it wrote.
-    let fresh_record: String = std::fs::read_to_string(launchers.join("renamed.launch")).expect("the installer's record is gone");
-    assert!(fresh_record.contains(own_lock.to_str().expect("utf8")), "the installer's record was replaced: {fresh_record}");
-    assert!(launchers.join("renamed").is_file(), "the installer's launcher is gone");
+    let fresh_record: String = std::fs::read_to_string(launchers.join("renamed.launch"))
+        .expect("the installer's record is gone");
+    assert!(
+        fresh_record.contains(own_lock.to_str().expect("utf8")),
+        "the installer's record was replaced: {fresh_record}"
+    );
+    assert!(
+        launchers.join("renamed").is_file(),
+        "the installer's launcher is gone"
+    );
     // The copy that was still a copy when the removal reached it is gone, record and launcher.
-    assert!(!launchers.join("gone.launch").exists(), "a copy no install rewrites is left behind");
+    assert!(
+        !launchers.join("gone.launch").exists(),
+        "a copy no install rewrites is left behind"
+    );
     remove(&root);
 }
 
@@ -546,7 +866,9 @@ fn a_record_the_installer_wrote_in_the_removals_window_is_left_as_it_wrote_it() 
 /// which is what the name a record is set aside under carries once the pass that set it aside is killed.
 fn dead_process_number() -> u32 {
     loop {
-        let child: std::process::Child = std::process::Command::new("true").spawn().expect("a short-lived process");
+        let child: std::process::Child = std::process::Command::new("true")
+            .spawn()
+            .expect("a short-lived process");
         let pid: u32 = child.id();
         let _waited = child.wait_with_output();
         if !std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
@@ -576,7 +898,11 @@ fn a_record_a_killed_pass_took_aside_is_put_back_by_the_next_pass() {
     let (root, destination, _bin, environment) = scene("toolchain-killed-aside");
     lock(&destination, &["own"]);
     record(&destination, "own", destination.join(LOCK_FILE).as_path());
-    record(&destination, "zzz", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "zzz",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     launcher(&destination, "zzz");
     let own_lock: PathBuf = destination.join(LOCK_FILE);
     let launchers: PathBuf = destination.join(LAUNCHERS);
@@ -593,29 +919,59 @@ fn a_record_a_killed_pass_took_aside_is_put_back_by_the_next_pass() {
             std::fs::write(installer_launchers.join("zzz"), b"#!/bin/sh\n# the installer's launcher\nexit 0\n").expect("the installer's launcher");
         }));
     });
-    crate::package_repair_toolchain::KILLED_AFTER_THE_RECORD_IS_ASIDE.with(|killed: &std::cell::Cell<bool>| killed.set(true));
+    crate::package_repair_toolchain::KILLED_AFTER_THE_RECORD_IS_ASIDE
+        .with(|killed: &std::cell::Cell<bool>| killed.set(true));
     let _killed_pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
-    crate::package_repair_toolchain::KILLED_AFTER_THE_RECORD_IS_ASIDE.with(|killed: &std::cell::Cell<bool>| killed.set(false));
+    crate::package_repair_toolchain::KILLED_AFTER_THE_RECORD_IS_ASIDE
+        .with(|killed: &std::cell::Cell<bool>| killed.set(false));
     // The pass that took a record aside is gone: what it left carries the name of a dead process, which is how the next
     //  pass tells a finished pass from one still running.
     let dead: u32 = dead_process_number();
     let mut left_aside: usize = 0;
-    for entry in std::fs::read_dir(launchers.as_path()).expect("the launcher directory").flatten() {
+    for entry in std::fs::read_dir(launchers.as_path())
+        .expect("the launcher directory")
+        .flatten()
+    {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some((_, owner)) = name.rsplit_once(".removing-") else { continue };
-        let Some((_written_pid, token)) = owner.split_once('-') else { continue };
-        let killed_name: String = format!("{}.removing-{dead}-{token}", name.rsplit_once(".removing-").expect("split").0);
+        let Some((_, owner)) = name.rsplit_once(".removing-") else {
+            continue;
+        };
+        let Some((_written_pid, token)) = owner.split_once('-') else {
+            continue;
+        };
+        let killed_name: String = format!(
+            "{}.removing-{dead}-{token}",
+            name.rsplit_once(".removing-").expect("split").0
+        );
         std::fs::rename(entry.path(), launchers.join(killed_name)).expect("the killed pass's name");
         left_aside += 1;
     }
-    assert!(left_aside <= 1, "one pass leaves one record aside at most: {left_aside}");
+    assert!(
+        left_aside <= 1,
+        "one pass leaves one record aside at most: {left_aside}"
+    );
     let _next_pass: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
-    let record_after: String = std::fs::read_to_string(launchers.join("zzz.launch")).unwrap_or_default();
-    assert!(record_after.contains(own_lock.to_str().expect("utf8")), "the installer's record is not where it belongs: {record_after:?}");
+    let record_after: String =
+        std::fs::read_to_string(launchers.join("zzz.launch")).unwrap_or_default();
+    assert!(
+        record_after.contains(own_lock.to_str().expect("utf8")),
+        "the installer's record is not where it belongs: {record_after:?}"
+    );
     let launcher_after: String = std::fs::read_to_string(launchers.join("zzz")).unwrap_or_default();
-    assert!(launcher_after.contains("the installer's launcher"), "the installer's launcher is not the one beside it: {launcher_after:?}");
-    let leftovers: Vec<String> = std::fs::read_dir(launchers.as_path()).expect("the launcher directory").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).filter(|name| return name.contains(".removing-")).collect();
-    assert!(leftovers.is_empty(), "a record is still aside after the pass that follows: {leftovers:?}");
+    assert!(
+        launcher_after.contains("the installer's launcher"),
+        "the installer's launcher is not the one beside it: {launcher_after:?}"
+    );
+    let leftovers: Vec<String> = std::fs::read_dir(launchers.as_path())
+        .expect("the launcher directory")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| return name.contains(".removing-"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "a record is still aside after the pass that follows: {leftovers:?}"
+    );
     remove(&root);
 }
 
@@ -644,13 +1000,23 @@ fn a_record_that_names_this_worktrees_lock_by_another_spelling_is_never_removed(
     std::fs::create_dir_all(destination.join("sub")).expect("a directory to walk into");
     record(&destination, "via-link", alias.join(LOCK_FILE).as_path());
     launcher(&destination, "via-link");
-    record(&destination, "via-dots", destination.join("sub/../toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "via-dots",
+        destination.join("sub/../toolchain.lock.json").as_path(),
+    );
     launcher(&destination, "via-dots");
     let _finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
     let launchers: PathBuf = destination.join(LAUNCHERS);
     for name in ["via-link", "via-dots"] {
-        assert!(launchers.join(format!("{name}.launch")).is_file(), "a record naming this worktree's lock through {name} was removed");
-        assert!(launchers.join(name).is_file(), "the launcher beside {name}'s record was removed");
+        assert!(
+            launchers.join(format!("{name}.launch")).is_file(),
+            "a record naming this worktree's lock through {name} was removed"
+        );
+        assert!(
+            launchers.join(name).is_file(),
+            "the launcher beside {name}'s record was removed"
+        );
     }
     remove(&root);
 }
@@ -674,7 +1040,8 @@ fn a_record_that_names_this_worktrees_lock_by_another_spelling_is_never_removed(
 #[test]
 fn a_record_a_killed_pass_left_where_its_name_is_taken_is_kept_and_named_for_the_person() {
     let (root, destination, _bin, environment) = scene("toolchain-kept-aside");
-    std::fs::create_dir_all(destination.join(".git")).expect("a Git directory to leave the words in");
+    std::fs::create_dir_all(destination.join(".git"))
+        .expect("a Git directory to leave the words in");
     lock(&destination, &["own"]);
     record(&destination, "own", destination.join(LOCK_FILE).as_path());
     let launchers: PathBuf = destination.join(LAUNCHERS);
@@ -682,18 +1049,52 @@ fn a_record_a_killed_pass_left_where_its_name_is_taken_is_kept_and_named_for_the
     let dead: u32 = dead_process_number();
     let aside: PathBuf = launchers.join(format!("zzz.launch.removing-{dead}-0"));
     let own_lock: PathBuf = destination.join(LOCK_FILE);
-    let kept: String = format!("{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/zzz\",\"scope\":\"repo\"}}\n", own_lock.display());
+    let kept: String = format!(
+        "{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/zzz\",\"scope\":\"repo\"}}\n",
+        own_lock.display()
+    );
     std::fs::write(aside.as_path(), kept.as_bytes()).expect("the killed pass's record");
     // Another record stands at the name by the time the next pass reads it.
-    record(&destination, "zzz", root.join("source/toolchain.lock.json").as_path());
+    record(
+        &destination,
+        "zzz",
+        root.join("source/toolchain.lock.json").as_path(),
+    );
     let _finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
-    assert!(aside.is_file(), "the record a killed pass left aside was discarded");
-    assert_eq!(std::fs::read_to_string(aside.as_path()).expect("the kept record"), kept, "the kept record is not the one that was left");
-    let told: Vec<String> = crate::package_repair_relink_notice::take_notices(destination.join(".git").as_path());
-    assert_eq!(told.len(), 1, "the person is not told about the record that was kept: {told:?}");
+    assert!(
+        aside.is_file(),
+        "the record a killed pass left aside was discarded"
+    );
+    assert_eq!(
+        std::fs::read_to_string(aside.as_path()).expect("the kept record"),
+        kept,
+        "the kept record is not the one that was left"
+    );
+    let told: Vec<String> =
+        crate::package_repair_relink_notice::take_notices(destination.join(".git").as_path());
+    assert_eq!(
+        told.len(),
+        1,
+        "the person is not told about the record that was kept: {told:?}"
+    );
     let words: &String = &told[0];
-    assert!(words.contains(aside.to_str().expect("utf8")), "the line does not name the file that was kept: {words}");
-    assert!(words.contains("mv -- "), "the line does not name the command that puts it back: {words}");
-    assert!(words.contains(destination.join(LAUNCHERS).join("zzz.launch").to_str().expect("utf8")), "the line does not name where it belongs: {words}");
+    assert!(
+        words.contains(aside.to_str().expect("utf8")),
+        "the line does not name the file that was kept: {words}"
+    );
+    assert!(
+        words.contains("mv -- "),
+        "the line does not name the command that puts it back: {words}"
+    );
+    assert!(
+        words.contains(
+            destination
+                .join(LAUNCHERS)
+                .join("zzz.launch")
+                .to_str()
+                .expect("utf8")
+        ),
+        "the line does not name where it belongs: {words}"
+    );
     remove(&root);
 }

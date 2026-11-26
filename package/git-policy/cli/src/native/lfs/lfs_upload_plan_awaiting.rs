@@ -20,16 +20,42 @@
 //! const plan = await planUploadOnTheRuntime(globalPrefix, region, env, directory, settings, query); // { remotes, refs, everything }
 //! ```
 
+/// Whether the destination confirms this clone's tracking refs.
+use crate::lfs_destination_confirms_tracking_refs::{
+    ConfirmedTrackingRefs,
+    DestinationHeads,
+    tracking_refs_confirmed_by_awaiting,
+};
+use crate::lfs_upload_plan::{
+    Source,
+    UploadPlan,
+    directory_of,
+    lfs_server_of,
+    names_of,
+    refspec_source,
+    star_split,
+};
 /// What the arguments and the configuration decide before Git is asked anything.
 use crate::lfs_upload_plan_arguments::{
-    Destinations, a_bare_push, a_branch_is_needed, destinations_of, remote_name_of, same_place, specs_of, submodules_of, the_plan, unique_refs,
+    Destinations,
+    a_bare_push,
+    a_branch_is_needed,
+    destinations_of,
+    remote_name_of,
+    same_place,
+    specs_of,
+    submodules_of,
+    the_plan,
+    unique_refs,
     uploads_nothing,
 };
-/// Whether the destination confirms this clone's tracking refs.
-use crate::lfs_destination_confirms_tracking_refs::{ConfirmedTrackingRefs, DestinationHeads, tracking_refs_confirmed_by_awaiting};
 /// The configuration the plan reads.
-use crate::lfs_upload_settings::{PlanError, QueryAwaiting, current_branch_awaiting, git_says_true_awaiting};
-use crate::lfs_upload_plan::{Source, UploadPlan, directory_of, lfs_server_of, names_of, refspec_source, star_split};
+use crate::lfs_upload_settings::{
+    PlanError,
+    QueryAwaiting,
+    current_branch_awaiting,
+    git_says_true_awaiting,
+};
 /// Owned OS text for arguments.
 use std::ffi::OsString;
 /// Locations.
@@ -72,21 +98,37 @@ pub async fn plan_upload_awaiting(
         return Ok(None);
     };
     let submodules: bool = submodules_of(&shape);
-    let branch: Option<String> = if a_branch_is_needed(&shape) { current_branch_awaiting(query).await? } else { None };
+    let branch: Option<String> = if a_branch_is_needed(&shape) {
+        current_branch_awaiting(query).await?
+    } else {
+        None
+    };
     let remote_name: OsString = remote_name_of(&shape, branch.as_deref(), all);
     let remote_text: String = remote_name.to_string_lossy().into_owned();
     let mirror_is_set: bool = match a_bare_push(&shape, shape.mirror) {
-        true => git_says_true_awaiting(all, format!("remote.{remote_text}.mirror").as_str(), query).await?,
+        true => {
+            git_says_true_awaiting(all, format!("remote.{remote_text}.mirror").as_str(), query)
+                .await?
+        }
         false => false,
     };
-    let (everything, specs): (bool, Vec<OsString>) = specs_of(&shape, remote_text.as_str(), branch.as_deref(), all, shape.mirror, mirror_is_set);
+    let (everything, specs): (bool, Vec<OsString>) = specs_of(
+        &shape,
+        remote_text.as_str(),
+        branch.as_deref(),
+        all,
+        shape.mirror,
+        mirror_is_set,
+    );
     let mut refs: Vec<OsString> = Vec::new();
     for spec in &specs {
         match refspec_source(spec.as_os_str()) {
             Source::Deletion => {}
             Source::Matching => refs.extend(list_awaiting(query, "refs/heads", None).await?),
             Source::Named(source) => match source.to_str() {
-                Some(text) if text.contains('*') => refs.extend(expand_pattern_awaiting(query, text).await?),
+                Some(text) if text.contains('*') => {
+                    refs.extend(expand_pattern_awaiting(query, text).await?)
+                }
                 _ => refs.push(source),
             },
         }
@@ -101,7 +143,8 @@ pub async fn plan_upload_awaiting(
     if listed.is_empty() && !everything {
         return Ok(None);
     }
-    let destinations: Destinations<'_> = destinations_of(&remote_name, remote_text.as_str(), directory, all);
+    let destinations: Destinations<'_> =
+        destinations_of(&remote_name, remote_text.as_str(), directory, all);
     // The destination confirms this clone's tracking refs ref by ref, where it is one the clone both fetches from and
     //  pushes to; every other destination is asked nothing and its upload stops nowhere.
     let evidence: ConfirmedTrackingRefs = if same_place(&destinations, everything, all) {
@@ -111,10 +154,16 @@ pub async fn plan_upload_awaiting(
     };
     let full_scan: bool = everything || !evidence.every_tracking_ref_is_confirmed();
     let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
-    return Ok(Some(the_plan(destinations, listed, everything, submodules, full_scan, evidence.names().to_vec(), lfs_server)));
+    return Ok(Some(the_plan(
+        destinations,
+        listed,
+        everything,
+        submodules,
+        full_scan,
+        evidence.names().to_vec(),
+        lfs_server,
+    )));
 }
-
-
 
 /// What:
 ///  The same listing,
@@ -129,8 +178,15 @@ pub async fn plan_upload_awaiting(
 /// ```ts
 /// await listOnTheRuntime(query, prefix, pattern);
 /// ```
-async fn list_awaiting(query: QueryAwaiting<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result<Vec<OsString>, PlanError> {
-    let listing: String = match query.ask(&["for-each-ref", "--format=%(refname)", prefix]).await {
+async fn list_awaiting(
+    query: QueryAwaiting<'_>,
+    prefix: &str,
+    pattern: Option<(&str, &str)>,
+) -> Result<Vec<OsString>, PlanError> {
+    let listing: String = match query
+        .ask(&["for-each-ref", "--format=%(refname)", prefix])
+        .await
+    {
         Ok(text) => text,
         Err(why) => return Err(PlanError(format!("git for-each-ref {prefix}: {why}"))),
     };
@@ -153,6 +209,9 @@ async fn list_awaiting(query: QueryAwaiting<'_>, prefix: &str, pattern: Option<(
 /// ```ts
 /// await expandPatternOnTheRuntime(query, pattern);
 /// ```
-async fn expand_pattern_awaiting(query: QueryAwaiting<'_>, pattern: &str) -> Result<Vec<OsString>, PlanError> {
+async fn expand_pattern_awaiting(
+    query: QueryAwaiting<'_>,
+    pattern: &str,
+) -> Result<Vec<OsString>, PlanError> {
     return list_awaiting(query, directory_of(pattern), Some(star_split(pattern))).await;
 }

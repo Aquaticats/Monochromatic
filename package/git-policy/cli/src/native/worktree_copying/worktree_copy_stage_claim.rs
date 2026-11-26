@@ -22,18 +22,46 @@
 //! const notices = await reapAbandonedStages(commonDir);
 //! ```
 
-use crate::add_timing::{begin_step, end_step};
-use crate::path_bytes_in_records::{hex_of_path, text_in_one_line};
+use crate::add_timing::{
+    begin_step,
+    end_step,
+};
+use crate::path_bytes_in_records::{
+    hex_of_path,
+    text_in_one_line,
+};
 use crate::private_storage::sync_directory;
-use crate::worktree_add_binding::{Binding, OwedCopy, planned_record_with};
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner};
-use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic, write_atomic_unsynced};
+use crate::worktree_add_binding::{
+    Binding,
+    OwedCopy,
+    planned_record_with,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_journal::{
+    ensure_journal_root,
+    journal_root,
+    write_atomic,
+    write_atomic_unsynced,
+};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
-use crate::worktree_copy_selection::{STAGE_PREFIX, by_js_order};
+use crate::worktree_copy_owner::{
+    CopyOwner,
+    current_copy_owner,
+};
+use crate::worktree_copy_selection::{
+    STAGE_PREFIX,
+    by_js_order,
+};
 use crate::worktree_copy_stage::new_stage_container;
 use crate::worktree_copy_stage_made_object::remove_made;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The suffix of a stage claim file.
@@ -83,7 +111,11 @@ impl StageClaim {
     /// ```ts
     /// StageClaim.adopt({ path, container, destinationRecord })
     /// ```
-    pub fn adopted(path: &Path, container: &Path, destination_record: Option<&Path>) -> Option<StageClaim> {
+    pub fn adopted(
+        path: &Path,
+        container: &Path,
+        destination_record: Option<&Path>,
+    ) -> Option<StageClaim> {
         if path.file_name().is_none() || container.file_name().is_none() {
             return None;
         }
@@ -108,7 +140,9 @@ impl StageClaim {
     /// claim.identifier(); // the file stem, e.g. '0247e85a-...'
     /// ```
     pub fn identifier(&self) -> String {
-        let Some(stem) = self.path.file_stem() else { return String::new() };
+        let Some(stem) = self.path.file_stem() else {
+            return String::new();
+        };
         return stem.to_string_lossy().into_owned();
     }
 
@@ -141,7 +175,11 @@ impl StageClaim {
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
         let file_entered: bool = begin_step("markCompleteFile");
-        let marked: Result<(), WorktreeCopyError> = write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker");
+        let marked: Result<(), WorktreeCopyError> = write_atomic(
+            self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(),
+            b"complete",
+            "completion marker",
+        );
         end_step(file_entered);
         marked?;
         if let Some(parent) = self.path.parent() {
@@ -175,7 +213,11 @@ impl StageClaim {
     /// ```
     pub fn mark_complete_unsynced(&self) -> Result<(), WorktreeCopyError> {
         let file_entered: bool = begin_step("markCompleteFile");
-        let marked: Result<(), WorktreeCopyError> = write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker");
+        let marked: Result<(), WorktreeCopyError> = write_atomic_unsynced(
+            self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(),
+            b"complete",
+            "completion marker",
+        );
         end_step(file_entered);
         return marked;
     }
@@ -244,10 +286,22 @@ impl StageClaim {
     /// ```ts
     /// claim.rememberRunningChild(destination, childPid);
     /// ```
-    pub fn remember_running_child(&self, destination: &Path, child_pid: u32) {
-        let Some(record) = self.destination_record.as_deref() else { return };
-        let Ok(text) = std::fs::read_to_string(record) else { return };
-        if crate::worktree_add_binding::decode_record(text.as_str()) != Some(crate::worktree_add_binding::Recorded::Planned(destination.to_path_buf())) {
+    pub fn remember_running_child(
+        &self,
+        destination: &Path,
+        child_pid: u32,
+    ) {
+        let Some(record) = self.destination_record.as_deref() else {
+            return;
+        };
+        let Ok(text) = std::fs::read_to_string(record) else {
+            return;
+        };
+        if crate::worktree_add_binding::decode_record(text.as_str())
+            != Some(crate::worktree_add_binding::Recorded::Planned(
+                destination.to_path_buf(),
+            ))
+        {
             return;
         }
         let Some(child) = crate::worktree_copy_owner::copy_owner_of_process(child_pid) else {
@@ -255,23 +309,51 @@ impl StageClaim {
             return;
         };
         // The copy this add owes survives the rewriting: the name of its Git is written beside the source, not instead of it.
-        if let Err(error) = write_atomic_unsynced(record, crate::worktree_add_binding::planned_record_with(destination, crate::worktree_add_binding::owed_copy_of(text.as_str()).as_ref(), Some(&child)).as_bytes(), "destination record") {
-            crate::diagnostic_log::debug("worktreeCopyStageClaim", format!("the Git of {} could not be named in its record ({}); the record stays unnamed", destination.display(), error.0).as_str());
+        if let Err(error) = write_atomic_unsynced(
+            record,
+            crate::worktree_add_binding::planned_record_with(
+                destination,
+                crate::worktree_add_binding::owed_copy_of(text.as_str()).as_ref(),
+                Some(&child),
+            )
+            .as_bytes(),
+            "destination record",
+        ) {
+            crate::diagnostic_log::debug(
+                "worktreeCopyStageClaim",
+                format!(
+                    "the Git of {} could not be named in its record ({}); the record stays unnamed",
+                    destination.display(),
+                    error.0
+                )
+                .as_str(),
+            );
         }
     }
 
-    pub fn record_binding(&self, binding: &Binding) -> Result<(), WorktreeCopyError> {
-        let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
+    pub fn record_binding(
+        &self,
+        binding: &Binding,
+    ) -> Result<(), WorktreeCopyError> {
+        let Some(record) = self.destination_record.as_deref() else {
+            return Ok(());
+        };
         // The copy the add owes is a line of the record this write replaces, so it is read out and written again: a
         // record that lost it would name a worktree no later command could fill.
-        let owed: Option<crate::worktree_add_binding::OwedCopy> = match std::fs::read_to_string(record) {
-            Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
-            Err(_unreadable) => None,
-        };
+        let owed: Option<crate::worktree_add_binding::OwedCopy> =
+            match std::fs::read_to_string(record) {
+                Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
+                Err(_unreadable) => None,
+            };
         // Published whole by one rename and flushed by nobody: this write waited 2.7 to 3.4 seconds of a loaded add
         // (measured 2026-11-11), a kill keeps it in the page cache, and a record a power cut takes back only makes a later
         // command keep and report the objects it names, which is the safe direction.
-        write_atomic_unsynced(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
+        write_atomic_unsynced(
+            record,
+            crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None)
+                .as_bytes(),
+            "destination record",
+        )?;
         return Ok(());
     }
 
@@ -389,7 +471,10 @@ pub(crate) const CONTAINER_HEX_PREFIX: &str = "containerHex=";
 /// ```ts
 /// `${textInOneLine(container) ?? ''}\n${CONTAINER_HEX_PREFIX}${hexOfPath(container)}\n${OWNER_LINE_PREFIX}${owner.token()}\n`
 /// ```
-fn claim_text(container: &Path, owner: &CopyOwner) -> String {
+fn claim_text(
+    container: &Path,
+    owner: &CopyOwner,
+) -> String {
     return claim_text_for(container, Some(owner));
 }
 
@@ -406,7 +491,10 @@ fn claim_text(container: &Path, owner: &CopyOwner) -> String {
 /// ```ts
 /// `${textInOneLine(container) ?? ''}\n${CONTAINER_HEX_PREFIX}${hexOfPath(container)}\n` + (owner ? `${OWNER_LINE_PREFIX}${owner.token()}\n` : '')
 /// ```
-fn claim_text_for(container: &Path, owner: Option<&CopyOwner>) -> String {
+fn claim_text_for(
+    container: &Path,
+    owner: Option<&CopyOwner>,
+) -> String {
     let mut text: String = String::new();
     if let Some(line) = text_in_one_line(container) {
         text.push_str(line);
@@ -439,8 +527,15 @@ fn claim_text_for(container: &Path, owner: Option<&CopyOwner>) -> String {
 /// ```ts
 /// await rewriteClaim({ claim, container });
 /// ```
-pub fn rewrite_claim(claim: &Path, container: &Path) -> Result<(), WorktreeCopyError> {
-    return write_atomic_unsynced(claim, claim_text_for(container, None).as_bytes(), "stage claim");
+pub fn rewrite_claim(
+    claim: &Path,
+    container: &Path,
+) -> Result<(), WorktreeCopyError> {
+    return write_atomic_unsynced(
+        claim,
+        claim_text_for(container, None).as_bytes(),
+        "stage claim",
+    );
 }
 
 /// What:
@@ -517,9 +612,15 @@ fn claim_stage_for_writing(
     // `match` on the flushing the caller asked for: the two writers differ in nothing else.
     match write {
         RecordWrite::Durable => write_atomic(path.as_path(), text.as_bytes(), "stage claim")?,
-        RecordWrite::Unflushed => write_atomic_unsynced(path.as_path(), text.as_bytes(), "stage claim")?,
+        RecordWrite::Unflushed => {
+            write_atomic_unsynced(path.as_path(), text.as_bytes(), "stage claim")?
+        }
     }
-    return Ok(StageClaim { path, container, destination_record: None });
+    return Ok(StageClaim {
+        path,
+        container,
+        destination_record: None,
+    });
 }
 
 /// What:
@@ -536,7 +637,10 @@ fn claim_stage_for_writing(
 /// ```ts
 /// const claim = claimNamingStage(commonDir, container); // undefined when no claim names it
 /// ```
-pub fn claim_naming_stage(common_dir: &Path, container: &Path) -> Option<StageClaim> {
+pub fn claim_naming_stage(
+    common_dir: &Path,
+    container: &Path,
+) -> Option<StageClaim> {
     let name: &str = container.file_name()?.to_str()?;
     let identifier: &str = name.strip_prefix(STAGE_PREFIX)?;
     if identifier.is_empty() {
@@ -574,9 +678,22 @@ pub(crate) const DESTINATION_SUFFIX: &str = ".add";
 /// ```ts
 /// const claim = copies && destination ? await claimStageForAdd({ commonDir, destinationRoot, owed }) : undefined;
 /// ```
-pub fn claim_stage_for_creation(common_dir: &Path, destination: Option<&Path>, copies: bool, owed: Option<&OwedCopy>) -> Result<Option<StageClaim>, WorktreeCopyError> {
-    let (true, Some(destination_root)) = (copies, destination) else { return Ok(None) };
-    return claim_stage_for_add_as_owing(common_dir, destination_root, &current_copy_owner()?, owed).map(Some);
+pub fn claim_stage_for_creation(
+    common_dir: &Path,
+    destination: Option<&Path>,
+    copies: bool,
+    owed: Option<&OwedCopy>,
+) -> Result<Option<StageClaim>, WorktreeCopyError> {
+    let (true, Some(destination_root)) = (copies, destination) else {
+        return Ok(None);
+    };
+    return claim_stage_for_add_as_owing(
+        common_dir,
+        destination_root,
+        &current_copy_owner()?,
+        owed,
+    )
+    .map(Some);
 }
 
 /// The suffix of the marker that says the worktree add the claim covers is complete.
@@ -594,7 +711,10 @@ pub(crate) const COMPLETE_SUFFIX: &str = ".done";
 /// ```ts
 /// const claim = await claimStageForAdd({ commonDir, destinationRoot });
 /// ```
-pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result<StageClaim, WorktreeCopyError> {
+pub fn claim_stage_for_add(
+    common_dir: &Path,
+    destination_root: &Path,
+) -> Result<StageClaim, WorktreeCopyError> {
     return claim_stage_for_add_as(common_dir, destination_root, &current_copy_owner()?);
 }
 
@@ -609,7 +729,11 @@ pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result
 /// ```ts
 /// const claim = await claimStageForAddAs({ commonDir, destinationRoot, owner });
 /// ```
-pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner: &CopyOwner) -> Result<StageClaim, WorktreeCopyError> {
+pub fn claim_stage_for_add_as(
+    common_dir: &Path,
+    destination_root: &Path,
+    owner: &CopyOwner,
+) -> Result<StageClaim, WorktreeCopyError> {
     return claim_stage_for_add_as_owing(common_dir, destination_root, owner, None);
 }
 
@@ -637,14 +761,24 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 /// ```ts
 /// const claim = await claimStageForAddAsOwing({ commonDir, destinationRoot, owner, owed });
 /// ```
-pub fn claim_stage_for_add_as_owing(common_dir: &Path, destination_root: &Path, owner: &CopyOwner, owed: Option<&OwedCopy>) -> Result<StageClaim, WorktreeCopyError> {
+pub fn claim_stage_for_add_as_owing(
+    common_dir: &Path,
+    destination_root: &Path,
+    owner: &CopyOwner,
+    owed: Option<&OwedCopy>,
+) -> Result<StageClaim, WorktreeCopyError> {
     // Neither record is flushed: a `git worktree add` waited 15 to 44 seconds for these two writes under load (a loaded
     // host of 2026-11-11, `recordDestination` in the add timing record), and a kill keeps both in the page cache. What a
     // power cut can take away is the report of an interrupted add and the name of a stage nothing else removes, and the
     // next command answers a missing record at once (`settle_interrupted_add`) rather than losing anything of the person's.
-    let mut claim: StageClaim = claim_stage_for_writing(common_dir, destination_root, owner, RecordWrite::Unflushed)?;
+    let mut claim: StageClaim =
+        claim_stage_for_writing(common_dir, destination_root, owner, RecordWrite::Unflushed)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
-    write_atomic_unsynced(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
+    write_atomic_unsynced(
+        record.as_path(),
+        planned_record_with(destination_root, owed, None).as_bytes(),
+        "destination record",
+    )?;
     claim.destination_record = Some(record);
     return Ok(claim);
 }

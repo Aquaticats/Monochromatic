@@ -28,8 +28,14 @@
 use crate::earlier_log_lines_added_to_current_log::FoldSteps;
 use crate::private_storage::sync_directory;
 use crate::rename_that_never_replaces::rename_noreplace;
-use crate::wrapper_names_old_and_new::{KEPT_BESIDE_SUFFIX, RenamedName};
-use std::path::{Path, PathBuf};
+use crate::wrapper_names_old_and_new::{
+    KEPT_BESIDE_SUFFIX,
+    RenamedName,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How the merge of one folder ended.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -100,18 +106,26 @@ fn kept_beside_name(name: &std::ffi::OsStr) -> std::ffi::OsString {
 /// # Errors
 /// A failure of the file system (a read-only Git directory) is returned at the first entry that cannot move;
 /// the entries already moved stay moved and the rest stay in the earlier folder.
-pub fn fold_folder(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> std::io::Result<FolderFold> {
+pub fn fold_folder(
+    parent: &Path,
+    name: RenamedName,
+    steps: &mut dyn FoldSteps,
+) -> std::io::Result<FolderFold> {
     let earlier: PathBuf = parent.join(name.earlier);
     let current: PathBuf = parent.join(name.current);
     if !is_real_folder(earlier.as_path()) {
         // A file or a link under the earlier name is not a folder this fold knows how to merge.
         return match std::fs::symlink_metadata(earlier.as_path()) {
-            Ok(_) => Ok(FolderFold::Left { kept: vec![earlier] }),
+            Ok(_) => Ok(FolderFold::Left {
+                kept: vec![earlier],
+            }),
             Err(_) => Ok(FolderFold::Nothing),
         };
     }
     if !is_real_folder(current.as_path()) {
-        return Ok(FolderFold::Left { kept: vec![current] });
+        return Ok(FolderFold::Left {
+            kept: vec![current],
+        });
     }
     let mut moved: usize = 0;
     let mut kept: Vec<PathBuf> = Vec::new();
@@ -144,11 +158,14 @@ pub fn fold_folder(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) 
                         pending.push((source, target));
                         continue;
                     }
-                    let beside: PathBuf = into_folder.join(kept_beside_name(entry_name.as_os_str()));
+                    let beside: PathBuf =
+                        into_folder.join(kept_beside_name(entry_name.as_os_str()));
                     match rename_noreplace(source.as_path(), beside.as_path()) {
                         Ok(()) => moved += 1,
                         Err(second) if second.kind() == std::io::ErrorKind::NotFound => {}
-                        Err(second) if second.kind() == std::io::ErrorKind::AlreadyExists => kept.push(source),
+                        Err(second) if second.kind() == std::io::ErrorKind::AlreadyExists => {
+                            kept.push(source)
+                        }
                         Err(second) => return Err(second),
                     }
                 }
@@ -173,15 +190,25 @@ pub fn fold_folder(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) 
     let _durable = sync_directory(parent);
     if is_real_folder(earlier.as_path()) {
         if !kept.is_empty() {
-            return Ok(FolderFold::Left { kept });
+            return Ok(FolderFold::Left {
+                kept,
+            });
         }
         return match top_removal_error {
             // Not empty: entries that an earlier program created during the merge stay for the next run.
-            Some(error) if error.kind() != std::io::ErrorKind::DirectoryNotEmpty => Ok(FolderFold::NotRemoved { reason: error.to_string() }),
-            _ => Ok(FolderFold::Left { kept: vec![earlier] }),
+            Some(error) if error.kind() != std::io::ErrorKind::DirectoryNotEmpty => {
+                Ok(FolderFold::NotRemoved {
+                    reason: error.to_string(),
+                })
+            }
+            _ => Ok(FolderFold::Left {
+                kept: vec![earlier],
+            }),
         };
     }
-    return Ok(FolderFold::Folded { moved });
+    return Ok(FolderFold::Folded {
+        moved,
+    });
 }
 
 #[cfg(test)]

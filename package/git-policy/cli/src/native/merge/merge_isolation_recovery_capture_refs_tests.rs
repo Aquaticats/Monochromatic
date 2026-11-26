@@ -16,12 +16,32 @@
 //! ```
 
 use super::super::*;
-use super::fixtures::{World, an_earlier_releases_name, dead_owner, half_carried, place, world};
+use super::fixtures::{
+    World,
+    an_earlier_releases_name,
+    dead_owner,
+    half_carried,
+    place,
+    world,
+};
 use super::readings::the_mode_git_checks_out;
-use crate::merge_isolation_journal::{intent_path, parse_merge_intent, write_merge_intent};
-use crate::test_support::{REAL_GIT, executable, git, git_text, remove};
-use std::path::{Path, PathBuf};
+use crate::merge_isolation_journal::{
+    intent_path,
+    parse_merge_intent,
+    write_merge_intent,
+};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    git,
+    git_text,
+    remove,
+};
 use crate::transaction_owner::current_transaction_owner;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A merge that wrote its record after the owners were read keeps its copy in the merge's own hands.
@@ -49,7 +69,8 @@ fn a_merge_that_wrote_its_record_after_the_owners_were_read_keeps_its_copy() {
     crate::service_fault::hooks::set(
         "recovery-owners-planned",
         std::rc::Rc::new(move || {
-            let owner = current_transaction_owner(id, "2026-10-29T00:00:00.000Z").expect("the live owner");
+            let owner =
+                current_transaction_owner(id, "2026-10-29T00:00:00.000Z").expect("the live owner");
             let intent: MergeIntent = MergeIntent {
                 owner,
                 repository_root: repository.clone(),
@@ -62,12 +83,18 @@ fn a_merge_that_wrote_its_record_after_the_owners_were_read_keeps_its_copy() {
             write_merge_intent(git_directory.as_path(), &intent).expect("the new live record");
             let location = repository.join("f.txt");
             let aside = crate::merge_isolation_take_aside_names::aside_name(location.as_path(), id);
-            std::fs::write(aside.as_path(), b"the live merge's copy\n").expect("the live merge's copy");
-            crate::merge_isolation_kept_copies::keep_the_copy(git_directory.as_path(), location.as_path(), aside.as_path());
+            std::fs::write(aside.as_path(), b"the live merge's copy\n")
+                .expect("the live merge's copy");
+            crate::merge_isolation_kept_copies::keep_the_copy(
+                git_directory.as_path(),
+                location.as_path(),
+                aside.as_path(),
+            );
             std::fs::remove_file(location.as_path()).expect("the live merge cleared the path");
         }),
     );
-    let attempted = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new());
+    let attempted =
+        recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new());
     crate::service_fault::hooks::clear();
     attempted.expect("recovery");
     assert!(
@@ -100,17 +127,30 @@ fn a_saved_merge_writes_the_mode_git_writes_over_a_permission_set_after_the_capt
     let world: World = world("merge-recovery-saved-merge-mode");
     let id: &str = "62626262-0000-4000-8000-000000000062";
     let side_ref: &str = "refs/cli-git/kept/62";
-    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n").expect("the person's edit");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
+        .expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture = crate::merge_isolation_carry::keep_capture(
         &context,
         world.repo.as_path(),
-        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+        &crate::merge_isolation_carry::capture_work(
+            &context,
+            world.repo.as_path(),
+            &[b"f.txt".to_vec()],
+        )
+        .expect("the capture"),
     )
     .expect("kept");
     use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(world.repo.join("f.txt"), std::fs::Permissions::from_mode(0o600)).expect("the newer chmod");
-    git(world.repo.as_path(), &["update-ref", side_ref, world.new_oid.as_str()]);
+    std::fs::set_permissions(
+        world.repo.join("f.txt"),
+        std::fs::Permissions::from_mode(0o600),
+    )
+    .expect("the newer chmod");
+    git(
+        world.repo.as_path(),
+        &["update-ref", side_ref, world.new_oid.as_str()],
+    );
     let intent: MergeIntent = MergeIntent {
         owner: dead_owner(id),
         repository_root: world.repo.clone(),
@@ -120,12 +160,26 @@ fn a_saved_merge_writes_the_mode_git_writes_over_a_permission_set_after_the_capt
         side_ref: Some(String::from(side_ref)),
         carried: Some(capture),
     };
-    let _record: PathBuf = write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
-    let mode = std::fs::metadata(world.repo.join("f.txt")).expect("metadata").permissions().mode() & 0o777;
+    let _record: PathBuf =
+        write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
+    let outcomes =
+        recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new())
+            .expect("recovery");
+    let mode = std::fs::metadata(world.repo.join("f.txt"))
+        .expect("metadata")
+        .permissions()
+        .mode()
+        & 0o777;
     let after = std::fs::read(world.repo.join("f.txt")).expect("f.txt");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge is made over the person's own bytes");
-    assert!(String::from_utf8_lossy(after.as_slice()).contains("the person's line"), "their line is carried");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::Completed,
+        "the merge is made over the person's own bytes"
+    );
+    assert!(
+        String::from_utf8_lossy(after.as_slice()).contains("the person's line"),
+        "their line is carried"
+    );
     assert_eq!(
         mode,
         the_mode_git_checks_out(&world, "f.txt"),
@@ -155,12 +209,25 @@ fn a_copy_with_a_special_permission_the_path_does_not_have_stays() {
     std::fs::write(location.as_path(), b"same uncommitted bytes\n").expect("the location");
     std::fs::write(aside.as_path(), b"same uncommitted bytes\n").expect("the copy");
     use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the location mode");
-    std::fs::set_permissions(aside.as_path(), std::fs::Permissions::from_mode(0o4755)).expect("the copy's setuid mode");
-    crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
-    recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
-    let mode = std::fs::metadata(location.as_path()).expect("metadata").permissions().mode();
-    assert!(aside.exists(), "the only entry carrying the setuid bit was removed; the path's mode is {mode:o}");
+    std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("the location mode");
+    std::fs::set_permissions(aside.as_path(), std::fs::Permissions::from_mode(0o4755))
+        .expect("the copy's setuid mode");
+    crate::merge_isolation_kept_copies::keep_the_copy(
+        world.git_dir.as_path(),
+        location.as_path(),
+        aside.as_path(),
+    );
+    recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new())
+        .expect("recovery");
+    let mode = std::fs::metadata(location.as_path())
+        .expect("metadata")
+        .permissions()
+        .mode();
+    assert!(
+        aside.exists(),
+        "the only entry carrying the setuid bit was removed; the path's mode is {mode:o}"
+    );
     remove(world.parent.as_path());
 }
 
@@ -189,15 +256,24 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
     let first_id: &str = "11111111-0000-4000-8000-000000000071";
     let saved_id: &str = "22222222-0000-4000-8000-000000000072";
     let saved_ref: &str = "refs/cli-git/kept/72";
-    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n").expect("the person's edit");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
+        .expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture = crate::merge_isolation_carry::keep_capture(
         &context,
         world.repo.as_path(),
-        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+        &crate::merge_isolation_carry::capture_work(
+            &context,
+            world.repo.as_path(),
+            &[b"f.txt".to_vec()],
+        )
+        .expect("the capture"),
     )
     .expect("kept");
-    let reference: String = capture.reference.clone().expect("the ref that keeps the capture");
+    let reference: String = capture
+        .reference
+        .clone()
+        .expect("the ref that keeps the capture");
     let first: MergeIntent = MergeIntent {
         owner: dead_owner(first_id),
         repository_root: world.repo.clone(),
@@ -207,9 +283,16 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
         side_ref: None,
         carried: Some(capture.clone()),
     };
-    let first_record: PathBuf = write_merge_intent(world.git_dir.as_path(), &first).expect("the first record");
-    git(world.repo.as_path(), &["update-ref", saved_ref, world.new_oid.as_str()]);
-    git(world.repo.as_path(), &["update-ref", "refs/heads/other", world.old_oid.as_str()]);
+    let first_record: PathBuf =
+        write_merge_intent(world.git_dir.as_path(), &first).expect("the first record");
+    git(
+        world.repo.as_path(),
+        &["update-ref", saved_ref, world.new_oid.as_str()],
+    );
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/other", world.old_oid.as_str()],
+    );
     // The save's record names a branch this worktree does not have checked out, so its own settle keeps it for the command that
     //  checks that branch out: the capture's ref must outlive the first record.
     let saved: MergeIntent = MergeIntent {
@@ -221,16 +304,37 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
         side_ref: Some(String::from(saved_ref)),
         carried: Some(capture.clone()),
     };
-    let saved_record: PathBuf = write_merge_intent(world.git_dir.as_path(), &saved).expect("the save's record");
-    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("the command must not stop");
-    assert!(!first_record.exists(), "the merge's first record is settled");
-    assert!(saved_record.exists(), "the save's record waits for the branch it is for");
+    let saved_record: PathBuf =
+        write_merge_intent(world.git_dir.as_path(), &saved).expect("the save's record");
+    let _outcomes =
+        recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new())
+            .expect("the command must not stop");
+    assert!(
+        !first_record.exists(),
+        "the merge's first record is settled"
+    );
+    assert!(
+        saved_record.exists(),
+        "the save's record waits for the branch it is for"
+    );
     assert_eq!(
-        git_text(world.repo.as_path(), &["rev-parse", "--verify", reference.as_str()]).trim(),
+        git_text(
+            world.repo.as_path(),
+            &["rev-parse", "--verify", reference.as_str()]
+        )
+        .trim(),
         capture.commit,
         "the ref that another record still names keeps the person's capture"
     );
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", capture.commit.as_str()]).trim(), "commit", "the capture's commit is still there");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["cat-file", "-t", capture.commit.as_str()]
+        )
+        .trim(),
+        "commit",
+        "the capture's commit is still there"
+    );
     remove(world.parent.as_path());
 }
 
@@ -266,17 +370,29 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
 #[test]
 fn two_finished_records_of_one_capture_leave_no_ref_behind() {
     let world: World = world("merge-recovery-two-finished-records");
-    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n").expect("the person's edit");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
+        .expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture = crate::merge_isolation_carry::keep_capture(
         &context,
         world.repo.as_path(),
-        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+        &crate::merge_isolation_carry::capture_work(
+            &context,
+            world.repo.as_path(),
+            &[b"f.txt".to_vec()],
+        )
+        .expect("the capture"),
     )
     .expect("kept");
-    let reference: String = capture.reference.clone().expect("the ref that keeps the capture");
+    let reference: String = capture
+        .reference
+        .clone()
+        .expect("the ref that keeps the capture");
     let mut records: Vec<PathBuf> = Vec::new();
-    for id in ["11111111-0000-4000-8000-000000000081", "22222222-0000-4000-8000-000000000082"] {
+    for id in [
+        "11111111-0000-4000-8000-000000000081",
+        "22222222-0000-4000-8000-000000000082",
+    ] {
         let intent: MergeIntent = MergeIntent {
             owner: dead_owner(id),
             repository_root: world.repo.clone(),
@@ -290,7 +406,8 @@ fn two_finished_records_of_one_capture_leave_no_ref_behind() {
     }
     // Each command's carry has finished, which is what it writes beside its record before it decides.
     for record in &records {
-        std::fs::write(record.with_extension("settled"), b"").expect("the marker of a finished carry");
+        std::fs::write(record.with_extension("settled"), b"")
+            .expect("the marker of a finished carry");
     }
     // The interleaving: both commands decide before either removes its record, so each drop is asked while both records are
     //  still there, which is the ordering the two commands can realise.
@@ -309,12 +426,23 @@ fn two_finished_records_of_one_capture_leave_no_ref_behind() {
         &capture,
         Some(records[1].as_path()),
     );
-    assert!(second, "a ref that is already gone is what the second deletion wanted");
+    assert!(
+        second,
+        "a ref that is already gone is what the second deletion wanted"
+    );
     for record in &records {
         std::fs::remove_file(record.as_path()).expect("the record goes");
     }
     assert_eq!(
-        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", crate::merge_isolation_carry::CARRIED_REF_PREFIX]).trim(),
+        git_text(
+            world.repo.as_path(),
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                crate::merge_isolation_carry::CARRIED_REF_PREFIX
+            ]
+        )
+        .trim(),
         "",
         "no ref is left once both records are gone (the ref that was {reference})"
     );
@@ -384,13 +512,41 @@ fn a_capture_ref_a_lock_blocked_is_deleted_by_the_next_call() {
             .expect("the cleanup");
         });
     };
-    let cleared: bool = run_cleanup(locked, record.clone(), intent.clone()).expect("the runtime ran the cleanup");
-    assert!(!cleared, "the record stays while the ref it names could not go");
+    let cleared: bool =
+        run_cleanup(locked, record.clone(), intent.clone()).expect("the runtime ran the cleanup");
+    assert!(
+        !cleared,
+        "the record stays while the ref it names could not go"
+    );
     assert!(record.exists(), "the record is kept");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), reference);
-    let retried: bool = run_cleanup(place(&world), record.clone(), intent.clone()).expect("the runtime ran the retry");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/cli-git/carried"
+            ]
+        )
+        .trim(),
+        reference
+    );
+    let retried: bool = run_cleanup(place(&world), record.clone(), intent.clone())
+        .expect("the runtime ran the retry");
     assert!(retried, "the next call removes both once the lock is gone");
     assert!(!record.exists(), "the record goes with the ref");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), "", "no name is left");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/cli-git/carried"
+            ]
+        )
+        .trim(),
+        "",
+        "no name is left"
+    );
     remove(world.parent.as_path());
 }

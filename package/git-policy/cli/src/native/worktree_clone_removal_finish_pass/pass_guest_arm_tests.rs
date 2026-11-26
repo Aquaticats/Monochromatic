@@ -25,25 +25,57 @@
 //! const lines = finishTheRemovalPlans({ commonDir, folder, gate, probe, settle });
 //! ```
 
-use crate::worktree_clone_binding_record::registration_home::{binding_name, clone_inventory_name, claim_prefix, home_folder, origin_inventory_name};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    claim_prefix,
+    clone_inventory_name,
+    home_folder,
+    origin_inventory_name,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ZfsDatasetReader;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass;
 use crate::worktree_clone_removal_finish_pass::the_plans_folder::TheLivePlansFolder;
-use crate::worktree_clone_removal_proof_and_plan::removal_completion::{RemovalCompletion, complete_the_removal};
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{RemovalEntry, TheLiveClock};
-use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{LivePoolFixture, PoolVariables, SLOT};
-use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
-use crate::worktree_clone_removal_proof_and_plan::removal_settle::{RegistrationSettle, SettleAnswer, SettleRequest, TheLiveSettle};
-use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{RemovalUnmount, UnmountAnswer};
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::TheLiveHolderScan;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion::{
+    RemovalCompletion,
+    complete_the_removal,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    RemovalEntry,
+    TheLiveClock,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
+    LivePoolFixture,
+    PoolVariables,
+    SLOT,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
+    RegistrationSettle,
+    SettleAnswer,
+    SettleRequest,
+    TheLiveSettle,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    RemovalUnmount,
+    UnmountAnswer,
+};
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
-use crate::zfs_compatibility_gate::{BeforeRequests, Facts, Verdict};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList, ZfsDevice};
+use crate::zfs_compatibility_gate::{
+    BeforeRequests,
+    Facts,
+    Verdict,
+};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    NvList,
+    ZfsDevice,
+};
 use std::path::PathBuf;
 
 /// The variable naming the guest this arm may run in.
@@ -73,7 +105,14 @@ struct APassedGate;
 
 impl BeforeRequests for APassedGate {
     fn verdict(&self) -> Verdict {
-        return Verdict::Compatible(Facts { target: "x86_64-unknown-linux-gnu", version: None, absent: Vec::new(), base_btf_bytes: 0, module_btf_bytes: 0, header_bytes: (0, 0) });
+        return Verdict::Compatible(Facts {
+            target: "x86_64-unknown-linux-gnu",
+            version: None,
+            absent: Vec::new(),
+            base_btf_bytes: 0,
+            module_btf_bytes: 0,
+            header_bytes: (0, 0),
+        });
     }
 }
 
@@ -84,8 +123,19 @@ struct ADoneUnmount {
 }
 
 impl RemovalUnmount for ADoneUnmount {
-    fn request_the_unmount(&self, intent: &MountIntent) -> Result<UnmountAnswer, RemovalStop> {
-        return Ok(UnmountAnswer { dataset: self.clone_guid, operation: intent.operation, nonce: intent.nonce.clone(), outcome: ReceiptOutcome::Done, mount_id: None, failed_step: None, errno: None });
+    fn request_the_unmount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<UnmountAnswer, RemovalStop> {
+        return Ok(UnmountAnswer {
+            dataset: self.clone_guid,
+            operation: intent.operation,
+            nonce: intent.nonce.clone(),
+            outcome: ReceiptOutcome::Done,
+            mount_id: None,
+            failed_step: None,
+            errno: None,
+        });
     }
 }
 
@@ -95,8 +145,14 @@ impl RemovalUnmount for ADoneUnmount {
 struct ARefusingSettle;
 
 impl RegistrationSettle for ARefusingSettle {
-    fn settle_the_registration(&self, _request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
-        return Err(RemovalStop::TheSettleRefused { step: String::from("a control's own refusal"), said: String::from("this arm leaves the tail for the finish pass") });
+    fn settle_the_registration(
+        &self,
+        _request: &SettleRequest<'_>,
+    ) -> Result<SettleAnswer, RemovalStop> {
+        return Err(RemovalStop::TheSettleRefused {
+            step: String::from("a control's own refusal"),
+            said: String::from("this arm leaves the tail for the finish pass"),
+        });
     }
 }
 
@@ -108,29 +164,56 @@ struct RecordingDevice<'a> {
 }
 
 impl SnapshotDestroyDevice for RecordingDevice<'_> {
-    fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
-        self.sent.borrow_mut().push(names.iter().map(|name| return String::from(*name)).collect());
+    fn destroy_snaps(
+        &self,
+        pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
+        self.sent.borrow_mut().push(
+            names
+                .iter()
+                .map(|name| return String::from(*name))
+                .collect(),
+        );
         return self.live.destroy_snaps(pool, names);
     }
 }
 
 /// The four variables and the two defaults this arm's fixture takes.
 fn variables() -> PoolVariables {
-    return PoolVariables { guest: GUEST_VARIABLE, pool: POOL_VARIABLE, prefix: PREFIX_VARIABLE, root: ROOT_VARIABLE, default_root: DEFAULT_ROOT, default_pool: DEFAULT_POOL };
+    return PoolVariables {
+        guest: GUEST_VARIABLE,
+        pool: POOL_VARIABLE,
+        prefix: PREFIX_VARIABLE,
+        root: ROOT_VARIABLE,
+        default_root: DEFAULT_ROOT,
+        default_pool: DEFAULT_POOL,
+    };
 }
 
 /// The budget both of the clone's own snapshots fit in,
 /// measured from the exact request they become.
 fn the_budget(fixture: &LivePoolFixture) -> RequestBudget {
-    let names: Vec<String> = vec![format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()), format!("{}@{SANOID_SNAPSHOT}", fixture.clone())];
-    let bytes: usize = crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes(fixture.pool.as_str(), names.as_slice()).expect("both names pack into one request");
+    let names: Vec<String> = vec![
+        format!("{}@{MANUAL_SNAPSHOT}", fixture.clone()),
+        format!("{}@{SANOID_SNAPSHOT}", fixture.clone()),
+    ];
+    let bytes: usize =
+        crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes(
+            fixture.pool.as_str(),
+            names.as_slice(),
+        )
+        .expect("both names pack into one request");
     return RequestBudget::of_input_bytes(bytes);
 }
 
 #[test]
 #[ignore = "live: needs the mvm guest fixture; run it through the package's e2e recipe"]
 fn the_removal_finish_pass_guest_arms() {
-    let Some(fixture) = LivePoolFixture::from_environment("the_removal_finish_pass_guest_arms", &variables()).map(|fixture| return fixture.with_origin_name(ADD_ORIGIN)) else {
+    let Some(fixture) =
+        LivePoolFixture::from_environment("the_removal_finish_pass_guest_arms", &variables())
+            .map(|fixture| return fixture.with_origin_name(ADD_ORIGIN))
+    else {
         return;
     };
     println!("FINISH guest={} pool={}", fixture.guest, fixture.pool);
@@ -145,10 +228,18 @@ fn the_removal_finish_pass_guest_arms() {
     fixture.build(&[MANUAL_SNAPSHOT, SANOID_SNAPSHOT]);
     let recorded = fixture.recorded();
     fixture.write_the_adds_records(&recorded);
-    let device: RecordingDevice<'_> = RecordingDevice { live: &live, sent: std::cell::RefCell::new(Vec::new()) };
-    let unmount: ADoneUnmount = ADoneUnmount { clone_guid: recorded.clone_guid };
+    let device: RecordingDevice<'_> = RecordingDevice {
+        live: &live,
+        sent: std::cell::RefCell::new(Vec::new()),
+    };
+    let unmount: ADoneUnmount = ADoneUnmount {
+        clone_guid: recorded.clone_guid,
+    };
     let common: PathBuf = fixture.common();
-    let at: RemovalEntry<'_> = RemovalEntry { common_dir: common.as_path(), slot: SLOT };
+    let at: RemovalEntry<'_> = RemovalEntry {
+        common_dir: common.as_path(),
+        slot: SLOT,
+    };
     let completion: RemovalCompletion<'_> = RemovalCompletion {
         entry: &at,
         reads: &reads,
@@ -165,35 +256,82 @@ fn the_removal_finish_pass_guest_arms() {
     };
     println!("FINISH step=arm-1-enter");
     let stopped: Result<_, RemovalStop> = complete_the_removal(&completion);
-    assert!(matches!(stopped, Err(RemovalStop::TheSettleRefused { .. })), "the arm's settle refuses after the head destroy");
-    assert!(!fixture.exists(fixture.clone().as_str()), "the head destroy proved the clone gone");
-    let kept = crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(common.as_path(), recorded.clone_guid).expect("the plan reads").expect("the plan stands");
-    assert_eq!(kept.head, crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone, "the plan keeps the head's own proof");
-    assert!(fixture.registration().exists(), "the registration stands for the finish pass");
+    assert!(
+        matches!(stopped, Err(RemovalStop::TheSettleRefused { .. })),
+        "the arm's settle refuses after the head destroy"
+    );
+    assert!(
+        !fixture.exists(fixture.clone().as_str()),
+        "the head destroy proved the clone gone"
+    );
+    let kept = crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(
+        common.as_path(),
+        recorded.clone_guid,
+    )
+    .expect("the plan reads")
+    .expect("the plan stands");
+    assert_eq!(
+        kept.head,
+        crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord::Gone,
+        "the plan keeps the head's own proof"
+    );
+    assert!(
+        fixture.registration().exists(),
+        "the registration stands for the finish pass"
+    );
     let home: PathBuf = home_folder(common.as_path());
     // The fixture's add wrote the origin-side inventory and the binding; a clone-side inventory is
     // written only by an add that reached its snapshot, and the pass removes whichever of the three
     // stand.
     for name in [origin_inventory_name(SLOT), binding_name(SLOT)] {
-        assert!(home.join(name.as_str()).exists(), "`{name}` stands when the pass starts");
+        assert!(
+            home.join(name.as_str()).exists(),
+            "`{name}` stands when the pass starts"
+        );
     }
     println!("FINISH left=head-gone registration=standing binding=standing");
 
     // Arm 2: the pass settles the registration, removes the two inventories and then the binding,
     // removes the plan last and gives the claim back.
     let settle: TheLiveSettle = TheLiveSettle;
-    let pass: FinishPass<'_> = FinishPass { common_dir: common.as_path(), folder: &TheLivePlansFolder, gate: &APassedGate, probe: &reader, settle: &settle };
+    let pass: FinishPass<'_> = FinishPass {
+        common_dir: common.as_path(),
+        folder: &TheLivePlansFolder,
+        gate: &APassedGate,
+        probe: &reader,
+        settle: &settle,
+    };
     println!("FINISH step=arm-2-enter");
-    let lines: Vec<String> = crate::worktree_clone_removal_finish_pass::pass_over_the_plans::finish_the_removal_plans(&pass);
-    assert!(!lines.is_empty(), "the pass prints the removal it finished, and this run printed nothing");
+    let lines: Vec<String> =
+        crate::worktree_clone_removal_finish_pass::pass_over_the_plans::finish_the_removal_plans(
+            &pass,
+        );
+    assert!(
+        !lines.is_empty(),
+        "the pass prints the removal it finished, and this run printed nothing"
+    );
     let summary: &String = lines.last().expect("the pass printed its line");
-    assert!(summary.contains("Finished the interrupted removal"), "the last line says what it finished: {summary}");
-    assert!(!fixture.registration().exists(), "the registration was settled");
-    assert!(!fixture.slot_path().exists(), "the slot's underlay folder went with the settle");
-    for name in [origin_inventory_name(SLOT), clone_inventory_name(SLOT), binding_name(SLOT)] {
+    assert!(
+        summary.contains("Finished the interrupted removal"),
+        "the last line says what it finished: {summary}"
+    );
+    assert!(
+        !fixture.registration().exists(),
+        "the registration was settled"
+    );
+    assert!(
+        !fixture.slot_path().exists(),
+        "the slot's underlay folder went with the settle"
+    );
+    for name in [
+        origin_inventory_name(SLOT),
+        clone_inventory_name(SLOT),
+        binding_name(SLOT),
+    ] {
         assert!(!home.join(name.as_str()).exists(), "`{name}` was removed");
     }
-    let plan_folder: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(common.as_path());
+    let plan_folder: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::plans_folder(common.as_path());
     assert!(!plan_folder.exists(), "the plan and its empty folder went");
     let mut claims: Vec<String> = std::fs::read_dir(home.as_path())
         .expect("the wrapper's home lists")
@@ -205,9 +343,16 @@ fn the_removal_finish_pass_guest_arms() {
     // counts: a released one is what the next command takes over.
     claims.sort();
     let newest: &String = claims.last().expect("the pass took the slot's claim");
-    let text: String = std::fs::read_to_string(home.join(newest.as_str()).as_path()).expect("the claim reads");
-    assert!(text.contains("released"), "the newest claim was given back after the plan's removal: {text}");
-    println!("FINISH settled=registration records=removed plan=removed claim=released lines={}", lines.len());
+    let text: String =
+        std::fs::read_to_string(home.join(newest.as_str()).as_path()).expect("the claim reads");
+    assert!(
+        text.contains("released"),
+        "the newest claim was given back after the plan's removal: {text}"
+    );
+    println!(
+        "FINISH settled=registration records=removed plan=removed claim=released lines={}",
+        lines.len()
+    );
 
     fixture.teardown();
     println!("FINISH done");

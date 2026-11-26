@@ -18,23 +18,53 @@
 //! server.on('connection', (socket) => handleConnection(socket, shared));
 //! ```
 
-use crate::service_server_queue_types_and_send::{Job, send};
-use crate::service_timing::{Arrival, log, retire_line};
-use crate::service_instance::instance_of;
-use crate::service_work::Wake;
-use crate::service_busy::{EarlyAnswer, LandingBoard};
 use crate::blocking_job::run_blocking_job;
-use crate::service_reply::{NoteSource, Reply, write_until_answered_noting};
-use crate::service_protocol::{
-    ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client,
+use crate::service_busy::{
+    EarlyAnswer,
+    LandingBoard,
 };
+use crate::service_instance::instance_of;
+use crate::service_protocol::{
+    ClientMessage,
+    FailureCode,
+    HEARTBEAT_EVERY,
+    MAX_LINE_BYTES,
+    PROTOCOL_VERSION,
+    ServiceMessage,
+    decode_client,
+};
+use crate::service_reply::{
+    NoteSource,
+    Reply,
+    write_until_answered_noting,
+};
+use crate::service_server_queue_types_and_send::{
+    Job,
+    send,
+};
+use crate::service_timing::{
+    Arrival,
+    log,
+    retire_line,
+};
+use crate::service_work::Wake;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::mpsc::UnboundedSender;
-use std::time::{Duration, Instant};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use std::time::{
+    Duration,
+    Instant,
+};
+use tokio::io::{
+    AsyncBufReadExt,
+    AsyncReadExt,
+    BufReader,
+};
 use tokio::net::UnixStream;
-use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::unix::{
+    OwnedReadHalf,
+    OwnedWriteHalf,
+};
+use tokio::sync::mpsc::UnboundedSender;
 
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
@@ -79,7 +109,6 @@ pub(crate) struct ConnectionShared {
     pub own_git_dir: Option<PathBuf>,
 }
 
-
 /// What:
 ///  The note for a connection's beat:
 /// what the landing thread is stuck in when it is inside a write that is never ended,
@@ -93,14 +122,23 @@ pub(crate) struct ConnectionShared {
 /// ```ts
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
-pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>) -> StuckNotice {
-    return StuckNotice { board, request, last: None, still_reading: None };
+pub(crate) fn stuck_notice(
+    board: Arc<LandingBoard>,
+    request: Option<String>,
+) -> StuckNotice {
+    return StuckNotice {
+        board,
+        request,
+        last: None,
+        still_reading: None,
+    };
 }
 
 /// The answer of one read of the journal for a beat's note:
 /// what the connection has to say,
 /// and the key of the words said last.
-type NoteFromTheBoard = Result<(Option<ServiceMessage>, Option<String>), crate::blocking_job::BlockingJobError>;
+type NoteFromTheBoard =
+    Result<(Option<ServiceMessage>, Option<String>), crate::blocking_job::BlockingJobError>;
 
 /// What:
 ///  The read of one note while it is still running.
@@ -148,7 +186,11 @@ pub(crate) struct StuckNotice {
 /// The board is files of the journal,
 /// which can wait on storage,
 /// so the reads run on the blocking pool.
-fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option<String>) -> (Option<ServiceMessage>, Option<String>) {
+fn note_from_the_board(
+    board: &LandingBoard,
+    request: Option<&str>,
+    last: Option<String>,
+) -> (Option<ServiceMessage>, Option<String>) {
     // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
     #[cfg(test)]
     crate::service_fault::hooks::run_on_any_thread(IN_THE_NOTE_READ);
@@ -162,13 +204,25 @@ fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option
         if last.as_deref() == Some(key.as_str()) {
             return (None, last);
         }
-        return (Some(ServiceMessage::InsideWrite { text: words }), Some(key));
+        return (
+            Some(ServiceMessage::InsideWrite {
+                text: words,
+            }),
+            Some(key),
+        );
     }
-    let Some(words) = board.describe() else { return (None, last) };
+    let Some(words) = board.describe() else {
+        return (None, last);
+    };
     if last.as_deref() == Some(words.as_str()) {
         return (None, last);
     }
-    return (Some(ServiceMessage::Waiting { text: words.clone() }), Some(words));
+    return (
+        Some(ServiceMessage::Waiting {
+            text: words.clone(),
+        }),
+        Some(words),
+    );
 }
 
 impl NoteSource for StuckNotice {
@@ -179,9 +233,14 @@ impl NoteSource for StuckNotice {
             // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
-            self.still_reading = Some(Box::pin(run_blocking_job(move || { return note_from_the_board(&board, request.as_deref(), last); })));
+            self.still_reading = Some(Box::pin(run_blocking_job(move || {
+                return note_from_the_board(&board, request.as_deref(), last);
+            })));
         }
-        let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
+        let running: &mut NoteRead = self
+            .still_reading
+            .as_mut()
+            .expect("the read of this connection's note was just started");
         // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
         //  of starting a second one behind a storage that is already late.
         let answer: NoteFromTheBoard = running.await;
@@ -194,7 +253,9 @@ impl NoteSource for StuckNotice {
             }
             Err(error) => {
                 // No note this beat: the beat itself is the proof of life and is still written.
-                crate::service_warn!("the note of what the landing is inside could not be read for a waiting client: {error}");
+                crate::service_warn!(
+                    "the note of what the landing is inside could not be read for a waiting client: {error}"
+                );
                 None
             }
         };
@@ -209,7 +270,10 @@ fn user_of(credentials: tokio::net::unix::UCred) -> u32 {
 /// Reads one request line from a new connection,
 /// checks who sent it,
 /// and queues it.
-pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShared) {
+pub(crate) async fn handle_connection(
+    stream: UnixStream,
+    shared: ConnectionShared,
+) {
     let accepted: Instant = Instant::now();
     let sender_user: Option<u32> = stream.peer_cred().ok().map(user_of);
     // What: Another account's process is told nothing at all, not even which release this service is.
@@ -221,7 +285,14 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
         return;
     }
     let (first_half, mut write_half): (OwnedReadHalf, OwnedWriteHalf) = stream.into_split();
-    send(&mut write_half, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(shared.release.clone()) }).await;
+    send(
+        &mut write_half,
+        &ServiceMessage::Welcome {
+            version: PROTOCOL_VERSION,
+            release: Some(shared.release.clone()),
+        },
+    )
+    .await;
     let limit: u64 = u64::try_from(MAX_LINE_BYTES).unwrap_or(u64::MAX) + 1;
     let mut line: String = String::new();
     let mut reader = BufReader::new(first_half.take(limit));
@@ -243,7 +314,9 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
     //       The line still has a bound (`REQUEST_READ_TIMEOUT`) and the same `MAX_LINE_BYTES` cap, so a client that keeps
     //       talking without a newline is cut off as before.
     if !line.ends_with('\n') {
-        crate::service_warn!("refused a request line that ended with its connection instead of its framing newline, so nothing of it was read as a message and nothing was queued");
+        crate::service_warn!(
+            "refused a request line that ended with its connection instead of its framing newline, so nothing of it was read as a message and nothing was queued"
+        );
         return;
     }
     answer_request(&line, &mut write_half, &shared, accepted).await;
@@ -268,8 +341,13 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
 /// ```ts
 /// isForeign(shared, gitDir) // shared.ownGitDir === gitDir ? false : await named(gitDir) !== shared.instance
 /// ```
-async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool> {
-    let Some(mine) = shared.instance.clone() else { return Some(false) };
+async fn is_foreign(
+    shared: &ConnectionShared,
+    git_dir: PathBuf,
+) -> Option<bool> {
+    let Some(mine) = shared.instance.clone() else {
+        return Some(false);
+    };
     // The text this service was named for: the same text names the same directory, whatever a resolution would say.
     if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
         return Some(false);
@@ -279,19 +357,36 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
         #[cfg(test)]
         crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
         return instance_of(git_dir.as_path()) != mine;
-    }).await {
+    })
+    .await
+    {
         Ok(foreign) => Some(foreign),
         Err(error) => {
-            crate::service_error!("the instance of a Git directory could not be looked at: {error}");
+            crate::service_error!(
+                "the instance of a Git directory could not be looked at: {error}"
+            );
             None
         }
     };
 }
 
 /// Refuses a message about a Git directory that another instance serves.
-async fn refuse_a_message_for(git_dir: &std::path::Path, write_half: &mut OwnedWriteHalf) {
-    crate::service_warn!("refused a message for {}, which another instance serves", git_dir.display());
-    send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }).await;
+async fn refuse_a_message_for(
+    git_dir: &std::path::Path,
+    write_half: &mut OwnedWriteHalf,
+) {
+    crate::service_warn!(
+        "refused a message for {}, which another instance serves",
+        git_dir.display()
+    );
+    send(
+        write_half,
+        &ServiceMessage::Failed {
+            id: String::new(),
+            code: FailureCode::Rejected,
+        },
+    )
+    .await;
 }
 
 /// What:
@@ -313,11 +408,29 @@ async fn refuse_a_message_for(git_dir: &std::path::Path, write_half: &mut OwnedW
 /// ```ts
 /// const tree = shared.drawn.handOut(); send(writeHalf, tree ? { type: 'drawn', tree } : { type: 'no-shadow' });
 /// ```
-async fn answer_the_shadow_question(scratch: &std::path::Path, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared) {
+async fn answer_the_shadow_question(
+    scratch: &std::path::Path,
+    write_half: &mut OwnedWriteHalf,
+    shared: &ConnectionShared,
+) {
     match shared.drawn.hand_out() {
         Some(tree) => {
-            crate::diagnostic_log::debug("shadowDrawn", format!("handed {} to the commit that asked from {}", tree.display(), scratch.display()).as_str());
-            send(write_half, &ServiceMessage::Drawn { tree }).await;
+            crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!(
+                    "handed {} to the commit that asked from {}",
+                    tree.display(),
+                    scratch.display()
+                )
+                .as_str(),
+            );
+            send(
+                write_half,
+                &ServiceMessage::Drawn {
+                    tree,
+                },
+            )
+            .await;
         }
         None => send(write_half, &ServiceMessage::NoShadow).await,
     };
@@ -325,14 +438,26 @@ async fn answer_the_shadow_question(scratch: &std::path::Path, write_half: &mut 
 
 /// Tells a client that the service cannot take its request now.
 async fn tell_unavailable(write_half: &mut OwnedWriteHalf) {
-    send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable }).await;
+    send(
+        write_half,
+        &ServiceMessage::Failed {
+            id: String::new(),
+            code: FailureCode::Unavailable,
+        },
+    )
+    .await;
 }
 
 /// Acts on the request line of a connection:
 /// refuses what another instance serves,
 /// answers what needs no landing,
 /// and queues the rest.
-async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
+async fn answer_request(
+    line: &str,
+    write_half: &mut OwnedWriteHalf,
+    shared: &ConnectionShared,
+    accepted: Instant,
+) {
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
@@ -342,7 +467,11 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             let deciding = is_foreign(shared, request.git_dir.clone());
             queue_a_commit(request, write_half, shared, accepted, deciding).await;
         }
-        Ok(ClientMessage::Work { git_dir, review_key, push_programs }) => match is_foreign(shared, git_dir.clone()).await {
+        Ok(ClientMessage::Work {
+            git_dir,
+            review_key,
+            push_programs,
+        }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
                 // What: The programs and transport settings of the command that wrote these push records are held here, for the
@@ -351,7 +480,11 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
                 //  looks them up by its record's id, so each push speaks and searches with the values of the command that asked
                 //  for it (`service_push_programs_held_in_memory`).
                 for (id, programs) in push_programs {
-                    crate::service_push_programs_held_in_memory::remember(git_dir.as_path(), id.as_str(), programs);
+                    crate::service_push_programs_held_in_memory::remember(
+                        git_dir.as_path(),
+                        id.as_str(),
+                        programs,
+                    );
                 }
                 let _queued = shared.work.send((git_dir, review_key));
                 let _touched = shared.queue.send(Job::Activity);
@@ -362,11 +495,17 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
         //  up here.
         // Why:  A record the committing wrapper removed leaves nothing the service could learn it from, and one of the values
         //  can hold a password (`service_push_programs_held_in_memory`). Nothing is queued: no push is left to run.
-        Ok(ClientMessage::ForgetPrograms { git_dir, records }) => match is_foreign(shared, git_dir.clone()).await {
+        Ok(ClientMessage::ForgetPrograms {
+            git_dir,
+            records,
+        }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
                 for id in records {
-                    crate::service_push_programs_held_in_memory::forget(git_dir.as_path(), id.as_str());
+                    crate::service_push_programs_held_in_memory::forget(
+                        git_dir.as_path(),
+                        id.as_str(),
+                    );
                 }
             }
             None => tell_unavailable(write_half).await,
@@ -375,25 +514,40 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
         // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
         //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
         //       commit's landing, which is the wait the hand-out exists to remove.
-        Ok(ClientMessage::Shadow { git_dir, scratch }) => match is_foreign(shared, git_dir.clone()).await {
+        Ok(ClientMessage::Shadow {
+            git_dir,
+            scratch,
+        }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,
             None => tell_unavailable(write_half).await,
         },
-        Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared, git_dir.clone()).await {
+        Ok(ClientMessage::Warm {
+            repository,
+            git_dir,
+        }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             // Nothing is answered: the compile is a job of the blocking pool, and the connection closes with this function.
             Some(false) => crate::service_rules_precompile::warm_in_background(repository),
             None => tell_unavailable(write_half).await,
         },
-        Ok(ClientMessage::Withdraw { id }) => withdraw(id, write_half, shared).await,
+        Ok(ClientMessage::Withdraw {
+            id,
+        }) => withdraw(id, write_half, shared).await,
         Ok(ClientMessage::Retire) => {
             log(retire_line(shared.release.as_str()).as_str());
             let _queued = shared.queue.send(Job::Retire);
         }
         Err(reason) => {
             crate::service_warn!("refused a request line: {reason}");
-            send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }).await;
+            send(
+                write_half,
+                &ServiceMessage::Failed {
+                    id: String::new(),
+                    code: FailureCode::Rejected,
+                },
+            )
+            .await;
         }
     };
 }
@@ -421,8 +575,13 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
 /// ```ts
 /// const [beats, queued] = await Promise.all([writeUntilAnswered(socket, messages), decide().then(queueOrRefuse)]);
 /// ```
-async fn queue_a_commit<Decide>(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant, decide: Decide)
-where
+async fn queue_a_commit<Decide>(
+    request: Box<crate::service_protocol::CommitRequest>,
+    write_half: &mut OwnedWriteHalf,
+    shared: &ConnectionShared,
+    accepted: Instant,
+    decide: Decide,
+) where
     Decide: std::future::Future<Output = Option<bool>> + Send,
 {
     let id: String = request.id.clone();
@@ -436,30 +595,54 @@ where
         match decide.await {
             // A request for another worktree is not this instance's to land, so it never reaches the landing.
             Some(true) => {
-                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
-                let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Rejected });
+                crate::service_warn!(
+                    "refused a commit for {}, which another instance serves",
+                    request.git_dir.display()
+                );
+                let _answered = answering.send(ServiceMessage::Failed {
+                    id,
+                    code: FailureCode::Rejected,
+                });
             }
             // Nothing could say whose the request is: the client is told, and the landing never sees it.
             None => {
-                let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Unavailable });
+                let _answered = answering.send(ServiceMessage::Failed {
+                    id,
+                    code: FailureCode::Unavailable,
+                });
             }
             Some(false) => {
                 // The tree this request names is one the landing has still to read, however long the queue before it takes,
                 //  so a collection spares it until the service is done with the request (`service_scratch_trees_of_queued_requests.rs`).
-                crate::service_scratch_trees_of_queued_requests::note(request.id.as_str(), request.scratch.as_path());
-                let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
+                crate::service_scratch_trees_of_queued_requests::note(
+                    request.id.as_str(),
+                    request.scratch.as_path(),
+                );
+                let _queued = queue.send(Job::Commit(
+                    request,
+                    reply,
+                    Arrival {
+                        accepted,
+                        read: accepted.elapsed(),
+                    },
+                ));
                 crate::service_fault::queued(id.as_str());
             }
         }
     };
     // This task has nothing else to do until the request is answered, so it writes the answers the landing thread
     //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
-    let beats = write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut notice);
+    let beats =
+        write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut notice);
     tokio::join!(beats, checking);
 }
 
 /// Answers the withdrawal of a request.
-async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared) {
+async fn withdraw(
+    id: String,
+    write_half: &mut OwnedWriteHalf,
+    shared: &ConnectionShared,
+) {
     // Behind a write that never returns the landing thread answers nothing, so a request that has not begun to land is
     //  withdrawn here (`service_busy.rs`); otherwise the landing thread answers between two landings, so the answer is
     //  either that the commit landed or that it never will, and meanwhile this task keeps the client told that the
@@ -467,19 +650,48 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
     let board: Arc<LandingBoard> = Arc::clone(&shared.board);
     let asked: String = id.clone();
     // The decision is made by creating files in the journal, which can wait on storage.
-    let early: EarlyAnswer = match run_blocking_job(move || { return board.withdraw_early(asked.as_str()); }).await {
+    let early: EarlyAnswer = match run_blocking_job(move || {
+        return board.withdraw_early(asked.as_str());
+    })
+    .await
+    {
         Ok(answer) => answer,
         // Without a thread to decide here, the landing thread answers between two landings, as it does for a request that began.
         Err(error) => {
-            crate::service_warn!("the withdrawal of {id} could not be decided here and goes to the landing: {error}");
+            crate::service_warn!(
+                "the withdrawal of {id} could not be decided here and goes to the landing: {error}"
+            );
             EarlyAnswer::Queued
         }
     };
     match early {
-        EarlyAnswer::Landed(commit) => send(write_half, &ServiceMessage::Landed { id, commit, already: true, landing: None }).await,
+        EarlyAnswer::Landed(commit) => {
+            send(
+                write_half,
+                &ServiceMessage::Landed {
+                    id,
+                    commit,
+                    already: true,
+                    landing: None,
+                },
+            )
+            .await
+        }
         EarlyAnswer::Withdrawn(words) => {
-            send(write_half, &ServiceMessage::Waiting { text: words }).await;
-            send(write_half, &ServiceMessage::Withdrawn { id }).await;
+            send(
+                write_half,
+                &ServiceMessage::Waiting {
+                    text: words,
+                },
+            )
+            .await;
+            send(
+                write_half,
+                &ServiceMessage::Withdrawn {
+                    id,
+                },
+            )
+            .await;
         }
         EarlyAnswer::Queued => {
             let (reply, mut messages) = Reply::new();
@@ -487,7 +699,13 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
             let _queued = shared.queue.send(Job::Withdraw(id, reply));
             // The connection keeps the identity of the request, so a client that withdrew too early to have been told it is
             // inside the write is told now.
-            write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing))).await;
+            write_until_answered_noting(
+                write_half,
+                &mut messages,
+                HEARTBEAT_EVERY,
+                &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing)),
+            )
+            .await;
         }
     };
 }

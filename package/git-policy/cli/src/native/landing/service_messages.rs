@@ -22,7 +22,10 @@
 //! stderr.write(render({ kind: 'not-installed' }));
 //! ```
 
-use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{
+    ManagerLastWords,
+    RequestedStart,
+};
 use std::path::Path;
 use std::time::Duration;
 
@@ -31,10 +34,21 @@ use std::time::Duration;
 /// because the rendering of every failure is at its line bound,
 /// and the call sites read them from here.
 pub use crate::service_messages_of_a_wait_for_the_service::{
-    STARTING_NOTICE, UPDATING_NOTICE, position_notice, rebuild_notice, replacing_notice, restarting_notice, silent_notice, starting_notice, unplaced_notice,
+    STARTING_NOTICE,
+    UPDATING_NOTICE,
+    position_notice,
+    rebuild_notice,
+    replacing_notice,
+    restarting_notice,
+    silent_notice,
+    starting_notice,
+    unplaced_notice,
 };
 /// The sentences about what the service last said it waited for are read by the failures below and by the two of an interrupt.
-pub(crate) use crate::service_messages_of_a_wait_for_the_service::{it_had_said, waiting_for};
+pub(crate) use crate::service_messages_of_a_wait_for_the_service::{
+    it_had_said,
+    waiting_for,
+};
 
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
@@ -50,7 +64,8 @@ pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
 /// The command that restarts the commit service,
 /// so the manager starts the one the installed units name (Linux with systemd).
-pub const RESTART_COMMAND: &str = "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
+pub const RESTART_COMMAND: &str =
+    "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
 
 /// The command that stops the commit service,
 /// so the manager starts the one the installed units name on the next connection (Linux with systemd).
@@ -83,9 +98,8 @@ pub const RESTART_ONE_UNIT_COMMAND: &str = "systemctl --user restart";
 ///  Why:
 ///   A commit that stopped before it asked anything of the service changed nothing,
 /// and the person is owed that sentence in the words of the failure they read.
-pub const NOTHING_CHANGED_AND_THE_STAGED_WORK: &str = "Your staged changes and your working files are as they were.";
-
-
+pub const NOTHING_CHANGED_AND_THE_STAGED_WORK: &str =
+    "Your staged changes and your working files are as they were.";
 
 /// What:
 ///  Where the client cannot get a service from the operating system.
@@ -184,13 +198,21 @@ pub enum ClientFailure {
     ConclusionStateChanged { branch: String },
     /// The branch moved while the person wrote a message;
     /// the message is saved in `file` for them to reuse.
-    BranchMovedMessageSaved { branch: String, file: String, amend: bool },
+    BranchMovedMessageSaved {
+        branch: String,
+        file: String,
+        amend: bool,
+    },
     /// The worktree switched from `branch` to `now` while the commit was prepared;
     /// the message the person wrote,
     /// if any,
     /// is
     ///  saved in `file`.
-    BranchSwitched { branch: String, now: String, file: Option<String> },
+    BranchSwitched {
+        branch: String,
+        now: String,
+        file: Option<String>,
+    },
     /// The service,
     /// once it greeted,
     /// said nothing for longer than it ever stays silent while it works,
@@ -212,7 +234,10 @@ pub enum ClientFailure {
     /// The service kept the request for `minutes` minutes without answering,
     /// and the client withdrew it:
     /// it will not land.
-    StillWithService { minutes: u64, blocker: Option<String> },
+    StillWithService {
+        minutes: u64,
+        blocker: Option<String>,
+    },
     /// The client stopped waiting and could not confirm the service withdrew the request;
     /// `blocker` is what the service last said it
     ///  was stuck in,
@@ -333,17 +358,33 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::DidNotStart { unit, answer, asked } => format!(
+        ClientFailure::DidNotStart {
+            unit,
+            answer,
+            asked,
+        } => format!(
             "The commit service did not start, so this commit was not made: {}. Its log shows why: `{LOG_COMMAND}`. \
              Run the commit again after fixing that. {NOTHING_CHANGED}",
-            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(unit.as_deref(), answer, *asked)
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(
+                unit.as_deref(),
+                answer,
+                *asked
+            )
         ),
-        ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
+        ClientFailure::NothingAnswered {
+            address,
+            waited,
+        } => crate::service_messages_of_a_service_that_stopped::nothing_answered(
+            address.as_str(),
+            *waited,
+        ),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)
         ),
-        ClientFailure::ManagerDidNotAnswer { waited } => crate::service_messages_of_a_manager_that_did_not_answer::did_not_answer(*waited),
+        ClientFailure::ManagerDidNotAnswer {
+            waited,
+        } => crate::service_messages_of_a_manager_that_did_not_answer::did_not_answer(*waited),
         ClientFailure::OtherAccount => format!(
             "Another account runs the commit service here, so this commit was not made. Use your own account, or ask \
              the other account to stop its service, then run the commit again. {NOTHING_CHANGED}"
@@ -384,54 +425,94 @@ pub fn render(failure: &ClientFailure) -> String {
             "{path} is read-only because a repository move has frozen the repository, so this commit was not made. A repository move \
              has frozen the repository; it thaws when the move's thaw step runs. Run the commit again after the move finishes. {NOTHING_CHANGED}"
         ),
-        ClientFailure::BranchKeepsChanging { branch, times } => format!(
+        ClientFailure::BranchKeepsChanging {
+            branch,
+            times,
+        } => format!(
             "The branch {branch} changed {times} times while this commit was being prepared, so it was not made. Run \
              the commit again; if other people commit to the same branch at the same moment, it will succeed once they \
              pause. {NOTHING_CHANGED}"
         ),
-        ClientFailure::BranchMoved { branch } => format!(
+        ClientFailure::BranchMoved {
+            branch,
+        } => format!(
             "The branch {branch} moved while this commit was being prepared, and a commit that replaces or rewrites another \
              commit, or one that was written or signed by hand, cannot be moved onto a different last commit, so it was not \
              made. Run the commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
         ),
-        ClientFailure::ConclusionStateChanged { branch } => format!(
+        ClientFailure::ConclusionStateChanged {
+            branch,
+        } => format!(
             "The merge, cherry-pick or revert this commit was concluding changed while it was being prepared, so it was \
              not made on the branch {branch}. Another command either finished that operation or abandoned it. Run `git \
              status` to see what the worktree holds now, then run the commit again. {NOTHING_CHANGED}"
         ),
-        ClientFailure::BranchMovedMessageSaved { branch, file, amend } => format!(
+        ClientFailure::BranchMovedMessageSaved {
+            branch,
+            file,
+            amend,
+        } => format!(
             "The branch {branch} moved while this commit was being prepared, so it was not made. The message you wrote is saved \
              in {file}. Run `git commit {}-F {file}` to make the commit on the branch as it is now. {NOTHING_CHANGED}",
             if *amend { "--amend " } else { "" }
         ),
-        ClientFailure::BranchSwitched { branch, now, file } => format!(
+        ClientFailure::BranchSwitched {
+            branch,
+            now,
+            file,
+        } => format!(
             "The worktree switched from {branch} to {now} while this commit was being prepared, so it was not made. {} Switch back \
              to {branch} and run the commit again, or run it here to commit on {now}. {NOTHING_CHANGED}",
             match file {
-                Some(saved) => format!("The message you wrote is saved in {saved}; `git commit -F {saved}` uses it."),
+                Some(saved) => format!(
+                    "The message you wrote is saved in {saved}; `git commit -F {saved}` uses it."
+                ),
                 None => String::new(),
             }
         ),
         ClientFailure::ServiceSilent => crate::service_messages_of_a_service_that_stopped::silent(),
-        ClientFailure::ServiceNotReading { took_nothing } => crate::service_messages_of_a_service_that_stopped::not_reading(*took_nothing),
-        ClientFailure::ServiceSilentAfterPreparing { shows } => crate::service_messages_of_a_service_that_stopped::silent_after_preparing(*shows),
-        ClientFailure::StillWithService { minutes, blocker } => format!(
+        ClientFailure::ServiceNotReading {
+            took_nothing,
+        } => crate::service_messages_of_a_service_that_stopped::not_reading(*took_nothing),
+        ClientFailure::ServiceSilentAfterPreparing {
+            shows,
+        } => crate::service_messages_of_a_service_that_stopped::silent_after_preparing(*shows),
+        ClientFailure::StillWithService {
+            minutes,
+            blocker,
+        } => format!(
             "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
              Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
             waiting_for(blocker.as_deref())
         ),
-        ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
+        ClientFailure::WithdrawalUnconfirmed {
+            blocker,
+        } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
              that it withdrew it, so it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to \
              see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
             it_had_said(blocker.as_deref()),
-            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+            CHECK_COMMANDS[0],
+            CHECK_COMMANDS[1]
         ),
         // The two ends of an interrupted commit are worded beside this file, because this one is at its line bound.
-        ClientFailure::Interrupted { signal, blocker, .. } => crate::service_messages_of_an_interrupted_commit::interrupted(*signal, blocker.as_deref()),
-        ClientFailure::InterruptedNotKnown { signal, blocker, .. } => crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref()),
+        ClientFailure::Interrupted {
+            signal,
+            blocker,
+            ..
+        } => crate::service_messages_of_an_interrupted_commit::interrupted(
+            *signal,
+            blocker.as_deref(),
+        ),
+        ClientFailure::InterruptedNotKnown {
+            signal,
+            blocker,
+            ..
+        } => {
+            crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref())
+        }
         ClientFailure::StepTooSlow => format!(
             "A Git step of this commit ran longer than the commit service allows and was ended, so this commit was not made and will not \
              land later by itself. The step is named above, and the commit built for you is kept on the side ref named there when one \
@@ -445,7 +526,10 @@ pub fn render(failure: &ClientFailure) -> String {
             "{holder} is using this repository's index, so this commit was not made. Wait for it to finish, or close \
              it, and run the commit again. {NOTHING_CHANGED}"
         ),
-        ClientFailure::ReferenceLocked { branch, words } => format!(
+        ClientFailure::ReferenceLocked {
+            branch,
+            words,
+        } => format!(
             "A lock stands in the way of writing the branch {branch}, so this commit was not made. {words} Run the commit again \
              once it is clear. {NOTHING_CHANGED}"
         ),
@@ -475,12 +559,28 @@ pub fn render(failure: &ClientFailure) -> String {
             "The commit service could not be set up, so this commit was not made: {reason}. Fix that and run the commit \
              again. {NOTHING_CHANGED}"
         ),
-        ClientFailure::SocketPathTooLong { path, length, longest, longest_runtime } => {
-            crate::service_messages_of_a_start_that_cannot_come::socket_path_too_long(path, *length, *longest, *longest_runtime)
-        }
-        ClientFailure::ServiceElsewhere { made, looked_for, manager_runtime, client_runtime } => {
-            crate::service_messages_of_a_start_that_cannot_come::service_elsewhere(made, looked_for, manager_runtime, client_runtime)
-        }
+        ClientFailure::SocketPathTooLong {
+            path,
+            length,
+            longest,
+            longest_runtime,
+        } => crate::service_messages_of_a_start_that_cannot_come::socket_path_too_long(
+            path,
+            *length,
+            *longest,
+            *longest_runtime,
+        ),
+        ClientFailure::ServiceElsewhere {
+            made,
+            looked_for,
+            manager_runtime,
+            client_runtime,
+        } => crate::service_messages_of_a_start_that_cannot_come::service_elsewhere(
+            made,
+            looked_for,
+            manager_runtime,
+            client_runtime,
+        ),
         ClientFailure::Unavailable => format!(
             "The commit service could not finish this commit, so it was not made. Run the commit again; if it fails \
              again, look at the service's log with `{LOG_COMMAND}`. {NOTHING_CHANGED}"
@@ -497,9 +597,28 @@ pub use crate::service_messages_of_a_platform::platform_remedy;
 /// implementation terms the system should have resolved itself.
 ///  Matched case-insensitively against whole words after the quoted commands are removed.
 pub const DENYLIST: [&str; 22] = [
-    "protocol", "journal", "request id", "daemon", "socket", "errno", "epipe", "econnrefused", "eagain", "flock",
-    "lock file", "peer", "frame", "handshake", "batch", "oid", "fast-import", "unix domain", "abstract", "pid",
-    "uid", "os error",
+    "protocol",
+    "journal",
+    "request id",
+    "daemon",
+    "socket",
+    "errno",
+    "epipe",
+    "econnrefused",
+    "eagain",
+    "flock",
+    "lock file",
+    "peer",
+    "frame",
+    "handshake",
+    "batch",
+    "oid",
+    "fast-import",
+    "unix domain",
+    "abstract",
+    "pid",
+    "uid",
+    "os error",
 ];
 
 /// The repository path a failure names,
@@ -512,7 +631,6 @@ pub fn path_text(path: &Path) -> String {
 /// (`service_messages_of_a_failure.rs`),
 /// because the rendering of every failure is at its line bound.
 pub use crate::service_messages_of_a_failure::failure_code;
-
 
 /// Message controls stay out of the release executable.
 #[cfg(test)]

@@ -36,25 +36,59 @@
 //! expect(pushReport(repo, landed.stderr)).toContain('limit=connected'); expect(tripwire.released()).toBe(true);
 //! ```
 
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
+use super::commit::{
+    assert_nothing_left,
+    git_text,
+    keep_maintenance_in_the_foreground,
+    remove_settled,
+    wrapped_commit,
+};
 use super::fault_remote::Tripwire;
 use super::support::{
-    Fixture, REAL_GIT, fixture, git, give_service_environment, push_unfinished_words, repository,
+    Fixture,
+    REAL_GIT,
+    fixture,
+    git,
+    give_service_environment,
+    push_unfinished_words,
+    repository,
 };
-use git_policy_cli::bounded_push::{PUSH_DEADLINE_VARIABLE, PUSH_MINIMUM_RATE_VARIABLE};
+use git_policy_cli::bounded_push::{
+    PUSH_DEADLINE_VARIABLE,
+    PUSH_MINIMUM_RATE_VARIABLE,
+};
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
 use std::os::fd::AsRawFd;
-use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The connected window the controls give the push,
 /// in whole seconds:
@@ -121,8 +155,13 @@ struct Pace {
 impl Pace {
     /// An answer written whole,
     /// and a body read whole.
-    const FAST: Pace =
-        Pace { read_chunk: 65536, read_pause: Duration::ZERO, write_chunk: 65536, write_pause: Duration::ZERO, whole_advertisement: true };
+    const FAST: Pace = Pace {
+        read_chunk: 65536,
+        read_pause: Duration::ZERO,
+        write_chunk: 65536,
+        write_pause: Duration::ZERO,
+        whole_advertisement: true,
+    };
 }
 
 /// What a relay's clients moved through it.
@@ -164,7 +203,10 @@ struct Relay {
 
 impl Relay {
     /// Start serving the repositories under `projects` at `pace`.
-    fn start(projects: &Path, pace: Pace) -> Relay {
+    fn start(
+        projects: &Path,
+        pace: Pace,
+    ) -> Relay {
         let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("a loopback listener");
         let port: u16 = listener.local_addr().expect("its address").port();
         let counts: Arc<Counts> = Arc::new(Counts::default());
@@ -182,18 +224,31 @@ impl Relay {
                 let connection_root: PathBuf = root.clone();
                 let connection_counts: Arc<Counts> = Arc::clone(&served);
                 serving.push(std::thread::spawn(move || {
-                    serve_connection(stream, connection_root.as_path(), pace, connection_counts.as_ref());
+                    serve_connection(
+                        stream,
+                        connection_root.as_path(),
+                        pace,
+                        connection_counts.as_ref(),
+                    );
                 }));
             }
             for thread in serving {
                 let _ended = thread.join();
             }
         });
-        return Relay { port, counts, stopping, acceptor: Some(acceptor) };
+        return Relay {
+            port,
+            counts,
+            stopping,
+            acceptor: Some(acceptor),
+        };
     }
 
     /// The URL of the remote named `name` under the relay.
-    fn url(&self, name: &str) -> String {
+    fn url(
+        &self,
+        name: &str,
+    ) -> String {
         return format!("http://127.0.0.1:{}/{name}", self.port);
     }
 }
@@ -227,7 +282,9 @@ fn read_line(stream: &mut TcpStream) -> String {
             break;
         }
     }
-    return String::from_utf8_lossy(line.as_slice()).trim_end_matches('\r').to_owned();
+    return String::from_utf8_lossy(line.as_slice())
+        .trim_end_matches('\r')
+        .to_owned();
 }
 
 /// What:
@@ -243,17 +300,26 @@ fn read_line(stream: &mut TcpStream) -> String {
 /// ```ts
 /// while (left > 0) { const chunk = stream.read(min(readChunk, left)); left -= chunk.length; await sleep(readPause); }
 /// ```
-fn read_paced(stream: &mut TcpStream, count: usize, pace: Pace, counts: &Counts) -> Vec<u8> {
+fn read_paced(
+    stream: &mut TcpStream,
+    count: usize,
+    pace: Pace,
+    counts: &Counts,
+) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::with_capacity(count);
     let mut buffer: Vec<u8> = vec![0; pace.read_chunk.min(count.max(1))];
     while body.len() < count {
         let want: usize = (count - body.len()).min(buffer.len());
-        let Ok(got) = stream.read(&mut buffer[..want]) else { break };
+        let Ok(got) = stream.read(&mut buffer[..want]) else {
+            break;
+        };
         if got == 0 {
             break;
         }
         body.extend_from_slice(&buffer[..got]);
-        let _counted = counts.read.fetch_add(u64::try_from(got).unwrap_or(0), Ordering::SeqCst);
+        let _counted = counts
+            .read
+            .fetch_add(u64::try_from(got).unwrap_or(0), Ordering::SeqCst);
         if body.len() < count && !pace.read_pause.is_zero() {
             std::thread::sleep(pace.read_pause);
         }
@@ -263,10 +329,18 @@ fn read_paced(stream: &mut TcpStream, count: usize, pace: Pace, counts: &Counts)
 
 /// Write an answer at a pace,
 /// counting it.
-fn write_paced(stream: &mut TcpStream, bytes: &[u8], chunk: usize, pause: Duration, counts: &Counts) -> std::io::Result<()> {
+fn write_paced(
+    stream: &mut TcpStream,
+    bytes: &[u8],
+    chunk: usize,
+    pause: Duration,
+    counts: &Counts,
+) -> std::io::Result<()> {
     for piece in bytes.chunks(chunk.max(1)) {
         stream.write_all(piece)?;
-        let _counted = counts.written.fetch_add(u64::try_from(piece.len()).unwrap_or(0), Ordering::SeqCst);
+        let _counted = counts
+            .written
+            .fetch_add(u64::try_from(piece.len()).unwrap_or(0), Ordering::SeqCst);
         if !pause.is_zero() {
             std::thread::sleep(pause);
         }
@@ -357,11 +431,20 @@ fn relay_answer(
             return;
         }
         let mut watched: [libc::pollfd; 2] = [
-            libc::pollfd { fd: socket, events: libc::POLLIN, revents: 0 },
-            libc::pollfd { fd: answer, events: libc::POLLIN, revents: 0 },
+            libc::pollfd {
+                fd: socket,
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: answer,
+                events: libc::POLLIN,
+                revents: 0,
+            },
         ];
         // SAFETY: `poll` reads and writes only the two `pollfd` values it is given, both of which this process owns.
-        let ready: libc::c_int = unsafe { libc::poll(watched.as_mut_ptr(), 2, RELAY_POLL_MILLISECONDS) };
+        let ready: libc::c_int =
+            unsafe { libc::poll(watched.as_mut_ptr(), 2, RELAY_POLL_MILLISECONDS) };
         if ready < 0 {
             end_backend(child);
             return;
@@ -392,7 +475,11 @@ fn relay_answer(
         };
         if !wrote_head {
             head.extend_from_slice(&chunk[..read]);
-            let Some(split) = head.windows(4).position(|window| { return window == b"\r\n\r\n"; }) else { continue };
+            let Some(split) = head.windows(4).position(|window| {
+                return window == b"\r\n\r\n";
+            }) else {
+                continue;
+            };
             let text: String = String::from_utf8_lossy(&head[..split]).into_owned();
             advertisement = text.to_ascii_lowercase().contains("advertisement");
             let mut status: String = String::from("200 OK");
@@ -405,8 +492,17 @@ fn relay_answer(
                     kept.push_str("\r\n");
                 }
             }
-            let answer_head: String = format!("HTTP/1.1 {status}\r\n{kept}Connection: close\r\n\r\n");
-            if write_paced(stream, answer_head.as_bytes(), 65536, Duration::ZERO, counts).is_err() {
+            let answer_head: String =
+                format!("HTTP/1.1 {status}\r\n{kept}Connection: close\r\n\r\n");
+            if write_paced(
+                stream,
+                answer_head.as_bytes(),
+                65536,
+                Duration::ZERO,
+                counts,
+            )
+            .is_err()
+            {
                 end_backend(child);
                 return;
             }
@@ -441,11 +537,18 @@ fn relay_answer(
 /// ```ts
 /// const { method, target, headers, body } = readRequest(stream, pace); const backend = spawn(httpBackend(env)); relayAnswer(stream, backend);
 /// ```
-fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: &Counts) {
+fn serve_connection(
+    mut stream: TcpStream,
+    projects: &Path,
+    pace: Pace,
+    counts: &Counts,
+) {
     let _timeout = stream.set_read_timeout(Some(REQUEST_READ_TIMEOUT));
     let request_line: String = read_line(&mut stream);
     let mut words = request_line.split_whitespace();
-    let (Some(method), Some(target)) = (words.next(), words.next()) else { return };
+    let (Some(method), Some(target)) = (words.next(), words.next()) else {
+        return;
+    };
     let mut headers: HashMap<String, String> = HashMap::new();
     loop {
         let line: String = read_line(&mut stream);
@@ -457,10 +560,13 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
         }
     }
     let mut body: Vec<u8> = Vec::new();
-    if headers.get("transfer-encoding").is_some_and(|value| { return value.contains("chunked"); }) {
+    if headers.get("transfer-encoding").is_some_and(|value| {
+        return value.contains("chunked");
+    }) {
         loop {
             let size_line: String = read_line(&mut stream);
-            let size: usize = usize::from_str_radix(size_line.split(';').next().unwrap_or("0"), 16).unwrap_or(0);
+            let size: usize =
+                usize::from_str_radix(size_line.split(';').next().unwrap_or("0"), 16).unwrap_or(0);
             if size == 0 {
                 let _trailer: String = read_line(&mut stream);
                 break;
@@ -469,7 +575,12 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
             let _blank: String = read_line(&mut stream);
         }
     } else {
-        let length: usize = headers.get("content-length").and_then(|value| { return value.parse::<usize>().ok(); }).unwrap_or(0);
+        let length: usize = headers
+            .get("content-length")
+            .and_then(|value| {
+                return value.parse::<usize>().ok();
+            })
+            .unwrap_or(0);
         if length > 0 {
             body = read_paced(&mut stream, length, pace, counts);
         }
@@ -478,7 +589,10 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
     let mut environment: Vec<(&str, String)> = vec![
         ("PATH", String::from("/usr/bin:/bin")),
         ("GIT_CONFIG_NOSYSTEM", String::from("1")),
-        ("GIT_CONFIG_GLOBAL", String::from("/nonexistent-global-config")),
+        (
+            "GIT_CONFIG_GLOBAL",
+            String::from("/nonexistent-global-config"),
+        ),
         ("GIT_PROJECT_ROOT", projects.display().to_string()),
         ("GIT_HTTP_EXPORT_ALL", String::from("1")),
         ("REQUEST_METHOD", method.to_owned()),
@@ -494,7 +608,11 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
         environment.push(("GIT_PROTOCOL", protocol.clone()));
     }
     let mut cgi: Command = Command::new(REAL_GIT);
-    cgi.arg("http-backend").env_clear().stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+    cgi.arg("http-backend")
+        .env_clear()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
     for (name, value) in &environment {
         cgi.env(name, value);
     }
@@ -517,7 +635,13 @@ fn serve_connection(mut stream: TcpStream, projects: &Path, pace: Pace, counts: 
 }
 
 /// Relay one piece of a body at a control's pace.
-fn relay_body(stream: &mut TcpStream, bytes: &[u8], pace: Pace, advertisement: bool, counts: &Counts) -> std::io::Result<()> {
+fn relay_body(
+    stream: &mut TcpStream,
+    bytes: &[u8],
+    pace: Pace,
+    advertisement: bool,
+    counts: &Counts,
+) -> std::io::Result<()> {
     if advertisement && pace.whole_advertisement {
         return write_paced(stream, bytes, 65536, Duration::ZERO, counts);
     }
@@ -528,19 +652,41 @@ fn relay_body(stream: &mut TcpStream, bytes: &[u8], pace: Pace, advertisement: b
 /// `http.receivepack` on,
 /// the keepalive a control asks for,
 /// and a `pre-receive` hook that sleeps when a control asks for one.
-fn remote(fixture: &Fixture, projects: &Path, keep_alive: Option<&str>, hook_seconds: Option<u64>) -> PathBuf {
+fn remote(
+    fixture: &Fixture,
+    projects: &Path,
+    keep_alive: Option<&str>,
+    hook_seconds: Option<u64>,
+) -> PathBuf {
     let remote: PathBuf = projects.join("remote.git");
-    git(fixture, projects, &["init", "--bare", "--quiet", remote.to_str().expect("UTF-8")]);
-    git(fixture, remote.as_path(), &["config", "http.receivepack", "true"]);
+    git(
+        fixture,
+        projects,
+        &["init", "--bare", "--quiet", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        fixture,
+        remote.as_path(),
+        &["config", "http.receivepack", "true"],
+    );
     if let Some(value) = keep_alive {
-        git(fixture, remote.as_path(), &["config", "receive.keepAlive", value]);
+        git(
+            fixture,
+            remote.as_path(),
+            &["config", "receive.keepAlive", value],
+        );
     }
     if let Some(seconds) = hook_seconds {
         // The hook says it ran, so a control that means a phase to have happened can check it: a push that ends before the
         //  hook is reached would otherwise pass for one that waited the hook out.
         let hook: PathBuf = remote.join("hooks").join("pre-receive");
-        std::fs::write(hook.as_path(), format!("#!/bin/sh\nprintf ran > \"$GIT_DIR/hook-ran\"\nexec sleep {seconds}\n")).expect("the hook");
-        std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the hook's mode");
+        std::fs::write(
+            hook.as_path(),
+            format!("#!/bin/sh\nprintf ran > \"$GIT_DIR/hook-ran\"\nexec sleep {seconds}\n"),
+        )
+        .expect("the hook");
+        std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755))
+            .expect("the hook's mode");
     }
     return remote;
 }
@@ -548,16 +694,25 @@ fn remote(fixture: &Fixture, projects: &Path, keep_alive: Option<&str>, hook_sec
 /// A repository whose `origin` is served by `relay`,
 /// with one staged file whose content is incompressible,
 /// so the pack the push sends is about its size.
-fn world(fixture: &Fixture, relay: &Relay) -> PathBuf {
+fn world(
+    fixture: &Fixture,
+    relay: &Relay,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
-    git(fixture, repo.as_path(), &["remote", "add", "origin", relay.url("remote.git").as_str()]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", relay.url("remote.git").as_str()],
+    );
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     // A file that does not compress, so the size the push sends is the size this control chose: a linear congruential
     //  sequence is incompressible enough for this and needs no dependency.
     let mut state: u64 = 0x2545_f491_4f6c_dd1d;
     let payload: Vec<u8> = (0..PAYLOAD_BYTES)
         .map(|_| {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             return u8::try_from(state >> 33).unwrap_or(0);
         })
         .collect();
@@ -583,19 +738,44 @@ fn world(fixture: &Fixture, relay: &Relay) -> PathBuf {
 /// ```ts
 /// giveServiceEnvironment(fixture, { ... }); const tripwire = new Tripwire(); const landed = await run(arm(wrappedCommit(...), tripwire)); return [landed, headOid, tripwire];
 /// ```
-fn commit_and_push(fixture: &Fixture, repo: &Path, floor: u64, window_seconds: u64) -> (std::process::Output, String, Tripwire) {
-    give_service_environment(fixture, "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS", window_seconds.to_string().as_str());
+fn commit_and_push(
+    fixture: &Fixture,
+    repo: &Path,
+    floor: u64,
+    window_seconds: u64,
+) -> (std::process::Output, String, Tripwire) {
+    give_service_environment(
+        fixture,
+        "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS",
+        window_seconds.to_string().as_str(),
+    );
     // A stopped push is planned for another try; a control that measured a stop does not need the service to try again, and the
     //  tries would talk to the relay long after the control's own push ended.
     give_service_environment(fixture, "CLI_GIT_PUSH_RETRY_SECONDS", NO_RETRY_SECONDS);
-    give_service_environment(fixture, PUSH_MINIMUM_RATE_VARIABLE, floor.to_string().as_str());
+    give_service_environment(
+        fixture,
+        PUSH_MINIMUM_RATE_VARIABLE,
+        floor.to_string().as_str(),
+    );
     let tripwire: Tripwire = Tripwire::new();
-    let mut command: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=payload", "--", "payload.bin"]);
+    let mut command: Command = wrapped_commit(
+        fixture,
+        repo,
+        &[
+            "commit",
+            "--quiet",
+            "--message=payload",
+            "--",
+            "payload.bin",
+        ],
+    );
     tripwire.arm(&mut command);
     // The command's own end is read here, without waiting for the service's whole queue: a push the control stops leaves the
     //  after-commit maintenance of its commit behind the push's retry pause, which is a wait no control of this rule needs.
     let landed: std::process::Output = command.output().expect("the wrapped commit runs");
-    let commit: String = git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let commit: String = git_text(fixture, repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
     return (landed, commit, tripwire);
 }
 
@@ -611,7 +791,10 @@ fn commit_and_push(fixture: &Fixture, repo: &Path, floor: u64, window_seconds: u
 /// ```ts
 /// new WorkItem({ kind: 'push', branchRef: branch, oid: commit }).id()
 /// ```
-fn push_record_id(branch: &str, commit: &str) -> String {
+fn push_record_id(
+    branch: &str,
+    commit: &str,
+) -> String {
     let item: git_policy_cli::work_item::WorkItem = git_policy_cli::work_item::WorkItem {
         kind: git_policy_cli::work_item::WorkKind::Push,
         repository: PathBuf::new(),
@@ -642,12 +825,22 @@ fn push_record_id(branch: &str, commit: &str) -> String {
 /// ```ts
 /// await waitUntil(() => done(record).exists() || failed(record).exists());
 /// ```
-fn wait_for_the_push_record(git_dir: &Path, branch: &str, commit: &str) {
+fn wait_for_the_push_record(
+    git_dir: &Path,
+    branch: &str,
+    commit: &str,
+) {
     let work: PathBuf = git_dir.join("monochromatic-git-policy-cli/work");
     let name: String = push_record_id(branch, commit);
     let began: Instant = Instant::now();
-    while !work.join("done").join(name.as_str()).exists() && !work.join("failed").join(name.as_str()).exists() {
-        assert!(began.elapsed() < STOP_SLACK, "the service never finished the push of {commit} in {}", work.display());
+    while !work.join("done").join(name.as_str()).exists()
+        && !work.join("failed").join(name.as_str()).exists()
+    {
+        assert!(
+            began.elapsed() < STOP_SLACK,
+            "the service never finished the push of {commit} in {}",
+            work.display()
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
 }
@@ -666,7 +859,11 @@ fn wait_for_the_push_record(git_dir: &Path, branch: &str, commit: &str) {
 /// ```ts
 /// const report = stderr + pushFailures(gitDir).map((notice) => show(notice)).join('');
 /// ```
-fn report_of_the_push(repo: &Path, landed: &std::process::Output, commit: &str) -> String {
+fn report_of_the_push(
+    repo: &Path,
+    landed: &std::process::Output,
+    commit: &str,
+) -> String {
     let git_dir: PathBuf = repo.join(".git");
     wait_for_the_push_record(git_dir.as_path(), "refs/heads/main", commit);
     let mut report: String = String::from_utf8_lossy(landed.stderr.as_slice()).into_owned();
@@ -716,34 +913,89 @@ fn carried_bytes_in(report: &str) -> u64 {
 /// ```ts
 /// expect(landed.status.success()).toBe(true); expect(report).toContain('limit=connected'); expect(tripwire.released()).toBe(true);
 /// ```
-fn assert_stopped_and_contained(fixture: &Fixture, repo: &Path, landed: &std::process::Output, commit: &str, tripwire: Tripwire, floor: u64) {
+fn assert_stopped_and_contained(
+    fixture: &Fixture,
+    repo: &Path,
+    landed: &std::process::Output,
+    commit: &str,
+    tripwire: Tripwire,
+    floor: u64,
+) {
     let report: String = report_of_the_push(repo, landed, commit);
-    assert!(report.contains(commit), "the report is about this commit and not another: {report}");
-    assert!(landed.status.success(), "the commit itself succeeds: {report}");
-    assert!(report.contains(push_unfinished_words()), "the report says the push did not finish: {report}");
-    assert!(report.contains("limit=connected"), "the stop names the window that ended it: {report}");
-    assert!(report.contains("carried_bytes="), "the stop says what the connection carried: {report}");
-    assert!(report.contains(&format!("minimum_bytes_per_window={floor}")), "the stop names the floor it was judged on: {report}");
+    assert!(
+        report.contains(commit),
+        "the report is about this commit and not another: {report}"
+    );
+    assert!(
+        landed.status.success(),
+        "the commit itself succeeds: {report}"
+    );
+    assert!(
+        report.contains(push_unfinished_words()),
+        "the report says the push did not finish: {report}"
+    );
+    assert!(
+        report.contains("limit=connected"),
+        "the stop names the window that ended it: {report}"
+    );
+    assert!(
+        report.contains("carried_bytes="),
+        "the stop says what the connection carried: {report}"
+    );
+    assert!(
+        report.contains(&format!("minimum_bytes_per_window={floor}")),
+        "the stop names the floor it was judged on: {report}"
+    );
     // The floor is a setting only where the connection carried something: a server that sent nothing has no line speed to
     //  lower, and a smaller floor would leave no bound at all (`SPEC.md`, `floor_clause`).
     if carried_bytes_in(report.as_str()) == 0 {
-        assert!(report.contains("nothing moving"), "a connection that carried nothing says so: {report}");
-        assert!(!report.contains(PUSH_MINIMUM_RATE_VARIABLE), "nothing moved, so no rate setting is offered: {report}");
+        assert!(
+            report.contains("nothing moving"),
+            "a connection that carried nothing says so: {report}"
+        );
+        assert!(
+            !report.contains(PUSH_MINIMUM_RATE_VARIABLE),
+            "nothing moved, so no rate setting is offered: {report}"
+        );
     } else {
-        assert!(report.contains(PUSH_MINIMUM_RATE_VARIABLE), "the stop names the setting that lets a slower line through: {report}");
+        assert!(
+            report.contains(PUSH_MINIMUM_RATE_VARIABLE),
+            "the stop names the setting that lets a slower line through: {report}"
+        );
     }
-    assert_eq!(git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim(), "2", "the commit is saved locally");
-    assert!(tripwire.released(), "a process the push started was still running after the command returned");
+    assert_eq!(
+        git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim(),
+        "2",
+        "the commit is saved locally"
+    );
+    assert!(
+        tripwire.released(),
+        "a process the push started was still running after the command returned"
+    );
     assert_nothing_left(fixture, repo);
     // The pushes queued behind a stopped one go on: the next commit's push runs and is stopped by the same server, which is
     //  what says that the branch is not held by the one before it.
     std::fs::write(repo.join("second.txt"), b"second\n").expect("the second file");
     git(fixture, repo, &["add", "--", "second.txt"]);
-    let mut next: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=second", "--", "second.txt"]);
+    let mut next: Command = wrapped_commit(
+        fixture,
+        repo,
+        &["commit", "--quiet", "--message=second", "--", "second.txt"],
+    );
     let again: std::process::Output = next.output().expect("the next commit runs");
-    assert!(again.status.success(), "the next commit lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
-    let second: String = git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_owned();
-    wait_for_the_push_record(repo.join(".git").as_path(), "refs/heads/main", second.as_str());
+    assert!(
+        again.status.success(),
+        "the next commit lands: {}",
+        String::from_utf8_lossy(again.stderr.as_slice())
+    );
+    let second: String = git_text(fixture, repo, &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    wait_for_the_push_record(
+        repo.join(".git").as_path(),
+        "refs/heads/main",
+        second.as_str(),
+    );
 }
 
 /// A server whose `pre-receive` hook never answers sends nothing but Git's own keepalive,
@@ -760,9 +1012,17 @@ fn a_server_whose_hook_never_answers_is_ended_at_the_connected_window() {
     let relay: Relay = Relay::start(projects.as_path(), Pace::FAST);
     let repo: PathBuf = world(&root, &relay);
     let began: Instant = Instant::now();
-    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
+        commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
     let elapsed: Duration = began.elapsed();
-    assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
+    assert_stopped_and_contained(
+        &root,
+        repo.as_path(),
+        &landed,
+        commit.as_str(),
+        tripwire,
+        FLOOR_ABOVE_A_TRICKLE,
+    );
     assert!(
         elapsed < Duration::from_secs(WINDOW_SECONDS) + STOP_SLACK,
         "the push ended at its window and not later: {elapsed:?}"
@@ -798,14 +1058,30 @@ fn a_push_to_a_path_whose_hook_never_answers_is_ended_although_the_keepalive_mov
     let projects: PathBuf = root.root.join("projects");
     std::fs::create_dir(&projects).expect("the projects");
     // A remote that is a path, with the shortest keepalive Git allows and a hook that never returns.
-    let remote_path: PathBuf = remote(&root, projects.as_path(), Some("1"), Some(HANGING_HOOK_SECONDS));
+    let remote_path: PathBuf = remote(
+        &root,
+        projects.as_path(),
+        Some("1"),
+        Some(HANGING_HOOK_SECONDS),
+    );
     let repo: PathBuf = repository(&root, OsStr::new("repo"));
-    git(&root, repo.as_path(), &["remote", "add", "origin", remote_path.to_str().expect("UTF-8")]);
+    git(
+        &root,
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            remote_path.to_str().expect("UTF-8"),
+        ],
+    );
     keep_maintenance_in_the_foreground(&root, repo.as_path());
     let mut state: u64 = 0x2545_f491_4f6c_dd1d;
     let payload: Vec<u8> = (0..PAYLOAD_BYTES)
         .map(|_| {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             return u8::try_from(state >> 33).unwrap_or(0);
         })
         .collect();
@@ -813,19 +1089,39 @@ fn a_push_to_a_path_whose_hook_never_answers_is_ended_although_the_keepalive_mov
     git(&root, repo.as_path(), &["add", "--", "payload.bin"]);
     // The stall window is the one that judges a remote that is a path, and a control cannot wait the shipped thirty seconds
     //  twice over.
-    give_service_environment(&root, "CLI_GIT_PUSH_DEADLINE_SECONDS", WINDOW_SECONDS.to_string().as_str());
+    give_service_environment(
+        &root,
+        "CLI_GIT_PUSH_DEADLINE_SECONDS",
+        WINDOW_SECONDS.to_string().as_str(),
+    );
     let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
         commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES, WINDOW_SECONDS);
     let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
-    assert!(landed.status.success(), "the commit itself succeeds: {report}");
-    assert!(report.contains(push_unfinished_words()), "the report says the push did not finish: {report}");
-    assert!(report.contains("limit=stall"), "the stall window ended it, since the remote is a path: {report}");
+    assert!(
+        landed.status.success(),
+        "the commit itself succeeds: {report}"
+    );
+    assert!(
+        report.contains(push_unfinished_words()),
+        "the report says the push did not finish: {report}"
+    );
+    assert!(
+        report.contains("limit=stall"),
+        "the stall window ended it, since the remote is a path: {report}"
+    );
     assert!(
         report.contains(PUSH_DEADLINE_VARIABLE),
         "the window that judged the path's silence is named as the setting that moves it: {report}"
     );
-    assert_eq!(git_text(&root, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2", "the commit is saved locally");
-    assert!(tripwire.released(), "a process the push started was still running after the command returned: {report}");
+    assert_eq!(
+        git_text(&root, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(),
+        "2",
+        "the commit is saved locally"
+    );
+    assert!(
+        tripwire.released(),
+        "a process the push started was still running after the command returned: {report}"
+    );
     remove_settled(&root);
 }
 
@@ -857,8 +1153,18 @@ fn a_server_that_drips_its_answer_is_ended_at_the_connected_window() {
     let repo: PathBuf = world(&root, &relay);
     let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
         commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
-    assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
-    assert!(relay.counts.written() > 0, "the answer was relayed a byte at a time");
+    assert_stopped_and_contained(
+        &root,
+        repo.as_path(),
+        &landed,
+        commit.as_str(),
+        tripwire,
+        FLOOR_ABOVE_A_TRICKLE,
+    );
+    assert!(
+        relay.counts.written() > 0,
+        "the answer was relayed a byte at a time"
+    );
     drop(relay);
     remove_settled(&root);
 }
@@ -870,7 +1176,12 @@ fn a_server_that_reads_the_upload_slowly_is_ended_at_the_connected_window() {
     let root: Fixture = fixture("push-minimum-rate-slow-reader");
     let projects: PathBuf = root.root.join("projects");
     std::fs::create_dir(&projects).expect("the projects");
-    let _remote: PathBuf = remote(&root, projects.as_path(), Some("0"), Some(HANGING_HOOK_SECONDS));
+    let _remote: PathBuf = remote(
+        &root,
+        projects.as_path(),
+        Some("0"),
+        Some(HANGING_HOOK_SECONDS),
+    );
     // Eight bytes every tenth of a second is 80 bytes per second, which is 240 bytes in the control's window: far under
     //  the floor of 4096.
     let pace: Pace = Pace {
@@ -882,9 +1193,20 @@ fn a_server_that_reads_the_upload_slowly_is_ended_at_the_connected_window() {
     };
     let relay: Relay = Relay::start(projects.as_path(), pace);
     let repo: PathBuf = world(&root, &relay);
-    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
-    assert_stopped_and_contained(&root, repo.as_path(), &landed, commit.as_str(), tripwire, FLOOR_ABOVE_A_TRICKLE);
-    assert!(relay.counts.read() > 0, "the server read the upload the slow line was carrying");
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
+        commit_and_push(&root, repo.as_path(), FLOOR_ABOVE_A_TRICKLE, WINDOW_SECONDS);
+    assert_stopped_and_contained(
+        &root,
+        repo.as_path(),
+        &landed,
+        commit.as_str(),
+        tripwire,
+        FLOOR_ABOVE_A_TRICKLE,
+    );
+    assert!(
+        relay.counts.read() > 0,
+        "the server read the upload the slow line was carrying"
+    );
     drop(relay);
     remove_settled(&root);
 }
@@ -908,15 +1230,37 @@ fn an_honest_slow_push_above_the_floor_lands() {
     };
     let relay: Relay = Relay::start(projects.as_path(), pace);
     let repo: PathBuf = world(&root, &relay);
-    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_BELOW_AN_HONEST_PUSH, WINDOW_SECONDS);
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(
+        &root,
+        repo.as_path(),
+        FLOOR_BELOW_AN_HONEST_PUSH,
+        WINDOW_SECONDS,
+    );
     let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
-    assert!(tripwire.released(), "no process of the push is left: {report}");
+    assert!(
+        tripwire.released(),
+        "no process of the push is left: {report}"
+    );
     assert!(landed.status.success(), "{report}");
-    assert!(!report.contains("limit=connected"), "the push was not stopped: {report}");
-    assert!(!report.contains(push_unfinished_words()), "the push landed: {report}");
-    assert!(relay.counts.read() > 0, "the server read the upload the slow line carried: {report}");
+    assert!(
+        !report.contains("limit=connected"),
+        "the push was not stopped: {report}"
+    );
+    assert!(
+        !report.contains(push_unfinished_words()),
+        "the push landed: {report}"
+    );
+    assert!(
+        relay.counts.read() > 0,
+        "the server read the upload the slow line carried: {report}"
+    );
     assert_eq!(
-        git_text(&root, remote_path.as_path(), &["rev-parse", "refs/heads/main"]).trim(),
+        git_text(
+            &root,
+            remote_path.as_path(),
+            &["rev-parse", "refs/heads/main"]
+        )
+        .trim(),
         git_text(&root, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
         "the commit reached the remote: {report}"
     );
@@ -936,17 +1280,37 @@ fn a_silent_phase_after_the_upload_is_not_cut_by_the_floor() {
     std::fs::create_dir(&projects).expect("the projects");
     // No keepalive at all (`receive.keepAlive` 0), so the hook phase is exactly silent, and the floor is one no traffic of
     //  this control reaches.
-    let remote_path: PathBuf = remote(&root, projects.as_path(), Some("0"), Some(SILENT_HOOK_SECONDS));
+    let remote_path: PathBuf = remote(
+        &root,
+        projects.as_path(),
+        Some("0"),
+        Some(SILENT_HOOK_SECONDS),
+    );
     let relay: Relay = Relay::start(projects.as_path(), Pace::FAST);
     let repo: PathBuf = world(&root, &relay);
-    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) = commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES, WINDOW_SECONDS);
+    let (landed, commit, tripwire): (std::process::Output, String, Tripwire) =
+        commit_and_push(&root, repo.as_path(), FLOOR_NOTHING_REACHES, WINDOW_SECONDS);
     let report: String = report_of_the_push(repo.as_path(), &landed, commit.as_str());
-    assert!(tripwire.released(), "no process of the push is left: {report}");
+    assert!(
+        tripwire.released(),
+        "no process of the push is left: {report}"
+    );
     assert!(landed.status.success(), "{report}");
-    assert!(!report.contains("limit="), "the silent phase was not cut by a limit: {report}");
-    assert!(remote_path.join("hook-ran").exists(), "the hook ran, so the silent phase happened: {report}");
+    assert!(
+        !report.contains("limit="),
+        "the silent phase was not cut by a limit: {report}"
+    );
+    assert!(
+        remote_path.join("hook-ran").exists(),
+        "the hook ran, so the silent phase happened: {report}"
+    );
     assert_eq!(
-        git_text(&root, remote_path.as_path(), &["rev-parse", "refs/heads/main"]).trim(),
+        git_text(
+            &root,
+            remote_path.as_path(),
+            &["rev-parse", "refs/heads/main"]
+        )
+        .trim(),
         git_text(&root, repo.as_path(), &["rev-parse", "HEAD"]).trim(),
         "the commit reached the remote after the silent phase: {report}"
     );

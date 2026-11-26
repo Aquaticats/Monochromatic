@@ -35,11 +35,19 @@
 /// ```ts
 /// import { planWorkspaceBumps } from './dependent_version_plan.ts';
 /// ```
-use crate::dependent_version_content::{PlanError, TrackedMode, WorkspaceContent};
+use crate::dependent_version_content::{
+    PlanError,
+    TrackedMode,
+    WorkspaceContent,
+};
 /// Which candidate paths are workspace manifests.
 use crate::dependent_version_paths::is_workspace_manifest_path;
 /// The plan the findings come from.
-use crate::dependent_version_plan::{ManifestBump, PlanOutcome, plan_workspace_bumps};
+use crate::dependent_version_plan::{
+    ManifestBump,
+    PlanOutcome,
+    plan_workspace_bumps,
+};
 /// The incumbent's message for a version that cannot be bumped.
 use crate::dependent_version_release::unsupported_message;
 /// The lifecycle point the policy runs at.
@@ -170,7 +178,9 @@ pub fn should_plan(request: &DependentRequest) -> bool {
         return false;
     }
     for candidate in request.candidates {
-        if candidate.change == CandidateChange::Modified && is_workspace_manifest_path(&candidate.path) {
+        if candidate.change == CandidateChange::Modified
+            && is_workspace_manifest_path(&candidate.path)
+        {
             return true;
         }
     }
@@ -187,7 +197,10 @@ pub fn should_plan(request: &DependentRequest) -> bool {
 /// ```ts
 /// `${bump.name} reaches a package bumped in this commit (${bumpedNames.join(', ')}); bump it from ${bump.from} to ${bump.to} in the same commit.`
 /// ```
-fn stale_finding(bump: &ManifestBump, bumped_names: &[String]) -> DependentFinding {
+fn stale_finding(
+    bump: &ManifestBump,
+    bumped_names: &[String],
+) -> DependentFinding {
     return DependentFinding {
         code: DEPENDENT_VERSION_STALE_CODE,
         message: format!(

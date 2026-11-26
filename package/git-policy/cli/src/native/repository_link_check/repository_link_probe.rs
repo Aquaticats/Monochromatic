@@ -14,10 +14,21 @@
 //! ```
 
 #[cfg(target_os = "linux")]
-use crate::fs_mount_options::{MOUNTINFO_PATH, MountFacts, mount_holding, parse_mount_table};
+use crate::fs_mount_options::{
+    MOUNTINFO_PATH,
+    MountFacts,
+    mount_holding,
+    parse_mount_table,
+};
 #[cfg(target_os = "linux")]
-use crate::fs_uuid_of_source::{BY_UUID_DIRECTORY, filesystem_uuid_of_source};
-use std::path::{Path, PathBuf};
+use crate::fs_uuid_of_source::{
+    BY_UUID_DIRECTORY,
+    filesystem_uuid_of_source,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What a path is,
@@ -80,21 +91,39 @@ impl EntryKind {
 /// ```
 pub trait LinkProbe {
     /// Looks at a path without following a final link.
-    fn lstat(&self, path: &Path) -> EntryKind;
+    fn lstat(
+        &self,
+        path: &Path,
+    ) -> EntryKind;
     /// The text of a link;
     /// empty when it cannot be read.
-    fn readlink(&self, path: &Path) -> String;
+    fn readlink(
+        &self,
+        path: &Path,
+    ) -> String;
     /// Every link of a path resolved;
     /// nothing when the path does not resolve.
-    fn realpath(&self, path: &Path) -> Option<PathBuf>;
+    fn realpath(
+        &self,
+        path: &Path,
+    ) -> Option<PathBuf>;
     /// A small text file;
     /// empty when it cannot be read.
-    fn read_text(&self, path: &Path) -> String;
+    fn read_text(
+        &self,
+        path: &Path,
+    ) -> String;
     /// The filesystem UUID of the filesystem that holds a path;
     /// empty when it has none or cannot be found.
-    fn uuid_of(&self, path: &Path) -> String;
+    fn uuid_of(
+        &self,
+        path: &Path,
+    ) -> String;
     /// Whether a path is a mount point.
-    fn is_mount_point(&self, path: &Path) -> bool;
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool;
 }
 
 /// What:
@@ -135,8 +164,15 @@ impl RealLinkProbe {
     /// A probe over a table text and a folder of UUID links the caller made,
     /// so a control needs no real mount.
     #[cfg(test)]
-    pub(crate) fn over(table_text: Vec<u8>, by_uuid_directory: PathBuf) -> RealLinkProbe {
-        return RealLinkProbe { table_text: Some(table_text), by_uuid_directory: Some(by_uuid_directory), ..RealLinkProbe::default() };
+    pub(crate) fn over(
+        table_text: Vec<u8>,
+        by_uuid_directory: PathBuf,
+    ) -> RealLinkProbe {
+        return RealLinkProbe {
+            table_text: Some(table_text),
+            by_uuid_directory: Some(by_uuid_directory),
+            ..RealLinkProbe::default()
+        };
     }
 
     /// The mount table:
@@ -148,23 +184,34 @@ impl RealLinkProbe {
                 Some(given) => given.clone(),
                 // The table's length is the system's state: a container's namespace can hold tens of thousands of mounts,
                 //  and a table past the bound is not read (`crate::plain_file::MOUNT_TABLE_LIMIT`).
-                None => crate::plain_file::read_plain_file(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT).unwrap_or_default(),
+                None => crate::plain_file::read_plain_file(
+                    Path::new(MOUNTINFO_PATH),
+                    crate::plain_file::MOUNT_TABLE_LIMIT,
+                )
+                .unwrap_or_default(),
             };
-            let _first: Result<(), Vec<MountFacts>> = self.table.set(parse_mount_table(text.as_slice()));
+            let _first: Result<(), Vec<MountFacts>> =
+                self.table.set(parse_mount_table(text.as_slice()));
         }
         return self.table.get().map_or(&[], Vec::as_slice);
     }
 
     /// The mount that holds a path,
     /// nothing when the path does not resolve.
-    fn mount_of(&self, path: &Path) -> Option<MountFacts> {
+    fn mount_of(
+        &self,
+        path: &Path,
+    ) -> Option<MountFacts> {
         let real: PathBuf = std::fs::canonicalize(path).ok()?;
         return mount_holding(self.table(), real.as_path()).cloned();
     }
 
     /// The filesystem UUID of the device a mount names,
     /// looked up once per device.
-    fn uuid_of_mount(&self, mount: &MountFacts) -> String {
+    fn uuid_of_mount(
+        &self,
+        mount: &MountFacts,
+    ) -> String {
         if let Ok(known) = self.uuids.lock() {
             for (source, uuid) in known.iter() {
                 if *source == mount.source {
@@ -172,8 +219,12 @@ impl RealLinkProbe {
                 }
             }
         }
-        let folder: &Path = self.by_uuid_directory.as_deref().unwrap_or(Path::new(BY_UUID_DIRECTORY));
-        let found: String = filesystem_uuid_of_source(mount.source.as_str(), folder).unwrap_or_default();
+        let folder: &Path = self
+            .by_uuid_directory
+            .as_deref()
+            .unwrap_or(Path::new(BY_UUID_DIRECTORY));
+        let found: String =
+            filesystem_uuid_of_source(mount.source.as_str(), folder).unwrap_or_default();
         if let Ok(mut known) = self.uuids.lock() {
             known.push((mount.source.clone(), found.clone()));
         }
@@ -186,12 +237,18 @@ impl RealLinkProbe {
 #[cfg(not(target_os = "linux"))]
 impl RealLinkProbe {
     /// No mount.
-    fn mount_of(&self, _path: &Path) -> Option<NoMount> {
+    fn mount_of(
+        &self,
+        _path: &Path,
+    ) -> Option<NoMount> {
         return None;
     }
 
     /// Never reached without the Linux mount table.
-    fn uuid_of_mount(&self, _mount: &NoMount) -> String {
+    fn uuid_of_mount(
+        &self,
+        _mount: &NoMount,
+    ) -> String {
         return String::new();
     }
 }
@@ -204,9 +261,16 @@ struct NoMount {
 }
 
 impl LinkProbe for RealLinkProbe {
-    fn lstat(&self, path: &Path) -> EntryKind {
+    fn lstat(
+        &self,
+        path: &Path,
+    ) -> EntryKind {
         let Ok(metadata) = std::fs::symlink_metadata(path) else {
-            return if path_is_absent(path) { EntryKind::Missing } else { EntryKind::Other };
+            return if path_is_absent(path) {
+                EntryKind::Missing
+            } else {
+                EntryKind::Other
+            };
         };
         let kind = metadata.file_type();
         if kind.is_symlink() {
@@ -215,32 +279,51 @@ impl LinkProbe for RealLinkProbe {
         if kind.is_dir() {
             return EntryKind::Directory;
         }
-        return if kind.is_file() { EntryKind::File } else { EntryKind::Other };
+        return if kind.is_file() {
+            EntryKind::File
+        } else {
+            EntryKind::Other
+        };
     }
 
-    fn readlink(&self, path: &Path) -> String {
+    fn readlink(
+        &self,
+        path: &Path,
+    ) -> String {
         return match std::fs::read_link(path) {
             Ok(text) => text.to_string_lossy().into_owned(),
             Err(_unreadable) => String::new(),
         };
     }
 
-    fn realpath(&self, path: &Path) -> Option<PathBuf> {
+    fn realpath(
+        &self,
+        path: &Path,
+    ) -> Option<PathBuf> {
         return std::fs::canonicalize(path).ok();
     }
 
-    fn read_text(&self, path: &Path) -> String {
+    fn read_text(
+        &self,
+        path: &Path,
+    ) -> String {
         return std::fs::read_to_string(path).unwrap_or_default();
     }
 
-    fn uuid_of(&self, path: &Path) -> String {
+    fn uuid_of(
+        &self,
+        path: &Path,
+    ) -> String {
         let Some(mount) = self.mount_of(path) else {
             return String::new();
         };
         return self.uuid_of_mount(&mount);
     }
 
-    fn is_mount_point(&self, path: &Path) -> bool {
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool {
         let Ok(resolved) = std::fs::canonicalize(path) else {
             return false;
         };
@@ -257,7 +340,9 @@ fn path_is_absent(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(_found) => false,
         Err(error) => {
-            error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ENOTDIR) || error.raw_os_error() == Some(libc::ELOOP)
+            error.kind() == std::io::ErrorKind::NotFound
+                || error.raw_os_error() == Some(libc::ENOTDIR)
+                || error.raw_os_error() == Some(libc::ELOOP)
         }
     };
 }

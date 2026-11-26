@@ -41,19 +41,38 @@
 //! const settlement = settleSwappedAdd(claim, container);
 //! ```
 
-use crate::fs_beneath::{ObjectId, open_directory_at, open_root, remove_at};
+use crate::fs_beneath::{
+    ObjectId,
+    open_directory_at,
+    open_root,
+    remove_at,
+};
 use crate::json_record::quote;
 use crate::plain_file::read_plain_file;
 use crate::shell_quote::shell_quote;
-use crate::worktree_add_binding::{Binding, Recorded, decode_record, path_identity};
+use crate::worktree_add_binding::{
+    Binding,
+    Recorded,
+    decode_record,
+    path_identity,
+};
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, StageClaim};
+use crate::worktree_copy_stage_claim::{
+    DESTINATION_SUFFIX,
+    StageClaim,
+};
+use crate::worktree_copy_stage_made_object::{
+    MadeObject,
+    read_made,
+};
 use crate::worktree_copy_stage_reaping_proof_and_words::still_there;
-use crate::worktree_copy_stage_made_object::{MadeObject, read_made};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file Git writes to make a directory a worktree of its own.
 const POINTER: &str = ".git";
@@ -123,7 +142,10 @@ pub(crate) enum SwappedSettlement {
 /// ```ts
 /// const exchanged = completedSwapOf(claim, container) !== undefined;
 /// ```
-pub(crate) fn is_a_completed_exchange(claim: &Path, container: &Path) -> Result<bool, WorktreeCopyError> {
+pub(crate) fn is_a_completed_exchange(
+    claim: &Path,
+    container: &Path,
+) -> Result<bool, WorktreeCopyError> {
     return Ok(completed_swap_of(claim, container)?.is_some());
 }
 
@@ -178,8 +200,13 @@ pub(crate) fn settle_before_the_stage_proof(
 /// ```ts
 /// const settlement = settleSwappedAdd(claim, container);
 /// ```
-pub(crate) fn settle_swapped_add(claim: &Path, container: &Path) -> Result<SwappedSettlement, WorktreeCopyError> {
-    let Some(swapped) = completed_swap_of(claim, container)? else { return Ok(SwappedSettlement::NotAnExchange) };
+pub(crate) fn settle_swapped_add(
+    claim: &Path,
+    container: &Path,
+) -> Result<SwappedSettlement, WorktreeCopyError> {
+    let Some(swapped) = completed_swap_of(claim, container)? else {
+        return Ok(SwappedSettlement::NotAnExchange);
+    };
     let mut lines: Vec<String> = match clear_the_displaced_directory(&swapped)? {
         Displacement::Stays(lines) => return Ok(SwappedSettlement::Kept(lines)),
         Displacement::Cleared(lines) => lines,
@@ -224,17 +251,27 @@ pub(crate) fn settle_swapped_add(claim: &Path, container: &Path) -> Result<Swapp
 /// ```ts
 /// const swap = completedSwapOf(claim, container); // undefined unless the records prove it
 /// ```
-fn completed_swap_of(claim: &Path, container: &Path) -> Result<Option<CompletedSwap>, WorktreeCopyError> {
+fn completed_swap_of(
+    claim: &Path,
+    container: &Path,
+) -> Result<Option<CompletedSwap>, WorktreeCopyError> {
     let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-    let Ok(text) = std::fs::read_to_string(record.as_path()) else { return Ok(None) };
-    let Some(Recorded::Registered(binding)) = decode_record(text.as_str()) else { return Ok(None) };
-    let Some(made) = read_made(claim) else { return Ok(None) };
+    let Ok(text) = std::fs::read_to_string(record.as_path()) else {
+        return Ok(None);
+    };
+    let Some(Recorded::Registered(binding)) = decode_record(text.as_str()) else {
+        return Ok(None);
+    };
+    let Some(made) = read_made(claim) else {
+        return Ok(None);
+    };
     if made.container.as_path() != container {
         return Ok(None);
     }
     let stands: bool = still_there(container)?;
     let destination_identity: Option<ObjectId> = path_identity(binding.destination.as_path());
-    let at_the_destination: AtTheDestination = judge_the_destination(destination_identity, made.object);
+    let at_the_destination: AtTheDestination =
+        judge_the_destination(destination_identity, made.object);
     // The object at the stage name is the one the binding recorded for the destination, which the exchange
     //  put there.
     let displaced_stands: bool = stands && path_identity(container) == Some(binding.destination_id);
@@ -249,7 +286,12 @@ fn completed_swap_of(claim: &Path, container: &Path) -> Result<Option<CompletedS
     if !displaced_stands && !destination_left_the_directory_git_made {
         return Ok(None);
     }
-    return Ok(Some(CompletedSwap { binding, made, at_the_destination, displaced_stands }));
+    return Ok(Some(CompletedSwap {
+        binding,
+        made,
+        at_the_destination,
+        displaced_stands,
+    }));
 }
 
 /// What:
@@ -297,8 +339,13 @@ enum AtTheDestination {
 /// ```ts
 /// const judge = (identity, snapshot) => snapshot === undefined ? 'not-compared' : identity === snapshot ? 'the-snapshot' : 'another-object';
 /// ```
-fn judge_the_destination(identity: Option<ObjectId>, snapshot: Option<ObjectId>) -> AtTheDestination {
-    let Some(named) = snapshot else { return AtTheDestination::NotCompared };
+fn judge_the_destination(
+    identity: Option<ObjectId>,
+    snapshot: Option<ObjectId>,
+) -> AtTheDestination {
+    let Some(named) = snapshot else {
+        return AtTheDestination::NotCompared;
+    };
     return match identity {
         Some(found) if found == named => AtTheDestination::TheSnapshot,
         _ => AtTheDestination::AnotherObject,
@@ -344,14 +391,21 @@ enum Displacement {
 /// ```ts
 /// const displacement = clearTheDisplacedDirectory(swap);
 /// ```
-fn clear_the_displaced_directory(swapped: &CompletedSwap) -> Result<Displacement, WorktreeCopyError> {
+fn clear_the_displaced_directory(
+    swapped: &CompletedSwap
+) -> Result<Displacement, WorktreeCopyError> {
     if !swapped.displaced_stands {
         return Ok(Displacement::Cleared(Vec::new()));
     }
     let container: &Path = swapped.made.container.as_path();
     let destination: &Path = swapped.binding.destination.as_path();
     if swapped.at_the_destination == AtTheDestination::TheSnapshot {
-        let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(container, destination, swapped.binding.destination_id, swapped.binding.pointer.as_slice());
+        let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(
+            container,
+            destination,
+            swapped.binding.destination_id,
+            swapped.binding.pointer.as_slice(),
+        );
         let mut lines: Vec<String> = Vec::with_capacity(notes.len());
         for note in notes {
             lines.push(format!("monochromatic-git-policy-cli: {note}"));
@@ -383,49 +437,82 @@ fn clear_the_displaced_directory(swapped: &CompletedSwap) -> Result<Displacement
 /// ```ts
 /// const cleared = removeTheDirectoryGitMade(swap);
 /// ```
-fn remove_the_directory_git_made(swapped: &CompletedSwap) -> Result<Displacement, WorktreeCopyError> {
+fn remove_the_directory_git_made(
+    swapped: &CompletedSwap
+) -> Result<Displacement, WorktreeCopyError> {
     let container: &Path = swapped.made.container.as_path();
     let pointer: PathBuf = container.join(POINTER);
     let held = match std::fs::read_dir(container) {
         Ok(listing) => listing,
         // A folder that another command removed while this one looked is clear.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Displacement::Cleared(Vec::new())),
-        Err(_unreadable) => return Ok(Displacement::Stays(vec![stays_words(container, "it cannot be listed; it holds the directory Git made for this add")])),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(Displacement::Cleared(Vec::new()));
+        }
+        Err(_unreadable) => {
+            return Ok(Displacement::Stays(vec![stays_words(
+                container,
+                "it cannot be listed; it holds the directory Git made for this add",
+            )]));
+        }
     };
     for entry in held.flatten() {
         if entry.file_name() != OsStr::new(POINTER) {
             let named: String = quote(entry.file_name().to_string_lossy().as_ref());
-            return Ok(Displacement::Stays(vec![stays_words(container, format!("it holds {named}, which this add did not put there").as_str())]));
+            return Ok(Displacement::Stays(vec![stays_words(
+                container,
+                format!("it holds {named}, which this add did not put there").as_str(),
+            )]));
         }
     }
     if std::fs::symlink_metadata(pointer.as_path()).is_ok() {
         // The plain-file reader follows no link and reads no more than a pointer may hold, so a directory,
         //  a pipe or a link at the name refuses here rather than being read or waited for.
         let Ok(bytes) = read_plain_file(pointer.as_path(), GIT_FILE_LIMIT) else {
-            return Ok(Displacement::Stays(vec![stays_words(container, "the pointer in it cannot be read as the plain file Git writes")]));
+            return Ok(Displacement::Stays(vec![stays_words(
+                container,
+                "the pointer in it cannot be read as the plain file Git writes",
+            )]));
         };
         if bytes != swapped.binding.pointer {
-            return Ok(Displacement::Stays(vec![stays_words(container, "the pointer in it is not the one Git wrote for this add")]));
+            return Ok(Displacement::Stays(vec![stays_words(
+                container,
+                "the pointer in it is not the one Git wrote for this add",
+            )]));
         }
     }
     let (Some(parent_path), Some(stage_name)) = (container.parent(), container.file_name()) else {
-        return Ok(Displacement::Stays(vec![stays_words(container, "it has no parent to be removed from")]));
+        return Ok(Displacement::Stays(vec![stays_words(
+            container,
+            "it has no parent to be removed from",
+        )]));
     };
     let Ok(parent) = open_root(parent_path) else {
-        return Ok(Displacement::Stays(vec![stays_words(container, "the directory holding it cannot be opened")]));
+        return Ok(Displacement::Stays(vec![stays_words(
+            container,
+            "the directory holding it cannot be opened",
+        )]));
     };
     if std::fs::symlink_metadata(pointer.as_path()).is_ok() {
         let Ok(directory) = open_directory_at(&parent, stage_name) else {
-            return Ok(Displacement::Stays(vec![stays_words(container, "it cannot be opened")]));
+            return Ok(Displacement::Stays(vec![stays_words(
+                container,
+                "it cannot be opened",
+            )]));
         };
         if let Err(error) = remove_at(&directory, OsStr::new(POINTER), false) {
-            return Ok(Displacement::Stays(vec![stays_words(container, format!("the pointer Git wrote cannot be removed ({error})").as_str())]));
+            return Ok(Displacement::Stays(vec![stays_words(
+                container,
+                format!("the pointer Git wrote cannot be removed ({error})").as_str(),
+            )]));
         }
     }
     // `rmdir` removes nothing that holds anything, so an entry another process put there after the listing
     //  keeps the folder and is named by the next command.
     if let Err(error) = remove_at(&parent, stage_name, true) {
-        return Ok(Displacement::Stays(vec![stays_words(container, format!("it is not empty ({error})").as_str())]));
+        return Ok(Displacement::Stays(vec![stays_words(
+            container,
+            format!("it is not empty ({error})").as_str(),
+        )]));
     }
     return Ok(Displacement::Cleared(Vec::new()));
 }
@@ -478,7 +565,10 @@ fn settled_words(swapped: &CompletedSwap) -> String {
 /// ```ts
 /// `the stage ${shown} holds the directory Git made for an interrupted \`git worktree add\` and was not changed: ${reason}; remove it yourself once nothing needs it (\`rm -r ${quoted}\`).`
 /// ```
-fn stays_words(container: &Path, reason: &str) -> String {
+fn stays_words(
+    container: &Path,
+    reason: &str,
+) -> String {
     let quoted: String = shell_quote(container.as_os_str().as_bytes());
     return format!(
         "monochromatic-git-policy-cli: the stage {} holds the directory Git made for an interrupted `git worktree add` and was not changed: {reason}; remove it yourself once nothing needs it (`rm -r {quoted}`).",

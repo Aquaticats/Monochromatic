@@ -15,9 +15,24 @@
 //! ```
 
 use super::support::{
-    ENDED_WITH_SIGKILL, Fixture, SERVICE_LOG_FILE, a_filling_that_did_not_run_to_its_end, end_the_fills_clean_within, executable, fixture,
+    ENDED_WITH_SIGKILL,
+    Fixture,
+    SERVICE_LOG_FILE,
+    a_filling_that_did_not_run_to_its_end,
+    end_the_fills_clean_within,
+    executable,
+    fixture,
 };
-use git_policy_cli::work_item::{DONE, FAILED, HELD, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use git_policy_cli::work_item::{
+    DONE,
+    FAILED,
+    HELD,
+    PENDING,
+    WorkItem,
+    WorkKind,
+    enqueue,
+    state_directory,
+};
 use std::os::unix::process::ExitStatusExt as _;
 use std::path::PathBuf;
 use std::process::Command;
@@ -38,11 +53,22 @@ fn cargo_in(fixture: &Fixture) -> PathBuf {
 ///  with standard error kept for the failure.
 /// # Panics
 ///  When the program cannot be started.
-fn run_cargo(fixture: &Fixture, arguments: &[&str], build_directory: Option<&str>) -> std::process::Output {
+fn run_cargo(
+    fixture: &Fixture,
+    arguments: &[&str],
+    build_directory: Option<&str>,
+) -> std::process::Output {
     let mut command: Command = Command::new(cargo_in(fixture));
-    command.args(arguments).env_clear().env("PATH", "/usr/bin:/bin").env("HOME", fixture.root.join("home"));
+    command
+        .args(arguments)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", fixture.root.join("home"));
     if let Some(staging) = build_directory {
-        command.env(git_policy_cli::package_repair_prewarm::BUILD_DIRECTORY_VARIABLE, staging);
+        command.env(
+            git_policy_cli::package_repair_prewarm::BUILD_DIRECTORY_VARIABLE,
+            staging,
+        );
     }
     return command.output().expect("the stand-in cargo runs");
 }
@@ -68,26 +94,68 @@ fn a_fillings_clean_ends_with_the_signal_and_every_other_run_reaches_the_real_pr
     let real: PathBuf = fixture.root.join("real-cargo");
     executable(real.as_path(), A_REAL_PROGRAM.as_bytes());
     std::fs::create_dir_all(fixture.root.join("bin")).expect("the fixture's bin directory");
-    std::os::unix::fs::symlink(real.as_path(), cargo_in(&fixture)).expect("the fixture's Cargo link");
+    std::os::unix::fs::symlink(real.as_path(), cargo_in(&fixture))
+        .expect("the fixture's Cargo link");
     end_the_fills_clean_within(&fixture, Some(ENDED_WITH_SIGKILL));
     // A run that is not the filling's clean is the real program's, and it says so.
     let passed: std::process::Output = run_cargo(&fixture, &["--version"], None);
-    assert!(passed.status.success(), "a run that is not a filling's clean reaches the real program: {:?}", passed.status);
     assert!(
-        String::from_utf8_lossy(passed.stdout.as_slice()).contains("reached the real program: --version"),
+        passed.status.success(),
+        "a run that is not a filling's clean reaches the real program: {:?}",
+        passed.status
+    );
+    assert!(
+        String::from_utf8_lossy(passed.stdout.as_slice())
+            .contains("reached the real program: --version"),
         "the real program is the one that ran: {}",
         String::from_utf8_lossy(passed.stdout.as_slice())
     );
     // A clean of a build directory that is not a filling's staging copy is passed through as well.
-    let elsewhere: std::process::Output = run_cargo(&fixture, &["clean", "--locked"], Some(fixture.root.join("worktree/target").to_str().expect("utf-8")));
-    assert!(elsewhere.status.success(), "a clean of a worktree's own build directory is the real program's: {:?}", elsewhere.status);
+    let elsewhere: std::process::Output = run_cargo(
+        &fixture,
+        &["clean", "--locked"],
+        Some(
+            fixture
+                .root
+                .join("worktree/target")
+                .to_str()
+                .expect("utf-8"),
+        ),
+    );
+    assert!(
+        elsewhere.status.success(),
+        "a clean of a worktree's own build directory is the real program's: {:?}",
+        elsewhere.status
+    );
     // The filling's clean is the one that ends by the signal, which is the ending the runner words `stopped by signal 9`.
-    let staging: PathBuf = fixture.root.join("deeper/stale").join(format!("target{}", git_policy_cli::package_repair_prewarm::STAGING_SUFFIX));
-    let killed: std::process::Output = run_cargo(&fixture, &["clean", "--locked", "--package", "app"], Some(staging.to_str().expect("utf-8")));
-    assert_eq!(killed.status.signal(), Some(libc::SIGKILL), "the filling's clean ends with the signal the runner reports as its own kind of ending: {:?}", killed.status);
+    let staging: PathBuf = fixture.root.join("deeper/stale").join(format!(
+        "target{}",
+        git_policy_cli::package_repair_prewarm::STAGING_SUFFIX
+    ));
+    let killed: std::process::Output = run_cargo(
+        &fixture,
+        &["clean", "--locked", "--package", "app"],
+        Some(staging.to_str().expect("utf-8")),
+    );
+    assert_eq!(
+        killed.status.signal(),
+        Some(libc::SIGKILL),
+        "the filling's clean ends with the signal the runner reports as its own kind of ending: {:?}",
+        killed.status
+    );
     // The resolution after that clean is refused, which is the second half of the gate's line: nothing displaced, nothing kept.
-    let resolved: std::process::Output = run_cargo(&fixture, &["metadata", "--offline", "--format-version", "1"], None);
-    assert_eq!(resolved.status.code(), Some(101), "the resolution after a killed clean is refused: {:?} {}", resolved.status, String::from_utf8_lossy(resolved.stderr.as_slice()));
+    let resolved: std::process::Output = run_cargo(
+        &fixture,
+        &["metadata", "--offline", "--format-version", "1"],
+        None,
+    );
+    assert_eq!(
+        resolved.status.code(),
+        Some(101),
+        "the resolution after a killed clean is refused: {:?} {}",
+        resolved.status,
+        String::from_utf8_lossy(resolved.stderr.as_slice())
+    );
 }
 
 /// What:
@@ -106,11 +174,21 @@ fn a_run_that_asks_for_no_ending_keeps_the_real_cargo_linked() {
     let real: PathBuf = fixture.root.join("real-cargo");
     executable(real.as_path(), A_REAL_PROGRAM.as_bytes());
     std::fs::create_dir_all(fixture.root.join("bin")).expect("the fixture's bin directory");
-    std::os::unix::fs::symlink(real.as_path(), cargo_in(&fixture)).expect("the fixture's Cargo link");
+    std::os::unix::fs::symlink(real.as_path(), cargo_in(&fixture))
+        .expect("the fixture's Cargo link");
     end_the_fills_clean_within(&fixture, None);
-    assert_eq!(std::fs::read_link(cargo_in(&fixture)).expect("the fixture's Cargo is still the link it was"), real, "a run that asks for no ending leaves the real Cargo linked");
+    assert_eq!(
+        std::fs::read_link(cargo_in(&fixture))
+            .expect("the fixture's Cargo is still the link it was"),
+        real,
+        "a run that asks for no ending leaves the real Cargo linked"
+    );
     let passed: std::process::Output = run_cargo(&fixture, &["--version"], None);
-    assert!(passed.status.success(), "the real program still answers: {:?}", passed.status);
+    assert!(
+        passed.status.success(),
+        "the real program still answers: {:?}",
+        passed.status
+    );
 }
 
 /// What:
@@ -153,19 +231,42 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
         worktree.join("target").display(),
         worktree.display()
     );
-    std::fs::write(fixture.root.join(SERVICE_LOG_FILE), line.as_bytes()).expect("the service's log");
+    std::fs::write(fixture.root.join(SERVICE_LOG_FILE), line.as_bytes())
+        .expect("the service's log");
     // The state a consumer that gave up on a filling leaves it in.
-    std::fs::create_dir_all(state_directory(work.as_path(), FAILED).as_path()).expect("the failed state");
-    std::fs::rename(state_directory(work.as_path(), PENDING).join(id.as_str()), state_directory(work.as_path(), FAILED).join(id.as_str())).expect("the record moves to failed");
-    let said: String = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).expect("a filling whose record failed did not run to its end");
-    assert!(said.contains(FAILED), "the sentence names where the record stands: {said}");
-    assert!(said.contains("could not be filled"), "the sentence quotes the service's own reason: {said}");
-    assert!(said.contains("stopped by signal 9"), "and how the clean ended: {said}");
-    // The same record settled in `done` is a filling that ran to its end, and a control reads its bytes.
-    std::fs::create_dir_all(state_directory(work.as_path(), DONE).as_path()).expect("the done state");
-    std::fs::rename(state_directory(work.as_path(), FAILED).join(id.as_str()), state_directory(work.as_path(), DONE).join(id.as_str())).expect("the record settles");
+    std::fs::create_dir_all(state_directory(work.as_path(), FAILED).as_path())
+        .expect("the failed state");
+    std::fs::rename(
+        state_directory(work.as_path(), PENDING).join(id.as_str()),
+        state_directory(work.as_path(), FAILED).join(id.as_str()),
+    )
+    .expect("the record moves to failed");
+    let said: String =
+        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path())
+            .expect("a filling whose record failed did not run to its end");
     assert!(
-        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path()).is_none(),
+        said.contains(FAILED),
+        "the sentence names where the record stands: {said}"
+    );
+    assert!(
+        said.contains("could not be filled"),
+        "the sentence quotes the service's own reason: {said}"
+    );
+    assert!(
+        said.contains("stopped by signal 9"),
+        "and how the clean ended: {said}"
+    );
+    // The same record settled in `done` is a filling that ran to its end, and a control reads its bytes.
+    std::fs::create_dir_all(state_directory(work.as_path(), DONE).as_path())
+        .expect("the done state");
+    std::fs::rename(
+        state_directory(work.as_path(), FAILED).join(id.as_str()),
+        state_directory(work.as_path(), DONE).join(id.as_str()),
+    )
+    .expect("the record settles");
+    assert!(
+        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path())
+            .is_none(),
         "a record that settled in done is a filling that ran to its end"
     );
 }
@@ -207,8 +308,13 @@ fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
     let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");
     let id: String = item.id();
-    std::fs::create_dir_all(state_directory(work.as_path(), HELD).as_path()).expect("the held state");
-    std::fs::rename(state_directory(work.as_path(), PENDING).join(id.as_str()), state_directory(work.as_path(), HELD).join(id.as_str())).expect("the drain holds it");
+    std::fs::create_dir_all(state_directory(work.as_path(), HELD).as_path())
+        .expect("the held state");
+    std::fs::rename(
+        state_directory(work.as_path(), PENDING).join(id.as_str()),
+        state_directory(work.as_path(), HELD).join(id.as_str()),
+    )
+    .expect("the drain holds it");
     let settling: PathBuf = state_directory(work.as_path(), DONE);
     let held: PathBuf = state_directory(work.as_path(), HELD).join(id.as_str());
     let settler = std::thread::spawn(move || {
@@ -216,7 +322,13 @@ fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
         std::fs::create_dir_all(settling.as_path()).expect("the done state");
         std::fs::rename(held.as_path(), settling.join(id.as_str())).expect("the record settles");
     });
-    let said: Option<String> = a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
-    settler.join().expect("the thread that settles the record ends");
-    assert!(said.is_none(), "a filling the queue held while it ran and settled in done did not fail: {said:?}");
+    let said: Option<String> =
+        a_filling_that_did_not_run_to_its_end(&fixture, git_dir.as_path(), worktree.as_path());
+    settler
+        .join()
+        .expect("the thread that settles the record ends");
+    assert!(
+        said.is_none(),
+        "a filling the queue held while it ran and settled in done did not fail: {said:?}"
+    );
 }

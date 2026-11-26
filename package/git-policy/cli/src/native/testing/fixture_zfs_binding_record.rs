@@ -17,13 +17,25 @@
 //! publishUnder(commonDir, record, 'one');
 //! ```
 
-use crate::worktree_clone_binding_record::binding_encoding::{FolderIdentity, Request};
+use crate::worktree_clone_binding_record::binding_encoding::{
+    FolderIdentity,
+    Request,
+};
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
-use crate::worktree_clone_binding_record::binding_words::{Phase, RequestForm};
+use crate::worktree_clone_binding_record::binding_words::{
+    Phase,
+    RequestForm,
+};
 use crate::worktree_clone_binding_record::record_publication::write_binding;
 use crate::worktree_clone_binding_record::registration_home::open_or_create_home;
-use crate::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_mount_protocol::{
+    DatasetGuid,
+    RequestNonce,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The clone dataset a fixture record names unless a control chooses another.
 pub(crate) const CLONE_DATASET: &str = "tank/monochromatic-git-worktree-clone-datasets/one";
@@ -45,7 +57,8 @@ fn guid(value: &str) -> DatasetGuid {
 
 /// One folder identity the fixture uses.
 fn identity() -> FolderIdentity {
-    return FolderIdentity::decode("131074:1763750400:123456789").expect("the fixture identity reads");
+    return FolderIdentity::decode("131074:1763750400:123456789")
+        .expect("the fixture identity reads");
 }
 
 /// What:
@@ -60,8 +73,21 @@ fn identity() -> FolderIdentity {
 /// ```ts
 /// const record = recordNaming(Phase.Filled, slot, registration, pointerBytes);
 /// ```
-pub(crate) fn record_naming(phase: Phase, slot: &Path, registration: &Path, pointer: Option<Vec<u8>>) -> BindingRecord {
-    let with_registration: bool = matches!(phase, Phase::Registered | Phase::Snapshotted | Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling);
+pub(crate) fn record_naming(
+    phase: Phase,
+    slot: &Path,
+    registration: &Path,
+    pointer: Option<Vec<u8>>,
+) -> BindingRecord {
+    let with_registration: bool = matches!(
+        phase,
+        Phase::Registered
+            | Phase::Snapshotted
+            | Phase::Cloned
+            | Phase::Mounted
+            | Phase::Filled
+            | Phase::Settling
+    );
     return BindingRecord {
         claim: 1,
         nonce: RequestNonce::parse(NONCE).expect("the fixture nonce reads"),
@@ -74,7 +100,8 @@ pub(crate) fn record_naming(phase: Phase, slot: &Path, registration: &Path, poin
         repository_identity: identity(),
         slot: slot.as_os_str().as_encoded_bytes().to_vec(),
         slot_identity: Some(identity()),
-        registration: with_registration.then(|| return registration.as_os_str().as_encoded_bytes().to_vec()),
+        registration: with_registration
+            .then(|| return registration.as_os_str().as_encoded_bytes().to_vec()),
         registration_identity: with_registration.then_some(identity()),
         pool: String::from(POOL),
         pool_guid: guid("17293822569102704641"),
@@ -101,7 +128,11 @@ pub(crate) fn record_naming(phase: Phase, slot: &Path, registration: &Path, poin
 /// ```ts
 /// publishUnder(commonDir, record, 'one');
 /// ```
-pub(crate) fn publish_under(common_dir: &Path, record: &BindingRecord, slot: &str) {
+pub(crate) fn publish_under(
+    common_dir: &Path,
+    record: &BindingRecord,
+    slot: &str,
+) {
     let home: std::fs::File = open_or_create_home(common_dir).expect("the fixture home opens");
     write_binding(&home, slot, record).expect("the fixture record writes");
 }

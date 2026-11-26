@@ -21,7 +21,10 @@
 //! type File = { path: '/etc/systemd/system/…', text: '[Unit]\n…' };
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why one unit text was not built.
@@ -83,21 +86,35 @@ impl UnitTextRefusal {
     /// naming the value and what to give instead.
     pub fn message(&self) -> String {
         return match self {
-            UnitTextRefusal::PathNotOneWord { what, path } => format!(
+            UnitTextRefusal::PathNotOneWord {
+                what,
+                path,
+            } => format!(
                 "{what} is `{}`, which a systemd line cannot carry: a path with a space, a tab, a newline, a quote, a backslash or bytes that are not text becomes more than one word or another word. Nothing was written. Ways forward: give a path with none of those characters; the route's checkout and the root-owned file are both ordinary paths on this machine.",
                 path.display()
             ),
-            UnitTextRefusal::WordNotOneWord { what, word } => format!(
+            UnitTextRefusal::WordNotOneWord {
+                what,
+                word,
+            } => format!(
                 "{what} is `{word}`, which a systemd line cannot carry: a word with a space, a tab, a newline, a quote or a backslash is split or regrouped by systemd. Nothing was written. Ways forward: give the unit's name as `systemctl` prints it, alone."
             ),
-            UnitTextRefusal::Slug { slug } => format!(
+            UnitTextRefusal::Slug {
+                slug,
+            } => format!(
                 "the nested dataset's unit slug `{slug}` is not one a unit name takes: give its short name in lowercase letters, digits and single hyphens, as the dataset's own last name component reads."
             ),
-            UnitTextRefusal::PathNotAbsolute { what, path } => format!(
+            UnitTextRefusal::PathNotAbsolute {
+                what,
+                path,
+            } => format!(
                 "{what} is `{}`, which is not an absolute path, so a unit line would resolve it against the directory a reader stood in. Nothing was written. Ways forward: give the full path, beginning with `/`.",
                 path.display()
             ),
-            UnitTextRefusal::MissingLine { line, unit } => format!(
+            UnitTextRefusal::MissingLine {
+                line,
+                unit,
+            } => format!(
                 "{unit} carries no `{line}` line, and the propagation pair asks the gate for a reload: without that line the request is a restart, which stops the gate, runs its stop pass and unmounts every attached clone. Nothing was written. Ways forward: install the gate text this build writes, which carries the line, and add the propagation pair only beside it."
             ),
         };
@@ -189,9 +206,13 @@ impl NestedDatasetMount {
         check_path("the nested dataset's mountpoint", self.mountpoint.as_path())?;
         let mut letters = self.slug.chars();
         let first_ok: bool = matches!(letters.next(), Some(letter) if letter.is_ascii_lowercase() || letter.is_ascii_digit());
-        let rest_ok: bool = self.slug.chars().all(|letter| return letter.is_ascii_lowercase() || letter.is_ascii_digit() || letter == '-');
+        let rest_ok: bool = self.slug.chars().all(|letter| {
+            return letter.is_ascii_lowercase() || letter.is_ascii_digit() || letter == '-';
+        });
         if !first_ok || !rest_ok {
-            return Err(UnitTextRefusal::Slug { slug: self.slug.clone() });
+            return Err(UnitTextRefusal::Slug {
+                slug: self.slug.clone(),
+            });
         }
         return Ok(());
     }
@@ -225,7 +246,10 @@ pub struct InstalledUnitFile {
 /// Not absolute,
 /// not text,
 /// or carrying a character systemd splits on.
-pub fn check_path(what: &'static str, path: &Path) -> Result<(), UnitTextRefusal> {
+pub fn check_path(
+    what: &'static str,
+    path: &Path,
+) -> Result<(), UnitTextRefusal> {
     let _text: &str = path_text(what, path)?;
     return Ok(());
 }
@@ -242,13 +266,22 @@ pub fn check_path(what: &'static str, path: &Path) -> Result<(), UnitTextRefusal
 /// Not absolute,
 /// not text,
 /// or carrying a character systemd splits on.
-pub fn path_text<'a>(what: &'static str, path: &'a Path) -> Result<&'a str, UnitTextRefusal> {
+pub fn path_text<'a>(
+    what: &'static str,
+    path: &'a Path,
+) -> Result<&'a str, UnitTextRefusal> {
     if !path.is_absolute() {
-        return Err(UnitTextRefusal::PathNotAbsolute { what, path: path.to_path_buf() });
+        return Err(UnitTextRefusal::PathNotAbsolute {
+            what,
+            path: path.to_path_buf(),
+        });
     }
     return match crate::checkout_boot_units::boot_unit_names::path_as_one_word(path) {
         Some(text) => Ok(text),
-        None => Err(UnitTextRefusal::PathNotOneWord { what, path: path.to_path_buf() }),
+        None => Err(UnitTextRefusal::PathNotOneWord {
+            what,
+            path: path.to_path_buf(),
+        }),
     };
 }
 
@@ -257,9 +290,15 @@ pub fn path_text<'a>(what: &'static str, path: &'a Path) -> Result<&'a str, Unit
 /// # Errors
 /// Empty,
 /// or carrying whitespace.
-pub fn check_unit_name(what: &'static str, word: &str) -> Result<(), UnitTextRefusal> {
+pub fn check_unit_name(
+    what: &'static str,
+    word: &str,
+) -> Result<(), UnitTextRefusal> {
     if !crate::checkout_boot_units::boot_unit_names::is_one_unit_name(word) {
-        return Err(UnitTextRefusal::WordNotOneWord { what, word: String::from(word) });
+        return Err(UnitTextRefusal::WordNotOneWord {
+            what,
+            word: String::from(word),
+        });
     }
     return Ok(());
 }
@@ -270,9 +309,15 @@ pub fn check_unit_name(what: &'static str, word: &str) -> Result<(), UnitTextRef
 /// Empty,
 /// or carrying whitespace,
 /// a quote or a backslash.
-pub fn check_word(what: &'static str, word: &str) -> Result<(), UnitTextRefusal> {
+pub fn check_word(
+    what: &'static str,
+    word: &str,
+) -> Result<(), UnitTextRefusal> {
     if !crate::checkout_boot_units::boot_unit_names::is_one_word(word) {
-        return Err(UnitTextRefusal::WordNotOneWord { what, word: String::from(word) });
+        return Err(UnitTextRefusal::WordNotOneWord {
+            what,
+            word: String::from(word),
+        });
     }
     return Ok(());
 }

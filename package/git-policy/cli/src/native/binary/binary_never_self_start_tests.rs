@@ -28,15 +28,33 @@
 
 /// The shared fixtures,
 /// bounded runs and observation of what a run showed its caller.
-use super::support::{Fixture, Observed, REAL_GIT, bounded, copy_executable, executable, fixture, git, observe, remove, repository};
+use super::support::{
+    Fixture,
+    Observed,
+    REAL_GIT,
+    bounded,
+    copy_executable,
+    executable,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+};
 /// The bound one chain of starts ends at,
 /// which the relay control reads its refusal against.
 use git_policy_cli::started_as_git::MOST_STARTS_IN_ONE_CHAIN;
 /// Operating-system text,
 /// for building the one `PATH` value of a run.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// The paths of the fixture's files.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The most starts a counting stand-in allows before it ends the chain with `STAND_IN_STOP_CODE`.
 ///  The value is a fixture bound and not a limit of the wrapper:
@@ -94,7 +112,11 @@ const LAUNCHER_NAME: &str = "monochromatic-git-policy-cli";
 /// ```ts
 /// writeExecutable(path, `appendLine(counter); if (lines(counter) > START_CAP) process.exit(97); execve(target, args)`);
 /// ```
-fn counting_stand_in(path: &Path, counter: &Path, target: &Path) {
+fn counting_stand_in(
+    path: &Path,
+    counter: &Path,
+    target: &Path,
+) {
     let script: String = format!(
         "#!/bin/sh\n\
          echo started >> '{counter}'\n\
@@ -125,7 +147,10 @@ fn counting_stand_in(path: &Path, counter: &Path, target: &Path) {
 /// ```ts
 /// writeFileSync(`${launcher}.launch`, JSON.stringify({ toolId, lockFile, real, scope: 'repo' }));
 /// ```
-fn write_launch_record(launcher: &Path, real: &Path) {
+fn write_launch_record(
+    launcher: &Path,
+    real: &Path,
+) {
     let mut record_name: OsString = launcher.as_os_str().to_os_string();
     record_name.push(".launch");
     let record: String = format!(
@@ -164,7 +189,12 @@ fn starts(counter: &Path) -> usize {
 /// ```ts
 /// writeExecutable(path, `const level = 1 + +(env[LEVEL] ?? 0); appendLine(counter, level); if (level > cap) process.exit(97); env[LEVEL] = level; ${target} "$@"`);
 /// ```
-fn counting_child_stand_in(path: &Path, counter: &Path, target: &Path, cap: usize) {
+fn counting_child_stand_in(
+    path: &Path,
+    counter: &Path,
+    target: &Path,
+    cap: usize,
+) {
     let script: String = format!(
         "#!/bin/sh\n\
          level=$(( ${{{CHAIN_LEVEL_VARIABLE}:-0}} + 1 ))\n\
@@ -196,13 +226,23 @@ fn counting_child_stand_in(path: &Path, counter: &Path, target: &Path, cap: usiz
 /// const deepest = Math.max(...lines(counter).map(Number));
 /// ```
 fn deepest_level(counter: &Path) -> usize {
-    return std::fs::read_to_string(counter)
-        .map_or(0, |text| { return text.lines().filter_map(|line| { return line.trim().parse::<usize>().ok(); }).max().unwrap_or(0); });
+    return std::fs::read_to_string(counter).map_or(0, |text| {
+        return text
+            .lines()
+            .filter_map(|line| {
+                return line.trim().parse::<usize>().ok();
+            })
+            .max()
+            .unwrap_or(0);
+    });
 }
 
 /// One directory under the fixture,
 /// created now.
-fn directory(fixture: &Fixture, name: &str) -> PathBuf {
+fn directory(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let path: PathBuf = fixture.root.join(name);
     std::fs::create_dir(&path).expect("fixture directory");
     return path;
@@ -222,7 +262,12 @@ fn directory(fixture: &Fixture, name: &str) -> PathBuf {
 /// ```ts
 /// spawnSync(join(fixture, 'bin/git'), args, { cwd: repo, env: { PATH: directories.join(':') } });
 /// ```
-fn run_with_only(fixture: &Fixture, repo: &Path, path_directories: &[&Path], arguments: &[&str]) -> Observed {
+fn run_with_only(
+    fixture: &Fixture,
+    repo: &Path,
+    path_directories: &[&Path],
+    arguments: &[&str],
+) -> Observed {
     let mut path: OsString = OsString::new();
     for entry in path_directories {
         if !path.is_empty() {
@@ -231,9 +276,13 @@ fn run_with_only(fixture: &Fixture, repo: &Path, path_directories: &[&Path], arg
         path.push(entry);
     }
     return observe(
-        bounded(fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
-            .current_dir(repo)
-            .args(arguments),
+        bounded(
+            fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .current_dir(repo)
+        .args(arguments),
         b"",
     );
 }
@@ -268,18 +317,38 @@ fn a_symlink_to_the_toolchain_launcher_alone_on_path_starts_nothing_and_says_wha
     let launchers: PathBuf = directory(&fixture, "launchers");
     let counter: PathBuf = fixture.root.join("starts");
     let launcher: PathBuf = launchers.join(LAUNCHER_NAME);
-    counting_stand_in(launcher.as_path(), counter.as_path(), fixture.wrapper.as_path());
+    counting_stand_in(
+        launcher.as_path(),
+        counter.as_path(),
+        fixture.wrapper.as_path(),
+    );
     write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
     let path_directory: PathBuf = directory(&fixture, "only");
-    std::os::unix::fs::symlink(&launcher, path_directory.join("git")).expect("symlink to the launcher");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[path_directory.as_path()], &["rev-parse", "HEAD"]);
+    std::os::unix::fs::symlink(&launcher, path_directory.join("git"))
+        .expect("symlink to the launcher");
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[path_directory.as_path()],
+        &["rev-parse", "HEAD"],
+    );
     let text: String = words(&observed);
-    assert_eq!(starts(counter.as_path()), 0, "the launcher must never be started: {text}");
+    assert_eq!(
+        starts(counter.as_path()),
+        0,
+        "the launcher must never be started: {text}"
+    );
     assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{text}");
     assert!(observed.stdout.is_empty());
-    assert!(text.contains(path_directory.join("git").to_string_lossy().as_ref()), "names the candidate it skipped: {text}");
+    assert!(
+        text.contains(path_directory.join("git").to_string_lossy().as_ref()),
+        "names the candidate it skipped: {text}"
+    );
     assert!(text.contains("PATH"), "names the input it searched: {text}");
-    assert!(text.contains("install Git") || text.contains("Install Git"), "names the remedy: {text}");
+    assert!(
+        text.contains("install Git") || text.contains("Install Git"),
+        "names the remedy: {text}"
+    );
     remove(&fixture);
 }
 
@@ -304,13 +373,28 @@ fn a_toolchain_launcher_alone_on_path_answers_version_with_a_stop_and_not_a_chai
     let launchers: PathBuf = directory(&fixture, "launchers");
     let counter: PathBuf = fixture.root.join("starts");
     let launcher: PathBuf = launchers.join(LAUNCHER_NAME);
-    counting_stand_in(launcher.as_path(), counter.as_path(), fixture.wrapper.as_path());
+    counting_stand_in(
+        launcher.as_path(),
+        counter.as_path(),
+        fixture.wrapper.as_path(),
+    );
     write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
     let path_directory: PathBuf = directory(&fixture, "only");
-    std::os::unix::fs::symlink(&launcher, path_directory.join("git")).expect("symlink to the launcher");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[path_directory.as_path()], &["--version"]);
+    std::os::unix::fs::symlink(&launcher, path_directory.join("git"))
+        .expect("symlink to the launcher");
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[path_directory.as_path()],
+        &["--version"],
+    );
     assert_eq!(starts(counter.as_path()), 0, "{}", words(&observed));
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{}", words(&observed));
+    assert_eq!(
+        observed.code,
+        Some(WRAPPER_STOP_CODE),
+        "{}",
+        words(&observed)
+    );
     remove(&fixture);
 }
 
@@ -334,20 +418,45 @@ fn a_launcher_named_git_and_a_symlink_chain_to_a_launcher_are_skipped() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let counter: PathBuf = fixture.root.join("starts");
     let named: PathBuf = directory(&fixture, "named");
-    counting_stand_in(named.join("git").as_path(), counter.as_path(), fixture.wrapper.as_path());
+    counting_stand_in(
+        named.join("git").as_path(),
+        counter.as_path(),
+        fixture.wrapper.as_path(),
+    );
     write_launch_record(named.join("git").as_path(), fixture.wrapper.as_path());
     let linked: PathBuf = directory(&fixture, "linked");
     let launchers: PathBuf = directory(&fixture, "launchers");
     let launcher: PathBuf = launchers.join(LAUNCHER_NAME);
-    counting_stand_in(launcher.as_path(), counter.as_path(), fixture.wrapper.as_path());
+    counting_stand_in(
+        launcher.as_path(),
+        counter.as_path(),
+        fixture.wrapper.as_path(),
+    );
     write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
     let middle: PathBuf = linked.join("middle");
     std::os::unix::fs::symlink(&launcher, &middle).expect("first link");
     std::os::unix::fs::symlink(&middle, linked.join("git")).expect("second link");
     for directory_under_test in [named.as_path(), linked.as_path()] {
-        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[directory_under_test], &["rev-parse", "HEAD"]);
-        assert_eq!(starts(counter.as_path()), 0, "{}: {}", directory_under_test.display(), words(&observed));
-        assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{}: {}", directory_under_test.display(), words(&observed));
+        let observed: Observed = run_with_only(
+            &fixture,
+            repo.as_path(),
+            &[directory_under_test],
+            &["rev-parse", "HEAD"],
+        );
+        assert_eq!(
+            starts(counter.as_path()),
+            0,
+            "{}: {}",
+            directory_under_test.display(),
+            words(&observed)
+        );
+        assert_eq!(
+            observed.code,
+            Some(WRAPPER_STOP_CODE),
+            "{}: {}",
+            directory_under_test.display(),
+            words(&observed)
+        );
     }
     remove(&fixture);
 }
@@ -384,15 +493,36 @@ fn another_wrapper_release_behind_an_unrecorded_launcher_stops_on_arrival() {
     executable(other.as_path(), bytes.as_slice());
     let path_directory: PathBuf = directory(&fixture, "only");
     let counter: PathBuf = fixture.root.join("starts");
-    counting_stand_in(path_directory.join("git").as_path(), counter.as_path(), other.as_path());
-    for arguments in [&["--version"][..], &["--exec-path"][..], &["rev-parse", "HEAD"][..]] {
+    counting_stand_in(
+        path_directory.join("git").as_path(),
+        counter.as_path(),
+        other.as_path(),
+    );
+    for arguments in [
+        &["--version"][..],
+        &["--exec-path"][..],
+        &["rev-parse", "HEAD"][..],
+    ] {
         std::fs::remove_file(&counter).ok();
-        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[path_directory.as_path()], arguments);
+        let observed: Observed = run_with_only(
+            &fixture,
+            repo.as_path(),
+            &[path_directory.as_path()],
+            arguments,
+        );
         let text: String = words(&observed);
         assert!(starts(counter.as_path()) <= 1, "{arguments:?}: {text}");
-        assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{arguments:?}: {text}");
+        assert_eq!(
+            observed.code,
+            Some(WRAPPER_STOP_CODE),
+            "{arguments:?}: {text}"
+        );
         assert!(text.contains("started as Git"), "{arguments:?}: {text}");
-        assert!(text.contains(path_directory.join("git").to_string_lossy().as_ref()) || text.contains("PATH"), "{arguments:?}: {text}");
+        assert!(
+            text.contains(path_directory.join("git").to_string_lossy().as_ref())
+                || text.contains("PATH"),
+            "{arguments:?}: {text}"
+        );
     }
     remove(&fixture);
 }
@@ -422,11 +552,21 @@ fn a_symlink_a_hard_link_and_a_copy_of_the_wrapper_alone_on_path_are_skipped() {
     let copied: PathBuf = directory(&fixture, "copied");
     copy_executable(fixture.wrapper.as_path(), copied.join("git").as_path());
     for form in [symlinked.as_path(), hard.as_path(), copied.as_path()] {
-        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[form], &["rev-parse", "HEAD"]);
+        let observed: Observed =
+            run_with_only(&fixture, repo.as_path(), &[form], &["rev-parse", "HEAD"]);
         let text: String = words(&observed);
-        assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{}: {text}", form.display());
+        assert_eq!(
+            observed.code,
+            Some(WRAPPER_STOP_CODE),
+            "{}: {text}",
+            form.display()
+        );
         assert!(observed.stdout.is_empty(), "{}", form.display());
-        assert!(text.contains(form.join("git").to_string_lossy().as_ref()), "{}: {text}", form.display());
+        assert!(
+            text.contains(form.join("git").to_string_lossy().as_ref()),
+            "{}: {text}",
+            form.display()
+        );
     }
     remove(&fixture);
 }
@@ -460,18 +600,35 @@ fn a_script_named_git_that_starts_the_wrapper_without_exec_ends_the_chain() {
     let scripts: PathBuf = directory(&fixture, "scripts");
     let counter: PathBuf = fixture.root.join("starts");
     let script: PathBuf = scripts.join("git");
-    counting_child_stand_in(script.as_path(), counter.as_path(), fixture.wrapper.as_path(), CHAIN_CAP);
+    counting_child_stand_in(
+        script.as_path(),
+        counter.as_path(),
+        fixture.wrapper.as_path(),
+        CHAIN_CAP,
+    );
     let bin: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[bin.as_path(), scripts.as_path()],
+        &["rev-parse", "HEAD"],
+    );
     let text: String = words(&observed);
     let deepest: usize = deepest_level(counter.as_path());
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
+    assert_eq!(
+        observed.code,
+        Some(WRAPPER_STOP_CODE),
+        "the wrapper must end the chain itself, deepest level {deepest}: {text}"
+    );
     assert!(
         (2..CHAIN_CAP).contains(&deepest),
         "the chain must end after one step and before the stand-in's backstop at level {CHAIN_CAP}: deepest level {deepest}: {text}"
     );
     assert!(text.contains("started as Git"), "{text}");
-    assert!(text.contains(script.to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
+    assert!(
+        text.contains(script.to_string_lossy().as_ref()),
+        "names the `git` on PATH that led back: {text}"
+    );
     assert!(observed.stdout.is_empty());
     remove(&fixture);
 }
@@ -506,33 +663,61 @@ fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
     let names: [&str; 9] = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
     for (index, name) in names.iter().enumerate() {
         let next: &str = names.get(index + 1).copied().unwrap_or("rev-parse");
-        let body: String = if *name == "i" { String::from("!git rev-parse HEAD") } else { format!("!git {next}") };
-        git(&fixture, repo.as_path(), &["config", format!("alias.{name}").as_str(), body.as_str()]);
+        let body: String = if *name == "i" {
+            String::from("!git rev-parse HEAD")
+        } else {
+            format!("!git {next}")
+        };
+        git(
+            &fixture,
+            repo.as_path(),
+            &["config", format!("alias.{name}").as_str(), body.as_str()],
+        );
     }
     let expected: std::process::Output = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let observed: Observed = super::support::run_wrapped(&fixture, repo.as_path(), &["a"]);
     let text: String = words(&observed);
-    assert_eq!(observed.code, Some(0), "the chain of aliases must run: {text}");
-    assert_eq!(observed.stdout, expected.stdout, "the answer is the one real Git gives: {text}");
-    assert!(!text.contains("started as Git"), "a finite chain of aliases is no recursion: {text}");
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the chain of aliases must run: {text}"
+    );
+    assert_eq!(
+        observed.stdout, expected.stdout,
+        "the answer is the one real Git gives: {text}"
+    );
+    assert!(
+        !text.contains("started as Git"),
+        "a finite chain of aliases is no recursion: {text}"
+    );
     // The same chain where Git's own exec directory offers the wrapper, which is the install whose `git-core/git` leads
     //  back to it: every alias then runs the wrapper rather than the system Git.
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
     let through: Observed = observe(
-        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
-            .env("GIT_EXEC_PATH", fixture.root.join("bin"))
-            .current_dir(repo.as_path())
-            .args(["a"]),
+        bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .env("GIT_EXEC_PATH", fixture.root.join("bin"))
+        .current_dir(repo.as_path())
+        .args(["a"]),
         b"",
     );
     let said: String = words(&through);
-    assert_eq!(through.code, Some(0), "a finite chain of aliases is no recursion, whatever Git's exec path offers: {said}");
-    assert_eq!(through.stdout, expected.stdout, "the answer is the one real Git gives: {said}");
+    assert_eq!(
+        through.code,
+        Some(0),
+        "a finite chain of aliases is no recursion, whatever Git's exec path offers: {said}"
+    );
+    assert_eq!(
+        through.stdout, expected.stdout,
+        "the answer is the one real Git gives: {said}"
+    );
     assert!(!said.contains("started as Git"), "{said}");
     remove(&fixture);
 }
-
 
 /// What:
 ///  Write a launcher named `git` that clears the environment and hands the invocation to two shells that only relay
@@ -556,7 +741,12 @@ fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
 /// writeExecutable(relayParent, `#!/bin/sh\n/bin/sh '${relayChild}' "$@"; echo relayed`);
 /// writeExecutable(relayChild, `#!/bin/sh\n'${wrapper}' "$@"; echo relayed`);
 /// ```
-fn relays_behind_a_launcher_that_clears_the_environment(scripts: &Path, path_variable: &OsStr, wrapper: &Path, relays: usize) {
+fn relays_behind_a_launcher_that_clears_the_environment(
+    scripts: &Path,
+    path_variable: &OsStr,
+    wrapper: &Path,
+    relays: usize,
+) {
     let launcher: PathBuf = scripts.join("git");
     let first: PathBuf = scripts.join("relay-0");
     // A read of the wrapper's own is answered by the real Git, so the forwarding below is the chain this control is about.
@@ -574,7 +764,10 @@ fn relays_behind_a_launcher_that_clears_the_environment(scripts: &Path, path_var
     //  between the wrapper that wrote the record and the wrapper that reads it.
     for level in 0..relays {
         let next: String = if level + 1 < relays {
-            format!("/bin/sh '{}' \"$@\"", scripts.join(format!("relay-{}", level + 1)).display())
+            format!(
+                "/bin/sh '{}' \"$@\"",
+                scripts.join(format!("relay-{}", level + 1)).display()
+            )
         } else {
             format!("'{}' \"$@\"", wrapper.display())
         };
@@ -584,7 +777,6 @@ fn relays_behind_a_launcher_that_clears_the_environment(scripts: &Path, path_var
         );
     }
 }
-
 
 /// What:
 ///  A chain of relays longer than the ancestors the record is looked for in still ends.
@@ -615,14 +807,32 @@ fn a_chain_of_five_relays_still_ends() {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(scripts.as_os_str());
-    relays_behind_a_launcher_that_clears_the_environment(scripts.as_path(), path.as_os_str(), fixture.wrapper.as_path(), 5);
+    relays_behind_a_launcher_that_clears_the_environment(
+        scripts.as_path(),
+        path.as_os_str(),
+        fixture.wrapper.as_path(),
+        5,
+    );
     let observed: Observed = observe(
-        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .current_dir(repo.as_path())
+        .args(["rev-parse", "HEAD"]),
         b"",
     );
     let text: String = words(&observed);
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, not a relay limit: {text}");
-    assert!(text.contains(&format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1)), "it names the start that passed the bound: {text}");
+    assert_eq!(
+        observed.code,
+        Some(WRAPPER_STOP_CODE),
+        "the wrapper must end the chain itself, not a relay limit: {text}"
+    );
+    assert!(
+        text.contains(&format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1)),
+        "it names the start that passed the bound: {text}"
+    );
     remove(&fixture);
 }
 
@@ -653,15 +863,33 @@ fn a_chain_of_relays_between_two_starts_still_ends() {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(scripts.as_os_str());
-    relays_behind_a_launcher_that_clears_the_environment(scripts.as_path(), path.as_os_str(), fixture.wrapper.as_path(), 2);
+    relays_behind_a_launcher_that_clears_the_environment(
+        scripts.as_path(),
+        path.as_os_str(),
+        fixture.wrapper.as_path(),
+        2,
+    );
     let observed: Observed = observe(
-        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .current_dir(repo.as_path())
+        .args(["rev-parse", "HEAD"]),
         b"",
     );
     let text: String = words(&observed);
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, not a relay limit: {text}");
+    assert_eq!(
+        observed.code,
+        Some(WRAPPER_STOP_CODE),
+        "the wrapper must end the chain itself, not a relay limit: {text}"
+    );
     assert!(text.contains("started as Git"), "{text}");
-    assert!(text.contains(&format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1)), "it names the start that passed the bound: {text}");
+    assert!(
+        text.contains(&format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1)),
+        "it names the start that passed the bound: {text}"
+    );
     remove(&fixture);
 }
 
@@ -690,9 +918,20 @@ fn a_chain_of_relays_between_two_starts_still_ends() {
 /// ```ts
 /// writeExecutable(launcher, `#!/bin/sh\nlevel=$(( ${LEVEL:-0} + 1 )); echo $level >> counter; if [ $level -gt cap ]; then exit 97; fi\nenv --ignore-environment HOME=... PATH=... LEVEL=$level wrapper "$@"`);
 /// ```
-fn launcher_that_clears_the_environment(path: &Path, counter: &Path, path_variable: &OsStr, wrapper: &Path, cap: usize, replaces_itself: bool) {
+fn launcher_that_clears_the_environment(
+    path: &Path,
+    counter: &Path,
+    path_variable: &OsStr,
+    wrapper: &Path,
+    cap: usize,
+    replaces_itself: bool,
+) {
     // A launcher that `exec`s leaves one process running the launcher, the clearing and the wrapper again.
-    let start: &str = if replaces_itself { "exec /usr/bin/env" } else { "/usr/bin/env" };
+    let start: &str = if replaces_itself {
+        "exec /usr/bin/env"
+    } else {
+        "/usr/bin/env"
+    };
     let script: String = format!(
         "#!/bin/sh\n\
          level=$(( ${{{CHAIN_LEVEL_VARIABLE}:-0}} + 1 ))\n\
@@ -740,18 +979,44 @@ fn a_launcher_that_clears_the_environment_and_replaces_itself_ends_the_chain() {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(launchers.as_os_str());
-    launcher_that_clears_the_environment(launchers.join("git").as_path(), counter.as_path(), path.as_os_str(), fixture.wrapper.as_path(), CHAIN_CAP, true);
+    launcher_that_clears_the_environment(
+        launchers.join("git").as_path(),
+        counter.as_path(),
+        path.as_os_str(),
+        fixture.wrapper.as_path(),
+        CHAIN_CAP,
+        true,
+    );
     let observed: Observed = observe(
-        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .current_dir(repo.as_path())
+        .args(["rev-parse", "HEAD"]),
         b"",
     );
     let text: String = words(&observed);
     let deepest: usize = deepest_level(counter.as_path());
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
-    assert_eq!(deepest, 1, "the launcher runs once and the wrapper it started stops: {text}");
+    assert_eq!(
+        observed.code,
+        Some(WRAPPER_STOP_CODE),
+        "the wrapper must end the chain itself, deepest level {deepest}: {text}"
+    );
+    assert_eq!(
+        deepest, 1,
+        "the launcher runs once and the wrapper it started stops: {text}"
+    );
     assert!(text.contains("started as Git"), "{text}");
-    assert!(text.contains("replaced with this program"), "says how the start arrived: {text}");
-    assert!(text.contains(launchers.join("git").to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
+    assert!(
+        text.contains("replaced with this program"),
+        "says how the start arrived: {text}"
+    );
+    assert!(
+        text.contains(launchers.join("git").to_string_lossy().as_ref()),
+        "names the `git` on PATH that led back: {text}"
+    );
     remove(&fixture);
 }
 
@@ -786,20 +1051,40 @@ fn a_launcher_that_clears_the_environment_ends_the_chain() {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(launchers.as_os_str());
-    launcher_that_clears_the_environment(launchers.join("git").as_path(), counter.as_path(), path.as_os_str(), fixture.wrapper.as_path(), CHAIN_CAP, false);
+    launcher_that_clears_the_environment(
+        launchers.join("git").as_path(),
+        counter.as_path(),
+        path.as_os_str(),
+        fixture.wrapper.as_path(),
+        CHAIN_CAP,
+        false,
+    );
     let observed: Observed = observe(
-        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .current_dir(repo.as_path())
+        .args(["rev-parse", "HEAD"]),
         b"",
     );
     let text: String = words(&observed);
     let deepest: usize = deepest_level(counter.as_path());
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
+    assert_eq!(
+        observed.code,
+        Some(WRAPPER_STOP_CODE),
+        "the wrapper must end the chain itself, deepest level {deepest}: {text}"
+    );
     assert!(
         (2..CHAIN_CAP).contains(&deepest),
         "the chain must end after one step and before the launcher's backstop at level {CHAIN_CAP}: deepest level {deepest}: {text}"
     );
     assert!(text.contains("started as Git"), "{text}");
-    assert!(text.contains(launchers.join("git").to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
+    assert!(
+        text.contains(launchers.join("git").to_string_lossy().as_ref()),
+        "names the `git` on PATH that led back: {text}"
+    );
     remove(&fixture);
 }
 
@@ -821,9 +1106,18 @@ fn a_script_named_git_that_execs_the_wrapper_stops_on_arrival() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let scripts: PathBuf = directory(&fixture, "scripts");
     let counter: PathBuf = fixture.root.join("starts");
-    counting_stand_in(scripts.join("git").as_path(), counter.as_path(), fixture.wrapper.as_path());
+    counting_stand_in(
+        scripts.join("git").as_path(),
+        counter.as_path(),
+        fixture.wrapper.as_path(),
+    );
     let bin: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[bin.as_path(), scripts.as_path()],
+        &["rev-parse", "HEAD"],
+    );
     let text: String = words(&observed);
     assert_eq!(starts(counter.as_path()), 1, "{text}");
     assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{text}");
@@ -850,13 +1144,30 @@ fn a_script_named_git_that_runs_the_real_git_forwards_to_it() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let scripts: PathBuf = directory(&fixture, "scripts");
     let counter: PathBuf = fixture.root.join("starts");
-    counting_child_stand_in(scripts.join("git").as_path(), counter.as_path(), Path::new(REAL_GIT), CHAIN_CAP);
+    counting_child_stand_in(
+        scripts.join("git").as_path(),
+        counter.as_path(),
+        Path::new(REAL_GIT),
+        CHAIN_CAP,
+    );
     let expected: std::process::Output = git(&fixture, &repo, &["rev-parse", "HEAD"]);
     let bin: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[bin.as_path(), scripts.as_path()],
+        &["rev-parse", "HEAD"],
+    );
     let text: String = words(&observed);
     assert_eq!(observed.code, Some(0), "{text}");
-    assert_eq!(observed.stdout, expected.stdout, "Git's own answer through the script");
-    assert_eq!(starts(counter.as_path()), 1, "the script is started once: {text}");
+    assert_eq!(
+        observed.stdout, expected.stdout,
+        "Git's own answer through the script"
+    );
+    assert_eq!(
+        starts(counter.as_path()),
+        1,
+        "the script is started once: {text}"
+    );
     remove(&fixture);
 }

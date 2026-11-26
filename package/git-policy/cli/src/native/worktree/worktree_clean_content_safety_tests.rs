@@ -11,11 +11,21 @@ use super::*;
 use crate::fs_beneath::open_root;
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_index::parse_index;
-use crate::subvolume_test_support::{backdate, checkout_with_worktree};
-use crate::test_support::{git, remove};
-use crate::worktree_clean::{check_clean_tracked, check_clean_tracked_by_content, stored_stats};
-use crate::worktree_convert::inspect;
+use crate::subvolume_test_support::{
+    backdate,
+    checkout_with_worktree,
+};
+use crate::test_support::{
+    git,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::worktree_clean::{
+    check_clean_tracked,
+    check_clean_tracked_by_content,
+    stored_stats,
+};
+use crate::worktree_convert::inspect;
 use std::os::unix::ffi::OsStrExt;
 
 /// How long a step that must not block may take in a control.
@@ -28,12 +38,17 @@ const OWNER_ONLY: libc::mode_t = 0o600;
 const MACRO_CHAIN_LENGTH: usize = 4_000;
 
 /// Run `work` on a thread and fail when it does not finish within the patience.
-fn finishes<T: Send + 'static>(what: &str, work: impl FnOnce() -> T + Send + 'static) -> T {
+fn finishes<T: Send + 'static>(
+    what: &str,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> T {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _sent = sender.send(work());
     });
-    return receiver.recv_timeout(PATIENCE).unwrap_or_else(|_error| { panic!("{what} did not finish within {PATIENCE:?}") });
+    return receiver
+        .recv_timeout(PATIENCE)
+        .unwrap_or_else(|_error| panic!("{what} did not finish within {PATIENCE:?}"));
 }
 
 /// A named pipe at `path`.
@@ -46,23 +61,50 @@ fn make_pipe(path: &Path) {
 
 /// An environment that names no system or global file and the given system attributes.
 fn environment(system_attributes: SystemAttributes) -> ConversionEnvironment {
-    return ConversionEnvironment { scope: ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() }, system_attributes, alternate_attribute_source: None, variables: Vec::new() };
+    return ConversionEnvironment {
+        scope: ScopeEnvironment {
+            no_system: true,
+            ..ScopeEnvironment::default()
+        },
+        system_attributes,
+        alternate_attribute_source: None,
+        variables: Vec::new(),
+    };
 }
 
 /// Run the content check on a worktree.
-fn check(worktree: &Path, environment: &ConversionEnvironment) -> Result<(), String> {
+fn check(
+    worktree: &Path,
+    environment: &ConversionEnvironment,
+) -> Result<(), String> {
     let found = inspect(worktree).expect("registered");
-    return check_clean_tracked_by_content(worktree, found.admin.as_path(), found.common.as_path(), environment, false).map(|_clean| {});
+    return check_clean_tracked_by_content(
+        worktree,
+        found.admin.as_path(),
+        found.common.as_path(),
+        environment,
+        false,
+    )
+    .map(|_clean| {});
 }
 
 /// A checkout where `prepare` committed more files,
 /// with a settled detached worktree `topic` at that commit.
-fn settled(name: &str, prepare: &dyn Fn(&Path)) -> (PathBuf, PathBuf, PathBuf) {
+fn settled(
+    name: &str,
+    prepare: &dyn Fn(&Path),
+) -> (PathBuf, PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     prepare(root.as_path());
     git(root.as_path(), &["add", "--all", "--", "."]);
-    git(root.as_path(), &["commit", "--quiet", "--allow-empty", "--message=prepared"]);
-    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "topic"]);
+    git(
+        root.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=prepared"],
+    );
+    git(
+        root.as_path(),
+        &["worktree", "add", "--quiet", "--detach", "topic"],
+    );
     let worktree: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical worktree");
     backdate(worktree.as_path());
     git(worktree.as_path(), &["update-index", "--refresh"]);
@@ -82,19 +124,40 @@ fn make_stale(path: &Path) {
 /// and `GIT_ATTR_NOSYSTEM` or an unknown location are told apart.
 #[test]
 fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
-    let (parent, root, worktree) = settled("content-system", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
+    let (parent, root, worktree) = settled("content-system", &|root: &Path| {
+        std::fs::write(root.join("target"), b"$Id: old $\n").expect("target");
+    });
     let etc: PathBuf = parent.join("etc");
     std::fs::create_dir_all(&etc).expect("etc");
     std::fs::write(etc.join("gitattributes"), "target ident\n").expect("system attributes");
     let elsewhere: PathBuf = parent.join("custom.gitconfig");
     std::fs::write(&elsewhere, "").expect("system config");
     make_stale(worktree.join("target").as_path());
-    let moved: ConversionEnvironment = ConversionEnvironment { scope: ScopeEnvironment { system: Some(elsewhere), ..ScopeEnvironment::default() }, system_attributes: SystemAttributes::File(etc.join("gitattributes")), alternate_attribute_source: None, variables: Vec::new() };
+    let moved: ConversionEnvironment = ConversionEnvironment {
+        scope: ScopeEnvironment {
+            system: Some(elsewhere),
+            ..ScopeEnvironment::default()
+        },
+        system_attributes: SystemAttributes::File(etc.join("gitattributes")),
+        alternate_attribute_source: None,
+        variables: Vec::new(),
+    };
     let reason: String = check(worktree.as_path(), &moved).expect_err("the attribute applies");
-    assert!(reason.contains("target") && reason.contains("ident") && reason.contains("etc/gitattributes"), "{reason}");
-    check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("the switch turns the file off");
-    check(worktree.as_path(), &environment(SystemAttributes::File(etc.join("none")))).expect("a file that is not there sets nothing");
-    let unknown: String = check(worktree.as_path(), &environment(SystemAttributes::Unknown)).expect_err("unknown");
+    assert!(
+        reason.contains("target")
+            && reason.contains("ident")
+            && reason.contains("etc/gitattributes"),
+        "{reason}"
+    );
+    check(worktree.as_path(), &environment(SystemAttributes::Disabled))
+        .expect("the switch turns the file off");
+    check(
+        worktree.as_path(),
+        &environment(SystemAttributes::File(etc.join("none"))),
+    )
+    .expect("a file that is not there sets nothing");
+    let unknown: String =
+        check(worktree.as_path(), &environment(SystemAttributes::Unknown)).expect_err("unknown");
     assert!(unknown.contains("system attributes file"), "{unknown}");
     drop(root);
     remove(parent.as_path());
@@ -108,27 +171,57 @@ fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
 ///  file of a directory with such a name is that directory's own.
 #[test]
 fn paths_and_patterns_are_matched_as_bytes() {
-    if !in_a_fixture_root_taking_any_name("worktree::worktree_clean_content::safety_tests::paths_and_patterns_are_matched_as_bytes") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree::worktree_clean_content::safety_tests::paths_and_patterns_are_matched_as_bytes",
+    ) {
         return;
     }
     let (parent, root, worktree) = settled("content-bytes", &|root: &Path| {
-        std::fs::write(root.join(std::ffi::OsStr::from_bytes(b"\xFF.txt")), b"$Id: old $\n").expect("non-UTF-8 name");
+        std::fs::write(
+            root.join(std::ffi::OsStr::from_bytes(b"\xFF.txt")),
+            b"$Id: old $\n",
+        )
+        .expect("non-UTF-8 name");
         std::fs::write(root.join("\u{130}.txt"), b"$Id: old $\n").expect("two-byte letter");
         std::fs::create_dir(root.join(std::ffi::OsStr::from_bytes(b"\xFF"))).expect("directory");
-        std::fs::write(root.join(std::ffi::OsStr::from_bytes(b"\xFF")).join(".gitattributes"), "*.dat ident\n").expect("nested attributes");
-        std::fs::write(root.join(std::ffi::OsStr::from_bytes(b"\xFF")).join("a.dat"), b"$Id: old $\n").expect("nested file");
-        std::fs::create_dir(root.join(std::ffi::OsStr::from_bytes(b"\xFE"))).expect("other directory");
-        std::fs::write(root.join(std::ffi::OsStr::from_bytes(b"\xFE")).join("a.dat"), b"$Id: old $\n").expect("other nested file");
+        std::fs::write(
+            root.join(std::ffi::OsStr::from_bytes(b"\xFF"))
+                .join(".gitattributes"),
+            "*.dat ident\n",
+        )
+        .expect("nested attributes");
+        std::fs::write(
+            root.join(std::ffi::OsStr::from_bytes(b"\xFF"))
+                .join("a.dat"),
+            b"$Id: old $\n",
+        )
+        .expect("nested file");
+        std::fs::create_dir(root.join(std::ffi::OsStr::from_bytes(b"\xFE")))
+            .expect("other directory");
+        std::fs::write(
+            root.join(std::ffi::OsStr::from_bytes(b"\xFE"))
+                .join("a.dat"),
+            b"$Id: old $\n",
+        )
+        .expect("other nested file");
     });
     let off: ConversionEnvironment = environment(SystemAttributes::Disabled);
     let info: PathBuf = root.join(".git/info");
     std::fs::create_dir_all(&info).expect("info");
     // `?` against the single byte 0xFF.
     std::fs::write(info.join("attributes"), "?.txt ident\n").expect("attributes");
-    make_stale(worktree.join(std::ffi::OsStr::from_bytes(b"\xFF.txt")).as_path());
+    make_stale(
+        worktree
+            .join(std::ffi::OsStr::from_bytes(b"\xFF.txt"))
+            .as_path(),
+    );
     let reason: String = check(worktree.as_path(), &off).expect_err("one byte");
     assert!(reason.contains("ident"), "{reason}");
-    make_stale(worktree.join(std::ffi::OsStr::from_bytes(b"\xFF.txt")).as_path());
+    make_stale(
+        worktree
+            .join(std::ffi::OsStr::from_bytes(b"\xFF.txt"))
+            .as_path(),
+    );
     // `??` against the two bytes of a letter that Unicode lower-cases to three.
     std::fs::write(info.join("attributes"), "??.txt ident\n").expect("attributes");
     make_stale(worktree.join("\u{130}.txt").as_path());
@@ -136,7 +229,12 @@ fn paths_and_patterns_are_matched_as_bytes() {
     assert!(two.contains("ident"), "{two}");
     // The attributes file of the directory named with a byte that is not UTF-8 is that directory's, not another one's.
     std::fs::write(info.join("attributes"), "").expect("attributes");
-    make_stale(worktree.join(std::ffi::OsStr::from_bytes(b"\xFF")).join("a.dat").as_path());
+    make_stale(
+        worktree
+            .join(std::ffi::OsStr::from_bytes(b"\xFF"))
+            .join("a.dat")
+            .as_path(),
+    );
     let nested: String = check(worktree.as_path(), &off).expect_err("nested");
     assert!(nested.contains("ident"), "{nested}");
     remove(parent.as_path());
@@ -158,11 +256,18 @@ fn attribute_lines_are_lexed_like_git_lexes_them() {
         ("carriage return", "target", "target\tident\r\n"),
     ] {
         let named: String = String::from(name);
-        let (parent, root, worktree) = settled(format!("content-lex-{}", label.replace(' ', "-")).as_str(), &|root: &Path| { std::fs::write(root.join(&named), b"$Id: old $\n").expect("target"); });
+        let (parent, root, worktree) = settled(
+            format!("content-lex-{}", label.replace(' ', "-")).as_str(),
+            &|root: &Path| {
+                std::fs::write(root.join(&named), b"$Id: old $\n").expect("target");
+            },
+        );
         std::fs::create_dir_all(root.join(".git/info")).expect("info");
-        std::fs::write(root.join(".git/info/attributes"), attributes.as_bytes()).expect("attributes");
+        std::fs::write(root.join(".git/info/attributes"), attributes.as_bytes())
+            .expect("attributes");
         make_stale(worktree.join(name).as_path());
-        let reason: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err(label);
+        let reason: String =
+            check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err(label);
         assert!(reason.contains("ident"), "{label}: {reason}");
         remove(parent.as_path());
     }
@@ -180,8 +285,12 @@ fn a_link_in_a_parent_directory_is_not_followed() {
     std::fs::write(outside.join("f"), b"committed\n").expect("copy of f");
     std::fs::remove_dir_all(worktree.join("d")).expect("remove d");
     std::os::unix::fs::symlink(&outside, worktree.join("d")).expect("link in its place");
-    let reason: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err("a link");
-    assert!(reason.contains("d/f") && reason.contains("link"), "{reason}");
+    let reason: String =
+        check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err("a link");
+    assert!(
+        reason.contains("d/f") && reason.contains("link"),
+        "{reason}"
+    );
     remove(parent.as_path());
 }
 
@@ -205,19 +314,58 @@ struct Subject {
 /// The subject for `README.md` of a settled worktree.
 fn subject_of(worktree: &Path) -> Subject {
     let found = inspect(worktree).expect("registered");
-    let clean = check_clean_tracked(worktree, found.admin.as_path(), found.common.as_path()).expect("clean before the change");
-    let entry = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries").into_iter().find(|candidate| { return candidate.path == b"README.md"; }).expect("README.md");
-    let id: Vec<u8> = parse_index(clean.index_bytes.as_slice(), ObjectFormat::Sha1).expect("index").into_iter().find(|candidate| { return candidate.path == b"README.md"; }).expect("README.md").id;
-    return Subject { root: open_root(worktree).expect("held root"), entry, id, index_seconds: clean.index_seconds, path: worktree.to_path_buf() };
+    let clean = check_clean_tracked(worktree, found.admin.as_path(), found.common.as_path())
+        .expect("clean before the change");
+    let entry = stored_stats(clean.index_bytes.as_slice(), clean.hash_length)
+        .expect("entries")
+        .into_iter()
+        .find(|candidate| {
+            return candidate.path == b"README.md";
+        })
+        .expect("README.md");
+    let id: Vec<u8> = parse_index(clean.index_bytes.as_slice(), ObjectFormat::Sha1)
+        .expect("index")
+        .into_iter()
+        .find(|candidate| {
+            return candidate.path == b"README.md";
+        })
+        .expect("README.md")
+        .id;
+    return Subject {
+        root: open_root(worktree).expect("held root"),
+        entry,
+        id,
+        index_seconds: clean.index_seconds,
+        path: worktree.to_path_buf(),
+    };
 }
 
 /// Judge `README.md` with the given actions at the three moments.
-fn judge_with(subject: &Subject, seams: &mut ReadSeams<'_>) -> Result<(), String> {
+fn judge_with(
+    subject: &Subject,
+    seams: &mut ReadSeams<'_>,
+) -> Result<(), String> {
     let found = inspect(subject.path.as_path()).expect("registered");
     let environment: ConversionEnvironment = environment(SystemAttributes::Disabled);
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&subject.root, found.admin.as_path(), found.common.as_path(), &environment, ObjectFormat::Sha1);
-    let place: Place<'_> = Place { directory: &subject.root, parents: &[], name: std::ffi::OsStr::new("README.md") };
-    return judge.agrees_seamed(&place, &subject.entry, subject.id.as_slice(), subject.index_seconds, seams);
+    let mut judge: ContentJudge<'_> = ContentJudge::new(
+        &subject.root,
+        found.admin.as_path(),
+        found.common.as_path(),
+        &environment,
+        ObjectFormat::Sha1,
+    );
+    let place: Place<'_> = Place {
+        directory: &subject.root,
+        parents: &[],
+        name: std::ffi::OsStr::new("README.md"),
+    };
+    return judge.agrees_seamed(
+        &place,
+        &subject.entry,
+        subject.id.as_slice(),
+        subject.index_seconds,
+        seams,
+    );
 }
 
 /// The file is one file from the look at its state to the end of the read:
@@ -230,38 +378,70 @@ fn the_hashed_bytes_are_the_bytes_of_the_one_file_that_was_judged() {
     let subject: Subject = subject_of(worktree.as_path());
     let readme: PathBuf = worktree.join("README.md");
     make_stale(readme.as_path());
-    judge_with(&subject, &mut ReadSeams { before_open: &mut || {}, before_read: &mut || {}, after_read: &mut || {} }).expect("positive control");
+    judge_with(
+        &subject,
+        &mut ReadSeams {
+            before_open: &mut || {},
+            before_read: &mut || {},
+            after_read: &mut || {},
+        },
+    )
+    .expect("positive control");
     // A chmod between the look and the open.
-    let chmod: String = judge_with(&subject, &mut ReadSeams {
-        before_open: &mut || { std::fs::set_permissions(&readme, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("chmod"); },
-        before_read: &mut || {},
-        after_read: &mut || {},
-    })
+    let chmod: String = judge_with(
+        &subject,
+        &mut ReadSeams {
+            before_open: &mut || {
+                std::fs::set_permissions(
+                    &readme,
+                    std::os::unix::fs::PermissionsExt::from_mode(0o755),
+                )
+                .expect("chmod");
+            },
+            before_read: &mut || {},
+            after_read: &mut || {},
+        },
+    )
     .expect_err("executable");
-    assert!(chmod.contains("README.md") && chmod.contains("executable bit"), "{chmod}");
-    std::fs::set_permissions(&readme, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("chmod back");
+    assert!(
+        chmod.contains("README.md") && chmod.contains("executable bit"),
+        "{chmod}"
+    );
+    std::fs::set_permissions(&readme, std::os::unix::fs::PermissionsExt::from_mode(0o644))
+        .expect("chmod back");
     make_stale(readme.as_path());
     // A swap for a link whose target text equals the committed bytes.
-    let swapped: String = judge_with(&subject, &mut ReadSeams {
-        before_open: &mut || {
-            std::fs::remove_file(&readme).expect("remove");
-            std::os::unix::fs::symlink("readme\n", &readme).expect("link");
+    let swapped: String = judge_with(
+        &subject,
+        &mut ReadSeams {
+            before_open: &mut || {
+                std::fs::remove_file(&readme).expect("remove");
+                std::os::unix::fs::symlink("readme\n", &readme).expect("link");
+            },
+            before_read: &mut || {},
+            after_read: &mut || {},
         },
-        before_read: &mut || {},
-        after_read: &mut || {},
-    })
+    )
     .expect_err("link");
     assert!(swapped.contains("README.md"), "{swapped}");
     std::fs::remove_file(&readme).expect("remove link");
     std::fs::write(&readme, b"readme\n").expect("restore");
     // A write after the bytes were read and before the state is read again.
-    let written: String = judge_with(&subject, &mut ReadSeams {
-        before_open: &mut || {},
-        before_read: &mut || {},
-        after_read: &mut || { std::fs::write(&readme, b"readme\n").expect("write"); },
-    })
+    let written: String = judge_with(
+        &subject,
+        &mut ReadSeams {
+            before_open: &mut || {},
+            before_read: &mut || {},
+            after_read: &mut || {
+                std::fs::write(&readme, b"readme\n").expect("write");
+            },
+        },
+    )
     .expect_err("written");
-    assert!(written.contains("changed while it was examined"), "{written}");
+    assert!(
+        written.contains("changed while it was examined"),
+        "{written}"
+    );
     remove(parent.as_path());
 }
 
@@ -273,11 +453,21 @@ fn a_file_that_grows_during_the_look_is_refused_and_the_read_is_bounded() {
     let subject: Subject = subject_of(worktree.as_path());
     let readme: PathBuf = worktree.join("README.md");
     make_stale(readme.as_path());
-    let grown: String = judge_with(&subject, &mut ReadSeams {
-        before_open: &mut || {},
-        before_read: &mut || { std::fs::OpenOptions::new().write(true).open(&readme).expect("open").set_len(CONTENT_LIMIT + 10).expect("grow"); },
-        after_read: &mut || {},
-    })
+    let grown: String = judge_with(
+        &subject,
+        &mut ReadSeams {
+            before_open: &mut || {},
+            before_read: &mut || {
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&readme)
+                    .expect("open")
+                    .set_len(CONTENT_LIMIT + 10)
+                    .expect("grow");
+            },
+            after_read: &mut || {},
+        },
+    )
     .expect_err("grown");
     assert!(grown.contains("larger than"), "{grown}");
     // A reader that never ends is asked for one byte more than the limit and no more.
@@ -286,16 +476,35 @@ fn a_file_that_grows_during_the_look_is_refused_and_the_read_is_bounded() {
         served: std::rc::Rc<std::cell::Cell<u64>>,
     }
     impl Read for Endless {
-        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        fn read(
+            &mut self,
+            buffer: &mut [u8],
+        ) -> std::io::Result<usize> {
             buffer.fill(b'x');
             self.served.set(self.served.get() + buffer.len() as u64);
             return Ok(buffer.len());
         }
     }
     let served: std::rc::Rc<std::cell::Cell<u64>> = std::rc::Rc::new(std::cell::Cell::new(0));
-    assert_eq!(read_at_most(Endless { served: std::rc::Rc::clone(&served) }, 1_000).expect("read"), None);
-    assert_eq!(served.get(), 1_001, "never more than the limit and one byte");
-    assert_eq!(read_at_most(&b"abc"[..], 3).expect("read"), Some(b"abc".to_vec()));
+    assert_eq!(
+        read_at_most(
+            Endless {
+                served: std::rc::Rc::clone(&served)
+            },
+            1_000
+        )
+        .expect("read"),
+        None
+    );
+    assert_eq!(
+        served.get(),
+        1_001,
+        "never more than the limit and one byte"
+    );
+    assert_eq!(
+        read_at_most(&b"abc"[..], 3).expect("read"),
+        Some(b"abc".to_vec())
+    );
     remove(parent.as_path());
 }
 
@@ -308,22 +517,40 @@ fn a_file_that_grows_during_the_look_is_refused_and_the_read_is_bounded() {
 #[test]
 fn every_quoted_line_refuses_at_every_source_level() {
     for (label, in_directory, text) in [
-        ("macro marker in a value", true, "\"target\" ident note=[attr]x\n"),
-        ("token glued to the closing quote", false, "\"target\"ident\n"),
-        ("a quoted line that sets nothing", false, "\"other\" -text\n"),
+        (
+            "macro marker in a value",
+            true,
+            "\"target\" ident note=[attr]x\n",
+        ),
+        (
+            "token glued to the closing quote",
+            false,
+            "\"target\"ident\n",
+        ),
+        (
+            "a quoted line that sets nothing",
+            false,
+            "\"other\" -text\n",
+        ),
     ] {
-        let (parent, root, worktree) = settled(format!("content-quoted-{}", label.replace(' ', "-")).as_str(), &|root: &Path| {
-            std::fs::create_dir(root.join("d")).expect("d");
-            std::fs::write(root.join("d/target"), b"$Id: old $\n").expect("target");
-        });
+        let (parent, root, worktree) = settled(
+            format!("content-quoted-{}", label.replace(' ', "-")).as_str(),
+            &|root: &Path| {
+                std::fs::create_dir(root.join("d")).expect("d");
+                std::fs::write(root.join("d/target"), b"$Id: old $\n").expect("target");
+            },
+        );
         if in_directory {
-            std::fs::write(worktree.join("d/.gitattributes"), text.as_bytes()).expect("directory attributes");
+            std::fs::write(worktree.join("d/.gitattributes"), text.as_bytes())
+                .expect("directory attributes");
         } else {
             std::fs::create_dir_all(root.join(".git/info")).expect("info");
-            std::fs::write(root.join(".git/info/attributes"), text.as_bytes()).expect("info attributes");
+            std::fs::write(root.join(".git/info/attributes"), text.as_bytes())
+                .expect("info attributes");
         }
         make_stale(worktree.join("d/target").as_path());
-        let reason: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err(label);
+        let reason: String =
+            check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err(label);
         assert!(reason.contains("quoted"), "{label}: {reason}");
         remove(parent.as_path());
     }
@@ -340,12 +567,22 @@ fn a_named_pipe_as_an_attributes_file_does_not_block() {
     make_pipe(root.join(".git/info/attributes").as_path());
     make_stale(worktree.join("d/target").as_path());
     let at: PathBuf = worktree.clone();
-    let outside = finishes("the check with a pipe in info/attributes", move || { return check(at.as_path(), &environment(SystemAttributes::Disabled)); });
-    assert!(outside.expect_err("pipe").contains("not a plain file"), "info/attributes");
+    let outside = finishes("the check with a pipe in info/attributes", move || {
+        return check(at.as_path(), &environment(SystemAttributes::Disabled));
+    });
+    assert!(
+        outside.expect_err("pipe").contains("not a plain file"),
+        "info/attributes"
+    );
     std::fs::remove_file(root.join(".git/info/attributes")).expect("remove the pipe");
     make_pipe(worktree.join("d/.gitattributes").as_path());
     let there: PathBuf = worktree.clone();
-    let inside = finishes("the check with a pipe as a directory's attributes", move || { return check(there.as_path(), &environment(SystemAttributes::Disabled)); });
+    let inside = finishes(
+        "the check with a pipe as a directory's attributes",
+        move || {
+            return check(there.as_path(), &environment(SystemAttributes::Disabled));
+        },
+    );
     assert!(inside.is_err(), "d/.gitattributes");
     remove(parent.as_path());
 }
@@ -354,7 +591,9 @@ fn a_named_pipe_as_an_attributes_file_does_not_block() {
 /// not with the cube of it.
 #[test]
 fn a_long_chain_of_macros_is_followed_in_linear_work() {
-    let (parent, root, worktree) = settled("content-macros", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
+    let (parent, root, worktree) = settled("content-macros", &|root: &Path| {
+        std::fs::write(root.join("target"), b"$Id: old $\n").expect("target");
+    });
     let mut text: String = String::new();
     for index in (1..=MACRO_CHAIN_LENGTH).rev() {
         text.push_str(format!("[attr]chain{index} chain{}\n", index - 1).as_str());
@@ -365,8 +604,15 @@ fn a_long_chain_of_macros_is_followed_in_linear_work() {
     std::fs::write(root.join(".git/info/attributes"), text).expect("attributes");
     make_stale(worktree.join("target").as_path());
     let at: PathBuf = worktree.clone();
-    let outcome = finishes("the macro closure", move || { return check(at.as_path(), &environment(SystemAttributes::Disabled)); });
-    assert!(outcome.expect_err("the chain reaches ident").contains("chain"), "the reason names the macro");
+    let outcome = finishes("the macro closure", move || {
+        return check(at.as_path(), &environment(SystemAttributes::Disabled));
+    });
+    assert!(
+        outcome
+            .expect_err("the chain reaches ident")
+            .contains("chain"),
+        "the reason names the macro"
+    );
     remove(parent.as_path());
 }
 
@@ -376,12 +622,25 @@ fn a_long_chain_of_macros_is_followed_in_linear_work() {
 fn the_stat_only_proof_does_not_follow_a_link_in_a_parent() {
     let (parent, _root, worktree) = settled("content-stat-link", &|_root: &Path| {});
     let found = inspect(worktree.as_path()).expect("registered");
-    check_clean_tracked(worktree.as_path(), found.admin.as_path(), found.common.as_path()).expect("positive control");
+    check_clean_tracked(
+        worktree.as_path(),
+        found.admin.as_path(),
+        found.common.as_path(),
+    )
+    .expect("positive control");
     let away: PathBuf = parent.join("src-away");
     std::fs::rename(worktree.join("src"), &away).expect("move the directory away");
     std::os::unix::fs::symlink(&away, worktree.join("src")).expect("link in its place");
-    let reason: String = check_clean_tracked(worktree.as_path(), found.admin.as_path(), found.common.as_path()).expect_err("a link");
-    assert!(reason.contains("src/") && reason.contains("link"), "{reason}");
+    let reason: String = check_clean_tracked(
+        worktree.as_path(),
+        found.admin.as_path(),
+        found.common.as_path(),
+    )
+    .expect_err("a link");
+    assert!(
+        reason.contains("src/") && reason.contains("link"),
+        "{reason}"
+    );
     remove(parent.as_path());
 }
 
@@ -393,15 +652,27 @@ fn the_stat_only_proof_does_not_follow_a_link_in_a_parent() {
 /// an entry the stat data vouches for is unaffected.
 #[test]
 fn an_alternate_attribute_source_refuses_the_content_shortcut() {
-    let (parent, root, worktree) = settled("content-source", &|root: &Path| { std::fs::write(root.join("target"), b"$Id: old $\n").expect("target"); });
-    let selected: ConversionEnvironment = ConversionEnvironment { alternate_attribute_source: Some(String::from("GIT_ATTR_SOURCE is set")), ..environment(SystemAttributes::Disabled) };
-    check(worktree.as_path(), &selected).expect("every entry is vouched for by its stat data, so no content is read");
+    let (parent, root, worktree) = settled("content-source", &|root: &Path| {
+        std::fs::write(root.join("target"), b"$Id: old $\n").expect("target");
+    });
+    let selected: ConversionEnvironment = ConversionEnvironment {
+        alternate_attribute_source: Some(String::from("GIT_ATTR_SOURCE is set")),
+        ..environment(SystemAttributes::Disabled)
+    };
+    check(worktree.as_path(), &selected)
+        .expect("every entry is vouched for by its stat data, so no content is read");
     make_stale(worktree.join("target").as_path());
-    let reason: String = check(worktree.as_path(), &selected).expect_err("selected by the environment");
-    assert!(reason.contains("GIT_ATTR_SOURCE") && reason.contains("cannot be ruled out"), "{reason}");
-    check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect("positive control: without a source the content is decided");
+    let reason: String =
+        check(worktree.as_path(), &selected).expect_err("selected by the environment");
+    assert!(
+        reason.contains("GIT_ATTR_SOURCE") && reason.contains("cannot be ruled out"),
+        "{reason}"
+    );
+    check(worktree.as_path(), &environment(SystemAttributes::Disabled))
+        .expect("positive control: without a source the content is decided");
     git(root.as_path(), &["config", "attr.tree", "HEAD"]);
-    let configured: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled)).expect_err("selected by the configuration");
+    let configured: String = check(worktree.as_path(), &environment(SystemAttributes::Disabled))
+        .expect_err("selected by the configuration");
     assert!(configured.contains("attr.tree"), "{configured}");
     remove(parent.as_path());
 }
@@ -410,10 +681,24 @@ fn an_alternate_attribute_source_refuses_the_content_shortcut() {
 /// whatever its value.
 #[test]
 fn the_process_environment_names_an_attribute_source() {
-    let with = |value: &str| -> Vec<(OsString, OsString)> { return vec![(OsString::from("GIT_ATTR_SOURCE"), OsString::from(value))]; };
-    assert!(ConversionEnvironment::from_variables(with("HEAD").as_slice()).alternate_attribute_source.is_some());
-    assert!(ConversionEnvironment::from_variables(with("").as_slice()).alternate_attribute_source.is_some());
-    assert!(ConversionEnvironment::from_variables(&[]).alternate_attribute_source.is_none());
+    let with = |value: &str| -> Vec<(OsString, OsString)> {
+        return vec![(OsString::from("GIT_ATTR_SOURCE"), OsString::from(value))];
+    };
+    assert!(
+        ConversionEnvironment::from_variables(with("HEAD").as_slice())
+            .alternate_attribute_source
+            .is_some()
+    );
+    assert!(
+        ConversionEnvironment::from_variables(with("").as_slice())
+            .alternate_attribute_source
+            .is_some()
+    );
+    assert!(
+        ConversionEnvironment::from_variables(&[])
+            .alternate_attribute_source
+            .is_none()
+    );
 }
 
 /// The four variables a command's environment can hold that the reader declines,
@@ -424,14 +709,23 @@ fn the_process_environment_names_an_attribute_source() {
 ///  it,
 /// a replacement base with nothing under it),
 ///  so Git's own starts in the proof still run and the reader's decline is the only thing the variable moves.
-const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE", "GIT_REFERENCE_BACKEND"];
+const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = [
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_REFERENCE_BACKEND",
+];
 
 /// The marker that tells the child of the control below which variable it holds.
 const THE_VARIABLE_CHILD: &str = "CLI_GIT_CONTENT_PROOF_VARIABLE_CHILD";
 
 /// What the variable `name` is given for a proof of a worktree whose common directory is `common` and whose fixture root
 /// is `root`.
-fn the_value_that_moves_nothing(name: &str, common: &Path, root: &Path) -> std::ffi::OsString {
+fn the_value_that_moves_nothing(
+    name: &str,
+    common: &Path,
+    root: &Path,
+) -> std::ffi::OsString {
     return match name {
         "GIT_OBJECT_DIRECTORY" => common.join("objects").into_os_string(),
         "GIT_ALTERNATE_OBJECT_DIRECTORIES" => {
@@ -460,21 +754,35 @@ fn the_value_that_moves_nothing(name: &str, common: &Path, root: &Path) -> std::
 fn a_content_proof_answers_under_each_variable_a_command_names() {
     let held: Option<std::ffi::OsString> = std::env::var_os(THE_VARIABLE_CHILD);
     if let Some(variable) = held {
-        let (_parent, root, worktree): (PathBuf, PathBuf, PathBuf) = settled("clean-by-content-variable", &|root: &Path| {
-            std::fs::write(root.join("a.txt"), "one\n").expect("a");
-        });
+        let (_parent, root, worktree): (PathBuf, PathBuf, PathBuf) =
+            settled("clean-by-content-variable", &|root: &Path| {
+                std::fs::write(root.join("a.txt"), "one\n").expect("a");
+            });
         let found = inspect(worktree.as_path()).expect("registered");
-        let value: std::ffi::OsString = the_value_that_moves_nothing(variable.to_string_lossy().as_ref(), found.common.as_path(), root.as_path());
+        let value: std::ffi::OsString = the_value_that_moves_nothing(
+            variable.to_string_lossy().as_ref(),
+            found.common.as_path(),
+            root.as_path(),
+        );
         // SAFETY: this is the child the parent started for one arm, it runs one test (`--test-threads=1`), and every read of
         //  the variable this control makes happens after this line.
         unsafe { std::env::set_var(variable.as_os_str(), value.as_os_str()) };
-        let checked = crate::worktree_clean::check_clean_by_content(&crate::test_support::git_context(), worktree.as_path(), found.admin.as_path(), found.common.as_path());
-        assert!(checked.is_ok(), "{variable:?}: a proof of this worktree's own files answers under the variable it holds: {checked:?}");
+        let checked = crate::worktree_clean::check_clean_by_content(
+            &crate::test_support::git_context(),
+            worktree.as_path(),
+            found.admin.as_path(),
+            found.common.as_path(),
+        );
+        assert!(
+            checked.is_ok(),
+            "{variable:?}: a proof of this worktree's own files answers under the variable it holds: {checked:?}"
+        );
         return;
     }
     for variable in THE_VARIABLES_A_COMMAND_NAMES {
         // `passed` is the whole assertion: the child proves this worktree's own files under the variable this arm names.
-        let environment: [(&str, &std::ffi::OsStr); 1] = [(THE_VARIABLE_CHILD, std::ffi::OsStr::new(variable))];
+        let environment: [(&str, &std::ffi::OsStr); 1] =
+            [(THE_VARIABLE_CHILD, std::ffi::OsStr::new(variable))];
         crate::child_test_process::passed(crate::child_test_process::ChildTest {
             exact_test: "worktree::worktree_clean_content::safety_tests::a_content_proof_answers_under_each_variable_a_command_names",
             environment: environment.as_slice(),

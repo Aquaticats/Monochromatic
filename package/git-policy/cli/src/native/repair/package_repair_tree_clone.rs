@@ -22,12 +22,22 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::{run_a_job_or_in_turn, run_a_slow_job_or_in_turn};
+use crate::blocking_jobs_within_the_budget::{
+    run_a_job_or_in_turn,
+    run_a_slow_job_or_in_turn,
+};
 use crate::lazy_runtime::run_on_runtime;
 use crate::worktree_copy_stage::copy_file_exclusive;
-use std::fs::{FileTimes, Metadata, Permissions};
+use std::fs::{
+    FileTimes,
+    Metadata,
+    Permissions,
+};
 use std::os::unix::fs::symlink;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 
 /// Which of the process's places a tree clone's steps take.
@@ -66,7 +76,11 @@ pub(crate) enum PlacesOfAClone {
 /// ```ts
 /// const answer = await runACloneStep(places, state, work);
 /// ```
-async fn run_a_clone_step<S: Clone + Send + 'static, T: Send + 'static>(places: PlacesOfAClone, state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+async fn run_a_clone_step<S: Clone + Send + 'static, T: Send + 'static>(
+    places: PlacesOfAClone,
+    state: S,
+    work: fn(S) -> T,
+) -> Result<T, BlockingJobError> {
     return match places {
         PlacesOfAClone::EveryJob => run_a_job_or_in_turn(state, work).await,
         PlacesOfAClone::SlowWork => run_a_slow_job_or_in_turn(state, work).await,
@@ -154,7 +168,10 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
         let listing = match std::fs::read_dir(&directory) {
             Ok(listed_directory) => listed_directory,
             // A directory a test or a tool left without read permission has nothing the clone can take; it is made empty and named.
-            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && !relative.as_os_str().is_empty() => {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::PermissionDenied
+                    && !relative.as_os_str().is_empty() =>
+            {
                 left_out.push(relative);
                 continue;
             }
@@ -166,11 +183,20 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
             let file_type = say_where(item.file_type(), item.path().as_path(), "has no type")?;
             if file_type.is_dir() {
                 pending.push(path.clone());
-                found.push(Entry { relative: path, kind: Kind::Directory });
+                found.push(Entry {
+                    relative: path,
+                    kind: Kind::Directory,
+                });
             } else if file_type.is_symlink() {
-                found.push(Entry { relative: path, kind: Kind::Link });
+                found.push(Entry {
+                    relative: path,
+                    kind: Kind::Link,
+                });
             } else if file_type.is_file() {
-                found.push(Entry { relative: path, kind: Kind::File });
+                found.push(Entry {
+                    relative: path,
+                    kind: Kind::File,
+                });
             }
         }
     }
@@ -191,11 +217,19 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
 /// ```ts
 /// function place(source: string, destination: string, entry: Entry): void;
 /// ```
-fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<PathBuf>, String> {
+fn place(
+    source: &Path,
+    destination: &Path,
+    entry: &Entry,
+) -> Result<Option<PathBuf>, String> {
     let from: PathBuf = source.join(&entry.relative);
     let to: PathBuf = destination.join(&entry.relative);
     if entry.kind == Kind::Link {
-        let target: PathBuf = say_where(std::fs::read_link(&from), from.as_path(), "cannot be read as a link")?;
+        let target: PathBuf = say_where(
+            std::fs::read_link(&from),
+            from.as_path(),
+            "cannot be read as a link",
+        )?;
         say_where(symlink(&target, &to), to.as_path(), "cannot be made")?;
         return Ok(None);
     }
@@ -203,16 +237,24 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
     if let Err(error) = copy_file_exclusive(&from, &to) {
         // A file without read permission cannot be cloned or copied by anyone but its owner's chmod, which the source is never given:
         //  the file stays out of the destination (a missing file only makes Cargo rebuild what needs it) and is named.
-        if matches!(std::fs::File::open(&from), Err(ref denied) if denied.kind() == std::io::ErrorKind::PermissionDenied) {
+        if matches!(std::fs::File::open(&from), Err(ref denied) if denied.kind() == std::io::ErrorKind::PermissionDenied)
+        {
             // The partial file is this clone's own creation in the new tree.
             let _removed = std::fs::remove_file(&to);
             return Ok(Some(entry.relative.clone()));
         }
         return Err(format!("{} cannot be cloned ({error})", from.display()));
     }
-    say_where(std::fs::set_permissions(&to, before.permissions()), to.as_path(), "cannot take its mode")?;
-    let times: FileTimes = FileTimes::new().set_accessed(before.accessed().unwrap_or(std::time::UNIX_EPOCH)).set_modified(before.modified().unwrap_or(std::time::UNIX_EPOCH));
-    let made: std::fs::File = say_where(std::fs::File::open(&to), to.as_path(), "cannot be opened")?;
+    say_where(
+        std::fs::set_permissions(&to, before.permissions()),
+        to.as_path(),
+        "cannot take its mode",
+    )?;
+    let times: FileTimes = FileTimes::new()
+        .set_accessed(before.accessed().unwrap_or(std::time::UNIX_EPOCH))
+        .set_modified(before.modified().unwrap_or(std::time::UNIX_EPOCH));
+    let made: std::fs::File =
+        say_where(std::fs::File::open(&to), to.as_path(), "cannot be opened")?;
     say_where(made.set_times(times), to.as_path(), "cannot take its times")?;
     return Ok(None);
 }
@@ -231,7 +273,11 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
 /// ```ts
 /// function sayWhere<T>(attempt: () => T, path: string, what: string): T; // throws `${path} ${what} (${error})`
 /// ```
-fn say_where<T>(result: Result<T, std::io::Error>, path: &Path, what: &str) -> Result<T, String> {
+fn say_where<T>(
+    result: Result<T, std::io::Error>,
+    path: &Path,
+    what: &str,
+) -> Result<T, String> {
     return match result {
         Ok(value) => Ok(value),
         Err(error) => Err(format!("{} {what} ({error})", path.display())),
@@ -243,7 +289,10 @@ fn say_where<T>(result: Result<T, std::io::Error>, path: &Path, what: &str) -> R
 /// `sort_by` takes this
 ///  function by path;
 /// the sort stays stable.
-fn compare_by_relative_path(left: &Entry, right: &Entry) -> std::cmp::Ordering {
+fn compare_by_relative_path(
+    left: &Entry,
+    right: &Entry,
+) -> std::cmp::Ordering {
     return left.relative.cmp(&right.relative);
 }
 
@@ -261,10 +310,17 @@ fn compare_by_relative_path(left: &Entry, right: &Entry) -> std::cmp::Ordering {
 /// ```ts
 /// function placeSlice(entries: Entry[], positions: number[], source: string, destination: string): string[] { return positions.flatMap((at) => place(source, destination, entries[at]) ?? []); }
 /// ```
-fn place_slice(entries: &[Entry], positions: &[usize], source: &Path, destination: &Path) -> Result<Vec<PathBuf>, String> {
+fn place_slice(
+    entries: &[Entry],
+    positions: &[usize],
+    source: &Path,
+    destination: &Path,
+) -> Result<Vec<PathBuf>, String> {
     let mut skipped: Vec<PathBuf> = Vec::new();
     for at in positions {
-        let Some(entry) = entries.get(*at) else { continue };
+        let Some(entry) = entries.get(*at) else {
+            continue;
+        };
         skipped.extend(place(source, destination, entry)?);
     }
     return Ok(skipped);
@@ -297,8 +353,15 @@ type ASliceToPlace = (Arc<[Entry]>, Vec<usize>, PathBuf, PathBuf);
 /// ```ts
 /// const placeASliceOf = ([entries, positions, source, destination]) => placeSlice(entries, positions, source, destination);
 /// ```
-fn place_a_slice_of((entries, positions, source, destination): ASliceToPlace) -> Result<Vec<PathBuf>, String> {
-    return place_slice(entries.as_ref(), positions.as_slice(), source.as_path(), destination.as_path());
+fn place_a_slice_of(
+    (entries, positions, source, destination): ASliceToPlace
+) -> Result<Vec<PathBuf>, String> {
+    return place_slice(
+        entries.as_ref(),
+        positions.as_slice(),
+        source.as_path(),
+        destination.as_path(),
+    );
 }
 
 /// What:
@@ -327,8 +390,22 @@ fn walk_and_make_of((source, destination): (PathBuf, PathBuf)) -> Result<TheWalk
 /// ```ts
 /// const setTheModesOf = ([source, destination, entries, directories, rootMode]) => setTheModes(source, destination, entries, directories, rootMode);
 /// ```
-fn set_the_modes_of((source, destination, entries, directories, root_mode): (PathBuf, PathBuf, Arc<[Entry]>, Vec<usize>, Permissions)) -> Result<(), String> {
-    return set_the_modes(source.as_path(), destination.as_path(), entries.as_ref(), directories.as_slice(), root_mode);
+fn set_the_modes_of(
+    (source, destination, entries, directories, root_mode): (
+        PathBuf,
+        PathBuf,
+        Arc<[Entry]>,
+        Vec<usize>,
+        Permissions,
+    )
+) -> Result<(), String> {
+    return set_the_modes(
+        source.as_path(),
+        destination.as_path(),
+        entries.as_ref(),
+        directories.as_slice(),
+        root_mode,
+    );
 }
 
 /// What:
@@ -393,25 +470,39 @@ fn empty_answer() -> Option<Result<Vec<PathBuf>, String>> {
 /// ```ts
 /// const answers = await Promise.all(slices.map((slice) => runBlockingJobWithinTheBudget(() => placeSlice(entries, slice, source, destination))));
 /// ```
-async fn place_slices_awaiting(placing: ThePlacing, slices: Vec<Vec<usize>>, places: PlacesOfAClone) -> Vec<Result<Vec<PathBuf>, String>> {
+async fn place_slices_awaiting(
+    placing: ThePlacing,
+    slices: Vec<Vec<usize>>,
+    places: PlacesOfAClone,
+) -> Vec<Result<Vec<PathBuf>, String>> {
     let count: usize = slices.len();
     let entries: Arc<[Entry]> = placing.entries;
-    let mut started: tokio::task::JoinSet<(usize, Result<Vec<PathBuf>, String>)> = tokio::task::JoinSet::new();
+    let mut started: tokio::task::JoinSet<(usize, Result<Vec<PathBuf>, String>)> =
+        tokio::task::JoinSet::new();
     for (index, positions) in slices.into_iter().enumerate() {
         let theirs: Arc<[Entry]> = Arc::clone(&entries);
-        let (source, destination): (PathBuf, PathBuf) = (placing.source.clone(), placing.destination.clone());
+        let (source, destination): (PathBuf, PathBuf) =
+            (placing.source.clone(), placing.destination.clone());
         started.spawn(async move {
-            let placed = run_a_clone_step(places, (theirs, positions, source, destination), place_a_slice_of).await;
+            let placed = run_a_clone_step(
+                places,
+                (theirs, positions, source, destination),
+                place_a_slice_of,
+            )
+            .await;
             let answer: Result<Vec<PathBuf>, String> = match placed {
                 Ok(outcome) => outcome,
                 // The entries of a slice that did not run are not in the destination, and the words say only that.
-                Err(BlockingJobError::Panicked) => Err(String::from("a clone worker stopped unexpectedly")),
+                Err(BlockingJobError::Panicked) => {
+                    Err(String::from("a clone worker stopped unexpectedly"))
+                }
                 Err(refused) => Err(format!("a clone worker did not run ({refused})")),
             };
             return (index, answer);
         });
     }
-    let mut answers: Vec<Option<Result<Vec<PathBuf>, String>>> = std::iter::repeat_with(empty_answer).take(count).collect();
+    let mut answers: Vec<Option<Result<Vec<PathBuf>, String>>> =
+        std::iter::repeat_with(empty_answer).take(count).collect();
     while let Some(joined) = started.join_next().await {
         match joined {
             Ok((index, answer)) => answers[index] = Some(answer),
@@ -469,14 +560,21 @@ struct TheWalk {
 /// ```ts
 /// function walkAndMakeDirectories(source: string, destination: string): TheWalk;
 /// ```
-fn walk_and_make_directories(source: &Path, destination: &Path) -> Result<TheWalk, String> {
+fn walk_and_make_directories(
+    source: &Path,
+    destination: &Path,
+) -> Result<TheWalk, String> {
     let (entries, left_out): (Vec<Entry>, Vec<PathBuf>) = walk(source)?;
     let root: Metadata = say_where(std::fs::metadata(source), source, "cannot be read")?;
     if let Some(parent) = destination.parent() {
         say_where(std::fs::create_dir_all(parent), parent, "cannot be made")?;
     }
     // Exclusive creation: an existing destination is refused and left as it was.
-    say_where(std::fs::create_dir(destination), destination, "cannot be made")?;
+    say_where(
+        std::fs::create_dir(destination),
+        destination,
+        "cannot be made",
+    )?;
     let mut directories: Vec<usize> = Vec::new();
     for (index, entry) in entries.iter().enumerate() {
         if entry.kind == Kind::Directory {
@@ -485,7 +583,12 @@ fn walk_and_make_directories(source: &Path, destination: &Path) -> Result<TheWal
             directories.push(index);
         }
     }
-    return Ok(TheWalk { entries, left_out, directories, root_mode: root.permissions() });
+    return Ok(TheWalk {
+        entries,
+        left_out,
+        directories,
+        root_mode: root.permissions(),
+    });
 }
 
 /// What:
@@ -499,14 +602,34 @@ fn walk_and_make_directories(source: &Path, destination: &Path) -> Result<TheWal
 /// ```ts
 /// function setTheModes(source: string, destination: string, entries: Entry[], directories: number[], rootMode: Permissions): void;
 /// ```
-fn set_the_modes(source: &Path, destination: &Path, entries: &[Entry], directories: &[usize], root_mode: Permissions) -> Result<(), String> {
+fn set_the_modes(
+    source: &Path,
+    destination: &Path,
+    entries: &[Entry],
+    directories: &[usize],
+    root_mode: Permissions,
+) -> Result<(), String> {
     for at in directories.iter().rev() {
-        let Some(entry) = entries.get(*at) else { continue };
+        let Some(entry) = entries.get(*at) else {
+            continue;
+        };
         let made: PathBuf = destination.join(&entry.relative);
-        let source_directory: Metadata = say_where(std::fs::metadata(source.join(&entry.relative)), entry.relative.as_path(), "cannot be read")?;
-        say_where(std::fs::set_permissions(&made, source_directory.permissions()), made.as_path(), "cannot take its mode")?;
+        let source_directory: Metadata = say_where(
+            std::fs::metadata(source.join(&entry.relative)),
+            entry.relative.as_path(),
+            "cannot be read",
+        )?;
+        say_where(
+            std::fs::set_permissions(&made, source_directory.permissions()),
+            made.as_path(),
+            "cannot take its mode",
+        )?;
     }
-    say_where(std::fs::set_permissions(destination, root_mode), destination, "cannot take its mode")?;
+    say_where(
+        std::fs::set_permissions(destination, root_mode),
+        destination,
+        "cannot take its mode",
+    )?;
     return Ok(());
 }
 
@@ -530,7 +653,11 @@ fn set_the_modes(source: &Path, destination: &Path, entries: &[Entry], directori
 /// ```ts
 /// async function cloneTreeAwaiting(source: string, destination: string, workers: number): Promise<Cloned>;
 /// ```
-pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
+pub(crate) async fn clone_tree_awaiting(
+    source: &Path,
+    destination: &Path,
+    workers: usize,
+) -> Result<Cloned, String> {
     return clone_tree_within(source, destination, workers, PlacesOfAClone::SlowWork).await;
 }
 
@@ -545,14 +672,34 @@ pub(crate) async fn clone_tree_awaiting(source: &Path, destination: &Path, worke
 /// ```ts
 /// async function cloneTreeWithin(source, destination, workers, places): Promise<Cloned>;
 /// ```
-async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, places: PlacesOfAClone) -> Result<Cloned, String> {
-    let walked = run_a_clone_step(places, (source.to_path_buf(), destination.to_path_buf()), walk_and_make_of).await;
-    let TheWalk { entries, mut left_out, directories, root_mode }: TheWalk = match walked {
+async fn clone_tree_within(
+    source: &Path,
+    destination: &Path,
+    workers: usize,
+    places: PlacesOfAClone,
+) -> Result<Cloned, String> {
+    let walked = run_a_clone_step(
+        places,
+        (source.to_path_buf(), destination.to_path_buf()),
+        walk_and_make_of,
+    )
+    .await;
+    let TheWalk {
+        entries,
+        mut left_out,
+        directories,
+        root_mode,
+    }: TheWalk = match walked {
         Ok(Ok(found)) => found,
         // The walk itself failed and named the entry it could not read; nothing of the clone was made.
         Ok(Err(reason)) => return Err(reason),
         // Nothing of the clone was made, and the runtime's own reason is why.
-        Err(refused) => return Err(format!("{} could not be cloned ({refused})", source.display())),
+        Err(refused) => {
+            return Err(format!(
+                "{} could not be cloned ({refused})",
+                source.display()
+            ));
+        }
     };
     let mut leaves: Vec<usize> = Vec::new();
     for (index, entry) in entries.iter().enumerate() {
@@ -560,24 +707,49 @@ async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, pl
             leaves.push(index);
         }
     }
-    let used: usize = if leaves.len() < PARALLEL_MIN_ENTRIES { 1 } else { workers.max(1) };
+    let used: usize = if leaves.len() < PARALLEL_MIN_ENTRIES {
+        1
+    } else {
+        workers.max(1)
+    };
     let slice_length: usize = leaves.len().div_ceil(used).max(1);
     let slices: Vec<Vec<usize>> = leaves.chunks(slice_length).map(<[usize]>::to_vec).collect();
     let shared: Arc<[Entry]> = Arc::from(entries);
-    let placing: ThePlacing = ThePlacing { entries: Arc::clone(&shared), source: source.to_path_buf(), destination: destination.to_path_buf() };
-    let outcomes: Vec<Result<Vec<PathBuf>, String>> = place_slices_awaiting(placing, slices, places).await;
+    let placing: ThePlacing = ThePlacing {
+        entries: Arc::clone(&shared),
+        source: source.to_path_buf(),
+        destination: destination.to_path_buf(),
+    };
+    let outcomes: Vec<Result<Vec<PathBuf>, String>> =
+        place_slices_awaiting(placing, slices, places).await;
     for outcome in outcomes {
         left_out.extend(outcome?);
     }
     left_out.sort();
     // Modes last, so a read-only directory does not stop its own contents from being placed.
-    let modes = run_a_clone_step(places, (source.to_path_buf(), destination.to_path_buf(), Arc::clone(&shared), directories, root_mode), set_the_modes_of).await;
+    let modes = run_a_clone_step(
+        places,
+        (
+            source.to_path_buf(),
+            destination.to_path_buf(),
+            Arc::clone(&shared),
+            directories,
+            root_mode,
+        ),
+        set_the_modes_of,
+    )
+    .await;
     match modes {
         Ok(Ok(())) => {}
         // A directory or the destination could not take its mode, and the message names which.
         Ok(Err(reason)) => return Err(reason),
         // Every entry is in the destination and the modes are the ones its creation gave, which the words say.
-        Err(refused) => return Err(format!("{} could not take its modes ({refused})", destination.display())),
+        Err(refused) => {
+            return Err(format!(
+                "{} could not take its modes ({refused})",
+                destination.display()
+            ));
+        }
     }
     let mut skipped_files: usize = 0;
     for entry in shared.iter() {
@@ -585,7 +757,10 @@ async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, pl
             skipped_files += 1;
         }
     }
-    return Ok(Cloned { made: shared.len() - skipped_files, left_out });
+    return Ok(Cloned {
+        made: shared.len() - skipped_files,
+        left_out,
+    });
 }
 
 /// What:
@@ -611,11 +786,23 @@ async fn clone_tree_within(source: &Path, destination: &Path, workers: usize, pl
 /// ```ts
 /// function cloneTree(args: { source: string; destination: string; workers: number }): Cloned;
 /// ```
-pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
-    return match run_on_runtime(clone_tree_within(source, destination, workers, PlacesOfAClone::EveryJob)) {
+pub fn clone_tree(
+    source: &Path,
+    destination: &Path,
+    workers: usize,
+) -> Result<Cloned, String> {
+    return match run_on_runtime(clone_tree_within(
+        source,
+        destination,
+        workers,
+        PlacesOfAClone::EveryJob,
+    )) {
         Ok(cloned) => cloned,
         // Nothing of the clone was made, and the runtime's own reason is why.
-        Err(refusal) => Err(format!("{} could not be cloned ({refusal})", source.display())),
+        Err(refusal) => Err(format!(
+            "{} could not be cloned ({refusal})",
+            source.display()
+        )),
     };
 }
 

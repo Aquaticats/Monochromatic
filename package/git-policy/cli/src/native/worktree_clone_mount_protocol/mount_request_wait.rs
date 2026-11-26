@@ -24,7 +24,10 @@
 //! const receipt = waitForAnswer(folder, request, PROVISIONAL_MOUNT_REQUEST_DEADLINE);
 //! ```
 
-use crate::foundation::blocking_job::{BlockingJobError, run_blocking_job};
+use crate::foundation::blocking_job::{
+    BlockingJobError,
+    run_blocking_job,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::CloneMountReceipt;
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
@@ -139,10 +142,24 @@ impl StaleReason {
     /// The reason in words.
     pub fn word(&self) -> String {
         return match self {
-            StaleReason::Dataset { found, expected } => format!("the receipt names dataset GUID {found}, and the request names {expected}"),
-            StaleReason::Nonce { found, expected } => format!("the receipt's nonce is {found}, and the request's is {expected}"),
-            StaleReason::Operation { found, expected } => format!("the receipt names `{found}`, and the request asked for `{expected}`"),
-            StaleReason::Boot { found, expected } => format!("the receipt belongs to boot {found}, and this is boot {expected}"),
+            StaleReason::Dataset {
+                found,
+                expected,
+            } => {
+                format!("the receipt names dataset GUID {found}, and the request names {expected}")
+            }
+            StaleReason::Nonce {
+                found,
+                expected,
+            } => format!("the receipt's nonce is {found}, and the request's is {expected}"),
+            StaleReason::Operation {
+                found,
+                expected,
+            } => format!("the receipt names `{found}`, and the request asked for `{expected}`"),
+            StaleReason::Boot {
+                found,
+                expected,
+            } => format!("the receipt belongs to boot {found}, and this is boot {expected}"),
         };
     }
 }
@@ -180,7 +197,10 @@ pub enum ReceiptStanding {
 /// ```ts
 /// const standing = standingOf(request, receipt);
 /// ```
-pub fn standing_of(request: &MountRequest, receipt: &CloneMountReceipt) -> ReceiptStanding {
+pub fn standing_of(
+    request: &MountRequest,
+    receipt: &CloneMountReceipt,
+) -> ReceiptStanding {
     if receipt.dataset != request.dataset {
         return ReceiptStanding::Stale(StaleReason::Dataset {
             found: receipt.dataset.file_name(),
@@ -200,7 +220,10 @@ pub fn standing_of(request: &MountRequest, receipt: &CloneMountReceipt) -> Recei
         });
     }
     if receipt.boot != request.boot {
-        return ReceiptStanding::Stale(StaleReason::Boot { found: receipt.boot.clone(), expected: request.boot.clone() });
+        return ReceiptStanding::Stale(StaleReason::Boot {
+            found: receipt.boot.clone(),
+            expected: request.boot.clone(),
+        });
     }
     return ReceiptStanding::Answer(receipt.clone());
 }
@@ -233,10 +256,18 @@ impl LastObservation {
     /// The observation in words.
     pub fn word(&self) -> String {
         return match self {
-            LastObservation::AbsentDirectory { path } => {
-                format!("The results directory {} was not there at the deadline, so the handler had filed nothing yet.", path.display())
+            LastObservation::AbsentDirectory {
+                path,
+            } => {
+                format!(
+                    "The results directory {} was not there at the deadline, so the handler had filed nothing yet.",
+                    path.display()
+                )
             }
-            LastObservation::Stale(reason) => format!("The last receipt on the file is not this request's answer: {}.", reason.word()),
+            LastObservation::Stale(reason) => format!(
+                "The last receipt on the file is not this request's answer: {}.",
+                reason.word()
+            ),
         };
     }
 }
@@ -286,10 +317,16 @@ impl WaitRefusal {
     pub fn message(&self) -> String {
         return match self {
             WaitRefusal::Receipts(refusal) => refusal.message(),
-            WaitRefusal::Unread { refusal } => format!(
+            WaitRefusal::Unread {
+                refusal,
+            } => format!(
                 "no receipt could be read because the read could not be given to the blocking pool ({refusal}), so the mount was not confirmed in the caller's view. Nothing was matched, mounted or unmounted on a receipt. Ways forward: check the process limit (`ulimit -u`) and the control group's `pids.max`, then read the handler's journal with `journalctl -u reconcile-git-worktree-clone-mounts.service`."
             ),
-            WaitRefusal::TimedOut { request, last, deadline_millis } => {
+            WaitRefusal::TimedOut {
+                request,
+                last,
+                deadline_millis,
+            } => {
                 let observed: String = match last {
                     Some(observation) => observation.word(),
                     None => String::from("No receipt was on the file at the deadline."),
@@ -323,7 +360,11 @@ impl WaitRefusal {
 /// The receipts directory or a file could not be used,
 /// the read could not be given to the blocking pool,
 /// or the deadline passed with no matching receipt.
-pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, deadline: Duration) -> Result<CloneMountReceipt, WaitRefusal> {
+pub async fn wait_for_answer(
+    folder: &ReceiptsFolder,
+    request: &MountRequest,
+    deadline: Duration,
+) -> Result<CloneMountReceipt, WaitRefusal> {
     let started: tokio::time::Instant = tokio::time::Instant::now();
     let mut last: Option<LastObservation> = None;
     loop {
@@ -331,7 +372,10 @@ pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, de
         // report rather than the wait: a job of the blocking pool cannot be cancelled, so dropping its handle only stops this
         // wait from hearing it, which is what a deadline asks for.
         let read = read_the_receipt(folder, request.dataset);
-        let found: Result<Option<CloneMountReceipt>, ReceiptsRefusal> = match remaining(started.elapsed(), deadline) {
+        let found: Result<Option<CloneMountReceipt>, ReceiptsRefusal> = match remaining(
+            started.elapsed(),
+            deadline,
+        ) {
             None => read.await?,
             Some(left) => tokio::select! {
                 biased;
@@ -343,13 +387,27 @@ pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, de
             Ok(Some(receipt)) => match standing_of(request, &receipt) {
                 ReceiptStanding::Answer(answer) => return Ok(answer),
                 ReceiptStanding::Stale(reason) => {
-                    crate::diagnostic_log::debug(TAG, format!("the receipt for dataset {} is stale: {}", request.dataset.file_name(), reason.word()).as_str());
+                    crate::diagnostic_log::debug(
+                        TAG,
+                        format!(
+                            "the receipt for dataset {} is stale: {}",
+                            request.dataset.file_name(),
+                            reason.word()
+                        )
+                        .as_str(),
+                    );
                     last = Some(LastObservation::Stale(reason));
                 }
             },
             // A directory that appeared and holds no receipt yet is no longer absent, so the report stops saying it was.
             Ok(None) => last = None,
-            Err(ReceiptsRefusal::DirectoryAbsent { path }) => last = Some(LastObservation::AbsentDirectory { path }),
+            Err(ReceiptsRefusal::DirectoryAbsent {
+                path,
+            }) => {
+                last = Some(LastObservation::AbsentDirectory {
+                    path,
+                })
+            }
             Err(refusal) => return Err(WaitRefusal::Receipts(refusal)),
         }
         let Some(left) = remaining(started.elapsed(), deadline) else {
@@ -383,13 +441,25 @@ async fn read_the_receipt(
         move || return holder.read(dataset)
     })
     .await
-    .map_err(|refusal| return WaitRefusal::Unread { refusal });
+    .map_err(|refusal| {
+        return WaitRefusal::Unread {
+            refusal,
+        };
+    });
 }
 
 /// The deadline's report for `request`,
 /// with what the wait last saw.
-fn timeout_report(request: &MountRequest, last: Option<LastObservation>, deadline: Duration) -> WaitRefusal {
-    return WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() };
+fn timeout_report(
+    request: &MountRequest,
+    last: Option<LastObservation>,
+    deadline: Duration,
+) -> WaitRefusal {
+    return WaitRefusal::TimedOut {
+        request: Box::new(request.clone()),
+        last,
+        deadline_millis: deadline.as_millis(),
+    };
 }
 
 /// The log tag of every decision this module takes.
@@ -406,7 +476,10 @@ const TAG: &str = "mountRequestWait";
 /// ```ts
 /// const left = remaining(now, deadline); // null when expired
 /// ```
-fn remaining(now: Duration, deadline: Duration) -> Option<Duration> {
+fn remaining(
+    now: Duration,
+    deadline: Duration,
+) -> Option<Duration> {
     if now >= deadline {
         return None;
     }

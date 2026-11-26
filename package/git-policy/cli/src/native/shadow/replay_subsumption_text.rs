@@ -17,13 +17,26 @@
 use crate::blob_batch::load_blob_batch;
 /// The one-sided extension and the strict reverse check.
 use crate::replay_containment::contains_landed_change;
-use crate::replay_patch::{PatchHunk, parse_indexed_patch, split_keeping_newlines};
+use crate::replay_patch::{
+    PatchHunk,
+    parse_indexed_patch,
+    split_keeping_newlines,
+};
 use crate::replay_reverse_apply::reverse_applies;
 use crate::replay_shadow::run_shadow_checked;
-use crate::replay_shared_paths::{SharedPath, TreeEntry};
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::replay_shared_paths::{
+    SharedPath,
+    TreeEntry,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 /// Hunk maps keyed by entry name.
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 /// `Path` names the shadow and the object directory.
 use std::path::Path;
 
@@ -124,7 +137,10 @@ fn empty_blob_for(
 /// ```ts
 /// sideOid({ entry, emptyBlob });
 /// ```
-fn side_oid(entry: &Option<TreeEntry>, empty_blob: &str) -> String {
+fn side_oid(
+    entry: &Option<TreeEntry>,
+    empty_blob: &str,
+) -> String {
     return match entry {
         Some(present) => present.oid.clone(),
         None => String::from(empty_blob),
@@ -152,8 +168,16 @@ fn indexed_tree(
     for (index, oid) in oids.iter().enumerate() {
         input.extend_from_slice(format!("100644 blob {oid}\t{index}\0").as_bytes());
     }
-    let output = run_shadow_checked(context, shadow, cwd, &["mktree", "-z"], Some(&input), None, &[])
-        .map_err(TextSubsumptionError::Git)?;
+    let output = run_shadow_checked(
+        context,
+        shadow,
+        cwd,
+        &["mktree", "-z"],
+        Some(&input),
+        None,
+        &[],
+    )
+    .map_err(TextSubsumptionError::Git)?;
     return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
 }
 
@@ -209,7 +233,10 @@ fn indexed_hunks(
 /// The bytes of a tree entry's blob in the batch;
 /// nothing for an absent entry,
 /// and empty bytes for a blob the batch did not return.
-fn blob_of(blobs: &HashMap<String, Vec<u8>>, entry: &Option<TreeEntry>) -> Option<Vec<u8>> {
+fn blob_of(
+    blobs: &HashMap<String, Vec<u8>>,
+    entry: &Option<TreeEntry>,
+) -> Option<Vec<u8>> {
     let present: &TreeEntry = entry.as_ref()?;
     return Some(blobs.get(&present.oid).cloned().unwrap_or_default());
 }
@@ -232,7 +259,11 @@ fn prepared_side(shared: &SharedPath) -> &Option<TreeEntry> {
 /// The object IDs of one side of every shared path,
 /// in order,
 /// with the empty blob standing for an absent side.
-fn side_oids(owned: &[SharedPath], empty_blob: &str, side: fn(&SharedPath) -> &Option<TreeEntry>) -> Vec<String> {
+fn side_oids(
+    owned: &[SharedPath],
+    empty_blob: &str,
+    side: fn(&SharedPath) -> &Option<TreeEntry>,
+) -> Vec<String> {
     let mut oids: Vec<String> = Vec::new();
     for shared in owned {
         oids.push(side_oid(side(shared), empty_blob));
@@ -273,8 +304,9 @@ pub fn subsumed_text_paths(
             }
         }
     }
-    let blobs: HashMap<String, Vec<u8>> = load_blob_batch(context, cwd, &oids, Some(object_directory))
-        .map_err(TextSubsumptionError::Blob)?;
+    let blobs: HashMap<String, Vec<u8>> =
+        load_blob_batch(context, cwd, &oids, Some(object_directory))
+            .map_err(TextSubsumptionError::Blob)?;
     // Candidates whose present blobs are all text; a blob the batch did not return counts as binary.
     let mut owned: Vec<SharedPath> = Vec::new();
     for shared in candidates {
@@ -317,8 +349,14 @@ pub fn subsumed_text_paths(
         cwd,
         &side_oids(&owned, &empty_blob, prepared_side),
     )?;
-    let strict: BTreeMap<Vec<u8>, Vec<PatchHunk>> =
-        indexed_hunks(context, shadow, cwd, &base_tree, &landed_tree, STRICT_CONTEXT)?;
+    let strict: BTreeMap<Vec<u8>, Vec<PatchHunk>> = indexed_hunks(
+        context,
+        shadow,
+        cwd,
+        &base_tree,
+        &landed_tree,
+        STRICT_CONTEXT,
+    )?;
     let landed_zero: BTreeMap<Vec<u8>, Vec<PatchHunk>> =
         indexed_hunks(context, shadow, cwd, &base_tree, &landed_tree, 0)?;
     let prepared_zero: BTreeMap<Vec<u8>, Vec<PatchHunk>> =
@@ -330,8 +368,14 @@ pub fn subsumed_text_paths(
         let prepared_bytes: Vec<u8> = blob_of(&blobs, &shared.prepared).unwrap_or_default();
         let base_bytes: Vec<u8> = blob_of(&blobs, &shared.base).unwrap_or_default();
         let strict_hunks: &[PatchHunk] = strict.get(&name).map(Vec::as_slice).unwrap_or_default();
-        let landed_hunks: &[PatchHunk] = landed_zero.get(&name).map(Vec::as_slice).unwrap_or_default();
-        let prepared_hunks: &[PatchHunk] = prepared_zero.get(&name).map(Vec::as_slice).unwrap_or_default();
+        let landed_hunks: &[PatchHunk] = landed_zero
+            .get(&name)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let prepared_hunks: &[PatchHunk] = prepared_zero
+            .get(&name)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let base_lines: Vec<Vec<u8>> = split_keeping_newlines(&base_bytes);
         if reverse_applies(strict_hunks, &prepared_bytes)
             || contains_landed_change(landed_hunks, prepared_hunks, &base_lines)

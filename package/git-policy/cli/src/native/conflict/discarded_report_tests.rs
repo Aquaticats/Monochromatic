@@ -5,7 +5,10 @@
 
 use super::*;
 use crate::discarded_prune::Limits;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// A day in milliseconds.
@@ -20,14 +23,19 @@ fn name_at(age: i64) -> String {
     return crate::iso_time::format_iso_milliseconds(NOW - age)
         .chars()
         .take(19)
-        .map(|each| { return if each == ':' { '-' } else { each }; })
+        .map(|each| {
+            return if each == ':' { '-' } else { each };
+        })
         .collect();
 }
 
 /// Make the directory of a save made `age` before `NOW` at `folder`,
 /// holding one file,
 /// and give its path.
-fn make_save_at(folder: &Path, age: i64) -> PathBuf {
+fn make_save_at(
+    folder: &Path,
+    age: i64,
+) -> PathBuf {
     let directory: PathBuf = folder.join(name_at(age));
     std::fs::create_dir_all(directory.as_path()).expect("save directory");
     std::fs::write(directory.join("one.txt"), b"copy").expect("copy");
@@ -49,7 +57,12 @@ fn a_saved_copy_folder_that_never_answers_gives_up_at_its_ceiling() {
     let (done, finished) = std::sync::mpsc::channel::<String>();
     let named: PathBuf = root.clone();
     let worker = std::thread::spawn(move || {
-        let text: String = doctor_section_with(stalled_survey, Duration::from_millis(50), named.as_path(), Limits::default());
+        let text: String = doctor_section_with(
+            stalled_survey,
+            Duration::from_millis(50),
+            named.as_path(),
+            Limits::default(),
+        );
         let _sent = done.send(text);
     });
     // The worker is left behind on purpose: a survey that never answers has no end, and the test process ends it.
@@ -85,11 +98,27 @@ fn the_report_names_the_folder_and_what_it_holds() {
     let common: PathBuf = fixture("discarded-report-text");
     assert_eq!(doctor_section(common.as_path(), Limits::default()), "");
     make_save_at(common.join(SAVED_DIRECTORY).as_path(), 3 * DAY);
-    let text: String = doctor_section(common.as_path(), Limits { max_age_days: 7, max_bytes: 2048 });
-    for part in ["discarded copies:", "1 copies", "1 saves", "older than 7 days", "past 2048 bytes", "discardedCopies.maxAgeDays"] {
+    let text: String = doctor_section(
+        common.as_path(),
+        Limits {
+            max_age_days: 7,
+            max_bytes: 2048,
+        },
+    );
+    for part in [
+        "discarded copies:",
+        "1 copies",
+        "1 saves",
+        "older than 7 days",
+        "past 2048 bytes",
+        "discardedCopies.maxAgeDays",
+    ] {
         assert!(text.contains(part), "{part} in {text}");
     }
-    assert!(text.contains(common.join(SAVED_DIRECTORY).display().to_string().as_str()), "{text}");
+    assert!(
+        text.contains(common.join(SAVED_DIRECTORY).display().to_string().as_str()),
+        "{text}"
+    );
     remove(common.as_path());
 }
 
@@ -113,12 +142,22 @@ fn saved_copies_under_both_folder_names_are_both_reported() {
     // The current folder exists and holds no saved copy, which is the state that hid the older one.
     std::fs::create_dir_all(current.as_path()).expect("the current folder");
     let text: String = doctor_section(common.as_path(), Limits::default());
-    assert!(text.contains(earlier.display().to_string().as_str()), "the earlier folder is named: {text}");
+    assert!(
+        text.contains(earlier.display().to_string().as_str()),
+        "the earlier folder is named: {text}"
+    );
     assert!(text.contains("1 copies"), "the copies are counted: {text}");
     assert!(text.contains("1 saves"), "the save is counted: {text}");
-    assert!(text.contains(kept.file_name().expect("name").to_string_lossy().as_ref()), "the kept save is named: {text}");
+    assert!(
+        text.contains(kept.file_name().expect("name").to_string_lossy().as_ref()),
+        "the kept save is named: {text}"
+    );
     assert!(!text.contains("could not be read"), "{text}");
     let merged: Report = report(common.as_path()).expect("a report of both folders");
-    assert_eq!((merged.copies, merged.saves), (1, 1), "the copies of both folders are counted");
+    assert_eq!(
+        (merged.copies, merged.saves),
+        (1, 1),
+        "the copies of both folders are counted"
+    );
     remove(common.as_path());
 }

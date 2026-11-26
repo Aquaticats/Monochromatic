@@ -22,10 +22,18 @@
 //! ```
 
 use crate::service_messages::{
-    CHECK_COMMANDS, NOTHING_CHANGED, NOTHING_CHANGED_AND_THE_STAGED_WORK, RESTART_ONE_UNIT_COMMAND, STATUS_COMMAND, WhatTheBranchShows,
+    CHECK_COMMANDS,
+    NOTHING_CHANGED,
+    NOTHING_CHANGED_AND_THE_STAGED_WORK,
+    RESTART_ONE_UNIT_COMMAND,
+    STATUS_COMMAND,
+    WhatTheBranchShows,
 };
 use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::wait_ceilings::{REQUEST_WRITE_CEILING, REQUEST_WRITE_SILENCE};
+use crate::wait_ceilings::{
+    REQUEST_WRITE_CEILING,
+    REQUEST_WRITE_SILENCE,
+};
 use std::time::Duration;
 
 /// What a person reads about a commit whose service stopped reading its request,
@@ -54,7 +62,10 @@ pub(crate) fn not_reading(took_nothing: bool) -> String {
 
 /// What a person reads about a commit whose service answered nothing at its address,
 /// which is the case where the request was never sent at all.
-pub(crate) fn nothing_answered(address: &str, waited: Duration) -> String {
+pub(crate) fn nothing_answered(
+    address: &str,
+    waited: Duration,
+) -> String {
     return format!(
         "Nothing has answered at the commit service's address for this worktree ({address}) for {} seconds, so this commit \
          was not made: the request was never sent, and nothing of it can land later by itself. \

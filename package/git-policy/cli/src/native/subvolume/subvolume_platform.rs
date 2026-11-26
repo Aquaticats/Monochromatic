@@ -24,9 +24,19 @@
 //! interface Platform { filesystemKind(path): Kind; isSubvolumeRoot(path): boolean; createSubvolume(path): void; ... }
 //! ```
 
-use crate::fs_btrfs_ioctl::{subvolume_create_at, subvolume_destroy_at};
-use crate::fs_clone_exchange::{clone_file, exchange_paths};
-use crate::fs_kind::{FilesystemKind, filesystem_facts, is_subvolume_root};
+use crate::fs_btrfs_ioctl::{
+    subvolume_create_at,
+    subvolume_destroy_at,
+};
+use crate::fs_clone_exchange::{
+    clone_file,
+    exchange_paths,
+};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_facts,
+    is_subvolume_root,
+};
 use crate::fs_mount_options::read_mount_facts;
 use crate::fs_primitive_error::PrimitiveError;
 use crate::git_system_config::with_real_git;
@@ -49,24 +59,55 @@ use std::path::Path;
 /// ```
 pub trait Platform {
     /// The filesystem kind holding `path` and the bytes free there.
-    fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError>;
+    fn filesystem_facts(
+        &self,
+        path: &Path,
+    ) -> Result<(FilesystemKind, u64), PrimitiveError>;
     /// Whether `path` is the root of a subvolume.
-    fn is_subvolume_root(&self, path: &Path) -> Result<bool, PrimitiveError>;
+    fn is_subvolume_root(
+        &self,
+        path: &Path,
+    ) -> Result<bool, PrimitiveError>;
     /// Create an empty subvolume at `path`.
-    fn create_subvolume(&self, path: &Path) -> Result<(), PrimitiveError>;
+    fn create_subvolume(
+        &self,
+        path: &Path,
+    ) -> Result<(), PrimitiveError>;
     /// Destroy the subvolume at `path` with the kernel call (the caller falls back to emptying and `rmdir`).
-    fn destroy_subvolume(&self, path: &Path) -> Result<(), PrimitiveError>;
+    fn destroy_subvolume(
+        &self,
+        path: &Path,
+    ) -> Result<(), PrimitiveError>;
     /// Whether an unprivileged subvolume destroy is allowed on the mount holding `path`.
-    fn removal_allowed(&self, path: &Path) -> bool;
+    fn removal_allowed(
+        &self,
+        path: &Path,
+    ) -> bool;
     /// Whether `path` is itself a mount point (a mount point cannot be exchanged).
-    fn is_mount_point(&self, path: &Path) -> bool;
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool;
     /// Clone a whole file's data blocks.
-    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError>;
+    fn clone_file(
+        &self,
+        source: &File,
+        destination: &File,
+        path: &Path,
+    ) -> Result<(), PrimitiveError>;
     /// Swap two paths atomically.
-    fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError>;
+    fn exchange(
+        &self,
+        first: &Path,
+        second: &Path,
+    ) -> Result<(), PrimitiveError>;
     /// Make `new` another name of the file `existing`;
     /// fails with `EXDEV` where the two sit in different subvolumes.
-    fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
+    fn hard_link(
+        &self,
+        existing: &Path,
+        new: &Path,
+    ) -> std::io::Result<()> {
         return std::fs::hard_link(existing, new);
     }
     /// Whether the journal and index steps of this platform flush their writes to disk (`subvolume_file_write_steps`).
@@ -133,12 +174,18 @@ impl LinuxPlatform {
     /// ```ts
     /// const platform = linuxPlatform({ ...environment, [FORWARD_TARGET]: realGit });
     /// ```
-    pub fn forwarding_to(environment: &[(OsString, OsString)], real_git: Option<&Path>) -> LinuxPlatform {
+    pub fn forwarding_to(
+        environment: &[(OsString, OsString)],
+        real_git: Option<&Path>,
+    ) -> LinuxPlatform {
         let named: Vec<(OsString, OsString)> = match real_git {
             Some(found) => with_real_git(environment, found),
             None => environment.to_vec(),
         };
-        return LinuxPlatform { git_environment: named, settled_conversion_environment: None };
+        return LinuxPlatform {
+            git_environment: named,
+            settled_conversion_environment: None,
+        };
     }
 
     /// What:
@@ -162,7 +209,9 @@ impl LinuxPlatform {
     /// const platform = linuxPlatform({...environment, [FORWARD_TARGET]: realGit}).withItsConversionEnvironmentSettled();
     /// ```
     pub fn with_its_conversion_environment_settled(mut self) -> LinuxPlatform {
-        self.settled_conversion_environment = Some(ConversionEnvironment::from_variables(self.git_environment.as_slice()));
+        self.settled_conversion_environment = Some(ConversionEnvironment::from_variables(
+            self.git_environment.as_slice(),
+        ));
         return self;
     }
 }
@@ -177,38 +226,71 @@ impl Platform for LinuxPlatform {
         };
     }
 
-    fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
+    fn filesystem_facts(
+        &self,
+        path: &Path,
+    ) -> Result<(FilesystemKind, u64), PrimitiveError> {
         return filesystem_facts(path);
     }
 
-    fn is_subvolume_root(&self, path: &Path) -> Result<bool, PrimitiveError> {
+    fn is_subvolume_root(
+        &self,
+        path: &Path,
+    ) -> Result<bool, PrimitiveError> {
         return is_subvolume_root(path);
     }
 
-    fn create_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+    fn create_subvolume(
+        &self,
+        path: &Path,
+    ) -> Result<(), PrimitiveError> {
         return subvolume_create_at(path);
     }
 
-    fn destroy_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+    fn destroy_subvolume(
+        &self,
+        path: &Path,
+    ) -> Result<(), PrimitiveError> {
         return subvolume_destroy_at(path);
     }
 
-    fn removal_allowed(&self, path: &Path) -> bool {
-        let Ok(Some(facts)) = read_mount_facts(path) else { return false };
+    fn removal_allowed(
+        &self,
+        path: &Path,
+    ) -> bool {
+        let Ok(Some(facts)) = read_mount_facts(path) else {
+            return false;
+        };
         return facts.has_option("user_subvol_rm_allowed");
     }
 
-    fn is_mount_point(&self, path: &Path) -> bool {
-        let Ok(real) = std::fs::canonicalize(path) else { return false };
-        let Ok(Some(facts)) = read_mount_facts(real.as_path()) else { return false };
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool {
+        let Ok(real) = std::fs::canonicalize(path) else {
+            return false;
+        };
+        let Ok(Some(facts)) = read_mount_facts(real.as_path()) else {
+            return false;
+        };
         return facts.mount_point == real;
     }
 
-    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {
+    fn clone_file(
+        &self,
+        source: &File,
+        destination: &File,
+        path: &Path,
+    ) -> Result<(), PrimitiveError> {
         return clone_file(source, destination, path);
     }
 
-    fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError> {
+    fn exchange(
+        &self,
+        first: &Path,
+        second: &Path,
+    ) -> Result<(), PrimitiveError> {
         return exchange_paths(first, second);
     }
 }

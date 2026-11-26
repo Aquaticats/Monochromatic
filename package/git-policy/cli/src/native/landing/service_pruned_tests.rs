@@ -1,14 +1,35 @@
 //! Controls for recognizing content that was removed before a commit landed.
 
 use super::*;
-use crate::service_protocol::{ALLOWED_MODES, Change};
-use crate::test_support::{fixture, git_context, git_output, remove};
-use std::path::{Path, PathBuf};
+use crate::service_protocol::{
+    ALLOWED_MODES,
+    Change,
+};
+use crate::test_support::{
+    fixture,
+    git_context,
+    git_output,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const NAME: &str = "0123456789abcdef0123456789abcdef01234567";
 
-fn failure(code: EngineFailureCode, message: &str) -> PolicyEvent {
-    return PolicyEvent::EngineFailure { code, hint: crate::policy_events::EngineFailureHint::OfCode, message: message.to_string(), trigger: None, policy: None, path: None };
+fn failure(
+    code: EngineFailureCode,
+    message: &str,
+) -> PolicyEvent {
+    return PolicyEvent::EngineFailure {
+        code,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
+        message: message.to_string(),
+        trigger: None,
+        policy: None,
+        path: None,
+    };
 }
 
 /// The failure a policy raises for a missing object is the removed-content signal;
@@ -18,10 +39,20 @@ fn failure(code: EngineFailureCode, message: &str) -> PolicyEvent {
 /// are not.
 #[test]
 fn only_a_missing_object_is_removed_content() {
-    let missing: String = format!("{OBJECT_MISSING_PREFIX}{NAME}. Run `git fsck` to check the object store.");
-    assert!(content_was_removed(&[failure(EngineFailureCode::ContentUnavailable, missing.as_str())]));
-    assert!(!content_was_removed(&[failure(EngineFailureCode::ContentUnavailable, "monochromatic-git-policy-cli could not start Git")]));
-    assert!(!content_was_removed(&[failure(EngineFailureCode::PolicyIncomplete, missing.as_str())]));
+    let missing: String =
+        format!("{OBJECT_MISSING_PREFIX}{NAME}. Run `git fsck` to check the object store.");
+    assert!(content_was_removed(&[failure(
+        EngineFailureCode::ContentUnavailable,
+        missing.as_str()
+    )]));
+    assert!(!content_was_removed(&[failure(
+        EngineFailureCode::ContentUnavailable,
+        "monochromatic-git-policy-cli could not start Git"
+    )]));
+    assert!(!content_was_removed(&[failure(
+        EngineFailureCode::PolicyIncomplete,
+        missing.as_str()
+    )]));
     assert!(!content_was_removed(&[]));
 }
 
@@ -33,7 +64,11 @@ fn request(blob: &str) -> CommitRequest {
         git_dir: PathBuf::from("/nowhere/.git"),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: NAME.to_string(),
-        changes: vec![Change { path: PathBuf::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob.to_string()) }],
+        changes: vec![Change {
+            path: PathBuf::from("a.txt"),
+            mode: ALLOWED_MODES[0],
+            blob: Some(blob.to_string()),
+        }],
         message: String::from("m\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
@@ -42,7 +77,9 @@ fn request(blob: &str) -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/nowhere/.git/index"),
-        scratch: PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-x-0"),
+        scratch: PathBuf::from(
+            "/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-x-0",
+        ),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -61,9 +98,23 @@ fn a_named_object_is_missing_once_its_loose_file_is_gone() {
     let name: String = String::from_utf8_lossy(&written.stdout).trim().to_string();
     let common: PathBuf = root.join(".git");
     let objects: PathBuf = common.join("objects");
-    assert!(!prepared_content_missing(&git_context(), root.as_path(), common.as_path(), objects.as_path(), "sha1", &request(name.as_str())));
+    assert!(!prepared_content_missing(
+        &git_context(),
+        root.as_path(),
+        common.as_path(),
+        objects.as_path(),
+        "sha1",
+        &request(name.as_str())
+    ));
     std::fs::remove_file(objects.join(&name[..2]).join(&name[2..])).expect("the object is loose");
-    assert!(prepared_content_missing(&git_context(), root.as_path(), common.as_path(), objects.as_path(), "sha1", &request(name.as_str())));
+    assert!(prepared_content_missing(
+        &git_context(),
+        root.as_path(),
+        common.as_path(),
+        objects.as_path(),
+        "sha1",
+        &request(name.as_str())
+    ));
     remove(root.as_path());
 }
 
@@ -106,13 +157,24 @@ const DECLINED_STORES: [(&str, &[&str], bool); 2] = [
 ];
 
 /// `tree_fixture` in the store an arm names.
-fn declined_tree_fixture(name: &str, (label, format, replace): (&str, &[&str], bool)) -> TreeFixture {
-    return tree_fixture_in(&format!("{name}-{}", label.replace(' ', "-")), format, replace);
+fn declined_tree_fixture(
+    name: &str,
+    (label, format, replace): (&str, &[&str], bool),
+) -> TreeFixture {
+    return tree_fixture_in(
+        &format!("{name}-{}", label.replace(' ', "-")),
+        format,
+        replace,
+    );
 }
 
 /// `tree_fixture` with the repository initialized by `init`,
 /// holding an unrelated replace ref when `replace` asks.
-fn tree_fixture_in(name: &str, init: &[&str], replace: bool) -> TreeFixture {
+fn tree_fixture_in(
+    name: &str,
+    init: &[&str],
+    replace: bool,
+) -> TreeFixture {
     let root: PathBuf = fixture(name);
     let mut opened: Vec<&str> = init.to_vec();
     opened.push("--quiet");
@@ -122,15 +184,37 @@ fn tree_fixture_in(name: &str, init: &[&str], replace: bool) -> TreeFixture {
         // answers for the objects this fixture asks about is what it answered before.
         std::fs::write(root.join("replaced.txt"), "replaced\n").expect("file");
         std::fs::write(root.join("standing-in.txt"), "standing in\n").expect("file");
-        let named = |path: &str| -> String { return String::from_utf8_lossy(&git_output(root.as_path(), &["hash-object", "-w", path]).stdout).trim().to_string(); };
+        let named = |path: &str| -> String {
+            return String::from_utf8_lossy(
+                &git_output(root.as_path(), &["hash-object", "-w", path]).stdout,
+            )
+            .trim()
+            .to_string();
+        };
         let replaced: String = named("replaced.txt");
         let standing_in: String = named("standing-in.txt");
-        assert!(git_output(root.as_path(), &["replace", replaced.as_str(), standing_in.as_str()]).status.success(), "the unrelated replace ref");
+        assert!(
+            git_output(
+                root.as_path(),
+                &["replace", replaced.as_str(), standing_in.as_str()]
+            )
+            .status
+            .success(),
+            "the unrelated replace ref"
+        );
     }
     std::fs::create_dir(root.join("d")).expect("directory");
     std::fs::write(root.join("d").join("a.txt"), "content\n").expect("file");
-    assert!(git_output(root.as_path(), &["add", "d/a.txt"]).status.success());
-    let text = |arguments: &[&str]| -> String { return String::from_utf8_lossy(&git_output(root.as_path(), arguments).stdout).trim().to_string(); };
+    assert!(
+        git_output(root.as_path(), &["add", "d/a.txt"])
+            .status
+            .success()
+    );
+    let text = |arguments: &[&str]| -> String {
+        return String::from_utf8_lossy(&git_output(root.as_path(), arguments).stdout)
+            .trim()
+            .to_string();
+    };
     let tree: String = text(&["write-tree"]);
     let blob: String = text(&["rev-parse", ":d/a.txt"]);
     let subtree: String = text(&["rev-parse", format!("{tree}:d").as_str()]);
@@ -138,11 +222,25 @@ fn tree_fixture_in(name: &str, init: &[&str], replace: bool) -> TreeFixture {
     request.changes = Vec::new();
     request.amend = true;
     request.tree = Some(tree);
-    return TreeFixture { root, blob, subtree, request };
+    return TreeFixture {
+        root,
+        blob,
+        subtree,
+        request,
+    };
 }
 
-fn remove_loose(root: &Path, name: &str) {
-    std::fs::remove_file(root.join(".git").join("objects").join(&name[..2]).join(&name[2..])).expect("the object is loose");
+fn remove_loose(
+    root: &Path,
+    name: &str,
+) {
+    std::fs::remove_file(
+        root.join(".git")
+            .join("objects")
+            .join(&name[..2])
+            .join(&name[2..]),
+    )
+    .expect("the object is loose");
 }
 
 /// An amendment that embeds a whole tree is intact only while every blob and tree below it is:
@@ -153,10 +251,27 @@ fn remove_loose(root: &Path, name: &str) {
 fn a_blob_removed_from_under_an_embedded_tree_is_removed_content() {
     let fixed = tree_fixture("pruned-tree-blob");
     let common: PathBuf = fixed.root.join(".git");
-    assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]));
+    assert!(!batch_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        &[&fixed.request]
+    ));
     remove_loose(fixed.root.as_path(), fixed.blob.as_str());
-    assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]));
-    assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request));
+    assert!(batch_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        &[&fixed.request]
+    ));
+    assert!(prepared_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        common.join("objects").as_path(),
+        "sha1",
+        &fixed.request
+    ));
     remove(fixed.root.as_path());
 }
 
@@ -166,8 +281,20 @@ fn a_subtree_removed_from_under_an_embedded_tree_is_removed_content() {
     let fixed = tree_fixture("pruned-tree-subtree");
     let common: PathBuf = fixed.root.join(".git");
     remove_loose(fixed.root.as_path(), fixed.subtree.as_str());
-    assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]));
-    assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request));
+    assert!(batch_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        &[&fixed.request]
+    ));
+    assert!(prepared_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        common.join("objects").as_path(),
+        "sha1",
+        &fixed.request
+    ));
     remove(fixed.root.as_path());
 }
 
@@ -190,20 +317,47 @@ fn shared_trees(name: &str) -> SharedTrees {
     git_output(root.as_path(), &["init", "--quiet"]);
     std::fs::create_dir(root.join("shared")).expect("directory");
     for number in 0..SHARED_FILES {
-        std::fs::write(root.join("shared").join(format!("file-{number}.txt")), format!("content {number}\n")).expect("file");
+        std::fs::write(
+            root.join("shared").join(format!("file-{number}.txt")),
+            format!("content {number}\n"),
+        )
+        .expect("file");
     }
-    assert!(git_output(root.as_path(), &["add", "shared"]).status.success());
-    let text = |arguments: &[&str]| -> String { return String::from_utf8_lossy(&git_output(root.as_path(), arguments).stdout).trim().to_string(); };
+    assert!(
+        git_output(root.as_path(), &["add", "shared"])
+            .status
+            .success()
+    );
+    let text = |arguments: &[&str]| -> String {
+        return String::from_utf8_lossy(&git_output(root.as_path(), arguments).stdout)
+            .trim()
+            .to_string();
+    };
     let first: String = text(&["write-tree"]);
     std::fs::write(root.join("own.txt"), "own content\n").expect("file");
-    assert!(git_output(root.as_path(), &["add", "own.txt"]).status.success());
+    assert!(
+        git_output(root.as_path(), &["add", "own.txt"])
+            .status
+            .success()
+    );
     let second: String = text(&["write-tree"]);
     let own_blob: String = text(&["rev-parse", ":own.txt"]);
-    return SharedTrees { root, first, second, own_blob };
+    return SharedTrees {
+        root,
+        first,
+        second,
+        own_blob,
+    };
 }
 
-fn walk_of(fixed: &SharedTrees, roots: &[&str], budget: usize) -> ClosureWalk {
-    let database = ObjectDatabase::open(fixed.root.join(".git").as_path(), None, ObjectFormat::Sha1).expect("the object store opens");
+fn walk_of(
+    fixed: &SharedTrees,
+    roots: &[&str],
+    budget: usize,
+) -> ClosureWalk {
+    let database =
+        ObjectDatabase::open(fixed.root.join(".git").as_path(), None, ObjectFormat::Sha1)
+            .expect("the object store opens");
     return walk_tree_closures(&database, roots, ObjectFormat::Sha1, budget);
 }
 
@@ -214,9 +368,16 @@ fn requests_that_share_a_tree_walk_it_once() {
     let fixed = shared_trees("pruned-batch-shared");
     let one: ClosureWalk = walk_of(&fixed, &[fixed.first.as_str()], usize::MAX);
     assert_eq!(one.end, ClosureEnd::Intact);
-    assert!(one.examined > SHARED_FILES, "the walk looked at every file of the shared directory");
+    assert!(
+        one.examined > SHARED_FILES,
+        "the walk looked at every file of the shared directory"
+    );
     let batch: Vec<&str> = vec![fixed.first.as_str(); SHARED_FILES];
-    assert_eq!(walk_of(&fixed, &batch, usize::MAX), one, "a batch of identical roots costs what one root costs");
+    assert_eq!(
+        walk_of(&fixed, &batch, usize::MAX),
+        one,
+        "a batch of identical roots costs what one root costs"
+    );
     remove(fixed.root.as_path());
 }
 
@@ -227,9 +388,16 @@ fn roots_that_share_a_subtree_cost_less_together_than_apart() {
     let fixed = shared_trees("pruned-batch-subtree");
     let first: ClosureWalk = walk_of(&fixed, &[fixed.first.as_str()], usize::MAX);
     let second: ClosureWalk = walk_of(&fixed, &[fixed.second.as_str()], usize::MAX);
-    let both: ClosureWalk = walk_of(&fixed, &[fixed.first.as_str(), fixed.second.as_str()], usize::MAX);
+    let both: ClosureWalk = walk_of(
+        &fixed,
+        &[fixed.first.as_str(), fixed.second.as_str()],
+        usize::MAX,
+    );
     assert_eq!(both.end, ClosureEnd::Intact);
-    assert!(both.examined < first.examined + second.examined, "{both:?} {first:?} {second:?}");
+    assert!(
+        both.examined < first.examined + second.examined,
+        "{both:?} {first:?} {second:?}"
+    );
     remove(fixed.root.as_path());
 }
 
@@ -246,9 +414,27 @@ fn a_loss_below_the_second_root_of_a_batch_is_found() {
     first.tree = Some(fixed.first.clone());
     let mut second: CommitRequest = first.clone();
     second.tree = Some(fixed.second.clone());
-    assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&first]));
-    assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&first, &second]));
-    assert_eq!(walk_of(&fixed, &[fixed.first.as_str(), fixed.second.as_str()], usize::MAX).end, ClosureEnd::Missing);
+    assert!(!batch_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        &[&first]
+    ));
+    assert!(batch_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        &[&first, &second]
+    ));
+    assert_eq!(
+        walk_of(
+            &fixed,
+            &[fixed.first.as_str(), fixed.second.as_str()],
+            usize::MAX
+        )
+        .end,
+        ClosureEnd::Missing
+    );
     remove(fixed.root.as_path());
 }
 
@@ -262,7 +448,11 @@ fn a_loss_below_the_second_root_of_a_batch_is_found() {
 fn a_walk_over_its_budget_says_it_does_not_know() {
     let fixed = shared_trees("pruned-batch-budget");
     let needed: usize = walk_of(&fixed, &[fixed.second.as_str()], usize::MAX).examined;
-    assert_eq!(walk_of(&fixed, &[fixed.second.as_str()], needed).end, ClosureEnd::Intact, "the budget equal to the work is enough");
+    assert_eq!(
+        walk_of(&fixed, &[fixed.second.as_str()], needed).end,
+        ClosureEnd::Intact,
+        "the budget equal to the work is enough"
+    );
     let short: ClosureWalk = walk_of(&fixed, &[fixed.second.as_str()], needed - 1);
     assert_eq!(short.end, ClosureEnd::OutOfBudget);
     assert!(short.examined < needed);
@@ -277,14 +467,31 @@ fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content() {
     let common: PathBuf = fixed.root.join(".git");
     let added = git_output(
         fixed.root.as_path(),
-        &["update-index", "--add", "--cacheinfo", "160000,0123456789abcdef0123456789abcdef01234567,sub"],
+        &[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "160000,0123456789abcdef0123456789abcdef01234567,sub",
+        ],
     );
     assert!(added.status.success());
     let written = git_output(fixed.root.as_path(), &["write-tree"]);
     let mut request: CommitRequest = fixed.request.clone();
     request.tree = Some(String::from_utf8_lossy(&written.stdout).trim().to_string());
-    assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&request]));
-    assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &request));
+    assert!(!batch_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        &[&request]
+    ));
+    assert!(!prepared_content_missing(
+        &git_context(),
+        fixed.root.as_path(),
+        common.as_path(),
+        common.join("objects").as_path(),
+        "sha1",
+        &request
+    ));
     remove(fixed.root.as_path());
 }
 
@@ -302,12 +509,47 @@ fn a_blob_removed_from_under_an_embedded_tree_is_removed_content_where_the_reade
         let (label, _format, _replace) = store;
         let fixed = declined_tree_fixture("pruned-tree-blob-declined", store);
         let common: PathBuf = fixed.root.join(".git");
-        assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]), "{label}: the tree is complete");
+        assert!(
+            !batch_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                &[&fixed.request]
+            ),
+            "{label}: the tree is complete"
+        );
         remove_loose(fixed.root.as_path(), fixed.blob.as_str());
         // Positive control: Git itself no longer finds the blob the tree names.
-        assert_eq!(git_output(fixed.root.as_path(), &["cat-file", "-e", fixed.blob.as_str()]).status.code(), Some(1), "{label}: the blob is gone");
-        assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]), "{label}: the amended tree names a gone blob");
-        assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request), "{label}: the client's check names the tree too");
+        assert_eq!(
+            git_output(
+                fixed.root.as_path(),
+                &["cat-file", "-e", fixed.blob.as_str()]
+            )
+            .status
+            .code(),
+            Some(1),
+            "{label}: the blob is gone"
+        );
+        assert!(
+            batch_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                &[&fixed.request]
+            ),
+            "{label}: the amended tree names a gone blob"
+        );
+        assert!(
+            prepared_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                common.join("objects").as_path(),
+                "sha1",
+                &fixed.request
+            ),
+            "{label}: the client's check names the tree too"
+        );
         remove(fixed.root.as_path());
     }
 }
@@ -327,20 +569,71 @@ fn a_gone_commit_git_built_is_removed_content_where_the_reader_declines() {
         let fixed = declined_tree_fixture("pruned-built-commit-declined", store);
         let common: PathBuf = fixed.root.join(".git");
         let objects: PathBuf = common.join("objects");
-        let text = |arguments: &[&str]| -> String { return String::from_utf8_lossy(&git_output(fixed.root.as_path(), arguments).stdout).trim().to_string(); };
-        let built: String = text(&["commit-tree", fixed.request.tree.as_deref().expect("the tree"), "-m", "built"]);
+        let text = |arguments: &[&str]| -> String {
+            return String::from_utf8_lossy(&git_output(fixed.root.as_path(), arguments).stdout)
+                .trim()
+                .to_string();
+        };
+        let built: String = text(&[
+            "commit-tree",
+            fixed.request.tree.as_deref().expect("the tree"),
+            "-m",
+            "built",
+        ]);
         let mut sent: CommitRequest = fixed.request.clone();
         sent.changes = Vec::new();
         sent.tree = None;
         sent.amend = false;
         sent.commit = Some(built.clone());
-        assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: the commit is present");
-        assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), objects.as_path(), "sha1", &sent), "{label}: the client's question finds it present");
+        assert!(
+            !batch_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                &[&sent]
+            ),
+            "{label}: the commit is present"
+        );
+        assert!(
+            !prepared_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                objects.as_path(),
+                "sha1",
+                &sent
+            ),
+            "{label}: the client's question finds it present"
+        );
         remove_loose(fixed.root.as_path(), built.as_str());
         // Positive control: Git itself no longer finds the commit Git built.
-        assert_eq!(git_output(fixed.root.as_path(), &["cat-file", "-e", built.as_str()]).status.code(), Some(1), "{label}: the commit is gone");
-        assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: the landing's question names the gone commit");
-        assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), objects.as_path(), "sha1", &sent), "{label}: the client's question names the gone commit");
+        assert_eq!(
+            git_output(fixed.root.as_path(), &["cat-file", "-e", built.as_str()])
+                .status
+                .code(),
+            Some(1),
+            "{label}: the commit is gone"
+        );
+        assert!(
+            batch_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                &[&sent]
+            ),
+            "{label}: the landing's question names the gone commit"
+        );
+        assert!(
+            prepared_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                objects.as_path(),
+                "sha1",
+                &sent
+            ),
+            "{label}: the client's question names the gone commit"
+        );
         remove(fixed.root.as_path());
     }
 }
@@ -361,16 +654,47 @@ fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content_where_the_rea
         let common: PathBuf = fixed.root.join(".git");
         let added = git_output(
             fixed.root.as_path(),
-            &["update-index", "--add", "--cacheinfo", "160000,0123456789abcdef0123456789abcdef01234567,sub"],
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                "160000,0123456789abcdef0123456789abcdef01234567,sub",
+            ],
         );
         assert!(added.status.success(), "{label}: the gitlink entry");
         let written = git_output(fixed.root.as_path(), &["write-tree"]);
         let mut sent: CommitRequest = fixed.request.clone();
         sent.tree = Some(String::from_utf8_lossy(&written.stdout).trim().to_string());
-        assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: another repository's commit is not a loss here");
-        assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &sent), "{label}: the client's check agrees");
+        assert!(
+            !batch_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                &[&sent]
+            ),
+            "{label}: another repository's commit is not a loss here"
+        );
+        assert!(
+            !prepared_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                common.join("objects").as_path(),
+                "sha1",
+                &sent
+            ),
+            "{label}: the client's check agrees"
+        );
         remove_loose(fixed.root.as_path(), fixed.blob.as_str());
-        assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: the blob beside the gitlink is gone");
+        assert!(
+            batch_content_missing(
+                &git_context(),
+                fixed.root.as_path(),
+                common.as_path(),
+                &[&sent]
+            ),
+            "{label}: the blob beside the gitlink is gone"
+        );
         remove(fixed.root.as_path());
     }
 }

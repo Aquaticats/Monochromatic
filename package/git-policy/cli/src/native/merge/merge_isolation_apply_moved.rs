@@ -34,21 +34,28 @@ use crate::lazy_runtime::run_on_runtime;
 /// and the line a step of the merge that stopped prints.
 use crate::merge_isolation_apply_findings::a_carry_that_stopped;
 /// The writes of the carry itself.
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry};
+use crate::merge_isolation_carry_apply::{
+    CarryFailure,
+    LockWait,
+    carry,
+};
+/// What Git's own update left at each path the merge changes.
+use crate::merge_isolation_carry_landed::LandedFile;
+/// The lines a carry prints about the paths it carried,
+/// and everything one carry did.
+use crate::merge_isolation_carry_notice::{
+    Report,
+    report_lines,
+};
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::Capture;
 /// The paths the merge changes,
 /// and what Git's own update left at each of them.
 use crate::merge_isolation_changes::Change;
-/// What Git's own update left at each path the merge changes.
-use crate::merge_isolation_carry_landed::LandedFile;
-/// The lines a carry prints about the paths it carried,
-/// and everything one carry did.
-use crate::merge_isolation_carry_notice::{Report, report_lines};
+/// The questions an isolated merge asks Git.
+use crate::merge_isolation_git_reads::Session;
 /// The record of the merge whose own path this is.
 use crate::merge_isolation_journal::MergeIntent;
-/// The merge as one round resolved it.
-use crate::merge_isolation_run_types::Plan;
 /// Whether the branch was built on this merge.
 use crate::merge_isolation_recovery::is_ancestor_awaiting;
 /// The person's work carried onto the branch as it is now.
@@ -57,8 +64,8 @@ use crate::merge_isolation_recovery_carry::carry_onto_awaiting;
 use crate::merge_isolation_recovery_reads::resolve_commit_awaiting;
 /// The place a recovery step runs in.
 use crate::merge_isolation_recovery_steps::RecoveryPlace;
-/// The questions an isolated merge asks Git.
-use crate::merge_isolation_git_reads::Session;
+/// The merge as one round resolved it.
+use crate::merge_isolation_run_types::Plan;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -106,13 +113,32 @@ pub(crate) fn carry_and_settle(
     landed: &[LandedFile],
     transaction_id: &str,
 ) -> CarryEnding {
-    let Some(capture): Option<&Capture> = plan.carried else { return CarryEnding { lines: String::new(), finished: true } };
+    let Some(capture): Option<&Capture> = plan.carried else {
+        return CarryEnding {
+            lines: String::new(),
+            finished: true,
+        };
+    };
     let (root, git_dir): (&Path, &Path) = (plan.root, plan.git_dir);
-    let carried: Result<Report, CarryFailure> =
-        carry(&session.context, root, git_dir, changes, capture, landed, transaction_id, LockWait::WhileFinishing, &mut std::io::stderr());
+    let carried: Result<Report, CarryFailure> = carry(
+        &session.context,
+        root,
+        git_dir,
+        changes,
+        capture,
+        landed,
+        transaction_id,
+        LockWait::WhileFinishing,
+        &mut std::io::stderr(),
+    );
     let report: Report = match carried {
         Ok(found) => found,
-        Err(failure) => return CarryEnding { lines: a_carry_that_stopped(reference, &failure, capture), finished: false },
+        Err(failure) => {
+            return CarryEnding {
+                lines: a_carry_that_stopped(reference, &failure, capture),
+                finished: false,
+            };
+        }
     };
     let mut lines: String = String::new();
     for line in report_lines(reference, &report) {
@@ -122,13 +148,25 @@ pub(crate) fn carry_and_settle(
     // Nothing was written to a path whose bytes changed under the carry, so the branch is read once more: a commit built on this merge
     //  is what the person's layers are merged with, exactly as the recovery of a killed merge carries them onto a moved head.
     if report.changed.is_empty() {
-        return CarryEnding { lines, finished: true };
+        return CarryEnding {
+            lines,
+            finished: true,
+        };
     }
     let place: RecoveryPlace = RecoveryPlace::settling(&session.context, git_dir, root);
     return match after_the_carry(&place, root, intent, reference) {
-        AfterTheCarry::WhereTheMergePutIt => CarryEnding { lines, finished: true },
-        AfterTheCarry::OntoTheMovedHead(moved_lines) => CarryEnding { lines: moved_lines, finished: true },
-        AfterTheCarry::Waiting(line) => CarryEnding { lines: format!("{lines}{line}"), finished: false },
+        AfterTheCarry::WhereTheMergePutIt => CarryEnding {
+            lines,
+            finished: true,
+        },
+        AfterTheCarry::OntoTheMovedHead(moved_lines) => CarryEnding {
+            lines: moved_lines,
+            finished: true,
+        },
+        AfterTheCarry::Waiting(line) => CarryEnding {
+            lines: format!("{lines}{line}"),
+            finished: false,
+        },
     };
 }
 
@@ -164,12 +202,19 @@ enum AfterTheCarry {
 /// ```ts
 /// function afterTheCarry({ place, root, intent, reference }): AfterTheCarry;
 /// ```
-fn after_the_carry(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, reference: &str) -> AfterTheCarry {
+fn after_the_carry(
+    place: &RecoveryPlace,
+    root: &Path,
+    intent: &MergeIntent,
+    reference: &str,
+) -> AfterTheCarry {
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
     // A read that fails and a runtime that refuses the task are the same answer: nothing written, nothing removed.
     return match run_on_runtime(after_the_carry_awaiting(place, root, intent, reference)) {
         Ok(Ok(settled)) => settled,
-        Ok(Err(_)) | Err(_) => AfterTheCarry::Waiting(the_branch_could_not_be_read(reference, target)),
+        Ok(Err(_)) | Err(_) => {
+            AfterTheCarry::Waiting(the_branch_could_not_be_read(reference, target))
+        }
     };
 }
 
@@ -197,7 +242,9 @@ async fn after_the_carry_awaiting(
         Err(error) => return Err(error.0),
     };
     let Some(tip) = named else {
-        return Ok(AfterTheCarry::Waiting(the_branch_could_not_be_read(reference, target)));
+        return Ok(AfterTheCarry::Waiting(the_branch_could_not_be_read(
+            reference, target,
+        )));
     };
     if tip == intent.new_oid {
         return Ok(AfterTheCarry::WhereTheMergePutIt);
@@ -211,14 +258,29 @@ async fn after_the_carry_awaiting(
         Err(refusal) => return Err(refusal.error.0),
     };
     if !built_on_it {
-        return Ok(AfterTheCarry::Waiting(the_branch_is_not_built_on_it(reference, target, tip.as_str())));
+        return Ok(AfterTheCarry::Waiting(the_branch_is_not_built_on_it(
+            reference,
+            target,
+            tip.as_str(),
+        )));
     }
     let mut carried: Vec<u8> = Vec::new();
-    return match carry_onto_awaiting(place, root, intent, tip.as_str(), reference, &mut carried).await {
-        Ok(true) => Ok(AfterTheCarry::OntoTheMovedHead(the_carry_onto_the_branch_as_it_is(reference, target, tip.as_str(), carried.as_slice()))),
+    return match carry_onto_awaiting(place, root, intent, tip.as_str(), reference, &mut carried)
+        .await
+    {
+        Ok(true) => Ok(AfterTheCarry::OntoTheMovedHead(
+            the_carry_onto_the_branch_as_it_is(reference, target, tip.as_str(), carried.as_slice()),
+        )),
         // The lock stays held, so the next command carries the same bytes.
-        Ok(false) => Ok(AfterTheCarry::Waiting(the_index_kept_it(reference, target, tip.as_str()))),
-        Err(refusal) => Ok(AfterTheCarry::Waiting(format!("{}\n", refusal.error.0.trim_end_matches('\n')))),
+        Ok(false) => Ok(AfterTheCarry::Waiting(the_index_kept_it(
+            reference,
+            target,
+            tip.as_str(),
+        ))),
+        Err(refusal) => Ok(AfterTheCarry::Waiting(format!(
+            "{}\n",
+            refusal.error.0.trim_end_matches('\n')
+        ))),
     };
 }
 
@@ -233,7 +295,12 @@ async fn after_the_carry_awaiting(
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ${target} moved to ${head} while this merge carried your work, so ...`
 /// ```
-fn the_carry_onto_the_branch_as_it_is(reference: &str, target: &str, head: &str, carried: &[u8]) -> String {
+fn the_carry_onto_the_branch_as_it_is(
+    reference: &str,
+    target: &str,
+    head: &str,
+    carried: &[u8],
+) -> String {
     let mut lines: String = format!(
         "monochromatic-git-policy-cli: git merge {reference}: {target} moved to {head} while this merge carried your work, so your work in \
          the merge's paths was merged with the branch as it is now.\n"
@@ -254,7 +321,11 @@ fn the_carry_onto_the_branch_as_it_is(reference: &str, target: &str, head: &str,
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ${target} moved to ${head} ... is not built on this merge ...`
 /// ```
-fn the_branch_is_not_built_on_it(reference: &str, target: &str, head: &str) -> String {
+fn the_branch_is_not_built_on_it(
+    reference: &str,
+    target: &str,
+    head: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: {target} moved to {head} while this merge carried your work, and that commit \
          is not built on this merge, so your work in the merge's paths is kept in the merge's record and in the objects that record names. \
@@ -274,7 +345,11 @@ fn the_branch_is_not_built_on_it(reference: &str, target: &str, head: &str) -> S
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ${target} moved to ${head} ... another program holds ... the index ...`
 /// ```
-fn the_index_kept_it(reference: &str, target: &str, head: &str) -> String {
+fn the_index_kept_it(
+    reference: &str,
+    target: &str,
+    head: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: {target} moved to {head} while this merge carried your work, and another \
          program holds this repository's index, so your work in the merge's paths is kept in the merge's record and in the objects that \
@@ -293,7 +368,10 @@ fn the_index_kept_it(reference: &str, target: &str, head: &str) -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ${target} could not be read after this merge landed ...`
 /// ```
-fn the_branch_could_not_be_read(reference: &str, target: &str) -> String {
+fn the_branch_could_not_be_read(
+    reference: &str,
+    target: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: {target} could not be read after this merge landed, so your work in the \
          merge's paths is kept in the merge's record and in the objects that record names. The next git command in this worktree merges it \

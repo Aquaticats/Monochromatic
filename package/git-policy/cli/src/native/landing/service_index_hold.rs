@@ -18,9 +18,15 @@
 //! await lock.releaseWith(builtIndex) // rename(built, index); unlink(lock)
 //! ```
 
-use crate::service_index_ownership::{Ownership, note_unsettled};
+use crate::service_index_ownership::{
+    Ownership,
+    note_unsettled,
+};
 use crate::service_index_same::same_index;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// How many times a question about the lock that fails is asked before it is given up,
@@ -96,9 +102,20 @@ impl IndexLock {
         index: &Path,
         marker: String,
         held: std::fs::File,
-        calls: (fn(&Path, &std::fs::File, &str) -> Ownership, fn(&Path) -> std::io::Result<()>),
+        calls: (
+            fn(&Path, &std::fs::File, &str) -> Ownership,
+            fn(&Path) -> std::io::Result<()>,
+        ),
     ) -> IndexLock {
-        return IndexLock { lock, index: index.to_path_buf(), marker, held, inspect: calls.0, remove: calls.1, armed: true };
+        return IndexLock {
+            lock,
+            index: index.to_path_buf(),
+            marker,
+            held,
+            inspect: calls.0,
+            remove: calls.1,
+            armed: true,
+        };
     }
 
     /// The live index this lock guards.
@@ -124,7 +141,8 @@ impl IndexLock {
     fn remove_owned(&self) -> std::io::Result<()> {
         return match (self.remove)(&self.lock) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
-                crate::service_error!("the index lock {} is this service's and cannot be removed ({error}); it stays, and the service ends after this batch so that the restart reclaims it",
+                crate::service_error!(
+                    "the index lock {} is this service's and cannot be removed ({error}); it stays, and the service ends after this batch so that the restart reclaims it",
                     self.lock.display()
                 );
                 note_unsettled();
@@ -185,7 +203,10 @@ impl IndexLock {
     /// An error naming the lock when the check cannot be made:
     /// the lock stays,
     /// and the service ends after its batch so that the restart reclaims it.
-    pub fn release_with(self, built: &Path) -> Result<(), std::io::Error> {
+    pub fn release_with(
+        self,
+        built: &Path,
+    ) -> Result<(), std::io::Error> {
         return self.release_with_record(built, &NothingToRecord);
     }
 
@@ -218,7 +239,11 @@ impl IndexLock {
     /// As `release_with`,
     /// and the error of `record`,
     /// with the lock left in place.
-    pub fn release_with_record(self, built: &Path, record: &dyn Record) -> Result<(), std::io::Error> {
+    pub fn release_with_record(
+        self,
+        built: &Path,
+        record: &dyn Record,
+    ) -> Result<(), std::io::Error> {
         return self.release_flushed_with_record(built, false, record);
     }
 
@@ -238,7 +263,12 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with_record`.
-    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Record) -> Result<(), std::io::Error> {
+    pub fn release_flushed_with_record(
+        mut self,
+        built: &Path,
+        flushed: bool,
+        record: &dyn Record,
+    ) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}
             Ownership::Replaced => {
@@ -267,8 +297,11 @@ impl IndexLock {
         //  installs nothing, as a rename that fails does.
         if built.exists() && !same_index(built, &self.index) {
             if !flushed {
-                let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
-                    Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
+                let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index")
+                {
+                    Err(std::io::Error::other(
+                        "the flush of the new index was made to fail by a control",
+                    ))
                 } else {
                     match std::fs::File::open(built) {
                         Ok(file) => crate::service_durable::flush_index(&file, "built-index"),
@@ -276,7 +309,10 @@ impl IndexLock {
                     }
                 };
                 if let Err(error) = synced {
-                    crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
+                    crate::service_error!(
+                        "the new index {} could not be flushed to the disk ({error}), so the index was not replaced",
+                        built.display()
+                    );
                     return Err(error);
                 }
             }
@@ -320,7 +356,8 @@ impl Drop for IndexLock {
             }
             Ownership::Replaced => {}
             Ownership::Unreadable(error) => {
-                crate::service_error!("the index lock {} could not be checked ({error}) and stays; the service ends after this batch so that the restart reclaims it",
+                crate::service_error!(
+                    "the index lock {} could not be checked ({error}) and stays; the service ends after this batch so that the restart reclaims it",
                     self.lock.display()
                 );
                 note_unsettled();

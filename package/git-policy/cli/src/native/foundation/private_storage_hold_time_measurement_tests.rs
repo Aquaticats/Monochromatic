@@ -11,7 +11,10 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -57,7 +60,10 @@ const CROWD_THREADS: usize = 8;
 const CROWD_PUBLISHES_EACH: usize = 250;
 
 /// Stages one small file at `directory/<name>.staged` and returns its path.
-fn stage(directory: &Path, name: &str) -> PathBuf {
+fn stage(
+    directory: &Path,
+    name: &str,
+) -> PathBuf {
     let staged: PathBuf = directory.join(format!("{name}.staged"));
     std::fs::write(&staged, b"x").expect("the staged file");
     return staged;
@@ -68,9 +74,14 @@ fn stage(directory: &Path, name: &str) -> PathBuf {
 /// the middle,
 /// the 99th and 99.9th percentile and the largest,
 /// in microseconds.
-fn print_spread(label: &str, mut micros: Vec<u128>) {
+fn print_spread(
+    label: &str,
+    mut micros: Vec<u128>,
+) {
     micros.sort_unstable();
-    let at = |per_thousand: usize| -> u128 { return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)]; };
+    let at = |per_thousand: usize| -> u128 {
+        return micros[(micros.len() * per_thousand / 1000).min(micros.len() - 1)];
+    };
     println!(
         "{label}: n={} median={}us p99={}us p99.9={}us max={}us",
         micros.len(),
@@ -115,10 +126,12 @@ fn measure_how_long_a_name_is_held_by_the_checked_rename_with_a_crowd() {
             return std::thread::spawn(move || {
                 let mut micros: Vec<u128> = Vec::with_capacity(CROWD_PUBLISHES_EACH);
                 for number in 0..CROWD_PUBLISHES_EACH {
-                    let staged: PathBuf = stage(directory.as_path(), format!("t{thread}-{number}").as_str());
+                    let staged: PathBuf =
+                        stage(directory.as_path(), format!("t{thread}-{number}").as_str());
                     let target: PathBuf = directory.join(format!("t{thread}-{number}.final"));
                     let started: Instant = Instant::now();
-                    publish_by_checked_rename(staged.as_path(), target.as_path()).expect("the publish");
+                    publish_by_checked_rename(staged.as_path(), target.as_path())
+                        .expect("the publish");
                     micros.push(started.elapsed().as_micros());
                 }
                 return micros;

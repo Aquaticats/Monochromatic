@@ -37,20 +37,45 @@ const FORWARDED_FUNCTIONS: [&str; 3] = ["move_refusal_of", "before_a_prune", "be
 
 /// The code that reads a command's own words:
 /// the worktree subcommand and the tokens after it.
-const WORD_READS: [&str; 3] = ["worktree_subcommand(", "command.word()", "command.arguments.get("];
+const WORD_READS: [&str; 3] = [
+    "worktree_subcommand(",
+    "command.word()",
+    "command.arguments.get(",
+];
 
 /// What one later step costs,
 /// as the failure names it:
 /// the code,
 /// and what every forwarded command pays when the step stands before the words are read.
 const LATER_STEPS: [(&str, &str); 7] = [
-    ("std::env::current_dir", "a read of the process's working directory"),
-    ("start_directory(", "a parse of the start directory the global options move"),
-    ("parse_move_source(", "a read of the registry and of the filesystem for the move's source"),
-    ("refuse_move_of_a_bound_slot(", "a read of the binding record of the slot a move names"),
-    ("guard_the_prune(", "a read of every record a prune would drop"),
-    ("repair_paths(", "a read of the registry for the paths a repair reports"),
-    ("the_links_report(", "a read of the link and of the registration of each repaired path"),
+    (
+        "std::env::current_dir",
+        "a read of the process's working directory",
+    ),
+    (
+        "start_directory(",
+        "a parse of the start directory the global options move",
+    ),
+    (
+        "parse_move_source(",
+        "a read of the registry and of the filesystem for the move's source",
+    ),
+    (
+        "refuse_move_of_a_bound_slot(",
+        "a read of the binding record of the slot a move names",
+    ),
+    (
+        "guard_the_prune(",
+        "a read of every record a prune would drop",
+    ),
+    (
+        "repair_paths(",
+        "a read of the registry for the paths a repair reports",
+    ),
+    (
+        "the_links_report(",
+        "a read of the link and of the registration of each repaired path",
+    ),
 ];
 
 /// What:
@@ -61,7 +86,10 @@ const LATER_STEPS: [(&str, &str); 7] = [
 ///  and a comment or a literal that names either statement is not a statement;
 ///  the reading masks both,
 ///  so a doc line about the working directory neither passes nor fails the order.
-fn body_lines(text: &str, name: &str) -> Result<Vec<(usize, String)>, String> {
+fn body_lines(
+    text: &str,
+    name: &str,
+) -> Result<Vec<(usize, String)>, String> {
     let masked: Vec<String> = read_the_code_of(text)
         .map_err(|error| return format!("{name} cannot be read from this file: {error}"))?
         .masked;
@@ -82,9 +110,13 @@ fn body_lines(text: &str, name: &str) -> Result<Vec<(usize, String)>, String> {
         }
     }
     if body.is_empty() {
-        return Err(format!("this file declares no function named `{name}`, so the order this check reads is not here"));
+        return Err(format!(
+            "this file declares no function named `{name}`, so the order this check reads is not here"
+        ));
     }
-    return Err(format!("the braces of `{name}` do not close, so its body cannot be read"));
+    return Err(format!(
+        "the braces of `{name}` do not close, so its body cannot be read"
+    ));
 }
 
 /// What:
@@ -93,9 +125,15 @@ fn body_lines(text: &str, name: &str) -> Result<Vec<(usize, String)>, String> {
 /// Why:
 ///  The check compares the first read of the words with the first later step,
 ///  so each is the earliest line that holds any of its spellings.
-fn first_line_holding(body: &[(usize, String)], patterns: &[&str]) -> Option<(usize, usize)> {
+fn first_line_holding(
+    body: &[(usize, String)],
+    patterns: &[&str],
+) -> Option<(usize, usize)> {
     for (number, line) in body {
-        if let Some(position) = patterns.iter().position(|candidate| return line.contains(candidate)) {
+        if let Some(position) = patterns
+            .iter()
+            .position(|candidate| return line.contains(candidate))
+        {
             return Some((*number, position));
         }
     }
@@ -110,8 +148,14 @@ fn first_line_holding(body: &[(usize, String)], patterns: &[&str]) -> Option<(us
 ///  an early return,
 ///  and only then the reads,
 ///  and each arm names the line a person edits.
-fn order_of(name: &str, body: &[(usize, String)]) -> Result<(), String> {
-    let steps: Vec<&str> = LATER_STEPS.iter().map(|(pattern, _)| return *pattern).collect();
+fn order_of(
+    name: &str,
+    body: &[(usize, String)],
+) -> Result<(), String> {
+    let steps: Vec<&str> = LATER_STEPS
+        .iter()
+        .map(|(pattern, _)| return *pattern)
+        .collect();
     let Some((step_line, step)) = first_line_holding(body, steps.as_slice()) else {
         return Err(format!(
             "`{name}` reads nothing, so this check no longer covers what it was written for"
@@ -130,9 +174,9 @@ fn order_of(name: &str, body: &[(usize, String)]) -> Result<(), String> {
             LATER_STEPS[step].1, LATER_STEPS[step].0, WORD_READS[word]
         ));
     }
-    let returns: bool = body
-        .iter()
-        .any(|(number, line)| return *number >= word_line && *number < step_line && line.contains("return"));
+    let returns: bool = body.iter().any(|(number, line)| {
+        return *number >= word_line && *number < step_line && line.contains("return");
+    });
     if !returns {
         return Err(format!(
             "`{name}` reads the command's words at line {word_line} and reaches {} at line \
@@ -151,7 +195,10 @@ fn order_of(name: &str, body: &[(usize, String)]) -> Result<(), String> {
 ///  the function,
 ///  both lines and the cost,
 ///  so a person edits the statement the message names.
-fn backward_steps_in(text: &str, names: &[&str]) -> Vec<String> {
+fn backward_steps_in(
+    text: &str,
+    names: &[&str],
+) -> Vec<String> {
     let mut failures: Vec<String> = Vec::new();
     for name in names {
         let checked: Result<(), String> =
@@ -173,8 +220,12 @@ fn backward_steps_in(text: &str, names: &[&str]) -> Vec<String> {
 #[test]
 fn every_forwarded_slot_command_reads_its_words_before_it_reads_anything_else() {
     let path: PathBuf = source_root().join(SLOT_GLUE);
-    let text: String = std::fs::read_to_string(path.as_path())
-        .unwrap_or_else(|error| panic!("{} is a release file of this crate: {error}", path.display()));
+    let text: String = std::fs::read_to_string(path.as_path()).unwrap_or_else(|error| {
+        panic!(
+            "{} is a release file of this crate: {error}",
+            path.display()
+        )
+    });
     let failures: Vec<String> = backward_steps_in(text.as_str(), &FORWARDED_FUNCTIONS);
     assert!(
         failures.is_empty(),
@@ -204,7 +255,10 @@ fn move_refusal_of(command: &ResolvedCommand) -> Option<Action> {
     return None;
 }
 ";
-    assert_eq!(backward_steps_in(text, &["move_refusal_of"]), Vec::<String>::new());
+    assert_eq!(
+        backward_steps_in(text, &["move_refusal_of"]),
+        Vec::<String>::new()
+    );
 }
 
 /// What:
@@ -228,8 +282,14 @@ fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>) -> Opti
 ";
     let failures: Vec<String> = backward_steps_in(early, &["move_refusal_of"]);
     assert_eq!(failures.len(), 1, "{failures:?}");
-    assert!(failures[0].contains("std::env::current_dir"), "{failures:?}");
-    assert!(failures[0].contains("line 2"), "the read's line is named: {failures:?}");
+    assert!(
+        failures[0].contains("std::env::current_dir"),
+        "{failures:?}"
+    );
+    assert!(
+        failures[0].contains("line 2"),
+        "the read's line is named: {failures:?}"
+    );
     let late: &str = "\
 fn before_a_prune(command: &ResolvedCommand) -> Option<Action> {
     if worktree_subcommand(command) == Some(b\"prune\") {
@@ -250,7 +310,10 @@ fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>) -> Opti
 ";
     let absent: Vec<String> = backward_steps_in(wordless, &["move_refusal_of"]);
     assert_eq!(absent.len(), 1, "{absent:?}");
-    assert!(absent[0].contains("without reading the command's words at all"), "{absent:?}");
+    assert!(
+        absent[0].contains("without reading the command's words at all"),
+        "{absent:?}"
+    );
 }
 
 /// What:
@@ -261,17 +324,25 @@ fn move_refusal_of(command: &ResolvedCommand, common_dir: Option<&Path>) -> Opti
 ///  A renamed function and a half-read file would otherwise report the order as right by reading nothing.
 #[test]
 fn the_reading_refuses_what_it_cannot_place() {
-    let renamed: Result<Vec<(usize, String)>, String> = body_lines("fn other() {\n}\n", "move_refusal_of");
+    let renamed: Result<Vec<(usize, String)>, String> =
+        body_lines("fn other() {\n}\n", "move_refusal_of");
     assert!(renamed.is_err(), "a file without the function is an error");
-    let unbalanced: Result<Vec<(usize, String)>, String> =
-        body_lines("fn move_refusal_of() {\n    let a: u8 = 1;\n", "move_refusal_of");
-    assert!(unbalanced.is_err(), "a body that does not close is an error");
+    let unbalanced: Result<Vec<(usize, String)>, String> = body_lines(
+        "fn move_refusal_of() {\n    let a: u8 = 1;\n",
+        "move_refusal_of",
+    );
+    assert!(
+        unbalanced.is_err(),
+        "a body that does not close is an error"
+    );
     let braces_in_a_literal: Result<Vec<(usize, String)>, String> = body_lines(
         "fn move_refusal_of() {\n    let a: u8 = format!(\"{}\", 1);\n}\n",
         "move_refusal_of",
     );
     assert_eq!(
-        braces_in_a_literal.expect("the literal's braces close nothing").len(),
+        braces_in_a_literal
+            .expect("the literal's braces close nothing")
+            .len(),
         3,
         "the body ends at its own brace"
     );

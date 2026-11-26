@@ -8,10 +8,18 @@
 //!  prove goes to Git with its own words.
 
 use super::*;
-use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
 use crate::service_land_settings::Settings;
-use crate::side_reference_written_here::{LockMark, SideReferenceWritePlan};
-use crate::test_support::{fixture, git, git_text, repository};
+use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
+use crate::side_reference_written_here::{
+    LockMark,
+    SideReferenceWritePlan,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    repository,
+};
 use std::path::PathBuf;
 
 /// The batch every control here lands.
@@ -29,7 +37,10 @@ const THE_BATCH: u64 = 7;
 /// const git = { ...gitContext(), gitPath: '/nonexistent/git-the-landing-never-starts' };
 /// ```
 fn a_git_that_cannot_be_started() -> GitContext {
-    return GitContext { real_git: PathBuf::from("/nonexistent/git-the-landing-never-starts"), ..crate::test_support::git_context() };
+    return GitContext {
+        real_git: PathBuf::from("/nonexistent/git-the-landing-never-starts"),
+        ..crate::test_support::git_context()
+    };
 }
 
 /// What:
@@ -46,7 +57,11 @@ fn a_git_that_cannot_be_started() -> GitContext {
 /// const settings = { importFsync: undefined, plainHistory: true, sideReference: plan };
 /// ```
 fn the_settings(side_reference: SideReferenceWritePlan) -> Settings<'static> {
-    return Settings { import_fsync: None, plain_history: true, side_reference };
+    return Settings {
+        import_fsync: None,
+        plain_history: true,
+        side_reference,
+    };
 }
 
 /// What:
@@ -70,7 +85,10 @@ fn a_repository_with_a_built_commit(name: &str) -> (PathBuf, String, String, Com
     let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     std::fs::write(repo.join("a-change.txt"), "one\n").expect("a change in the fixture");
     git(repo.as_path(), &["add", "--", "a-change.txt"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=the commit Git built"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=the commit Git built"],
+    );
     let built: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let common: PathBuf = repo.join(".git");
     let request: CommitRequest = CommitRequest {
@@ -112,7 +130,8 @@ fn a_repository_with_a_built_commit(name: &str) -> (PathBuf, String, String, Com
 /// ```
 #[test]
 fn a_batch_side_reference_is_written_without_a_git_start() {
-    let (root, base, built, request) = a_repository_with_a_built_commit("side-reference-written-here");
+    let (root, base, built, request) =
+        a_repository_with_a_built_commit("side-reference-written-here");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("a journal directory");
     let scratch: String = scratch_ref(THE_BATCH);
@@ -130,12 +149,24 @@ fn a_batch_side_reference_is_written_without_a_git_start() {
     );
     let (commits, new): (Vec<String>, String) = match outcome {
         Ok(landed) => landed,
-        Err(code) => panic!("the objects of a batch Git built are written without a Git start, and this landing answered {code:?}"),
+        Err(code) => panic!(
+            "the objects of a batch Git built are written without a Git start, and this landing answered {code:?}"
+        ),
     };
-    assert_eq!(commits, vec![built.clone()], "the batch lands the commit Git built");
+    assert_eq!(
+        commits,
+        vec![built.clone()],
+        "the batch lands the commit Git built"
+    );
     assert_eq!(new, built, "the tip the batch answers with");
-    let written: String = git_text(request.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
-    assert_eq!(written, built, "the batch's side reference names the commit Git built");
+    let written: String = git_text(
+        request.repository.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch.as_str()],
+    );
+    assert_eq!(
+        written, built,
+        "the batch's side reference names the commit Git built"
+    );
 }
 
 /// What:
@@ -153,11 +184,15 @@ fn a_batch_side_reference_is_written_without_a_git_start() {
 /// ```
 #[test]
 fn a_landing_that_leaves_the_reference_to_git_lands_the_same_batch() {
-    let (root, base, built, request) = a_repository_with_a_built_commit("side-reference-left-to-git");
+    let (root, base, built, request) =
+        a_repository_with_a_built_commit("side-reference-left-to-git");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("a journal directory");
     let scratch: String = scratch_ref(THE_BATCH);
-    let context: GitContext = GitContext { common_dir: Some(request.common_dir.clone()), ..crate::test_support::git_context() };
+    let context: GitContext = GitContext {
+        common_dir: Some(request.common_dir.clone()),
+        ..crate::test_support::git_context()
+    };
     let settings: Settings<'_> = the_settings(SideReferenceWritePlan::LeftToGit);
     let outcome: Result<(Vec<String>, String), FailureCode> = objects_of_batch(
         &context,
@@ -170,7 +205,16 @@ fn a_landing_that_leaves_the_reference_to_git_lands_the_same_batch() {
         &[],
         &settings,
     );
-    assert!(outcome.is_ok(), "a landing whose side reference Git writes lands the batch: {outcome:?}");
-    let written: String = git_text(request.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
-    assert_eq!(written, built, "Git's own write of the batch's side reference names the commit");
+    assert!(
+        outcome.is_ok(),
+        "a landing whose side reference Git writes lands the batch: {outcome:?}"
+    );
+    let written: String = git_text(
+        request.repository.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch.as_str()],
+    );
+    assert_eq!(
+        written, built,
+        "Git's own write of the batch's side reference names the commit"
+    );
 }

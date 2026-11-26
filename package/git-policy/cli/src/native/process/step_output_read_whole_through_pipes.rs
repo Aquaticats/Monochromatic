@@ -29,10 +29,26 @@
 
 use crate::child_awaited_through_a_pidfd::adopt;
 use crate::lazy_runtime::run_on_runtime;
-use crate::process_use::{ProcessUser, UseScan, UseTarget};
-use std::os::fd::{AsFd as _, OwnedFd};
-use std::process::{Child, Command, ExitStatus, Output, Stdio};
-use std::time::{Duration, Instant};
+use crate::process_use::{
+    ProcessUser,
+    UseScan,
+    UseTarget,
+};
+use std::os::fd::{
+    AsFd as _,
+    OwnedFd,
+};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Output,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 use tokio::io::AsyncReadExt as _;
 use tokio::net::unix::pipe::Receiver;
 
@@ -83,9 +99,13 @@ pub fn attach_pipes(command: &mut Command) -> std::io::Result<StepPipes> {
 pub async fn attach_pipes_awaiting(command: &mut Command) -> std::io::Result<StepPipes> {
     let (output_reader, output_writer) = std::io::pipe()?;
     let (error_reader, error_writer) = std::io::pipe()?;
-    let pipes: StepPipes =
-        StepPipes { standard_output: Receiver::from_owned_fd(OwnedFd::from(output_reader))?, standard_error: Receiver::from_owned_fd(OwnedFd::from(error_reader))? };
-    command.stdout(Stdio::from(output_writer)).stderr(Stdio::from(error_writer));
+    let pipes: StepPipes = StepPipes {
+        standard_output: Receiver::from_owned_fd(OwnedFd::from(output_reader))?,
+        standard_error: Receiver::from_owned_fd(OwnedFd::from(error_reader))?,
+    };
+    command
+        .stdout(Stdio::from(output_writer))
+        .stderr(Stdio::from(error_writer));
     return Ok(pipes);
 }
 
@@ -131,7 +151,10 @@ pub const OUTPUT_DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
 /// ```ts
 /// `${waitingFor} ended, but a program it started still holds its output open (${holders}); ...`
 /// ```
-fn output_held_open_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
+fn output_held_open_text(
+    waiting_for: &str,
+    holders: &[ProcessUser],
+) -> String {
     let named: String = holder_named(holders);
     return format!(
         "{waiting_for} ended, but {named} still holds the step's output open, so the output this command read may be incomplete and \
@@ -154,7 +177,10 @@ fn output_held_open_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
 /// ```ts
 /// `${waitingFor} ended and its exit status and standard output were read whole, but ${named} still holds its standard error open ...`
 /// ```
-fn error_cut_short_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
+fn error_cut_short_text(
+    waiting_for: &str,
+    holders: &[ProcessUser],
+) -> String {
     let named: String = holder_named(holders);
     return format!(
         "{waiting_for} ended and its exit status and standard output were read whole, but {named} still holds its standard error open, so \
@@ -206,8 +232,13 @@ struct OutputHeldOpen {
 }
 
 impl std::fmt::Display for OutputHeldOpen {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(output_held_open_text(self.waiting_for.as_str(), self.holders.as_slice()).as_str());
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return formatter.write_str(
+            output_held_open_text(self.waiting_for.as_str(), self.holders.as_slice()).as_str(),
+        );
     }
 }
 
@@ -247,16 +278,26 @@ impl StepPipes {
     /// ```ts
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
-    pub fn read_until_the_child_ends(self, child: Child, waiting_for: &str, ceiling: Option<CarriedCeiling>) -> std::io::Result<Output> {
+    pub fn read_until_the_child_ends(
+        self,
+        child: Child,
+        waiting_for: &str,
+        ceiling: Option<CarriedCeiling>,
+    ) -> std::io::Result<Output> {
         // Both wait in an `Option`: whichever of the two paths runs takes them, and a refused runtime leaves them here.
         let mut waiting: Option<Child> = Some(child);
         let mut unread: Option<StepPipes> = Some(self);
         let finished = run_on_runtime(async {
             return match (unread.take(), waiting.take()) {
-                (Some(open), Some(started)) => read_until_the_child_ends_awaiting(open, started, waiting_for, ceiling).await,
-                _ => Err(std::io::Error::other("the child or its pipes were handed over twice")),
+                (Some(open), Some(started)) => {
+                    read_until_the_child_ends_awaiting(open, started, waiting_for, ceiling).await
+                }
+                _ => Err(std::io::Error::other(
+                    "the child or its pipes were handed over twice",
+                )),
             };
-        });        return match finished {
+        });
+        return match finished {
             Ok(output) => output,
             Err(refusal) => {
                 // The future never ran, so the child is still here; it is ended rather than left to run unwatched.
@@ -282,7 +323,12 @@ impl StepPipes {
     /// ```ts
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
-    pub async fn read_until_the_child_ends_awaiting(self, child: Child, waiting_for: &str, ceiling: Option<CarriedCeiling>) -> std::io::Result<Output> {
+    pub async fn read_until_the_child_ends_awaiting(
+        self,
+        child: Child,
+        waiting_for: &str,
+        ceiling: Option<CarriedCeiling>,
+    ) -> std::io::Result<Output> {
         return read_until_the_child_ends_awaiting(self, child, waiting_for, ceiling).await;
     }
 }
@@ -312,8 +358,16 @@ impl StepPipes {
 /// ```ts
 /// const [stdout, stderr, status] = await withCeiling(Promise.all([readAll(out), readAll(err), child.exited]), ceiling);
 /// ```
-async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, waiting_for: &str, ceiling: Option<CarriedCeiling>) -> std::io::Result<Output> {
-    let StepPipes { standard_output, standard_error } = pipes;
+async fn read_until_the_child_ends_awaiting(
+    pipes: StepPipes,
+    child: Child,
+    waiting_for: &str,
+    ceiling: Option<CarriedCeiling>,
+) -> std::io::Result<Output> {
+    let StepPipes {
+        standard_output,
+        standard_error,
+    } = pipes;
     // `mut` lets the wait take the standard input away before the join.
     let mut input_closed: Child = child;
     drop(input_closed.stdin.take());
@@ -359,7 +413,10 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
     };
     // Both are awaited together: the reads must drain while the child runs, or a step that writes more than a pipe holds waits
     //  for a reader for good.
-    let (read, waited): ((std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>), std::io::Result<ExitStatus>) = tokio::join!(reading, waiting);
+    let (read, waited): (
+        (std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>),
+        std::io::Result<ExitStatus>,
+    ) = tokio::join!(reading, waiting);
     let status: ExitStatus = waited?;
     let (read_output, read_error) = read;
     // The step's answer is its exit status and its standard output, so neither is thrown away because a program the step started
@@ -375,7 +432,11 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
             None => return Err(error),
         },
     };
-    return Ok(Output { status, stdout, stderr });
+    return Ok(Output {
+        status,
+        stdout,
+        stderr,
+    });
 }
 
 /// What:
@@ -392,7 +453,10 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
 /// ```
 fn cut_short(error: &std::io::Error) -> Option<(Vec<u8>, String)> {
     let held: &OutputHeldOpen = error.get_ref()?.downcast_ref::<OutputHeldOpen>()?;
-    return Some((held.read.clone(), error_cut_short_text(held.waiting_for.as_str(), held.holders.as_slice())));
+    return Some((
+        held.read.clone(),
+        error_cut_short_text(held.waiting_for.as_str(), held.holders.as_slice()),
+    ));
 }
 
 /// What:
@@ -411,11 +475,19 @@ fn cut_short(error: &std::io::Error) -> Option<(Vec<u8>, String)> {
 /// ```ts
 /// const bytes = []; for (;;) { const r = await Promise.race([pipe.read(), drainEnded]); if (drainEnded) throw heldOpen(holders(pipe)); if (r === EOF) return bytes; bytes.push(...); }
 /// ```
-async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync::watch::Receiver<Option<Instant>>, waiting_for: &str, held: Option<(u64, u64)>) -> std::io::Result<Vec<u8>> {
+async fn read_until_the_step_has_ended(
+    mut pipe: Receiver,
+    mut ends: tokio::sync::watch::Receiver<Option<Instant>>,
+    waiting_for: &str,
+    held: Option<(u64, u64)>,
+) -> std::io::Result<Vec<u8>> {
     let mut bytes: Vec<u8> = Vec::new();
     let drain = async {
         let ended_at: Instant = wait_for_the_end(&mut ends).await;
-        tokio::time::sleep_until(tokio::time::Instant::from_std(ended_at + OUTPUT_DRAIN_AFTER_EXIT)).await;
+        tokio::time::sleep_until(tokio::time::Instant::from_std(
+            ended_at + OUTPUT_DRAIN_AFTER_EXIT,
+        ))
+        .await;
     };
     // End of file wins over the drain: a read that answers is the whole answer,
     // and the drain would report the output as held open
@@ -476,7 +548,10 @@ async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync
 /// ```ts
 /// function reachedItsEnd(descriptor: number, bytes: Uint8Array): boolean; // read until 0, EAGAIN, or the pipe's capacity
 /// ```
-fn reached_its_end(pipe: &mut Receiver, bytes: &mut Vec<u8>) -> bool {
+fn reached_its_end(
+    pipe: &mut Receiver,
+    bytes: &mut Vec<u8>,
+) -> bool {
     let mut chunk: Vec<u8> = vec![0; PIPE_CAPACITY];
     let mut swept: usize = 0;
     while swept < PIPE_CAPACITY {
@@ -528,7 +603,13 @@ async fn wait_for_the_end(ends: &mut tokio::sync::watch::Receiver<Option<Instant
 /// ```
 #[cfg(target_os = "linux")]
 pub(crate) fn pipe_identity(descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)> {
-    let found = rustix::fs::statx(descriptor, "", rustix::fs::AtFlags::EMPTY_PATH, rustix::fs::StatxFlags::MNT_ID).ok()?;
+    let found = rustix::fs::statx(
+        descriptor,
+        "",
+        rustix::fs::AtFlags::EMPTY_PATH,
+        rustix::fs::StatxFlags::MNT_ID,
+    )
+    .ok()?;
     return Some((found.stx_mnt_id, found.stx_ino));
 }
 
@@ -543,7 +624,10 @@ fn pipe_identity(_descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)>
 /// The processes that have the pipe with this identity open,
 /// this one aside.
 fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
-    let scan: UseScan = crate::process_use::processes_using(&UseTarget::Mounted { mount, inode });
+    let scan: UseScan = crate::process_use::processes_using(&UseTarget::Mounted {
+        mount,
+        inode,
+    });
     return scan.users;
 }
 
@@ -663,18 +747,28 @@ pub enum TheWatchOfAStep {
 /// ```ts
 /// carriedFor(ceiling, theWatchOfTheStep)
 /// ```
-pub fn carried_for(ceiling: Option<Duration>, watch: TheWatchOfAStep) -> Option<CarriedCeiling> {
+pub fn carried_for(
+    ceiling: Option<Duration>,
+    watch: TheWatchOfAStep,
+) -> Option<CarriedCeiling> {
     let the_ceiling: Duration = ceiling?;
     return Some(match watch {
-        TheWatchOfAStep::NotWatched => CarriedCeiling { ceiling: the_ceiling, backstop: the_ceiling, why: Some(CeilingWhy::NoWatcher) },
+        TheWatchOfAStep::NotWatched => CarriedCeiling {
+            ceiling: the_ceiling,
+            backstop: the_ceiling,
+            why: Some(CeilingWhy::NoWatcher),
+        },
         // A watch that can prove nothing signals nothing, so this wait is what ends the step, at the ceiling itself.
-        TheWatchOfAStep::WatchedAndUnproven => {
-            CarriedCeiling { ceiling: the_ceiling, backstop: the_ceiling, why: Some(CeilingWhy::TheWatchCouldNotEndIt) }
-        }
+        TheWatchOfAStep::WatchedAndUnproven => CarriedCeiling {
+            ceiling: the_ceiling,
+            backstop: the_ceiling,
+            why: Some(CeilingWhy::TheWatchCouldNotEndIt),
+        },
         // The watch ends the step, so this wait gives it the ending it needs before taking the ending away from it.
         TheWatchOfAStep::WatchedAndProven => CarriedCeiling {
             ceiling: the_ceiling,
-            backstop: the_ceiling.saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING),
+            backstop: the_ceiling
+                .saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING),
             why: None,
         },
     });
@@ -687,8 +781,15 @@ pub fn carried_for(ceiling: Option<Duration>, watch: TheWatchOfAStep) -> Option<
 /// ```ts
 /// carriedBy(limit, why)
 /// ```
-pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
-    return CarriedCeiling { ceiling: limit, backstop: limit, why: Some(why) };
+pub fn carried_by(
+    limit: Duration,
+    why: CeilingWhy,
+) -> CarriedCeiling {
+    return CarriedCeiling {
+        ceiling: limit,
+        backstop: limit,
+        why: Some(why),
+    };
 }
 
 impl CarriedCeiling {
@@ -707,14 +808,27 @@ impl CarriedCeiling {
     /// ```ts
     /// (carried) => carried.why ? atTheCeiling(carried, leftRunning) : ceilingReached(carried.ceiling, leftRunning);
     /// ```
-    fn ending(&self, waiting_for: &str, left_running: bool) -> std::io::Error {
+    fn ending(
+        &self,
+        waiting_for: &str,
+        left_running: bool,
+    ) -> std::io::Error {
         let inner: Box<dyn std::error::Error + Send + Sync> = match self.why {
             Some(why) => Box::new(crate::child_waited_for_within_a_ceiling::AtTheCeiling {
                 left_running,
-                sentence: Some(waiting_carried_the_ceiling(waiting_for, self.ceiling, why, left_running)),
+                sentence: Some(waiting_carried_the_ceiling(
+                    waiting_for,
+                    self.ceiling,
+                    why,
+                    left_running,
+                )),
             }),
             None => Box::new(crate::child_watch_step_bounds_and_errors::CeilingReached(
-                crate::child_watch_step_bounds_and_errors::step_ended_at_its_ceiling_text(waiting_for, self.ceiling, left_running),
+                crate::child_watch_step_bounds_and_errors::step_ended_at_its_ceiling_text(
+                    waiting_for,
+                    self.ceiling,
+                    left_running,
+                ),
             )),
         };
         return std::io::Error::new(std::io::ErrorKind::TimedOut, inner);
@@ -736,7 +850,12 @@ impl CarriedCeiling {
 /// ```ts
 /// `${waitingFor} ran for ${limit} seconds and was ${leftRunning ? 'left running' : 'ended'}; no watch could announce it: ${why}`
 /// ```
-fn waiting_carried_the_ceiling(waiting_for: &str, ceiling: Duration, why: CeilingWhy, left_running: bool) -> String {
+fn waiting_carried_the_ceiling(
+    waiting_for: &str,
+    ceiling: Duration,
+    why: CeilingWhy,
+    left_running: bool,
+) -> String {
     let reason: &str = match why {
         CeilingWhy::NoWatcher => {
             "Nothing could watch it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit -u`) \
@@ -756,7 +875,10 @@ fn waiting_carried_the_ceiling(waiting_for: &str, ceiling: Duration, why: Ceilin
     } else {
         "and was ended"
     };
-    return format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}. {reason}", ceiling.as_secs());
+    return format!(
+        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}. {reason}",
+        ceiling.as_secs()
+    );
 }
 
 /// Controls for the read of a step's output stay out of the release executable.

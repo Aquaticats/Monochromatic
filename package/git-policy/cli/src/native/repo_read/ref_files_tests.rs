@@ -3,7 +3,14 @@
 //!  and every spelling it does not recognise is left to Git.
 
 use super::*;
-use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 use std::process::Output;
 
@@ -23,13 +30,20 @@ pub(crate) struct Probe {
 /// Ask real Git for the layout of the repository or worktree at `directory`.
 pub(crate) fn probe(directory: &Path) -> Probe {
     let git_dir: String = git_text(directory, &["rev-parse", "--absolute-git-dir"]);
-    let common: String = git_text(directory, &["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+    let common: String = git_text(
+        directory,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    );
     let reftable: bool = git_text(directory, &["rev-parse", "--show-ref-format"]) == "reftable";
     return Probe {
         git_dir: PathBuf::from(git_dir),
         common_dir: PathBuf::from(common),
         object_format: git_text(directory, &["rev-parse", "--show-object-format"]),
-        ref_format: if reftable { RefFormat::Reftable } else { RefFormat::Files },
+        ref_format: if reftable {
+            RefFormat::Reftable
+        } else {
+            RefFormat::Files
+        },
     };
 }
 
@@ -40,7 +54,9 @@ pub(crate) fn probe(directory: &Path) -> Probe {
 pub(crate) fn oracle(directory: &Path) -> Result<SymbolicHead, Option<i32>> {
     let output: Output = git_output(directory, &["symbolic-ref", "--quiet", "HEAD"]);
     return match output.status.code() {
-        Some(0) => Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_git_output(output.stdout.as_slice()))),
+        Some(0) => Ok(SymbolicHead::Branch(
+            crate::ref_name::RefName::from_git_output(output.stdout.as_slice()),
+        )),
         Some(1) => Ok(SymbolicHead::Detached),
         other => Err(other),
     };
@@ -48,7 +64,11 @@ pub(crate) fn oracle(directory: &Path) -> Result<SymbolicHead, Option<i32>> {
 
 /// Read the head with the reader,
 ///  and require that an answer equals Git's.
-fn compared(directory: &Path, found: &Probe, label: &str) -> Option<SymbolicHead> {
+fn compared(
+    directory: &Path,
+    found: &Probe,
+    label: &str,
+) -> Option<SymbolicHead> {
     let layout: RefFilesLayout<'_> = RefFilesLayout {
         git_dir: found.git_dir.as_path(),
         common_dir: found.common_dir.as_path(),
@@ -63,7 +83,10 @@ fn compared(directory: &Path, found: &Probe, label: &str) -> Option<SymbolicHead
 }
 
 /// Replace the `HEAD` file of the repository `found` describes with `bytes`.
-fn write_head(found: &Probe, bytes: &[u8]) {
+fn write_head(
+    found: &Probe,
+    bytes: &[u8],
+) {
     std::fs::write(found.git_dir.join("HEAD"), bytes).expect("fixture");
 }
 
@@ -77,20 +100,38 @@ fn plain_spellings_are_answered_as_git_answers() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    assert_eq!(compared(repo.as_path(), &found, "born main"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))));
+    assert_eq!(
+        compared(repo.as_path(), &found, "born main"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        )))
+    );
     for name in ["feature/deep/name", "release-1.2_x", "a.b", "HEAD", "-dash"] {
         let full: String = format!("refs/heads/{name}");
-        git(repo.as_path(), &["update-ref", full.as_str(), head.as_str()]);
+        git(
+            repo.as_path(),
+            &["update-ref", full.as_str(), head.as_str()],
+        );
         write_head(&found, format!("ref: {full}\n").as_bytes());
-        assert_eq!(compared(repo.as_path(), &found, name), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(full.as_str()))));
+        assert_eq!(
+            compared(repo.as_path(), &found, name),
+            Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+                full.as_str()
+            )))
+        );
     }
     write_head(&found, b"ref: refs/heads/not-born-yet\n");
     assert_eq!(
         compared(repo.as_path(), &found, "unborn"),
-        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/not-born-yet")))
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/not-born-yet"
+        )))
     );
     write_head(&found, format!("{head}\n").as_bytes());
-    assert_eq!(compared(repo.as_path(), &found, "detached"), Some(SymbolicHead::Detached));
+    assert_eq!(
+        compared(repo.as_path(), &found, "detached"),
+        Some(SymbolicHead::Detached)
+    );
     remove(root.as_path());
 }
 
@@ -101,8 +142,18 @@ fn a_packed_only_branch_is_answered() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
     git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
-    assert!(!probe(repo.as_path()).common_dir.join("refs/heads/main").exists());
-    assert_eq!(compared(repo.as_path(), &found, "packed"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))));
+    assert!(
+        !probe(repo.as_path())
+            .common_dir
+            .join("refs/heads/main")
+            .exists()
+    );
+    assert_eq!(
+        compared(repo.as_path(), &found, "packed"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        )))
+    );
     remove(root.as_path());
 }
 
@@ -136,7 +187,10 @@ fn other_spellings_are_left_to_git() {
         ("upper hex", format!("{upper}\n").into_bytes()),
         ("short hex", format!("{}\n", &head[..39]).into_bytes()),
         ("long hex", format!("{head}0\n").into_bytes()),
-        ("sha256 length in sha1", format!("{head}{}\n", &head[..24]).into_bytes()),
+        (
+            "sha256 length in sha1",
+            format!("{head}{}\n", &head[..24]).into_bytes(),
+        ),
         ("null name", format!("{}\n", "0".repeat(40)).into_bytes()),
         ("detached no newline", head.clone().into_bytes()),
         ("detached trailing space", format!("{head} \n").into_bytes()),
@@ -145,7 +199,11 @@ fn other_spellings_are_left_to_git() {
     ];
     for (label, bytes) in cases {
         write_head(&found, bytes.as_slice());
-        assert_eq!(compared(repo.as_path(), &found, label), None, "{label} must be left to Git");
+        assert_eq!(
+            compared(repo.as_path(), &found, label),
+            None,
+            "{label} must be left to Git"
+        );
     }
     remove(root.as_path());
 }
@@ -157,11 +215,16 @@ fn a_symbolic_branch_is_left_to_git() {
     let root: PathBuf = fixture("ref-files-chain");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
-    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+    git(
+        repo.as_path(),
+        &["symbolic-ref", "refs/heads/alias", "refs/heads/main"],
+    );
     write_head(&found, b"ref: refs/heads/alias\n");
     assert_eq!(
         oracle(repo.as_path()),
-        Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))),
+        Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        ))),
         "the oracle follows the chain"
     );
     assert_eq!(compared(repo.as_path(), &found, "alias"), None);
@@ -175,18 +238,25 @@ fn a_chain_ending_at_a_missing_branch_is_left_to_git() {
     let root: PathBuf = fixture("ref-files-chain-nowhere");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
-    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/nowhere"]);
+    git(
+        repo.as_path(),
+        &["symbolic-ref", "refs/heads/alias", "refs/heads/nowhere"],
+    );
     write_head(&found, b"ref: refs/heads/alias\n");
     assert_eq!(
         oracle(repo.as_path()),
-        Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/nowhere"))),
+        Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/nowhere"
+        ))),
         "the oracle prints the end of the chain, missing or not"
     );
     assert_eq!(compared(repo.as_path(), &found, "alias to nowhere"), None);
     write_head(&found, b"ref: refs/heads/main\n");
     assert_eq!(
         compared(repo.as_path(), &found, "plain main"),
-        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        ))),
         "the same fixture is answered when nothing is symbolic"
     );
     remove(root.as_path());
@@ -203,7 +273,10 @@ fn an_unusual_loose_branch_is_left_to_git() {
     std::fs::write(common.join("refs/heads/garbage"), "not-an-object\n").expect("fixture");
     write_head(&found, b"ref: refs/heads/garbage\n");
     assert_eq!(compared(repo.as_path(), &found, "garbage branch"), None);
-    git(repo.as_path(), &["update-ref", "refs/heads/dir/inner", "main"]);
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/heads/dir/inner", "main"],
+    );
     write_head(&found, b"ref: refs/heads/dir\n");
     assert_eq!(compared(repo.as_path(), &found, "directory branch"), None);
     #[cfg(unix)]
@@ -239,13 +312,41 @@ fn a_linked_worktree_reads_its_own_head() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
+    );
     let linked_found: Probe = probe(linked.as_path());
-    assert_eq!(compared(linked.as_path(), &linked_found, "linked"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/feature"))));
-    assert_eq!(compared(repo.as_path(), &found, "main"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))));
+    assert_eq!(
+        compared(linked.as_path(), &linked_found, "linked"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/feature"
+        )))
+    );
+    assert_eq!(
+        compared(repo.as_path(), &found, "main"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        )))
+    );
     git(linked.as_path(), &["checkout", "--quiet", "--detach"]);
-    assert_eq!(compared(linked.as_path(), &linked_found, "linked detached"), Some(SymbolicHead::Detached));
-    assert_eq!(compared(repo.as_path(), &found, "main still"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))));
+    assert_eq!(
+        compared(linked.as_path(), &linked_found, "linked detached"),
+        Some(SymbolicHead::Detached)
+    );
+    assert_eq!(
+        compared(repo.as_path(), &found, "main still"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        )))
+    );
     remove(root.as_path());
 }
 
@@ -255,16 +356,38 @@ fn a_sha256_repository_is_answered_with_its_own_name_length() {
     let root: PathBuf = fixture("ref-files-sha256");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("fixture");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--object-format=sha256"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--object-format=sha256",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let found: Probe = probe(repo.as_path());
     assert_eq!(head.len(), 64);
-    assert_eq!(compared(repo.as_path(), &found, "sha256 branch"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))));
+    assert_eq!(
+        compared(repo.as_path(), &found, "sha256 branch"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        )))
+    );
     write_head(&found, format!("{head}\n").as_bytes());
-    assert_eq!(compared(repo.as_path(), &found, "sha256 detached"), Some(SymbolicHead::Detached));
+    assert_eq!(
+        compared(repo.as_path(), &found, "sha256 detached"),
+        Some(SymbolicHead::Detached)
+    );
     write_head(&found, format!("{}\n", &head[..40]).as_bytes());
-    assert_eq!(compared(repo.as_path(), &found, "sha1 length in sha256"), None);
+    assert_eq!(
+        compared(repo.as_path(), &found, "sha1 length in sha256"),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -275,14 +398,30 @@ fn a_reftable_repository_is_left_to_git() {
     let root: PathBuf = fixture("ref-files-reftable");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("fixture");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=trunk", "--ref-format=reftable"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=trunk",
+            "--ref-format=reftable",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let found: Probe = probe(repo.as_path());
     assert_eq!(found.ref_format, RefFormat::Reftable);
     let placeholder: String = std::fs::read_to_string(found.git_dir.join("HEAD")).expect("fixture");
     assert_eq!(placeholder, "ref: refs/heads/.invalid\n");
     assert_eq!(compared(repo.as_path(), &found, "reftable"), None);
-    assert_eq!(oracle(repo.as_path()), Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/trunk"))));
+    assert_eq!(
+        oracle(repo.as_path()),
+        Ok(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/trunk"
+        )))
+    );
     remove(root.as_path());
 }
 
@@ -330,12 +469,28 @@ fn every_call_reads_the_file_again() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let found: Probe = probe(repo.as_path());
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["update-ref", "refs/heads/other", head.as_str()]);
-    assert_eq!(compared(repo.as_path(), &found, "first"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/main"))));
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/heads/other", head.as_str()],
+    );
+    assert_eq!(
+        compared(repo.as_path(), &found, "first"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/main"
+        )))
+    );
     write_head(&found, b"ref: refs/heads/other\n");
-    assert_eq!(compared(repo.as_path(), &found, "second"), Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text("refs/heads/other"))));
+    assert_eq!(
+        compared(repo.as_path(), &found, "second"),
+        Some(SymbolicHead::Branch(crate::ref_name::RefName::from_text(
+            "refs/heads/other"
+        )))
+    );
     write_head(&found, format!("{head}\n").as_bytes());
-    assert_eq!(compared(repo.as_path(), &found, "third"), Some(SymbolicHead::Detached));
+    assert_eq!(
+        compared(repo.as_path(), &found, "third"),
+        Some(SymbolicHead::Detached)
+    );
     remove(root.as_path());
 }
 
@@ -343,10 +498,27 @@ fn every_call_reads_the_file_again() {
 #[test]
 fn the_plain_name_rule_matches_git_check_ref_format() {
     let root: PathBuf = fixture("ref-files-names");
-    let accepted: [&str; 6] = ["refs/heads/a", "refs/heads/a/b", "refs/heads/a.b", "refs/heads/A_b-c", "refs/heads/-a", "refs/heads/a.lockx"];
+    let accepted: [&str; 6] = [
+        "refs/heads/a",
+        "refs/heads/a/b",
+        "refs/heads/a.b",
+        "refs/heads/A_b-c",
+        "refs/heads/-a",
+        "refs/heads/a.lockx",
+    ];
     let refused: [&str; 12] = [
-        "refs/heads/", "refs/heads/a/", "refs/heads/a//b", "refs/heads/.a", "refs/heads/a/.b", "refs/heads/a..b",
-        "refs/heads/a.", "refs/heads/a.lock", "refs/heads/a/b.lock", "refs/tags/a", "heads/a", "refs/heads/a b",
+        "refs/heads/",
+        "refs/heads/a/",
+        "refs/heads/a//b",
+        "refs/heads/.a",
+        "refs/heads/a/.b",
+        "refs/heads/a..b",
+        "refs/heads/a.",
+        "refs/heads/a.lock",
+        "refs/heads/a/b.lock",
+        "refs/tags/a",
+        "heads/a",
+        "refs/heads/a b",
     ];
     for name in accepted {
         assert!(is_plain_branch_name(name), "{name}");

@@ -18,8 +18,14 @@
 //! expect(readTheRecordedFacts(commonDir, slot).nonce).toBe(nonce);
 //! ```
 
-use super::{RecordedFactsRefusal, read_the_recorded_facts};
-use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec};
+use super::{
+    RecordedFactsRefusal,
+    read_the_recorded_facts,
+};
+use crate::worktree_clone_managed_lock::test_fixtures::{
+    Fixture,
+    RecordSpec,
+};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::PathBuf;
 
@@ -37,13 +43,22 @@ fn the_facts_of_a_complete_record_are_read() {
     spec.registration = Some(registration.clone());
     spec.registration_identity = Some(String::from("42:7:8"));
     fixture.write_record(&spec);
-    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str())
+        .expect("the record reads");
     assert_eq!(facts.nonce.as_str(), NONCE);
     assert_eq!(facts.slot, fixture.slot_path);
     assert_eq!(facts.registration, Some(registration));
-    assert_eq!(facts.registration_identity.map(|identity| return identity.encode()), Some(String::from("42:7:8")));
+    assert_eq!(
+        facts
+            .registration_identity
+            .map(|identity| return identity.encode()),
+        Some(String::from("42:7:8"))
+    );
     assert_eq!(facts.clone.dataset, spec.clone_dataset);
-    assert_eq!(facts.clone.guid.map(|guid| return guid.file_name()), spec.clone_guid);
+    assert_eq!(
+        facts.clone.guid.map(|guid| return guid.file_name()),
+        spec.clone_guid
+    );
 }
 
 /// A record whose phase is ahead of the live facts still gives the nonce,
@@ -52,9 +67,14 @@ fn the_facts_of_a_complete_record_are_read() {
 fn a_record_ahead_of_the_live_facts_still_gives_the_nonce() {
     let fixture: Fixture = Fixture::new("facts-ahead");
     let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
-    spec.extra_lines = vec![String::from("phase=settling"), String::from("settleReason=mount-request"), String::from("unknownKey=whatever")];
+    spec.extra_lines = vec![
+        String::from("phase=settling"),
+        String::from("settleReason=mount-request"),
+        String::from("unknownKey=whatever"),
+    ];
     fixture.write_record(&spec);
-    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads for its nonce");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str())
+        .expect("the record reads for its nonce");
     assert_eq!(facts.nonce.as_str(), NONCE);
     assert_eq!(facts.registration, None);
 }
@@ -63,7 +83,10 @@ fn a_record_ahead_of_the_live_facts_still_gives_the_nonce() {
 #[test]
 fn an_absent_record_is_its_own_refusal() {
     let fixture: Fixture = Fixture::new("facts-absent");
-    assert_eq!(read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).err(), Some(RecordedFactsRefusal::Absent));
+    assert_eq!(
+        read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).err(),
+        Some(RecordedFactsRefusal::Absent)
+    );
 }
 
 /// A record whose nonce line is gone cannot recompose any sentence.
@@ -73,11 +96,19 @@ fn a_record_with_no_nonce_is_refused() {
     let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
     spec.extra_lines = Vec::new();
     let path: PathBuf = fixture.write_record(&spec);
-    let text: String = std::fs::read_to_string(path.as_path()).expect("the record reads").lines().filter(|line| return !line.starts_with("nonce=")).collect::<Vec<&str>>().join("\n");
-    std::fs::write(path.as_path(), text.as_bytes()).expect("the record is written without its nonce");
+    let text: String = std::fs::read_to_string(path.as_path())
+        .expect("the record reads")
+        .lines()
+        .filter(|line| return !line.starts_with("nonce="))
+        .collect::<Vec<&str>>()
+        .join("\n");
+    std::fs::write(path.as_path(), text.as_bytes())
+        .expect("the record is written without its nonce");
     assert_eq!(
         read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).err(),
-        Some(RecordedFactsRefusal::MissingField { key: crate::worktree_clone_managed_lock::binding_record_fields::NONCE_KEY })
+        Some(RecordedFactsRefusal::MissingField {
+            key: crate::worktree_clone_managed_lock::binding_record_fields::NONCE_KEY
+        })
     );
 }
 
@@ -102,10 +133,13 @@ fn a_record_another_account_could_rewrite_is_refused() {
     let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
     spec.slot_identity = Some(fixture.slot_identity());
     let path: PathBuf = fixture.write_record(&spec);
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o666)).expect("the mode is widened");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o666))
+        .expect("the mode is widened");
     assert_eq!(
         read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).err(),
-        Some(RecordedFactsRefusal::WritableByOthers { mode: 0o666 })
+        Some(RecordedFactsRefusal::WritableByOthers {
+            mode: 0o666
+        })
     );
 }
 
@@ -119,7 +153,8 @@ fn a_link_and_a_bad_nonce_are_refused() {
     let path: PathBuf = fixture.write_record(&spec);
     let elsewhere: PathBuf = fixture.root.join("elsewhere");
     std::fs::rename(path.as_path(), elsewhere.as_path()).expect("the record is moved aside");
-    std::os::unix::fs::symlink(elsewhere.as_path(), path.as_path()).expect("a link takes the record's name");
+    std::os::unix::fs::symlink(elsewhere.as_path(), path.as_path())
+        .expect("a link takes the record's name");
     assert!(matches!(
         read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()),
         Err(RecordedFactsRefusal::Refused(_cause))
@@ -130,7 +165,10 @@ fn a_link_and_a_bad_nonce_are_refused() {
     fixture.write_record(&bad);
     assert_eq!(
         read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).err(),
-        Some(RecordedFactsRefusal::Malformed { key: crate::worktree_clone_managed_lock::binding_record_fields::NONCE_KEY, found: String::from("not-a-nonce") })
+        Some(RecordedFactsRefusal::Malformed {
+            key: crate::worktree_clone_managed_lock::binding_record_fields::NONCE_KEY,
+            found: String::from("not-a-nonce")
+        })
     );
 }
 
@@ -142,13 +180,26 @@ fn every_refusal_names_the_record() {
     let refusals: [RecordedFactsRefusal; 6] = [
         RecordedFactsRefusal::Absent,
         RecordedFactsRefusal::Refused(crate::worktree_clone_managed_lock::ARefusedReading::ALink),
-        RecordedFactsRefusal::AnotherAccount { owner: 1, reader: 2 },
-        RecordedFactsRefusal::WritableByOthers { mode: 0o666 },
-        RecordedFactsRefusal::NotThisGrammar { line: 2, found: String::from("x") },
-        RecordedFactsRefusal::MissingField { key: crate::worktree_clone_managed_lock::binding_record_fields::NONCE_KEY },
+        RecordedFactsRefusal::AnotherAccount {
+            owner: 1,
+            reader: 2,
+        },
+        RecordedFactsRefusal::WritableByOthers {
+            mode: 0o666,
+        },
+        RecordedFactsRefusal::NotThisGrammar {
+            line: 2,
+            found: String::from("x"),
+        },
+        RecordedFactsRefusal::MissingField {
+            key: crate::worktree_clone_managed_lock::binding_record_fields::NONCE_KEY,
+        },
     ];
     for refusal in refusals {
         let words: String = refusal.words(fixture.slot.as_str(), home.as_path());
-        assert!(words.contains("locked-slot.binding"), "the refusal {refusal:?} names no record: {words}");
+        assert!(
+            words.contains("locked-slot.binding"),
+            "the refusal {refusal:?} names no record: {words}"
+        );
     }
 }

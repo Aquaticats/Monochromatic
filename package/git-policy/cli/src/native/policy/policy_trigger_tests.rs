@@ -13,8 +13,17 @@
 //! ```
 
 /// The table under test and the registry it is keyed by.
-use super::{Trigger, policy_runs_on, policy_triggers, trigger_is_ported, trigger_name};
-use crate::policy_registry::{POLICY_REGISTRY, PolicyId};
+use super::{
+    Trigger,
+    policy_runs_on,
+    policy_triggers,
+    trigger_is_ported,
+    trigger_name,
+};
+use crate::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+};
 
 /// The five triggers in the order the incumbent declares them.
 const ALL: [Trigger; 5] = [

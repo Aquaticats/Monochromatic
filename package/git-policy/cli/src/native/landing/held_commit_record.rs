@@ -33,8 +33,17 @@
 //! for (const held of await listHeld(gitDir)) { ... }
 //! ```
 
-use crate::path_bytes_in_records::{HEX_SUFFIX, bytes_of_hex, hex_of_bytes, hex_of_path, path_of_hex};
-use std::path::{Path, PathBuf};
+use crate::path_bytes_in_records::{
+    HEX_SUFFIX,
+    bytes_of_hex,
+    hex_of_bytes,
+    hex_of_path,
+    path_of_hex,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder below a worktree's own Git directory that holds the records.
 pub const FOLDER: &str = "monochromatic-git-policy-cli/held-commits";
@@ -185,13 +194,19 @@ pub fn directory_of(git_dir: &Path) -> PathBuf {
 }
 
 /// The path of the record of batch `seq`.
-pub fn path_of(git_dir: &Path, seq: u64) -> PathBuf {
+pub fn path_of(
+    git_dir: &Path,
+    seq: u64,
+) -> PathBuf {
     return directory_of(git_dir).join(format!("{seq}.{HELD_EXTENSION}"));
 }
 
 /// One field of the record that holds a path,
 /// its bytes in hexadecimal.
-fn field_of_path(key: &str, path: &Path) -> String {
+fn field_of_path(
+    key: &str,
+    path: &Path,
+) -> String {
     return format!("{key}{HEX_SUFFIX}={}", hex_of_path(path));
 }
 
@@ -240,7 +255,10 @@ fn text(held: &Held) -> String {
 /// ```ts
 /// const fieldOfRef = (key, name) => name.isText ? `${key}=${name}\n${key}Hex=${name.hex}` : `${key}Hex=${name.hex}`
 /// ```
-fn field_of_ref(key: &str, reference: &crate::ref_name::RefName) -> String {
+fn field_of_ref(
+    key: &str,
+    reference: &crate::ref_name::RefName,
+) -> String {
     return match reference.is_text() {
         true => format!("{key}={}\n{key}{HEX_SUFFIX}={}", reference, reference.hex()),
         false => format!("{key}{HEX_SUFFIX}={}", reference.hex()),
@@ -248,7 +266,10 @@ fn field_of_ref(key: &str, reference: &crate::ref_name::RefName) -> String {
 }
 
 /// The value of a field of a record's text.
-fn value_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+fn value_of<'a>(
+    text: &'a str,
+    key: &str,
+) -> Option<&'a str> {
     for line in text.lines() {
         if let Some(found) = line.strip_prefix(key).and_then(without_the_key) {
             return Some(found);
@@ -267,7 +288,10 @@ fn without_the_key(rest: &str) -> Option<&str> {
 
 /// The words of a list field,
 /// empty for a field that names nothing.
-fn items(text: &str, key: &str) -> Vec<String> {
+fn items(
+    text: &str,
+    key: &str,
+) -> Vec<String> {
     return match value_of(text, key) {
         Some(found) if !found.is_empty() => found.split(ITEM).map(str::to_string).collect(),
         _ => Vec::new(),
@@ -276,7 +300,10 @@ fn items(text: &str, key: &str) -> Vec<String> {
 
 /// The paths of a list field,
 /// nothing when one of its items is not a path's bytes.
-fn paths(text: &str, key: &str) -> Option<Vec<PathBuf>> {
+fn paths(
+    text: &str,
+    key: &str,
+) -> Option<Vec<PathBuf>> {
     let mut found: Vec<PathBuf> = Vec::new();
     for item in items(text, key) {
         found.push(path_of_hex(item.as_str())?);
@@ -344,7 +371,10 @@ fn read_ref(text: &str) -> Option<crate::ref_name::RefName> {
 /// # Errors
 ///
 /// The operating system's answer when the folder or the record cannot be written.
-pub fn write(git_dir: &Path, held: &Held) -> std::io::Result<()> {
+pub fn write(
+    git_dir: &Path,
+    held: &Held,
+) -> std::io::Result<()> {
     let folder: PathBuf = directory_of(git_dir);
     crate::private_storage::create_private_directory_all(folder.as_path())?;
     let staged: PathBuf = folder.join(format!("{}.{TEMPORARY_EXTENSION}", held.seq));
@@ -383,10 +413,11 @@ pub fn list(git_dir: &Path) -> (Vec<Held>, Vec<PathBuf>) {
         }
         // Read as a plain file: a name in a worktree's own Git directory may hold a named pipe, and an open that waited
         // for a writer there would hold the command that reads the records for ever (`plain_file.rs`).
-        let record: Option<Held> = match crate::plain_file::read_plain_file(path.as_path(), RECORD_LIMIT) {
-            Ok(bytes) => std::str::from_utf8(bytes.as_slice()).ok().and_then(parse),
-            Err(_unreadable) => None,
-        };
+        let record: Option<Held> =
+            match crate::plain_file::read_plain_file(path.as_path(), RECORD_LIMIT) {
+                Ok(bytes) => std::str::from_utf8(bytes.as_slice()).ok().and_then(parse),
+                Err(_unreadable) => None,
+            };
         match record {
             Some(held) => found.push(held),
             None => damaged.push(path),
@@ -414,7 +445,10 @@ fn number_of(held: &Held) -> u64 {
 /// ```ts
 /// await rm(join(folder, `${seq}.held`), { force: true })
 /// ```
-pub fn forget(git_dir: &Path, seq: u64) {
+pub fn forget(
+    git_dir: &Path,
+    seq: u64,
+) {
     let _removed = std::fs::remove_file(path_of(git_dir, seq));
 }
 

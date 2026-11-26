@@ -4,7 +4,12 @@
 //!  and the real-Git comparison of each answer.
 
 use super::*;
-use crate::test_support::{executable, fixture, git_output, remove};
+use crate::test_support::{
+    executable,
+    fixture,
+    git_output,
+    remove,
+};
 use std::path::PathBuf;
 
 /// A repository-less fixture directory,
@@ -57,7 +62,11 @@ fn program(path: &Path) -> PathBuf {
 /// ```ts
 /// gitOutput(directory, ['word']).stdout.includes('ran')
 /// ```
-fn git_runs_external(directory: &Path, pairs: &[(&str, &str)], word: &str) -> bool {
+fn git_runs_external(
+    directory: &Path,
+    pairs: &[(&str, &str)],
+    word: &str,
+) -> bool {
     return git_runs_external_with_globals(directory, pairs, &[], word);
 }
 
@@ -73,8 +82,14 @@ fn git_runs_external(directory: &Path, pairs: &[(&str, &str)], word: &str) -> bo
 /// ```ts
 /// gitOutput(directory, [...globals, word]).stdout.includes('ran')
 /// ```
-fn git_runs_external_with_globals(directory: &Path, pairs: &[(&str, &str)], globals: &[&str], word: &str) -> bool {
-    let mut command: std::process::Command = std::process::Command::new(crate::test_support::REAL_GIT);
+fn git_runs_external_with_globals(
+    directory: &Path,
+    pairs: &[(&str, &str)],
+    globals: &[&str],
+    word: &str,
+) -> bool {
+    let mut command: std::process::Command =
+        std::process::Command::new(crate::test_support::REAL_GIT);
     command
         .current_dir(directory)
         .env_clear()
@@ -110,7 +125,10 @@ fn a_program_on_the_path_is_the_command_git_runs() {
         None,
         OsStr::new("audit-external"),
     );
-    assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
+    assert_eq!(
+        answer,
+        git_runs_external(root.as_path(), pairs.as_slice(), "audit-external")
+    );
     assert!(answer, "the program on PATH was not found");
     remove(root.as_path());
 }
@@ -139,7 +157,10 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
     program(old_exec.join("git-audit-external").as_path());
     let old_text: String = old_exec.display().to_string();
     let new_text: String = new_exec.display().to_string();
-    let pairs: Vec<(&str, &str)> = vec![("GIT_EXEC_PATH", old_text.as_str()), ("PATH", "/usr/bin:/bin")];
+    let pairs: Vec<(&str, &str)> = vec![
+        ("GIT_EXEC_PATH", old_text.as_str()),
+        ("PATH", "/usr/bin:/bin"),
+    ];
     let option: String = format!("--exec-path={new_text}");
     let given: [&str; 1] = [option.as_str()];
     let answer: bool = dashed_external_selected(
@@ -152,9 +173,17 @@ fn the_exec_path_option_decides_the_search_over_the_environment() {
     );
     assert_eq!(
         answer,
-        git_runs_external_with_globals(root.as_path(), pairs.as_slice(), given.as_slice(), "audit-external")
+        git_runs_external_with_globals(
+            root.as_path(),
+            pairs.as_slice(),
+            given.as_slice(),
+            "audit-external"
+        )
     );
-    assert!(!answer, "a program only the environment's exec path names was taken as the command");
+    assert!(
+        !answer,
+        "a program only the environment's exec path names was taken as the command"
+    );
     remove(root.as_path());
 }
 
@@ -172,7 +201,10 @@ fn a_word_no_program_names_is_not_an_external_command() {
         None,
         OsStr::new("audit-absent"),
     );
-    assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-absent"));
+    assert_eq!(
+        answer,
+        git_runs_external(root.as_path(), pairs.as_slice(), "audit-absent")
+    );
     assert!(!answer, "a program nothing provides was found");
     remove(root.as_path());
 }
@@ -187,7 +219,10 @@ fn a_program_in_the_exec_path_is_the_command_git_runs() {
     std::fs::create_dir(&exec).expect("exec path directory");
     program(exec.join("git-audit-external").as_path());
     let exec_path: String = exec.display().to_string();
-    let pairs: Vec<(&str, &str)> = vec![("GIT_EXEC_PATH", exec_path.as_str()), ("PATH", "/usr/bin:/bin")];
+    let pairs: Vec<(&str, &str)> = vec![
+        ("GIT_EXEC_PATH", exec_path.as_str()),
+        ("PATH", "/usr/bin:/bin"),
+    ];
     let answer: bool = dashed_external_selected(
         &context(),
         environment(pairs.as_slice()).as_slice(),
@@ -196,7 +231,10 @@ fn a_program_in_the_exec_path_is_the_command_git_runs() {
         None,
         OsStr::new("audit-external"),
     );
-    assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
+    assert_eq!(
+        answer,
+        git_runs_external(root.as_path(), pairs.as_slice(), "audit-external")
+    );
     assert!(answer, "the program in the exec path was not found");
     remove(root.as_path());
 }
@@ -229,8 +267,14 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
         None,
         OsStr::new("audit-external"),
     );
-    assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-external"));
-    assert!(answer, "the program in the relative exec path was not found");
+    assert_eq!(
+        answer,
+        git_runs_external(root.as_path(), pairs.as_slice(), "audit-external")
+    );
+    assert!(
+        answer,
+        "the program in the relative exec path was not found"
+    );
     remove(root.as_path());
 }
 
@@ -273,7 +317,12 @@ fn a_relative_path_entry_is_read_from_the_directory_git_changed_into() {
     );
     assert_eq!(
         answer,
-        git_runs_external_with_globals(caller.as_path(), pairs.as_slice(), &["-C", "../B"], "audit-relative")
+        git_runs_external_with_globals(
+            caller.as_path(),
+            pairs.as_slice(),
+            &["-C", "../B"],
+            "audit-relative"
+        )
     );
     assert!(answer, "the program the moved entry names was not found");
     // A program only the directory the caller stood in holds is one Git never runs after `-C`.
@@ -291,9 +340,17 @@ fn a_relative_path_entry_is_read_from_the_directory_git_changed_into() {
     );
     assert_eq!(
         answer_here,
-        git_runs_external_with_globals(caller.as_path(), here.as_slice(), &["-C", "../B"], "audit-here")
+        git_runs_external_with_globals(
+            caller.as_path(),
+            here.as_slice(),
+            &["-C", "../B"],
+            "audit-here"
+        )
     );
-    assert!(!answer_here, "a program only the caller's own directory holds was taken as the command");
+    assert!(
+        !answer_here,
+        "a program only the caller's own directory holds was taken as the command"
+    );
     remove(root.as_path());
 }
 
@@ -310,7 +367,8 @@ fn a_file_without_the_owner_execute_bit_is_no_command() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644)).expect("plain mode");
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644))
+            .expect("plain mode");
     }
     let path: String = format!("{}:/usr/bin:/bin", directory.display());
     let pairs: Vec<(&str, &str)> = vec![("PATH", path.as_str())];
@@ -322,7 +380,10 @@ fn a_file_without_the_owner_execute_bit_is_no_command() {
         None,
         OsStr::new("audit-plain"),
     );
-    assert_eq!(answer, git_runs_external(root.as_path(), pairs.as_slice(), "audit-plain"));
+    assert_eq!(
+        answer,
+        git_runs_external(root.as_path(), pairs.as_slice(), "audit-plain")
+    );
     assert!(!answer, "a file Git cannot execute was taken as a command");
     remove(root.as_path());
 }
@@ -331,9 +392,18 @@ fn a_file_without_the_owner_execute_bit_is_no_command() {
 ///  and a Windows answer ends in a carriage return before it.
 #[test]
 fn the_reported_exec_path_loses_only_its_record_terminator() {
-    assert_eq!(without_record_terminator(b"/usr/lib/git-core\n"), OsString::from("/usr/lib/git-core"));
-    assert_eq!(without_record_terminator(b"/usr/lib/git-core\r\n"), OsString::from("/usr/lib/git-core"));
-    assert_eq!(without_record_terminator(b"/usr/lib/git-core"), OsString::from("/usr/lib/git-core"));
+    assert_eq!(
+        without_record_terminator(b"/usr/lib/git-core\n"),
+        OsString::from("/usr/lib/git-core")
+    );
+    assert_eq!(
+        without_record_terminator(b"/usr/lib/git-core\r\n"),
+        OsString::from("/usr/lib/git-core")
+    );
+    assert_eq!(
+        without_record_terminator(b"/usr/lib/git-core"),
+        OsString::from("/usr/lib/git-core")
+    );
     // A path whose last byte is a carriage return keeps it when no newline ended the answer.
     assert_eq!(without_record_terminator(b"/x\r"), OsString::from("/x\r"));
     assert_eq!(without_record_terminator(b""), OsString::new());
@@ -345,9 +415,10 @@ fn the_reported_exec_path_loses_only_its_record_terminator() {
 fn git_reports_the_exec_path_the_search_uses() {
     let root: PathBuf = scratch("external-exec-path-query");
     let reported: Option<OsString> = printed_exec_path(&context(), &[], root.as_path());
-    let expected: String = String::from_utf8_lossy(&git_output(root.as_path(), &["--exec-path"]).stdout)
-        .trim_end_matches('\n')
-        .to_owned();
+    let expected: String =
+        String::from_utf8_lossy(&git_output(root.as_path(), &["--exec-path"]).stdout)
+            .trim_end_matches('\n')
+            .to_owned();
     assert_eq!(reported, Some(OsString::from(expected)));
     // `match` picks by variant, so the reading names the present case instead of shadowing the option.
     match reported {

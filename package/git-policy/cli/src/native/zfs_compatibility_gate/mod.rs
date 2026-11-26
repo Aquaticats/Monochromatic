@@ -51,35 +51,49 @@
 pub mod gate_paths;
 /// The target allowlist the managed route is qualified for.
 pub mod gate_target;
-/// The loaded module's identity and each file's own facts.
-pub mod module_identity;
 /// The check,
 /// its one retry and the per-process cache.
 pub mod gate_verdict;
 /// The words the caller and `doctor` print.
 pub mod gate_words;
+/// The loaded module's identity and each file's own facts.
+pub mod module_identity;
 
 /// The paths one check reads,
 /// the live set and a test's own.
 pub use gate_paths::GatePaths;
 /// The qualified targets and the target check.
-pub use gate_target::{QUALIFIED_TARGETS, target_refusal};
-/// The identity one check compares and reports.
-pub use module_identity::{FileFacts, ModuleIdentity};
+pub use gate_target::{
+    QUALIFIED_TARGETS,
+    target_refusal,
+};
 /// The check,
 /// its verdict and the process's one answer.
-pub use gate_verdict::{BeforeRequests, Facts, LiveGate, Verdict, before_requests, check};
+pub use gate_verdict::{
+    BeforeRequests,
+    Facts,
+    LiveGate,
+    Verdict,
+    before_requests,
+    check,
+};
 /// The lines a person reads.
-pub use gate_words::{TESTED_MODULE_VERSION, compatible_line, refusal_line, verdict_line};
+pub use gate_words::{
+    TESTED_MODULE_VERSION,
+    compatible_line,
+    refusal_line,
+    verdict_line,
+};
+/// The identity one check compares and reports.
+pub use module_identity::{
+    FileFacts,
+    ModuleIdentity,
+};
 
 /// The target allowlist and the target check.
 #[cfg(test)]
 #[path = "gate_target_tests.rs"]
 mod gate_target_tests;
-/// The identity read and its comparison.
-#[cfg(test)]
-#[path = "module_identity_tests.rs"]
-mod module_identity_tests;
 /// The check,
 /// its retry and its cache.
 #[cfg(test)]
@@ -89,3 +103,7 @@ mod gate_verdict_tests;
 #[cfg(test)]
 #[path = "gate_words_tests.rs"]
 mod gate_words_tests;
+/// The identity read and its comparison.
+#[cfg(test)]
+#[path = "module_identity_tests.rs"]
+mod module_identity_tests;

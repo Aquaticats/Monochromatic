@@ -14,7 +14,10 @@
 //! platformRemedy(platform) // the sentence a person reads
 //! ```
 
-use crate::service_messages::{LINGER_COMMAND, Platform};
+use crate::service_messages::{
+    LINGER_COMMAND,
+    Platform,
+};
 
 /// What:
 ///  The remedy sentence for a platform.

@@ -15,9 +15,21 @@
 
 use super::super::*;
 use crate::merge_isolation_journal::write_merge_intent;
-use crate::test_support::{fixture, git, git_context, git_text, repository};
-use std::path::{Path, PathBuf};
-use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    repository,
+};
+use crate::transaction_owner::{
+    TransactionOwner,
+    current_transaction_owner,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A repository where `main` and `feature` have diverged and the merge commit exists but is not applied.
 pub(super) struct World {
@@ -43,9 +55,15 @@ pub(super) fn world(name: &str) -> World {
     for file in ["u.txt", "f.txt", "gone.txt", "h.txt"] {
         std::fs::write(repo.join(file), format!("{file} base\n")).expect("file");
     }
-    git(repo.as_path(), &["add", "--", "u.txt", "f.txt", "gone.txt", "h.txt"]);
+    git(
+        repo.as_path(),
+        &["add", "--", "u.txt", "f.txt", "gone.txt", "h.txt"],
+    );
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
     std::fs::create_dir(repo.join("dir")).expect("directory");
     std::fs::write(repo.join("dir/new.txt"), b"new\n").expect("file");
@@ -54,27 +72,59 @@ pub(super) fn world(name: &str) -> World {
     git(repo.as_path(), &["commit", "--quiet", "--message=feature"]);
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main"],
+    );
     let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
-    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let tree: String = git_text(
+        repo.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            old_oid.as_str(),
+            feature.as_str(),
+        ],
+    );
     let new_oid: String = git_text(
         repo.as_path(),
-        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            old_oid.as_str(),
+            "-p",
+            feature.as_str(),
+            "-m",
+            "merge",
+        ],
     );
     let git_dir: PathBuf = repo.join(".git");
-    return World { parent, repo, git_dir, old_oid, new_oid };
+    return World {
+        parent,
+        repo,
+        git_dir,
+        old_oid,
+        new_oid,
+    };
 }
 
 /// The recovery place for a world.
 pub(super) fn place(world: &World) -> RecoveryPlace {
-    return RecoveryPlace { git: git_context(), cwd: world.repo.clone(), common_dir: world.git_dir.clone(), git_dir: world.git_dir.clone() };
+    return RecoveryPlace {
+        git: git_context(),
+        cwd: world.repo.clone(),
+        common_dir: world.git_dir.clone(),
+        git_dir: world.git_dir.clone(),
+    };
 }
 
 /// An owner that is certainly gone:
 /// this process's PID with a birth identity no process has.
 pub(super) fn dead_owner(id: &str) -> TransactionOwner {
-    let mut owner: TransactionOwner = current_transaction_owner(id, "2026-10-29T00:00:00.000Z").expect("owner");
+    let mut owner: TransactionOwner =
+        current_transaction_owner(id, "2026-10-29T00:00:00.000Z").expect("owner");
     owner.owner_identity = String::from("linux:1");
     return owner;
 }
@@ -82,7 +132,11 @@ pub(super) fn dead_owner(id: &str) -> TransactionOwner {
 /// Write the record of a merge of the world,
 /// owned by `owner`,
 /// and return its file.
-pub(super) fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -> PathBuf {
+pub(super) fn record_of(
+    world: &World,
+    owner: TransactionOwner,
+    target_ref: Option<&str>,
+) -> PathBuf {
     let intent: MergeIntent = MergeIntent {
         owner,
         repository_root: world.repo.to_path_buf(),
@@ -115,24 +169,57 @@ pub(super) fn directory_to_file_world(name: &str) -> World {
     std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
     git(repo.as_path(), &["add", "--", "dir/child.txt", "h.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     // `git rm` prunes the emptied directory, so the path is free for a file.
     git(repo.as_path(), &["rm", "--quiet", "--", "dir/child.txt"]);
-    std::fs::write(repo.join("dir"), b"the merge's file\n").expect("a file where the directory stood");
+    std::fs::write(repo.join("dir"), b"the merge's file\n")
+        .expect("a file where the directory stood");
     git(repo.as_path(), &["add", "--", "dir"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature work"],
+    );
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main work"],
+    );
     let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
-    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let tree: String = git_text(
+        repo.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            old_oid.as_str(),
+            feature.as_str(),
+        ],
+    );
     let new_oid: String = git_text(
         repo.as_path(),
-        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            old_oid.as_str(),
+            "-p",
+            feature.as_str(),
+            "-m",
+            "merge",
+        ],
     );
     let git_dir: PathBuf = repo.join(".git");
-    return World { parent, repo, git_dir, old_oid, new_oid };
+    return World {
+        parent,
+        repo,
+        git_dir,
+        old_oid,
+        new_oid,
+    };
 }
 
 /// What:
@@ -156,24 +243,60 @@ pub(super) fn nested_directory_to_file_world(name: &str) -> World {
     std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
     git(repo.as_path(), &["add", "--", "dir/sub/child.txt", "h.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     // `git rm` prunes the emptied directories, so the path is free for a file.
-    git(repo.as_path(), &["rm", "--quiet", "--", "dir/sub/child.txt"]);
-    std::fs::write(repo.join("dir"), b"the merge's file\n").expect("a file where the directory stood");
+    git(
+        repo.as_path(),
+        &["rm", "--quiet", "--", "dir/sub/child.txt"],
+    );
+    std::fs::write(repo.join("dir"), b"the merge's file\n")
+        .expect("a file where the directory stood");
     git(repo.as_path(), &["add", "--", "dir"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature work"],
+    );
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main work"],
+    );
     let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
-    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let tree: String = git_text(
+        repo.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            old_oid.as_str(),
+            feature.as_str(),
+        ],
+    );
     let new_oid: String = git_text(
         repo.as_path(),
-        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            old_oid.as_str(),
+            "-p",
+            feature.as_str(),
+            "-m",
+            "merge",
+        ],
     );
     let git_dir: PathBuf = repo.join(".git");
-    return World { parent, repo, git_dir, old_oid, new_oid };
+    return World {
+        parent,
+        repo,
+        git_dir,
+        old_oid,
+        new_oid,
+    };
 }
 
 /// What:
@@ -197,21 +320,53 @@ pub(super) fn one_path_merge_world(name: &str) -> World {
     std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
     git(repo.as_path(), &["add", "--", "f.txt", "h.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=feature work"],
+    );
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main work"],
+    );
     let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
-    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let tree: String = git_text(
+        repo.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            old_oid.as_str(),
+            feature.as_str(),
+        ],
+    );
     let new_oid: String = git_text(
         repo.as_path(),
-        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            old_oid.as_str(),
+            "-p",
+            feature.as_str(),
+            "-m",
+            "merge",
+        ],
     );
     let git_dir: PathBuf = repo.join(".git");
-    return World { parent, repo, git_dir, old_oid, new_oid };
+    return World {
+        parent,
+        repo,
+        git_dir,
+        old_oid,
+        new_oid,
+    };
 }
 
 /// What:
@@ -242,35 +397,74 @@ pub(super) fn symlink_to_file_world(name: &str) -> World {
 /// ```ts
 /// const repo = symlinkToFileWorld(name); chmod('link', 0o755); git.add('link'); // feature writes 'link' executable
 /// ```
-pub(super) fn symlink_to_file_world_with(name: &str, executable_after: bool) -> World {
+pub(super) fn symlink_to_file_world_with(
+    name: &str,
+    executable_after: bool,
+) -> World {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
     std::fs::write(repo.join("target.txt"), b"payload\n").expect("the link's target");
     std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
     std::os::unix::fs::symlink("target.txt", repo.join("link")).expect("the link");
-    git(repo.as_path(), &["add", "--", "target.txt", "h.txt", "link"]);
+    git(
+        repo.as_path(),
+        &["add", "--", "target.txt", "h.txt", "link"],
+    );
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "feature"],
+    );
     std::fs::remove_file(repo.join("link")).expect("the link goes");
     std::fs::write(repo.join("link"), b"link as a file\n").expect("a file where the link stood");
     if executable_after {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(repo.join("link"), std::fs::Permissions::from_mode(0o755)).expect("the merge's executable file");
+        std::fs::set_permissions(repo.join("link"), std::fs::Permissions::from_mode(0o755))
+            .expect("the merge's executable file");
     }
     git(repo.as_path(), &["add", "--", "link"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=feature work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=feature work"],
+    );
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
-    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main work"],
+    );
     let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
-    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let tree: String = git_text(
+        repo.as_path(),
+        &[
+            "merge-tree",
+            "--write-tree",
+            old_oid.as_str(),
+            feature.as_str(),
+        ],
+    );
     let new_oid: String = git_text(
         repo.as_path(),
-        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            old_oid.as_str(),
+            "-p",
+            feature.as_str(),
+            "-m",
+            "merge",
+        ],
     );
     let git_dir: PathBuf = repo.join(".git");
-    return World { parent, repo, git_dir, old_oid, new_oid };
+    return World {
+        parent,
+        repo,
+        git_dir,
+        old_oid,
+        new_oid,
+    };
 }
 
 /// What:
@@ -284,8 +478,15 @@ pub(super) fn symlink_to_file_world_with(name: &str, executable_after: bool) -> 
 /// ```ts
 /// writeMergeRecord({ ...intent, sideRef }); await git(['update-ref', '--no-deref', sideRef, newOid]);
 /// ```
-pub(super) fn deferred_record_of(world: &World, id: &str, side_ref: &str) -> PathBuf {
-    git(world.repo.as_path(), &["update-ref", "--no-deref", side_ref, world.new_oid.as_str()]);
+pub(super) fn deferred_record_of(
+    world: &World,
+    id: &str,
+    side_ref: &str,
+) -> PathBuf {
+    git(
+        world.repo.as_path(),
+        &["update-ref", "--no-deref", side_ref, world.new_oid.as_str()],
+    );
     let intent: MergeIntent = MergeIntent {
         owner: dead_owner(id),
         repository_root: world.repo.clone(),
@@ -295,7 +496,8 @@ pub(super) fn deferred_record_of(world: &World, id: &str, side_ref: &str) -> Pat
         side_ref: Some(String::from(side_ref)),
         carried: None,
     };
-    return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record of a saved merge");
+    return write_merge_intent(world.git_dir.as_path(), &intent)
+        .expect("the record of a saved merge");
 }
 
 /// The identifier a control's own take names itself by,
@@ -327,7 +529,10 @@ pub(super) fn aside_names(repository: &Path) -> Vec<String> {
 /// ```ts
 /// const stranded = `${dirname}/.cli-git-recovery-${basename}-${process.pid}-0-1`;
 /// ```
-pub(super) fn stranded_name(location: &Path, transaction_id: &str) -> PathBuf {
+pub(super) fn stranded_name(
+    location: &Path,
+    transaction_id: &str,
+) -> PathBuf {
     return crate::merge_isolation_take_aside_names::aside_name(location, transaction_id);
 }
 
@@ -369,7 +574,13 @@ pub(super) fn an_earlier_releases_name(location: &Path) -> PathBuf {
 /// ```ts
 /// const extra = { path: Buffer.from('sealed/zeta.txt'), oldMode: '100644', newMode: '100644', oldOid: old, newOid: next };
 /// ```
-pub(super) fn extra_change(path: &str, old_mode: &str, new_mode: &str, old_oid: &str, new_oid: &str) -> Change {
+pub(super) fn extra_change(
+    path: &str,
+    old_mode: &str,
+    new_mode: &str,
+    old_oid: &str,
+    new_oid: &str,
+) -> Change {
     return Change {
         path: path.as_bytes().to_vec(),
         old_mode: String::from(old_mode),
@@ -385,7 +596,11 @@ pub(super) fn extra_change(path: &str, old_mode: &str, new_mode: &str, old_oid: 
 /// ```ts
 /// writeMergeIntent(gitDir, { ...record(id), carried: capture });
 /// ```
-pub(super) fn record_with_a_capture(world: &World, id: &str, capture: &crate::merge_isolation_carry_parts::Capture) -> PathBuf {
+pub(super) fn record_with_a_capture(
+    world: &World,
+    id: &str,
+    capture: &crate::merge_isolation_carry_parts::Capture,
+) -> PathBuf {
     let intent: MergeIntent = MergeIntent {
         owner: dead_owner(id),
         repository_root: world.repo.clone(),
@@ -410,20 +625,44 @@ pub(super) fn record_with_a_capture(world: &World, id: &str, capture: &crate::me
 /// ```ts
 /// write('f.txt', `${BRANCH}\n${PERSON_LINE}\n`); const capture = keepCapture(captureWork([f.txt])); record(capture); clear(); readTree(old, new); updateRef(main, new);
 /// ```
-pub(super) fn half_carried(world: &World, id: &str) -> crate::merge_isolation_carry_parts::Capture {
+pub(super) fn half_carried(
+    world: &World,
+    id: &str,
+) -> crate::merge_isolation_carry_parts::Capture {
     let person_lines: &str = "f.txt base\nthe person's line\n";
     std::fs::write(world.repo.join("f.txt"), person_lines).expect("the person's edit");
     let context = crate::test_support::git_context();
-    let capture: crate::merge_isolation_carry_parts::Capture = crate::merge_isolation_carry::keep_capture(
-        &context,
-        world.repo.as_path(),
-        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
-    )
-    .expect("kept");
+    let capture: crate::merge_isolation_carry_parts::Capture =
+        crate::merge_isolation_carry::keep_capture(
+            &context,
+            world.repo.as_path(),
+            &crate::merge_isolation_carry::capture_work(
+                &context,
+                world.repo.as_path(),
+                &[b"f.txt".to_vec()],
+            )
+            .expect("the capture"),
+        )
+        .expect("kept");
     let _record: PathBuf = record_with_a_capture(world, id, &capture);
     // The person's path is put back to the branch, which is what the merge's own clear does before Git's update.
-    git(world.repo.as_path(), &["checkout", "--quiet", "--", "f.txt"]);
-    git(world.repo.as_path(), &["read-tree", "-u", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
-    git(world.repo.as_path(), &["update-ref", "refs/heads/main", world.new_oid.as_str()]);
+    git(
+        world.repo.as_path(),
+        &["checkout", "--quiet", "--", "f.txt"],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-u",
+            "-m",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", world.new_oid.as_str()],
+    );
     return capture;
 }

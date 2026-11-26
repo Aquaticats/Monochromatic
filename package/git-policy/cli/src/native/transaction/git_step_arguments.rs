@@ -141,7 +141,11 @@ fn named_word(word: &str) -> Option<&str> {
 /// ```ts
 /// const keep = (word) => named.length < LIMIT ? named.push(word) : (leftOut += 1);
 /// ```
-fn keep(named: &mut Vec<String>, left_out: &mut usize, word: &str) {
+fn keep(
+    named: &mut Vec<String>,
+    left_out: &mut usize,
+    word: &str,
+) {
     if named.len() >= NAMED_WORDS_LIMIT {
         *left_out = left_out.saturating_add(1);
         return;
@@ -179,10 +183,12 @@ pub fn named_arguments(arguments: &[OsString]) -> String {
             // The option is named,
             // and a placeholder says a value stood here without saying what it was.
             keep(&mut named, &mut left_out, option_name(word));
-            keep(&mut named,
-            &mut left_out,
-            AN_ARGUMENT);
-            index = if word.contains('=') { index.saturating_add(1) } else { index.saturating_add(2) };
+            keep(&mut named, &mut left_out, AN_ARGUMENT);
+            index = if word.contains('=') {
+                index.saturating_add(1)
+            } else {
+                index.saturating_add(2)
+            };
             continue;
         }
         if word.starts_with('-') {

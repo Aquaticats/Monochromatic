@@ -4,12 +4,29 @@
 //!  and the mounting intent's own placeholder.
 
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
-use crate::worktree_clone_slot_state::slot_state_mounts::{MountRows, SlotMount};
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    SlotRouteState,
+    classify_slot,
+};
 use crate::worktree_clone_slot_state::slot_state_evidence::evidence;
-use crate::worktree_clone_slot_state::slot_state_next_actions::{next_safe_action, registration_sentence};
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, PlanReading, SlotReadings};
-use crate::worktree_clone_slot_state::slot_state_test_records::{CLONE_DATASET, record_at};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    MountRows,
+    SlotMount,
+};
+use crate::worktree_clone_slot_state::slot_state_next_actions::{
+    next_safe_action,
+    registration_sentence,
+};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    IntentFacts,
+    PlanReading,
+    SlotReadings,
+};
+use crate::worktree_clone_slot_state::slot_state_test_records::{
+    CLONE_DATASET,
+    record_at,
+};
 use std::path::PathBuf;
 
 /// The fixture's slot name.
@@ -39,9 +56,21 @@ fn readings_at(phase: Phase) -> SlotReadings {
 /// Each registration arm says a different thing about Git's own list.
 #[test]
 fn each_registration_arm_says_what_git_lists() {
-    assert!(registration_sentence(Some(true)).contains("lists this worktree"), "{}", registration_sentence(Some(true)));
-    assert!(registration_sentence(Some(false)).contains("no longer lists"), "{}", registration_sentence(Some(false)));
-    assert!(registration_sentence(None).contains("names no Git registration yet"), "{}", registration_sentence(None));
+    assert!(
+        registration_sentence(Some(true)).contains("lists this worktree"),
+        "{}",
+        registration_sentence(Some(true))
+    );
+    assert!(
+        registration_sentence(Some(false)).contains("no longer lists"),
+        "{}",
+        registration_sentence(Some(false))
+    );
+    assert!(
+        registration_sentence(None).contains("names no Git registration yet"),
+        "{}",
+        registration_sentence(None)
+    );
 }
 
 /// The evidence of an unfinished add names its phase and says the intent was not asked.
@@ -53,9 +82,22 @@ fn an_unfinished_adds_evidence_names_its_phase() {
     };
     let lines: Vec<String> = evidence(&readings);
     assert!(lines.iter().any(|line| return line == "binding: phase=registered cloneDataset=`tank/monochromatic-git-worktree-clone-datasets/topic` pool=`tank`"), "{lines:?}");
-    assert!(lines.iter().any(|line| return line == "intent: not asked, because the record names no clone dataset yet"), "{lines:?}");
-    assert!(lines.iter().any(|line| return line == "plan: no destruction plan names this clone"), "{lines:?}");
-    assert!(lines.iter().any(|line| return line == "registration: not read, and the record names /repo/.git/worktrees/topic"), "{lines:?}");
+    assert!(
+        lines.iter().any(|line| return line
+            == "intent: not asked, because the record names no clone dataset yet"),
+        "{lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| return line == "plan: no destruction plan names this clone"),
+        "{lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| return line
+            == "registration: not read, and the record names /repo/.git/worktrees/topic"),
+        "{lines:?}"
+    );
 }
 
 /// The unmounted arm's action names the property and the sweep,
@@ -65,23 +107,42 @@ fn the_unmounted_action_names_the_property_and_the_sweep() {
     let readings: SlotReadings = readings_at(Phase::Filled);
     let state: SlotRouteState = classify_slot(&readings);
     let action: String = next_safe_action(&state, &readings);
-    assert!(action.contains("org.monochromatic:git-worktree-clone-mount-desired-state"), "{action}");
+    assert!(
+        action.contains("org.monochromatic:git-worktree-clone-mount-desired-state"),
+        "{action}"
+    );
     assert!(action.contains(CLONE_DATASET), "{action}");
     let waiting: SlotReadings = SlotReadings {
-        intent: IntentFacts::Mounting { nonce: String::from("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f") },
+        intent: IntentFacts::Mounting {
+            nonce: String::from("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f"),
+        },
         ..readings_at(Phase::Filled)
     };
     let waited: String = next_safe_action(&classify_slot(&waiting), &waiting);
-    assert!(waited.contains("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f"), "{waited}");
-    assert!(waited.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"), "{waited}");
+    assert!(
+        waited.contains("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f"),
+        "{waited}"
+    );
+    assert!(
+        waited.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"),
+        "{waited}"
+    );
 }
 
 /// A state nothing proves tells the reader to change nothing and names the source.
 #[test]
 fn a_state_nothing_proves_changes_nothing() {
     let readings: SlotReadings = readings_at(Phase::Filled);
-    let unproved: SlotRouteState = SlotRouteState::CannotProve { reason: String::from("the mount table could not be read") };
+    let unproved: SlotRouteState = SlotRouteState::CannotProve {
+        reason: String::from("the mount table could not be read"),
+    };
     let action: String = next_safe_action(&unproved, &readings);
-    assert!(action.contains("the mount table could not be read"), "{action}");
-    assert!(action.contains("do not move or remove the slot"), "{action}");
+    assert!(
+        action.contains("the mount table could not be read"),
+        "{action}"
+    );
+    assert!(
+        action.contains("do not move or remove the slot"),
+        "{action}"
+    );
 }

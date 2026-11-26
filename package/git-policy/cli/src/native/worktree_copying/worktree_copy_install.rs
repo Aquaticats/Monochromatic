@@ -14,20 +14,42 @@
 //! const copied = await installSnapshot({ snapshot, destinationRoot, journalState, priorCreations });
 //! ```
 
-use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
-use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
-use crate::parallel_budget::{HostResources, sliced_workers};
-use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
-use crate::worktree_copy_install_entry::{
-    InstalledPath, capture_installed_path, create_selected_entry, ensure_parents_remembering,
-};
-use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, apply_entry_modes};
-use crate::worktree_copy_rollback::rollback_created;
-use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use crate::json_record::quote;
+use crate::parallel_budget::{
+    HostResources,
+    sliced_workers,
+};
+use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
+use crate::worktree_copy_compare::{
+    entry_matches,
+    lstat_or_absent,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+};
+use crate::worktree_copy_install_entry::{
+    InstalledPath,
+    capture_installed_path,
+    create_selected_entry,
+    ensure_parents_remembering,
+};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    WorktreeCopyEntry,
+    apply_entry_modes,
+};
+use crate::worktree_copy_rollback::rollback_created;
+use crate::worktree_copy_selection::{
+    filesystem_path,
+    shown_repository_path,
+};
+use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 
 /// What:
@@ -66,7 +88,6 @@ use std::sync::Arc;
 /// ```
 pub const INSTALL_BATCH_ENTRIES: usize = 4096;
 
-
 /// What:
 ///  The durable record of an installation in progress.
 /// Why:
@@ -80,10 +101,16 @@ pub const INSTALL_BATCH_ENTRIES: usize = 4096;
 pub trait InstallRecorder {
     /// Records the absent paths one batch is about to create,
     /// before any of them exists.
-    fn record_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError>;
+    fn record_intents(
+        &mut self,
+        relative_paths: &[Vec<u8>],
+    ) -> Result<(), WorktreeCopyError>;
 
     /// Records the identities of the paths one batch created.
-    fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError>;
+    fn record_creations(
+        &mut self,
+        entries: &[InstalledPath],
+    ) -> Result<(), WorktreeCopyError>;
 }
 
 /// What:
@@ -102,12 +129,18 @@ pub struct NoRecord;
 
 impl InstallRecorder for NoRecord {
     /// Accepts the intent without storing it.
-    fn record_intents(&mut self, _relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
+    fn record_intents(
+        &mut self,
+        _relative_paths: &[Vec<u8>],
+    ) -> Result<(), WorktreeCopyError> {
         return Ok(());
     }
 
     /// Accepts the creations without storing them.
-    fn record_creations(&mut self, _entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
+    fn record_creations(
+        &mut self,
+        _entries: &[InstalledPath],
+    ) -> Result<(), WorktreeCopyError> {
         return Ok(());
     }
 }
@@ -208,7 +241,13 @@ fn install_batch(
         }
         known.insert(entry.relative_path.clone());
     }
-    install_leaves(stage_root, destination_root, batch, leaves.as_slice(), created)?;
+    install_leaves(
+        stage_root,
+        destination_root,
+        batch,
+        leaves.as_slice(),
+        created,
+    )?;
     recorder.record_creations(&created[batch_start..])?;
     return Ok(());
 }
@@ -256,13 +295,23 @@ const PARALLEL_INSTALL_MIN_LEAVES: usize = crate::parallel_budget::PARALLEL_BREA
 /// ```ts
 /// if (exists(destination)) return undefined; createSelectedEntry(...); return captureInstalledPath(destination);
 /// ```
-fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyEntry) -> Result<Option<InstalledPath>, WorktreeCopyError> {
-    let destination_path: PathBuf = filesystem_path(destination_root, entry.relative_path.as_slice())?;
+fn install_one(
+    stage_root: &Path,
+    destination_root: &Path,
+    entry: &WorktreeCopyEntry,
+) -> Result<Option<InstalledPath>, WorktreeCopyError> {
+    let destination_path: PathBuf =
+        filesystem_path(destination_root, entry.relative_path.as_slice())?;
     if lstat_or_absent(destination_path.as_path())?.is_some() {
         return Ok(None);
     }
     create_selected_entry(stage_root, destination_root, entry)?;
-    return capture_installed_path(destination_path.as_path(), entry.relative_path.as_slice(), true).map(Some);
+    return capture_installed_path(
+        destination_path.as_path(),
+        entry.relative_path.as_slice(),
+        true,
+    )
+    .map(Some);
 }
 
 /// What:
@@ -280,11 +329,12 @@ fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyE
 /// async function installSlice([stageRoot, destinationRoot, slice]): Promise<{ created: InstalledPath[]; failure?: WorktreeCopyError }>;
 /// ```
 fn install_slice(
-    (stage_root, destination_root, slice): (&Path, &Path, &[&WorktreeCopyEntry]),
+    (stage_root, destination_root, slice): (&Path, &Path, &[&WorktreeCopyEntry])
 ) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
     let mut made: Vec<InstalledPath> = Vec::new();
     for entry in slice {
-        let outcome: Result<Option<InstalledPath>, WorktreeCopyError> = install_one(stage_root, destination_root, entry);
+        let outcome: Result<Option<InstalledPath>, WorktreeCopyError> =
+            install_one(stage_root, destination_root, entry);
         match outcome {
             Ok(Some(installed)) => made.push(installed),
             Ok(None) => {}
@@ -322,7 +372,9 @@ type ASliceToInstall = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>);
 /// ```ts
 /// const installASliceOf = ([entries, stage, destination, positions]) => installSlice([stage, destination, positions.map((at) => entries[at])]);
 /// ```
-fn install_a_slice_of((entries, stage_root, destination_root, positions): ASliceToInstall) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
+fn install_a_slice_of(
+    (entries, stage_root, destination_root, positions): ASliceToInstall
+) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
     let mut slice: Vec<&WorktreeCopyEntry> = Vec::with_capacity(positions.len());
     for at in positions {
         let Some(entry) = entries.get(at) else {
@@ -330,7 +382,11 @@ fn install_a_slice_of((entries, stage_root, destination_root, positions): ASlice
         };
         slice.push(entry);
     }
-    return install_slice((stage_root.as_path(), destination_root.as_path(), slice.as_slice()));
+    return install_slice((
+        stage_root.as_path(),
+        destination_root.as_path(),
+        slice.as_slice(),
+    ));
 }
 
 /// What:
@@ -398,7 +454,11 @@ async fn install_leaves_awaiting(
     let workers: usize = if leaves.len() < PARALLEL_INSTALL_MIN_LEAVES {
         1
     } else {
-        sliced_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
+        sliced_workers(
+            leaves.len(),
+            PARALLEL_COPY_MAX_WORKERS,
+            &HostResources::read(),
+        )
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
     let shared: Arc<[WorktreeCopyEntry]> = Arc::from(entries);
@@ -415,8 +475,23 @@ async fn install_leaves_awaiting(
     for answer in run_all_side_by_side_on_the_runtime(states, install_a_slice_of).await {
         results.push(match answer {
             Ok(done) => done,
-            Err(crate::blocking_job::BlockingJobError::Panicked) => (Vec::new(), Some(failure_with_cause("monochromatic-git-policy-cli: an install worker panicked.", None))),
-            Err(refused) => (Vec::new(), Some(failure_with_cause(format!("monochromatic-git-policy-cli: an install worker did not run ({refused}).").as_str(), None))),
+            Err(crate::blocking_job::BlockingJobError::Panicked) => (
+                Vec::new(),
+                Some(failure_with_cause(
+                    "monochromatic-git-policy-cli: an install worker panicked.",
+                    None,
+                )),
+            ),
+            Err(refused) => (
+                Vec::new(),
+                Some(failure_with_cause(
+                    format!(
+                        "monochromatic-git-policy-cli: an install worker did not run ({refused})."
+                    )
+                    .as_str(),
+                    None,
+                )),
+            ),
         });
     }
     let mut failure: Option<WorktreeCopyError> = None;

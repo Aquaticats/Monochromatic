@@ -28,13 +28,26 @@ use crate::foundation::plain_file::open_plain_file;
 use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{ATTEMPT_LINE_MAXIMUM_BYTES, PLAN_HEADER_MAXIMUM_BYTES};
-use crate::worktree_clone_removal_proof_and_plan::plan_parse::{PlanHeader, parse_plan, parse_plan_header};
+use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{
+    ATTEMPT_LINE_MAXIMUM_BYTES,
+    PLAN_HEADER_MAXIMUM_BYTES,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_parse::{
+    PlanHeader,
+    parse_plan,
+    parse_plan_header,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
+use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{
+    PlanRefusal,
+    PlanRefusalCause,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::PLAN_KEYS_IN_ORDER;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The lines the header region holds:
 /// the version line and the plan's eighteen fields.
@@ -55,10 +68,15 @@ pub const HEADER_LINE_COUNT: usize = 1 + PLAN_KEYS_IN_ORDER.len();
 /// ```ts
 /// const plan = readPlanAt(path, fileName);
 /// ```
-pub fn read_the_plan_at(path: &Path, filed_under: Option<&str>) -> Result<DestructionPlan, PlanRefusal> {
+pub fn read_the_plan_at(
+    path: &Path,
+    filed_under: Option<&str>,
+) -> Result<DestructionPlan, PlanRefusal> {
     let mut file: std::fs::File = open_plain_file(path).map_err(|error| {
         return match error.kind() {
-            std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::NotFound => PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string()),
+            std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::NotFound => {
+                PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string())
+            }
             _ => PlanRefusal::of(PlanRefusalCause::NotARegularFile, error.to_string()),
         };
     })?;
@@ -75,15 +93,29 @@ pub fn read_the_plan_at(path: &Path, filed_under: Option<&str>) -> Result<Destru
     // region, which holds at most one widest line for each line the record declares. Their sum is
     // `plan_maximum_bytes(count)`, and this is where the second half of it is refused, after the length read and
     // before an attempt byte.
-    let length: u64 = file.metadata().map_err(|error| return PlanRefusal::of(PlanRefusalCause::Unreadable, error.to_string()))?.len();
+    let length: u64 = file
+        .metadata()
+        .map_err(|error| return PlanRefusal::of(PlanRefusalCause::Unreadable, error.to_string()))?
+        .len();
     let held_after_the_header: u64 = length - header_bytes as u64;
     let already_read: u64 = stage_one.len() as u64 - header_bytes as u64;
     if already_read > held_after_the_header {
-        return Err(PlanRefusal::of(PlanRefusalCause::Oversized, format!("{already_read} bytes past the header where the file holds {held_after_the_header}")));
+        return Err(PlanRefusal::of(
+            PlanRefusalCause::Oversized,
+            format!(
+                "{already_read} bytes past the header where the file holds {held_after_the_header}"
+            ),
+        ));
     }
     let widest_attempts: u64 = ATTEMPT_LINE_MAXIMUM_BYTES * count;
     if held_after_the_header > widest_attempts {
-        return Err(PlanRefusal::at(PlanRefusalCause::Oversized, "attempts", format!("{held_after_the_header} bytes for {count} declared lines, and {widest_attempts} is the most they allow")));
+        return Err(PlanRefusal::at(
+            PlanRefusalCause::Oversized,
+            "attempts",
+            format!(
+                "{held_after_the_header} bytes for {count} declared lines, and {widest_attempts} is the most they allow"
+            ),
+        ));
     }
     let mut stage_two: Vec<u8> = stage_one[header_bytes..].to_vec();
     let remaining: u64 = held_after_the_header - already_read;
@@ -92,15 +124,32 @@ pub fn read_the_plan_at(path: &Path, filed_under: Option<&str>) -> Result<Destru
         .read_to_end(&mut stage_two)
         .map_err(|error| return PlanRefusal::of(PlanRefusalCause::Unreadable, error.to_string()))?;
     if stage_two.len() as u64 != held_after_the_header {
-        return Err(PlanRefusal::of(PlanRefusalCause::MissingAttemptLines, format!("{} bytes where the file holds {held_after_the_header}", stage_two.len())));
+        return Err(PlanRefusal::of(
+            PlanRefusalCause::MissingAttemptLines,
+            format!(
+                "{} bytes where the file holds {held_after_the_header}",
+                stage_two.len()
+            ),
+        ));
     }
     // A byte past what the length promised means the file changed between the two stages, and a
     // record that changed while it was read is not the record either stage saw.
     let mut past: [u8; 1] = [0; 1];
-    if file.read(&mut past).map_err(|error| return PlanRefusal::of(PlanRefusalCause::Unreadable, error.to_string()))? > 0 {
-        return Err(PlanRefusal::of(PlanRefusalCause::Oversized, "the file grew while the reader held it"));
+    if file
+        .read(&mut past)
+        .map_err(|error| return PlanRefusal::of(PlanRefusalCause::Unreadable, error.to_string()))?
+        > 0
+    {
+        return Err(PlanRefusal::of(
+            PlanRefusalCause::Oversized,
+            "the file grew while the reader held it",
+        ));
     }
-    return parse_plan(stage_one[..header_bytes].as_ref(), stage_two.as_slice(), filed_under);
+    return parse_plan(
+        stage_one[..header_bytes].as_ref(),
+        stage_two.as_slice(),
+        filed_under,
+    );
 }
 
 /// What:
@@ -119,7 +168,10 @@ pub fn read_the_plan_at(path: &Path, filed_under: Option<&str>) -> Result<Destru
 /// ```ts
 /// const plan = readPlan(commonDir, cloneGuid);
 /// ```
-pub fn read_the_plan(common_dir: &Path, clone_guid: DatasetGuid) -> Result<DestructionPlan, PlanRefusal> {
+pub fn read_the_plan(
+    common_dir: &Path,
+    clone_guid: DatasetGuid,
+) -> Result<DestructionPlan, PlanRefusal> {
     let folder: PathBuf = plans_folder(common_dir);
     let folder_owner: u32 = common_directory_owner(common_dir)?;
     check_the_folder(folder.as_path(), folder_owner)?;
@@ -144,20 +196,37 @@ pub fn read_the_plan(common_dir: &Path, clone_guid: DatasetGuid) -> Result<Destr
 /// ```ts
 /// checkFolder(folderPath, commonDirOwner);
 /// ```
-pub fn check_the_folder(folder: &Path, owner: u32) -> Result<(), PlanRefusal> {
-    let metadata: std::fs::Metadata = std::fs::metadata(folder).map_err(|error| return PlanRefusal::at(PlanRefusalCause::Unreadable, "folder", error.to_string()))?;
+pub fn check_the_folder(
+    folder: &Path,
+    owner: u32,
+) -> Result<(), PlanRefusal> {
+    let metadata: std::fs::Metadata = std::fs::metadata(folder).map_err(|error| {
+        return PlanRefusal::at(PlanRefusalCause::Unreadable, "folder", error.to_string());
+    })?;
     if !metadata.is_dir() {
-        return Err(PlanRefusal::at(PlanRefusalCause::NotARegularFile, "folder", "not a directory"));
+        return Err(PlanRefusal::at(
+            PlanRefusalCause::NotARegularFile,
+            "folder",
+            "not a directory",
+        ));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         let mode: u32 = metadata.mode() & 0o777;
         if mode != 0o700 {
-            return Err(PlanRefusal::at(PlanRefusalCause::FolderMode, "folder", format!("{mode:04o}")));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::FolderMode,
+                "folder",
+                format!("{mode:04o}"),
+            ));
         }
         if metadata.uid() != owner {
-            return Err(PlanRefusal::at(PlanRefusalCause::WrongOwner, "folder", metadata.uid().to_string()));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::WrongOwner,
+                "folder",
+                metadata.uid().to_string(),
+            ));
         }
     }
     #[cfg(not(unix))]
@@ -178,16 +247,29 @@ pub fn check_the_folder(folder: &Path, owner: u32) -> Result<(), PlanRefusal> {
 /// ```ts
 /// checkRecordOwner(planPath, folderOwner);
 /// ```
-pub fn check_the_record_owner(path: &Path, owner: u32) -> Result<(), PlanRefusal> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string()))?;
+pub fn check_the_record_owner(
+    path: &Path,
+    owner: u32,
+) -> Result<(), PlanRefusal> {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        return PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string());
+    })?;
     if !metadata.is_file() {
-        return Err(PlanRefusal::at(PlanRefusalCause::NotARegularFile, "file", path.display().to_string()));
+        return Err(PlanRefusal::at(
+            PlanRefusalCause::NotARegularFile,
+            "file",
+            path.display().to_string(),
+        ));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         if metadata.uid() != owner {
-            return Err(PlanRefusal::at(PlanRefusalCause::WrongOwner, "file", metadata.uid().to_string()));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::WrongOwner,
+                "file",
+                metadata.uid().to_string(),
+            ));
         }
     }
     #[cfg(not(unix))]
@@ -197,7 +279,13 @@ pub fn check_the_record_owner(path: &Path, owner: u32) -> Result<(), PlanRefusal
 
 /// The account that owns the common Git directory.
 fn common_directory_owner(common_dir: &Path) -> Result<u32, PlanRefusal> {
-    let metadata: std::fs::Metadata = std::fs::metadata(common_dir).map_err(|error| return PlanRefusal::at(PlanRefusalCause::Unreadable, "common directory", error.to_string()))?;
+    let metadata: std::fs::Metadata = std::fs::metadata(common_dir).map_err(|error| {
+        return PlanRefusal::at(
+            PlanRefusalCause::Unreadable,
+            "common directory",
+            error.to_string(),
+        );
+    })?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -223,7 +311,10 @@ fn header_region_bytes(bytes: &[u8]) -> Result<usize, PlanRefusal> {
             return Ok(place + 1);
         }
     }
-    return Err(PlanRefusal::of(PlanRefusalCause::EndsEarly, format!("{newlines} of {HEADER_LINE_COUNT} header lines")));
+    return Err(PlanRefusal::of(
+        PlanRefusalCause::EndsEarly,
+        format!("{newlines} of {HEADER_LINE_COUNT} header lines"),
+    ));
 }
 
 /// What:
@@ -245,13 +336,22 @@ fn header_region_bytes(bytes: &[u8]) -> Result<usize, PlanRefusal> {
 /// ```ts
 /// const plan = readAnExistingPlan(commonDir, cloneGuid); // undefined when none stands
 /// ```
-pub fn read_an_existing_plan(common_dir: &Path, clone_guid: DatasetGuid) -> Result<Option<DestructionPlan>, PlanRefusal> {
+pub fn read_an_existing_plan(
+    common_dir: &Path,
+    clone_guid: DatasetGuid,
+) -> Result<Option<DestructionPlan>, PlanRefusal> {
     let folder: PathBuf = plans_folder(common_dir);
     let name: String = clone_guid.file_name();
     let path: PathBuf = folder.join(name.as_str());
     match std::fs::symlink_metadata(path.as_path()) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string())),
+        Err(error) => {
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::Unreadable,
+                "file",
+                error.to_string(),
+            ));
+        }
         Ok(_) => {}
     }
     return read_the_plan(common_dir, clone_guid).map(Some);

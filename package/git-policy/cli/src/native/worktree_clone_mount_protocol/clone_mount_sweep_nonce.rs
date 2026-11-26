@@ -23,9 +23,19 @@
 //! const reading = readSweepNonce(properties, cloneName); // { kind: 'nudge', nonce } | ...
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{NONCE_HEX_DIGITS, SWEEP_NONCE_PROPERTY};
-use crate::worktree_clone_mount_protocol::local_user_property::{PropertyReading, PropertyRefusal, read_local_property};
-use crate::worktree_clone_mount_protocol::request_nonce::{NonceRefusal, RequestNonce};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    NONCE_HEX_DIGITS,
+    SWEEP_NONCE_PROPERTY,
+};
+use crate::worktree_clone_mount_protocol::local_user_property::{
+    PropertyReading,
+    PropertyRefusal,
+    read_local_property,
+};
+use crate::worktree_clone_mount_protocol::request_nonce::{
+    NonceRefusal,
+    RequestNonce,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 /// What:
@@ -121,7 +131,9 @@ pub fn sweep_nonce_text(nonce: &RequestNonce) -> String {
 /// ```
 pub fn parse_sweep_nonce(text: &str) -> Result<RequestNonce, NudgeRefusal> {
     if text.len() > NONCE_HEX_DIGITS {
-        return Err(NudgeRefusal::Nonce(NonceRefusal::Length { found: text.len() }));
+        return Err(NudgeRefusal::Nonce(NonceRefusal::Length {
+            found: text.len(),
+        }));
     }
     return RequestNonce::parse(text).map_err(NudgeRefusal::Nonce);
 }
@@ -139,16 +151,27 @@ pub fn parse_sweep_nonce(text: &str) -> Result<RequestNonce, NudgeRefusal> {
 /// ```ts
 /// const reading = readSweepNonce(reply.properties, cloneName);
 /// ```
-pub fn read_sweep_nonce(properties: Option<&NvList>, clone: &str) -> NudgeReading {
+pub fn read_sweep_nonce(
+    properties: Option<&NvList>,
+    clone: &str,
+) -> NudgeReading {
     let reading: PropertyReading<'_> = read_local_property(properties, clone, SWEEP_NONCE_PROPERTY);
     return match reading {
         PropertyReading::Absent => NudgeReading::Absent,
-        PropertyReading::Inherited { from } => NudgeReading::Inherited { from },
-        PropertyReading::Local { value } => match parse_sweep_nonce(value) {
+        PropertyReading::Inherited {
+            from,
+        } => NudgeReading::Inherited {
+            from,
+        },
+        PropertyReading::Local {
+            value,
+        } => match parse_sweep_nonce(value) {
             Ok(nonce) => NudgeReading::Nudge(nonce),
             Err(refusal) => NudgeReading::Refused(refusal),
         },
-        PropertyReading::Malformed(refusal) => NudgeReading::Refused(NudgeRefusal::Property(refusal)),
+        PropertyReading::Malformed(refusal) => {
+            NudgeReading::Refused(NudgeRefusal::Property(refusal))
+        }
     };
 }
 

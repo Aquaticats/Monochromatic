@@ -27,17 +27,20 @@
 //! // await journal.recoverInterrupted(ownerIsDead);
 //! ```
 
+/// The unique name part shared with the private index directories.
+use crate::candidate_private_index::unique_suffix;
+/// One extended attribute of the file a correction belongs to.
+use crate::direct_fix_install_attributes::Attribute;
 /// The corrected bytes,
 ///  and what a later command needs to know about them.
 use crate::direct_fix_install_writes::Kept;
-/// One extended attribute of the file a correction belongs to.
-use crate::direct_fix_install_attributes::Attribute;
-/// The unique name part shared with the private index directories.
-use crate::candidate_private_index::unique_suffix;
 /// The digest that names a state of a file without holding it.
 use crate::subvolume_sha::sha256;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name prefix of every journal directory,
 ///  inside the Git directory.
@@ -301,7 +304,9 @@ pub(crate) fn open_journal(
     let directory: PathBuf = git_dir.join(format!("{JOURNAL_PREFIX}{}", unique_suffix()));
     let created: std::io::Result<()> = private_directory(directory.as_path());
     if let Err(error) = created {
-        return Err(JournalFailure::Unwritable { error });
+        return Err(JournalFailure::Unwritable {
+            error,
+        });
     }
     let record: JournalRecord = JournalRecord {
         destination: destination.to_path_buf(),
@@ -312,13 +317,13 @@ pub(crate) fn open_journal(
         replacement: digest_of(replacement),
         attributes: kept.attributes.clone(),
     };
-    let written: std::io::Result<()> = std::fs::write(
-        directory.join(RECORD_FILE),
-        record.encode().as_bytes(),
-    );
+    let written: std::io::Result<()> =
+        std::fs::write(directory.join(RECORD_FILE), record.encode().as_bytes());
     if let Err(error) = written {
         let _ = std::fs::remove_dir_all(directory.as_path());
-        return Err(JournalFailure::Unwritable { error });
+        return Err(JournalFailure::Unwritable {
+            error,
+        });
     }
     return Ok(directory);
 }
@@ -350,9 +355,14 @@ pub(crate) enum JournalFailure {
 }
 
 impl std::fmt::Display for JournalFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
-            Self::Unwritable { error } => write!(
+            Self::Unwritable {
+                error,
+            } => write!(
                 formatter,
                 "its journal cannot be written inside the Git directory ({error})"
             ),
@@ -495,7 +505,9 @@ fn device_of(path: &Path) -> Result<u64, JournalFailure> {
 /// const unreadable = (error: Error) => ({ kind: 'unwritable', error });
 /// ```
 fn unreadable(error: std::io::Error) -> JournalFailure {
-    return JournalFailure::Unwritable { error };
+    return JournalFailure::Unwritable {
+        error,
+    };
 }
 
 /// What:

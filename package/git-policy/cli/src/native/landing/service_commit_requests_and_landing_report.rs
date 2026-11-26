@@ -15,24 +15,43 @@
 //! requestForGitBuilt(...); requestForEmbedded(...); reportLanding(...)
 //! ```
 
+use crate::commit_transaction::{
+    CommitInvocation,
+    TransactionStop,
+};
 /// The marker lines a committed file still holds,
 /// and the line about an operation left open.
-use crate::conflict_markers::{open_operation_line, paths_with_markers};
+use crate::conflict_markers::{
+    open_operation_line,
+    paths_with_markers,
+};
+use crate::landed_summary::{
+    amend_lands_as_new_note,
+    rebuilt_note,
+    short_name,
+    subject_of,
+    summary_line,
+};
 /// The commit an amend makes when the branch moved under it.
 use crate::service_amend_replayed::AmendedCommit;
-/// The kind of operation a commit concludes.
-use crate::transaction_journal::Conclusion;
-use crate::commit_transaction::{CommitInvocation, TransactionStop};
-use crate::landed_summary::{amend_lands_as_new_note, rebuilt_note, short_name, subject_of, summary_line};
-use crate::service_prepare::{NativeInputs, Ready};
+use crate::service_commit_input_notes_and_embedded_commit::{
+    Embedded,
+    print_note,
+    print_summary,
+};
+use crate::service_prepare::{
+    NativeInputs,
+    Ready,
+};
 use crate::service_protocol::CommitRequest;
-use crate::worktree_completion::install_added_worktree_files;
-use std::io::Write;
-use std::path::PathBuf;
-use crate::service_commit_input_notes_and_embedded_commit::{Embedded, print_note, print_summary};
 /// Standard error as a stream whose lines a thread of their own writes,
 /// so a reader that stopped draining holds neither the landing's report nor the command.
 use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+/// The kind of operation a commit concludes.
+use crate::transaction_journal::Conclusion;
+use crate::worktree_completion::install_added_worktree_files;
+use std::io::Write;
+use std::path::PathBuf;
 
 /// What:
 ///  The request for a commit that Git built in the shadow,
@@ -47,7 +66,14 @@ use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThre
 /// ```ts
 /// const requestForGitBuilt = (ready, inputs, id, builtCommit, amend, drawn) => ({ id, ...identity(ready, inputs), changes: [], commit: builtCommit, amend, cleanup: ready.cleanup, shadow: drawn });
 /// ```
-pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs, id: &str, built_commit: String, amend: bool, drawn: Option<std::path::PathBuf>) -> CommitRequest {
+pub(crate) fn request_for_git_built(
+    ready: &Ready,
+    native_inputs: &NativeInputs,
+    id: &str,
+    built_commit: String,
+    amend: bool,
+    drawn: Option<std::path::PathBuf>,
+) -> CommitRequest {
     return CommitRequest {
         id: id.to_string(),
         repository: ready.repository.clone(),
@@ -87,7 +113,13 @@ pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs,
 /// ```ts
 /// const requestForEmbedded = (ready, inputs, id, made, tree) => ({ id, ...identity(ready, inputs), changes: ready.changes, message: made.message });
 /// ```
-pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, id: &str, made: &Embedded, tree: &Option<String>) -> CommitRequest {
+pub(crate) fn request_for_embedded(
+    ready: &Ready,
+    native_inputs: &NativeInputs,
+    id: &str,
+    made: &Embedded,
+    tree: &Option<String>,
+) -> CommitRequest {
     return CommitRequest {
         id: id.to_string(),
         repository: ready.repository.clone(),
@@ -159,7 +191,15 @@ pub(crate) fn report_landing(
             native_inputs.capture.layout.config_snapshot.as_ref(),
             commit,
         );
-        print_summary(summary_line(&ready.reference, first_parent, name.as_str(), subject_of(made.message.as_str()).as_str()).as_str());
+        print_summary(
+            summary_line(
+                &ready.reference,
+                first_parent,
+                name.as_str(),
+                subject_of(made.message.as_str()).as_str(),
+            )
+            .as_str(),
+        );
     }
     // A commit the wrapper wrote itself, from the fields of the commit the person's line prepared: its own summary line
     //  (unless `--quiet`), and, for an amend, the words that say what it became and that the commit it named was left as it is.
@@ -173,10 +213,21 @@ pub(crate) fn report_landing(
             commit,
         );
         if !amended.quiet() {
-            print_summary(summary_line(&ready.reference, first_parent, name.as_str(), amended.subject().as_str()).as_str());
+            print_summary(
+                summary_line(
+                    &ready.reference,
+                    first_parent,
+                    name.as_str(),
+                    amended.subject().as_str(),
+                )
+                .as_str(),
+            );
         }
         if invocation.region.amend {
-            print_note(amend_lands_as_new_note(ready.reference.short().spoken().as_str(), name.as_str()).as_str());
+            print_note(
+                amend_lands_as_new_note(ready.reference.short().spoken().as_str(), name.as_str())
+                    .as_str(),
+            );
         }
     }
     // A commit Git built again printed a summary for each build; one line names the builds that did not land and the one that
@@ -187,16 +238,28 @@ pub(crate) fn report_landing(
         for full in unlanded {
             lost.push(abbreviated_name(invocation, native_inputs, full.as_str()));
         }
-        print_note(rebuilt_note(lost.as_slice(), abbreviated_name(invocation, native_inputs, commit).as_str()).as_str());
+        print_note(
+            rebuilt_note(
+                lost.as_slice(),
+                abbreviated_name(invocation, native_inputs, commit).as_str(),
+            )
+            .as_str(),
+        );
     }
     // What: The lines of the landing report go to the thread that writes standard error.
     // Why:  They are lines a person can live without, and a reader that stopped draining must cost
     //       them and never the command that has already landed.
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
     // The owner: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
     //  The claim is made for a path whose committed blob holds marker lines, read from the blob and the marker size
     //  the attributes give; a path whose blob holds none is resolved, and nothing is said about markers for it.
-    for path in paths_with_markers(invocation.context, ready.repository.as_path(), commit, ready.committed_conflicted.as_slice()) {
+    for path in paths_with_markers(
+        invocation.context,
+        ready.repository.as_path(),
+        commit,
+        ready.committed_conflicted.as_slice(),
+    ) {
         let name: String = String::from_utf8_lossy(path.as_slice()).into_owned();
         // Terminal output error: a warning is advisory; a failed write must not fail a commit that landed.
         let _warned = writeln!(
@@ -246,7 +309,11 @@ pub(crate) fn message_stop(error: crate::recovery_error::RecoveryError) -> Trans
 /// ```ts
 /// const abbreviatedName = (full: string) => shortName(context, cwd, objectDirectory, config, full);
 /// ```
-pub(crate) fn abbreviated_name(invocation: &CommitInvocation<'_>, native_inputs: &NativeInputs, full: &str) -> String {
+pub(crate) fn abbreviated_name(
+    invocation: &CommitInvocation<'_>,
+    native_inputs: &NativeInputs,
+    full: &str,
+) -> String {
     return short_name(
         invocation.context,
         invocation.cwd,

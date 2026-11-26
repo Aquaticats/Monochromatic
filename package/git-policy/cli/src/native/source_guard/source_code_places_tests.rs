@@ -40,7 +40,10 @@ enum Place {
 /// Why:
 ///  `r#"..."#` is the one Rust text shape a plain `"` reader gets wrong,
 ///  and the count of hashes is what ends it.
-fn starts_a_raw_text(bytes: &[u8], index: usize) -> Option<usize> {
+fn starts_a_raw_text(
+    bytes: &[u8],
+    index: usize,
+) -> Option<usize> {
     if bytes.get(index) != Some(&b'r') {
         return None;
     }

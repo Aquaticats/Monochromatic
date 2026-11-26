@@ -42,7 +42,10 @@
 use crate::diagnostic_log::debug;
 /// The read-only Git questions,
 /// and the answers their callers read.
-use crate::lfs_upload_settings::{Query, QueryAwaiting};
+use crate::lfs_upload_settings::{
+    Query,
+    QueryAwaiting,
+};
 /// The destination's branches,
 /// by ref name.
 use std::collections::HashMap;
@@ -102,7 +105,10 @@ fn is_filled(field: &str) -> bool {
 /// ```ts
 /// listing.split('\n').flatMap((line) => { const fields = line.split('\t'); if (!line) return []; if (fields.length !== 3) throw new Error(line); return fields[1] || !fields[2].startsWith(prefix) ? [] : [{ oid: fields[0], branch: fields[2].slice(prefix.length) }]; });
 /// ```
-fn tracking_refs(listing: &str, remote: &str) -> Option<Vec<TrackingRef>> {
+fn tracking_refs(
+    listing: &str,
+    remote: &str,
+) -> Option<Vec<TrackingRef>> {
     let prefix: String = format!("refs/remotes/{remote}/");
     let mut tracked: Vec<TrackingRef> = Vec::new();
     for line in listing.lines() {
@@ -110,7 +116,9 @@ fn tracking_refs(listing: &str, remote: &str) -> Option<Vec<TrackingRef>> {
             continue;
         }
         let mut fields = line.split('\t');
-        let (Some(oid), Some(symbolic), Some(refname)) = (fields.next(), fields.next(), fields.next()) else {
+        let (Some(oid), Some(symbolic), Some(refname)) =
+            (fields.next(), fields.next(), fields.next())
+        else {
             return None;
         };
         if fields.next().is_some() {
@@ -169,13 +177,22 @@ impl DestinationHeads {
     /// ```ts
     /// DestinationHeads.fromListing(remote, listing); // { remote, heads } | undefined
     /// ```
-    pub fn from_listing(remote: &str, listing: &str) -> Option<DestinationHeads> {
-        return Some(DestinationHeads { remote: remote.to_owned(), heads: destination_heads(listing)? });
+    pub fn from_listing(
+        remote: &str,
+        listing: &str,
+    ) -> Option<DestinationHeads> {
+        return Some(DestinationHeads {
+            remote: remote.to_owned(),
+            heads: destination_heads(listing)?,
+        });
     }
 
     /// The heads this answer holds for `remote`,
     /// or nothing when it was read for another remote.
-    pub(crate) fn heads_for(&self, remote: &str) -> Option<HashMap<String, String>> {
+    pub(crate) fn heads_for(
+        &self,
+        remote: &str,
+    ) -> Option<HashMap<String, String>> {
         if self.remote != remote {
             return None;
         }
@@ -287,7 +304,10 @@ impl ConfirmedTrackingRefs {
 /// const unconfirmed = (every: boolean): ConfirmedTrackingRefs => ({ confirmed: [], every });
 /// ```
 fn unconfirmed(every: bool) -> ConfirmedTrackingRefs {
-    return ConfirmedTrackingRefs { confirmed: Vec::new(), every };
+    return ConfirmedTrackingRefs {
+        confirmed: Vec::new(),
+        every,
+    };
 }
 
 /// What:
@@ -303,7 +323,11 @@ fn unconfirmed(every: bool) -> ConfirmedTrackingRefs {
 /// ```ts
 /// const confirmed = tracked.filter(({ branch, oid }) => heads.get(`refs/heads/${branch}`) === oid);
 /// ```
-fn confirmed_tracking_refs(tracked: &[TrackingRef], heads: &HashMap<String, String>, remote: &str) -> Vec<String> {
+fn confirmed_tracking_refs(
+    tracked: &[TrackingRef],
+    heads: &HashMap<String, String>,
+    remote: &str,
+) -> Vec<String> {
     let mut confirmed: Vec<String> = Vec::new();
     for tracked_ref in tracked {
         let wanted: String = format!("refs/heads/{}", tracked_ref.branch);
@@ -327,14 +351,20 @@ fn confirmed_tracking_refs(tracked: &[TrackingRef], heads: &HashMap<String, Stri
 /// ```ts
 /// function evidenceHolds(tracked, heads, remote): ConfirmedTrackingRefs;
 /// ```
-fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>>, remote: &str) -> ConfirmedTrackingRefs {
+fn evidence_holds(
+    tracked: &[TrackingRef],
+    heads: Option<HashMap<String, String>>,
+    remote: &str,
+) -> ConfirmedTrackingRefs {
     if tracked.is_empty() {
         return unconfirmed(true);
     }
     let Some(reported) = heads else {
         debug(
             TAG,
-            &format!("the destination of {remote} did not report its branches, so the whole pushed history is read"),
+            &format!(
+                "the destination of {remote} did not report its branches, so the whole pushed history is read"
+            ),
         );
         return unconfirmed(false);
     };
@@ -347,7 +377,10 @@ fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>
                 tracked.len()
             ),
         );
-        return ConfirmedTrackingRefs { confirmed, every: true };
+        return ConfirmedTrackingRefs {
+            confirmed,
+            every: true,
+        };
     }
     debug(
         TAG,
@@ -357,7 +390,10 @@ fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>
             tracked.len()
         ),
     );
-    return ConfirmedTrackingRefs { confirmed, every: false };
+    return ConfirmedTrackingRefs {
+        confirmed,
+        every: false,
+    };
 }
 
 /// What:
@@ -374,7 +410,10 @@ fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>
 /// ```ts
 /// query(['for-each-ref', format, `refs/remotes/${remote}`]) -> rows
 /// ```
-fn read_tracking_refs(remote: &str, query: Query<'_>) -> Option<Vec<TrackingRef>> {
+fn read_tracking_refs(
+    remote: &str,
+    query: Query<'_>,
+) -> Option<Vec<TrackingRef>> {
     let prefix: String = format!("refs/remotes/{remote}");
     return match query.ask(&["for-each-ref", TRACKING_FORMAT, prefix.as_str()]) {
         Ok(listing) => match tracking_refs(listing.as_str(), remote) {
@@ -382,7 +421,9 @@ fn read_tracking_refs(remote: &str, query: Query<'_>) -> Option<Vec<TrackingRef>
             None => {
                 debug(
                     TAG,
-                    &format!("git for-each-ref {prefix} answered in a shape this cannot read, so the whole pushed history is read"),
+                    &format!(
+                        "git for-each-ref {prefix} answered in a shape this cannot read, so the whole pushed history is read"
+                    ),
                 );
                 None
             }
@@ -390,7 +431,9 @@ fn read_tracking_refs(remote: &str, query: Query<'_>) -> Option<Vec<TrackingRef>
         Err(why) => {
             debug(
                 TAG,
-                &format!("git for-each-ref {prefix} did not answer ({why}), so the whole pushed history is read"),
+                &format!(
+                    "git for-each-ref {prefix} did not answer ({why}), so the whole pushed history is read"
+                ),
             );
             None
         }
@@ -399,15 +442,23 @@ fn read_tracking_refs(remote: &str, query: Query<'_>) -> Option<Vec<TrackingRef>
 
 /// The same question,
 /// awaited by a caller that is itself a task of the runtime.
-async fn read_tracking_refs_awaiting(remote: &str, query: QueryAwaiting<'_>) -> Option<Vec<TrackingRef>> {
+async fn read_tracking_refs_awaiting(
+    remote: &str,
+    query: QueryAwaiting<'_>,
+) -> Option<Vec<TrackingRef>> {
     let prefix: String = format!("refs/remotes/{remote}");
-    return match query.ask(&["for-each-ref", TRACKING_FORMAT, prefix.as_str()]).await {
+    return match query
+        .ask(&["for-each-ref", TRACKING_FORMAT, prefix.as_str()])
+        .await
+    {
         Ok(listing) => match tracking_refs(listing.as_str(), remote) {
             Some(tracked) => Some(tracked),
             None => {
                 debug(
                     TAG,
-                    &format!("git for-each-ref {prefix} answered in a shape this cannot read, so the whole pushed history is read"),
+                    &format!(
+                        "git for-each-ref {prefix} answered in a shape this cannot read, so the whole pushed history is read"
+                    ),
                 );
                 None
             }
@@ -415,7 +466,9 @@ async fn read_tracking_refs_awaiting(remote: &str, query: QueryAwaiting<'_>) -> 
         Err(why) => {
             debug(
                 TAG,
-                &format!("git for-each-ref {prefix} did not answer ({why}), so the whole pushed history is read"),
+                &format!(
+                    "git for-each-ref {prefix} did not answer ({why}), so the whole pushed history is read"
+                ),
             );
             None
         }
@@ -435,13 +488,18 @@ async fn read_tracking_refs_awaiting(remote: &str, query: QueryAwaiting<'_>) -> 
 /// ```ts
 /// query(['ls-remote', '--heads', remote]) -> heads
 /// ```
-fn read_destination_heads(remote: &str, query: Query<'_>) -> Option<HashMap<String, String>> {
+fn read_destination_heads(
+    remote: &str,
+    query: Query<'_>,
+) -> Option<HashMap<String, String>> {
     return match query.ask(&["ls-remote", "--heads", remote]) {
         Ok(reported) => destination_heads(reported.as_str()),
         Err(why) => {
             debug(
                 TAG,
-                &format!("git ls-remote --heads {remote} did not answer ({why}), so the whole pushed history is read"),
+                &format!(
+                    "git ls-remote --heads {remote} did not answer ({why}), so the whole pushed history is read"
+                ),
             );
             None
         }
@@ -450,13 +508,18 @@ fn read_destination_heads(remote: &str, query: Query<'_>) -> Option<HashMap<Stri
 
 /// The same question,
 /// awaited by a caller that is itself a task of the runtime.
-async fn read_destination_heads_awaiting(remote: &str, query: QueryAwaiting<'_>) -> Option<HashMap<String, String>> {
+async fn read_destination_heads_awaiting(
+    remote: &str,
+    query: QueryAwaiting<'_>,
+) -> Option<HashMap<String, String>> {
     return match query.ask(&["ls-remote", "--heads", remote]).await {
         Ok(reported) => destination_heads(reported.as_str()),
         Err(why) => {
             debug(
                 TAG,
-                &format!("git ls-remote --heads {remote} did not answer ({why}), so the whole pushed history is read"),
+                &format!(
+                    "git ls-remote --heads {remote} did not answer ({why}), so the whole pushed history is read"
+                ),
             );
             None
         }
@@ -480,14 +543,20 @@ async fn read_destination_heads_awaiting(remote: &str, query: QueryAwaiting<'_>)
 /// ```ts
 /// function trackingRefsConfirmedBy(remote: string, known: DestinationHeads | undefined, query: GitQuery): ConfirmedTrackingRefs;
 /// ```
-pub fn tracking_refs_confirmed_by(remote: &str, known: Option<&DestinationHeads>, query: Query<'_>) -> ConfirmedTrackingRefs {
+pub fn tracking_refs_confirmed_by(
+    remote: &str,
+    known: Option<&DestinationHeads>,
+    query: Query<'_>,
+) -> ConfirmedTrackingRefs {
     let Some(tracked) = read_tracking_refs(remote, query) else {
         return unconfirmed(false);
     };
     if tracked.is_empty() {
         return unconfirmed(true);
     }
-    let heads: Option<HashMap<String, String>> = match known.and_then(|carried| { return carried.heads_for(remote); }) {
+    let heads: Option<HashMap<String, String>> = match known.and_then(|carried| {
+        return carried.heads_for(remote);
+    }) {
         Some(answered) => Some(answered),
         None => read_destination_heads(remote, query),
     };
@@ -498,14 +567,20 @@ pub fn tracking_refs_confirmed_by(remote: &str, known: Option<&DestinationHeads>
 /// awaited by a caller that is itself a task of the runtime,
 /// with the answers and the decision of the
 ///  synchronous face.
-pub async fn tracking_refs_confirmed_by_awaiting(remote: &str, known: Option<&DestinationHeads>, query: QueryAwaiting<'_>) -> ConfirmedTrackingRefs {
+pub async fn tracking_refs_confirmed_by_awaiting(
+    remote: &str,
+    known: Option<&DestinationHeads>,
+    query: QueryAwaiting<'_>,
+) -> ConfirmedTrackingRefs {
     let Some(tracked) = read_tracking_refs_awaiting(remote, query).await else {
         return unconfirmed(false);
     };
     if tracked.is_empty() {
         return unconfirmed(true);
     }
-    let heads: Option<HashMap<String, String>> = match known.and_then(|carried| { return carried.heads_for(remote); }) {
+    let heads: Option<HashMap<String, String>> = match known.and_then(|carried| {
+        return carried.heads_for(remote);
+    }) {
         Some(answered) => Some(answered),
         None => read_destination_heads_awaiting(remote, query).await,
     };

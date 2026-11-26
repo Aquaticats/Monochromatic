@@ -18,12 +18,21 @@
 //! ```
 
 use super::{
-    DESTINATION_MODE, NamespaceCopy, Ready, rows_of, row_of, take_the_copy_out, topmost_at,
+    DESTINATION_MODE,
+    NamespaceCopy,
+    Ready,
+    row_of,
+    rows_of,
+    take_the_copy_out,
+    topmost_at,
 };
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::holder_preflight::Route;
 use crate::worktree_clone_forced_removal::recorded_handle::RecordedHandle;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A mount table holding the shape the design's tags are read from:
 /// the checkout's own mount shared with a group of its own,
@@ -55,10 +64,17 @@ fn the_kernel_s_tags_become_the_closure_s_rows() {
 #[test]
 fn the_topmost_mount_at_a_path_is_the_last_row_printed_for_it() {
     let rows = rows_of(A_TABLE);
-    let topmost = topmost_at(&rows, Path::new("/home/user/work/one")).expect("two mounts sit at that path");
-    assert_eq!(topmost.mount_id, 34, "the tmpfs stacked over the copy is what an unmount there meets");
+    let topmost =
+        topmost_at(&rows, Path::new("/home/user/work/one")).expect("two mounts sit at that path");
+    assert_eq!(
+        topmost.mount_id, 34,
+        "the tmpfs stacked over the copy is what an unmount there meets"
+    );
     assert_eq!(topmost.filesystem, "tmpfs");
-    assert!(topmost_at(&rows, Path::new("/home/user/work/nowhere")).is_none(), "a path no mount sits at answers nothing");
+    assert!(
+        topmost_at(&rows, Path::new("/home/user/work/nowhere")).is_none(),
+        "a path no mount sits at answers nothing"
+    );
     let below = row_of(&rows, 32).expect("the copy's own row is found by its mount id");
     assert_eq!(below.parent_id, 31);
 }
@@ -70,8 +86,12 @@ fn the_way_s_directory_is_its_owner_s_alone() {
 
 #[test]
 fn an_act_that_cannot_enter_a_namespace_is_refused_with_its_word_and_changes_nothing() {
-    let namespace: std::fs::File = std::fs::File::open("/proc/self/ns/mnt").expect("this process's own namespace is opened");
-    let handle: RecordedHandle = RecordedHandle { handle_type: 1, handle: vec![1, 2, 3] };
+    let namespace: std::fs::File =
+        std::fs::File::open("/proc/self/ns/mnt").expect("this process's own namespace is opened");
+    let handle: RecordedHandle = RecordedHandle {
+        handle_type: 1,
+        handle: vec![1, 2, 3],
+    };
     let checkout: PathBuf = PathBuf::from("/home/user/work");
     let slot: PathBuf = checkout.join("one");
     let copy: NamespaceCopy<'_> = NamespaceCopy {
@@ -83,9 +103,24 @@ fn an_act_that_cannot_enter_a_namespace_is_refused_with_its_word_and_changes_not
         handle: &handle,
         directory: ".git-worktree-clone-removal-1",
     };
-    let ready: Ready = Ready { route: Route::InPlaceByTheHandle, mount_id: 32, parent_id: 31, directory: None };
-    let refused = take_the_copy_out(&ready, &copy).expect_err("this account holds no capability to enter a mount namespace, and the act refuses");
+    let ready: Ready = Ready {
+        route: Route::InPlaceByTheHandle,
+        mount_id: 32,
+        parent_id: 31,
+        directory: None,
+    };
+    let refused = take_the_copy_out(&ready, &copy).expect_err(
+        "this account holds no capability to enter a mount namespace, and the act refuses",
+    );
     assert_eq!(refused.word, RefusalWord::HolderUnendable);
-    assert_eq!(refused.errno, Some(libc::EPERM), "the kernel's own refusal reaches the act, and it read {refused}");
-    assert!(refused.said.contains("setns"), "the refusal names the call, and it read {}", refused.said);
+    assert_eq!(
+        refused.errno,
+        Some(libc::EPERM),
+        "the kernel's own refusal reaches the act, and it read {refused}"
+    );
+    assert!(
+        refused.said.contains("setns"),
+        "the refusal names the call, and it read {}",
+        refused.said
+    );
 }

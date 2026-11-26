@@ -11,7 +11,13 @@
 //! and that a stuck run ends its process.
 
 use super::*;
-use crate::test_support::{arm_watchdog, fixture, forbid_core_dumps, remove, spawn_owned};
+use crate::test_support::{
+    arm_watchdog,
+    fixture,
+    forbid_core_dumps,
+    remove,
+    spawn_owned,
+};
 use std::os::unix::process::ExitStatusExt as _;
 
 /// What:
@@ -26,11 +32,27 @@ use std::os::unix::process::ExitStatusExt as _;
 /// ```ts
 /// const moved = (bytes, ticks, members) => ({ bytes: bytes * members, ticks: ticks * members, working: false, members, tasks: [...members].map((task) => ({ task, bytes, ticks })) });
 /// ```
-fn moved(bytes: u64, ticks: u64, members: u64) -> Look {
+fn moved(
+    bytes: u64,
+    ticks: u64,
+    members: u64,
+) -> Look {
     let tasks: Vec<TaskFigures> = (0..members)
-        .map(|task: u64| { return TaskFigures { task, bytes, ticks }; })
+        .map(|task: u64| {
+            return TaskFigures {
+                task,
+                bytes,
+                ticks,
+            };
+        })
         .collect();
-    return Look { bytes: bytes.saturating_mul(members), ticks: ticks.saturating_mul(members), working: false, members, tasks };
+    return Look {
+        bytes: bytes.saturating_mul(members),
+        ticks: ticks.saturating_mul(members),
+        working: false,
+        members,
+        tasks,
+    };
 }
 
 /// A run that keeps moving is left alone,
@@ -42,7 +64,11 @@ fn a_run_that_keeps_moving_is_left_alone() {
     let mut elapsed: Duration = Duration::ZERO;
     // Ten windows of a run that writes a record at every look.
     for step in 0..40_u64 {
-        assert_eq!(judge.observe(elapsed, Some(moved(step * 4096, step, 3))), None, "step {step} moved");
+        assert_eq!(
+            judge.observe(elapsed, Some(moved(step * 4096, step, 3))),
+            None,
+            "step {step} moved"
+        );
         elapsed += SAMPLE_INTERVAL;
     }
     assert!(elapsed > window * 9, "{elapsed:?} passes nine windows");
@@ -69,7 +95,11 @@ fn a_run_that_stops_moving_is_ended_after_the_window() {
         }
         elapsed += SAMPLE_INTERVAL;
     }
-    assert_eq!(ended, Some(Ending::Quiet(window)), "the first look the window covers ends the run, and it is the window old");
+    assert_eq!(
+        ended,
+        Some(Ending::Quiet(window)),
+        "the first look the window covers ends the run, and it is the window old"
+    );
 }
 
 /// A run whose counters stop being readable is still ended:
@@ -82,17 +112,29 @@ fn a_run_whose_counters_stop_being_readable_is_ended() {
     let mut judge: Judge = Judge::new(window);
     // One look that reads the run and finds it moving,
     // as the first look of a test that then exhausts its descriptors does.
-    assert_eq!(judge.observe(Duration::ZERO, Some(moved(4096, 1, 3))), None, "the run moved");
+    assert_eq!(
+        judge.observe(Duration::ZERO, Some(moved(4096, 1, 3))),
+        None,
+        "the run moved"
+    );
     let mut elapsed: Duration = Duration::ZERO;
     let mut ended: Option<Ending> = None;
     while ended.is_none() && elapsed < window * 4 {
         elapsed += SAMPLE_INTERVAL;
         ended = judge.observe(elapsed, None);
     }
-    let reported: Ending = ended.expect("the run ends rather than wait for a reading that never comes");
-    assert_eq!(reported, Ending::Unreadable(window), "the window of looks that read nothing ends the run");
+    let reported: Ending =
+        ended.expect("the run ends rather than wait for a reading that never comes");
+    assert_eq!(
+        reported,
+        Ending::Unreadable(window),
+        "the window of looks that read nothing ends the run"
+    );
     let said: String = reported.to_string();
-    assert!(said.contains("counters"), "the ending names what could not be read: {said}");
+    assert!(
+        said.contains("counters"),
+        "the ending names what could not be read: {said}"
+    );
 }
 
 /// A first look that cannot be read does not decide the run for ever:
@@ -102,11 +144,19 @@ fn a_run_whose_counters_stop_being_readable_is_ended() {
 fn a_first_look_that_cannot_be_read_leaves_the_later_ones_to_judge() {
     let window: Duration = Duration::from_secs(2);
     let mut judge: Judge = Judge::new(window);
-    assert_eq!(judge.observe(Duration::ZERO, None), None, "the window has not passed");
+    assert_eq!(
+        judge.observe(Duration::ZERO, None),
+        None,
+        "the window has not passed"
+    );
     let mut elapsed: Duration = Duration::ZERO;
     // Descriptors are back, and the run is readable and moving window after window.
     for step in 0..20_u64 {
-        assert_eq!(judge.observe(elapsed, Some(moved(step * 4096, step, 3))), None, "step {step} moved");
+        assert_eq!(
+            judge.observe(elapsed, Some(moved(step * 4096, step, 3))),
+            None,
+            "step {step} moved"
+        );
         elapsed += SAMPLE_INTERVAL;
     }
     assert!(elapsed > window * 4, "{elapsed:?} passes four windows");
@@ -122,7 +172,11 @@ fn a_run_waiting_for_the_disk_is_left_alone() {
     waiting.working = true;
     let mut elapsed: Duration = Duration::ZERO;
     for _ in 0..8 {
-        assert_eq!(judge.observe(elapsed, Some(waiting.clone())), None, "a task in disk wait is at work");
+        assert_eq!(
+            judge.observe(elapsed, Some(waiting.clone())),
+            None,
+            "a task in disk wait is at work"
+        );
         elapsed += SAMPLE_INTERVAL;
     }
 }
@@ -137,7 +191,11 @@ fn a_run_whose_tasks_come_and_go_is_left_alone() {
     for step in 0..8_u64 {
         // The same figures, one task more or fewer at each look: a run that starts and ends threads.
         let members: u64 = 3 + step % 2;
-        assert_eq!(judge.observe(elapsed, Some(moved(0, 0, members))), None, "step {step} changed its tasks");
+        assert_eq!(
+            judge.observe(elapsed, Some(moved(0, 0, members))),
+            None,
+            "step {step} changed its tasks"
+        );
         elapsed += SAMPLE_INTERVAL;
     }
 }
@@ -167,7 +225,11 @@ fn a_run_whose_figures_only_fall_is_ended() {
         }
         elapsed += SAMPLE_INTERVAL;
     }
-    assert_eq!(ended, Some(Ending::Quiet(window)), "a run whose figures only fall is ended at the first look the window covers");
+    assert_eq!(
+        ended,
+        Some(Ending::Quiet(window)),
+        "a run whose figures only fall is ended at the first look the window covers"
+    );
 }
 
 /// What:
@@ -195,11 +257,17 @@ fn a_task_that_keeps_moving_keeps_the_run_alive_though_the_totals_fall() {
     // One look per step: the worker (task 1) moved more than the look before, and the task that took the previous
     //  look's place had moved less than the one it replaced.
     for step in 1..=10_u64 {
-        let worker: TaskFigures = TaskFigures { task: 1, bytes: step * WORKER_MOVES, ticks: step };
+        let worker: TaskFigures = TaskFigures {
+            task: 1,
+            bytes: step * WORKER_MOVES,
+            ticks: step,
+        };
         let replaced: TaskFigures = TaskFigures {
             task: 100 + step,
-            bytes: THE_TASK_BEFORE_HAD_MOVED.saturating_sub(step * ITS_SUCCESSOR_MOVED_THIS_MUCH_LESS),
-            ticks: ITS_SUCCESSOR_USED_THIS_MUCH_LESS.saturating_sub(step * ITS_SUCCESSOR_USED_LESS_EACH_LOOK),
+            bytes: THE_TASK_BEFORE_HAD_MOVED
+                .saturating_sub(step * ITS_SUCCESSOR_MOVED_THIS_MUCH_LESS),
+            ticks: ITS_SUCCESSOR_USED_THIS_MUCH_LESS
+                .saturating_sub(step * ITS_SUCCESSOR_USED_LESS_EACH_LOOK),
         };
         let look: Look = Look {
             bytes: worker.bytes + replaced.bytes,
@@ -208,12 +276,23 @@ fn a_task_that_keeps_moving_keeps_the_run_alive_though_the_totals_fall() {
             members: 2,
             tasks: vec![worker, replaced],
         };
-        assert!(look.bytes < last_total, "step {step}: the totals fall, {} is not below {last_total}", look.bytes);
+        assert!(
+            look.bytes < last_total,
+            "step {step}: the totals fall, {} is not below {last_total}",
+            look.bytes
+        );
         last_total = look.bytes;
-        assert_eq!(judge.observe(elapsed, Some(look)), None, "step {step}: the worker moved");
+        assert_eq!(
+            judge.observe(elapsed, Some(look)),
+            None,
+            "step {step}: the worker moved"
+        );
         elapsed += SAMPLE_INTERVAL;
     }
-    assert!(elapsed > window, "{elapsed:?} passes the window while the worker moved at every look");
+    assert!(
+        elapsed > window,
+        "{elapsed:?} passes the window while the worker moved at every look"
+    );
 }
 
 /// How much the worker of the control above moves at every look.
@@ -251,7 +330,10 @@ fn a_thread_inside_two_waits_is_left_out_of_the_run_once() {
     let _primed: Look = look_now().expect("this system counts its tasks' work");
     let before: Look = look_now().expect("still readable");
     let after: Look = look_now().expect("still readable");
-    assert_eq!(after.bytes, before.bytes, "a thread's own readings are not the run's work, however many waits it is inside");
+    assert_eq!(
+        after.bytes, before.bytes,
+        "a thread's own readings are not the run's work, however many waits it is inside"
+    );
 }
 
 /// What:
@@ -280,8 +362,16 @@ fn a_look_without_a_registration_does_not_count_its_own_readings_as_work() {
     // The judge on the same evidence: an idle run that is only read is quiet after its window.
     let window: Duration = Duration::from_secs(1);
     let mut judge: Judge = Judge::new(window);
-    assert_eq!(judge.observe(Duration::ZERO, look_now()), None, "the first look moved");
-    assert_eq!(judge.observe(Duration::from_millis(500), look_now()), None, "the window has not passed");
+    assert_eq!(
+        judge.observe(Duration::ZERO, look_now()),
+        None,
+        "the first look moved"
+    );
+    assert_eq!(
+        judge.observe(Duration::from_millis(500), look_now()),
+        None,
+        "the window has not passed"
+    );
     assert_eq!(
         judge.observe(window, look_now()),
         Some(Ending::Quiet(window)),
@@ -295,9 +385,16 @@ fn a_look_without_a_registration_does_not_count_its_own_readings_as_work() {
 fn a_system_that_counts_nothing_is_bounded_by_the_wall_clock() {
     let window: Duration = Duration::from_secs(2);
     let mut judge: Judge = Judge::new(window);
-    assert_eq!(judge.observe(Duration::from_secs(1), None), None, "the window has not passed");
+    assert_eq!(
+        judge.observe(Duration::from_secs(1), None),
+        None,
+        "the window has not passed"
+    );
     let ended: Option<Ending> = judge.observe(Duration::from_millis(2001), None);
-    assert_eq!(ended, Some(Ending::Unmeasurable(Duration::from_millis(2001))));
+    assert_eq!(
+        ended,
+        Some(Ending::Unmeasurable(Duration::from_millis(2001)))
+    );
 }
 
 /// The first look is a change,
@@ -305,7 +402,10 @@ fn a_system_that_counts_nothing_is_bounded_by_the_wall_clock() {
 #[test]
 fn the_first_look_is_work() {
     let mut judge: Judge = Judge::new(Duration::from_secs(1));
-    assert_eq!(judge.observe(Duration::from_secs(10), Some(moved(0, 0, 1))), None);
+    assert_eq!(
+        judge.observe(Duration::from_secs(10), Some(moved(0, 0, 1))),
+        None
+    );
 }
 
 /// The ending names the figure that decided it and the signs that were read,
@@ -314,11 +414,23 @@ fn the_first_look_is_work() {
 fn the_ending_names_the_quiet_stretch_and_the_signs_it_read() {
     let quiet: String = Ending::Quiet(Duration::from_millis(120_500)).to_string();
     assert!(quiet.contains("120.5 s"), "{quiet}");
-    assert!(quiet.contains("no task able to run or waiting for the disk") && quiet.contains("no bytes moved"), "{quiet}");
+    assert!(
+        quiet.contains("no task able to run or waiting for the disk")
+            && quiet.contains("no bytes moved"),
+        "{quiet}"
+    );
     let unmeasured: String = Ending::Unmeasurable(Duration::from_secs(120)).to_string();
-    assert!(unmeasured.contains("120.0 s") && unmeasured.contains("counts no work"), "{unmeasured}");
+    assert!(
+        unmeasured.contains("120.0 s") && unmeasured.contains("counts no work"),
+        "{unmeasured}"
+    );
     let unread: String = Ending::Unreadable(Duration::from_millis(3_500)).to_string();
-    assert!(unread.contains("3.5 s") && unread.contains("counters") && unread.contains("out of file descriptors"), "{unread}");
+    assert!(
+        unread.contains("3.5 s")
+            && unread.contains("counters")
+            && unread.contains("out of file descriptors"),
+        "{unread}"
+    );
 }
 
 /// The look counts this process and the processes it started,
@@ -333,11 +445,17 @@ fn the_look_sees_this_process_and_the_processes_it_started() {
         eprintln!("skipped: this system counts no task's work, so nothing is measured");
         return;
     };
-    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("60")).expect("sleep starts");
+    let mut child: std::process::Child =
+        spawn_owned(std::process::Command::new("sleep").arg("60")).expect("sleep starts");
     let after: Look = look(reader).expect("still readable");
     child.kill().expect("the child is killed");
     child.wait().expect("the child is reaped");
-    assert!(after.members > before.members, "the child's task is counted too: {} members became {}", before.members, after.members);
+    assert!(
+        after.members > before.members,
+        "the child's task is counted too: {} members became {}",
+        before.members,
+        after.members
+    );
 }
 
 /// What:
@@ -354,7 +472,9 @@ fn the_look_sees_this_process_and_the_processes_it_started() {
 /// ```
 fn child_path(name: &str) -> String {
     let module: &str = module_path!();
-    let without_crate: &str = module.split_once("::").map_or(module, |(_, rest)| { return rest; });
+    let without_crate: &str = module.split_once("::").map_or(module, |(_, rest)| {
+        return rest;
+    });
     return format!("{without_crate}::{name}");
 }
 
@@ -387,7 +507,10 @@ const CHILD_DEADLINE: Duration = Duration::from_secs(45);
 /// const status = await withDeadline(child, CHILD_DEADLINE); // kill and return undefined when it passes
 /// return status === undefined ? undefined : { status, stdout: drain(child.stdout) };
 /// ```
-fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Option<std::process::Output> {
+fn run_child_with_stderr_until(
+    name: &str,
+    stderr: std::process::Stdio,
+) -> Option<std::process::Output> {
     return run_child_with_stderr_within(name, stderr, CHILD_DEADLINE);
 }
 
@@ -402,7 +525,11 @@ fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Optio
 /// ```ts
 /// const status = await withDeadline(child, deadline); // kill and return undefined when it passes
 /// ```
-fn run_child_with_stderr_within(name: &str, stderr: std::process::Stdio, deadline: Duration) -> Option<std::process::Output> {
+fn run_child_with_stderr_within(
+    name: &str,
+    stderr: std::process::Stdio,
+    deadline: Duration,
+) -> Option<std::process::Output> {
     let path: String = child_path(name);
     // The child is this test binary on its own watchdog body, and the deadline here is the control's own, short one.
     return crate::child_test_process::finished(crate::child_test_process::ChildTest {
@@ -440,7 +567,8 @@ fn run_child(name: &str) -> Option<std::process::Output> {
 fn child_that_stops_moving() {
     forbid_core_dumps();
     // A run whose watcher could not start has no bound at all, so that is a failure of this child, not a quiet skip.
-    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
+    let _armed: std::thread::JoinHandle<()> =
+        watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     let (_sender, receiver) = std::sync::mpsc::channel::<()>();
     receiver.recv().expect("unreachable: nothing is ever sent");
 }
@@ -453,7 +581,8 @@ fn child_that_keeps_moving() {
     forbid_core_dumps();
     let root: std::path::PathBuf = fixture("progress-child");
     // The fixture's own watcher is enough here; this child's is the one-second window under test.
-    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
+    let _armed: std::thread::JoinHandle<()> =
+        watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     for _ in 0..30_u32 {
         std::fs::write(root.join("record"), vec![b'x'; 4096]).expect("write");
         std::thread::sleep(Duration::from_millis(100));
@@ -466,11 +595,19 @@ fn child_that_keeps_moving() {
 #[test]
 fn a_stuck_run_ends_its_process() {
     let ended: Option<std::process::Output> = run_child("child_that_stops_moving");
-    let output: std::process::Output = ended.expect("the watchdog ended the child that stopped moving");
+    let output: std::process::Output =
+        ended.expect("the watchdog ended the child that stopped moving");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(ran.contains(child_path("child_that_stops_moving").as_str()), "the child ran the test named, not nothing:\n{ran}");
-    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process:\n{said}");
+    assert!(
+        ran.contains(child_path("child_that_stops_moving").as_str()),
+        "the child ran the test named, not nothing:\n{ran}"
+    );
+    assert_eq!(
+        output.status.signal(),
+        Some(libc::SIGABRT),
+        "the watchdog ended the process:\n{said}"
+    );
     assert!(said.contains("a test is stuck"), "{said}");
     assert!(said.contains("showed no sign of work for"), "{said}");
 }
@@ -486,11 +623,20 @@ fn a_stuck_run_ends_its_process_though_its_report_cannot_be_written() {
             return;
         }
     };
-    let ended: Option<std::process::Output> = run_child_with_stderr_until("child_that_stops_moving", std::process::Stdio::from(file));
-    let output: std::process::Output = ended.expect("the watchdog ended the process though its report could not be written");
+    let ended: Option<std::process::Output> =
+        run_child_with_stderr_until("child_that_stops_moving", std::process::Stdio::from(file));
+    let output: std::process::Output =
+        ended.expect("the watchdog ended the process though its report could not be written");
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(ran.contains(child_path("child_that_stops_moving").as_str()), "the child ran the test named, not nothing:\n{ran}");
-    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process, though its report could not be written");
+    assert!(
+        ran.contains(child_path("child_that_stops_moving").as_str()),
+        "the child ran the test named, not nothing:\n{ran}"
+    );
+    assert_eq!(
+        output.status.signal(),
+        Some(libc::SIGABRT),
+        "the watchdog ended the process, though its report could not be written"
+    );
 }
 
 /// How many watchers `child_that_sleeps_under_two_watchers` arms:
@@ -524,7 +670,10 @@ const WATCHERS_UNDER_TEST: usize = 2;
 /// while (running !== expected && now() < deadline) { write('\n'); await sleep(200); running = readingThreads().length }
 /// return running;
 /// ```
-fn readers_running(expected: usize, within: Duration) -> usize {
+fn readers_running(
+    expected: usize,
+    within: Duration,
+) -> usize {
     let started: Instant = Instant::now();
     let mut running: usize = reading_threads().len();
     while running != expected && started.elapsed() < within {
@@ -549,9 +698,13 @@ fn readers_running(expected: usize, within: Duration) -> usize {
 fn child_that_sleeps_under_two_watchers() {
     forbid_core_dumps();
     arm_watchdog();
-    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
+    let _armed: std::thread::JoinHandle<()> =
+        watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     // The parent reads this count: a watcher ends this child either way, so only the count tells two apart from one.
-    println!("watchers: {}", readers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
+    println!(
+        "watchers: {}",
+        readers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5))
+    );
     // Nothing is ever sent, so only a watcher can end this child: a child that ended on a clock of its own would let a
     //  starved scheduler beat the watcher to it, and the control would fail while the watchdog was sound (measured
     //  2026-11-11, `doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
@@ -568,13 +721,24 @@ fn child_that_sleeps_under_two_watchers() {
 #[test]
 fn two_watchers_do_not_keep_each_other_alive() {
     let ended: Option<std::process::Output> = run_child("child_that_sleeps_under_two_watchers");
-    let output: std::process::Output = ended.expect("a watcher ended the child waiting under two of them");
+    let output: std::process::Output =
+        ended.expect("a watcher ended the child waiting under two of them");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    assert!(
+        ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()),
+        "the child ran the test named, not nothing:\n{ran}"
+    );
     // One watcher ends this child either way, so the count is what tells the two watchers apart from one.
-    assert!(ran.contains(format!("watchers: {WATCHERS_UNDER_TEST}").as_str()), "both watchers ran, so neither could count the other's readings as the run's work:\n{ran}");
-    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "a watcher ended the process:\n{said}");
+    assert!(
+        ran.contains(format!("watchers: {WATCHERS_UNDER_TEST}").as_str()),
+        "both watchers ran, so neither could count the other's readings as the run's work:\n{ran}"
+    );
+    assert_eq!(
+        output.status.signal(),
+        Some(libc::SIGABRT),
+        "a watcher ended the process:\n{said}"
+    );
     assert!(said.contains("a test is stuck"), "{said}");
 }
 
@@ -622,11 +786,15 @@ fn a_readers_own_stat_line_is_not_the_runs_work() {
     let stat_path: String = format!("/proc/self/task/{reader}/stat");
     // Read before the first look, so what that read costs is in the baseline both looks share; the read after the
     //  second look is taken off the look after it, and never judged here.
-    let before_length: usize = std::fs::read_to_string(stat_path.as_str()).expect("this system has a stat line").len();
+    let before_length: usize = std::fs::read_to_string(stat_path.as_str())
+        .expect("this system has a stat line")
+        .len();
     let before: Look = look(reader).expect("this system counts work");
     let renamed: bool = rename_this_thread(b"g\0");
     let after: Look = look(reader).expect("still readable");
-    let after_length: usize = std::fs::read_to_string(stat_path.as_str()).expect("this system has a stat line").len();
+    let after_length: usize = std::fs::read_to_string(stat_path.as_str())
+        .expect("this system has a stat line")
+        .len();
     assert!(
         renamed && after_length < before_length,
         "the name change shrinks this thread's stat line, so the length moved: {before_length} bytes became {after_length} (renamed: {renamed})"
@@ -635,7 +803,10 @@ fn a_readers_own_stat_line_is_not_the_runs_work() {
         after.bytes, before.bytes,
         "the reader's own stat line shrank from {before_length} to {after_length} bytes between the two looks and the run showed nothing, so the figures judged must not move"
     );
-    assert_eq!(after.members, before.members, "no task of the run started or ended");
+    assert_eq!(
+        after.members, before.members,
+        "no task of the run started or ended"
+    );
 }
 
 /// A reader's own stat file is not the run's work,
@@ -658,8 +829,12 @@ fn a_task_name_that_is_not_utf8_is_still_the_readers_own_reading() {
     let first: Option<Look> = look(reader);
     let second: Option<Look> = look(reader);
     let renamed_back: bool = rename_this_thread(b"progress-probe\0");
-    assert!(named && renamed_back, "the kernel takes a name holding a byte that is not UTF-8, and gives the readable one back");
-    let before: Look = first.expect("a name that is not UTF-8 is still a stat line this system answers");
+    assert!(
+        named && renamed_back,
+        "the kernel takes a name holding a byte that is not UTF-8, and gives the readable one back"
+    );
+    let before: Look =
+        first.expect("a name that is not UTF-8 is still a stat line this system answers");
     let after: Look = second.expect("the second look reads the same stat line");
     assert_eq!(
         after.bytes, before.bytes,
@@ -672,11 +847,18 @@ fn a_task_name_that_is_not_utf8_is_still_the_readers_own_reading() {
 #[test]
 fn a_run_that_keeps_moving_past_its_window_is_not_ended() {
     let ended: Option<std::process::Output> = run_child("child_that_keeps_moving");
-    let output: std::process::Output = ended.expect("the moving child ended on its own inside the deadline");
+    let output: std::process::Output =
+        ended.expect("the moving child ended on its own inside the deadline");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(output.status.success(), "the moving child ended on its own:\n{ran}\n{said}");
-    assert!(ran.contains("1 passed"), "the child ran the test named, not nothing:\n{ran}");
+    assert!(
+        output.status.success(),
+        "the moving child ended on its own:\n{ran}\n{said}"
+    );
+    assert!(
+        ran.contains("1 passed"),
+        "the child ran the test named, not nothing:\n{ran}"
+    );
     assert!(!said.contains("a test is stuck"), "{said}");
 }
 
@@ -688,9 +870,15 @@ fn a_run_that_keeps_moving_past_its_window_is_not_ended() {
 #[ignore = "started by a_wait_does_not_keep_the_watchdog_alive in a process of its own"]
 fn child_that_waits_under_the_watchdog() {
     forbid_core_dumps();
-    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
+    let _armed: std::thread::JoinHandle<()> =
+        watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     // The wait reads the run itself at every look, and those reads are not the run's work.
-    let _held: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor { window: Duration::from_secs(600), done: &|| { return false; } });
+    let _held: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor {
+        window: Duration::from_secs(600),
+        done: &|| {
+            return false;
+        },
+    });
 }
 
 /// How long the child of the control below leaves a process holding its output open.
@@ -717,10 +905,16 @@ fn child_that_leaves_a_pipe_holder() {
     // The parent ends the holder once it has read the line,
     // so nothing of the run outlives the control.
     let shell: std::process::ExitStatus = std::process::Command::new("sh")
-        .args(["-c", format!("sleep {} & echo \"holder $!\"", PIPE_HOLDER_LIFE.as_secs()).as_str()])
+        .args([
+            "-c",
+            format!("sleep {} & echo \"holder $!\"", PIPE_HOLDER_LIFE.as_secs()).as_str(),
+        ])
         .status()
         .expect("a shell starts a process that holds this child's output");
-    assert!(shell.success(), "the shell that starts the holder ended with {shell}");
+    assert!(
+        shell.success(),
+        "the shell that starts the holder ended with {shell}"
+    );
 }
 
 /// What:
@@ -745,19 +939,29 @@ fn a_child_that_leaves_a_pipe_holder_does_not_hold_the_collection_of_its_output(
     // The child's line lands where libtest's own line ends, so the figure is taken from the words of the output.
     let held: Option<i32> = ran
         .split_whitespace()
-        .skip_while(|word: &&str| { return *word != "holder"; })
+        .skip_while(|word: &&str| {
+            return *word != "holder";
+        })
         .nth(1)
-        .and_then(|figure: &str| { return figure.parse::<i32>().ok(); });
+        .and_then(|figure: &str| {
+            return figure.parse::<i32>().ok();
+        });
     if let Some(pid) = held {
         // Nothing of the run outlives this control: the holder is this child's own descendant.
         let _ended: libc::c_int = unsafe { libc::kill(pid, libc::SIGKILL) };
     }
-    assert!(output.status.success(), "the direct child ended on its own:\n{ran}");
+    assert!(
+        output.status.success(),
+        "the direct child ended on its own:\n{ran}"
+    );
     assert!(
         ran.contains(child_path("child_that_leaves_a_pipe_holder").as_str()),
         "the child ran the test named, not nothing:\n{ran}"
     );
-    assert!(held.is_some(), "the child named the process that holds its output:\n{ran}");
+    assert!(
+        held.is_some(),
+        "the child named the process that holds its output:\n{ran}"
+    );
     assert!(
         elapsed < OUTPUT_COLLECTION_ALLOWED,
         "the collection of a child's output waited for a process that holds the pipe after the child ended: it returned after {elapsed:?}, its whole life being {PIPE_HOLDER_LIFE:?}"
@@ -768,11 +972,21 @@ fn a_child_that_leaves_a_pipe_holder_does_not_hold_the_collection_of_its_output(
 /// the watchdog ends the process although the waiting thread reads the run.
 #[test]
 fn a_wait_does_not_keep_the_watchdog_alive() {
-    let ended: Option<std::process::Output> = run_child_with_stderr_until("child_that_waits_under_the_watchdog", std::process::Stdio::piped());
+    let ended: Option<std::process::Output> = run_child_with_stderr_until(
+        "child_that_waits_under_the_watchdog",
+        std::process::Stdio::piped(),
+    );
     let output: std::process::Output = ended.expect("the watchdog ended the process although a thread of it was waiting for an event nothing delivers");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(ran.contains(child_path("child_that_waits_under_the_watchdog").as_str()), "the child ran the test named, not nothing:\n{ran}");
-    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process:\n{said}");
+    assert!(
+        ran.contains(child_path("child_that_waits_under_the_watchdog").as_str()),
+        "the child ran the test named, not nothing:\n{ran}"
+    );
+    assert_eq!(
+        output.status.signal(),
+        Some(libc::SIGABRT),
+        "the watchdog ended the process:\n{said}"
+    );
     assert!(said.contains("a test is stuck"), "{said}");
 }

@@ -10,11 +10,18 @@
 //! const touches = paths.some((path) => underRepository(identity, resolve(path)));
 //! ```
 
-use crate::repository_link_identity::LinkIdentity;
 use crate::global_arguments::VALUE_OPTIONS;
-use std::ffi::{OsStr, OsString};
+use crate::repository_link_identity::LinkIdentity;
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// The environment variables that name a Git directory,
 /// a work tree or the common Git directory.
@@ -30,7 +37,11 @@ const GIT_PATH_VARIABLES: [&str; 3] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_D
 /// ```ts
 /// optionValue(prefix, index, '--git-dir') // [value, nextIndex] or undefined
 /// ```
-fn path_option_value(prefix: &[OsString], index: usize, name: &str) -> Option<(PathBuf, usize)> {
+fn path_option_value(
+    prefix: &[OsString],
+    index: usize,
+    name: &str,
+) -> Option<(PathBuf, usize)> {
     let token: &[u8] = prefix[index].as_encoded_bytes();
     let inline: String = format!("{name}=");
     if let Some(value) = token.strip_prefix(inline.as_bytes()) {
@@ -59,7 +70,10 @@ fn path_option_value(prefix: &[OsString], index: usize, name: &str) -> Option<(P
 /// ```ts
 /// prefixPaths({ cwd, globalPrefix }) // { directory: '/a/b/c/../d', options: ['/g/dir', '/a/b/c/../d/tree'] }
 /// ```
-fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf>) {
+fn prefix_paths(
+    cwd: &Path,
+    global_prefix: &[OsString],
+) -> (PathBuf, Vec<PathBuf>) {
     let mut directory: PathBuf = cwd.to_path_buf();
     let mut options: Vec<PathBuf> = Vec::new();
     let mut index: usize = 0;
@@ -102,7 +116,10 @@ fn prefix_paths(cwd: &Path, global_prefix: &[OsString]) -> (PathBuf, Vec<PathBuf
 /// ```ts
 /// chainDirectory('/work/here', ['-C', '/a/b', '-C', 'c']) // '/a/b/c'
 /// ```
-pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
+pub fn chain_directory(
+    cwd: &Path,
+    global_prefix: &[OsString],
+) -> PathBuf {
     return prefix_paths(cwd, global_prefix).0;
 }
 
@@ -123,7 +140,11 @@ pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
 /// ```ts
 /// namedPaths({ cwd, globalPrefix, environment }) // ['/work/here', '/g/dir']
 /// ```
-pub fn named_paths(cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<PathBuf> {
+pub fn named_paths(
+    cwd: &Path,
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> Vec<PathBuf> {
     let (directory, mut options): (PathBuf, Vec<PathBuf>) = prefix_paths(cwd, global_prefix);
     for (name, value) in environment {
         if GIT_PATH_VARIABLES.contains(&name.to_string_lossy().as_ref()) && !value.is_empty() {
@@ -189,7 +210,10 @@ pub(crate) fn resolve_as_far_as_it_exists(path: &Path) -> PathBuf {
 /// ```ts
 /// touchesRepository(identity, path)
 /// ```
-pub fn touches_repository(identity: &LinkIdentity, path: &Path) -> bool {
+pub fn touches_repository(
+    identity: &LinkIdentity,
+    path: &Path,
+) -> bool {
     if identity.link_path.is_empty() {
         return false;
     }
@@ -203,13 +227,19 @@ pub fn touches_repository(identity: &LinkIdentity, path: &Path) -> bool {
     if resolved.starts_with(spelled.as_path()) {
         return true;
     }
-    if !identity.canonical_root.is_empty() && resolved.starts_with(resolve_as_far_as_it_exists(Path::new(identity.canonical_root.as_str()))) {
+    if !identity.canonical_root.is_empty()
+        && resolved.starts_with(resolve_as_far_as_it_exists(Path::new(
+            identity.canonical_root.as_str(),
+        )))
+    {
         return true;
     }
     let old_copy_prefix: String = format!("{}.nvme-before-860-", name.to_string_lossy());
     return match resolved.strip_prefix(parent_resolved.as_path()) {
         Ok(below) => match below.components().next() {
-            Some(Component::Normal(first)) => first.to_string_lossy().starts_with(old_copy_prefix.as_str()),
+            Some(Component::Normal(first)) => first
+                .to_string_lossy()
+                .starts_with(old_copy_prefix.as_str()),
             _ => false,
         },
         Err(_elsewhere) => false,

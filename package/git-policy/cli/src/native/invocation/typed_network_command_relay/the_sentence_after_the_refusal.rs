@@ -21,7 +21,10 @@
 // ```ts
 // const printed = new Int32Array(1); // shared, atomic swaps
 // ```
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// What:
 ///  The words the reading needs, which the three refusals share: OpenSSH's last line for any host-key refusal, and its line for
@@ -122,7 +125,10 @@ pub fn refusal_in(tail: &str) -> Option<Refusal> {
 /// ```ts
 /// function sentenceFor(refusal: Refusal, target: Target): string
 /// ```
-pub fn sentence_for(refusal: Refusal, target: &super::a_target_the_sentence_may_name::Target) -> String {
+pub fn sentence_for(
+    refusal: Refusal,
+    target: &super::a_target_the_sentence_may_name::Target,
+) -> String {
     // `match` picks by variant and binds nothing here: each arm is one text.
     return match refusal {
         Refusal::HostKey => format!(
@@ -156,7 +162,11 @@ pub fn sentence_for(refusal: Refusal, target: &super::a_target_the_sentence_may_
 /// ```ts
 /// if (code !== 0 && (r = refusalIn(tail))) { write(2, sentenceFor(r, target)); printed = true; }
 /// ```
-pub fn print_after_a_refusal(kept: &[u8], ended_with: i32, target: &super::a_target_the_sentence_may_name::Target) {
+pub fn print_after_a_refusal(
+    kept: &[u8],
+    ended_with: i32,
+    target: &super::a_target_the_sentence_may_name::Target,
+) {
     if ended_with == 0 {
         return;
     }

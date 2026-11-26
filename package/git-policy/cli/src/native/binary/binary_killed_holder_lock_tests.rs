@@ -19,13 +19,44 @@
 //! plantDeadHolderLock(repo, 'index.lock'); expect(runWrapped(repo, ['add', 'a.txt']).code).toBe(0);
 //! ```
 
-use super::child_test_process::{ChildTest, started};
-use super::support::{Fixture, Observed, executable, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
+use super::child_test_process::{
+    ChildTest,
+    started,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    executable,
+    fixture,
+    git,
+    hermetic,
+    own_group,
+    porcelain,
+    repository,
+    run_wrapped,
+    spawn_owned,
+    stderr_of,
+    wrapper_first_path,
+};
+use git_policy_cli::lock_holder_records::{
+    folder_of,
+    identity_of_process,
+    record_text,
+};
 use std::os::unix::process::CommandExt as _;
-use git_policy_cli::lock_holder_records::{folder_of, identity_of_process, record_text};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a command that must go on is given,
 /// so a regression to the sixty second wait fails the control instead of passing slowly.
@@ -36,7 +67,14 @@ const HOLD_PATIENCE: Duration = Duration::from_secs(60);
 
 /// The lock files a killed command can leave,
 /// each with the PID file Git writes beside it under `core.lockfilePid`.
-const EVERY_LOCK: [&str; 6] = ["index.lock", "HEAD.lock", "shallow.lock", "packed-refs.lock", "refs/heads/topic.lock", "reftable/tables.list.lock"];
+const EVERY_LOCK: [&str; 6] = [
+    "index.lock",
+    "HEAD.lock",
+    "shallow.lock",
+    "packed-refs.lock",
+    "refs/heads/topic.lock",
+    "reftable/tables.list.lock",
+];
 
 /// What:
 ///  Start `program` with empty standard input and output,
@@ -51,7 +89,10 @@ const EVERY_LOCK: [&str; 6] = ["index.lock", "HEAD.lock", "shallow.lock", "packe
 /// ```
 fn quiet(program: &str) -> Command {
     let mut command: Command = Command::new(program);
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return command;
 }
 
@@ -73,7 +114,8 @@ fn a_dead_holder() -> (i64, String) {
     //  `d189162e3e`, and nothing here should depend on that.
     let mut child: Child = quiet("sleep").arg("600").spawn().expect("a helper starts");
     let pid: i64 = i64::from(child.id());
-    let identity: String = identity_of_process(pid).expect("the helper's identity is readable while it waits");
+    let identity: String =
+        identity_of_process(pid).expect("the helper's identity is readable while it waits");
     let _killed = child.kill();
     child.wait().expect("the helper ends");
     return (pid, identity);
@@ -90,8 +132,15 @@ fn a_dead_holder() -> (i64, String) {
 /// pidFileOf('/repo/.git/index.lock') // '/repo/.git/index~pid.lock'
 /// ```
 fn pid_file_of(lock: &Path) -> PathBuf {
-    let name: String = lock.file_name().expect("a lock has a name").to_string_lossy().into_owned();
-    return lock.with_file_name(format!("{}~pid.lock", name.strip_suffix(".lock").expect("a lock ends in .lock")));
+    let name: String = lock
+        .file_name()
+        .expect("a lock has a name")
+        .to_string_lossy()
+        .into_owned();
+    return lock.with_file_name(format!(
+        "{}~pid.lock",
+        name.strip_suffix(".lock").expect("a lock ends in .lock")
+    ));
 }
 
 /// What:
@@ -108,7 +157,11 @@ fn pid_file_of(lock: &Path) -> PathBuf {
 /// ```ts
 /// writeRecord(repo, [['child', pid, identity]]);
 /// ```
-fn plant_record(repo: &Path, holders: &[(&str, i64, String)], name: &str) {
+fn plant_record(
+    repo: &Path,
+    holders: &[(&str, i64, String)],
+    name: &str,
+) {
     let folder: PathBuf = folder_of(repo.join(".git").as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the record folder");
     std::fs::write(folder.join(name), record_text(holders)).expect("the record");
@@ -129,15 +182,24 @@ fn plant_record(repo: &Path, holders: &[(&str, i64, String)], name: &str) {
 /// ```ts
 /// writeAfterTheLock(lock, 'pid 42\n')
 /// ```
-fn write_after_the_lock(lock: &Path, content: &str) {
+fn write_after_the_lock(
+    lock: &Path,
+    content: &str,
+) {
     let pid_file: PathBuf = pid_file_of(lock);
     let began: Instant = Instant::now();
     loop {
         let _ = std::fs::remove_file(pid_file.as_path());
         std::thread::sleep(Duration::from_millis(2));
         std::fs::write(pid_file.as_path(), content.as_bytes()).expect("the PID file");
-        let lock_born = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
-        let pid_born = std::fs::symlink_metadata(pid_file.as_path()).ok().and_then(|metadata| { return metadata.created().ok(); });
+        let lock_born = std::fs::symlink_metadata(lock).ok().and_then(|metadata| {
+            return metadata.created().ok();
+        });
+        let pid_born = std::fs::symlink_metadata(pid_file.as_path())
+            .ok()
+            .and_then(|metadata| {
+                return metadata.created().ok();
+            });
         if let (Some(lock_at), Some(pid_at)) = (lock_born, pid_born)
             && pid_at > lock_at
         {
@@ -165,12 +227,22 @@ fn write_after_the_lock(lock: &Path, content: &str) {
 /// ```ts
 /// plantLock(repo, 'index.lock', { pid, identity });
 /// ```
-fn plant_lock(repo: &Path, name: &str, pid: i64, identity: Option<&String>, record_name: &str) {
+fn plant_lock(
+    repo: &Path,
+    name: &str,
+    pid: i64,
+    identity: Option<&String>,
+    record_name: &str,
+) {
     let lock: PathBuf = repo.join(".git").join(name);
     std::fs::create_dir_all(lock.parent().expect("the lock's folder")).expect("the lock's folder");
     // A Git writes the new index, the reference list or HEAD into the lock before it renames it, so a lock left by a kill
     //  holds bytes rather than nothing.
-    std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
+    std::fs::write(
+        lock.as_path(),
+        b"a half-written copy the dead holder never renamed\n",
+    )
+    .expect("the lock");
     // The gate names a holder only when the PID file is born strictly after the lock, which this volume gives two files
     //  written at once only sometimes: the helper makes the file again until the order is proven, and a file system that
     //  records no birth time fails the control naming what it said.
@@ -210,7 +282,12 @@ struct After {
 /// ```ts
 /// const after = afterRunning(fixture, repo, ['add', 'a.txt'], 'index.lock');
 /// ```
-fn after_running(fixture: &Fixture, repo: &Path, arguments: &[&str], name: &str) -> (After, Duration) {
+fn after_running(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+    name: &str,
+) -> (After, Duration) {
     return after_running_with(fixture, repo, arguments, name, &[]);
 }
 
@@ -226,7 +303,13 @@ fn after_running(fixture: &Fixture, repo: &Path, arguments: &[&str], name: &str)
 /// ```ts
 /// afterRunningWith(fixture, repo, ['status'], 'index.lock', [['CLI_GIT_TEST_ONLY_BIRTH_TIME', 'none']]);
 /// ```
-fn after_running_with(fixture: &Fixture, repo: &Path, arguments: &[&str], name: &str, environment: &[(&str, &str)]) -> (After, Duration) {
+fn after_running_with(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+    name: &str,
+    environment: &[(&str, &str)],
+) -> (After, Duration) {
     let began: Instant = Instant::now();
     let mut command: Command = super::support::wrapped(fixture);
     for (variable, value) in environment {
@@ -276,11 +359,19 @@ fn staged_fixture(name: &str) -> (Fixture, PathBuf) {
 /// ```ts
 /// const commit = runWrapped(repo, ['commit', '--message', 'next', '--', 'staged.txt']); expect(commit.code).toBe(0);
 /// ```
-fn commit_lands(fixture: &Fixture, repo: &Path, label: &str) -> Duration {
+fn commit_lands(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+) -> Duration {
     let began: Instant = Instant::now();
     // The commit's work happens in the commit service, outside the command's own tree, so it runs under the commit bound the
     //  sibling commit controls use rather than the shared bound of a forwarded command.
-    let observed: Observed = super::commit::run_commit(fixture, repo, &["commit", "--message", "next", "--", "staged.txt"]);
+    let observed: Observed = super::commit::run_commit(
+        fixture,
+        repo,
+        &["commit", "--message", "next", "--", "staged.txt"],
+    );
     let elapsed: Duration = began.elapsed();
     assert_eq!(
         observed.code,
@@ -289,8 +380,14 @@ fn commit_lands(fixture: &Fixture, repo: &Path, label: &str) -> Duration {
         String::from_utf8_lossy(observed.stdout.as_slice()),
         stderr_of(&observed)
     );
-    assert!(elapsed < GOES_ON_WITHIN, "{label}: the commit took {elapsed:?}, which is the wait this change removes");
-    assert!(!repo.join(".git/index.lock").exists(), "{label}: the lock must be gone after the commit");
+    assert!(
+        elapsed < GOES_ON_WITHIN,
+        "{label}: the commit took {elapsed:?}, which is the wait this change removes"
+    );
+    assert!(
+        !repo.join(".git/index.lock").exists(),
+        "{label}: the lock must be gone after the commit"
+    );
     return elapsed;
 }
 
@@ -306,33 +403,80 @@ fn commit_lands(fixture: &Fixture, repo: &Path, label: &str) -> Duration {
 /// ```ts
 /// killGroup(aMergeWithAStalledCheckout(repo)); // leaves index.lock + index~pid.lock + the wrapper's record
 /// ```
-fn a_merge_killed_while_its_checkout_stalled(fixture: &Fixture, repo: &Path) -> PathBuf {
+fn a_merge_killed_while_its_checkout_stalled(
+    fixture: &Fixture,
+    repo: &Path,
+) -> PathBuf {
     let ready: PathBuf = fixture.root.join("filter-started");
     std::fs::write(repo.join(".gitattributes"), "*.dat filter=slow\n").expect("the attributes");
     std::fs::write(repo.join("big.dat"), "from main\n").expect("the file");
     git(fixture, repo, &["add", ".gitattributes", "big.dat"]);
-    git(fixture, repo, &["-c", "filter.slow.smudge=cat", "-c", "filter.slow.clean=cat", "commit", "--quiet", "--message=main"]);
+    git(
+        fixture,
+        repo,
+        &[
+            "-c",
+            "filter.slow.smudge=cat",
+            "-c",
+            "filter.slow.clean=cat",
+            "commit",
+            "--quiet",
+            "--message=main",
+        ],
+    );
     git(fixture, repo, &["checkout", "--quiet", "-b", "other"]);
     std::fs::write(repo.join("big.dat"), "from other\n").expect("the other branch's file");
     git(fixture, repo, &["add", "big.dat"]);
-    git(fixture, repo, &["-c", "filter.slow.smudge=cat", "-c", "filter.slow.clean=cat", "commit", "--quiet", "--message=other"]);
+    git(
+        fixture,
+        repo,
+        &[
+            "-c",
+            "filter.slow.smudge=cat",
+            "-c",
+            "filter.slow.clean=cat",
+            "commit",
+            "--quiet",
+            "--message=other",
+        ],
+    );
     git(fixture, repo, &["checkout", "--quiet", "main"]);
     // The filter stalls inside the checkout, which is inside the index lock.
-    git(fixture, repo, &["config", "filter.slow.smudge", format!("sh -c 'touch {}; sleep 600; cat'", ready.display()).as_str()]);
+    git(
+        fixture,
+        repo,
+        &[
+            "config",
+            "filter.slow.smudge",
+            format!("sh -c 'touch {}; sleep 600; cat'", ready.display()).as_str(),
+        ],
+    );
     git(fixture, repo, &["config", "filter.slow.clean", "cat"]);
     let mut command: Command = Command::new(fixture.root.join("bin/git"));
-    hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
+    hermetic(
+        &mut command,
+        fixture,
+        wrapper_first_path(fixture).as_os_str(),
+    );
     if let Some(runtime) = super::support::service_runtime(fixture) {
         command.env("XDG_RUNTIME_DIR", runtime);
     }
-    command.current_dir(repo).args(["merge", "--no-edit", "other"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .current_dir(repo)
+        .args(["merge", "--no-edit", "other"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     // The merge leads its own process group, so the kill reaches the wrapper, its Git and the stalled filter together.
     command.process_group(0);
     let mut child: Child = command.spawn().expect("the merge starts");
     own_group(&child);
     let began: Instant = Instant::now();
     while !ready.exists() {
-        assert!(began.elapsed() < HOLD_PATIENCE, "the merge never reached its stalled checkout");
+        assert!(
+            began.elapsed() < HOLD_PATIENCE,
+            "the merge never reached its stalled checkout"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     // SAFETY: `killpg` takes a group number and a signal and touches no memory; the group is the one this control started.
@@ -340,7 +484,10 @@ fn a_merge_killed_while_its_checkout_stalled(fixture: &Fixture, repo: &Path) -> 
     let _waited = child.wait();
     // The wrapper led the group, so the kill reached the wrapper, its Git and the stalled filter together.
     let lock: PathBuf = repo.join(".git/index.lock");
-    assert!(lock.exists(), "the kill must leave the index lock the merge's Git held");
+    assert!(
+        lock.exists(),
+        "the kill must leave the index lock the merge's Git held"
+    );
     git(fixture, repo, &["config", "filter.slow.smudge", "cat"]);
     return lock;
 }
@@ -377,14 +524,38 @@ fn an_index_lock_a_killed_merge_left_is_kept_when_its_birth_order_is_unproven() 
     let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
     let lock: PathBuf = a_merge_killed_while_its_checkout_stalled(&fixture, repo.as_path());
     let pid_file: PathBuf = pid_file_of(lock.as_path());
-    assert!(pid_file.exists(), "the kill leaves the PID file the lock's holder was named in");
+    assert!(
+        pid_file.exists(),
+        "the kill leaves the PID file the lock's holder was named in"
+    );
     // A file system of one-second ticks, which this control states rather than waits for: the two files one Git writes at
     //  once then carry one birth stamp, and the order is not proven.
-    let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")]);
-    assert!(after.lock_stands, "an order the file system does not prove keeps the lock: {}", after.said);
-    assert!(after.said.contains("cannot be told apart") || after.said.contains("no birth time"), "the line says why nothing was removed: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
-    assert!(elapsed < GOES_ON_WITHIN, "the command that meets it still goes on at once: {elapsed:?}");
+    let (after, elapsed) = after_running_with(
+        &fixture,
+        repo.as_path(),
+        &["status", "--porcelain=v1"],
+        "index.lock",
+        &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")],
+    );
+    assert!(
+        after.lock_stands,
+        "an order the file system does not prove keeps the lock: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("cannot be told apart") || after.said.contains("no birth time"),
+        "the line says why nothing was removed: {}",
+        after.said
+    );
+    assert!(
+        !after.said.contains("cleared"),
+        "nothing may claim this lock was cleared: {}",
+        after.said
+    );
+    assert!(
+        elapsed < GOES_ON_WITHIN,
+        "the command that meets it still goes on at once: {elapsed:?}"
+    );
     let _ = pid_file;
     super::commit::remove_settled(&fixture);
     return;
@@ -414,15 +585,40 @@ fn an_index_lock_a_killed_merge_left_is_cleared_and_the_next_commit_lands() {
     let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
     let lock: PathBuf = a_merge_killed_while_its_checkout_stalled(&fixture, repo.as_path());
     let pid_file: PathBuf = pid_file_of(lock.as_path());
-    let named: String = std::fs::read_to_string(pid_file.as_path()).expect("the PID file the kill left");
+    let named: String =
+        std::fs::read_to_string(pid_file.as_path()).expect("the PID file the kill left");
     // The same number the kill left, written once more so that its birth is strictly after the lock's.
     write_after_the_lock(lock.as_path(), named.as_str());
-    let (after, elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
-    assert!(!after.lock_stands, "a proven order and a dead recorded writer clear the lock: {}", after.said);
-    assert!(!pid_file.exists(), "the PID file of a cleared lock goes with it");
-    assert!(after.said.contains("cleared"), "one line must say what was cleared: {}", after.said);
-    assert!(elapsed < GOES_ON_WITHIN, "the next command took {elapsed:?}");
-    assert_eq!(after.code, Some(0), "the command must go on: {}", after.said);
+    let (after, elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["status", "--porcelain=v1"],
+        "index.lock",
+    );
+    assert!(
+        !after.lock_stands,
+        "a proven order and a dead recorded writer clear the lock: {}",
+        after.said
+    );
+    assert!(
+        !pid_file.exists(),
+        "the PID file of a cleared lock goes with it"
+    );
+    assert!(
+        after.said.contains("cleared"),
+        "one line must say what was cleared: {}",
+        after.said
+    );
+    assert!(
+        elapsed < GOES_ON_WITHIN,
+        "the next command took {elapsed:?}"
+    );
+    assert_eq!(
+        after.code,
+        Some(0),
+        "the command must go on: {}",
+        after.said
+    );
     std::fs::write(repo.join("staged.txt"), "the person's change\n").expect("the person's change");
     git(&fixture, repo.as_path(), &["add", "staged.txt"]);
     commit_lands(&fixture, repo.as_path(), "after a killed merge");
@@ -448,12 +644,36 @@ fn an_index_lock_a_killed_merge_left_is_cleared_and_the_next_commit_lands() {
 fn a_lock_whose_file_system_records_no_birth_time_is_kept_and_named() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("no-birth-time-lock");
     let (pid, identity) = a_dead_holder();
-    plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-no-birth-time");
-    let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "none")]);
+    plant_lock(
+        repo.as_path(),
+        "index.lock",
+        pid,
+        Some(&identity),
+        "record-no-birth-time",
+    );
+    let (after, elapsed) = after_running_with(
+        &fixture,
+        repo.as_path(),
+        &["status", "--porcelain=v1"],
+        "index.lock",
+        &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "none")],
+    );
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
-    assert!(after.lock_stands, "nothing proves the order, so the lock stays: {}", after.said);
-    assert!(after.said.contains("no birth time"), "the line says the file system records none: {}", after.said);
-    assert!(after.said.contains("removing the file"), "the line says what a person can do: {}", after.said);
+    assert!(
+        after.lock_stands,
+        "nothing proves the order, so the lock stays: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("no birth time"),
+        "the line says the file system records none: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("removing the file"),
+        "the line says what a person can do: {}",
+        after.said
+    );
     assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}");
     super::commit::remove_settled(&fixture);
 }
@@ -480,12 +700,39 @@ fn every_lock_file_a_killed_command_can_leave_is_cleared_on_the_same_proof() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("every-lock-file");
     for (index, name) in EVERY_LOCK.iter().enumerate() {
         let (pid, identity) = a_dead_holder();
-        plant_lock(repo.as_path(), name, pid, Some(&identity), format!("record-{index}").as_str());
-        let (after, elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], name);
-        assert!(!after.lock_stands, "{name}: a lock of a proven dead holder must be cleared: {}", after.said);
-        assert!(after.said.contains("cleared"), "{name}: the removal is told once: {}", after.said);
-        assert!(elapsed < GOES_ON_WITHIN, "{name}: the command took {elapsed:?}");
-        assert_eq!(after.code, Some(0), "{name}: the command must go on: {}", after.said);
+        plant_lock(
+            repo.as_path(),
+            name,
+            pid,
+            Some(&identity),
+            format!("record-{index}").as_str(),
+        );
+        let (after, elapsed) = after_running(
+            &fixture,
+            repo.as_path(),
+            &["status", "--porcelain=v1"],
+            name,
+        );
+        assert!(
+            !after.lock_stands,
+            "{name}: a lock of a proven dead holder must be cleared: {}",
+            after.said
+        );
+        assert!(
+            after.said.contains("cleared"),
+            "{name}: the removal is told once: {}",
+            after.said
+        );
+        assert!(
+            elapsed < GOES_ON_WITHIN,
+            "{name}: the command took {elapsed:?}"
+        );
+        assert_eq!(
+            after.code,
+            Some(0),
+            "{name}: the command must go on: {}",
+            after.said
+        );
     }
     super::commit::remove_settled(&fixture);
 }
@@ -508,11 +755,34 @@ fn a_lock_whose_record_names_a_live_process_is_kept() {
     let mut holder: Child = spawn_owned(quiet("sleep").arg("600")).expect("a live holder");
     let pid: i64 = i64::from(holder.id());
     let identity: String = identity_of_process(pid).expect("the live holder's identity");
-    plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-live");
-    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
-    assert!(after.lock_stands, "a lock of a live holder must stay: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim a live holder's lock was cleared: {}", after.said);
-    assert!(after.said.contains("index.lock"), "the refusal must name the lock: {}", after.said);
+    plant_lock(
+        repo.as_path(),
+        "index.lock",
+        pid,
+        Some(&identity),
+        "record-live",
+    );
+    let (after, _elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["add", "later.txt"],
+        "index.lock",
+    );
+    assert!(
+        after.lock_stands,
+        "a lock of a live holder must stay: {}",
+        after.said
+    );
+    assert!(
+        !after.said.contains("cleared"),
+        "nothing may claim a live holder's lock was cleared: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("index.lock"),
+        "the refusal must name the lock: {}",
+        after.said
+    );
     let _killed = holder.kill();
     let _waited = holder.wait();
     super::commit::remove_settled(&fixture);
@@ -538,13 +808,32 @@ fn a_lock_whose_record_names_a_live_process_is_kept() {
 #[test]
 fn a_forwarded_commands_own_record_is_swept_so_the_folder_does_not_grow() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("record-folder-growth");
-    let folder: PathBuf = git_policy_cli::lock_holder_records::folder_of(repo.join(".git").as_path());
+    let folder: PathBuf =
+        git_policy_cli::lock_holder_records::folder_of(repo.join(".git").as_path());
     for _ in 0..8 {
-        let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
-        assert_eq!(observed.code, Some(0), "a forwarded command goes on: {}", stderr_of(&observed));
+        let observed: Observed =
+            run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+        assert_eq!(
+            observed.code,
+            Some(0),
+            "a forwarded command goes on: {}",
+            stderr_of(&observed)
+        );
     }
-    let left: Vec<String> = std::fs::read_dir(folder.as_path()).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
-    assert!(left.len() <= 1, "eight forwarded commands leave at most the record of the command that is running, not eight: {left:?}");
+    let left: Vec<String> = std::fs::read_dir(folder.as_path())
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        })
+        .unwrap_or_default();
+    assert!(
+        left.len() <= 1,
+        "eight forwarded commands leave at most the record of the command that is running, not eight: {left:?}"
+    );
     super::commit::remove_settled(&fixture);
 }
 
@@ -568,12 +857,31 @@ fn a_fifo_at_a_pid_file_name_does_not_hold_the_command() {
     let lock: PathBuf = repo.join(".git/index.lock");
     std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
     let fifo: PathBuf = pid_file_of(lock.as_path());
-    let made: std::process::Output = Command::new("mkfifo").arg(fifo.as_path()).output().expect("mkfifo runs");
-    assert!(made.status.success(), "the control makes a named pipe: {}", String::from_utf8_lossy(made.stderr.as_slice()));
-    let (after, elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
+    let made: std::process::Output = Command::new("mkfifo")
+        .arg(fifo.as_path())
+        .output()
+        .expect("mkfifo runs");
+    assert!(
+        made.status.success(),
+        "the control makes a named pipe: {}",
+        String::from_utf8_lossy(made.stderr.as_slice())
+    );
+    let (after, elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["status", "--porcelain=v1"],
+        "index.lock",
+    );
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
-    assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}, which is a read that waited on a pipe");
-    assert!(lock.exists(), "a lock whose PID file is not a plain file keeps its place: {}", after.said);
+    assert!(
+        elapsed < GOES_ON_WITHIN,
+        "the command took {elapsed:?}, which is a read that waited on a pipe"
+    );
+    assert!(
+        lock.exists(),
+        "a lock whose PID file is not a plain file keeps its place: {}",
+        after.said
+    );
     super::commit::remove_settled(&fixture);
 }
 
@@ -596,14 +904,40 @@ fn a_lock_below_the_walks_depth_keeps_the_record_that_explains_it() {
     let (pid, identity) = a_dead_holder();
     let deep: PathBuf = repo.join(".git/refs/heads/a/b/c/d/e/f/g/h/i.lock");
     std::fs::create_dir_all(deep.parent().expect("the lock's folder")).expect("the deep folders");
-    std::fs::write(deep.as_path(), b"0000000000000000000000000000000000000000\n").expect("the deep lock");
+    std::fs::write(
+        deep.as_path(),
+        b"0000000000000000000000000000000000000000\n",
+    )
+    .expect("the deep lock");
     write_after_the_lock(deep.as_path(), format!("pid {pid}\n").as_str());
-    plant_record(repo.as_path(), &[("child", pid, identity)], "record-deep-lock");
+    plant_record(
+        repo.as_path(),
+        &[("child", pid, identity)],
+        "record-deep-lock",
+    );
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
-    assert_eq!(observed.code, Some(0), "the command goes on: {}", stderr_of(&observed));
-    let folder: PathBuf = git_policy_cli::lock_holder_records::folder_of(repo.join(".git").as_path());
-    let kept: bool = std::fs::read_dir(folder.as_path()).map(|entries| { return entries.flatten().any(|entry| { return entry.file_name().to_string_lossy().starts_with("record-deep-lock"); }); }).unwrap_or(false);
-    assert!(kept, "a lock the walk could not see keeps the record that explains it");
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the command goes on: {}",
+        stderr_of(&observed)
+    );
+    let folder: PathBuf =
+        git_policy_cli::lock_holder_records::folder_of(repo.join(".git").as_path());
+    let kept: bool = std::fs::read_dir(folder.as_path())
+        .map(|entries| {
+            return entries.flatten().any(|entry| {
+                return entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("record-deep-lock");
+            });
+        })
+        .unwrap_or(false);
+    assert!(
+        kept,
+        "a lock the walk could not see keeps the record that explains it"
+    );
     assert!(deep.exists(), "and the lock itself is left alone");
     super::commit::remove_settled(&fixture);
 }
@@ -633,11 +967,34 @@ fn a_lock_whose_number_a_live_process_has_is_kept() {
     let (_dead_pid, dead_identity) = a_dead_holder();
     // The number is this control's own process, which runs now; the identity is a process that ended.
     let live_number: i64 = i64::from(std::process::id());
-    plant_lock(repo.as_path(), "index.lock", live_number, Some(&dead_identity), "record-reused");
-    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
-    assert!(after.lock_stands, "a number a live process has is never proved gone: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
-    assert!(after.said.contains("live process has now"), "the line says a live process has the number: {}", after.said);
+    plant_lock(
+        repo.as_path(),
+        "index.lock",
+        live_number,
+        Some(&dead_identity),
+        "record-reused",
+    );
+    let (after, _elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["add", "later.txt"],
+        "index.lock",
+    );
+    assert!(
+        after.lock_stands,
+        "a number a live process has is never proved gone: {}",
+        after.said
+    );
+    assert!(
+        !after.said.contains("cleared"),
+        "nothing may claim this lock was cleared: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("live process has now"),
+        "the line says a live process has the number: {}",
+        after.said
+    );
     super::commit::remove_settled(&fixture);
 }
 
@@ -661,7 +1018,11 @@ fn a_live_commits_editor_phase_lock_is_kept_when_a_dead_record_names_its_number(
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("live-editor-lock");
     // The person's own commit is real Git's, so the lock it holds must name itself: the wrapper turns lockfilePid on for its
     //  own Git, and this one is started directly.
-    git(&fixture, repo.as_path(), &["config", "core.lockfilePid", "true"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "core.lockfilePid", "true"],
+    );
     let ready: PathBuf = fixture.root.join("editor-ready");
     let let_go: PathBuf = fixture.root.join("editor-go");
     let editor: PathBuf = fixture.root.join("editor.sh");
@@ -688,23 +1049,60 @@ fn a_live_commits_editor_phase_lock_is_kept_when_a_dead_record_names_its_number(
         .expect("the live commit starts");
     let began: Instant = Instant::now();
     while !ready.exists() {
-        assert!(began.elapsed() < HOLD_PATIENCE, "the live commit never opened its editor");
+        assert!(
+            began.elapsed() < HOLD_PATIENCE,
+            "the live commit never opened its editor"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
-    assert!(lock.exists(), "the live commit holds index.lock through its editor");
+    assert!(
+        lock.exists(),
+        "the live commit holds index.lock through its editor"
+    );
     assert!(pid_file.exists(), "and it wrote the PID file that names it");
     let commit_pid: i64 = i64::from(commit.id());
     let (_dead_pid, dead_identity) = a_dead_holder();
-    plant_record(repo.as_path(), &[("child", commit_pid, dead_identity)], "record-of-a-reused-number");
-    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
-    assert_eq!(after.code, Some(0), "the command that meets the lock goes on: {}", after.said);
-    assert!(after.lock_stands, "the live commit's lock must stay: {}", after.said);
+    plant_record(
+        repo.as_path(),
+        &[("child", commit_pid, dead_identity)],
+        "record-of-a-reused-number",
+    );
+    let (after, _elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["status", "--porcelain=v1"],
+        "index.lock",
+    );
+    assert_eq!(
+        after.code,
+        Some(0),
+        "the command that meets the lock goes on: {}",
+        after.said
+    );
+    assert!(
+        after.lock_stands,
+        "the live commit's lock must stay: {}",
+        after.said
+    );
     assert!(pid_file.exists(), "the live commit's PID file must stay");
-    assert!(!after.said.contains("cleared"), "nothing may claim the live commit's lock was cleared: {}", after.said);
+    assert!(
+        !after.said.contains("cleared"),
+        "nothing may claim the live commit's lock was cleared: {}",
+        after.said
+    );
     std::fs::write(let_go.as_path(), b"go\n").expect("let the editor finish");
     let ended: std::process::ExitStatus = commit.wait().expect("the live commit ends");
-    assert_eq!(ended.code(), Some(0), "the live commit must finish with its index");
-    let subject: String = String::from_utf8_lossy(super::support::git(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).stdout.as_slice()).into_owned();
+    assert_eq!(
+        ended.code(),
+        Some(0),
+        "the live commit must finish with its index"
+    );
+    let subject: String = String::from_utf8_lossy(
+        super::support::git(&fixture, repo.as_path(), &["log", "-1", "--format=%s"])
+            .stdout
+            .as_slice(),
+    )
+    .into_owned();
     assert_eq!(subject.trim(), "the live commit", "the live commit landed");
     super::commit::remove_settled(&fixture);
 }
@@ -735,7 +1133,11 @@ fn a_non_dumpable_writer_holds_the_lock_for_the_control() {
     let Ok(lock) = std::env::var(HOLD_NON_DUMPABLY) else {
         return;
     };
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(lock.as_str()).expect("open the lock for writing");
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(lock.as_str())
+        .expect("open the lock for writing");
     // SAFETY: `prctl` takes integers and touches no memory of this process.
     let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) };
     assert_eq!(refused, 0, "the holder must become non-dumpable");
@@ -761,14 +1163,36 @@ fn a_non_dumpable_writer_holds_the_lock_for_the_control() {
 fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("non-dumpable-writer");
     let (pid, identity) = a_dead_holder();
-    plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-dead-writer");
+    plant_lock(
+        repo.as_path(),
+        "index.lock",
+        pid,
+        Some(&identity),
+        "record-dead-writer",
+    );
     let lock: PathBuf = repo.join(".git/index.lock");
     let mut holder: Child = start_non_dumpable_holder(lock.as_path());
-    assert!(unreadable_holder(lock.as_path(), i64::from(holder.id())), "the holder must be non-dumpable and hold the lock open");
-    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
+    assert!(
+        unreadable_holder(lock.as_path(), i64::from(holder.id())),
+        "the holder must be non-dumpable and hold the lock open"
+    );
+    let (after, _elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["status", "--porcelain=v1"],
+        "index.lock",
+    );
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
-    assert!(after.lock_stands, "a writer this account cannot look into keeps the lock: {}", after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
+    assert!(
+        after.lock_stands,
+        "a writer this account cannot look into keeps the lock: {}",
+        after.said
+    );
+    assert!(
+        !after.said.contains("cleared"),
+        "nothing may claim this lock was cleared: {}",
+        after.said
+    );
     let _killed = holder.kill();
     let _waited = holder.wait();
     super::commit::remove_settled(&fixture);
@@ -788,7 +1212,10 @@ fn start_non_dumpable_holder(lock: &Path) -> Child {
 }
 
 /// Whether the holder is there and this account cannot read its descriptor directory.
-fn unreadable_holder(lock: &Path, pid: i64) -> bool {
+fn unreadable_holder(
+    lock: &Path,
+    pid: i64,
+) -> bool {
     let ready: PathBuf = PathBuf::from(format!("{}.ready", lock.display()));
     let began: Instant = Instant::now();
     while began.elapsed() < Duration::from_secs(10) {
@@ -819,12 +1246,38 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("unrecorded-lock");
     let (pid, _identity) = a_dead_holder();
     plant_lock(repo.as_path(), "index.lock", pid, None, "record-unused");
-    let (after, _elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
-    assert!(after.lock_stands, "a lock no record explains must stay (exit {:?}): {}", after.code, after.said);
-    assert!(!after.said.contains("cleared"), "nothing may claim an unproven lock was cleared: {}", after.said);
-    assert!(after.said.contains("index.lock"), "the message must name the lock (exit {:?}): {}", after.code, after.said);
-    assert!(after.said.contains("no record"), "the message must say no record of the wrapper's commands explains that number: {}", after.said);
-    assert!(after.said.contains("removing the file"), "the message must say what a person can do: {}", after.said);
+    let (after, _elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["add", "later.txt"],
+        "index.lock",
+    );
+    assert!(
+        after.lock_stands,
+        "a lock no record explains must stay (exit {:?}): {}",
+        after.code, after.said
+    );
+    assert!(
+        !after.said.contains("cleared"),
+        "nothing may claim an unproven lock was cleared: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("index.lock"),
+        "the message must name the lock (exit {:?}): {}",
+        after.code,
+        after.said
+    );
+    assert!(
+        after.said.contains("no record"),
+        "the message must say no record of the wrapper's commands explains that number: {}",
+        after.said
+    );
+    assert!(
+        after.said.contains("removing the file"),
+        "the message must say what a person can do: {}",
+        after.said
+    );
     super::commit::remove_settled(&fixture);
 }
 
@@ -853,13 +1306,28 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
 fn two_commands_meeting_one_dead_lock_clear_it_once_and_both_end_correctly() {
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("two-commands-one-lock");
     let (pid, identity) = a_dead_holder();
-    plant_lock(repo.as_path(), "index.lock", pid, Some(&identity), "record-raced");
+    plant_lock(
+        repo.as_path(),
+        "index.lock",
+        pid,
+        Some(&identity),
+        "record-raced",
+    );
     std::fs::write(repo.join("first.txt"), "first\n").expect("the first file");
     std::fs::write(repo.join("second.txt"), "second\n").expect("the second file");
     let mut commands: Vec<Command> = Vec::new();
     for arguments in [vec!["status", "--porcelain=v1"], vec!["add", "first.txt"]] {
-        let mut command: Command = super::support::bounded(&fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(&fixture).as_os_str());
-        command.current_dir(repo.as_path()).args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let mut command: Command = super::support::bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            wrapper_first_path(&fixture).as_os_str(),
+        );
+        command
+            .current_dir(repo.as_path())
+            .args(arguments)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         commands.push(command);
     }
     let mut children: Vec<Child> = Vec::new();
@@ -873,12 +1341,25 @@ fn two_commands_meeting_one_dead_lock_clear_it_once_and_both_end_correctly() {
         codes.push(output.status.code());
         said.push_str(String::from_utf8_lossy(output.stderr.as_slice()).as_ref());
     }
-    assert_eq!(codes, vec![Some(0), Some(0)], "both commands must end correctly: {said}");
-    assert!(!repo.join(".git/index.lock").exists(), "the lock must be gone");
+    assert_eq!(
+        codes,
+        vec![Some(0), Some(0)],
+        "both commands must end correctly: {said}"
+    );
+    assert!(
+        !repo.join(".git/index.lock").exists(),
+        "the lock must be gone"
+    );
     let cleared: usize = said.matches("cleared").count();
-    assert!(cleared <= 1, "one removal is told once, and the other command finds no lock to clear: {said}");
+    assert!(
+        cleared <= 1,
+        "one removal is told once, and the other command finds no lock to clear: {said}"
+    );
     let staged: String = porcelain(&fixture, repo.as_path());
-    assert!(staged.contains("first.txt"), "the writer's file is staged: {staged}");
+    assert!(
+        staged.contains("first.txt"),
+        "the writer's file is staged: {staged}"
+    );
     super::commit::remove_settled(&fixture);
 }
 
@@ -902,12 +1383,33 @@ fn the_lock_of_a_killed_commit_service_is_cleared_and_its_notice_is_printed_once
     let (fixture, repo): (Fixture, PathBuf) = staged_fixture("killed-service-lock");
     let (pid, identity) = a_dead_holder();
     let lock: PathBuf = repo.join(".git/index.lock");
-    std::fs::write(lock.as_path(), format!("cli-git-service v2 1 {pid} {identity}\n").as_bytes()).expect("the service's lock");
-    let (after, elapsed) = after_running(&fixture, repo.as_path(), &["add", "later.txt"], "index.lock");
-    assert_eq!(after.code, Some(0), "the add goes on once the dead service's lock is gone: {}", after.said);
-    assert!(!after.lock_stands, "the killed service's lock must be cleared");
+    std::fs::write(
+        lock.as_path(),
+        format!("cli-git-service v2 1 {pid} {identity}\n").as_bytes(),
+    )
+    .expect("the service's lock");
+    let (after, elapsed) = after_running(
+        &fixture,
+        repo.as_path(),
+        &["add", "later.txt"],
+        "index.lock",
+    );
+    assert_eq!(
+        after.code,
+        Some(0),
+        "the add goes on once the dead service's lock is gone: {}",
+        after.said
+    );
+    assert!(
+        !after.lock_stands,
+        "the killed service's lock must be cleared"
+    );
     let mentions: usize = after.said.matches("index.lock").count();
-    assert!(mentions <= 2, "the lock is named once or twice, not fifty times ({mentions}): {}", after.said);
+    assert!(
+        mentions <= 2,
+        "the lock is named once or twice, not fifty times ({mentions}): {}",
+        after.said
+    );
     assert!(elapsed < GOES_ON_WITHIN, "the add took {elapsed:?}");
     super::commit::remove_settled(&fixture);
 }
@@ -933,9 +1435,21 @@ fn the_message_about_a_lock_that_cannot_be_proven_gone_says_what_is_known() {
     plant_lock(repo.as_path(), "index.lock", pid, None, "record-unused");
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "main"]);
     let said: String = stderr_of(&observed);
-    assert!(said.contains("index.lock"), "the message names the lock: {said}");
-    assert!(said.contains(format!("{pid}").as_str()), "the message names the number the PID file holds: {said}");
-    assert!(said.contains("no record"), "the message says no record of the wrapper's commands names that number: {said}");
-    assert!(!said.contains("no process here will release it"), "the message must not claim a proof it does not have: {said}");
+    assert!(
+        said.contains("index.lock"),
+        "the message names the lock: {said}"
+    );
+    assert!(
+        said.contains(format!("{pid}").as_str()),
+        "the message names the number the PID file holds: {said}"
+    );
+    assert!(
+        said.contains("no record"),
+        "the message says no record of the wrapper's commands names that number: {said}"
+    );
+    assert!(
+        !said.contains("no process here will release it"),
+        "the message must not claim a proof it does not have: {said}"
+    );
     super::commit::remove_settled(&fixture);
 }

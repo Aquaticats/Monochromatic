@@ -6,15 +6,37 @@
 //!  names,
 //! and the restart decisions for batches left open.
 
-use crate::service_land_git_steps_and_import_stream::{commits_from_marks, overlaps};
 use super::*;
-use crate::service_journal::{DONE_EXTENSION, Recovery, batch_path, parse_intent};
-use crate::service_protocol::{ALLOWED_MODES, Change};
 use crate::service_index_lock::Announce;
-use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
+use crate::service_journal::{
+    DONE_EXTENSION,
+    Recovery,
+    batch_path,
+    parse_intent,
+};
+use crate::service_land_git_steps_and_import_stream::{
+    commits_from_marks,
+    overlaps,
+};
+use crate::service_protocol::{
+    ALLOWED_MODES,
+    Change,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_output,
+    git_text,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 use std::sync::mpsc::RecvTimeoutError;
 
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
@@ -30,8 +52,17 @@ pub(super) fn world(name: &str) -> World {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
-    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
-    return World { root, repo, context };
+    let context: LandContext = LandContext {
+        git: git_context(),
+        journal,
+        on_objects_written: None,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+    };
+    return World {
+        root,
+        repo,
+        context,
+    };
 }
 
 /// Lands `requests` as batch `seq` with the index build made to fail after the branch moved:
@@ -46,25 +77,55 @@ pub(super) fn world(name: &str) -> World {
 /// a host other sessions fill makes one flush wait for seconds,
 /// and this control's subject is the batch a killed landing leaves,
 /// not the disk.
-pub(super) fn land_with_failed_index(world: &World, seq: u64, requests: &[CommitRequest]) {
+pub(super) fn land_with_failed_index(
+    world: &World,
+    seq: u64,
+    requests: &[CommitRequest],
+) {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         land_with_failed_index_in_a_landing(world, seq, requests);
     });
 }
 
 /// `land_with_failed_index` with the landing already begun by its caller.
-fn land_with_failed_index_in_a_landing(world: &World, seq: u64, requests: &[CommitRequest]) {
+fn land_with_failed_index_in_a_landing(
+    world: &World,
+    seq: u64,
+    requests: &[CommitRequest],
+) {
     crate::service_fault::hooks::fail_at("build-index");
-    let outcomes = land_batch(&world.context, seq, requests).expect("the commits land whatever the index does");
+    let outcomes = land_batch(&world.context, seq, requests)
+        .expect("the commits land whatever the index does");
     crate::service_fault::hooks::clear_failures();
-    assert!(outcomes.iter().all(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }), "{outcomes:?}");
-    assert!(batch_path(world.context.journal.as_path(), seq, crate::service_journal::OPEN_EXTENSION).exists(), "the batch stays open");
-    assert!(!world.repo.join(".git/index.lock").exists(), "the lock was given up");
+    assert!(
+        outcomes.iter().all(|outcome| {
+            return matches!(outcome, Outcome::Landed { .. });
+        }),
+        "{outcomes:?}"
+    );
+    assert!(
+        batch_path(
+            world.context.journal.as_path(),
+            seq,
+            crate::service_journal::OPEN_EXTENSION
+        )
+        .exists(),
+        "the batch stays open"
+    );
+    assert!(
+        !world.repo.join(".git/index.lock").exists(),
+        "the lock was given up"
+    );
 }
 
 /// A request that sets `path` to `content`,
 /// prepared against the branch as it is now.
-pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest {
+pub(super) fn request(
+    world: &World,
+    id: &str,
+    path: &str,
+    content: &str,
+) -> CommitRequest {
     let file: PathBuf = world.repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(&file, content).expect("write");
@@ -76,7 +137,11 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         git_dir: world.repo.join(".git"),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
-        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change {
+            path: PathBuf::from(path),
+            mode: ALLOWED_MODES[0],
+            blob: Some(blob),
+        }],
         message: format!("message of {id}\n"),
         author: None,
         committer: String::from(COMMITTER),
@@ -85,7 +150,10 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         commit: None,
         cleanup: None,
         index: world.repo.join(".git/index"),
-        scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
+        scratch: world
+            .repo
+            .join(".git/monochromatic-git-policy-cli-scratch")
+            .join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -98,18 +166,42 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
 /// the landing holds that lock,
 /// so a commit by
 ///  `git commit` cannot happen while it works.
-fn move_branch(repo: &Path, message: &str) {
+fn move_branch(
+    repo: &Path,
+    message: &str,
+) {
     let tree: String = git_text(repo, &["rev-parse", "HEAD^{tree}"]);
     let head: String = git_text(repo, &["rev-parse", "HEAD"]);
-    let made: String = git_text(repo, &["commit-tree", tree.as_str(), "-p", head.as_str(), "-m", message]);
+    let made: String = git_text(
+        repo,
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            head.as_str(),
+            "-m",
+            message,
+        ],
+    );
     git(repo, &["update-ref", "refs/heads/main", made.as_str()]);
 }
 
-fn subjects(world: &World, since: &str) -> Vec<String> {
-    return git_text(world.repo.as_path(), &["log", "--reverse", "--format=%s", format!("{since}..HEAD").as_str()])
-        .lines()
-        .map(str::to_string)
-        .collect();
+fn subjects(
+    world: &World,
+    since: &str,
+) -> Vec<String> {
+    return git_text(
+        world.repo.as_path(),
+        &[
+            "log",
+            "--reverse",
+            "--format=%s",
+            format!("{since}..HEAD").as_str(),
+        ],
+    )
+    .lines()
+    .map(str::to_string)
+    .collect();
 }
 
 /// A batch becomes one commit per request,
@@ -121,16 +213,51 @@ fn subjects(world: &World, since: &str) -> Vec<String> {
 fn a_batch_lands_in_order_with_its_content_and_a_clean_index() {
     let world: World = world("service-land-order");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let batch: Vec<CommitRequest> = ["one", "two", "three"].iter().map(|id| { return request(&world, id, format!("{id}.txt").as_str(), format!("{id}\n").as_str()); }).collect();
+    let batch: Vec<CommitRequest> = ["one", "two", "three"]
+        .iter()
+        .map(|id| {
+            return request(
+                &world,
+                id,
+                format!("{id}.txt").as_str(),
+                format!("{id}\n").as_str(),
+            );
+        })
+        .collect();
     let outcomes = land_batch(&world.context, 1, &batch).expect("landed");
-    assert_eq!(subjects(&world, base.as_str()), vec!["message of one", "message of two", "message of three"]);
+    assert_eq!(
+        subjects(&world, base.as_str()),
+        vec!["message of one", "message of two", "message of three"]
+    );
     for (id, outcome) in ["one", "two", "three"].iter().zip(&outcomes) {
-        let Outcome::Landed { commit } = outcome else { panic!("{outcome:?}") };
-        assert_eq!(git_text(world.repo.as_path(), &["show", format!("{commit}:{id}.txt").as_str()]), *id);
+        let Outcome::Landed {
+            commit,
+        } = outcome
+        else {
+            panic!("{outcome:?}")
+        };
+        assert_eq!(
+            git_text(
+                world.repo.as_path(),
+                &["show", format!("{commit}:{id}.txt").as_str()]
+            ),
+            *id
+        );
     }
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), match outcomes.last() { Some(Outcome::Landed { commit }) => commit.clone(), other => panic!("{other:?}") });
-    assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "the batch is journaled and finished");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        match outcomes.last() {
+            Some(Outcome::Landed {
+                commit,
+            }) => commit.clone(),
+            other => panic!("{other:?}"),
+        }
+    );
+    assert!(
+        batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(),
+        "the batch is journaled and finished"
+    );
     remove(world.root.as_path());
 }
 
@@ -142,11 +269,23 @@ fn a_changed_path_is_sent_back_and_an_unrelated_one_lands() {
     let stale: CommitRequest = request(&world, "stale", "shared.txt", "mine\n");
     let unrelated: CommitRequest = request(&world, "unrelated", "other.txt", "other\n");
     git(world.repo.as_path(), &["add", "shared.txt"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--message=someone else"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=someone else"],
+    );
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let outcomes = land_batch(&world.context, 1, &[stale, unrelated]).expect("landed");
-    assert_eq!(outcomes[0], Outcome::RetryPrepare { base: head });
-    assert!(matches!(outcomes[1], Outcome::Landed { .. }), "{:?}", outcomes[1]);
+    assert_eq!(
+        outcomes[0],
+        Outcome::RetryPrepare {
+            base: head
+        }
+    );
+    assert!(
+        matches!(outcomes[1], Outcome::Landed { .. }),
+        "{:?}",
+        outcomes[1]
+    );
     remove(world.root.as_path());
 }
 
@@ -156,18 +295,44 @@ fn a_changed_path_is_sent_back_and_an_unrelated_one_lands() {
 /// The one that captured earlier is sent back.
 #[test]
 fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
-    let cases: [(u64, u64, bool); 4] = [(10, 20, true), (20, 10, false), (0, 20, false), (10, 10, false)];
+    let cases: [(u64, u64, bool); 4] = [
+        (10, 20, true),
+        (20, 10, false),
+        (0, 20, false),
+        (10, 10, false),
+    ];
     for (first_stamp, second_stamp, both_land) in cases {
-        let world: World = world(format!("service-land-shadow-{first_stamp}-{second_stamp}").as_str());
-        let first: CommitRequest = CommitRequest { captured: first_stamp, programs: None, ..request(&world, "first", "shared.txt", "one\n") };
-        let second: CommitRequest = CommitRequest { captured: second_stamp, programs: None, ..request(&world, "second", "shared.txt", "two\n") };
+        let world: World =
+            world(format!("service-land-shadow-{first_stamp}-{second_stamp}").as_str());
+        let first: CommitRequest = CommitRequest {
+            captured: first_stamp,
+            programs: None,
+            ..request(&world, "first", "shared.txt", "one\n")
+        };
+        let second: CommitRequest = CommitRequest {
+            captured: second_stamp,
+            programs: None,
+            ..request(&world, "second", "shared.txt", "two\n")
+        };
         let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
         let outcomes = land_batch(&world.context, 1, &[first, second]).expect("landed");
-        assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+        assert!(
+            matches!(outcomes[0], Outcome::Landed { .. }),
+            "{outcomes:?}"
+        );
         if both_land {
-            assert!(matches!(outcomes[1], Outcome::Landed { .. }), "{first_stamp} then {second_stamp}: {outcomes:?}");
+            assert!(
+                matches!(outcomes[1], Outcome::Landed { .. }),
+                "{first_stamp} then {second_stamp}: {outcomes:?}"
+            );
         } else {
-            assert_eq!(outcomes[1], Outcome::RetryPrepare { base: head }, "{first_stamp} then {second_stamp}");
+            assert_eq!(
+                outcomes[1],
+                Outcome::RetryPrepare {
+                    base: head
+                },
+                "{first_stamp} then {second_stamp}"
+            );
         }
         remove(world.root.as_path());
     }
@@ -181,7 +346,9 @@ fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
 /// which is the route that answers late and the route that must never fail.
 #[test]
 fn the_changes_of_a_worktree_hold_a_name_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("landing::service_land::tests::the_changes_of_a_worktree_hold_a_name_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_land::tests::the_changes_of_a_worktree_hold_a_name_that_is_not_text",
+    ) {
         return;
     }
     use crate::private_index_request::CaptureIndexes;
@@ -199,14 +366,19 @@ fn the_changes_of_a_worktree_hold_a_name_that_is_not_text() {
         commit_index: git_dir.join("commit.index"),
         object_directory: git_dir.join("objects"),
     };
-    std::fs::copy(git_dir.join("index"), indexes.commit_index.as_path()).expect("the private index");
-    let changes: Vec<Change> = changes_of(&world.context.git, world.repo.as_path(), &indexes, "HEAD")
-        .expect("the listing")
-        .expect("the embedded route carries the name");
+    std::fs::copy(git_dir.join("index"), indexes.commit_index.as_path())
+        .expect("the private index");
+    let changes: Vec<Change> =
+        changes_of(&world.context.git, world.repo.as_path(), &indexes, "HEAD")
+            .expect("the listing")
+            .expect("the embedded route carries the name");
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0].path, name);
     assert_eq!(changes[0].mode, ALLOWED_MODES[0]);
-    assert!(changes[0].blob.is_some(), "the object of the staged content: {changes:?}");
+    assert!(
+        changes[0].blob.is_some(),
+        "the object of the staged content: {changes:?}"
+    );
     remove(world.root.as_path());
 }
 
@@ -220,8 +392,16 @@ fn the_changes_of_a_worktree_hold_a_name_that_is_not_text() {
 #[test]
 fn a_name_that_is_not_text_is_quoted_as_its_bytes() {
     use crate::service_land_git_steps_and_import_stream::quoted;
-    assert_eq!(quoted(b"caf\xff.txt"), b"\"caf\xff.txt\"".to_vec(), "one byte above 0x7f stays one byte");
-    assert_eq!(quoted(b"a \"b\"\\c\nd"), b"\"a \\042b\\042\\134c\\012d\"".to_vec(), "a quote, a backslash and a line break are escaped");
+    assert_eq!(
+        quoted(b"caf\xff.txt"),
+        b"\"caf\xff.txt\"".to_vec(),
+        "one byte above 0x7f stays one byte"
+    );
+    assert_eq!(
+        quoted(b"a \"b\"\\c\nd"),
+        b"\"a \\042b\\042\\134c\\012d\"".to_vec(),
+        "a quote, a backslash and a line break are escaped"
+    );
 }
 
 /// A directory and a file of the same name overlap,
@@ -240,13 +420,33 @@ fn a_file_and_a_directory_of_one_name_overlap() {
 fn awkward_names_land_as_themselves() {
     let world: World = world("service-land-names");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let names = ["a \"quoted\" name.txt", "back\\slash.txt", "\"leading-quote.txt", "sp ace/dir with space/f.txt", "ünï.txt"];
-    let batch: Vec<CommitRequest> = names.iter().enumerate().map(|(n, name)| { return request(&world, format!("n{n}").as_str(), name, "x\n"); }).collect();
+    let names = [
+        "a \"quoted\" name.txt",
+        "back\\slash.txt",
+        "\"leading-quote.txt",
+        "sp ace/dir with space/f.txt",
+        "ünï.txt",
+    ];
+    let batch: Vec<CommitRequest> = names
+        .iter()
+        .enumerate()
+        .map(|(n, name)| {
+            return request(&world, format!("n{n}").as_str(), name, "x\n");
+        })
+        .collect();
     land_batch(&world.context, 1, &batch).expect("landed");
-    let listing: String = git_text(world.repo.as_path(), &["ls-tree", "-r", "--name-only", "-z", "HEAD"]);
+    let listing: String = git_text(
+        world.repo.as_path(),
+        &["ls-tree", "-r", "--name-only", "-z", "HEAD"],
+    );
     let _ = base;
     for name in names {
-        assert!(listing.split('\0').any(|entry| { return entry == name; }), "{name:?} in {listing:?}");
+        assert!(
+            listing.split('\0').any(|entry| {
+                return entry == name;
+            }),
+            "{name:?} in {listing:?}"
+        );
     }
     remove(world.root.as_path());
 }
@@ -258,9 +458,24 @@ fn a_deletion_removes_the_path() {
     let add: CommitRequest = request(&world, "add", "gone.txt", "x\n");
     land_batch(&world.context, 1, &[add]).expect("added");
     let mut delete: CommitRequest = request(&world, "delete", "stays.txt", "y\n");
-    delete.changes = vec![Change { path: PathBuf::from("gone.txt"), mode: ALLOWED_MODES[0], blob: None }];
+    delete.changes = vec![Change {
+        path: PathBuf::from("gone.txt"),
+        mode: ALLOWED_MODES[0],
+        blob: None,
+    }];
     land_batch(&world.context, 2, &[delete]).expect("deleted");
-    assert_eq!(git_text(world.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"]).lines().filter(|name| { return *name == "gone.txt"; }).count(), 0);
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["ls-tree", "-r", "--name-only", "HEAD"]
+        )
+        .lines()
+        .filter(|name| {
+            return *name == "gone.txt";
+        })
+        .count(),
+        0
+    );
     remove(world.root.as_path());
 }
 
@@ -284,15 +499,36 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
     let mut outcomes: Vec<Outcome> = Vec::new();
     // The batch is built again under the number it already holds, so the record its first attempt wrote is the one that stays, and
     //  a second write of it is no failure to report.
-    let entries = crate::service_timing::capture::entries_of(|| { outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt"); });
+    let entries = crate::service_timing::capture::entries_of(|| {
+        outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt");
+    });
     assert!(matches!(outcomes[0], Outcome::Landed { .. }));
-    assert_eq!(subjects(&world, base.as_str()), vec!["moved by someone", "message of mine"]);
-    assert!(
-        entries.iter().all(|entry| { return !entry.message.contains("record of its scratch reference could not be written"); }),
-        "the record of a batch built again is written once: {:?}",
-        entries.iter().map(|entry| { return entry.message.clone(); }).collect::<Vec<String>>()
+    assert_eq!(
+        subjects(&world, base.as_str()),
+        vec!["moved by someone", "message of mine"]
     );
-    assert!(!crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record of a landed batch goes with its landing");
+    assert!(
+        entries.iter().all(|entry| {
+            return !entry
+                .message
+                .contains("record of its scratch reference could not be written");
+        }),
+        "the record of a batch built again is written once: {:?}",
+        entries
+            .iter()
+            .map(|entry| {
+                return entry.message.clone();
+            })
+            .collect::<Vec<String>>()
+    );
+    assert!(
+        !crate::service_scratch_ref_marker_of_a_batch::record_path(
+            world.context.journal.as_path(),
+            1
+        )
+        .exists(),
+        "the record of a landed batch goes with its landing"
+    );
     remove(world.root.as_path());
 }
 
@@ -309,9 +545,16 @@ fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
         counter.fetch_add(1, Ordering::SeqCst);
         move_branch(repo.as_path(), "moved again");
     }));
-    assert_eq!(land_batch(&world.context, 1, &[first]), Err(FailureCode::BranchKeepsChanging));
+    assert_eq!(
+        land_batch(&world.context, 1, &[first]),
+        Err(FailureCode::BranchKeepsChanging)
+    );
     assert_eq!(moves.load(Ordering::SeqCst), LANDING_ATTEMPTS);
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left behind");
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        0,
+        "no intent is left behind"
+    );
     remove(world.root.as_path());
 }
 
@@ -319,7 +562,12 @@ fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
 /// the tree is the tip's tree with that file,
 /// written to the object store,
 ///  and the real index is left as it was.
-fn amend_request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest {
+fn amend_request(
+    world: &World,
+    id: &str,
+    path: &str,
+    content: &str,
+) -> CommitRequest {
     let mut amend: CommitRequest = request(world, id, path, content);
     git(world.repo.as_path(), &["add", "--", path]);
     let tree: String = git_text(world.repo.as_path(), &["write-tree"]);
@@ -342,14 +590,42 @@ fn an_amend_replaces_the_tip_with_the_parents_of_the_replaced_commit() {
     let first: CommitRequest = request(&world, "first", "first.txt", "first\n");
     land_batch(&world.context, 1, &[first]).expect("landed");
     let replaced: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let mut amend: CommitRequest = amend_request(&world, "amended", "first.txt", "first, amended\n");
+    let mut amend: CommitRequest =
+        amend_request(&world, "amended", "first.txt", "first, amended\n");
     amend.author = Some(String::from("Old <old@example.invalid> 1700000000 +0200"));
     let outcomes = land_batch(&world.context, 2, &[amend.clone()]).expect("landed");
-    let Outcome::Landed { commit } = outcomes[0].clone() else { panic!("{:?}", outcomes[0]) };
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", format!("{commit}^").as_str()]), parent, "the replaced commit's parent");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", format!("{commit}^{{tree}}").as_str()]), amend.tree.clone().unwrap_or_default());
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s|%an|%ad|%cn", "--date=raw"]), "message of amended|Old|1700000000 +0200|T");
+    let Outcome::Landed {
+        commit,
+    } = outcomes[0].clone()
+    else {
+        panic!("{:?}", outcomes[0])
+    };
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        commit
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["rev-parse", format!("{commit}^").as_str()]
+        ),
+        parent,
+        "the replaced commit's parent"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["rev-parse", format!("{commit}^{{tree}}").as_str()]
+        ),
+        amend.tree.clone().unwrap_or_default()
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s|%an|%ad|%cn", "--date=raw"]
+        ),
+        "message of amended|Old|1700000000 +0200|T"
+    );
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
     assert_ne!(commit, replaced);
     remove(world.root.as_path());
@@ -360,21 +636,68 @@ fn an_amend_replaces_the_tip_with_the_parents_of_the_replaced_commit() {
 #[test]
 fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
     let world: World = world("service-land-amend-shapes");
-    git(world.repo.as_path(), &["checkout", "--quiet", "--orphan", "fresh"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=orphan root"]);
+    git(
+        world.repo.as_path(),
+        &["checkout", "--quiet", "--orphan", "fresh"],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message=orphan root",
+        ],
+    );
     let mut amend: CommitRequest = amend_request(&world, "root", "r.txt", "r\n");
     amend.reference = crate::ref_name::RefName::from_text("refs/heads/fresh");
     let outcomes = land_batch(&world.context, 1, &[amend]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "fresh"]).split_whitespace().count(), 1, "still a root commit");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{:?}",
+        outcomes[0]
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["rev-list", "--parents", "--max-count=1", "fresh"]
+        )
+        .split_whitespace()
+        .count(),
+        1,
+        "still a root commit"
+    );
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    git(world.repo.as_path(), &["merge", "--quiet", "--no-ff", "--allow-unrelated-histories", "--message=merge", "fresh"]);
-    let parents: String = git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]);
+    git(
+        world.repo.as_path(),
+        &[
+            "merge",
+            "--quiet",
+            "--no-ff",
+            "--allow-unrelated-histories",
+            "--message=merge",
+            "fresh",
+        ],
+    );
+    let parents: String = git_text(
+        world.repo.as_path(),
+        &["rev-list", "--parents", "--max-count=1", "HEAD"],
+    );
     let amend_merge: CommitRequest = amend_request(&world, "merge", "m.txt", "m\n");
     let merged = land_batch(&world.context, 2, &[amend_merge]).expect("landed");
-    assert!(matches!(merged[0], Outcome::Landed { .. }), "{:?}", merged[0]);
-    let after: String = git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]);
-    assert_eq!(parents.split_whitespace().skip(1).collect::<Vec<&str>>(), after.split_whitespace().skip(1).collect::<Vec<&str>>());
+    assert!(
+        matches!(merged[0], Outcome::Landed { .. }),
+        "{:?}",
+        merged[0]
+    );
+    let after: String = git_text(
+        world.repo.as_path(),
+        &["rev-list", "--parents", "--max-count=1", "HEAD"],
+    );
+    assert_eq!(
+        parents.split_whitespace().skip(1).collect::<Vec<&str>>(),
+        after.split_whitespace().skip(1).collect::<Vec<&str>>()
+    );
     remove(world.root.as_path());
 }
 
@@ -385,11 +708,28 @@ fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
 fn an_amend_is_not_made_when_the_branch_is_not_at_its_base() {
     let world: World = world("service-land-amend-moved");
     let amend: CommitRequest = amend_request(&world, "late", "late.txt", "late\n");
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved by someone"]);
+    git(
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message=moved by someone",
+        ],
+    );
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    assert_eq!(land_batch(&world.context, 1, &[amend]).expect("answered"), vec![Outcome::BranchMoved]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), moved);
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    assert_eq!(
+        land_batch(&world.context, 1, &[amend]).expect("answered"),
+        vec![Outcome::BranchMoved]
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        moved
+    );
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        0
+    );
     remove(world.root.as_path());
 }
 
@@ -403,9 +743,19 @@ fn an_amend_is_not_made_when_the_branch_moves_under_it() {
     world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         move_branch(repo.as_path(), "moved by someone");
     }));
-    assert_eq!(land_batch(&world.context, 1, &[amend]).expect("answered"), vec![Outcome::BranchMoved]);
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s"]), "moved by someone");
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left behind");
+    assert_eq!(
+        land_batch(&world.context, 1, &[amend]).expect("answered"),
+        vec![Outcome::BranchMoved]
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["log", "-1", "--format=%s"]),
+        "moved by someone"
+    );
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        0,
+        "no intent is left behind"
+    );
     remove(world.root.as_path());
 }
 
@@ -416,7 +766,10 @@ fn an_amend_in_a_batch_with_others_is_refused() {
     let world: World = world("service-land-amend-mixed");
     let plain: CommitRequest = request(&world, "plain", "plain.txt", "p\n");
     let amend: CommitRequest = amend_request(&world, "amend", "amend.txt", "a\n");
-    assert_eq!(land_batch(&world.context, 1, &[plain, amend]), Err(FailureCode::Rejected));
+    assert_eq!(
+        land_batch(&world.context, 1, &[plain, amend]),
+        Err(FailureCode::Rejected)
+    );
     remove(world.root.as_path());
 }
 
@@ -424,12 +777,22 @@ fn an_amend_in_a_batch_with_others_is_refused() {
 /// `commit-tree` makes it on `parents` with the tip's tree plus `path`,
 /// and the
 ///  request names it whole.
-pub(super) fn built_request(world: &World, id: &str, path: &str, parents: &[&str]) -> CommitRequest {
+pub(super) fn built_request(
+    world: &World,
+    id: &str,
+    path: &str,
+    parents: &[&str],
+) -> CommitRequest {
     let mut built: CommitRequest = request(world, id, path, format!("{id}\n").as_str());
     git(world.repo.as_path(), &["add", "--", path]);
     let tree: String = git_text(world.repo.as_path(), &["write-tree"]);
     git(world.repo.as_path(), &["reset", "--quiet"]);
-    let mut arguments: Vec<String> = vec![String::from("commit-tree"), tree, String::from("-m"), format!("typed {id}")];
+    let mut arguments: Vec<String> = vec![
+        String::from("commit-tree"),
+        tree,
+        String::from("-m"),
+        format!("typed {id}"),
+    ];
     for parent in parents {
         arguments.push(String::from("-p"));
         arguments.push((*parent).to_string());
@@ -451,10 +814,21 @@ fn a_commit_git_built_lands_as_it_is_while_the_branch_is_at_its_base() {
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().unwrap_or_default();
     let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
-    assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
+    assert_eq!(
+        outcomes,
+        vec![Outcome::Landed {
+            commit: commit.clone()
+        }]
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        commit
+    );
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
-    assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "journaled and finished");
+    assert!(
+        batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(),
+        "journaled and finished"
+    );
     remove(world.root.as_path());
 }
 
@@ -466,10 +840,24 @@ fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
     let world: World = world("service-land-built-moved");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved by someone"]);
+    git(
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message=moved by someone",
+        ],
+    );
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    assert_eq!(land_batch(&world.context, 1, &[built]).expect("answered"), vec![Outcome::BranchMoved]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), moved);
+    assert_eq!(
+        land_batch(&world.context, 1, &[built]).expect("answered"),
+        vec![Outcome::BranchMoved]
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        moved
+    );
     remove(world.root.as_path());
 }
 
@@ -485,17 +873,38 @@ fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
 fn a_commit_git_built_is_checked_before_the_branch_moves() {
     let world: World = world("service-land-built-checked");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=second"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=second"],
+    );
     let second: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let mut on_other_parents: CommitRequest = built_request(&world, "other", "other.txt", &[base.as_str()]);
+    let mut on_other_parents: CommitRequest =
+        built_request(&world, "other", "other.txt", &[base.as_str()]);
     on_other_parents.base = second.clone();
-    let mut not_a_commit: CommitRequest = built_request(&world, "tree", "tree.txt", &[second.as_str()]);
-    not_a_commit.commit = Some(git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]));
-    let mut wrong_amend: CommitRequest = built_request(&world, "amend", "amend.txt", &[second.as_str()]);
+    let mut not_a_commit: CommitRequest =
+        built_request(&world, "tree", "tree.txt", &[second.as_str()]);
+    not_a_commit.commit = Some(git_text(
+        world.repo.as_path(),
+        &["rev-parse", "HEAD^{tree}"],
+    ));
+    let mut wrong_amend: CommitRequest =
+        built_request(&world, "amend", "amend.txt", &[second.as_str()]);
     wrong_amend.amend = true;
-    for (label, refused) in [("other parents", on_other_parents), ("a tree", not_a_commit), ("an amend on the base itself", wrong_amend)] {
-        assert_eq!(land_batch(&world.context, 1, &[refused]), Err(FailureCode::Rejected), "{label}");
-        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), second, "{label}: the branch did not move");
+    for (label, refused) in [
+        ("other parents", on_other_parents),
+        ("a tree", not_a_commit),
+        ("an amend on the base itself", wrong_amend),
+    ] {
+        assert_eq!(
+            land_batch(&world.context, 1, &[refused]),
+            Err(FailureCode::Rejected),
+            "{label}"
+        );
+        assert_eq!(
+            git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+            second,
+            "{label}: the branch did not move"
+        );
     }
     remove(world.root.as_path());
 }
@@ -523,11 +932,22 @@ fn a_landing_waits_for_a_foreign_index_lock_and_builds_on_what_the_holder_left()
             std::fs::remove_file(&lock).expect("the holder lets go");
         }
     };
-    let outcomes = land_batch_announcing(&world.context, 1, &[request], &holder).expect("landed after the holder let go");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(subjects(&world, base.as_str()), vec!["foreign commit", "message of mine"]);
+    let outcomes = land_batch_announcing(&world.context, 1, &[request], &holder)
+        .expect("landed after the holder let go");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        subjects(&world, base.as_str()),
+        vec!["foreign commit", "message of mine"]
+    );
     assert!(!lock.exists(), "the landing gave the lock up");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing"
+    );
     remove(world.root.as_path());
 }
 
@@ -548,9 +968,20 @@ fn the_index_lock_is_not_held_while_the_objects_are_made() {
         counter.fetch_add(1, Ordering::SeqCst);
     }));
     let outcomes = land_batch(&world.context, 1, &[request]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert_eq!(seen_held.load(Ordering::SeqCst), 0, "the lock stood while the objects were being made");
-    assert_eq!(seen_free.load(Ordering::SeqCst), 1, "the seam ran once, with no lock in the Git directory");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        seen_held.load(Ordering::SeqCst),
+        0,
+        "the lock stood while the objects were being made"
+    );
+    assert_eq!(
+        seen_free.load(Ordering::SeqCst),
+        1,
+        "the seam ran once, with no lock in the Git directory"
+    );
     assert!(!lock.exists(), "the landing gave the lock up");
     remove(world.root.as_path());
 }
@@ -571,9 +1002,18 @@ fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
         std::fs::remove_file(&watched).expect("the holder lets go while the objects are made");
     }));
     let waited: std::cell::Cell<bool> = std::cell::Cell::new(false);
-    let outcomes = land_batch_announcing(&world.context, 1, &[request], &|_: Announce| { waited.set(true); }).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
-    assert!(!waited.get(), "the holder was gone before the lock was asked for, so nothing was waited for");
+    let outcomes = land_batch_announcing(&world.context, 1, &[request], &|_: Announce| {
+        waited.set(true);
+    })
+    .expect("landed");
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{outcomes:?}"
+    );
+    assert!(
+        !waited.get(),
+        "the holder was gone before the lock was asked for, so nothing was waited for"
+    );
     remove(world.root.as_path());
 }
 
@@ -599,13 +1039,31 @@ fn an_absent_pid_number_is_waited_for_and_changes_nothing() {
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
-    let mut gone = std::process::Command::new("true").spawn().expect("a short process");
+    let mut gone = std::process::Command::new("true")
+        .spawn()
+        .expect("a short process");
     let gone_pid: u32 = gone.id();
     gone.wait().expect("it ends");
-    std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {gone_pid}\n")).expect("PID file");
-    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()),
+        format!("pid {gone_pid}\n"),
+    )
+    .expect("PID file");
+    let context: LandContext = LandContext {
+        git: git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: SHORT_CEILING,
+    };
     let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-    let answered = land_batch_announcing(&context, 1, std::slice::from_ref(&request), &|note: Announce| { said.lock().expect("a poisoned lock").push(note); });
+    let answered = land_batch_announcing(
+        &context,
+        1,
+        std::slice::from_ref(&request),
+        &|note: Announce| {
+            said.lock().expect("a poisoned lock").push(note);
+        },
+    );
     let heard: Vec<Announce> = said.lock().expect("a poisoned lock").clone();
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     assert!(
@@ -613,13 +1071,32 @@ fn an_absent_pid_number_is_waited_for_and_changes_nothing() {
         "the number the PID file holds is said, and why it proves nothing: {heard:?}"
     );
     assert!(
-        heard.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held after")); }),
+        heard.iter().any(|note| {
+            return matches!(note, Announce::Waiting(text) if text.contains("still held after"));
+        }),
         "the wait ends at its ceiling, not before it: {heard:?}"
     );
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the objects were made, so the scratch branch is removed with the refusal");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the branch did not move"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the foreign lock stands"),
+        "foreign"
+    );
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        0
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "the objects were made, so the scratch branch is removed with the refusal"
+    );
     remove(world.root.as_path());
 }
 
@@ -636,30 +1113,86 @@ fn a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scrat
     // The kill, at the instant a real service is killed at (`service_fault::FAULT_POINTS`, "after-intent"): the objects are
     //  imported, the intent is written and the process ends before the branch write. A control cannot kill itself and go on,
     //  so the landing ends there instead, which leaves the same files behind.
-    crate::service_fault::hooks::set("before-ref", std::rc::Rc::new(|| panic!("the service was killed before its branch write")));
-    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::set(
+        "before-ref",
+        std::rc::Rc::new(|| panic!("the service was killed before its branch write")),
+    );
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    }));
     crate::service_fault::hooks::clear();
-    assert!(killed.is_err(), "the landing of the killed service never answered");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert!(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is open");
-    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
-    assert!(scratch.starts_with("refs/worktree/cli-git-service/1 "), "the killed landing left its commit on the scratch branch: {scratch:?}");
+    assert!(
+        killed.is_err(),
+        "the landing of the killed service never answered"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the branch did not move"
+    );
+    assert!(
+        batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the intent is open"
+    );
+    let scratch: String = git_text(
+        world.repo.as_path(),
+        &[
+            "for-each-ref",
+            "--format=%(refname) %(objectname)",
+            "refs/worktree/cli-git-service/",
+        ],
+    );
+    assert!(
+        scratch.starts_with("refs/worktree/cli-git-service/1 "),
+        "the killed landing left its commit on the scratch branch: {scratch:?}"
+    );
     let reports: Vec<RecoveryReport> = recover(&world.context);
     assert!(
-        reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Drop && report.handled == Handled::Dropped; }),
+        reports.iter().any(|report| {
+            return report.seq == 1
+                && report.decision == Recovery::Drop
+                && report.handled == Handled::Dropped;
+        }),
         "the branch never moved, so the restart drops the batch: {reports:?}"
     );
-    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the dropped batch keeps no intent");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert!(
+        !batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the dropped batch keeps no intent"
+    );
     assert_eq!(
-        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]),
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "no scratch branch is left"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]
+        ),
         "refs/cli-git/kept/1",
         "the commit of the batch that did not land is kept where the person can find it"
     );
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the batch's own commit");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]
+        ),
+        "message of mine",
+        "the kept reference holds the batch's own commit"
+    );
     // Nothing is lost that only the removed reference held: the kept commit survives a maintenance that drops unreachable objects.
     git(world.repo.as_path(), &["prune", "--expire=now"]);
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit is still in the object store after a prune");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["cat-file", "-t", "refs/cli-git/kept/1"]
+        ),
+        "commit",
+        "the kept commit is still in the object store after a prune"
+    );
     remove(world.root.as_path());
 }
 
@@ -673,30 +1206,96 @@ fn a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scrat
 /// so the restart finds that record,
 /// keeps the commit the reference holds on `refs/cli-git/kept/<seq>` and only then removes the reference.
 #[test]
-fn a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch() {
+fn a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch()
+ {
     let world: World = world("service-land-killed-import-scratch");
     let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    crate::service_fault::hooks::set("after-objects", std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")));
-    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::set(
+        "after-objects",
+        std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")),
+    );
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    }));
     crate::service_fault::hooks::clear();
-    assert!(killed.is_err(), "the landing of the killed service never answered");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert!(!batch_path(world.context.journal.as_path(), 1, crate::service_journal::OPEN_EXTENSION).exists(), "no intent names the batch");
-    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
-    assert!(scratch.starts_with("refs/worktree/cli-git-service/1 "), "the killed landing left its commit on the scratch branch: {scratch:?}");
-    assert_eq!(recover(&world.context), Vec::new(), "no intent is open, so nothing is settled from the branch");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert!(
+        killed.is_err(),
+        "the landing of the killed service never answered"
+    );
     assert_eq!(
-        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]),
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the branch did not move"
+    );
+    assert!(
+        !batch_path(
+            world.context.journal.as_path(),
+            1,
+            crate::service_journal::OPEN_EXTENSION
+        )
+        .exists(),
+        "no intent names the batch"
+    );
+    let scratch: String = git_text(
+        world.repo.as_path(),
+        &[
+            "for-each-ref",
+            "--format=%(refname) %(objectname)",
+            "refs/worktree/cli-git-service/",
+        ],
+    );
+    assert!(
+        scratch.starts_with("refs/worktree/cli-git-service/1 "),
+        "the killed landing left its commit on the scratch branch: {scratch:?}"
+    );
+    assert_eq!(
+        recover(&world.context),
+        Vec::new(),
+        "no intent is open, so nothing is settled from the branch"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "no scratch branch is left"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]
+        ),
         "refs/cli-git/kept/1",
         "the commit of a batch no record named is kept where the person can find it"
     );
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the batch's own commit");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]
+        ),
+        "message of mine",
+        "the kept reference holds the batch's own commit"
+    );
     // Nothing is lost that only the removed reference held: the kept commit survives a maintenance that drops unreachable objects.
     git(world.repo.as_path(), &["prune", "--expire=now"]);
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit is still in the object store after a prune");
-    assert!(!crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record of the batch's scratch reference goes with the reference");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["cat-file", "-t", "refs/cli-git/kept/1"]
+        ),
+        "commit",
+        "the kept commit is still in the object store after a prune"
+    );
+    assert!(
+        !crate::service_scratch_ref_marker_of_a_batch::record_path(
+            world.context.journal.as_path(),
+            1
+        )
+        .exists(),
+        "the record of the batch's scratch reference goes with the reference"
+    );
     remove(world.root.as_path());
 }
 
@@ -707,21 +1306,57 @@ fn a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_remo
 fn a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_record() {
     let world: World = world("service-land-killed-import-kept-clash");
     let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
-    crate::service_fault::hooks::set("after-objects", std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")));
-    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::set(
+        "after-objects",
+        std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")),
+    );
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        return land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    }));
     crate::service_fault::hooks::clear();
-    assert!(killed.is_err(), "the landing of the killed service never answered");
-    let scratch_before: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
+    assert!(
+        killed.is_err(),
+        "the landing of the killed service never answered"
+    );
+    let scratch_before: String = git_text(
+        world.repo.as_path(),
+        &[
+            "for-each-ref",
+            "--format=%(refname) %(objectname)",
+            "refs/worktree/cli-git-service/",
+        ],
+    );
     let elsewhere: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", elsewhere.as_str()]);
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/cli-git/kept/1", elsewhere.as_str()],
+    );
     assert_eq!(recover(&world.context), Vec::new(), "no intent is open");
     assert_eq!(
-        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]),
+        git_text(
+            world.repo.as_path(),
+            &[
+                "for-each-ref",
+                "--format=%(refname) %(objectname)",
+                "refs/worktree/cli-git-service/"
+            ]
+        ),
         scratch_before,
         "a kept reference that names another commit proves nothing about the batch's commit, so the scratch branch stays"
     );
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), elsewhere, "and the kept reference is not moved");
-    assert!(crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record stays for the next restart to try again");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+        elsewhere,
+        "and the kept reference is not moved"
+    );
+    assert!(
+        crate::service_scratch_ref_marker_of_a_batch::record_path(
+            world.context.journal.as_path(),
+            1
+        )
+        .exists(),
+        "the record stays for the next restart to try again"
+    );
     remove(world.root.as_path());
 }
 
@@ -735,10 +1370,20 @@ const SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(300)
 /// The wait ends by itself at that ceiling,
 /// so the control reads the ending rather than timing it,
 /// and a wait that never ends is the whole run's watchdog to report.
-fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> (Result<Vec<Outcome>, FailureCode>, Vec<Announce>) {
-    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+fn land_at_the_ceiling(
+    world: &World,
+    requests: Vec<CommitRequest>,
+) -> (Result<Vec<Outcome>, FailureCode>, Vec<Announce>) {
+    let context: LandContext = LandContext {
+        git: git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: SHORT_CEILING,
+    };
     let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-    let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| { said.lock().expect("lock").push(note); });
+    let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| {
+        said.lock().expect("lock").push(note);
+    });
     let heard: Vec<Announce> = said.lock().expect("lock").clone();
     return (answered, heard);
 }
@@ -759,20 +1404,70 @@ fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_si
     std::fs::write(&lock, "foreign").expect("foreign lock");
     let (answered, said) = land_at_the_ceiling(&world, vec![request]);
     assert_eq!(answered, Err(FailureCode::IndexInUse));
-    let kept: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]);
-    assert_eq!(kept, "refs/cli-git/kept/1", "the built commit is kept on a side ref");
-    let subject: String = git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]);
-    assert_eq!(subject, "message of mine", "the side ref holds the commit that was built");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left to land it later");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
-    let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
+    let kept: String = git_text(
+        world.repo.as_path(),
+        &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"],
+    );
+    assert_eq!(
+        kept, "refs/cli-git/kept/1",
+        "the built commit is kept on a side ref"
+    );
+    let subject: String = git_text(
+        world.repo.as_path(),
+        &["log", "-1", "--format=%s", "refs/cli-git/kept/1"],
+    );
+    assert_eq!(
+        subject, "message of mine",
+        "the side ref holds the commit that was built"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the branch did not move"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the foreign lock stands"),
+        "foreign"
+    );
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        0,
+        "no intent is left to land it later"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "the scratch branch is gone"
+    );
+    let texts: Vec<String> = said
+        .iter()
+        .filter_map(|note| {
+            return if let Announce::Waiting(text) = note {
+                Some(text.clone())
+            } else {
+                None
+            };
+        })
+        .collect();
     let ending: String = texts.join("");
-    assert!(ending.contains("refs/cli-git/kept/1") && ending.contains("was not made") && ending.contains("still held"), "{ending}");
-    assert!(ending.contains("an owner nothing proves alive"), "the blocker is named with its evidence: {ending}");
+    assert!(
+        ending.contains("refs/cli-git/kept/1")
+            && ending.contains("was not made")
+            && ending.contains("still held"),
+        "{ending}"
+    );
+    assert!(
+        ending.contains("an owner nothing proves alive"),
+        "the blocker is named with its evidence: {ending}"
+    );
     // A restart of the service finds nothing to settle, and the branch still has not moved.
-    assert!(recover(&world.context).is_empty(), "nothing is left for a restart to land");
+    assert!(
+        recover(&world.context).is_empty(),
+        "nothing is left for a restart to land"
+    );
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
     remove(world.root.as_path());
 }
@@ -785,12 +1480,29 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {}\n", std::process::id())).expect("PID file");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("PID file");
     let (answered, said) = land_at_the_ceiling(&world, vec![request]);
     assert_eq!(answered, Err(FailureCode::IndexInUse));
-    let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
+    let texts: Vec<String> = said
+        .iter()
+        .filter_map(|note| {
+            return if let Announce::Waiting(text) = note {
+                Some(text.clone())
+            } else {
+                None
+            };
+        })
+        .collect();
     let ending: String = texts.join("");
-    assert!(ending.contains(format!("PID {}", std::process::id()).as_str()) && ending.contains("still held"), "{ending}");
+    assert!(
+        ending.contains(format!("PID {}", std::process::id()).as_str())
+            && ending.contains("still held"),
+        "{ending}"
+    );
     remove(world.root.as_path());
 }
 
@@ -805,14 +1517,21 @@ const SHORT_STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3
 ///  one does.
 /// Finite on purpose,
 /// so a control that finds the update ended early or never fails in moments and never hangs.
-fn late_reference_git(world: &World, seconds: u64) -> PathBuf {
+fn late_reference_git(
+    world: &World,
+    seconds: u64,
+) -> PathBuf {
     let program: PathBuf = world.root.join("late-update-ref-git");
     let script: String = format!(
         "#!/bin/sh\ncase \" $* \" in\n  *\" update-ref --stdin \"*) sleep {seconds}; exec '{real}' \"$@\";;\n  *) exec '{real}' \"$@\";;\nesac\n",
         real = crate::test_support::REAL_GIT
     );
     std::fs::write(&program, script).expect("script");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return program;
 }
 
@@ -833,33 +1552,92 @@ fn a_branch_write_that_outlasts_the_step_ceiling_is_not_ended() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let world: World = world("service-land-branch-write-not-ended");
         let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
-        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+        let mut context: LandContext = LandContext {
+            git: git_context(),
+            journal: world.context.journal.clone(),
+            on_objects_written: None,
+            lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+        };
         // The write outlasts the bound of its class and the extra wait together (3 s and 1 s against 6 s), and runs on the landing
         // thread, which waits for it without a bound; a command that left it running would have given up at 4 s.
         context.git.real_git = late_reference_git(&world, SHORT_STEP_CEILING.as_secs() * 2);
-        crate::service_busy_step_record_on_this_thread::use_on_this_thread(crate::service_busy::LandingBoard::new(world.root.join("busy-journal"), crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER));
-        crate::transaction_git::EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_secs(1))); });
-        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+        crate::service_busy_step_record_on_this_thread::use_on_this_thread(
+            crate::service_busy::LandingBoard::new(
+                world.root.join("busy-journal"),
+                crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER,
+            ),
+        );
+        crate::transaction_git::EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(std::time::Duration::from_secs(1)));
+        });
+        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(SHORT_STEP_CEILING));
+        });
         let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-        let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
-        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+        let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| {
+            said.lock().expect("lock").push(note);
+        });
+        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(None);
+        });
         let outcomes = answered.expect("the branch write was waited for, so the commit landed");
-        let Outcome::Landed { commit } = &outcomes[0] else { panic!("{outcomes:?}") };
-        assert_eq!(&git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), commit, "the branch is at the commit the answer names");
-        assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/cli-git/kept/"]), "", "nothing was kept on a side ref: nothing was withdrawn");
-        assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
-        assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
-        assert!(said.lock().expect("lock").iter().all(|note| { return !matches!(note, Announce::Waiting(text) if text.contains("was not made")); }), "no step was ended");
+        let Outcome::Landed {
+            commit,
+        } = &outcomes[0]
+        else {
+            panic!("{outcomes:?}")
+        };
+        assert_eq!(
+            &git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]),
+            commit,
+            "the branch is at the commit the answer names"
+        );
+        assert_eq!(
+            git_text(
+                world.repo.as_path(),
+                &["for-each-ref", "refs/cli-git/kept/"]
+            ),
+            "",
+            "nothing was kept on a side ref: nothing was withdrawn"
+        );
+        assert_eq!(
+            git_text(
+                world.repo.as_path(),
+                &["for-each-ref", "refs/worktree/cli-git-service/"]
+            ),
+            "",
+            "the scratch branch is gone"
+        );
+        assert_eq!(
+            list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+            0
+        );
+        assert!(
+            said.lock().expect("lock").iter().all(|note| {
+                return !matches!(note, Announce::Waiting(text) if text.contains("was not made"));
+            }),
+            "no step was ended"
+        );
         remove(world.root.as_path());
     });
 }
 
 /// A Git whose `subcommand` never returns and whose other commands are the real one's.
-fn git_that_hangs_on(world: &World, subcommand: &str) -> PathBuf {
+fn git_that_hangs_on(
+    world: &World,
+    subcommand: &str,
+) -> PathBuf {
     let program: PathBuf = world.root.join(format!("hang-on-{subcommand}-git"));
-    let script: String = format!("#!/bin/sh\ncase \" $* \" in\n  *\" {subcommand} \"*) sleep 600;;\n  *) exec '{}' \"$@\";;\nesac\n", crate::test_support::REAL_GIT);
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" {subcommand} \"*) sleep 600;;\n  *) exec '{}' \"$@\";;\nesac\n",
+        crate::test_support::REAL_GIT
+    );
     std::fs::write(&program, script).expect("script");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return program;
 }
 
@@ -876,20 +1654,52 @@ fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
         let world: World = world("service-land-read-ceiling");
         let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
         let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
+        let mut context: LandContext = LandContext {
+            git: git_context(),
+            journal: world.context.journal.clone(),
+            on_objects_written: None,
+            lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+        };
         context.git.real_git = git_that_hangs_on(&world, "rev-parse");
         // The landing reads the branch in process when it can, which starts no Git to hang; the readers are off here so that the step
         //  under test is the one that starts Git.
-        context.git.overlay.extend(crate::repo_read_hook::switch_off());
-        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+        context
+            .git
+            .overlay
+            .extend(crate::repo_read_hook::switch_off());
+        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(SHORT_STEP_CEILING));
+        });
         let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-        let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
-        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+        let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| {
+            said.lock().expect("lock").push(note);
+        });
+        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(None);
+        });
         assert_eq!(answered, Err(FailureCode::StepTooSlow));
         assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
-        assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
-        let line: String = said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect::<Vec<String>>().join("");
-        assert!(line.contains("rev-parse") && line.contains("was not made"), "{line}");
+        assert_eq!(
+            list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+            0
+        );
+        let line: String = said
+            .lock()
+            .expect("lock")
+            .iter()
+            .filter_map(|note| {
+                return if let Announce::Waiting(text) = note {
+                    Some(text.clone())
+                } else {
+                    None
+                };
+            })
+            .collect::<Vec<String>>()
+            .join("");
+        assert!(
+            line.contains("rev-parse") && line.contains("was not made"),
+            "{line}"
+        );
         remove(world.root.as_path());
     });
 }
@@ -903,7 +1713,10 @@ fn the_hold_covers_the_branch_move_and_the_index_build() {
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let mut timing: LandTiming = LandTiming::default();
     land_batch_timed(&world.context, 1, &[request], &|_| {}, &mut timing).expect("landed");
-    assert!(timing.hold >= timing.ref_update + timing.index_update, "{timing:?}");
+    assert!(
+        timing.hold >= timing.ref_update + timing.index_update,
+        "{timing:?}"
+    );
     assert!(timing.hold > std::time::Duration::ZERO, "{timing:?}");
     remove(world.root.as_path());
 }
@@ -915,8 +1728,14 @@ fn a_mixed_batch_is_refused() {
     let one: CommitRequest = request(&world, "one", "one.txt", "1\n");
     let mut other: CommitRequest = request(&world, "two", "two.txt", "2\n");
     other.reference = crate::ref_name::RefName::from_text("refs/heads/other");
-    assert_eq!(land_batch(&world.context, 1, &[one, other]), Err(FailureCode::Rejected));
-    assert_eq!(land_batch(&world.context, 2, &[]), Err(FailureCode::Rejected));
+    assert_eq!(
+        land_batch(&world.context, 1, &[one, other]),
+        Err(FailureCode::Rejected)
+    );
+    assert_eq!(
+        land_batch(&world.context, 2, &[]),
+        Err(FailureCode::Rejected)
+    );
     remove(world.root.as_path());
 }
 
@@ -933,30 +1752,84 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     land_with_failed_index(&world, 1, &[landed]);
     let new: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     assert_ne!(new, base);
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]).lines().count(), 2, "staged deletion and untracked file");
-    let mut never: Intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"])
+            .lines()
+            .count(),
+        2,
+        "staged deletion and untracked file"
+    );
+    let mut never: Intent = parse_intent(
+        std::fs::read_to_string(batch_path(
+            world.context.journal.as_path(),
+            1,
+            OPEN_EXTENSION,
+        ))
+        .expect("read")
+        .as_str(),
+    )
+    .expect("parse");
     never.seq = 2;
     never.old = new.clone();
     never.new = "f".repeat(40);
-    crate::service_journal::write_intent(world.context.journal.as_path(), &never).expect("second intent");
-    std::fs::write(batch_path(world.context.journal.as_path(), 3, OPEN_EXTENSION), "seq=3\nrepos").expect("torn");
+    crate::service_journal::write_intent(world.context.journal.as_path(), &never)
+        .expect("second intent");
+    std::fs::write(
+        batch_path(world.context.journal.as_path(), 3, OPEN_EXTENSION),
+        "seq=3\nrepos",
+    )
+    .expect("torn");
     let mut reports: Vec<RecoveryReport> = Vec::new();
-    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| { reports = recover(&world.context); });
-    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    let entries: Vec<crate::service_timing::capture::Captured> =
+        crate::service_timing::capture::entries_of(|| {
+            reports = recover(&world.context);
+        });
+    let by_seq: Vec<(u64, Recovery)> = reports
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
     assert!(by_seq.contains(&(1, Recovery::Finish)), "{by_seq:?}");
     assert!(by_seq.contains(&(2, Recovery::Drop)), "{by_seq:?}");
     // The second batch names a commit that is no object, so its kept ref cannot be written, and Git's own words say why; the
     //  third is a record this build cannot read, which is kept and named rather than destroyed.
-    let failures: Vec<&crate::service_timing::capture::Captured> = entries.iter().filter(|entry| { return entry.priority == crate::journald_native::Priority::Error; }).collect();
+    let failures: Vec<&crate::service_timing::capture::Captured> = entries
+        .iter()
+        .filter(|entry| {
+            return entry.priority == crate::journald_native::Priority::Error;
+        })
+        .collect();
     assert_eq!(failures.len(), 2, "{entries:?}");
-    assert!(failures.iter().any(|failure| { return failure.message.contains("refs/cli-git/kept/2") && failure.message.contains("fatal:"); }), "Git's words are logged: {entries:?}");
     assert!(
-        failures.iter().any(|failure| { return failure.message.contains("batch 3") && failure.message.contains("cannot be read") && failure.message.contains("kept"); }),
+        failures.iter().any(|failure| {
+            return failure.message.contains("refs/cli-git/kept/2")
+                && failure.message.contains("fatal:");
+        }),
+        "Git's words are logged: {entries:?}"
+    );
+    assert!(
+        failures.iter().any(|failure| {
+            return failure.message.contains("batch 3")
+                && failure.message.contains("cannot be read")
+                && failure.message.contains("kept");
+        }),
         "the unreadable record is named and kept: {entries:?}"
     );
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
-    assert!(crate::service_journal::landed_commits(world.context.journal.as_path()).contains_key("landed"));
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 1, "the record that cannot be read is left for a person, and no other intent is");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing again"
+    );
+    assert!(
+        crate::service_journal::landed_commits(world.context.journal.as_path())
+            .contains_key("landed")
+    );
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        1,
+        "the record that cannot be read is left for a person, and no other intent is"
+    );
     remove(world.root.as_path());
 }
 
@@ -977,32 +1850,89 @@ fn a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref(
     let world: World = world("service-land-recover-kept");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let stopped: CommitRequest = request(&world, "stopped", "stopped.txt", "stopped\n");
-    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
+    let outcomes: Vec<Outcome> =
+        land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
     let built: String = match &outcomes[0] {
-        Outcome::Landed { commit } => commit.clone(),
+        Outcome::Landed {
+            commit,
+        } => commit.clone(),
         other => panic!("{other:?}"),
     };
     // The branch writes only at the end of its transaction, which also deletes the scratch branch: a kill inside it
     //  leaves the branch where it was and the commit on the scratch branch, with the intent already written.
-    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
-    git(world.repo.as_path(), &["update-ref", "refs/worktree/cli-git-service/1", built.as_str()]);
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", base.as_str()],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "update-ref",
+            "refs/worktree/cli-git-service/1",
+            built.as_str(),
+        ],
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the commit is on the scratch branch the landing made");
-    let reports: Vec<RecoveryReport> = recover(&world.context);
-    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
-    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit is kept on the ref the wrapper names");
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of stopped");
+    std::fs::rename(
+        &done,
+        batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION),
+    )
+    .expect("the intent is open again");
     assert_eq!(
-        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/worktree/cli-git-service/"]),
+        git_text(
+            world.repo.as_path(),
+            &["rev-parse", "refs/worktree/cli-git-service/1"]
+        ),
+        built,
+        "the commit is on the scratch branch the landing made"
+    );
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
+    assert_eq!(
+        by_seq,
+        vec![(1, Recovery::Drop)],
+        "nothing landed, so nothing lands later"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+        built,
+        "the commit is kept on the ref the wrapper names"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]
+        ),
+        "message of stopped"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/worktree/cli-git-service/"
+            ]
+        ),
         "",
         "the scratch branch goes once its commit is kept"
     );
-    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    assert!(
+        !batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the intent is gone"
+    );
     // Nothing the removed reference held is lost: the kept commit outlives a maintenance that drops unreachable objects.
     git(world.repo.as_path(), &["prune", "--expire=now"]);
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]), "commit", "the kept commit is still in the object store after a prune");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]),
+        "commit",
+        "the kept commit is still in the object store after a prune"
+    );
     remove(world.root.as_path());
 }
 
@@ -1016,24 +1946,77 @@ fn a_restart_does_not_replace_a_kept_ref_that_names_another_commit() {
     let world: World = world("service-land-recover-kept-collision");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let stopped: CommitRequest = request(&world, "stopped", "stopped.txt", "stopped\n");
-    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
+    let outcomes: Vec<Outcome> =
+        land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
     let built: String = match &outcomes[0] {
-        Outcome::Landed { commit } => commit.clone(),
+        Outcome::Landed {
+            commit,
+        } => commit.clone(),
         other => panic!("{other:?}"),
     };
     // A commit an earlier batch was kept under: the same number, another commit.
-    let other: String = git_text(world.repo.as_path(), &["commit-tree", "HEAD^{tree}", "-p", base.as_str(), "-m", "kept from another batch"]);
-    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
-    git(world.repo.as_path(), &["update-ref", "refs/worktree/cli-git-service/1", built.as_str()]);
-    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", other.as_str()]);
+    let other: String = git_text(
+        world.repo.as_path(),
+        &[
+            "commit-tree",
+            "HEAD^{tree}",
+            "-p",
+            base.as_str(),
+            "-m",
+            "kept from another batch",
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", base.as_str()],
+    );
+    git(
+        world.repo.as_path(),
+        &[
+            "update-ref",
+            "refs/worktree/cli-git-service/1",
+            built.as_str(),
+        ],
+    );
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/cli-git/kept/1", other.as_str()],
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    std::fs::rename(
+        &done,
+        batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION),
+    )
+    .expect("the intent is open again");
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
-    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), other, "the commit kept under this number is not replaced");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the scratch branch keeps the commit nothing else holds");
-    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    let by_seq: Vec<(u64, Recovery)> = reports
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
+    assert_eq!(
+        by_seq,
+        vec![(1, Recovery::Drop)],
+        "nothing landed, so nothing lands later"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+        other,
+        "the commit kept under this number is not replaced"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["rev-parse", "refs/worktree/cli-git-service/1"]
+        ),
+        built,
+        "the scratch branch keeps the commit nothing else holds"
+    );
+    assert!(
+        !batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the intent is gone"
+    );
     remove(world.root.as_path());
 }
 
@@ -1050,24 +2033,79 @@ fn a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref() {
     let world: World = world("service-land-recover-kept-built");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
-    let built: String = git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", base.as_str(), "-m", "the stopped built commit"]);
+    let built: String = git_text(
+        world.repo.as_path(),
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            base.as_str(),
+            "-m",
+            "the stopped built commit",
+        ],
+    );
     let mut stopped: CommitRequest = request(&world, "built", "built.txt", "built\n");
     stopped.commit = Some(built.clone());
     stopped.changes = Vec::new();
-    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the commit Git built lands");
-    assert_eq!(outcomes, vec![Outcome::Landed { commit: built.clone() }]);
+    let outcomes: Vec<Outcome> =
+        land_batch(&world.context, 1, &[stopped]).expect("the commit Git built lands");
+    assert_eq!(
+        outcomes,
+        vec![Outcome::Landed {
+            commit: built.clone()
+        }]
+    );
     // The kill inside the branch write: the branch where it was, the intent open, and no scratch branch ever made.
-    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
-    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/worktree/cli-git-service"]);
-    assert_eq!(scratch, "", "a commit Git built is on no ref while it lands");
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", base.as_str()],
+    );
+    let scratch: String = git_text(
+        world.repo.as_path(),
+        &[
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/worktree/cli-git-service",
+        ],
+    );
+    assert_eq!(
+        scratch, "",
+        "a commit Git built is on no ref while it lands"
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    std::fs::rename(
+        &done,
+        batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION),
+    )
+    .expect("the intent is open again");
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
-    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing of the batch is on the branch");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit Git built is kept on the ref the wrapper names");
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "the stopped built commit");
-    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    let by_seq: Vec<(u64, Recovery)> = reports
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
+    assert_eq!(
+        by_seq,
+        vec![(1, Recovery::Drop)],
+        "nothing of the batch is on the branch"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+        built,
+        "the commit Git built is kept on the ref the wrapper names"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]
+        ),
+        "the stopped built commit"
+    );
+    assert!(
+        !batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the intent is gone"
+    );
     remove(world.root.as_path());
 }
 
@@ -1082,10 +2120,23 @@ fn an_instance_recovers_a_batch_that_used_an_index_outside_its_git_directory() {
     landed.index = world.root.join("alternate.index");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("reopen");
+    std::fs::rename(
+        &done,
+        batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION),
+    )
+    .expect("reopen");
     let instance: String = crate::service_instance::instance_of(world.repo.join(".git").as_path());
-    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str()).iter().map(|report| { return (report.seq, report.decision); }).collect();
-    assert_eq!(by_seq, vec![(1, Recovery::Finish)], "the worktree's own instance found the batch");
+    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str())
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
+    assert_eq!(
+        by_seq,
+        vec![(1, Recovery::Finish)],
+        "the worktree's own instance found the batch"
+    );
     remove(world.root.as_path());
 }
 
@@ -1098,11 +2149,23 @@ fn an_intent_without_a_git_directory_is_found_by_its_repository() {
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     let text: String = std::fs::read_to_string(&done).expect("read");
-    let older: String = text.lines().filter(|line| { return !line.starts_with("gitdir="); }).collect::<Vec<&str>>().join("\n") + "\n";
+    let older: String = text
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("gitdir=");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n")
+        + "\n";
     std::fs::write(&open, older).expect("older intent");
     std::fs::remove_file(&done).expect("reopen");
     let instance: String = crate::service_instance::instance_of(world.repo.join(".git").as_path());
-    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str()).iter().map(|report| { return (report.seq, report.decision); }).collect();
+    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str())
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
     assert_eq!(by_seq, vec![(1, Recovery::Finish)]);
     remove(world.root.as_path());
 }
@@ -1114,18 +2177,35 @@ fn an_intent_without_a_git_directory_is_found_by_its_repository() {
 #[test]
 fn an_older_intent_with_an_index_outside_its_git_directory_is_found_by_its_repository() {
     let world: World = world("service-land-recover-older-alternate");
-    let mut landed: CommitRequest = request(&world, "older-alternate", "older-alternate.txt", "older\n");
+    let mut landed: CommitRequest =
+        request(&world, "older-alternate", "older-alternate.txt", "older\n");
     landed.index = world.root.join("alternate.index");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     let text: String = std::fs::read_to_string(&done).expect("read");
-    let older: String = text.lines().filter(|line| { return !line.starts_with("gitdir="); }).collect::<Vec<&str>>().join("\n") + "\n";
+    let older: String = text
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("gitdir=");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n")
+        + "\n";
     std::fs::write(&open, older).expect("older intent");
     std::fs::remove_file(&done).expect("reopen");
     let instance: String = crate::service_instance::instance_of(world.repo.join(".git").as_path());
-    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str()).iter().map(|report| { return (report.seq, report.decision); }).collect();
-    assert_eq!(by_seq, vec![(1, Recovery::Finish)], "the worktree's own instance found the older batch");
+    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str())
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
+    assert_eq!(
+        by_seq,
+        vec![(1, Recovery::Finish)],
+        "the worktree's own instance found the older batch"
+    );
     remove(world.root.as_path());
 }
 
@@ -1141,29 +2221,63 @@ fn a_commit_git_built_with_extra_parents_lands_and_updates_the_index_from_the_re
     git(world.repo.as_path(), &["checkout", "--quiet", "-b", "side"]);
     std::fs::write(world.repo.join("side.txt"), "side\n").expect("side");
     git(world.repo.as_path(), &["add", "side.txt"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--message=side"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--message=side"],
+    );
     let side: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    let mut merged: CommitRequest = built_request(&world, "merge", "side.txt", &[base.as_str(), side.as_str()]);
+    let mut merged: CommitRequest =
+        built_request(&world, "merge", "side.txt", &[base.as_str(), side.as_str()]);
     merged.changes = Vec::new();
     let commit: String = merged.commit.clone().unwrap_or_default();
-    assert_eq!(land_batch(&world.context, 1, &[merged]).expect("landed"), vec![Outcome::Landed { commit: commit.clone() }]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]), format!("{commit} {base} {side}"));
-    assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-status"]), "", "the index shows the commit");
+    assert_eq!(
+        land_batch(&world.context, 1, &[merged]).expect("landed"),
+        vec![Outcome::Landed {
+            commit: commit.clone()
+        }]
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["rev-list", "--parents", "--max-count=1", "HEAD"]
+        ),
+        format!("{commit} {base} {side}")
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["diff", "--cached", "--name-status"]),
+        "",
+        "the index shows the commit"
+    );
     remove(world.root.as_path());
 }
 
 /// A commit whose first parent is not the branch tip is refused whatever else it has.
 #[test]
-fn a_commit_git_built_whose_first_parent_is_not_the_tip_is_refused_even_with_the_tip_as_a_later_parent() {
+fn a_commit_git_built_whose_first_parent_is_not_the_tip_is_refused_even_with_the_tip_as_a_later_parent()
+ {
     let world: World = world("service-land-built-first-parent");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=other"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=other"],
+    );
     let other: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let mut wrong_order: CommitRequest = built_request(&world, "order", "order.txt", &[base.as_str(), other.as_str()]);
+    let mut wrong_order: CommitRequest = built_request(
+        &world,
+        "order",
+        "order.txt",
+        &[base.as_str(), other.as_str()],
+    );
     wrong_order.base = other.clone();
-    assert_eq!(land_batch(&world.context, 1, &[wrong_order]), Err(FailureCode::Rejected));
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), other);
+    assert_eq!(
+        land_batch(&world.context, 1, &[wrong_order]),
+        Err(FailureCode::Rejected)
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        other
+    );
     remove(world.root.as_path());
 }
 
@@ -1184,11 +2298,30 @@ fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_t
     with_parent.id = String::from("parent");
     with_parent.commit = built_request(&world, "child", "child.txt", &[commit.as_str()]).commit;
     // The worktree is on the branch that does not exist yet, as it is after `git switch --orphan` or in a new repository.
-    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/fresh"]);
-    assert_eq!(land_batch(&world.context, 1, &[with_parent]), Err(FailureCode::Rejected), "a root commit has no parent");
-    assert_eq!(land_batch(&world.context, 2, &[first]).expect("landed"), vec![Outcome::Landed { commit: commit.clone() }]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/fresh"]), commit);
-    assert_eq!(land_batch(&world.context, 3, &[raced]).expect("answered"), vec![Outcome::BranchMoved], "the branch exists now");
+    git(
+        world.repo.as_path(),
+        &["symbolic-ref", "HEAD", "refs/heads/fresh"],
+    );
+    assert_eq!(
+        land_batch(&world.context, 1, &[with_parent]),
+        Err(FailureCode::Rejected),
+        "a root commit has no parent"
+    );
+    assert_eq!(
+        land_batch(&world.context, 2, &[first]).expect("landed"),
+        vec![Outcome::Landed {
+            commit: commit.clone()
+        }]
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/heads/fresh"]),
+        commit
+    );
+    assert_eq!(
+        land_batch(&world.context, 3, &[raced]).expect("answered"),
+        vec![Outcome::BranchMoved],
+        "the branch exists now"
+    );
     remove(world.root.as_path());
 }
 
@@ -1205,14 +2338,39 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     let commit: String = built.commit.clone().unwrap_or_default();
     // The head became a branch after the commit was prepared: the compare fails and the branch stays where it was.
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    assert_eq!(land_batch(&world.context, 1, &[built.clone()]).expect("answered"), vec![Outcome::BranchMoved], "a head that became a branch is not landed on");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base, "the branch did not move");
-    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main", "the head still names the branch");
+    assert_eq!(
+        land_batch(&world.context, 1, &[built.clone()]).expect("answered"),
+        vec![Outcome::BranchMoved],
+        "a head that became a branch is not landed on"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        base,
+        "the branch did not move"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]),
+        "refs/heads/main",
+        "the head still names the branch"
+    );
     git(world.repo.as_path(), &["checkout", "--quiet", "--detach"]);
     let outcomes = land_batch(&world.context, 2, &[built]).expect("landed");
-    assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }]);
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
-    assert!(!git_output(world.repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]).status.success(), "the head is still detached");
+    assert_eq!(
+        outcomes,
+        vec![Outcome::Landed {
+            commit: commit.clone()
+        }]
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        commit
+    );
+    assert!(
+        !git_output(world.repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"])
+            .status
+            .success(),
+        "the head is still detached"
+    );
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base);
     remove(world.root.as_path());
 }
@@ -1221,10 +2379,27 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
 /// and of the branch and the index,
 /// after it refused:
 /// nothing at all.
-fn assert_nothing_changed(world: &World, branch: &str, expected_tip: &str, index_before: &[u8], what: &str) {
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", branch]), expected_tip, "{what}: the branch did not move");
-    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), index_before, "{what}: the index is as it was");
-    assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
+fn assert_nothing_changed(
+    world: &World,
+    branch: &str,
+    expected_tip: &str,
+    index_before: &[u8],
+    what: &str,
+) {
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", branch]),
+        expected_tip,
+        "{what}: the branch did not move"
+    );
+    assert_eq!(
+        std::fs::read(world.repo.join(".git/index")).expect("index"),
+        index_before,
+        "{what}: the index is as it was"
+    );
+    assert!(
+        !world.repo.join(".git/index.lock").exists(),
+        "{what}: no index lock is left"
+    );
 }
 
 /// A commit prepared on a branch is not landed once the worktree's head names another branch:
@@ -1236,18 +2411,49 @@ fn assert_nothing_changed(world: &World, branch: &str, expected_tip: &str, index
 fn a_commit_is_not_landed_once_the_worktree_switched_to_another_branch() {
     let world: World = world("service-land-switched");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    git(world.repo.as_path(), &["switch", "--quiet", "--create", "side"]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=side work"]);
+    git(
+        world.repo.as_path(),
+        &["switch", "--quiet", "--create", "side"],
+    );
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=side work"],
+    );
     let side_tip: String = git_text(world.repo.as_path(), &["rev-parse", "side"]);
     git(world.repo.as_path(), &["switch", "--quiet", "main"]);
-    let batch: Vec<CommitRequest> = ["one", "two"].iter().map(|id| { return request(&world, id, format!("{id}.txt").as_str(), "x\n"); }).collect();
-    git(world.repo.as_path(), &["switch", "--quiet", "--force", "side"]);
+    let batch: Vec<CommitRequest> = ["one", "two"]
+        .iter()
+        .map(|id| {
+            return request(&world, id, format!("{id}.txt").as_str(), "x\n");
+        })
+        .collect();
+    git(
+        world.repo.as_path(),
+        &["switch", "--quiet", "--force", "side"],
+    );
     let index_before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
     let outcomes = land_batch(&world.context, 1, &batch).expect("answered");
-    assert_eq!(outcomes, vec![Outcome::BranchMoved, Outcome::BranchMoved], "each request is answered");
-    assert_nothing_changed(&world, "main", base.as_str(), index_before.as_slice(), "main");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "side"]), side_tip, "the branch switched to did not move");
-    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/side");
+    assert_eq!(
+        outcomes,
+        vec![Outcome::BranchMoved, Outcome::BranchMoved],
+        "each request is answered"
+    );
+    assert_nothing_changed(
+        &world,
+        "main",
+        base.as_str(),
+        index_before.as_slice(),
+        "main",
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "side"]),
+        side_tip,
+        "the branch switched to did not move"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]),
+        "refs/heads/side"
+    );
     remove(world.root.as_path());
 }
 
@@ -1262,7 +2468,11 @@ fn a_commit_lands_when_the_worktree_is_on_its_branch() {
     git(world.repo.as_path(), &["switch", "--quiet", "main"]);
     let sent: CommitRequest = request(&world, "back", "back.txt", "x\n");
     let outcomes = land_batch(&world.context, 1, &[sent]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{:?}",
+        outcomes[0]
+    );
     remove(world.root.as_path());
 }
 
@@ -1273,32 +2483,57 @@ fn a_commit_lands_when_the_worktree_is_on_its_branch() {
 fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
     let world: World = world("service-land-linked");
     let linked: PathBuf = world.root.join("linked");
-    git(world.repo.as_path(), &["worktree", "add", "--quiet", "-b", "wt", linked.to_str().expect("UTF-8")]);
+    git(
+        world.repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "wt",
+            linked.to_str().expect("UTF-8"),
+        ],
+    );
     git(world.repo.as_path(), &["branch", "other"]);
     let git_dir: PathBuf = world.repo.join(".git/worktrees/linked");
     let linked_request = |id: &str| -> CommitRequest {
         std::fs::write(linked.join(format!("{id}.txt")), "x\n").expect("write");
-        let blob: String = git_text(linked.as_path(), &["hash-object", "-w", "--", format!("{id}.txt").as_str()]);
+        let blob: String = git_text(
+            linked.as_path(),
+            &["hash-object", "-w", "--", format!("{id}.txt").as_str()],
+        );
         return CommitRequest {
             repository: linked.clone(),
             reference: crate::ref_name::RefName::from_text("refs/heads/wt"),
             base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
-            changes: vec![Change { path: PathBuf::from(format!("{id}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+            changes: vec![Change {
+                path: PathBuf::from(format!("{id}.txt")),
+                mode: ALLOWED_MODES[0],
+                blob: Some(blob),
+            }],
             git_dir: git_dir.clone(),
             index: git_dir.join("index"),
-        programs: None,
+            programs: None,
             ..request(&world, id, "unused.txt", "x\n")
         };
     };
     let on_branch: CommitRequest = linked_request("kept");
     let outcomes = land_batch(&world.context, 1, &[on_branch]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{:?}",
+        outcomes[0]
+    );
     let switched: CommitRequest = linked_request("lost");
     let wt_tip: String = git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]);
     git(linked.as_path(), &["switch", "--quiet", "--force", "other"]);
     let refused = land_batch(&world.context, 2, &[switched]).expect("answered");
     assert_eq!(refused, vec![Outcome::BranchMoved]);
-    assert_eq!(git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]), wt_tip, "the linked worktree's branch did not move");
+    assert_eq!(
+        git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]),
+        wt_tip,
+        "the linked worktree's branch did not move"
+    );
     remove(world.root.as_path());
 }
 
@@ -1309,25 +2544,49 @@ fn a_switch_is_found_in_a_reftable_repository() {
     let root: PathBuf = fixture("service-land-reftable");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--ref-format=reftable"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--ref-format=reftable",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
     let world: World = World {
         root: root.clone(),
         repo: repo.clone(),
-        context: LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING },
+        context: LandContext {
+            git: git_context(),
+            journal,
+            on_objects_written: None,
+            lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
+        },
     };
     git(repo.as_path(), &["branch", "side"]);
     let on_branch: CommitRequest = request(&world, "kept", "kept.txt", "x\n");
     let outcomes = land_batch(&world.context, 1, &[on_branch]).expect("landed");
-    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    assert!(
+        matches!(outcomes[0], Outcome::Landed { .. }),
+        "{:?}",
+        outcomes[0]
+    );
     let switched: CommitRequest = request(&world, "lost", "lost.txt", "x\n");
     let tip: String = git_text(repo.as_path(), &["rev-parse", "main"]);
     git(repo.as_path(), &["switch", "--quiet", "--force", "side"]);
     let refused = land_batch(&world.context, 2, &[switched]).expect("answered");
     assert_eq!(refused, vec![Outcome::BranchMoved]);
-    assert_eq!(git_text(repo.as_path(), &["rev-parse", "main"]), tip, "the branch did not move");
+    assert_eq!(
+        git_text(repo.as_path(), &["rev-parse", "main"]),
+        tip,
+        "the branch did not move"
+    );
     remove(root.as_path());
 }
 
@@ -1342,14 +2601,29 @@ fn prune_now(world: &World) {
 /// no index lock,
 /// and
 ///  no crash report of the program that imports the objects.
-fn assert_refused_cleanly(world: &World, base: &str, what: &str) {
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base, "{what}: the branch did not move");
-    assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
+fn assert_refused_cleanly(
+    world: &World,
+    base: &str,
+    what: &str,
+) {
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        base,
+        "{what}: the branch did not move"
+    );
+    assert!(
+        !world.repo.join(".git/index.lock").exists(),
+        "{what}: no index lock is left"
+    );
     let reports: Vec<String> = std::fs::read_dir(world.repo.join(".git"))
         .expect("git directory")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.starts_with("fast_import_crash"); })
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .filter(|name| {
+            return name.starts_with("fast_import_crash");
+        })
         .collect();
     assert!(reports.is_empty(), "{what}: left {reports:?}");
 }
@@ -1364,7 +2638,10 @@ fn a_request_whose_blob_was_pruned_is_refused_before_anything_is_imported() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let sent: CommitRequest = request(&world, "pruned", "pruned.txt", "x\n");
     prune_now(&world);
-    assert_eq!(land_batch(&world.context, 1, &[sent]), Err(FailureCode::Unavailable));
+    assert_eq!(
+        land_batch(&world.context, 1, &[sent]),
+        Err(FailureCode::Unavailable)
+    );
     assert_refused_cleanly(&world, base.as_str(), "blob");
     remove(world.root.as_path());
 }
@@ -1381,7 +2658,10 @@ fn an_amend_whose_tree_was_pruned_is_refused_before_anything_is_imported() {
     amend.amend = true;
     amend.changes = Vec::new();
     prune_now(&world);
-    assert_eq!(land_batch(&world.context, 1, &[amend]), Err(FailureCode::Unavailable));
+    assert_eq!(
+        land_batch(&world.context, 1, &[amend]),
+        Err(FailureCode::Unavailable)
+    );
     assert_refused_cleanly(&world, base.as_str(), "tree");
     remove(world.root.as_path());
 }
@@ -1394,7 +2674,10 @@ fn a_built_commit_that_was_pruned_is_unavailable_not_refused() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     prune_now(&world);
-    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_eq!(
+        land_batch(&world.context, 1, &[built]),
+        Err(FailureCode::Unavailable)
+    );
     assert_refused_cleanly(&world, base.as_str(), "commit");
     remove(world.root.as_path());
 }
@@ -1407,9 +2690,26 @@ fn a_built_commit_with_a_missing_blob_is_never_put_on_the_branch() {
     let world: World = world("service-land-partly-pruned");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
-    let blob: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", format!("{}:typed.txt", built.commit.clone().unwrap_or_default()).as_str()]);
-    std::fs::remove_file(world.repo.join(".git/objects").join(&blob[..2]).join(&blob[2..])).expect("the blob is loose");
-    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    let blob: String = git_text(
+        world.repo.as_path(),
+        &[
+            "rev-parse",
+            "--verify",
+            format!("{}:typed.txt", built.commit.clone().unwrap_or_default()).as_str(),
+        ],
+    );
+    std::fs::remove_file(
+        world
+            .repo
+            .join(".git/objects")
+            .join(&blob[..2])
+            .join(&blob[2..]),
+    )
+    .expect("the blob is loose");
+    assert_eq!(
+        land_batch(&world.context, 1, &[built]),
+        Err(FailureCode::Unavailable)
+    );
     assert_refused_cleanly(&world, base.as_str(), "partial");
     remove(world.root.as_path());
 }
@@ -1424,9 +2724,15 @@ fn marks_outside_the_batch_are_ignored_and_a_missing_mark_is_no_answer() {
     let second: String = "b".repeat(40);
     let stray: String = "c".repeat(40);
     let exact: String = format!(":1 {first}\n:2 {second}\n");
-    assert_eq!(commits_from_marks(exact.as_str(), 2), Some(vec![first.clone(), second.clone()]));
+    assert_eq!(
+        commits_from_marks(exact.as_str(), 2),
+        Some(vec![first.clone(), second.clone()])
+    );
     let with_strays: String = format!(":0 {stray}\n:1 {first}\n:3 {stray}\n:2 {second}\n");
-    assert_eq!(commits_from_marks(with_strays.as_str(), 2), Some(vec![first.clone(), second]));
+    assert_eq!(
+        commits_from_marks(with_strays.as_str(), 2),
+        Some(vec![first.clone(), second])
+    );
     let one_mark: String = format!(":1 {first}\n");
     assert_eq!(commits_from_marks(one_mark.as_str(), 2), None);
 }
@@ -1471,10 +2777,31 @@ fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
     std::fs::write(world.repo.join(".git/info/grafts"), "").expect("an empty graft file");
     land_batch(&world.context, 2, &[built]).expect("landed");
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
-    let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
-    assert_eq!(named("fast-import"), 1, "one import, for the request: {starts:?}");
-    assert_eq!(named("--objects"), 1, "one connectivity check (rev-list --objects), for the commit Git built: {starts:?}");
-    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    let named = |word: &str| -> usize {
+        return starts
+            .iter()
+            .filter(|start| {
+                return start.split(' ').any(|argument| {
+                    return argument == word;
+                });
+            })
+            .count();
+    };
+    assert_eq!(
+        named("fast-import"),
+        1,
+        "one import, for the request: {starts:?}"
+    );
+    assert_eq!(
+        named("--objects"),
+        1,
+        "one connectivity check (rev-list --objects), for the commit Git built: {starts:?}"
+    );
+    assert_eq!(
+        crate::recording_git::quiet_starts(log.as_path()),
+        Vec::<String>::new(),
+        "no start carries --quiet or -q"
+    );
     remove(world.root.as_path());
 }
 
@@ -1484,13 +2811,21 @@ fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
 /// Why:
 ///  Its name has to reach the service as the bytes Git listed,
 /// so the helper takes the name as a path and not as text.
-fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest, PathBuf) {
+fn request_of_a_name_that_is_not_text(
+    world: &World,
+    id: &str,
+) -> (CommitRequest, PathBuf) {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let name: PathBuf = PathBuf::from(OsStr::from_bytes(b"caf\xff.txt"));
     let file: PathBuf = world.repo.join(name.as_path());
     std::fs::write(&file, "x\n").expect("write");
-    let arguments: Vec<&OsStr> = vec![OsStr::new("hash-object"), OsStr::new("-w"), OsStr::new("--"), name.as_os_str()];
+    let arguments: Vec<&OsStr> = vec![
+        OsStr::new("hash-object"),
+        OsStr::new("-w"),
+        OsStr::new("--"),
+        name.as_os_str(),
+    ];
     let object: String = git_text(world.repo.as_path(), arguments.as_slice());
     let landed: CommitRequest = CommitRequest {
         id: String::from(id),
@@ -1499,7 +2834,11 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         git_dir: world.repo.join(".git"),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
-        changes: vec![Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(object) }],
+        changes: vec![Change {
+            path: name.clone(),
+            mode: ALLOWED_MODES[0],
+            blob: Some(object),
+        }],
         message: format!("message of {id}\n"),
         author: None,
         committer: String::from(COMMITTER),
@@ -1508,7 +2847,10 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         commit: None,
         cleanup: None,
         index: world.repo.join(".git/index"),
-        scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
+        scratch: world
+            .repo
+            .join(".git/monochromatic-git-policy-cli-scratch")
+            .join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -1520,7 +2862,14 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
 /// The names one `-z` listing holds,
 /// as the bytes Git wrote.
 fn names_in(listing: &[u8]) -> Vec<&[u8]> {
-    return listing.split(|byte| { return *byte == 0; }).filter(|name| { return !name.is_empty(); }).collect();
+    return listing
+        .split(|byte| {
+            return *byte == 0;
+        })
+        .filter(|name| {
+            return !name.is_empty();
+        })
+        .collect();
 }
 
 /// What:
@@ -1532,16 +2881,30 @@ fn names_in(listing: &[u8]) -> Vec<&[u8]> {
 /// or none.
 #[test]
 fn a_changed_path_that_is_not_text_lands_as_itself() {
-    if !in_a_fixture_root_taking_any_name("landing::service_land::tests::a_changed_path_that_is_not_text_lands_as_itself") {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_land::tests::a_changed_path_that_is_not_text_lands_as_itself",
+    ) {
         return;
     }
     let world: World = world("service-land-bytes");
     let (landed, name) = request_of_a_name_that_is_not_text(&world, "bytes");
     land_batch(&world.context, 1, &[landed]).expect("landed");
-    let listed: Vec<u8> = git_output(world.repo.as_path(), &["ls-tree", "-r", "--name-only", "-z", "HEAD"]).stdout;
-    assert_eq!(names_in(listed.as_slice()), vec![crate::path_bytes::path_bytes_of(name.as_path())], "the commit holds the name Git wrote");
+    let listed: Vec<u8> = git_output(
+        world.repo.as_path(),
+        &["ls-tree", "-r", "--name-only", "-z", "HEAD"],
+    )
+    .stdout;
+    assert_eq!(
+        names_in(listed.as_slice()),
+        vec![crate::path_bytes::path_bytes_of(name.as_path())],
+        "the commit holds the name Git wrote"
+    );
     let index: Vec<u8> = git_output(world.repo.as_path(), &["ls-files", "-z"]).stdout;
-    assert_eq!(names_in(index.as_slice()), vec![crate::path_bytes::path_bytes_of(name.as_path())], "the index holds the same name");
+    assert_eq!(
+        names_in(index.as_slice()),
+        vec![crate::path_bytes::path_bytes_of(name.as_path())],
+        "the index holds the same name"
+    );
     remove(world.root.as_path());
 }
 
@@ -1553,17 +2916,32 @@ fn a_changed_path_that_is_not_text_lands_as_itself() {
 /// and the person's next commit would stage the wrong file.
 #[test]
 fn a_restart_finishes_the_index_of_a_path_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("landing::service_land::tests::a_restart_finishes_the_index_of_a_path_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_land::tests::a_restart_finishes_the_index_of_a_path_that_is_not_text",
+    ) {
         return;
     }
     let world: World = world("service-land-bytes-restart");
     let (landed, name) = request_of_a_name_that_is_not_text(&world, "bytes");
     land_with_failed_index(&world, 1, &[landed]);
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }), "{reports:?}");
+    assert!(
+        reports.iter().any(|report| {
+            return report.seq == 1 && report.decision == Recovery::Finish;
+        }),
+        "{reports:?}"
+    );
     let index: Vec<u8> = git_output(world.repo.as_path(), &["ls-files", "-z"]).stdout;
-    assert_eq!(names_in(index.as_slice()), vec![crate::path_bytes::path_bytes_of(name.as_path())], "the index holds the name the intent recorded");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "", "the index shows the landing again");
+    assert_eq!(
+        names_in(index.as_slice()),
+        vec![crate::path_bytes::path_bytes_of(name.as_path())],
+        "the index holds the name the intent recorded"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--porcelain=v1"]),
+        "",
+        "the index shows the landing again"
+    );
     remove(world.root.as_path());
 }
 
@@ -1574,19 +2952,40 @@ fn a_restart_finishes_the_index_of_a_path_that_is_not_text() {
 /// and the in-process update runs under it.
 #[test]
 fn a_restart_finishes_the_index_without_a_git_reset() {
-    use crate::recording_git::{recorded_starts, recording_context};
+    use crate::recording_git::{
+        recorded_starts,
+        recording_context,
+    };
     use crate::repo_read_hook::SWITCH_VARIABLE;
     let mut world: World = world("service-land-recover-no-reset");
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_with_failed_index(&world, 1, &[landed]);
     let (mut recording, log) = recording_context(world.root.as_path());
-    recording.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    recording.overlay.retain(|(name, _)| {
+        return name != SWITCH_VARIABLE;
+    });
     world.context.git = recording;
     let reports = recover(&world.context);
-    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
-    let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
-    assert!(!words.iter().any(|word| { return word == "reset"; }), "recovery started a Git reset: {words:?}");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
+    assert!(reports.iter().any(|report| {
+        return report.seq == 1 && report.decision == Recovery::Finish;
+    }));
+    let words: Vec<String> = recorded_starts(log.as_path())
+        .iter()
+        .map(|start| {
+            return start.split(' ').next().unwrap_or_default().to_string();
+        })
+        .collect();
+    assert!(
+        !words.iter().any(|word| {
+            return word == "reset";
+        }),
+        "recovery started a Git reset: {words:?}"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing again"
+    );
     assert!(!world.repo.join(".git/index.lock").exists());
     remove(world.root.as_path());
 }
@@ -1597,7 +2996,10 @@ fn a_restart_finishes_the_index_without_a_git_reset() {
 /// starts no Git `reset`.
 #[test]
 fn a_landing_keeps_an_earlier_stage_of_another_path() {
-    use crate::recording_git::{recorded_starts, recording_context};
+    use crate::recording_git::{
+        recorded_starts,
+        recording_context,
+    };
     use crate::repo_read_hook::SWITCH_VARIABLE;
     let mut world: World = world("service-land-keeps-stage");
     std::fs::write(world.repo.join("elsewhere.txt"), "staged earlier\n").expect("write");
@@ -1605,13 +3007,29 @@ fn a_landing_keeps_an_earlier_stage_of_another_path() {
     crate::test_support::age(world.repo.join("elsewhere.txt").as_path());
     git(world.repo.as_path(), &["add", "elsewhere.txt"]);
     let (mut recording, log) = recording_context(world.root.as_path());
-    recording.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    recording.overlay.retain(|(name, _)| {
+        return name != SWITCH_VARIABLE;
+    });
     world.context.git = recording;
     let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     land_batch(&world.context, 1, &[mine]).expect("landed");
-    let words: Vec<String> = recorded_starts(log.as_path()).iter().map(|start| { return start.split(' ').next().unwrap_or_default().to_string(); }).collect();
-    assert!(!words.iter().any(|word| { return word == "reset"; }), "the landing started a Git reset: {words:?}");
-    assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]), "elsewhere.txt", "the earlier stage is the only difference left");
+    let words: Vec<String> = recorded_starts(log.as_path())
+        .iter()
+        .map(|start| {
+            return start.split(' ').next().unwrap_or_default().to_string();
+        })
+        .collect();
+    assert!(
+        !words.iter().any(|word| {
+            return word == "reset";
+        }),
+        "the landing started a Git reset: {words:?}"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]),
+        "elsewhere.txt",
+        "the earlier stage is the only difference left"
+    );
     remove(world.root.as_path());
 }
 
@@ -1629,14 +3047,30 @@ fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
     std::fs::write(&lock, "foreign").expect("foreign lock");
     let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
     let first = recover(&world.context);
-    assert!(first.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
+    assert!(first.iter().any(|report| {
+        return report.seq == 1 && report.decision == Recovery::Finish;
+    }));
     assert!(open.exists(), "the batch stays open while the lock is held");
-    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was not touched");
-    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
+    assert_eq!(
+        std::fs::read(world.repo.join(".git/index")).expect("index"),
+        before,
+        "the index was not touched"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the foreign lock stands"),
+        "foreign"
+    );
     std::fs::remove_file(&lock).expect("the foreign program lets go");
     recover(&world.context);
-    assert!(!open.exists(), "the batch is finished once the lock is free");
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
+    assert!(
+        !open.exists(),
+        "the batch is finished once the lock is free"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing again"
+    );
     remove(world.root.as_path());
 }
 
@@ -1660,16 +3094,33 @@ fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
     let new: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     // The death came after the lock was given up and before the batch was marked done.
     std::fs::rename(&done, &open).expect("reopen");
-    std::fs::write(world.context.journal.join("1.indexed"), format!("{new}\n")).expect("the record of the completed index update");
+    std::fs::write(world.context.journal.join("1.indexed"), format!("{new}\n"))
+        .expect("the record of the completed index update");
     // Another session stages a new version of the batch's path.
-    std::fs::write(world.repo.join("landed.txt"), "edited and staged after the landing\n").expect("edit");
+    std::fs::write(
+        world.repo.join("landed.txt"),
+        "edited and staged after the landing\n",
+    )
+    .expect("edit");
     git(world.repo.as_path(), &["add", "landed.txt"]);
     let reports = recover(&world.context);
-    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }));
-    assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]), "landed.txt", "the later stage survives the restart");
-    assert_eq!(git_text(world.repo.as_path(), &["show", ":landed.txt"]), "edited and staged after the landing");
+    assert!(reports.iter().any(|report| {
+        return report.seq == 1 && report.decision == Recovery::Finish;
+    }));
+    assert_eq!(
+        git_text(world.repo.as_path(), &["diff", "--cached", "--name-only"]),
+        "landed.txt",
+        "the later stage survives the restart"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["show", ":landed.txt"]),
+        "edited and staged after the landing"
+    );
     assert!(done.exists() && !open.exists(), "the batch is finished");
-    assert!(!world.context.journal.join("1.indexed").exists(), "and its record is gone");
+    assert!(
+        !world.context.journal.join("1.indexed").exists(),
+        "and its record is gone"
+    );
     remove(world.root.as_path());
 }
 
@@ -1678,39 +3129,82 @@ fn a_restart_does_not_replay_an_index_update_that_was_installed_and_unlocked() {
 /// removal does not replay the index update over what another session staged after the lock was given up.
 #[test]
 fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
-    use crate::service_journal::{INDEXED_EXTENSION, Indexed, indexed_state};
+    use crate::service_journal::{
+        INDEXED_EXTENSION,
+        Indexed,
+        indexed_state,
+    };
     let world: World = world("service-land-cleanup-fails");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     let new: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    git(
+        world.repo.as_path(),
+        &["reset", "-q", base.as_str(), "--", "landed.txt"],
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     std::fs::rename(&done, &open).expect("reopen");
-    let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
+    let mut intent: Intent =
+        parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
     // A conclusion whose scratch directory exists and whose state cannot be reproduced removes nothing and says so.
     let scratch: PathBuf = world.root.join("scratch");
     let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
     std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
     // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
-    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
-    intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
-    crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
+    std::fs::write(
+        copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME),
+        b"{",
+    )
+    .expect("a torn record");
+    intent.cleanup = Some(crate::service_protocol::Cleanup {
+        git_dir: world.root.join("no-such-git-dir"),
+        scratch,
+        reftable: false,
+    });
+    crate::service_journal::write_intent(world.context.journal.as_path(), &intent)
+        .expect("intent with a cleanup");
     let landing_git: GitContext = world.context.git.clone();
     let lock = try_acquire(world.repo.join(".git/index").as_path(), 1).expect("the lock is free");
-    let finished: bool = follow_up(&landing_git, world.repo.as_path(), &intent, lock, world.context.journal.as_path());
+    let finished: bool = follow_up(
+        &landing_git,
+        world.repo.as_path(),
+        &intent,
+        lock,
+        world.context.journal.as_path(),
+    );
     assert!(!finished, "the cleanup did not finish");
-    assert_eq!(indexed_state(world.context.journal.as_path(), 1, new.as_str()), Indexed::Installed, "the installed index is recorded all the same");
+    assert_eq!(
+        indexed_state(world.context.journal.as_path(), 1, new.as_str()),
+        Indexed::Installed,
+        "the installed index is recorded all the same"
+    );
     assert!(!world.repo.join(".git/index.lock").exists());
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["status", "--short"]),
+        "",
+        "the index shows the landing"
+    );
     // Another session stages a new version; the restart that retries the cleanup leaves it alone.
     std::fs::write(world.repo.join("landed.txt"), "staged after the landing\n").expect("edit");
     git(world.repo.as_path(), &["add", "landed.txt"]);
     recover(&world.context);
-    assert_eq!(git_text(world.repo.as_path(), &["show", ":landed.txt"]), "staged after the landing");
-    assert!(open.exists(), "the batch stays open while the cleanup fails");
-    assert!(world.context.journal.join(format!("1.{INDEXED_EXTENSION}")).exists());
+    assert_eq!(
+        git_text(world.repo.as_path(), &["show", ":landed.txt"]),
+        "staged after the landing"
+    );
+    assert!(
+        open.exists(),
+        "the batch stays open while the cleanup fails"
+    );
+    assert!(
+        world
+            .context
+            .journal
+            .join(format!("1.{INDEXED_EXTENSION}"))
+            .exists()
+    );
     remove(world.root.as_path());
 }
 
@@ -1734,28 +3228,53 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
             // The landing says so from its own thread, before it blocks, once it has found the lock held and has not read the
             //  branch; the channel goes with this thread, so a landing that ends without waiting is heard at once rather than
             //  at the end of a window.
-            let announce = move |_: Announce| { let _told = waiting.send(()); };
-            return land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &announce);
+            let announce = move |_: Announce| {
+                let _told = waiting.send(());
+            };
+            return land_batch_announcing(
+                &world.context,
+                1,
+                std::slice::from_ref(&mine),
+                &announce,
+            );
         });
         let heard: Result<(), &'static str> = match said.recv_timeout(WAIT_WORD_CEILING) {
             Ok(()) => Ok(()),
-            Err(RecvTimeoutError::Disconnected) => Err("the landing ended without waiting for the index lock"),
-            Err(RecvTimeoutError::Timeout) => Err("the landing did not reach the wait for the index lock"),
+            Err(RecvTimeoutError::Disconnected) => {
+                Err("the landing ended without waiting for the index lock")
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                Err("the landing did not reach the wait for the index lock")
+            }
         };
         // The switch is made while the landing is inside its wait, and the lock goes in every path: a control that fails here
         //  must not leave the landing waiting out its ceiling for a lock the control still holds.
         if heard.is_ok() {
-            git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+            git(
+                world.repo.as_path(),
+                &["symbolic-ref", "HEAD", "refs/heads/other"],
+            );
         }
         drop(foreign);
         return (heard, landing.join().expect("landing"));
     });
     assert_eq!(heard, Ok(()), "the landing reached the wait");
     assert_eq!(outcomes, Ok(vec![Outcome::BranchMoved]));
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), base, "the branch did not move");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]),
+        base,
+        "the branch did not move"
+    );
     assert!(!intent.exists(), "no intent is left");
     assert!(!lock.exists(), "no lock is left");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "no scratch branch is left"
+    );
     remove(world.root.as_path());
 }
 
@@ -1791,7 +3310,9 @@ impl ForeignIndexLock {
     /// which is what keeps the landing from judging it a lock nothing holds and removing it.
     fn take(path: &Path) -> Self {
         std::fs::write(path, "foreign").expect("foreign lock");
-        return Self { path: path.to_path_buf() };
+        return Self {
+            path: path.to_path_buf(),
+        };
     }
 }
 
@@ -1814,15 +3335,25 @@ fn a_restart_leaves_the_index_of_another_checked_out_branch_alone() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    git(
+        world.repo.as_path(),
+        &["reset", "-q", base.as_str(), "--", "landed.txt"],
+    );
     git(world.repo.as_path(), &["branch", "other", base.as_str()]);
-    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+    git(
+        world.repo.as_path(),
+        &["symbolic-ref", "HEAD", "refs/heads/other"],
+    );
     let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     std::fs::rename(&done, &open).expect("reopen");
     recover(&world.context);
-    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index of the branch checked out was not touched");
+    assert_eq!(
+        std::fs::read(world.repo.join(".git/index")).expect("index"),
+        before,
+        "the index of the branch checked out was not touched"
+    );
     assert!(done.exists() && !open.exists(), "the batch is finished");
     remove(world.root.as_path());
 }
@@ -1841,12 +3372,34 @@ fn a_switch_after_the_last_check_leaves_the_index_of_the_new_branch_alone() {
     let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let repo: PathBuf = world.repo.clone();
     let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
-    crate::service_fault::hooks::set("before-ref", std::rc::Rc::new(move || { git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]); }));
+    crate::service_fault::hooks::set(
+        "before-ref",
+        std::rc::Rc::new(move || {
+            git(
+                repo.as_path(),
+                &["symbolic-ref", "HEAD", "refs/heads/other"],
+            );
+        }),
+    );
     let outcome = land_batch(&world.context, 1, std::slice::from_ref(&mine)).expect("lands");
-    assert!(matches!(outcome.as_slice(), [Outcome::Landed { .. }]), "the commit is on the branch it was made for: {outcome:?}");
-    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index of the branch checked out was not touched");
-    assert!(!world.repo.join(".git/index.lock").exists(), "no index lock is left");
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no open intent is left");
+    assert!(
+        matches!(outcome.as_slice(), [Outcome::Landed { .. }]),
+        "the commit is on the branch it was made for: {outcome:?}"
+    );
+    assert_eq!(
+        std::fs::read(world.repo.join(".git/index")).expect("index"),
+        before,
+        "the index of the branch checked out was not touched"
+    );
+    assert!(
+        !world.repo.join(".git/index.lock").exists(),
+        "no index lock is left"
+    );
+    assert_eq!(
+        list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(),
+        0,
+        "no open intent is left"
+    );
     remove(world.root.as_path());
 }
 
@@ -1873,12 +3426,28 @@ fn the_installed_index_and_the_finished_batch_are_recorded_in_the_order_a_restar
         let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
         land_batch(&world.context, 1, &[landed]).expect("landed");
         let events: Vec<String> = crate::service_fault::hooks::take_events();
-        let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
+        let at = |name: &str| -> usize {
+            return events
+                .iter()
+                .position(|event| {
+                    return event == name;
+                })
+                .unwrap_or(usize::MAX);
+        };
         // What a killed process leaves is what the page cache holds, in the order the writes were made; the flushes are queued in that
         //  order and the background thread makes them together, so a power cut may lose any suffix of them, as it may for native Git.
-        assert!(at("sync-queued:index-dir") < at("indexed-recorded"), "the index is installed before it is recorded: {events:?}");
-        assert!(at("indexed-recorded") < at("sync-queued:journal-dir"), "{events:?}");
-        assert!(at("sync-queued:journal-dir") < at("remove-indexed"), "the done mark is renamed before the record is removed: {events:?}");
+        assert!(
+            at("sync-queued:index-dir") < at("indexed-recorded"),
+            "the index is installed before it is recorded: {events:?}"
+        );
+        assert!(
+            at("indexed-recorded") < at("sync-queued:journal-dir"),
+            "{events:?}"
+        );
+        assert!(
+            at("sync-queued:journal-dir") < at("remove-indexed"),
+            "the done mark is renamed before the record is removed: {events:?}"
+        );
         remove(world.root.as_path());
     });
 }
@@ -1887,8 +3456,18 @@ fn the_installed_index_and_the_finished_batch_are_recorded_in_the_order_a_restar
 /// and the ones it only queues,
 /// from its events in order.
 fn syncs_of(events: &[String]) -> (Vec<String>, Vec<String>) {
-    let waited: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-waited:").map(str::to_string); }).collect();
-    let queued: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-queued:").map(str::to_string); }).collect();
+    let waited: Vec<String> = events
+        .iter()
+        .filter_map(|event| {
+            return event.strip_prefix("sync-waited:").map(str::to_string);
+        })
+        .collect();
+    let queued: Vec<String> = events
+        .iter()
+        .filter_map(|event| {
+            return event.strip_prefix("sync-queued:").map(str::to_string);
+        })
+        .collect();
     return (waited, queued);
 }
 
@@ -1911,20 +3490,48 @@ fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let world: World = world("service-land-syncs");
         crate::service_fault::hooks::take_events();
-        let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+        let before: u64 =
+            crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
         let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
         let outcome = land_batch(&world.context, 1, &[landed]).expect("landed");
-        assert!(matches!(outcome.as_slice(), [Outcome::Landed { .. }]), "{outcome:?}");
+        assert!(
+            matches!(outcome.as_slice(), [Outcome::Landed { .. }]),
+            "{outcome:?}"
+        );
         let events: Vec<String> = crate::service_fault::hooks::take_events();
         let (waited, queued) = syncs_of(events.as_slice());
         // Positive control: the records are synced, only elsewhere, so a landing that stopped reporting its syncs fails here.
-        assert!(!queued.is_empty(), "the landing queues its syncs: {events:?}");
-        assert_eq!(waited, Vec::<String>::new(), "the person waited for a sync: {events:?}");
-        let expected: Vec<&str> = vec!["intent-file", "intent-dir", crate::service_index_placement::LOCK_MARKER_SYNC, "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
-        assert_eq!(queued, expected, "the records one landing queues: {events:?}");
+        assert!(
+            !queued.is_empty(),
+            "the landing queues its syncs: {events:?}"
+        );
+        assert_eq!(
+            waited,
+            Vec::<String>::new(),
+            "the person waited for a sync: {events:?}"
+        );
+        let expected: Vec<&str> = vec![
+            "intent-file",
+            "intent-dir",
+            crate::service_index_placement::LOCK_MARKER_SYNC,
+            "index-dir",
+            "indexed-file",
+            "indexed-dir",
+            "journal-dir",
+        ];
+        assert_eq!(
+            queued, expected,
+            "the records one landing queues: {events:?}"
+        );
         crate::service_durable::drain();
-        let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
-        assert!(made >= queued.len() as u64, "the background thread made the {} queued syncs, made {made}", queued.len());
+        let made: u64 = crate::service_durable::BACKGROUND_SYNCED
+            .load(std::sync::atomic::Ordering::SeqCst)
+            - before;
+        assert!(
+            made >= queued.len() as u64,
+            "the background thread made the {} queued syncs, made {made}",
+            queued.len()
+        );
         remove(world.root.as_path());
     });
 }
@@ -1946,7 +3553,11 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
         land_batch(&world.context, 1, &[landed]).expect("landed");
         let events: Vec<String> = crate::service_fault::hooks::take_events();
         let (waited, queued) = syncs_of(events.as_slice());
-        assert_eq!(waited, vec![String::from("index-publish")], "only the index flush that core.fsync asks for is waited for: {events:?}");
+        assert_eq!(
+            waited,
+            vec![String::from("index-publish")],
+            "only the index flush that core.fsync asks for is waited for: {events:?}"
+        );
         assert!(queued.contains(&String::from("intent-file")), "{events:?}");
         crate::service_durable::drain();
         remove(world.root.as_path());
@@ -1974,25 +3585,53 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
-    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    let context: LandContext = LandContext {
+        git: git_context(),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: SHORT_CEILING,
+    };
     crate::service_fault::hooks::take_events();
-    let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
-    let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
+    let before: u64 =
+        crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        return land_batch(&context, 1, &[request]);
+    });
     let events: Vec<String> = crate::service_fault::hooks::take_events();
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
-    assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
+    assert!(
+        waited.contains(&String::from("intent-file"))
+            && waited.contains(&String::from("intent-dir")),
+        "the intent was forced: {events:?}"
+    );
     // Positive control: this withdrawal had the marker's flush to hand over, so a landing that stopped queueing it fails here.
-    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| return what.as_str() == crate::service_index_placement::LOCK_MARKER_SYNC);
-    assert_eq!(markers, vec![String::from(crate::service_index_placement::LOCK_MARKER_SYNC)], "the marker's flush is handed to the background task: {events:?}");
+    let (markers, records): (Vec<String>, Vec<String>) = queued
+        .into_iter()
+        .partition(|what| return what.as_str() == crate::service_index_placement::LOCK_MARKER_SYNC);
+    assert_eq!(
+        markers,
+        vec![String::from(
+            crate::service_index_placement::LOCK_MARKER_SYNC
+        )],
+        "the marker's flush is handed to the background task: {events:?}"
+    );
     let mut forced: Vec<String> = waited.clone();
     let mut asked: Vec<String> = records;
     forced.sort();
     asked.sort();
-    assert_eq!(forced, asked, "every record the landing queued was made before it returned: {events:?}");
+    assert_eq!(
+        forced, asked,
+        "every record the landing queued was made before it returned: {events:?}"
+    );
     crate::service_durable::drain();
-    let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
-    assert!(made >= markers.len() as u64, "the background task made the marker's queued flush, made {made}");
+    let made: u64 = crate::service_durable::BACKGROUND_SYNCED
+        .load(std::sync::atomic::Ordering::SeqCst)
+        - before;
+    assert!(
+        made >= markers.len() as u64,
+        "the background task made the marker's queued flush, made {made}"
+    );
     remove(world.root.as_path());
 }
 
@@ -2006,17 +3645,32 @@ fn a_restart_that_cannot_read_the_completion_record_leaves_the_index_alone() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    git(
+        world.repo.as_path(),
+        &["reset", "-q", base.as_str(), "--", "landed.txt"],
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     std::fs::rename(&done, &open).expect("reopen");
     // A record that is a directory is present and cannot be read.
-    std::fs::create_dir(batch_path(world.context.journal.as_path(), 1, crate::service_journal::INDEXED_EXTENSION)).expect("an unreadable record");
+    std::fs::create_dir(batch_path(
+        world.context.journal.as_path(),
+        1,
+        crate::service_journal::INDEXED_EXTENSION,
+    ))
+    .expect("an unreadable record");
     let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
     recover(&world.context);
-    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was not replayed over");
+    assert_eq!(
+        std::fs::read(world.repo.join(".git/index")).expect("index"),
+        before,
+        "the index was not replayed over"
+    );
     assert!(open.exists() && !done.exists(), "the batch stays open");
-    assert!(!world.repo.join(".git/index.lock").exists(), "no lock is left");
+    assert!(
+        !world.repo.join(".git/index.lock").exists(),
+        "no lock is left"
+    );
     remove(world.root.as_path());
 }
 
@@ -2031,9 +3685,16 @@ fn a_panic_after_the_installation_leaves_the_lock() {
     let lock = try_acquire(index.as_path(), 1).expect("the lock is free");
     let built: PathBuf = world.root.join("built-index");
     std::fs::copy(&index, &built).expect("a copy to install");
-    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { let _ = lock.release_with_record(built.as_path(), &|| { panic!("the record failed in an unusual way"); }); }));
+    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = lock.release_with_record(built.as_path(), &|| {
+            panic!("the record failed in an unusual way");
+        });
+    }));
     assert!(unwound.is_err(), "the panic went through");
-    assert!(world.repo.join(".git/index.lock").exists(), "the lock stays for the restart to reclaim");
+    assert!(
+        world.repo.join(".git/index.lock").exists(),
+        "the lock stays for the restart to reclaim"
+    );
     remove(world.root.as_path());
 }
 
@@ -2050,14 +3711,29 @@ fn a_restart_after_a_switch_still_finishes_an_alternate_index() {
     let mut landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     landed.index = alternate.clone();
     land_with_failed_index(&world, 1, &[landed]);
-    let staged = |index: &Path| -> String { return git_with_index(world.repo.as_path(), index, &["ls-files", "--stage", "--", "landed.txt"]); };
-    assert!(staged(alternate.as_path()).is_empty(), "the landing's update of the alternate index did not install");
+    let staged = |index: &Path| -> String {
+        return git_with_index(
+            world.repo.as_path(),
+            index,
+            &["ls-files", "--stage", "--", "landed.txt"],
+        );
+    };
+    assert!(
+        staged(alternate.as_path()).is_empty(),
+        "the landing's update of the alternate index did not install"
+    );
     git(world.repo.as_path(), &["branch", "other", base.as_str()]);
-    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+    git(
+        world.repo.as_path(),
+        &["symbolic-ref", "HEAD", "refs/heads/other"],
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     recover(&world.context);
-    assert!(!staged(alternate.as_path()).is_empty(), "the alternate index shows the landing again");
+    assert!(
+        !staged(alternate.as_path()).is_empty(),
+        "the alternate index shows the landing again"
+    );
     assert!(done.exists() && !open.exists(), "the batch is finished");
     remove(world.root.as_path());
 }
@@ -2072,29 +3748,58 @@ fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() 
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     git(world.repo.as_path(), &["branch", "other", base.as_str()]);
-    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
+    git(
+        world.repo.as_path(),
+        &["symbolic-ref", "HEAD", "refs/heads/other"],
+    );
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     std::fs::rename(&done, &open).expect("reopen");
-    let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
+    let mut intent: Intent =
+        parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
     let scratch: PathBuf = world.root.join("scratch");
     let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
     std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
     // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
-    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
-    intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
-    crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
+    std::fs::write(
+        copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME),
+        b"{",
+    )
+    .expect("a torn record");
+    intent.cleanup = Some(crate::service_protocol::Cleanup {
+        git_dir: world.root.join("no-such-git-dir"),
+        scratch,
+        reftable: false,
+    });
+    crate::service_journal::write_intent(world.context.journal.as_path(), &intent)
+        .expect("intent with a cleanup");
     recover(&world.context);
-    assert!(open.exists() && !done.exists(), "the batch stays open while its cleanup cannot be done");
+    assert!(
+        open.exists() && !done.exists(),
+        "the batch stays open while its cleanup cannot be done"
+    );
     remove(world.root.as_path());
 }
 
 /// Git in `repository` with `GIT_INDEX_FILE` set to `index`;
 /// its output,
 /// trimmed.
-pub(super) fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]) -> String {
-    let output = std::process::Command::new(crate::test_support::REAL_GIT).current_dir(repository).env("GIT_INDEX_FILE", index).args(arguments).output().expect("git");
-    assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
+pub(super) fn git_with_index(
+    repository: &Path,
+    index: &Path,
+    arguments: &[&str],
+) -> String {
+    let output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(repository)
+        .env("GIT_INDEX_FILE", index)
+        .args(arguments)
+        .output()
+        .expect("git");
+    assert!(
+        output.status.success(),
+        "git {arguments:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     return String::from_utf8_lossy(&output.stdout).trim().to_string();
 }
 
@@ -2108,20 +3813,37 @@ fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed()
         let mut world: World = world("service-land-flush-once");
         // The repository names the index in `core.fsync`, so the index is flushed on the wait as native Git flushes it.
         git(world.repo.as_path(), &["config", "core.fsync", "added"]);
-        world.context.git.overlay.extend(crate::repo_read_hook::switch_off());
+        world
+            .context
+            .git
+            .overlay
+            .extend(crate::repo_read_hook::switch_off());
         crate::service_fault::hooks::take_events();
         let by_git: CommitRequest = request(&world, "by-git", "by-git.txt", "x\n");
         land_batch(&world.context, 1, &[by_git]).expect("landed");
         let events: Vec<String> = crate::service_fault::hooks::take_events();
         let (waited, _queued) = syncs_of(events.as_slice());
-        assert_eq!(waited, vec![String::from("built-index")], "Git's file is flushed once, by the release: {events:?}");
-        world.context.git.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
+        assert_eq!(
+            waited,
+            vec![String::from("built-index")],
+            "Git's file is flushed once, by the release: {events:?}"
+        );
+        world.context.git.overlay.retain(|(name, _)| {
+            return name != crate::repo_read_hook::SWITCH_VARIABLE;
+        });
         let in_process: CommitRequest = request(&world, "in-process", "in-process.txt", "x\n");
         land_batch(&world.context, 2, &[in_process]).expect("landed");
         let in_process_events: Vec<String> = crate::service_fault::hooks::take_events();
         let (in_process_waited, in_process_queued) = syncs_of(in_process_events.as_slice());
-        assert!(in_process_queued.contains(&String::from("index-dir")), "the landing installed an index: {in_process_events:?}");
-        assert_eq!(in_process_waited, vec![String::from("index-publish")], "the update's own flush is not repeated: {in_process_events:?}");
+        assert!(
+            in_process_queued.contains(&String::from("index-dir")),
+            "the landing installed an index: {in_process_events:?}"
+        );
+        assert_eq!(
+            in_process_waited,
+            vec![String::from("index-publish")],
+            "the update's own flush is not repeated: {in_process_events:?}"
+        );
         remove(world.root.as_path());
     });
 }
@@ -2138,14 +3860,43 @@ fn a_landing_that_fails_before_its_intent_keeps_the_commit_and_removes_its_scrat
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     // The journal cannot be written: the import cannot leave its marks file there, so the landing makes the batch's objects
     //  (the scratch branch names its commit) and fails before the intent is written.
-    std::fs::set_permissions(world.context.journal.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the journal directory cannot be written");
+    std::fs::set_permissions(
+        world.context.journal.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o500),
+    )
+    .expect("the journal directory cannot be written");
     let answered = land_batch(&world.context, 1, std::slice::from_ref(&mine));
-    std::fs::set_permissions(world.context.journal.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the journal directory is writable again");
+    std::fs::set_permissions(
+        world.context.journal.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )
+    .expect("the journal directory is writable again");
     assert_eq!(answered, Err(FailureCode::PermissionDenied));
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "nothing names the batch");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the commit the batch built is kept");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the branch did not move"
+    );
+    assert!(
+        !batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "nothing names the batch"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "no scratch branch is left"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]
+        ),
+        "message of mine",
+        "the commit the batch built is kept"
+    );
     remove(world.root.as_path());
 }
 
@@ -2161,29 +3912,62 @@ fn a_landing_that_fails_before_its_intent_keeps_the_commit_and_removes_its_scrat
 /// ```ts
 /// raceGit({ before: 'refs/cli-git/kept/', write: [scratch, competing] })
 /// ```
-fn git_that_races_for_the_scratch_reference(world: &World, scratch: &str, competing: &str) -> PathBuf {
+fn git_that_races_for_the_scratch_reference(
+    world: &World,
+    scratch: &str,
+    competing: &str,
+) -> PathBuf {
     let program: PathBuf = world.root.join("racing-git");
     let script: String = format!(
         "#!/bin/sh\ncase \" $* \" in\n  *\" refs/cli-git/kept/\"*) '{real}' -c core.logAllRefUpdates=false update-ref --no-deref '{scratch}' '{competing}';;\nesac\nexec '{real}' \"$@\"\n",
         real = crate::test_support::REAL_GIT
     );
     std::fs::write(&program, script).expect("script");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return program;
 }
 
 /// The commit a batch's import built,
 /// as an object nothing but the batch's own reference names.
-fn a_commit_off_the_branch(world: &World, subject: &str) -> String {
+fn a_commit_off_the_branch(
+    world: &World,
+    subject: &str,
+) -> String {
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
-    return git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", head.as_str(), "-m", subject]);
+    return git_text(
+        world.repo.as_path(),
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            head.as_str(),
+            "-m",
+            subject,
+        ],
+    );
 }
 
 /// The lines a landing announced,
 /// joined as the person reads them.
 fn announced(said: &std::sync::Mutex<Vec<Announce>>) -> String {
-    return said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect::<Vec<String>>().join("");
+    return said
+        .lock()
+        .expect("lock")
+        .iter()
+        .filter_map(|note| {
+            return if let Announce::Waiting(text) = note {
+                Some(text.clone())
+            } else {
+                None
+            };
+        })
+        .collect::<Vec<String>>()
+        .join("");
 }
 
 /// What:
@@ -2210,18 +3994,59 @@ fn a_ceiling_landing_whose_keep_is_refused_leaves_the_commit_on_the_reference_th
         let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
         let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
         let built: String = a_commit_off_the_branch(&world, "the commit the batch built");
-        git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), built.as_str()]);
+        git(
+            world.repo.as_path(),
+            &[
+                "-c",
+                "core.logAllRefUpdates=false",
+                "update-ref",
+                "--no-deref",
+                scratch.as_str(),
+                built.as_str(),
+            ],
+        );
         // Another batch's commit already holds the name this batch would be kept under.
-        git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", head.as_str()]);
-        crate::landing_state_carried_by_its_task::on_the_landing_state(String::from("rev-parse was ended at its step's ceiling"), crate::service_land_side_reference_write::keep_the_ceiling_step);
+        git(
+            world.repo.as_path(),
+            &["update-ref", "refs/cli-git/kept/1", head.as_str()],
+        );
+        crate::landing_state_carried_by_its_task::on_the_landing_state(
+            String::from("rev-parse was ended at its step's ceiling"),
+            crate::service_land_side_reference_write::keep_the_ceiling_step,
+        );
         let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(&world.context, &|note: Announce| { said.lock().expect("lock").push(note); }, std::slice::from_ref(&request), 1);
-        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]), built, "the reference that held the commit stays, because no other reference names it");
-        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), head, "another batch's kept commit is not replaced");
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(
+            &world.context,
+            &|note: Announce| {
+                said.lock().expect("lock").push(note);
+            },
+            std::slice::from_ref(&request),
+            1,
+        );
+        assert_eq!(
+            git_text(
+                world.repo.as_path(),
+                &["rev-parse", "--verify", "--quiet", scratch.as_str()]
+            ),
+            built,
+            "the reference that held the commit stays, because no other reference names it"
+        );
+        assert_eq!(
+            git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+            head,
+            "another batch's kept commit is not replaced"
+        );
         let line: String = announced(&said);
-        assert!(line.contains(built.as_str()) && line.contains(scratch.as_str()), "the person is told the commit's name and where it is kept: {line}");
+        assert!(
+            line.contains(built.as_str()) && line.contains(scratch.as_str()),
+            "the person is told the commit's name and where it is kept: {line}"
+        );
         git(world.repo.as_path(), &["prune", "--expire=now"]);
-        assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]), "commit", "the commit is still in the object store after a prune");
+        assert_eq!(
+            git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]),
+            "commit",
+            "the commit is still in the object store after a prune"
+        );
         remove(world.root.as_path());
     });
 }
@@ -2246,16 +4071,60 @@ fn a_ceiling_landing_does_not_remove_a_scratch_reference_another_command_wrote()
         let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
         let built: String = a_commit_off_the_branch(&world, "the commit the batch built");
         let competing: String = a_commit_off_the_branch(&world, "another command's commit");
-        git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), built.as_str()]);
-        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: world.context.lock_ceiling };
-        context.git.real_git = git_that_races_for_the_scratch_reference(&world, scratch.as_str(), competing.as_str());
-        crate::landing_state_carried_by_its_task::on_the_landing_state(String::from("rev-parse was ended at its step's ceiling"), crate::service_land_side_reference_write::keep_the_ceiling_step);
+        git(
+            world.repo.as_path(),
+            &[
+                "-c",
+                "core.logAllRefUpdates=false",
+                "update-ref",
+                "--no-deref",
+                scratch.as_str(),
+                built.as_str(),
+            ],
+        );
+        let mut context: LandContext = LandContext {
+            git: git_context(),
+            journal: world.context.journal.clone(),
+            on_objects_written: None,
+            lock_ceiling: world.context.lock_ceiling,
+        };
+        context.git.real_git =
+            git_that_races_for_the_scratch_reference(&world, scratch.as_str(), competing.as_str());
+        crate::landing_state_carried_by_its_task::on_the_landing_state(
+            String::from("rev-parse was ended at its step's ceiling"),
+            crate::service_land_side_reference_write::keep_the_ceiling_step,
+        );
         let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(&context, &|note: Announce| { said.lock().expect("lock").push(note); }, std::slice::from_ref(&request), 1);
-        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]), competing, "the reference another command wrote is not removed");
-        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the batch's own commit is kept at the name the batch keeps it under");
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(
+            &context,
+            &|note: Announce| {
+                said.lock().expect("lock").push(note);
+            },
+            std::slice::from_ref(&request),
+            1,
+        );
+        assert_eq!(
+            git_text(
+                world.repo.as_path(),
+                &["rev-parse", "--verify", "--quiet", scratch.as_str()]
+            ),
+            competing,
+            "the reference another command wrote is not removed"
+        );
+        assert_eq!(
+            git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+            built,
+            "the batch's own commit is kept at the name the batch keeps it under"
+        );
         git(world.repo.as_path(), &["prune", "--expire=now"]);
-        assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", competing.as_str()]), "commit", "the other command's commit is still in the object store after a prune");
+        assert_eq!(
+            git_text(
+                world.repo.as_path(),
+                &["cat-file", "-t", competing.as_str()]
+            ),
+            "commit",
+            "the other command's commit is still in the object store after a prune"
+        );
         remove(world.root.as_path());
     });
 }
@@ -2285,21 +4154,75 @@ fn an_index_lock_refused_for_a_storage_reason_keeps_the_built_commit() {
     //  reason that is not another program's lock, while the Git directory itself stays writable.
     let private: PathBuf = world.root.join("private");
     std::fs::create_dir(&private).expect("the index's directory");
-    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the index's directory cannot be written");
+    std::fs::set_permissions(
+        private.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o500),
+    )
+    .expect("the index's directory cannot be written");
     mine.index = private.join("index");
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-    let answered = land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &|note: Announce| { said.lock().expect("lock").push(note); });
-    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the index's directory is writable again");
-    assert_eq!(answered, Err(FailureCode::PermissionDenied), "the refusal is not another program's lock");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]), "refs/cli-git/kept/1", "the built commit is kept where the person can find it");
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the commit the batch built");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the reference the batch held the commit on goes once the kept reference names it");
+    let answered = land_batch_announcing(
+        &world.context,
+        1,
+        std::slice::from_ref(&mine),
+        &|note: Announce| {
+            said.lock().expect("lock").push(note);
+        },
+    );
+    std::fs::set_permissions(
+        private.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )
+    .expect("the index's directory is writable again");
+    assert_eq!(
+        answered,
+        Err(FailureCode::PermissionDenied),
+        "the refusal is not another program's lock"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the branch did not move"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]
+        ),
+        "refs/cli-git/kept/1",
+        "the built commit is kept where the person can find it"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]
+        ),
+        "message of mine",
+        "the kept reference holds the commit the batch built"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["for-each-ref", "refs/worktree/cli-git-service/"]
+        ),
+        "",
+        "the reference the batch held the commit on goes once the kept reference names it"
+    );
     git(world.repo.as_path(), &["prune", "--expire=now"]);
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit survives a prune");
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["cat-file", "-t", "refs/cli-git/kept/1"]
+        ),
+        "commit",
+        "the kept commit survives a prune"
+    );
     let line: String = announced(&said);
-    assert!(line.contains("refs/cli-git/kept/1"), "the person is told where the commit is kept: {line}");
+    assert!(
+        line.contains("refs/cli-git/kept/1"),
+        "the person is told where the commit is kept: {line}"
+    );
     remove(world.root.as_path());
 }
 
@@ -2322,22 +4245,68 @@ fn an_index_lock_refused_for_a_storage_reason_whose_keep_is_refused_leaves_the_c
     let mut mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let private: PathBuf = world.root.join("private");
     std::fs::create_dir(&private).expect("the index's directory");
-    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the index's directory cannot be written");
+    std::fs::set_permissions(
+        private.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o500),
+    )
+    .expect("the index's directory cannot be written");
     mine.index = private.join("index");
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", head.as_str()]);
+    git(
+        world.repo.as_path(),
+        &["update-ref", "refs/cli-git/kept/1", head.as_str()],
+    );
     let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-    let answered = land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &|note: Announce| { said.lock().expect("lock").push(note); });
-    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the index's directory is writable again");
-    assert_eq!(answered, Err(FailureCode::PermissionDenied), "the refusal is not another program's lock");
+    let answered = land_batch_announcing(
+        &world.context,
+        1,
+        std::slice::from_ref(&mine),
+        &|note: Announce| {
+            said.lock().expect("lock").push(note);
+        },
+    );
+    std::fs::set_permissions(
+        private.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )
+    .expect("the index's directory is writable again");
+    assert_eq!(
+        answered,
+        Err(FailureCode::PermissionDenied),
+        "the refusal is not another program's lock"
+    );
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
-    let held: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
-    assert!(!held.is_empty(), "the reference that held the commit stays, because no other reference names it");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), head, "another batch's kept commit is not replaced");
-    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", scratch.as_str()]), "message of mine", "the reference that stays holds the commit the batch built");
+    let held: String = git_text(
+        world.repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", scratch.as_str()],
+    );
+    assert!(
+        !held.is_empty(),
+        "the reference that held the commit stays, because no other reference names it"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]),
+        head,
+        "another batch's kept commit is not replaced"
+    );
+    assert_eq!(
+        git_text(
+            world.repo.as_path(),
+            &["log", "-1", "--format=%s", scratch.as_str()]
+        ),
+        "message of mine",
+        "the reference that stays holds the commit the batch built"
+    );
     let line: String = announced(&said);
-    assert!(line.contains(held.as_str()) && line.contains(scratch.as_str()), "the person is told the commit's name and where it is kept: {line}");
+    assert!(
+        line.contains(held.as_str()) && line.contains(scratch.as_str()),
+        "the person is told the commit's name and where it is kept: {line}"
+    );
     git(world.repo.as_path(), &["prune", "--expire=now"]);
-    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is still in the object store after a prune");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["cat-file", "-t", held.as_str()]),
+        "commit",
+        "the commit is still in the object store after a prune"
+    );
     remove(world.root.as_path());
 }

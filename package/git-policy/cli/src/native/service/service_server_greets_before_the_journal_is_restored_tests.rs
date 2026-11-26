@@ -12,13 +12,30 @@
 
 use super::*;
 use crate::service_client_listen_and_ask_to_retire::read_message;
-use crate::service_land::LandContext;
 use crate::service_journal_restored_at_start::THE_READ_AT_A_START;
-use crate::service_protocol::{ALLOWED_MODES, Change, ClientMessage, CommitRequest, HEARTBEAT_EVERY, ServiceMessage, encode_client};
-use crate::test_support::{git_text, repository};
-use std::io::{BufReader, Write};
+use crate::service_land::LandContext;
+use crate::service_protocol::{
+    ALLOWED_MODES,
+    Change,
+    ClientMessage,
+    CommitRequest,
+    HEARTBEAT_EVERY,
+    ServiceMessage,
+    encode_client,
+};
+use crate::test_support::{
+    git_text,
+    repository,
+};
+use std::io::{
+    BufReader,
+    Write,
+};
 use std::os::unix::net::UnixStream;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The most a control waits for the service:
 /// far beyond what the greeting,
@@ -51,14 +68,22 @@ struct World {
 
 fn world(label: &str) -> World {
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"));
-    let socket_directory: PathBuf = home.join("temp/agent").join(format!("sbjr-{}-{label}", std::process::id()));
+    let socket_directory: PathBuf = home
+        .join("temp/agent")
+        .join(format!("sbjr-{}-{label}", std::process::id()));
     let _stale = std::fs::remove_dir_all(&socket_directory);
     std::fs::create_dir_all(&socket_directory).expect("short directory");
-    let root: PathBuf = crate::test_support::fixture(format!("service-greets-before-the-journal-{label}").as_str());
+    let root: PathBuf =
+        crate::test_support::fixture(format!("service-greets-before-the-journal-{label}").as_str());
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(&journal).expect("journal");
-    return World { root, socket_directory, repo, journal };
+    return World {
+        root,
+        socket_directory,
+        repo,
+        journal,
+    };
 }
 
 impl World {
@@ -96,10 +121,16 @@ impl Drop for World {
 
 /// A request that sets a file of the repository,
 /// prepared against the branch as it is now.
-fn a_request(world: &World, id: &str) -> CommitRequest {
+fn a_request(
+    world: &World,
+    id: &str,
+) -> CommitRequest {
     let path: PathBuf = world.repo.join(format!("{MESSAGE}.txt"));
     std::fs::write(&path, format!("{MESSAGE}\n")).expect("the worktree file");
-    let blob: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", path.to_str().expect("UTF-8")]);
+    let blob: String = git_text(
+        world.repo.as_path(),
+        &["hash-object", "-w", "--", path.to_str().expect("UTF-8")],
+    );
     return CommitRequest {
         id: String::from(id),
         repository: world.repo.clone(),
@@ -107,7 +138,11 @@ fn a_request(world: &World, id: &str) -> CommitRequest {
         git_dir: world.repo.join(".git"),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
-        changes: vec![Change { path: PathBuf::from(format!("{MESSAGE}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change {
+            path: PathBuf::from(format!("{MESSAGE}.txt")),
+            mode: ALLOWED_MODES[0],
+            blob: Some(blob),
+        }],
         message: format!("{MESSAGE}\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
@@ -116,7 +151,10 @@ fn a_request(world: &World, id: &str) -> CommitRequest {
         commit: None,
         cleanup: None,
         index: world.repo.join(".git/index"),
-        scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
+        scratch: world
+            .repo
+            .join(".git/monochromatic-git-policy-cli-scratch")
+            .join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         shadow: None,
         captured: 0,
         holder: String::new(),
@@ -158,35 +196,65 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
         serve(listener, &context, &settings);
     });
     // The read it holds can only be reached after the acceptor started, so this says the service is up and its journal is not read.
-    let reached_the_read: Option<bool> = crate::test_support::finished_within_at(PATIENCE, move || { return reached.blocking_recv().is_ok(); });
-    assert_eq!(reached_the_read, Some(true), "the service reaches the read of its journal, which it holds here");
+    let reached_the_read: Option<bool> =
+        crate::test_support::finished_within_at(PATIENCE, move || {
+            return reached.blocking_recv().is_ok();
+        });
+    assert_eq!(
+        reached_the_read,
+        Some(true),
+        "the service reaches the read of its journal, which it holds here"
+    );
     let stream: UnixStream = UnixStream::connect(world.socket()).expect("the service listens");
     let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 3));
-    let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
-    let mut request: String = encode_client(&ClientMessage::Commit(Box::new(a_request(&world, "waited"))));
+    let mut reader: BufReader<UnixStream> = BufReader::new(
+        stream
+            .try_clone()
+            .expect("a second handle on the connection"),
+    );
+    let mut request: String = encode_client(&ClientMessage::Commit(Box::new(a_request(
+        &world, "waited",
+    ))));
     request.push('\n');
-    (&stream).write_all(request.as_bytes()).expect("the client sends its request");
-    assert!(greeted(&mut reader), "the service greets a client although the plan of its pushes gave no answer");
+    (&stream)
+        .write_all(request.as_bytes())
+        .expect("the client sends its request");
+    assert!(
+        greeted(&mut reader),
+        "the service greets a client although the plan of its pushes gave no answer"
+    );
     let mut beats: usize = 0;
     let mut landed: Option<String> = None;
     let waited: Instant = Instant::now();
     while waited.elapsed() < PATIENCE && landed.is_none() {
         match read_message(&mut reader) {
             Some(ServiceMessage::Heartbeat) => beats += 1,
-            Some(ServiceMessage::Landed { commit, .. }) => landed = Some(commit),
+            Some(ServiceMessage::Landed {
+                commit,
+                ..
+            }) => landed = Some(commit),
             Some(_other) => {}
             None => break,
         }
     }
-    assert!(landed.is_some(), "the commit of a client that waited is landed once the journal's ceiling passed");
-    assert!(beats >= 1, "a service whose journal gave no answer still proves it lives, once a second, before a commit lands");
+    assert!(
+        landed.is_some(),
+        "the commit of a client that waited is landed once the journal's ceiling passed"
+    );
+    assert!(
+        beats >= 1,
+        "a service whose journal gave no answer still proves it lives, once a second, before a commit lands"
+    );
     // The service is told to retire on a connection of its own, so its thread ends here rather than at its idle exit.
     retire(world.socket().as_path());
     let joined: bool = join_within(serving);
     // The read is let go whatever happened, so the thread the ceiling left behind ends rather than standing in the kernel for the
     //  life of the test process.
     let _let_go = let_go.send(());
-    assert!(joined, "the service ends when it is told to retire, so a read that gave no answer did not hold it");
+    assert!(
+        joined,
+        "the service ends when it is told to retire, so a read that gave no answer did not hold it"
+    );
 }
 
 /// Tells the service at `socket` to retire,
@@ -194,11 +262,17 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
 fn retire(socket: &Path) {
     let stream: UnixStream = UnixStream::connect(socket).expect("the service listens");
     let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 5));
-    let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
+    let mut reader: BufReader<UnixStream> = BufReader::new(
+        stream
+            .try_clone()
+            .expect("a second handle on the connection"),
+    );
     let _greeted: bool = greeted(&mut reader);
     let mut line: String = encode_client(&ClientMessage::Retire);
     line.push('\n');
-    (&stream).write_all(line.as_bytes()).expect("the retire reaches the service");
+    (&stream)
+        .write_all(line.as_bytes())
+        .expect("the retire reaches the service");
 }
 
 /// Waits at most `PATIENCE` for a serving thread to end,

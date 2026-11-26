@@ -69,7 +69,16 @@ impl WorkKind {
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
+        for kind in [
+            WorkKind::Review,
+            WorkKind::Push,
+            WorkKind::Maintenance,
+            WorkKind::Trash,
+            WorkKind::Prewarm,
+            WorkKind::Relink,
+            WorkKind::SubvolumeDelete,
+            WorkKind::SnapshotAhead,
+        ] {
             if kind.name() == name {
                 return Some(kind);
             }

@@ -2,7 +2,10 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// The two magic numbers map to their kinds,
@@ -10,10 +13,22 @@ use std::path::PathBuf;
 /// and others are `Other`.
 #[test]
 fn the_magic_numbers_map_to_their_kinds() {
-    assert_eq!(classify_magic(libc::BTRFS_SUPER_MAGIC as u64), FilesystemKind::Btrfs);
-    assert_eq!(classify_magic(libc::BTRFS_SUPER_MAGIC as u32 as u64), FilesystemKind::Btrfs);
-    assert_eq!(classify_magic(libc::OVERLAYFS_SUPER_MAGIC as u64), FilesystemKind::Overlayfs);
-    assert_eq!(classify_magic(libc::TMPFS_MAGIC as u64), FilesystemKind::Other);
+    assert_eq!(
+        classify_magic(libc::BTRFS_SUPER_MAGIC as u64),
+        FilesystemKind::Btrfs
+    );
+    assert_eq!(
+        classify_magic(libc::BTRFS_SUPER_MAGIC as u32 as u64),
+        FilesystemKind::Btrfs
+    );
+    assert_eq!(
+        classify_magic(libc::OVERLAYFS_SUPER_MAGIC as u64),
+        FilesystemKind::Overlayfs
+    );
+    assert_eq!(
+        classify_magic(libc::TMPFS_MAGIC as u64),
+        FilesystemKind::Other
+    );
     assert_eq!(classify_magic(0), FilesystemKind::Other);
 }
 
@@ -30,8 +45,12 @@ fn a_sign_extended_f_type_still_classifies() {
 fn the_kind_of_a_real_directory_is_read_and_a_missing_path_is_a_typed_error() {
     let root: PathBuf = fixture("fs-kind-real");
     let (_kind, free) = filesystem_facts(root.as_path()).expect("the fixture root answers");
-    assert!(free > 0, "a fixture root with no free byte cannot hold a fixture");
-    let error: PrimitiveError = filesystem_kind(root.join("absent").as_path()).expect_err("a missing path has no filesystem");
+    assert!(
+        free > 0,
+        "a fixture root with no free byte cannot hold a fixture"
+    );
+    let error: PrimitiveError = filesystem_kind(root.join("absent").as_path())
+        .expect_err("a missing path has no filesystem");
     assert_eq!((error.operation, error.errno), ("statfs", libc::ENOENT));
     remove(root.as_path());
 }
@@ -55,7 +74,9 @@ fn a_plain_directory_is_not_a_subvolume_root() {
 /// and a file is not.
 #[test]
 fn btrfs_a_created_subvolume_is_a_root_and_a_plain_directory_beside_it_is_not() {
-    let Some(root) = btrfs_fixture("fs-kind-btrfs") else { return };
+    let Some(root) = btrfs_fixture("fs-kind-btrfs") else {
+        return;
+    };
     assert_eq!(filesystem_kind(root.as_path()), Ok(FilesystemKind::Btrfs));
     let subvolume: PathBuf = root.join("sub");
     crate::fs_btrfs_ioctl::subvolume_create_at(subvolume.as_path()).expect("subvolume create");
@@ -109,7 +130,10 @@ fn every_kind_answers_whether_it_may_clone() {
 /// ```
 #[test]
 fn zfs_magic_number_maps_to_its_kind() {
-    assert_eq!(ZFS_SUPER_MAGIC, 0x2fc1_2fc1, "the value `include/sys/fs/zfs.h` of OpenZFS `zfs-2.4.4` defines as `ZFS_SUPER_MAGIC` and writes into `statfs`, which the libc crate does not define");
+    assert_eq!(
+        ZFS_SUPER_MAGIC, 0x2fc1_2fc1,
+        "the value `include/sys/fs/zfs.h` of OpenZFS `zfs-2.4.4` defines as `ZFS_SUPER_MAGIC` and writes into `statfs`, which the libc crate does not define"
+    );
     assert_eq!(classify_magic(ZFS_SUPER_MAGIC), FilesystemKind::Zfs);
     let extended: u64 = ZFS_SUPER_MAGIC | 0xffff_ffff_0000_0000;
     assert_eq!(classify_magic(extended), FilesystemKind::Zfs);
@@ -143,19 +167,29 @@ fn zfs_a_real_mount_answers_with_its_kind() {
     let root: PathBuf = fixture("fs-kind-zfs");
     let kind: FilesystemKind = filesystem_kind(root.as_path()).expect("the fixture root answers");
     if kind != FilesystemKind::Zfs {
-        let acknowledged: bool = std::env::var_os(ZFS_ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+        let acknowledged: bool =
+            std::env::var_os(ZFS_ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| {
+                return !value.is_empty();
+            });
         assert!(
             acknowledged,
             "the control zfs_a_real_mount_answers_with_its_kind needs a ZFS fixture root, but {} is on {kind:?}; set CLI_GIT_TEST_ROOT to a directory on ZFS, or set {ZFS_ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
             root.display()
         );
-        eprintln!("ZFS CONTROL NOT RUN: zfs_a_real_mount_answers_with_its_kind (fixture root {} is on {kind:?}; the guest fixture of the ZFS plan's step 2 runs it)", root.display());
+        eprintln!(
+            "ZFS CONTROL NOT RUN: zfs_a_real_mount_answers_with_its_kind (fixture root {} is on {kind:?}; the guest fixture of the ZFS plan's step 2 runs it)",
+            root.display()
+        );
         remove(root.as_path());
         return;
     }
     assert_eq!(kind, FilesystemKind::Zfs);
     let inside: PathBuf = root.join("plain");
     std::fs::create_dir(&inside).expect("plain directory");
-    assert_eq!(filesystem_kind(inside.as_path()), Ok(FilesystemKind::Zfs), "a directory made in a ZFS mount is on that dataset");
+    assert_eq!(
+        filesystem_kind(inside.as_path()),
+        Ok(FilesystemKind::Zfs),
+        "a directory made in a ZFS mount is on that dataset"
+    );
     remove(root.as_path());
 }

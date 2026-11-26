@@ -14,7 +14,12 @@
 //! ```
 
 use crate::discarded_prune_limits::Limits;
-use crate::discarded_prune_stamps::{DAY_MILLISECONDS, STAMP_RESOLUTION_MILLISECONDS, Stamped, YOUNG_FLOOR_MILLISECONDS};
+use crate::discarded_prune_stamps::{
+    DAY_MILLISECONDS,
+    STAMP_RESOLUTION_MILLISECONDS,
+    Stamped,
+    YOUNG_FLOOR_MILLISECONDS,
+};
 
 /// Why a directory goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,18 +42,30 @@ impl Reason {
 
 /// Milliseconds from the end of the named second of a directory to now,
 /// in a width no clock or limit can overflow.
-fn age_of(entry: &Stamped, now_millis: i64) -> i128 {
-    return i128::from(now_millis) - (i128::from(entry.millis) + i128::from(STAMP_RESOLUTION_MILLISECONDS));
+fn age_of(
+    entry: &Stamped,
+    now_millis: i64,
+) -> i128 {
+    return i128::from(now_millis)
+        - (i128::from(entry.millis) + i128::from(STAMP_RESOLUTION_MILLISECONDS));
 }
 
 /// Whether the plan may remove the directory:
 /// it is past the young floor and is not the one just written.
-fn is_reachable(entry: &Stamped, now_millis: i64, keep: Option<&str>) -> bool {
-    return age_of(entry, now_millis) >= i128::from(YOUNG_FLOOR_MILLISECONDS) && keep != Some(entry.name.as_str());
+fn is_reachable(
+    entry: &Stamped,
+    now_millis: i64,
+    keep: Option<&str>,
+) -> bool {
+    return age_of(entry, now_millis) >= i128::from(YOUNG_FLOOR_MILLISECONDS)
+        && keep != Some(entry.name.as_str());
 }
 
 /// Whether the entry at `index` is already chosen for removal.
-fn is_doomed(doomed: &[(usize, Reason)], index: usize) -> bool {
+fn is_doomed(
+    doomed: &[(usize, Reason)],
+    index: usize,
+) -> bool {
     for (gone, _reason) in doomed {
         if *gone == index {
             return true;
@@ -78,7 +95,12 @@ fn is_doomed(doomed: &[(usize, Reason)], index: usize) -> bool {
 /// ```ts
 /// const doomed = plan(entries, nowMillis, limits, 'the-new-one') // [[0, 'age'], [3, 'size']]
 /// ```
-pub fn plan(entries: &[Stamped], now_millis: i64, limits: Limits, keep: Option<&str>) -> Vec<(usize, Reason)> {
+pub fn plan(
+    entries: &[Stamped],
+    now_millis: i64,
+    limits: Limits,
+    keep: Option<&str>,
+) -> Vec<(usize, Reason)> {
     let age_limit: i128 = i128::from(limits.max_age_days) * i128::from(DAY_MILLISECONDS);
     let mut doomed: Vec<(usize, Reason)> = Vec::new();
     for (index, entry) in entries.iter().enumerate() {

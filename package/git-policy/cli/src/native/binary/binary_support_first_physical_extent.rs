@@ -46,7 +46,15 @@ pub fn first_physical_extent(path: &Path) -> u64 {
         extent: [u8; 56],
     }
     let file: std::fs::File = std::fs::File::open(path).expect("open");
-    let mut request: Request = Request { start: 0, length: u64::MAX, flags: 1, mapped: 0, count: 1, reserved: 0, extent: [0; 56] };
+    let mut request: Request = Request {
+        start: 0,
+        length: u64::MAX,
+        flags: 1,
+        mapped: 0,
+        count: 1,
+        reserved: 0,
+        extent: [0; 56],
+    };
     // SAFETY: `request` is a `struct fiemap` followed by room for the one extent it asks for, and the descriptor is open.
     let result: libc::c_int = unsafe { libc::ioctl(file.as_raw_fd(), FS_IOC_FIEMAP, &mut request) };
     assert_eq!(result, 0, "FIEMAP of {}", path.display());

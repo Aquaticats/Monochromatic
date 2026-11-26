@@ -23,12 +23,12 @@
 //! stopWords({ waited, boundThatEndedIt, signs, belowUnlisted, belowUnended })
 //! ```
 
-/// Time spans,
-/// for the two figures the words name.
-use std::time::Duration;
 /// Why a step's ceiling stood aside for it,
 /// which the words say when it did.
 use crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor;
+/// Time spans,
+/// for the two figures the words name.
+use std::time::Duration;
 
 /// What:
 ///  The bound that ended a stopped step,
@@ -73,7 +73,10 @@ impl TheBoundThatEndedACommit {
     pub fn the_bound(&self) -> Duration {
         return match self {
             Self::TheUsualCeiling(ceiling) => *ceiling,
-            Self::TheStallBound { bound, why: _why } => *bound,
+            Self::TheStallBound {
+                bound,
+                why: _why,
+            } => *bound,
         };
     }
 }
@@ -128,7 +131,13 @@ pub struct ScratchStepStop {
 /// stopWords({ waited, boundThatEndedIt, signs, belowUnlisted, belowUnended })
 /// ```
 pub fn stop_words(stop: ScratchStepStop) -> String {
-    let ScratchStepStop { waited, bound_that_ended_it, signs, below_unlisted, below_unended } = stop;
+    let ScratchStepStop {
+        waited,
+        bound_that_ended_it,
+        signs,
+        below_unlisted,
+        below_unended,
+    } = stop;
     // What: The bound that ended the step, named as the promise it was.
     // Why:   A step the kernel held in a disk wait was already given the longer bound before it was ended,
     //        and a person who is told only the usual ceiling reads the stop as one that ended a step working on its own.
@@ -143,10 +152,18 @@ pub fn stop_words(stop: ScratchStepStop) -> String {
             ),
             "",
         ),
-        TheBoundThatEndedACommit::TheStallBound { bound, why } => (
-            format!("the longer bound this release waits a step for when it may be held in a disk wait ({} seconds)", bound.as_secs()),
+        TheBoundThatEndedACommit::TheStallBound {
+            bound,
+            why,
+        } => (
+            format!(
+                "the longer bound this release waits a step for when it may be held in a disk wait ({} seconds)",
+                bound.as_secs()
+            ),
             match why {
-                WhyTheStepWasWaitedFor::TheKernelHeldIt(_) => " The kernel held it in a disk wait, so it was waited for to that bound before it was stopped.",
+                WhyTheStepWasWaitedFor::TheKernelHeldIt(_) => {
+                    " The kernel held it in a disk wait, so it was waited for to that bound before it was stopped."
+                }
                 WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead => {
                     " Its state could not be read, so nothing could tell whether the disk was holding it, and it was waited for to that bound before it was stopped."
                 }
@@ -167,8 +184,12 @@ pub fn stop_words(stop: ScratchStepStop) -> String {
     // A signal the kernel refused leaves the program it named running: the walk listed it, and nothing ended it.
     let unended: String = match below_unended {
         0 => String::new(),
-        1 => String::from(" One program it started could not be ended, so it may still be running; check with `ps`."),
-        count => format!(" {count} programs it started could not be ended, so they may still be running; check with `ps`."),
+        1 => String::from(
+            " One program it started could not be ended, so it may still be running; check with `ps`.",
+        ),
+        count => format!(
+            " {count} programs it started could not be ended, so they may still be running; check with `ps`."
+        ),
     };
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, at {the_bound}; nothing was committed, \

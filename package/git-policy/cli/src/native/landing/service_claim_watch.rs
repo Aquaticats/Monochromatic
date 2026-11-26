@@ -100,25 +100,47 @@
 // The public names of the files this store was split into stay reachable here,
 // so a caller and a control still name `service_claim_watch` alone.
 pub use super::service_claim_watch_note_format::ReadFile;
-pub use super::service_claim_watch_watched_repositories::{WatchedRepositories, named_repositories, watched_repositories};
+pub use super::service_claim_watch_watched_repositories::{
+    WatchedRepositories,
+    named_repositories,
+    watched_repositories,
+};
 pub use super::service_claim_watch_writing_a_note::note_for_the_next_service;
 
 // The names a control of this store writes and names notes by.
 #[cfg(test)]
-pub(crate) use super::service_claim_watch_note_format::{encode, watch_name};
+pub(crate) use super::service_claim_watch_note_format::{
+    encode,
+    watch_name,
+};
 #[cfg(test)]
 pub(crate) use super::service_claim_watch_writing_a_note::IN_THE_NEXT_SERVICE_NOTE;
 
 // The note's own format and reading, and the write this store makes of one.
-pub(crate) use super::service_claim_watch_note_format::{NOTE_FILE_LIMIT, WATCH_EXTENSION, decode, read_file};
+pub(crate) use super::service_claim_watch_note_format::{
+    NOTE_FILE_LIMIT,
+    WATCH_EXTENSION,
+    decode,
+    read_file,
+};
 pub(crate) use super::service_claim_watch_writing_a_note::write_down;
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::private_storage::ReadRefusal;
-use crate::service_claim_watch_whose_repository_it_is::{of_another_instance, refused_for_another_instance};
+use crate::service_claim_watch_whose_repository_it_is::{
+    of_another_instance,
+    refused_for_another_instance,
+};
 use crate::service_work::work_directory;
-use crate::work_item::{PENDING, WORK_DIRECTORY, state_directory};
-use std::path::{Path, PathBuf};
+use crate::work_item::{
+    PENDING,
+    WORK_DIRECTORY,
+    state_directory,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 // A control of this store joins a path holding a byte that is no text,
@@ -246,7 +268,10 @@ impl ClaimWatch {
     /// ```ts
     /// new ClaimWatch(dir, instance, { unread: true, failures: 1 })
     /// ```
-    pub fn unread(directory: &Path, instance: Option<&str>) -> Self {
+    pub fn unread(
+        directory: &Path,
+        instance: Option<&str>,
+    ) -> Self {
         return Self {
             store: Some(directory.to_path_buf()),
             instance: instance.map(str::to_string),
@@ -268,14 +293,25 @@ impl ClaimWatch {
     /// ```ts
     /// new ClaimWatch(dir, instance).scan()
     /// ```
-    pub fn restored(directory: &Path, instance: Option<&str>) -> Self {
+    pub fn restored(
+        directory: &Path,
+        instance: Option<&str>,
+    ) -> Self {
         return Self::restored_reading(directory, instance, &read_file);
     }
 
     /// `restored` with the reading of the files given,
     /// so that a control can make one fail.
-    pub fn restored_reading(directory: &Path, instance: Option<&str>, read: ReadFile<'_>) -> Self {
-        let mut watch: Self = Self { store: Some(directory.to_path_buf()), instance: instance.map(str::to_string), ..Self::default() };
+    pub fn restored_reading(
+        directory: &Path,
+        instance: Option<&str>,
+        read: ReadFile<'_>,
+    ) -> Self {
+        let mut watch: Self = Self {
+            store: Some(directory.to_path_buf()),
+            instance: instance.map(str::to_string),
+            ..Self::default()
+        };
         let _found: Vec<PathBuf> = watch.scan(read);
         return watch;
     }
@@ -304,7 +340,10 @@ impl ClaimWatch {
     /// the first pause of a push that is tried again,
     /// doubled for each failure in a row,
     /// never past those pushes' longest.
-    pub fn pause(&self, first: Duration) -> Duration {
+    pub fn pause(
+        &self,
+        first: Duration,
+    ) -> Duration {
         return crate::push_retry::pause_before(self.failures.max(1), first);
     }
 
@@ -313,7 +352,10 @@ impl ClaimWatch {
     /// the caller goes on
     /// with the work either way,
     /// because a failed note must not stop a backup.
-    pub fn remember(&mut self, git_dir: &Path) {
+    pub fn remember(
+        &mut self,
+        git_dir: &Path,
+    ) {
         for known in self.known.iter().chain(self.unwritten.iter()) {
             if known == git_dir {
                 return;
@@ -329,7 +371,10 @@ impl ClaimWatch {
         match write_down(directory.as_path(), git_dir) {
             Ok(()) => self.known.push(git_dir.to_path_buf()),
             Err(reason) => {
-                crate::service_warn!("{} could not be kept for a restart, so it is tried again after a pause: {reason}", git_dir.display());
+                crate::service_warn!(
+                    "{} could not be kept for a restart, so it is tried again after a pause: {reason}",
+                    git_dir.display()
+                );
                 self.unwritten.push(git_dir.to_path_buf());
                 self.failures = self.failures.saturating_add(1);
             }
@@ -356,7 +401,10 @@ impl ClaimWatch {
     /// ```ts
     /// watch.aNoteThatMayBeMissing(gitDir)
     /// ```
-    pub fn a_note_that_may_be_missing(&mut self, git_dir: &Path) {
+    pub fn a_note_that_may_be_missing(
+        &mut self,
+        git_dir: &Path,
+    ) {
         if self.store.is_none() || self.holds(git_dir) {
             return;
         }
@@ -368,7 +416,10 @@ impl ClaimWatch {
     }
 
     /// Whether `git_dir` is already one of the notes this watch holds or owes.
-    fn holds(&self, git_dir: &Path) -> bool {
+    fn holds(
+        &self,
+        git_dir: &Path,
+    ) -> bool {
         for kept in self.known.iter().chain(self.unwritten.iter()) {
             if kept == git_dir {
                 return true;
@@ -432,7 +483,10 @@ impl ClaimWatch {
 
     /// `look_again` with the reading of the notes given,
     /// so that a control can make one fail.
-    pub fn look_again_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
+    pub fn look_again_reading(
+        &mut self,
+        read: ReadFile<'_>,
+    ) -> Vec<PathBuf> {
         // The notes are read again whatever the last reading said, because a landing writes one for a repository before it
         //  answers a commit, and a service that started before that landing would not know the repository otherwise.
         let _found: Vec<PathBuf> = self.scan(read);
@@ -465,8 +519,13 @@ impl ClaimWatch {
     /// because a path that resolved to this repository when it was kept may resolve to another
     ///  one when the pause is over,
     /// and the note written for it would then be one the next start throws away.
-    pub fn retry_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
-        let Some(directory) = self.store.clone() else { return Vec::new() };
+    pub fn retry_reading(
+        &mut self,
+        read: ReadFile<'_>,
+    ) -> Vec<PathBuf> {
+        let Some(directory) = self.store.clone() else {
+            return Vec::new();
+        };
         for git_dir in std::mem::take(&mut self.unwritten) {
             if refused_for_another_instance(self.instance.as_deref(), git_dir.as_path()) {
                 continue;
@@ -474,12 +533,19 @@ impl ClaimWatch {
             match write_down(directory.as_path(), git_dir.as_path()) {
                 Ok(()) => self.known.push(git_dir),
                 Err(reason) => {
-                    crate::service_warn!("{} still could not be kept for a restart: {reason}", git_dir.display());
+                    crate::service_warn!(
+                        "{} still could not be kept for a restart: {reason}",
+                        git_dir.display()
+                    );
                     self.unwritten.push(git_dir);
                 }
             }
         }
-        let found: Vec<PathBuf> = if self.unread { self.scan(read) } else { Vec::new() };
+        let found: Vec<PathBuf> = if self.unread {
+            self.scan(read)
+        } else {
+            Vec::new()
+        };
         if self.needs_retry() {
             self.failures = self.failures.saturating_add(1);
         } else {
@@ -501,15 +567,23 @@ impl ClaimWatch {
     /// no note this store wrote is either,
     /// and it is not read again after a pause,
     /// because a second read of it answers the same.
-    fn scan(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
-        let Some(directory) = self.store.clone() else { return Vec::new() };
+    fn scan(
+        &mut self,
+        read: ReadFile<'_>,
+    ) -> Vec<PathBuf> {
+        let Some(directory) = self.store.clone() else {
+            return Vec::new();
+        };
         self.unread = false;
         let listing = match std::fs::read_dir(directory.as_path()) {
             Ok(listing) => listing,
             // A journal that never held a note.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
             Err(error) => {
-                crate::service_warn!("the notes of the repositories to look at in {} could not be listed, so they are listed again after a pause: {error}", directory.display());
+                crate::service_warn!(
+                    "the notes of the repositories to look at in {} could not be listed, so they are listed again after a pause: {error}",
+                    directory.display()
+                );
                 self.unread = true;
                 return Vec::new();
             }
@@ -519,7 +593,10 @@ impl ClaimWatch {
             let path: PathBuf = match listed {
                 Ok(entry) => entry.path(),
                 Err(error) => {
-                    crate::service_warn!("an entry of {} could not be listed, so the notes are listed again after a pause: {error}", directory.display());
+                    crate::service_warn!(
+                        "an entry of {} could not be listed, so the notes are listed again after a pause: {error}",
+                        directory.display()
+                    );
                     self.unread = true;
                     continue;
                 }
@@ -531,7 +608,10 @@ impl ClaimWatch {
                 Ok(bytes) => match decode(bytes.as_slice()) {
                     Ok(git_dir) => git_dir,
                     Err(reason) => {
-                        crate::service_warn!("the note {} holds no repository and is removed: {reason}", path.display());
+                        crate::service_warn!(
+                            "the note {} holds no repository and is removed: {reason}",
+                            path.display()
+                        );
                         let _removed = std::fs::remove_file(path.as_path());
                         continue;
                     }
@@ -542,22 +622,35 @@ impl ClaimWatch {
                 // It is said once and left where it is,
                 // and it is not read again after a pause, because a second read of it answers the same.
                 Err(ReadRefusal::NotRegular) => {
-                    crate::service_warn!("the note {} is not a regular file, so it holds no repository to look at and stays", path.display());
+                    crate::service_warn!(
+                        "the note {} is not a regular file, so it holds no repository to look at and stays",
+                        path.display()
+                    );
                     continue;
                 }
                 // Nothing this store writes either: a note is the format words and one path's bytes in hexadecimal.
                 Err(ReadRefusal::TooLarge) => {
-                    crate::service_warn!("the note {} holds more than the {NOTE_FILE_LIMIT} bytes a note can, so it holds no repository and stays", path.display());
+                    crate::service_warn!(
+                        "the note {} holds more than the {NOTE_FILE_LIMIT} bytes a note can, so it holds no repository and stays",
+                        path.display()
+                    );
                     continue;
                 }
                 Err(ReadRefusal::Io(error)) => {
-                    crate::service_warn!("the note {} could not be read, so it is read again after a pause: {error}", path.display());
+                    crate::service_warn!(
+                        "the note {} could not be read, so it is read again after a pause: {error}",
+                        path.display()
+                    );
                     self.unread = true;
                     continue;
                 }
             };
             if of_another_instance(self.instance.as_deref(), git_dir.as_path()) {
-                crate::service_warn!("the note {} names {}, which is not this instance's repository, and is removed", path.display(), git_dir.display());
+                crate::service_warn!(
+                    "the note {} names {}, which is not this instance's repository, and is removed",
+                    path.display(),
+                    git_dir.display()
+                );
                 let _removed = std::fs::remove_file(path.as_path());
                 continue;
             }
@@ -569,14 +662,26 @@ impl ClaimWatch {
                     }
                 }
                 Ok(_) => {
-                    crate::service_warn!("the work directory of {} is not a directory, so its note {} is removed", git_dir.display(), path.display());
+                    crate::service_warn!(
+                        "the work directory of {} is not a directory, so its note {} is removed",
+                        git_dir.display(),
+                        path.display()
+                    );
                     let _removed = std::fs::remove_file(path.as_path());
                 }
-                Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => {
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                    ) =>
+                {
                     let _removed = std::fs::remove_file(path.as_path());
                 }
                 Err(error) => {
-                    crate::service_warn!("the work directory of {} could not be looked at, so its note is kept and read again after a pause: {error}", git_dir.display());
+                    crate::service_warn!(
+                        "the work directory of {} could not be looked at, so its note is kept and read again after a pause: {error}",
+                        git_dir.display()
+                    );
                     self.unread = true;
                 }
             }
@@ -600,7 +705,9 @@ impl ClaimWatch {
 /// const aRecordWaits = (gitDir) => { try { return readdir(join(workDir(gitDir), 'pending')).length > 0 } catch { return false } };
 /// ```
 fn a_record_waits(git_dir: &Path) -> bool {
-    let Ok(mut listing) = std::fs::read_dir(state_directory(work_directory(git_dir).as_path(), PENDING)) else {
+    let Ok(mut listing) =
+        std::fs::read_dir(state_directory(work_directory(git_dir).as_path(), PENDING))
+    else {
         return false;
     };
     return listing.next().is_some();

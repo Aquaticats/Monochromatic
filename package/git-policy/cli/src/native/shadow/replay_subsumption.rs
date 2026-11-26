@@ -13,18 +13,37 @@
 //! await subsumeLandedChanges({ gitPath, shadowPath, objectDirectory, cwd, directory, replay, mergeBase, current, prepared, orderPaths });
 //! ```
 
-/// Shared paths and their entries.
-use crate::replay_shared_paths::{SharedPath, SharedPathError, TreeEntry, is_regular_triple, is_text_candidate, same_entry};
 /// Capture order's per-path decision.
 use crate::replay_capture_order::CaptureOrderDecision;
+use crate::replay_shadow::{
+    replay_base_index,
+    run_shadow_checked,
+};
+/// Shared paths and their entries.
+use crate::replay_shared_paths::{
+    SharedPath,
+    SharedPathError,
+    TreeEntry,
+    is_regular_triple,
+    is_text_candidate,
+    same_entry,
+};
 /// The text half of the check.
-use crate::replay_subsumption_text::{TextSubsumptionError, subsumed_text_paths};
-use crate::replay_shadow::{replay_base_index, run_shadow_checked};
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::replay_subsumption_text::{
+    TextSubsumptionError,
+    subsumed_text_paths,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 /// Decisions per path and the path-keyed maps.
 /// The capture-order decisions by path,
 /// and the set of the subsumed text paths.
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 /// `Path` names the shadow and the directories.
 use std::path::Path;
 
@@ -152,7 +171,11 @@ fn oid_width(shared: &SharedPath) -> usize {
 /// ```ts
 /// const record = (mode, oid, path) => Buffer.concat([Buffer.from(`${mode} ${oid}\t`), path, Buffer.from([0])]);
 /// ```
-fn index_info_record(mode: &str, oid: &str, path: &[u8]) -> Vec<u8> {
+fn index_info_record(
+    mode: &str,
+    oid: &str,
+    path: &[u8],
+) -> Vec<u8> {
     let mut record: Vec<u8> = format!("{mode} {oid}\t").into_bytes();
     record.extend_from_slice(path);
     record.push(0);
@@ -194,7 +217,11 @@ pub fn subsumed_record(shared: &SharedPath) -> Vec<u8> {
 /// ```ts
 /// exactRecord({ path, entry, width });
 /// ```
-pub fn exact_record(path: &[u8], entry: &Option<TreeEntry>, width: usize) -> Vec<u8> {
+pub fn exact_record(
+    path: &[u8],
+    entry: &Option<TreeEntry>,
+    width: usize,
+) -> Vec<u8> {
     return match entry {
         None => index_info_record("0", "0".repeat(width).as_str(), path),
         Some(present) => index_info_record(present.mode.as_str(), present.oid.as_str(), path),
@@ -213,8 +240,16 @@ pub fn exact_record(path: &[u8], entry: &Option<TreeEntry>, width: usize) -> Vec
 pub fn base_record(edit: &BaseEdit) -> Vec<u8> {
     return match edit.rule {
         BaseRule::Subsumed => subsumed_record(&edit.shared),
-        BaseRule::Prepared => exact_record(edit.shared.path.as_slice(), &edit.shared.landed, oid_width(&edit.shared)),
-        BaseRule::Landed => exact_record(edit.shared.path.as_slice(), &edit.shared.prepared, oid_width(&edit.shared)),
+        BaseRule::Prepared => exact_record(
+            edit.shared.path.as_slice(),
+            &edit.shared.landed,
+            oid_width(&edit.shared),
+        ),
+        BaseRule::Landed => exact_record(
+            edit.shared.path.as_slice(),
+            &edit.shared.prepared,
+            oid_width(&edit.shared),
+        ),
     };
 }
 
@@ -240,8 +275,16 @@ fn write_subsumed_base(
     edits: &[BaseEdit],
 ) -> Result<String, SubsumptionError> {
     let index = replay_base_index(directory, replay);
-    run_shadow_checked(context, shadow, cwd, &["read-tree", merge_base], None, Some(index.as_path()), &[])
-        .map_err(SubsumptionError::Git)?;
+    run_shadow_checked(
+        context,
+        shadow,
+        cwd,
+        &["read-tree", merge_base],
+        None,
+        Some(index.as_path()),
+        &[],
+    )
+    .map_err(SubsumptionError::Git)?;
     // `mut` lets the records be appended in edit order.
     let mut input: Vec<u8> = Vec::new();
     for edit in edits {
@@ -257,9 +300,19 @@ fn write_subsumed_base(
         &[],
     )
     .map_err(SubsumptionError::Git)?;
-    let tree_output = run_shadow_checked(context, shadow, cwd, &["write-tree"], None, Some(index.as_path()), &[])
-        .map_err(SubsumptionError::Git)?;
-    let tree: String = String::from_utf8_lossy(&tree_output.stdout).trim().to_string();
+    let tree_output = run_shadow_checked(
+        context,
+        shadow,
+        cwd,
+        &["write-tree"],
+        None,
+        Some(index.as_path()),
+        &[],
+    )
+    .map_err(SubsumptionError::Git)?;
+    let tree: String = String::from_utf8_lossy(&tree_output.stdout)
+        .trim()
+        .to_string();
     let message: String = format!(
         "tree {tree}\nauthor monochromatic-git-policy-cli <monochromatic-git-policy-cli@localhost> 0 +0000\ncommitter monochromatic-git-policy-cli <monochromatic-git-policy-cli@localhost> 0 +0000\n\nmonochromatic-git-policy-cli replay base with subsumed landed changes\n"
     );
@@ -300,8 +353,14 @@ pub fn is_identical(shared: &SharedPath) -> bool {
 
 /// The capture-order decision for one shared path;
 /// a path the order does not name is unordered.
-fn decision_of(order: &BTreeMap<Vec<u8>, CaptureOrderDecision>, shared_path: &SharedPath) -> CaptureOrderDecision {
-    return order.get(&shared_path.path).copied().unwrap_or(CaptureOrderDecision::Unordered);
+fn decision_of(
+    order: &BTreeMap<Vec<u8>, CaptureOrderDecision>,
+    shared_path: &SharedPath,
+) -> CaptureOrderDecision {
+    return order
+        .get(&shared_path.path)
+        .copied()
+        .unwrap_or(CaptureOrderDecision::Unordered);
 }
 
 /// What:
@@ -327,30 +386,43 @@ pub fn subsume_landed_changes(
 ) -> Result<SubsumptionBase, SubsumptionError> {
     let mut text_candidates: Vec<SharedPath> = Vec::new();
     for entry in shared {
-        if decision_of(order, entry) == CaptureOrderDecision::Unordered && is_text_candidate(entry) && !is_identical(entry) {
+        if decision_of(order, entry) == CaptureOrderDecision::Unordered
+            && is_text_candidate(entry)
+            && !is_identical(entry)
+        {
             text_candidates.push(entry.clone());
         }
     }
     // A set answers "is this path a subsumed text path" by naming the one collected path it
     //  compares with, so deciding every unordered path is one pass
     //  (`AGENTS.md` `RG2`); the paths beside the question are not read in order.
-    let text: HashSet<Vec<u8>> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
-        .map_err(SubsumptionError::Text)?
-        .into_iter()
-        .collect();
+    let text: HashSet<Vec<u8>> =
+        subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
+            .map_err(SubsumptionError::Text)?
+            .into_iter()
+            .collect();
     // Every synthetic base edit in Git order.
     let mut edits: Vec<BaseEdit> = Vec::new();
     for entry in shared {
         match decision_of(order, entry) {
-            CaptureOrderDecision::Prepared => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Prepared }),
-            CaptureOrderDecision::Landed => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Landed }),
+            CaptureOrderDecision::Prepared => edits.push(BaseEdit {
+                shared: entry.clone(),
+                rule: BaseRule::Prepared,
+            }),
+            CaptureOrderDecision::Landed => edits.push(BaseEdit {
+                shared: entry.clone(),
+                rule: BaseRule::Landed,
+            }),
             CaptureOrderDecision::Unordered => {
                 let subsumed: bool = is_identical(entry) || {
                     crate::collected_elements_looked_at::note_looked_at(1);
                     text.contains(&entry.path)
                 };
                 if subsumed {
-                    edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Subsumed });
+                    edits.push(BaseEdit {
+                        shared: entry.clone(),
+                        rule: BaseRule::Subsumed,
+                    });
                 }
             }
         }
@@ -371,7 +443,8 @@ pub fn subsume_landed_changes(
             kept_landed_paths: Vec::new(),
         });
     }
-    let synthetic: String = write_subsumed_base(context, shadow, cwd, directory, replay, merge_base, &edits)?;
+    let synthetic: String =
+        write_subsumed_base(context, shadow, cwd, directory, replay, merge_base, &edits)?;
     return Ok(SubsumptionBase {
         merge_base: synthetic,
         subsumed_paths,

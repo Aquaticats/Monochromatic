@@ -19,13 +19,21 @@
 /// The function under test,
 ///  its result types and the argument builder.
 use super::{
-    RegionReading, StrippedInvocation, command_region, command_word, strip_wrapper_controls,
+    RegionReading,
+    StrippedInvocation,
+    command_region,
+    command_word,
+    strip_wrapper_controls,
 };
 use crate::command_options::OptionErrorKind;
 use crate::command_test_support::os_arguments;
 use crate::global_arguments::GlobalOutcome;
 use crate::policy_registry::PolicyId;
-use crate::wrapper_controls::{CONTROL_SPELLINGS, Controls, no_controls};
+use crate::wrapper_controls::{
+    CONTROL_SPELLINGS,
+    Controls,
+    no_controls,
+};
 use std::ffi::OsString;
 
 /// Strip one invocation written as text.
@@ -42,7 +50,12 @@ fn escaping(policies: &[PolicyId]) -> Controls {
 
 /// Assert the kept arguments,
 ///  the recorded controls and the reading of one invocation.
-fn assert_stripped(values: &[&str], kept: &[&str], controls: &Controls, reading: RegionReading) {
+fn assert_stripped(
+    values: &[&str],
+    kept: &[&str],
+    controls: &Controls,
+    reading: RegionReading,
+) {
     let found: StrippedInvocation = strip(values);
     assert_eq!(found.arguments, os_arguments(kept), "{values:?}");
     assert_eq!(&found.controls, controls, "{values:?}");
@@ -50,7 +63,10 @@ fn assert_stripped(values: &[&str], kept: &[&str], controls: &Controls, reading:
 }
 
 /// Assert that nothing is removed or recorded.
-fn assert_untouched(values: &[&str], reading: RegionReading) {
+fn assert_untouched(
+    values: &[&str],
+    reading: RegionReading,
+) {
     assert_stripped(values, values, &no_controls(), reading);
 }
 

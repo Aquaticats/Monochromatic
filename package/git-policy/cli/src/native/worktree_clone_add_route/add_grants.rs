@@ -36,7 +36,21 @@
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
 use super::add_zfs::OpenedDevice;
-use crate::doctor_zfs_route::{Check, CheckOutcome, CheckReport, DelegationFacts, Grant, GrantPlace, Inheritance, RequiredGrant, Who, allow_command, check_delegation, missing_grants, place_dataset};
+use crate::doctor_zfs_route::{
+    Check,
+    CheckOutcome,
+    CheckReport,
+    DelegationFacts,
+    Grant,
+    GrantPlace,
+    Inheritance,
+    RequiredGrant,
+    Who,
+    allow_command,
+    check_delegation,
+    missing_grants,
+    place_dataset,
+};
 
 /// The permissions this add's own steps use,
 /// which the preflight refuses a delegation for.
@@ -114,13 +128,17 @@ pub const A_REMOVALS_STEPS: [(GrantPlace, &str); 3] = [
 /// const isTheAddsOwn = (required) => THE_ADDS_OWN_STEPS.some(([place, permission]) => place === required.place && permission === required.permission);
 /// ```
 fn the_adds_own(required: &RequiredGrant) -> bool {
-    return THE_ADDS_OWN_STEPS.iter().any(|(place, permission)| return *place == required.place && *permission == required.permission);
+    return THE_ADDS_OWN_STEPS.iter().any(|(place, permission)| {
+        return *place == required.place && *permission == required.permission;
+    });
 }
 
 /// The permissions the removal's steps own,
 /// which are the decided ones the add's table does not name.
 fn a_removals_own(required: &RequiredGrant) -> bool {
-    return A_REMOVALS_STEPS.iter().any(|(place, permission)| return *place == required.place && *permission == required.permission);
+    return A_REMOVALS_STEPS.iter().any(|(place, permission)| {
+        return *place == required.place && *permission == required.permission;
+    });
 }
 
 /// What:
@@ -142,7 +160,10 @@ fn a_removals_own(required: &RequiredGrant) -> bool {
 /// ```ts
 /// refuseWithoutTheDecidedGrants(device, route);
 /// ```
-pub fn refuse_without_the_decided_grants(device: &OpenedDevice, route: &RouteFacts) -> Result<Vec<String>, StepRefusal> {
+pub fn refuse_without_the_decided_grants(
+    device: &OpenedDevice,
+    route: &RouteFacts,
+) -> Result<Vec<String>, StepRefusal> {
     let facts: DelegationFacts = read_the_grants(device, route)?;
     return refuse_unless_the_decided_ones(&facts);
 }
@@ -166,11 +187,26 @@ pub fn refuse_without_the_decided_grants(device: &OpenedDevice, route: &RouteFac
 /// ```ts
 /// const facts = readTheGrants(device, route); // { account, groups, checkoutDataset, containerDataset, grants }
 /// ```
-pub fn read_the_grants(device: &OpenedDevice, route: &RouteFacts) -> Result<DelegationFacts, StepRefusal> {
-    let mut grants: Vec<Grant> = device.grants_at(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
-    grants.extend(device.grants_at(route.container_dataset.as_str()).map_err(StepRefusal::refused)?);
+pub fn read_the_grants(
+    device: &OpenedDevice,
+    route: &RouteFacts,
+) -> Result<DelegationFacts, StepRefusal> {
+    let mut grants: Vec<Grant> = device
+        .grants_at(route.checkout_dataset.as_str())
+        .map_err(StepRefusal::refused)?;
+    grants.extend(
+        device
+            .grants_at(route.container_dataset.as_str())
+            .map_err(StepRefusal::refused)?,
+    );
     let account: u32 = this_account();
-    return Ok(DelegationFacts { account, groups: groups_of_this_account()?, checkout_dataset: route.checkout_dataset.clone(), container_dataset: route.container_dataset.clone(), grants });
+    return Ok(DelegationFacts {
+        account,
+        groups: groups_of_this_account()?,
+        checkout_dataset: route.checkout_dataset.clone(),
+        container_dataset: route.container_dataset.clone(),
+        grants,
+    });
 }
 
 /// What:
@@ -202,7 +238,11 @@ pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<Str
         return Ok(Vec::new());
     }
     let outcome: CheckOutcome = check_delegation(facts);
-    let CheckOutcome::Finding { field, .. } = &outcome else {
+    let CheckOutcome::Finding {
+        field,
+        ..
+    } = &outcome
+    else {
         return Err(the_refusal(report.line()));
     };
     // The check answers a missing permission for the whole decided set at once,
@@ -217,7 +257,14 @@ pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<Str
     let ours: Vec<String> = missing
         .iter()
         .filter(|required| return the_adds_own(required))
-        .map(|required| return format!("`{}` on `{}` ({})", required.permission, place_dataset(required.place, facts), allow_command(required, facts)))
+        .map(|required| {
+            return format!(
+                "`{}` on `{}` ({})",
+                required.permission,
+                place_dataset(required.place, facts),
+                allow_command(required, facts)
+            );
+        })
         .collect();
     if !ours.is_empty() {
         return Err(StepRefusal::refused(format!(
@@ -278,9 +325,15 @@ pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<Str
 ///  The add goes on past those permissions,
 ///  and the rest of the delegation still has to be the decided one:
 ///  a wider grant, a grant to everyone or an unproved one refuses on its own.
-fn with_the_removals_granted(facts: &DelegationFacts, missing: &[RequiredGrant]) -> DelegationFacts {
+fn with_the_removals_granted(
+    facts: &DelegationFacts,
+    missing: &[RequiredGrant],
+) -> DelegationFacts {
     let mut settled: DelegationFacts = facts.clone();
-    for required in missing.iter().filter(|required| return a_removals_own(required)) {
+    for required in missing
+        .iter()
+        .filter(|required| return a_removals_own(required))
+    {
         settled.grants.push(Grant {
             carried_by: String::from(place_dataset(required.place, facts)),
             permission: String::from(required.permission),
@@ -295,7 +348,9 @@ fn with_the_removals_granted(facts: &DelegationFacts, missing: &[RequiredGrant])
 fn the_inheritance(place: GrantPlace) -> Inheritance {
     return match place {
         GrantPlace::Checkout | GrantPlace::Container => Inheritance::Local,
-        GrantPlace::CheckoutDescendants | GrantPlace::ContainerDescendants => Inheritance::Descendants,
+        GrantPlace::CheckoutDescendants | GrantPlace::ContainerDescendants => {
+            Inheritance::Descendants
+        }
     };
 }
 
@@ -331,7 +386,10 @@ fn groups_of_this_account() -> Result<Vec<u32>, StepRefusal> {
         return Err(the_groups_cannot_be_read());
     }
     filled.truncate(read as usize);
-    return Ok(filled.into_iter().map(|group| return group as u32).collect());
+    return Ok(filled
+        .into_iter()
+        .map(|group| return group as u32)
+        .collect());
 }
 
 /// Why this account's groups could not be read,

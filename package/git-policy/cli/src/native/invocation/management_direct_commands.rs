@@ -14,45 +14,80 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
-use crate::repository_link_answer::EXIT_GIT_FATAL;
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+    failure,
+};
 /// A direct command asks for the worktree files its scope selects.
 use crate::candidate_prediction::CandidateRequest;
-use crate::child_environment::{child_environment_overlay, environment_value};
+use crate::child_environment::{
+    child_environment_overlay,
+    environment_value,
+};
 use crate::config_error::ConfigError;
 use crate::config_file::LoadedConfig;
 /// A scope that cannot be projected is a `transaction-failed` engine failure.
 use crate::diagnostics::EngineFailureCode;
-/// The tool-cache exemption entry the direct-check checks are built with.
-use crate::effective_target::ToolCacheDirectory;
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.
 use crate::direct_fix::run_direct_fix;
-use crate::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
+/// The tool-cache exemption entry the direct-check checks are built with.
+use crate::effective_target::ToolCacheDirectory;
+use crate::invocation_config::{
+    config_invalid_event,
+    legacy_warning_events,
+    load_identity_config,
+};
 use crate::management_arguments::{
-    MANAGEMENT_USAGE, ManagementRefusal,
+    MANAGEMENT_USAGE,
+    ManagementRefusal,
 };
 /// The refusal of a `--policy` selection that is off.
 use crate::management_selection::selection_error;
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
-use crate::policy_checks::{ShippedChecks, shipped_checks};
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
 /// What the direct command offers its content policies.
 use crate::policy_content::LifecycleContent;
-use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    pass_exit_code,
+};
 /// The events of a direct command and their rendering.
-use crate::policy_events::{PolicyEvent, render_policy_events};
-use crate::policy_pass::{PassResult, run_policy_pass};
+use crate::policy_events::{
+    PolicyEvent,
+    render_policy_events,
+};
+use crate::policy_pass::{
+    PassResult,
+    run_policy_pass,
+};
 use crate::policy_registry::PolicyId;
 use crate::policy_trigger::Trigger;
-use crate::repository_facts::{GitFacts, RepositoryFacts, git_facts};
+use crate::repository_facts::{
+    GitFacts,
+    RepositoryFacts,
+    git_facts,
+};
+use crate::repository_link_answer::EXIT_GIT_FATAL;
 use crate::repository_location::RepositoryLocation;
 /// The variable that names the forbidden-strings rules file.
 use crate::scanner_selection::RULES_VARIABLE;
 /// Startup recovery as a command step.
-use crate::startup_gate::{Gate, recover_for_command};
-use crate::unported::{unported_from_unavailable, unported_notice};
+use crate::startup_gate::{
+    Gate,
+    recover_for_command,
+};
+use crate::unported::{
+    unported_from_unavailable,
+    unported_notice,
+};
 /// The worktree's top level,
 ///  where a fix installs corrected files.
 use crate::worktree_identity::worktree_root;
@@ -69,7 +104,10 @@ use crate::wrapper_controls::Controls;
 /// ```
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  The command word of a direct command.
 ///       `&'static str` borrows text compiled into the executable for its whole run.
@@ -117,11 +155,15 @@ pub(crate) fn refusal(reason: ManagementRefusal) -> Action {
     // `match` picks the message for the refusal and binds its `fix` flag where present.
     let stderr: String = match reason {
         ManagementRefusal::Usage => String::from(MANAGEMENT_USAGE),
-        ManagementRefusal::PathspecsBeforeSeparator { fix } => format!(
+        ManagementRefusal::PathspecsBeforeSeparator {
+            fix,
+        } => format!(
             "git monochromatic-git-policy-cli {} pathspecs must follow --.\n",
             direct_name(fix)
         ),
-        ManagementRefusal::ScopeRequired { fix } => format!(
+        ManagementRefusal::ScopeRequired {
+            fix,
+        } => format!(
             "git monochromatic-git-policy-cli {} requires exactly one scope: --all or non-empty pathspecs after --.\n",
             direct_name(fix)
         ),
@@ -295,7 +337,11 @@ pub(crate) fn plan_direct(
         Err(message) => return failure(message.as_str()),
     };
     // A direct command forwards nothing, so only an isolated merge whose process died matters here: it is settled first.
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
+    match recover_for_command(
+        &checks.facts.transaction_context(),
+        &location.identity,
+        environment,
+    ) {
         Gate::Clear => {}
         Gate::Stop(stderr) => {
             return Action::Exit {
@@ -316,7 +362,11 @@ pub(crate) fn plan_direct(
         Ok(loaded) => match selection_error(
             selected.as_slice(),
             &loaded.config.policies,
-            if fix { Trigger::DirectFix } else { Trigger::DirectCheck },
+            if fix {
+                Trigger::DirectFix
+            } else {
+                Trigger::DirectCheck
+            },
         ) {
             // A selected policy that is off, or does not run for this command, would check nothing and look clean:
             // stop before any work.

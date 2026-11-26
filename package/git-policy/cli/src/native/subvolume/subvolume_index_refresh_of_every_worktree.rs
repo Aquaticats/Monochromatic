@@ -23,18 +23,41 @@ use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::lazy_runtime::run_on_runtime;
 use crate::line_sink::LineSink;
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedEvents};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
+use crate::parallel_runner::{
+    Event,
+    OrderedEvents,
+};
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
-use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
-use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
+use crate::parallel_runner_on_the_runtime_awaiting::{
+    OrderedAwaitingWork,
+    OrderedRunOfAwaitingOwned,
+    run_ordered_awaiting_on_the_runtime,
+};
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_index_files::{IndexLock, RefreshOptions, linked_worktrees_inside, refresh_index_file_with, repository_hash_length};
+use crate::subvolume_index_files::{
+    IndexLock,
+    RefreshOptions,
+    linked_worktrees_inside,
+    refresh_index_file_with,
+    repository_hash_length,
+};
+use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// The number of copies of an index file one rewrite holds at once:
 /// the bytes read,
@@ -130,7 +153,13 @@ pub struct AllIndexes {
 /// ```ts
 /// function refreshAllIndexes(root: string, lock: IndexLock, references: string[], say: (line: string) => void): void;
 /// ```
-pub fn refresh_all_indexes(root: &Path, lock: IndexLock, references: &[PathBuf], flushes_to_disk: bool, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
+pub fn refresh_all_indexes(
+    root: &Path,
+    lock: IndexLock,
+    references: &[PathBuf],
+    flushes_to_disk: bool,
+    say: &mut dyn LineSink,
+) -> Result<usize, MigrateError> {
     let request: AllIndexes = AllIndexes {
         root: root.to_path_buf(),
         lock,
@@ -197,7 +226,12 @@ struct RewritesThatGaveNoResult {
 }
 
 impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
-    fn run<'a>(&'a self, _index: usize, target: &'a IndexTarget, _say: LinesToTheConsumer<String>) -> Pin<Box<dyn Future<Output = String> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        _index: usize,
+        target: &'a IndexTarget,
+        _say: LinesToTheConsumer<String>,
+    ) -> Pin<Box<dyn Future<Output = String> + Send + 'a>> {
         return Box::pin(async move {
             let rewrite: Arc<RewriteOne> = Arc::clone(&self.rewrite);
             let lock: IndexLock = self.lock.clone();
@@ -214,29 +248,51 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
                 // The platform's answer about the disk travels with the job: this thread is not the caller's, so a call that
                 //  keeps its writes in memory must say so here for the index it installs as well.
                 let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
-                    crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(flushes_to_disk);
+                    crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(
+                        flushes_to_disk,
+                    );
                 // The claim comes first, before anything reads or writes the index.
                 if !jobs_claim.the_job_takes_it() {
                     return None;
                 }
-                return Some((rewrite)(index.as_path(), tree.as_path(), &RefreshOptions { lock, references: references.as_slice(), hash_length }));
+                return Some((rewrite)(
+                    index.as_path(),
+                    tree.as_path(),
+                    &RefreshOptions {
+                        lock,
+                        references: references.as_slice(),
+                        hash_length,
+                    },
+                ));
             })
             .await;
             return match rewritten {
                 Ok(Some(line)) => line,
                 // The report had already given up on this job, so the work was not done and the index is as it was.
-                Ok(None) => String::from("not rewritten, because the report gave up on this work before it ran"),
+                Ok(None) => String::from(
+                    "not rewritten, because the report gave up on this work before it ran",
+                ),
                 Err(refused) => match refused {
                     BlockingJobError::NoThreadToStart if claim.the_reporter_takes_it() => {
-                        self.gave_no_result.never_started.fetch_add(1, Ordering::SeqCst);
+                        self.gave_no_result
+                            .never_started
+                            .fetch_add(1, Ordering::SeqCst);
                         format!("not rewritten ({refused})")
                     }
                     // The kinds of end that leave the index unknown: the job started on another thread after the report gave
                     //  up on it (or took this item's own claim first), it panicked, or it was cut off, or the runner took no
                     //  claim on the queued closure and nothing here can say it will not run.
-                    BlockingJobError::MayStillRunAfterItsThreadWasRefused | BlockingJobError::NoThreadToStart | BlockingJobError::StartedAfterItsThreadWasRefused | BlockingJobError::Panicked | BlockingJobError::Cancelled => {
-                        self.gave_no_result.ended_without_a_result.fetch_add(1, Ordering::SeqCst);
-                        format!("ended without a known result, so this index may have been written or may be as it was ({refused})")
+                    BlockingJobError::MayStillRunAfterItsThreadWasRefused
+                    | BlockingJobError::NoThreadToStart
+                    | BlockingJobError::StartedAfterItsThreadWasRefused
+                    | BlockingJobError::Panicked
+                    | BlockingJobError::Cancelled => {
+                        self.gave_no_result
+                            .ended_without_a_result
+                            .fetch_add(1, Ordering::SeqCst);
+                        format!(
+                            "ended without a known result, so this index may have been written or may be as it was ({refused})"
+                        )
                     }
                 },
             };
@@ -264,9 +320,13 @@ struct SayEachIndex<'a> {
 }
 
 impl OrderedEvents<String> for SayEachIndex<'_> {
-    fn on_event(&mut self, event: Event<'_, String>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, String>,
+    ) {
         if let Event::End(index, line) = event {
-            self.say.say(format!("index {}: {line}", self.targets[index].index.display()).as_str());
+            self.say
+                .say(format!("index {}: {line}", self.targets[index].index.display()).as_str());
         }
     }
 }
@@ -284,7 +344,10 @@ impl OrderedEvents<String> for SayEachIndex<'_> {
 /// ```ts
 /// const count = refreshAllIndexesWith({ root, lock, references, host, rewrite }, say);
 /// ```
-pub fn refresh_all_indexes_with(request: &AllIndexes, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
+pub fn refresh_all_indexes_with(
+    request: &AllIndexes,
+    say: &mut dyn LineSink,
+) -> Result<usize, MigrateError> {
     return match run_on_runtime(refresh_all_indexes_awaiting(request, say)) {
         Ok(count) => count,
         Err(refusal) => Err(MigrateError::Runtime(refusal.to_string())),
@@ -331,9 +394,16 @@ struct PreparedRun {
 /// ```ts
 /// function prepareTheRun(root: string, references: string[]): PreparedRun;
 /// ```
-fn prepare_the_run(root: &Path, references: &[PathBuf]) -> PreparedRun {
+fn prepare_the_run(
+    root: &Path,
+    references: &[PathBuf],
+) -> PreparedRun {
     let hash_length: Option<usize> = repository_hash_length(root.join(".git").as_path());
-    let mut targets: Vec<IndexTarget> = vec![IndexTarget { index: root.join(".git").join("index"), tree: root.to_path_buf(), references: references.to_vec() }];
+    let mut targets: Vec<IndexTarget> = vec![IndexTarget {
+        index: root.join(".git").join("index"),
+        tree: root.to_path_buf(),
+        references: references.to_vec(),
+    }];
     for linked in linked_worktrees_inside(root) {
         let relative: &Path = linked.worktree.strip_prefix(root).unwrap_or(Path::new(""));
         targets.push(IndexTarget {
@@ -350,7 +420,11 @@ fn prepare_the_run(root: &Path, references: &[PathBuf]) -> PreparedRun {
         };
         largest = largest.max(size);
     }
-    return PreparedRun { targets, hash_length, largest };
+    return PreparedRun {
+        targets,
+        hash_length,
+        largest,
+    };
 }
 
 /// What:
@@ -377,16 +451,41 @@ fn prepare_the_run(root: &Path, references: &[PathBuf]) -> PreparedRun {
 /// ```ts
 /// async function refreshAllIndexesAwaiting({ root, lock, references, host, rewrite }, say): Promise<number>;
 /// ```
-pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
-    let AllIndexes { root, lock, references, host, flushes_to_disk, rewrite } = request;
-    let (root_owned, references_owned): (PathBuf, Vec<PathBuf>) = (root.clone(), references.clone());
-    let prepared: PreparedRun = match run_blocking_job_within_the_budget(move || { return prepare_the_run(root_owned.as_path(), references_owned.as_slice()); }).await {
+pub async fn refresh_all_indexes_awaiting(
+    request: &AllIndexes,
+    say: &mut dyn LineSink,
+) -> Result<usize, MigrateError> {
+    let AllIndexes {
+        root,
+        lock,
+        references,
+        host,
+        flushes_to_disk,
+        rewrite,
+    } = request;
+    let (root_owned, references_owned): (PathBuf, Vec<PathBuf>) =
+        (root.clone(), references.clone());
+    let prepared: PreparedRun = match run_blocking_job_within_the_budget(move || {
+        return prepare_the_run(root_owned.as_path(), references_owned.as_slice());
+    })
+    .await
+    {
         Ok(prepared) => prepared,
         // Nothing was read and nothing was rewritten, and the runtime's own reason is why.
         Err(refused) => return Err(MigrateError::Runtime(refused.to_string())),
     };
-    let PreparedRun { targets, hash_length, largest } = prepared;
-    let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
+    let PreparedRun {
+        targets,
+        hash_length,
+        largest,
+    } = prepared;
+    let workers: usize = worker_budget(&BudgetRequest {
+        items: targets.len(),
+        per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES),
+        ceiling: None,
+        cap: None,
+        host,
+    });
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     for index in 0..targets.len() {
         lanes.push(vec![index]);
@@ -394,13 +493,23 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     // The items are shared, so the consumer still knows the path of each index it reports.
     let items: Arc<[IndexTarget]> = Arc::from(targets);
     let count: usize = items.len();
-    let gave_no_result: Arc<RewritesThatGaveNoResult> = Arc::new(RewritesThatGaveNoResult::default());
+    let gave_no_result: Arc<RewritesThatGaveNoResult> =
+        Arc::new(RewritesThatGaveNoResult::default());
     let reported = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: Arc::clone(&items),
         lanes: Arc::from(lanes),
         workers,
-        work: Arc::new(RewriteEachIndex { rewrite: Arc::clone(rewrite), lock: lock.clone(), hash_length, flushes_to_disk: *flushes_to_disk, gave_no_result: Arc::clone(&gave_no_result) }),
-        on_event: &mut SayEachIndex { say, targets: items.as_ref() },
+        work: Arc::new(RewriteEachIndex {
+            rewrite: Arc::clone(rewrite),
+            lock: lock.clone(),
+            hash_length,
+            flushes_to_disk: *flushes_to_disk,
+            gave_no_result: Arc::clone(&gave_no_result),
+        }),
+        on_event: &mut SayEachIndex {
+            say,
+            targets: items.as_ref(),
+        },
     })
     .await;
     // The lines were said by the consumer as each index ended; what ended the run is the answer of the call.
@@ -410,7 +519,8 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     // A rewrite that gave no result is not an index that needed nothing: the caller marks its phase done, so it must be
     //  told, and each kind of end says only what it can vouch for.
     let never_started: usize = gave_no_result.never_started.load(Ordering::SeqCst);
-    let ended_without_a_result: usize = gave_no_result.ended_without_a_result.load(Ordering::SeqCst);
+    let ended_without_a_result: usize =
+        gave_no_result.ended_without_a_result.load(Ordering::SeqCst);
     if never_started == 0 && ended_without_a_result == 0 {
         return Ok(count);
     }
@@ -432,7 +542,10 @@ mod tests;
 
 /// Each reference tree path joined with `relative`,
 /// in order.
-fn joined_below(references: &[PathBuf], relative: &Path) -> Vec<PathBuf> {
+fn joined_below(
+    references: &[PathBuf],
+    relative: &Path,
+) -> Vec<PathBuf> {
     let mut joined: Vec<PathBuf> = Vec::new();
     for reference in references {
         joined.push(reference.join(relative));

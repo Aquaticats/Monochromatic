@@ -22,7 +22,11 @@
 //! ```
 
 use crate::repository_facts_abort_discard::DiscardBaseline;
-use crate::rule_abort_operation::{AbortOperation, OperationEnd, operation_name};
+use crate::rule_abort_operation::{
+    AbortOperation,
+    OperationEnd,
+    operation_name,
+};
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 
 /// What:
@@ -36,11 +40,16 @@ use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 /// ```ts
 /// function abortCommandText(operation: AbortOperation, ends: OperationEnd): string;
 /// ```
-pub fn abort_command_text(operation: AbortOperation, ends: OperationEnd) -> &'static str {
+pub fn abort_command_text(
+    operation: AbortOperation,
+    ends: OperationEnd,
+) -> &'static str {
     return match (operation, ends) {
         (AbortOperation::Merge, _) => "git merge --abort",
         (AbortOperation::Rebase, OperationEnd::Abort) => "git rebase --abort",
-        (AbortOperation::Pick, OperationEnd::Abort) => "git cherry-pick --abort or git revert --abort",
+        (AbortOperation::Pick, OperationEnd::Abort) => {
+            "git cherry-pick --abort or git revert --abort"
+        }
         (AbortOperation::Am, OperationEnd::Abort) => "git am --abort",
         (AbortOperation::Rebase, OperationEnd::Skip) => "git rebase --skip",
         (AbortOperation::Pick, OperationEnd::Skip) => "git cherry-pick --skip or git revert --skip",
@@ -60,14 +69,21 @@ pub fn abort_command_text(operation: AbortOperation, ends: OperationEnd) -> &'st
 /// ```ts
 /// function hatchCommandText(operation: AbortOperation, ends: OperationEnd): string;
 /// ```
-pub fn hatch_command_text(operation: AbortOperation, ends: OperationEnd) -> &'static str {
+pub fn hatch_command_text(
+    operation: AbortOperation,
+    ends: OperationEnd,
+) -> &'static str {
     return match (operation, ends) {
         (AbortOperation::Merge, _) => "git merge --no-enforce-worktree --abort",
         (AbortOperation::Rebase, OperationEnd::Abort) => "git rebase --no-enforce-worktree --abort",
-        (AbortOperation::Pick, OperationEnd::Abort) => "git cherry-pick --no-enforce-worktree --abort",
+        (AbortOperation::Pick, OperationEnd::Abort) => {
+            "git cherry-pick --no-enforce-worktree --abort"
+        }
         (AbortOperation::Am, OperationEnd::Abort) => "git am --no-enforce-worktree --abort",
         (AbortOperation::Rebase, OperationEnd::Skip) => "git rebase --no-enforce-worktree --skip",
-        (AbortOperation::Pick, OperationEnd::Skip) => "git cherry-pick --no-enforce-worktree --skip",
+        (AbortOperation::Pick, OperationEnd::Skip) => {
+            "git cherry-pick --no-enforce-worktree --skip"
+        }
         (AbortOperation::Am, OperationEnd::Skip) => "git am --no-enforce-worktree --skip",
     };
 }
@@ -108,7 +124,13 @@ pub fn quit_command_text(operation: AbortOperation) -> &'static str {
 /// function namedPaths(paths: string[]): string;
 /// ```
 fn named_paths(paths: &[String]) -> String {
-    return named_items(paths.iter().map(String::clone).collect::<Vec<String>>().as_slice());
+    return named_items(
+        paths
+            .iter()
+            .map(String::clone)
+            .collect::<Vec<String>>()
+            .as_slice(),
+    );
 }
 
 /// What:
@@ -123,7 +145,12 @@ fn named_paths(paths: &[String]) -> String {
 /// function namedItems(items: string[]): string;
 /// ```
 fn named_items(items: &[String]) -> String {
-    let mut listed: String = items.iter().take(SHARED_PATHS_NAMED).cloned().collect::<Vec<String>>().join(", ");
+    let mut listed: String = items
+        .iter()
+        .take(SHARED_PATHS_NAMED)
+        .cloned()
+        .collect::<Vec<String>>()
+        .join(", ");
     if items.len() > SHARED_PATHS_NAMED {
         listed.push_str(format!(", and {} more paths", items.len() - SHARED_PATHS_NAMED).as_str());
     }
@@ -141,7 +168,10 @@ fn named_items(items: &[String]) -> String {
 /// ```ts
 /// const named = (listing: string[], path: string): boolean => listing.some((each) => each === path);
 /// ```
-fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
+fn named(
+    listing: &[Vec<u8>],
+    path: &[u8],
+) -> bool {
     for each in listing {
         if each.as_slice() == path {
             return true;
@@ -175,7 +205,12 @@ fn named(listing: &[Vec<u8>], path: &[u8]) -> bool {
 /// ```ts
 /// describePath('a.txt', { baseline: 'recorded-result', inWorktree: true, staged: true, conflicted: false });
 /// ```
-fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool, conflicted: bool) -> &'static str {
+fn describe_path(
+    baseline: DiscardBaseline,
+    in_worktree: bool,
+    staged: bool,
+    conflicted: bool,
+) -> &'static str {
     // The order is the order of certainty: a path the operation is still stopped at is named as that first,
     //  because what stands there may be Git's own text.
     if conflicted {
@@ -183,8 +218,12 @@ fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool, con
     }
     if staged && in_worktree {
         return match baseline {
-            DiscardBaseline::RecordedResult => "a resolution or edit you made since Git stopped at the conflict; a staged resolution",
-            DiscardBaseline::OperationStart => "an edit you made since the operation began; a staged edit",
+            DiscardBaseline::RecordedResult => {
+                "a resolution or edit you made since Git stopped at the conflict; a staged resolution"
+            }
+            DiscardBaseline::OperationStart => {
+                "an edit you made since the operation began; a staged edit"
+            }
         };
     }
     if staged {
@@ -194,7 +233,9 @@ fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool, con
         };
     }
     return match baseline {
-        DiscardBaseline::RecordedResult => "a resolution or edit you made since Git stopped at the conflict",
+        DiscardBaseline::RecordedResult => {
+            "a resolution or edit you made since Git stopped at the conflict"
+        }
         DiscardBaseline::OperationStart => "an edit you made since the operation began",
     };
 }
@@ -214,8 +255,14 @@ fn describe_path(baseline: DiscardBaseline, in_worktree: bool, staged: bool, con
 /// ```ts
 /// discardedList({ baseline, worktree, staged, conflicted }) // 'a.txt (an edit you made since ...), b.txt (content the index holds)'
 /// ```
-pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &[Vec<u8>], conflicted: &[Vec<u8>]) -> String {
-    let union: Vec<Vec<u8>> = crate::repository_facts_abort_discard::both_listings(worktree.to_vec(), staged.to_vec());
+pub fn discarded_list(
+    baseline: DiscardBaseline,
+    worktree: &[Vec<u8>],
+    staged: &[Vec<u8>],
+    conflicted: &[Vec<u8>],
+) -> String {
+    let union: Vec<Vec<u8>> =
+        crate::repository_facts_abort_discard::both_listings(worktree.to_vec(), staged.to_vec());
     let mut items: Vec<String> = Vec::<String>::with_capacity(union.len());
     for path in &union {
         let facts: &str = describe_path(
@@ -224,7 +271,10 @@ pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &
             named(staged, path.as_slice()),
             named(conflicted, path.as_slice()),
         );
-        items.push(format!("{} ({facts})", String::from_utf8_lossy(path.as_slice())));
+        items.push(format!(
+            "{} ({facts})",
+            String::from_utf8_lossy(path.as_slice())
+        ));
     }
     return named_items(items.as_slice());
 }
@@ -241,7 +291,11 @@ pub fn discarded_list(baseline: DiscardBaseline, worktree: &[Vec<u8>], staged: &
 /// ```ts
 /// const namesAConflictedPath = ({ worktree, staged, conflicted }) => conflicted.some((path) => worktree.concat(staged).includes(path));
 /// ```
-fn names_a_conflicted_path(worktree: &[Vec<u8>], staged: &[Vec<u8>], conflicted: &[Vec<u8>]) -> bool {
+fn names_a_conflicted_path(
+    worktree: &[Vec<u8>],
+    staged: &[Vec<u8>],
+    conflicted: &[Vec<u8>],
+) -> bool {
     for path in conflicted {
         if named(worktree, path.as_slice()) || named(staged, path.as_slice()) {
             return true;
@@ -284,7 +338,9 @@ pub fn discard_refusal_text(
     };
     // A refusal that counted a conflicted path says why, because the file may hold exactly what Git wrote there.
     let unexplained: &str = match names_a_conflicted_path(worktree, staged, conflicted) {
-        true => " Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours.",
+        true => {
+            " Git recorded no result for the conflict it stopped at, so nothing proves such a path holds the text Git wrote rather than a resolution of yours."
+        }
         false => "",
     };
     return format!(
@@ -338,7 +394,12 @@ fn as_a_sentence(message: &str) -> String {
 /// ```ts
 /// function unreadableRefusalText({ command, operation, message }): string;
 /// ```
-pub fn unreadable_refusal_text(command: AbortOperation, ends: OperationEnd, in_progress: AbortOperation, message: &str) -> String {
+pub fn unreadable_refusal_text(
+    command: AbortOperation,
+    ends: OperationEnd,
+    in_progress: AbortOperation,
+    message: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: {} is refused because the wrapper could not read what it would discard, and it changes nothing it cannot \
          see: {} The {} in progress still waits. To stop the operation and keep your index and files, use {} (that command is allowed). The guard \
@@ -372,10 +433,17 @@ pub fn unreadable_refusal_text(command: AbortOperation, ends: OperationEnd, in_p
 /// ```ts
 /// function untrackedFileText({ operation, ends, inProgress, restored, paths }): string;
 /// ```
-pub fn untracked_file_text(operation: AbortOperation, ends: OperationEnd, in_progress: AbortOperation, restored: &str, paths: &[String]) -> String {
+pub fn untracked_file_text(
+    operation: AbortOperation,
+    ends: OperationEnd,
+    in_progress: AbortOperation,
+    restored: &str,
+    paths: &[String],
+) -> String {
     let command: &str = abort_command_text(operation, ends);
     let listed: String = named_paths(paths);
-    let (holding, tracks, there, them, whose): (&str, &str, &str, &str, &str) = if paths.len() == 1 {
+    let (holding, tracks, there, them, whose): (&str, &str, &str, &str, &str) = if paths.len() == 1
+    {
         ("the untracked file", "it", "it is", "it", "its")
     } else {
         ("untracked files", "them", "they are", "them", "their")
@@ -402,7 +470,10 @@ pub fn untracked_file_text(operation: AbortOperation, ends: OperationEnd, in_pro
 /// ```ts
 /// function ignoredFileRefusalText({ message, inProgress }): string;
 /// ```
-pub fn ignored_file_refusal_text(message: String, in_progress: AbortOperation) -> String {
+pub fn ignored_file_refusal_text(
+    message: String,
+    in_progress: AbortOperation,
+) -> String {
     return format!(
         "{} The {} in progress still waits, and nothing was changed.",
         as_a_sentence(message.as_str()),

@@ -15,26 +15,50 @@
 //! ```
 
 /// The bounded query under test and the grace it answers within.
-use super::{FIXTURE_GIT_BOUND, PIPE_GRACE, QueryAnswer, QueryEnding, REAPING, arm_the_ending_seam, disarm_the_ending_seam, real_git_within};
+use super::{
+    FIXTURE_GIT_BOUND,
+    PIPE_GRACE,
+    QueryAnswer,
+    QueryEnding,
+    REAPING,
+    arm_the_ending_seam,
+    disarm_the_ending_seam,
+    real_git_within,
+};
 /// The disposable fixture directory and its removal.
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 /// `OsString` is owned operating-system text, which a query's arguments are.
 use std::ffi::OsString;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-/// The clock a control measures its answer with.
-use std::time::{Duration, Instant};
 /// `signal` reads which signal ended a query.
 use std::os::unix::process::ExitStatusExt;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// The clock a control measures its answer with.
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The shell every fixture program of these controls is run by.
 const SHELL: &str = "/bin/sh";
 
 /// One executable script in the fixture's directory.
-fn script(root: &Path, name: &str, body: &str) -> PathBuf {
+fn script(
+    root: &Path,
+    name: &str,
+    body: &str,
+) -> PathBuf {
     let path: PathBuf = root.join(name);
     std::fs::write(path.as_path(), body).expect("the fixture script");
-    let mut permissions: std::fs::Permissions = std::fs::metadata(path.as_path()).expect("the script's metadata").permissions();
+    let mut permissions: std::fs::Permissions = std::fs::metadata(path.as_path())
+        .expect("the script's metadata")
+        .permissions();
     std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o700);
     std::fs::set_permissions(path.as_path(), permissions).expect("the script runs");
     return path;
@@ -61,14 +85,18 @@ fn a_query_whose_descendant_holds_its_pipe_answers_at_its_bound_and_says_so() {
     );
     let bound: Duration = Duration::from_secs(1);
     let began: Instant = Instant::now();
-    let answer: QueryAnswer = real_git_within(query.as_path(), Some(root.as_path()), &[], &[], None, bound);
+    let answer: QueryAnswer =
+        real_git_within(query.as_path(), Some(root.as_path()), &[], &[], None, bound);
     let elapsed: Duration = began.elapsed();
     assert_eq!(
         answer.ending,
         QueryEnding::AtTheBound,
         "the one-second bound ended a query that never ends by itself, after {elapsed:?}"
     );
-    assert!(answer.held_open, "the descendant held the query's pipe, so the answer must say so: {answer:?}");
+    assert!(
+        answer.held_open,
+        "the descendant held the query's pipe, so the answer must say so: {answer:?}"
+    );
     assert!(
         elapsed < bound + PIPE_GRACE + Duration::from_millis(500),
         "the answer waited past its bound of {bound:?} and its grace of {PIPE_GRACE:?}: {elapsed:?}"
@@ -93,14 +121,24 @@ fn an_input_a_query_never_reads_does_not_hold_the_answer_past_its_bound() {
     let input: Vec<u8> = vec![b'x'; 1024 * 1024];
     let words: Vec<OsString> = shell_arguments("exec /bin/sleep 60");
     let began: Instant = Instant::now();
-    let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), Some(input.as_slice()), bound);
+    let answer: QueryAnswer = real_git_within(
+        Path::new(SHELL),
+        Some(root.as_path()),
+        &[],
+        words.as_slice(),
+        Some(input.as_slice()),
+        bound,
+    );
     let elapsed: Duration = began.elapsed();
     assert_eq!(
         answer.ending,
         QueryEnding::AtTheBound,
         "a query that never reads its input and never ends by itself is ended by the bound; the answer came back after {elapsed:?}"
     );
-    assert!(!answer.held_open, "nothing of this query outlives its ending: {answer:?}");
+    assert!(
+        !answer.held_open,
+        "nothing of this query outlives its ending: {answer:?}"
+    );
     assert!(
         elapsed < bound + REAPING + Duration::from_secs(5),
         "the answer waited past its bound of {bound:?}, its reaping window of {REAPING:?} and five seconds of slack: {elapsed:?}"
@@ -124,19 +162,40 @@ fn a_query_that_ends_by_itself_before_the_signal_is_its_own_ending() {
         let mut information: libc::siginfo_t = unsafe { std::mem::zeroed() };
         // SAFETY: `waitid` writes the one `siginfo_t` it is given for the child this test started,
         // and `WNOWAIT` leaves that child unreaped for the helper's own wait.
-        let waited: i32 = unsafe { libc::waitid(libc::P_PID, query as libc::id_t, &mut information, libc::WEXITED | libc::WNOWAIT) };
+        let waited: i32 = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                query as libc::id_t,
+                &mut information,
+                libc::WEXITED | libc::WNOWAIT,
+            )
+        };
         assert_eq!(waited, 0, "the query's own ending is waited for");
     });
     let began: Instant = Instant::now();
-    let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), None, bound);
+    let answer: QueryAnswer = real_git_within(
+        Path::new(SHELL),
+        Some(root.as_path()),
+        &[],
+        words.as_slice(),
+        None,
+        bound,
+    );
     let elapsed: Duration = began.elapsed();
-    assert!(!disarm_the_ending_seam(), "the query ended before the bound, so the seam never ran");
+    assert!(
+        !disarm_the_ending_seam(),
+        "the query ended before the bound, so the seam never ran"
+    );
     assert_eq!(
         answer.ending,
         QueryEnding::Itself,
         "the query ended by itself with its own status, so the ending is its own: {answer:?} after {elapsed:?}"
     );
-    assert_eq!(answer.output.status.code(), Some(0), "the query's own status: {answer:?}");
+    assert_eq!(
+        answer.output.status.code(),
+        Some(0),
+        "the query's own status: {answer:?}"
+    );
     remove(root.as_path());
 }
 
@@ -158,12 +217,33 @@ fn a_query_that_leaves_its_input_to_a_descendant_answers_with_that_said() {
     // A pipe holds 64 KiB by default, so this input fills one many times over.
     let input: Vec<u8> = vec![b'x'; 1024 * 1024];
     let began: Instant = Instant::now();
-    let answer: QueryAnswer = real_git_within(query.as_path(), Some(root.as_path()), &[], &[], Some(input.as_slice()), FIXTURE_GIT_BOUND);
+    let answer: QueryAnswer = real_git_within(
+        query.as_path(),
+        Some(root.as_path()),
+        &[],
+        &[],
+        Some(input.as_slice()),
+        FIXTURE_GIT_BOUND,
+    );
     let elapsed: Duration = began.elapsed();
-    assert_eq!(answer.ending, QueryEnding::Itself, "the query left with status 0 of its own: {answer:?}");
-    assert_eq!(answer.output.status.code(), Some(0), "the query's own status: {answer:?}");
-    assert!(answer.input_held, "a descendant of the query still holds its input, so the answer must say so: {answer:?}");
-    assert!(answer.held_open, "the same descendant holds the output pipes: {answer:?}");
+    assert_eq!(
+        answer.ending,
+        QueryEnding::Itself,
+        "the query left with status 0 of its own: {answer:?}"
+    );
+    assert_eq!(
+        answer.output.status.code(),
+        Some(0),
+        "the query's own status: {answer:?}"
+    );
+    assert!(
+        answer.input_held,
+        "a descendant of the query still holds its input, so the answer must say so: {answer:?}"
+    );
+    assert!(
+        answer.held_open,
+        "the same descendant holds the output pipes: {answer:?}"
+    );
     assert!(
         elapsed < PIPE_GRACE + Duration::from_secs(5),
         "the answer waited past its grace of {PIPE_GRACE:?} and five seconds of slack: {elapsed:?}"
@@ -186,7 +266,14 @@ fn a_query_that_ends_by_itself_keeps_its_own_ending() {
     for (source, code, signal) in cases {
         let words: Vec<OsString> = shell_arguments(source);
         let began: Instant = Instant::now();
-        let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), None, FIXTURE_GIT_BOUND);
+        let answer: QueryAnswer = real_git_within(
+            Path::new(SHELL),
+            Some(root.as_path()),
+            &[],
+            words.as_slice(),
+            None,
+            FIXTURE_GIT_BOUND,
+        );
         assert_eq!(
             answer.ending,
             QueryEnding::Itself,
@@ -195,7 +282,10 @@ fn a_query_that_ends_by_itself_keeps_its_own_ending() {
         );
         assert_eq!(answer.output.status.code(), code, "{source}");
         assert_eq!(answer.output.status.signal(), signal, "{source}");
-        assert!(began.elapsed() < FIXTURE_GIT_BOUND, "{source}: the answer waited past the bound");
+        assert!(
+            began.elapsed() < FIXTURE_GIT_BOUND,
+            "{source}: the answer waited past the bound"
+        );
     }
     remove(root.as_path());
 }
@@ -206,10 +296,24 @@ fn a_query_that_ends_by_itself_keeps_its_own_ending() {
 fn a_query_that_ends_by_itself_keeps_its_output() {
     let root: PathBuf = fixture("real-git-within-output");
     let words: Vec<OsString> = shell_arguments("printf 'answered\\n'");
-    let answer: QueryAnswer = real_git_within(Path::new(SHELL), Some(root.as_path()), &[], words.as_slice(), None, FIXTURE_GIT_BOUND);
-    assert_eq!(answer.ending, QueryEnding::Itself, "the query ends by itself");
+    let answer: QueryAnswer = real_git_within(
+        Path::new(SHELL),
+        Some(root.as_path()),
+        &[],
+        words.as_slice(),
+        None,
+        FIXTURE_GIT_BOUND,
+    );
+    assert_eq!(
+        answer.ending,
+        QueryEnding::Itself,
+        "the query ends by itself"
+    );
     assert!(!answer.held_open, "nothing of this query outlives it");
-    assert_eq!(String::from_utf8_lossy(&answer.output.stdout).as_ref(), "answered\n");
+    assert_eq!(
+        String::from_utf8_lossy(&answer.output.stdout).as_ref(),
+        "answered\n"
+    );
     assert_eq!(answer.output.status.code(), Some(0));
     remove(root.as_path());
 }

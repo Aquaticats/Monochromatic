@@ -14,55 +14,39 @@
 
 /// Native string,
 ///  path and process types used by the helpers.
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
 
 /// The helpers that moved to files of their own,
 /// named here so every `support::name` path stays the same.
 pub use crate::support_btrfs_controls::*;
 pub use crate::support_first_physical_extent::*;
-pub use crate::support_reflink_controls::*;
-pub use crate::support_zfs_controls::*;
 pub use crate::support_fixture_directories::*;
-pub use crate::support_process_group_members::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_fixture_service_log::*;
-pub use crate::support_native_git_command::*;
 pub use crate::support_fixture_service_readiness::*;
+pub use crate::support_native_git_command::*;
 pub use crate::support_observation::*;
 pub use crate::support_package_filling::*;
-pub use crate::support_program_names_and_time_bound::*;
-pub use crate::support_resource_limits::*;
 pub use crate::support_process_cpu_counters::*;
+pub use crate::support_process_group_members::*;
+pub use crate::support_program_names_and_time_bound::*;
+pub use crate::support_reflink_controls::*;
+pub use crate::support_resource_limits::*;
 pub use crate::support_scratch_left_behind::*;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pub use crate::support_zfs_controls::*;
 
 /// A pipe whose two ends are closed on `exec`:
 /// `[read end, write end]`.
@@ -92,7 +76,12 @@ pub fn close_on_exec_pipe() -> [libc::c_int; 2] {
     for end in ends {
         // SAFETY: `end` was just created here; `fcntl` with `F_SETFD` only changes that descriptor's flags.
         let flagged: libc::c_int = unsafe { libc::fcntl(end, libc::F_SETFD, libc::FD_CLOEXEC) };
-        assert_eq!(flagged, 0, "fcntl failed: {}", std::io::Error::last_os_error());
+        assert_eq!(
+            flagged,
+            0,
+            "fcntl failed: {}",
+            std::io::Error::last_os_error()
+        );
     }
     return ends;
 }
@@ -105,7 +94,8 @@ pub fn close_on_exec_pipe() -> [libc::c_int; 2] {
 pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString {
     let mut buffer: [libc::c_char; 256] = [0; 256];
     // SAFETY: `ptsname_r` writes at most the buffer's length.
-    let named: libc::c_int = unsafe { libc::ptsname_r(descriptor, buffer.as_mut_ptr(), buffer.len()) };
+    let named: libc::c_int =
+        unsafe { libc::ptsname_r(descriptor, buffer.as_mut_ptr(), buffer.len()) };
     assert_eq!(named, 0, "the slave has a name");
     // SAFETY: the call above wrote a NUL-terminated name into `buffer`.
     return unsafe { std::ffi::CStr::from_ptr(buffer.as_ptr()) }.to_owned();
@@ -119,27 +109,24 @@ pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString 
 pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString {
     let mut buffer: [libc::c_char; 128] = [0; 128];
     // SAFETY: `TIOCPTYGNAME` writes a NUL-terminated name of at most 128 bytes into the buffer it is given.
-    let named: libc::c_int = unsafe { libc::ioctl(descriptor, libc::TIOCPTYGNAME as libc::c_ulong, buffer.as_mut_ptr()) };
+    let named: libc::c_int = unsafe {
+        libc::ioctl(
+            descriptor,
+            libc::TIOCPTYGNAME as libc::c_ulong,
+            buffer.as_mut_ptr(),
+        )
+    };
     assert_eq!(named, 0, "the slave has a name");
     // SAFETY: the call above wrote a NUL-terminated name into `buffer`.
     return unsafe { std::ffi::CStr::from_ptr(buffer.as_ptr()) }.to_owned();
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 /// Apply the hermetic environment every wrapped and direct run shares.
-pub fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
+pub fn hermetic(
+    command: &mut Command,
+    fixture: &Fixture,
+    path: &OsStr,
+) {
     command
         .env_clear()
         .env("PATH", path)
@@ -152,7 +139,10 @@ pub fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
         // No run reaches the host's journal: the entries the wrapper sends go to an abstract name nobody listens at, unless a
         //  control binds the name it passes itself.
-        .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, "@cli-git-test-journal-nobody-hermetic")
+        .env(
+            git_policy_cli::journald_native::TEST_SOCKET_VARIABLE,
+            "@cli-git-test-journal-nobody-hermetic",
+        )
         .current_dir(&fixture.root);
     // A developer who sets the wrapper's verbose switch for a run gets its debug log in every wrapped command's
     //  output; no run sets it otherwise, so the environment stays hermetic.
@@ -188,7 +178,11 @@ pub fn wrapper_first_path(fixture: &Fixture) -> OsString {
 /// ```ts
 /// const path = onlyThesePrograms(fixture, 'push-needs', [['git', '/usr/bin/git'], ['sh', '/bin/sh']]);
 /// ```
-pub fn path_of_a_folder_that_links_only(fixture: &Fixture, folder: &str, programs: &[(&str, &Path)]) -> OsString {
+pub fn path_of_a_folder_that_links_only(
+    fixture: &Fixture,
+    folder: &str,
+    programs: &[(&str, &Path)],
+) -> OsString {
     let directory: PathBuf = fixture.root.join(folder);
     std::fs::create_dir_all(directory.as_path()).expect("the folder of linked programs");
     for (name, program) in programs {
@@ -199,7 +193,12 @@ pub fn path_of_a_folder_that_links_only(fixture: &Fixture, folder: &str, program
 
 /// A command for `program` (a wrapper path) under the given PATH,
 ///  killed after `seconds`.
-pub fn bounded_for(fixture: &Fixture, program: &Path, path: &OsStr, seconds: &str) -> Command {
+pub fn bounded_for(
+    fixture: &Fixture,
+    program: &Path,
+    path: &OsStr,
+    seconds: &str,
+) -> Command {
     if seconds == TIME_BOUND_SECONDS {
         // The shared bound is the supervisor's; its thread finds the command among the test's children once it runs.
         super::supervisor::ensure_monitor();
@@ -212,12 +211,19 @@ pub fn bounded_for(fixture: &Fixture, program: &Path, path: &OsStr, seconds: &st
     }
     // The place a waiting commit is told is a line a healthy commit must not print, so it is set past the bound that
     //  ends this command: a control that checks the line itself sets its own.
-    command.env(git_policy_cli::wait_ceilings::WAITING_NOTICE_VARIABLE, seconds);
+    command.env(
+        git_policy_cli::wait_ceilings::WAITING_NOTICE_VARIABLE,
+        seconds,
+    );
     return command;
 }
 
 /// A time-bounded command for `program` (a wrapper path) under the given PATH.
-pub fn bounded(fixture: &Fixture, program: &Path, path: &OsStr) -> Command {
+pub fn bounded(
+    fixture: &Fixture,
+    program: &Path,
+    path: &OsStr,
+) -> Command {
     return bounded_for(fixture, program, path, TIME_BOUND_SECONDS);
 }
 
@@ -264,7 +270,6 @@ pub fn wrapped(fixture: &Fixture) -> Command {
     );
 }
 
-
 /// What:
 ///  Make the in-process object readers decline the repository,
 /// with a replace ref on two blobs nothing uses.
@@ -278,33 +283,39 @@ pub fn wrapped(fixture: &Fixture) -> Command {
 /// these repositories hold no pointer,
 /// so they take the second path,
 ///  which is the fallback the readers' declines lead to in production.
-pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
+pub fn decline_in_process_lfs_scan(
+    fixture: &Fixture,
+    repo: &Path,
+) {
     let mut hashes: Vec<String> = Vec::new();
     for (name, text) in [("replace-from.txt", "from\n"), ("replace-to.txt", "to\n")] {
         let file: PathBuf = fixture.root.join(name);
         std::fs::write(&file, text).expect("blob source");
         let mut hashing: Command = direct(fixture);
         hashing.args(["hash-object", "-w"]).arg(&file);
-        let output: Output = native_git_output(fixture, &mut hashing, repo, NATIVE_GIT_BOUND_SECONDS);
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
-        hashes.push(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+        let output: Output =
+            native_git_output(fixture, &mut hashing, repo, NATIVE_GIT_BOUND_SECONDS);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
+        hashes.push(
+            String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_owned(),
+        );
     }
     let mut replacing: Command = direct(fixture);
     replacing.args(["replace", hashes[0].as_str(), hashes[1].as_str()]);
-    let replaced: Output = native_git_output(fixture, &mut replacing, repo, NATIVE_GIT_BOUND_SECONDS);
-    assert!(replaced.status.success(), "{}", String::from_utf8_lossy(replaced.stderr.as_slice()));
+    let replaced: Output =
+        native_git_output(fixture, &mut replacing, repo, NATIVE_GIT_BOUND_SECONDS);
+    assert!(
+        replaced.status.success(),
+        "{}",
+        String::from_utf8_lossy(replaced.stderr.as_slice())
+    );
 }
-
-
-
-
-
-
-
-
-
-
-
 
 /// What:
 ///  Gives the fixture's commit service a variable,
@@ -323,14 +334,26 @@ pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
 /// # Panics
 ///
 /// When the service already started with another value of the variable.
-pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
+pub fn give_service_environment(
+    fixture: &Fixture,
+    name: &str,
+    value: &str,
+) {
     // The service's lock first and the environment's second: `service_runtime` holds the service's lock while it starts a service,
     //  and the start reads the environment, so the other order let two threads wait for each other for ever.
     let service = fixture.service.lock().expect("the fixture's service lock");
-    let mut given = fixture.service_environment.lock().expect("the service environment");
+    let mut given = fixture
+        .service_environment
+        .lock()
+        .expect("the service environment");
     let present = service.is_some();
-    let already: bool = given.iter().any(|(held, text)| { return held == name && text == value; });
-    assert!(already || !present, "the fixture's service already started without {name}={value}");
+    let already: bool = given.iter().any(|(held, text)| {
+        return held == name && text == value;
+    });
+    assert!(
+        already || !present,
+        "the fixture's service already started without {name}={value}"
+    );
     if !already {
         given.push((OsString::from(name), OsString::from(value)));
     }
@@ -356,10 +379,20 @@ pub fn push_unfinished_words() -> &'static str {
 /// and the notices the
 ///  service left in the repository at `directory`,
 /// worded as the next command shows them (and taken as it takes them).
-pub fn push_report(directory: &Path, stderr: &str) -> String {
+pub fn push_report(
+    directory: &Path,
+    stderr: &str,
+) -> String {
     let mut report: String = stderr.to_string();
     settle_service_work(directory);
-    let git_dir: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); });
+    let git_dir: Option<PathBuf> = directory
+        .ancestors()
+        .map(|candidate| {
+            return candidate.join(".git");
+        })
+        .find(|candidate| {
+            return candidate.is_dir();
+        });
     if let Some(found) = git_dir {
         // The notices are worded the way the next command in the worktree shows them, and are shown and removed as that
         //  command does.
@@ -398,7 +431,10 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
 /// the sleep has no
 ///  terminal and no pipe of the test,
 /// so a sleep left behind cannot hold the commit's standard error open.
-pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
+pub fn stalling_editor(
+    fixture: &Fixture,
+    started: &Path,
+) -> PathBuf {
     let path: PathBuf = fixture.root.join("stalling-editor");
     executable(
         path.as_path(),
@@ -418,15 +454,29 @@ pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
 ///  or was ended at the bound:
 ///  the failure names the command,
 ///  the directory and the bound.
-pub fn git<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S]) -> Output {
+pub fn git<S: AsRef<OsStr>>(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[S],
+) -> Output {
     return git_within(fixture, directory, arguments, NATIVE_GIT_BOUND_SECONDS);
 }
 
 /// Run real Git directly inside a fixture under `bound` seconds,
 /// and require success.
-pub fn git_within<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S], bound: &str) -> Output {
+pub fn git_within<S: AsRef<OsStr>>(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[S],
+    bound: &str,
+) -> Output {
     let output: Output = native_git_within(fixture, directory, arguments, bound);
-    let words: Vec<String> = arguments.iter().map(|argument| { return argument.as_ref().to_string_lossy().into_owned(); }).collect();
+    let words: Vec<String> = arguments
+        .iter()
+        .map(|argument| {
+            return argument.as_ref().to_string_lossy().into_owned();
+        })
+        .collect();
     assert!(
         output.status.success(),
         "native Git {} in {} failed (bound {bound} s): {}",
@@ -439,7 +489,10 @@ pub fn git_within<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, argument
 
 /// Create a repository with one empty commit on `main`,
 ///  using real Git directly.
-pub fn repository(fixture: &Fixture, name: &OsStr) -> PathBuf {
+pub fn repository(
+    fixture: &Fixture,
+    name: &OsStr,
+) -> PathBuf {
     let root: PathBuf = fixture.root.join(name);
     std::fs::create_dir(&root).expect("repository directory");
     git(
@@ -458,22 +511,37 @@ pub fn repository(fixture: &Fixture, name: &OsStr) -> PathBuf {
 /// Run a wrapped command in a directory,
 ///  with empty standard input,
 ///  and return what the caller saw.
-pub fn run_wrapped(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
+pub fn run_wrapped(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Observed {
     return observe(wrapped(fixture).current_dir(directory).args(arguments), b"");
 }
 
 /// Run real Git directly in a directory under the bound of one fixture command,
 ///  with empty standard input,
 ///  and return what the caller saw.
-pub fn run_direct(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
+pub fn run_direct(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Observed {
     let output: Output = native_git(fixture, directory, arguments);
-    return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+    return Observed {
+        code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    };
 }
 
 /// Real Git's porcelain status of a repository,
 ///  untracked files included,
 ///  as text.
-pub fn porcelain(fixture: &Fixture, repo: &Path) -> String {
+pub fn porcelain(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     let output: Output = git(
         fixture,
         repo,
@@ -523,11 +591,6 @@ pub fn stderr_without_wait_notices(observed: &Observed) -> String {
     return String::from_utf8_lossy(without_wait_notices(&observed.stderr).as_slice()).into_owned();
 }
 
-
-
-
-
-
 /// The transaction ID registry fixtures use.
 pub const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 
@@ -545,7 +608,8 @@ pub const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 /// ```
 pub fn registered_transaction(repo: &Path) -> PathBuf {
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    std::fs::create_dir_all(registry.join(TRANSACTION_ID)).expect("a transaction directory an earlier release left");
+    std::fs::create_dir_all(registry.join(TRANSACTION_ID))
+        .expect("a transaction directory an earlier release left");
     return registry;
 }
 

@@ -13,14 +13,20 @@
 //! for (const step of LaterStep.ALL) expect(check_later_step(step)).toMatchObject({ kind: 'unknown' });
 //! ```
 
-use super::{LaterStep, check_later_step};
+use super::{
+    LaterStep,
+    check_later_step,
+};
 
 /// Every later-step check answers unknown.
 #[test]
 fn every_later_step_answers_unknown() {
     for step in LaterStep::ALL {
         let outcome: super::CheckOutcome = check_later_step(step);
-        assert!(matches!(outcome, super::CheckOutcome::Unknown { .. }), "{step:?} answered {outcome:?}");
+        assert!(
+            matches!(outcome, super::CheckOutcome::Unknown { .. }),
+            "{step:?} answered {outcome:?}"
+        );
     }
 }
 
@@ -41,6 +47,18 @@ fn every_reason_names_its_step() {
 /// Each later step reports under its own check name.
 #[test]
 fn each_later_step_reports_under_its_own_name() {
-    let names: Vec<&'static str> = LaterStep::ALL.iter().map(|step| return step.name()).collect();
-    assert_eq!(names, vec!["cancel-command", "boot-protection", "service-unit", "backup-coverage", "sanoid"]);
+    let names: Vec<&'static str> = LaterStep::ALL
+        .iter()
+        .map(|step| return step.name())
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            "cancel-command",
+            "boot-protection",
+            "service-unit",
+            "backup-coverage",
+            "sanoid"
+        ]
+    );
 }

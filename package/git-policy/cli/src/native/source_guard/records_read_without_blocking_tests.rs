@@ -13,7 +13,14 @@
 use std::path::Path;
 
 use super::release_sources_in;
-use crate::source_scan_tests::{CrateRoot, SourceFile, classified_sources, real_roots, source_root, write_tree};
+use crate::source_scan_tests::{
+    CrateRoot,
+    SourceFile,
+    classified_sources,
+    real_roots,
+    source_root,
+    write_tree,
+};
 
 /// The names that reach a folder of records this program creates and fills:
 /// the work queue's states and helpers,
@@ -38,7 +45,12 @@ const RECORD_FOLDER_MARKERS: &[&str] = &[
 /// The calls that open a file to read it and can wait on a pipe:
 /// the standard library's own readers,
 /// and the open that every reader of a record folder must take instead through `plain_file`.
-const BLOCKING_READS: &[&str] = &["std::fs::read_to_string(", "std::fs::read(", "std::fs::File::open(", "OpenOptions::new()"];
+const BLOCKING_READS: &[&str] = &[
+    "std::fs::read_to_string(",
+    "std::fs::read(",
+    "std::fs::File::open(",
+    "OpenOptions::new()",
+];
 
 /// The files that name these calls without making them,
 /// with why.
@@ -51,28 +63,48 @@ const NAMES_THE_CALLS_WITHOUT_MAKING_THEM: &[(&str, &str)] = &[(
 /// The sources the scan reads:
 /// every file the module tree reaches,
 /// release files and test sidecars alike.
-fn sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<SourceFile>, String> {
+fn sources_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<SourceFile>, String> {
     return classified_sources(root, roots);
 }
 
 /// The release files that name a record folder and a call that can wait,
 /// as `file: marker, call`,
 /// and the line each call is made on.
-fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> {
+fn findings_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
     for path in release_sources_in(root, roots)? {
-        if NAMES_THE_CALLS_WITHOUT_MAKING_THEM.iter().any(|(named, _)| return *named == path) {
+        if NAMES_THE_CALLS_WITHOUT_MAKING_THEM
+            .iter()
+            .any(|(named, _)| return *named == path)
+        {
             continue;
         }
         let text: String = std::fs::read_to_string(root.join(path.as_str()))
             .map_err(|error| return format!("cannot read {path}: {error}"))?;
-        let Some(marker) = RECORD_FOLDER_MARKERS.iter().find(|marker| return text.contains(**marker)) else { continue };
+        let Some(marker) = RECORD_FOLDER_MARKERS
+            .iter()
+            .find(|marker| return text.contains(**marker))
+        else {
+            continue;
+        };
         for (number, line) in text.lines().enumerate() {
             if line.trim_start().starts_with("//") {
                 continue;
             }
-            if let Some(call) = BLOCKING_READS.iter().find(|call| return line.contains(**call)) {
-                found.push(format!("{path}:{}: names `{marker}` and reads with `{call}`", number + 1));
+            if let Some(call) = BLOCKING_READS
+                .iter()
+                .find(|call| return line.contains(**call))
+            {
+                found.push(format!(
+                    "{path}:{}: names `{marker}` and reads with `{call}`",
+                    number + 1
+                ));
             }
         }
     }
@@ -101,7 +133,8 @@ fn no_release_file_reads_a_record_folder_with_a_call_that_can_wait() {
 /// so the list shrinks when a file moves rather than excusing nothing.
 #[test]
 fn every_exempt_file_is_a_source_of_this_crate() {
-    let sources: Vec<SourceFile> = sources_in(&source_root(), &real_roots()).expect("the crate's sources");
+    let sources: Vec<SourceFile> =
+        sources_in(&source_root(), &real_roots()).expect("the crate's sources");
     let stale: Vec<String> = NAMES_THE_CALLS_WITHOUT_MAKING_THEM
         .iter()
         .filter(|(named, _)| {
@@ -140,9 +173,20 @@ fn the_scan_finds_a_planted_read_and_passes_a_plain_one() {
             ("lib.rs", "pub mod plain;\npub mod queue;\n"),
         ],
     );
-    let found: Vec<String> = findings_in(root.as_path(), &[crate::source_scan_tests::release_root("lib.rs")]).expect("the fixture");
-    assert_eq!(found.len(), 1, "one read is planted and one reads a plain file: {found:?}");
-    assert!(found[0].starts_with("queue.rs:"), "the finding names the file that reads a record folder with a waiting call: {found:?}");
+    let found: Vec<String> = findings_in(
+        root.as_path(),
+        &[crate::source_scan_tests::release_root("lib.rs")],
+    )
+    .expect("the fixture");
+    assert_eq!(
+        found.len(),
+        1,
+        "one read is planted and one reads a plain file: {found:?}"
+    );
+    assert!(
+        found[0].starts_with("queue.rs:"),
+        "the finding names the file that reads a record folder with a waiting call: {found:?}"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -152,7 +196,8 @@ fn the_scan_finds_a_planted_read_and_passes_a_plain_one() {
 /// so the exemption above stays the only one.
 #[test]
 fn a_file_that_reads_beside_a_marker_is_a_finding() {
-    let root: std::path::PathBuf = crate::test_support::fixture("source-guard-record-folder-beside");
+    let root: std::path::PathBuf =
+        crate::test_support::fixture("source-guard-record-folder-beside");
     write_tree(
         root.as_path(),
         &[(
@@ -162,7 +207,15 @@ fn a_file_that_reads_beside_a_marker_is_a_finding() {
              return std::fs::read_to_string(path.join(\"../config\")).ok();\n}\n",
         )],
     );
-    let found: Vec<String> = findings_in(root.as_path(), &[crate::source_scan_tests::release_root("beside.rs")]).expect("the fixture");
-    assert_eq!(found.len(), 1, "a waiting read in a file that names a record folder is reported: {found:?}");
+    let found: Vec<String> = findings_in(
+        root.as_path(),
+        &[crate::source_scan_tests::release_root("beside.rs")],
+    )
+    .expect("the fixture");
+    assert_eq!(
+        found.len(),
+        1,
+        "a waiting read in a file that names a record folder is reported: {found:?}"
+    );
     crate::test_support::remove(root.as_path());
 }

@@ -33,15 +33,29 @@
 
 use crate::capture_invocation::InvocationCapture;
 use crate::commit_transaction::TransactionStop;
+pub use crate::owed_index_repair::{
+    exclude_what_a_landed_commit_left,
+    exclude_with_note,
+    excluded_notice,
+    unreadable_notice,
+};
 use crate::private_index_request::CaptureIndexes;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all,
+    write_private_file_unsynced,
+};
+use crate::service_journal::Intent;
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
-pub use crate::owed_index_repair::{exclude_what_a_landed_commit_left, excluded_notice, exclude_with_note, unreadable_notice};
-use crate::service_journal::Intent;
 use crate::work_item::WORK_DIRECTORY;
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The record format version.
 pub const OWED_VERSION: u64 = 1;
@@ -123,7 +137,10 @@ pub fn directory_of(git_dir: &Path) -> PathBuf {
 }
 
 /// The path of one record.
-pub fn path_of(git_dir: &Path, seq: u64) -> PathBuf {
+pub fn path_of(
+    git_dir: &Path,
+    seq: u64,
+) -> PathBuf {
     return directory_of(git_dir).join(format!("{seq}.{OWED_EXTENSION}"));
 }
 
@@ -169,12 +186,19 @@ fn decode(text: &str) -> Result<Owed, String> {
     let repository: PathBuf = crate::path_bytes_in_records::read_field(&value, "repository")?;
     let git_dir: PathBuf = crate::path_bytes_in_records::read_field(&value, "gitDir")?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
-    for entry in value.get("pathsHex").and_then(Value::as_array).into_iter().flatten() {
+    for entry in value
+        .get("pathsHex")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
         let Some(digits) = entry.as_str() else {
             return Err(String::from("the record holds a path that is not text"));
         };
         let Some(path) = crate::path_bytes_in_records::path_of_hex(digits) else {
-            return Err(String::from("the record holds a path whose bytes do not decode"));
+            return Err(String::from(
+                "the record holds a path whose bytes do not decode",
+            ));
         };
         paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
     }
@@ -187,7 +211,10 @@ fn decode(text: &str) -> Result<Owed, String> {
         old: field_text(&value, "old").unwrap_or_default(),
         new,
         paths,
-        derived: value.get("derived").and_then(Value::as_bool).unwrap_or(false),
+        derived: value
+            .get("derived")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     });
 }
 
@@ -257,7 +284,10 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
 pub const SETTLED_EXTENSION: &str = "settled";
 
 /// The path that says one batch's obligation is over.
-pub fn settled_path_of(git_dir: &Path, seq: u64) -> PathBuf {
+pub fn settled_path_of(
+    git_dir: &Path,
+    seq: u64,
+) -> PathBuf {
     return directory_of(git_dir).join(format!("{seq}.{SETTLED_EXTENSION}"));
 }
 
@@ -277,7 +307,10 @@ pub fn settled_path_of(git_dir: &Path, seq: u64) -> PathBuf {
 /// ```ts
 /// settle(gitDir, seq) // rename `.owed` to `.settled`, then unlink
 /// ```
-pub fn settle(git_dir: &Path, seq: u64) {
+pub fn settle(
+    git_dir: &Path,
+    seq: u64,
+) {
     let settled: PathBuf = settled_path_of(git_dir, seq);
     if std::fs::rename(path_of(git_dir, seq), settled.as_path()).is_ok() {
         let _removed: std::io::Result<()> = std::fs::remove_file(settled.as_path());
@@ -287,7 +320,10 @@ pub fn settle(git_dir: &Path, seq: u64) {
 /// Removes the record of one batch,
 /// settled or not;
 /// a record that cannot be removed stays for the next command to find.
-pub fn remove(git_dir: &Path, seq: u64) {
+pub fn remove(
+    git_dir: &Path,
+    seq: u64,
+) {
     let _removed: std::io::Result<()> = std::fs::remove_file(path_of(git_dir, seq));
     let _settled: std::io::Result<()> = std::fs::remove_file(settled_path_of(git_dir, seq));
 }
@@ -343,11 +379,17 @@ pub fn records_and_unreadable(git_dir: &Path) -> (Vec<Owed>, usize) {
         match crate::plain_file::read_plain_text(path.as_path()).map(decode_text) {
             Ok(Ok(owed)) => found.push(owed),
             Ok(Err(reason)) => {
-                crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display());
+                crate::service_error!(
+                    "the record of an owed index update at {} holds none and is kept: {reason}",
+                    path.display()
+                );
                 unreadable += 1;
             }
             Err(error) => {
-                crate::service_error!("the record of an owed index update at {} cannot be read ({error}) and is kept", path.display());
+                crate::service_error!(
+                    "the record of an owed index update at {} cannot be read ({error}) and is kept",
+                    path.display()
+                );
                 unreadable += 1;
             }
         }
@@ -366,7 +408,10 @@ pub fn records_and_unreadable(git_dir: &Path) -> (Vec<Owed>, usize) {
 /// ```ts
 /// const fieldText = (record, key) => typeof record[key] === 'string' ? record[key] : undefined;
 /// ```
-fn field_text(value: &Value, key: &str) -> Option<String> {
+fn field_text(
+    value: &Value,
+    key: &str,
+) -> Option<String> {
     return value.get(key).and_then(Value::as_str).map(str::to_string);
 }
 

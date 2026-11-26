@@ -19,15 +19,27 @@ use super::CandidateStore;
 /// a store over real Git,
 /// an object name,
 /// and a worktree writer.
-use super::tests::{rev_parse, store, write};
+use super::tests::{
+    rev_parse,
+    store,
+    write,
+};
 /// The mode a record carries.
-use crate::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+};
 /// The record a pushed tree lists.
 use crate::candidate_record::CandidateRecord;
 /// The record under test.
 use crate::candidate_tree::TreeRecord;
 /// Shared fixture directories and real Git.
-use crate::test_support::{fixture, git, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 /// Unix permission bits,
 /// for the executable file.
@@ -149,9 +161,11 @@ fn a_store_lists_a_commit_once_and_a_second_store_lists_it_again() {
     let mut first: CandidateStore = store(repo.as_path());
     let listed: Vec<TreeRecord> = first.head_tree_records().expect("first listing");
     assert_eq!(listed.len(), 1, "the commit holds one file");
-    let head: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD:"]).stdout).expect("tree name");
+    let head: String =
+        String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD:"]).stdout).expect("tree name");
     let tree: &str = head.trim();
-    std::fs::remove_file(repo.join(".git/objects").join(&tree[..2]).join(&tree[2..])).expect("remove the tree object");
+    std::fs::remove_file(repo.join(".git/objects").join(&tree[..2]).join(&tree[2..]))
+        .expect("remove the tree object");
     assert_eq!(
         first.head_tree_records().expect("answered without Git"),
         listed
@@ -167,7 +181,9 @@ fn a_store_lists_a_commit_once_and_a_second_store_lists_it_again() {
 /// A pushed tree lists a name that is not UTF-8 by its exact bytes.
 #[test]
 fn a_pushed_tree_lists_a_name_that_is_not_utf8_exactly() {
-    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tree_tests::a_pushed_tree_lists_a_name_that_is_not_utf8_exactly") {
+    if !in_a_fixture_root_taking_any_name(
+        "candidate::candidate_store::tree_tests::a_pushed_tree_lists_a_name_that_is_not_utf8_exactly",
+    ) {
         return;
     }
     let root: PathBuf = fixture("store-pushed-tree-bytes");
@@ -179,7 +195,15 @@ fn a_pushed_tree_lists_a_name_that_is_not_utf8_exactly() {
     let tree: ObjectId = rev_parse(repo.as_path(), "HEAD^{tree}");
     let mut subject: CandidateStore = store(repo.as_path());
     let records: Vec<CandidateRecord> = subject.tree_records(&tree).expect("tree records");
-    let paths: Vec<&[u8]> = records.iter().map(|record| { return record.path.as_slice(); }).collect();
-    assert_eq!(paths, vec![b"bad\xff.txt".as_slice(), b"plain.txt".as_slice()]);
+    let paths: Vec<&[u8]> = records
+        .iter()
+        .map(|record| {
+            return record.path.as_slice();
+        })
+        .collect();
+    assert_eq!(
+        paths,
+        vec![b"bad\xff.txt".as_slice(), b"plain.txt".as_slice()]
+    );
     remove(root.as_path());
 }

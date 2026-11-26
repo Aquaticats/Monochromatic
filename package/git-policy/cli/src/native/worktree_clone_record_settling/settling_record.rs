@@ -28,13 +28,22 @@ use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_binding_record::record_publication::read_binding;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use crate::worktree_clone_record_settling::settling_refusal::SettlingStop;
 use crate::worktree_clone_record_settling::settling_request::SettlingRequest;
 use crate::worktree_clone_record_settling::settling_words::the_last_four_digits;
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::{RecordedBinding, read_the_recorded_binding};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
+    RecordedBinding,
+    read_the_recorded_binding,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The binding record the command acts on,
@@ -82,16 +91,36 @@ pub struct TheRecord {
 /// ```ts
 /// const recorded = readTheRecord(commonDir, 'topic');
 /// ```
-pub fn read_the_record(common_dir: &Path, slot: &str) -> Result<TheRecord, SettlingStop> {
+pub fn read_the_record(
+    common_dir: &Path,
+    slot: &str,
+) -> Result<TheRecord, SettlingStop> {
     let home: PathBuf = home_folder(common_dir);
     let path: PathBuf = home.join(binding_name(slot));
-    let record: BindingRecord = read_binding(home.as_path(), slot)
-        .map_err(|refusal| return SettlingStop::RecordUnreadable { path: path.clone(), said: refusal.message(path.as_path()) })?;
+    let record: BindingRecord = read_binding(home.as_path(), slot).map_err(|refusal| {
+        return SettlingStop::RecordUnreadable {
+            path: path.clone(),
+            said: refusal.message(path.as_path()),
+        };
+    })?;
     if record.clone_guid.is_none() {
-        return Err(SettlingStop::NoCloneRecorded { slot: String::from(slot), phase: String::from(record.phase.word()) });
+        return Err(SettlingStop::NoCloneRecorded {
+            slot: String::from(slot),
+            phase: String::from(record.phase.word()),
+        });
     }
-    let recorded: RecordedBinding = read_the_recorded_binding(common_dir, slot).map_err(|stop| return SettlingStop::TheRecordIsIncomplete { said: stop.message() })?;
-    return Ok(TheRecord { recorded, phase: record.phase, slot_identity: record.slot_identity, nonce: record.nonce });
+    let recorded: RecordedBinding =
+        read_the_recorded_binding(common_dir, slot).map_err(|stop| {
+            return SettlingStop::TheRecordIsIncomplete {
+                said: stop.message(),
+            };
+        })?;
+    return Ok(TheRecord {
+        recorded,
+        phase: record.phase,
+        slot_identity: record.slot_identity,
+        nonce: record.nonce,
+    });
 }
 
 /// What:
@@ -110,14 +139,28 @@ pub fn read_the_record(common_dir: &Path, slot: &str) -> Result<TheRecord, Settl
 /// ```ts
 /// confirmTheRecord(recorded, request);
 /// ```
-pub fn confirm_the_record(recorded: &RecordedBinding, request: &SettlingRequest) -> Result<(), SettlingStop> {
-    let recorded_name: String = recorded.slot_path.file_name().map_or_else(String::new, |name| return name.to_string_lossy().into_owned());
+pub fn confirm_the_record(
+    recorded: &RecordedBinding,
+    request: &SettlingRequest,
+) -> Result<(), SettlingStop> {
+    let recorded_name: String = recorded
+        .slot_path
+        .file_name()
+        .map_or_else(String::new, |name| {
+            return name.to_string_lossy().into_owned();
+        });
     if recorded_name != request.slot {
-        return Err(SettlingStop::TheSlotIsNotThisRecord { asked: request.slot.clone(), recorded: recorded_name });
+        return Err(SettlingStop::TheSlotIsNotThisRecord {
+            asked: request.slot.clone(),
+            recorded: recorded_name,
+        });
     }
     let wanted: String = the_last_four_digits(recorded.clone_guid);
     if wanted != request.digits {
-        return Err(SettlingStop::TheCloneGuidDiffers { typed: request.digits.clone(), wanted });
+        return Err(SettlingStop::TheCloneGuidDiffers {
+            typed: request.digits.clone(),
+            wanted,
+        });
     }
     return Ok(());
 }

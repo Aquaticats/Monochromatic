@@ -25,7 +25,11 @@ fn every_kind_has_one_row() {
         assert_eq!(row.kind, kind);
         assert!(!seen.contains(&kind), "kind `{}` has two rows", kind.word());
         seen.push(kind);
-        assert!(!row.shown_by.is_empty(), "row `{}` names no evidence", kind.word());
+        assert!(
+            !row.shown_by.is_empty(),
+            "row `{}` names no evidence",
+            kind.word()
+        );
     }
     assert_eq!(seen.len(), THE_KINDS.len());
 }
@@ -36,8 +40,12 @@ fn every_kind_has_one_row() {
 fn the_two_unshown_kinds_are_refused() {
     let locked: KindEvidence = ending_of(HolderKind::LockedHolder).expect("the locked row");
     assert_eq!(locked.ending, Ending::Refuse(RefusalWord::HolderLocked));
-    let taskless: KindEvidence = ending_of(HolderKind::TasklessNamespace).expect("the taskless row");
-    assert_eq!(taskless.ending, Ending::Refuse(RefusalWord::HolderUnendable));
+    let taskless: KindEvidence =
+        ending_of(HolderKind::TasklessNamespace).expect("the taskless row");
+    assert_eq!(
+        taskless.ending,
+        Ending::Refuse(RefusalWord::HolderUnendable)
+    );
     // The refusal rows name the arm that would settle them.
     assert!(locked.owed_arm.contains("V10"));
     assert!(taskless.owed_arm.contains("6.19"));
@@ -50,7 +58,11 @@ fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
     for kind in [HolderKind::SessionTask, HolderKind::PathHolder] {
         let row: KindEvidence = ending_of(kind).expect("a shown row");
         assert_eq!(row.ending, Ending::EndBlockersThenUnmount);
-        assert!(row.shown_by.contains("this round's guest arm"), "{}", row.shown_by);
+        assert!(
+            row.shown_by.contains("this round's guest arm"),
+            "{}",
+            row.shown_by
+        );
     }
     for kind in [HolderKind::OtherAccountTask, HolderKind::UnitTask] {
         let row: KindEvidence = ending_of(kind).expect("a row still owed");
@@ -76,7 +88,9 @@ fn a_refusal_ends_no_blocker() {
 fn a_kind_without_a_row_is_a_named_error() {
     // The table is the design's six kinds, so a seventh has no row; the function's own signature is what a caller
     // relies on, and the message names the kind it could not answer for.
-    let missing: MissingKind = MissingKind { kind: HolderKind::LockedHolder };
+    let missing: MissingKind = MissingKind {
+        kind: HolderKind::LockedHolder,
+    };
     let sentence: String = missing.to_string();
     assert!(sentence.contains("locked-holder"), "{sentence}");
     assert!(sentence.contains("no measured ending"), "{sentence}");

@@ -27,42 +27,73 @@
 
 /// The failure type of the auto-push coordination.
 use crate::auto_push_single_flight::SingleFlightError;
+/// The deadline runner shared with the push,
+/// and its stop causes.
+use crate::bounded_push::{
+    MAX_PUSH_OUTPUT,
+    StopCause,
+    flooded,
+    stop_push,
+    wait_until_done_up_to,
+};
 /// The writer of a command's request,
 /// and the bound its own result is waited for under.
 use crate::bounded_query_input::WRITER_SETTLE_CEILING;
 /// The writer of a command's request,
 /// and the steps a control holds it by.
-pub(crate) use crate::bounded_query_input::{InputWriter, feed_standard_input};
-/// The deadline runner shared with the push,
-/// and its stop causes.
-use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, flooded, stop_push, wait_until_done_up_to};
-use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
+pub(crate) use crate::bounded_query_input::{
+    InputWriter,
+    feed_standard_input,
+};
+use crate::child_awaited_through_a_pidfd::{
+    OwnedChild,
+    adopt,
+};
+/// The lock files a stopped query leaves,
+/// and the ledger that finds them.
+use crate::child_watch::{
+    ended_by_the_stop,
+    refused_while_stopping,
+};
+use crate::lazy_runtime::run_on_runtime;
+use crate::push_deadline_and_patience_settings::{
+    Patience,
+    push_deadline,
+};
 /// The clock a wait is judged by,
 /// and its reading of the signs of work.
 use crate::push_progress::Clock;
 /// The longest quiet gap of each step,
 /// kept for the timing records.
 use crate::quiet_ledger;
-/// The lock files a stopped query leaves,
-/// and the ledger that finds them.
-use crate::child_watch::{ended_by_the_stop, refused_while_stopping};
-use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
-use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output files of the query,
 /// made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
-use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
-use crate::lazy_runtime::run_on_runtime;
 use crate::start_retry::spawn_retrying_without_blocking;
+use crate::stop_of_the_service_noticed_by_its_children::{
+    StopArm,
+    Unfinished,
+    begin_unfinished_work,
+};
+use crate::stopped_git_locks::LockLedger;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
 /// The anonymous output files and their reading back.
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+};
 /// `Command` describes the query;
 /// `Stdio` connects its streams.
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Stdio,
+};
 /// Time spans.
 use std::time::Duration;
 
@@ -130,8 +161,16 @@ pub fn query_window(environment: &[(OsString, OsString)]) -> Duration {
 /// ```ts
 /// Clock.start(pid, { stall: windowMs }) // the wall fallback kept
 /// ```
-pub fn query_clock(pid: u32, window: Duration) -> Clock {
-    return Clock::start(pid, Patience::Progress { stall: window });
+pub fn query_clock(
+    pid: u32,
+    window: Duration,
+) -> Clock {
+    return Clock::start(
+        pid,
+        Patience::Progress {
+            stall: window,
+        },
+    );
 }
 
 /// Read one output file back from its start,
@@ -141,7 +180,10 @@ pub fn query_clock(pid: u32, window: Duration) -> Clock {
 /// ```ts
 /// await readFile(path)
 /// ```
-fn read_back(file: &mut File, cap: u64) -> Result<Vec<u8>, SingleFlightError> {
+fn read_back(
+    file: &mut File,
+    cap: u64,
+) -> Result<Vec<u8>, SingleFlightError> {
     file.seek(SeekFrom::Start(0))
         .map_err(SingleFlightError::Start)?;
     let mut bytes: Vec<u8> = Vec::new();
@@ -171,9 +213,20 @@ pub fn run_bounded_query(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, None, grace, environment, None, MAX_PUSH_OUTPUT)) {
+    return match run_on_runtime(run_bounded_git_awaiting(
+        command,
+        arguments,
+        window,
+        None,
+        grace,
+        environment,
+        None,
+        MAX_PUSH_OUTPUT,
+    )) {
         Ok(output) => output,
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -197,9 +250,20 @@ pub fn run_bounded_git(
     input: Option<Vec<u8>>,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, ceiling, grace, environment, input, cap)) {
+    return match run_on_runtime(run_bounded_git_awaiting(
+        command,
+        arguments,
+        window,
+        ceiling,
+        grace,
+        environment,
+        input,
+        cap,
+    )) {
         Ok(output) => output,
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -216,9 +280,21 @@ pub(crate) fn run_bounded_git_with_hold(
     input: Option<Vec<u8>>,
     hold: Box<dyn Fn() + Send + 'static>,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_held(command, arguments, window, None, grace, environment, input, MAX_PUSH_OUTPUT, Some(hold))) {
+    return match run_on_runtime(run_bounded_git_held(
+        command,
+        arguments,
+        window,
+        None,
+        grace,
+        environment,
+        input,
+        MAX_PUSH_OUTPUT,
+        Some(hold),
+    )) {
         Ok(output) => output,
-        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(
+            refusal.to_string(),
+        ))),
     };
 }
 
@@ -243,7 +319,17 @@ pub async fn run_bounded_query_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git_awaiting(command, arguments, window, None, grace, environment, None, MAX_PUSH_OUTPUT).await;
+    return run_bounded_git_awaiting(
+        command,
+        arguments,
+        window,
+        None,
+        grace,
+        environment,
+        None,
+        MAX_PUSH_OUTPUT,
+    )
+    .await;
 }
 
 /// What:
@@ -275,7 +361,18 @@ pub async fn run_bounded_git_awaiting(
     input: Option<Vec<u8>>,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git_held(command, arguments, window, ceiling, grace, environment, input, cap, None).await;
+    return run_bounded_git_held(
+        command,
+        arguments,
+        window,
+        ceiling,
+        grace,
+        environment,
+        input,
+        cap,
+        None,
+    )
+    .await;
 }
 
 /// `run_bounded_git_awaiting` with a control's step holding the writer between its write and its count;
@@ -303,12 +400,18 @@ async fn run_bounded_git_held(
     let for_stdout: File = stdout.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = stderr.try_clone().map_err(SingleFlightError::Start)?;
     command
-        .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
     // Taken before the query starts, so a lock born earlier is never taken for the query's.
     let locks = LockLedger::before_start(&command);
-    let mut started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
+    let mut started: Child = spawn_retrying_without_blocking(&mut command)
+        .await
+        .map_err(SingleFlightError::Start)?;
     drop(command);
     let writer: Option<InputWriter> = match input {
         None => None,
@@ -329,7 +432,19 @@ async fn run_bounded_git_held(
     let clock: Clock = query_clock(child.id(), window);
     // The progress window and the total ceiling are two bounds: a silent command is stopped by the first, and one that keeps working without returning only by the second.
     let ended: Result<ExitStatus, StopCause> = match ceiling {
-        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref())).await {
+        Some(total) => match tokio::time::timeout(
+            total,
+            wait_until_done_up_to(
+                &mut child,
+                &[&stdout, &stderr],
+                clock,
+                cap,
+                &mut quiet,
+                stop.as_ref(),
+            ),
+        )
+        .await
+        {
             Ok(outcome) => outcome?,
             Err(_passed) => {
                 stop_push(child, grace, locks).await;
@@ -339,9 +454,22 @@ async fn run_bounded_git_held(
                 });
             }
         },
-        None => wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref()).await?,
+        None => {
+            wait_until_done_up_to(
+                &mut child,
+                &[&stdout, &stderr],
+                clock,
+                cap,
+                &mut quiet,
+                stop.as_ref(),
+            )
+            .await?
+        }
     };
-    let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
+    let step: String = format!(
+        "git {}",
+        arguments.split_whitespace().next().unwrap_or_default()
+    );
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
     }
@@ -381,7 +509,9 @@ async fn run_bounded_git_held(
                     arguments: arguments.to_owned(),
                     seconds: window.as_secs(),
                 },
-                StopCause::ServiceStopped => SingleFlightError::Start(ended_by_the_stop(step.as_str())),
+                StopCause::ServiceStopped => {
+                    SingleFlightError::Start(ended_by_the_stop(step.as_str()))
+                }
                 StopCause::Flood => flood_of(arguments, cap),
             })
         }
@@ -400,11 +530,16 @@ async fn run_bounded_git_held(
 /// ```ts
 /// new GitFailure(arguments, undefined, `the query wrote more than ${MAX} bytes, so its output is not taken as Git's answer`)
 /// ```
-fn flood_of(arguments: &str, cap: u64) -> SingleFlightError {
+fn flood_of(
+    arguments: &str,
+    cap: u64,
+) -> SingleFlightError {
     return SingleFlightError::Git {
         arguments: arguments.to_owned(),
         code: None,
-        stderr: format!("the query wrote more than {cap} bytes, so its output is not taken as Git's answer"),
+        stderr: format!(
+            "the query wrote more than {cap} bytes, so its output is not taken as Git's answer"
+        ),
     };
 }
 

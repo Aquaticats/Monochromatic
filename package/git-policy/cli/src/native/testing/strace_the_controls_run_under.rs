@@ -60,8 +60,13 @@ pub(crate) const ABSENT_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_STRACE_ABSENT_ACK
 /// so this read is only reached in a run that has the tracer.
 pub(crate) fn strace_program() -> Option<PathBuf> {
     let search = std::env::var_os("PATH")?;
-    return std::env::split_paths(&search).map(|directory| { return directory.join("strace"); })
-        .find(|candidate| { return candidate.is_file(); });
+    return std::env::split_paths(&search)
+        .map(|directory| {
+            return directory.join("strace");
+        })
+        .find(|candidate| {
+            return candidate.is_file();
+        });
 }
 
 /// What:
@@ -77,7 +82,9 @@ pub(crate) fn strace_program() -> Option<PathBuf> {
 /// const tracer = found?.startsWith(/* spawnSync(found, ['--version']).status === 0 */);
 /// ```
 fn runnable_strace() -> Option<PathBuf> {
-    return strace_program().filter(|program| { return Command::new(program).arg("--version").output().is_ok(); });
+    return strace_program().filter(|program| {
+        return Command::new(program).arg("--version").output().is_ok();
+    });
 }
 
 /// What:
@@ -92,7 +99,9 @@ fn runnable_strace() -> Option<PathBuf> {
 /// const acknowledged = (process.env.CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED ?? '') !== '';
 /// ```
 fn the_run_acknowledges_the_absence() -> bool {
-    return std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+    return std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| {
+        return !value.is_empty();
+    });
 }
 
 /// What:
@@ -112,7 +121,12 @@ fn the_run_acknowledges_the_absence() -> bool {
 /// if (!straceAvailableOrAcknowledged('the control')) return;
 /// ```
 pub(crate) fn strace_available_or_acknowledged(control: &str) -> bool {
-    return decided(control, runnable_strace(), the_run_acknowledges_the_absence()).is_some();
+    return decided(
+        control,
+        runnable_strace(),
+        the_run_acknowledges_the_absence(),
+    )
+    .is_some();
 }
 
 /// What:
@@ -129,7 +143,11 @@ pub(crate) fn strace_available_or_acknowledged(control: &str) -> bool {
 /// ```ts
 /// const decided = (control, found, acknowledged) => found ?? (acknowledged ? noteSkipped(control) : fail(control));
 /// ```
-pub(crate) fn decided(control: &str, found: Option<PathBuf>, acknowledged: bool) -> Option<PathBuf> {
+pub(crate) fn decided(
+    control: &str,
+    found: Option<PathBuf>,
+    acknowledged: bool,
+) -> Option<PathBuf> {
     if let Some(tracer) = found {
         return Some(tracer);
     }

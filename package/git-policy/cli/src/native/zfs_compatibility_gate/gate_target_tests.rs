@@ -6,7 +6,11 @@
 //! and the design refuses the other
 //!  until a guest qualifies it.
 
-use super::gate_target::{QUALIFIED_TARGETS, current_target, target_refusal};
+use super::gate_target::{
+    QUALIFIED_TARGETS,
+    current_target,
+    target_refusal,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityStep as Step;
 
 #[test]

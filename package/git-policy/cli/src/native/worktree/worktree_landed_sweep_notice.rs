@@ -28,7 +28,10 @@
 //! ```
 
 use crate::shell_quote::shell_quote;
-use crate::worktree_landed_removal::{HandedOverWorktree, LandedSweep};
+use crate::worktree_landed_removal::{
+    HandedOverWorktree,
+    LandedSweep,
+};
 use std::path::Path;
 
 /// The prefix every line of this program carries.
@@ -61,7 +64,8 @@ fn removal_command(worktree: &Path) -> String {
 /// const recordPlace = (record) => `${workDir(record.gitDir)} carries the record ${record.id}`;
 /// ```
 fn record_place(one: &HandedOverWorktree) -> String {
-    let work: std::path::PathBuf = crate::service_work::work_directory(one.record.git_dir.as_path());
+    let work: std::path::PathBuf =
+        crate::service_work::work_directory(one.record.git_dir.as_path());
     return format!("{} carries the record {}", work.display(), one.record.id());
 }
 
@@ -83,7 +87,9 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
         for kept in &sweep.kept_commits {
             lines.push(format!("{PREFIX}{kept}"));
         }
-        lines.push(format!("{PREFIX}no landed worktree was looked at after this merge, because {reason}."));
+        lines.push(format!(
+            "{PREFIX}no landed worktree was looked at after this merge, because {reason}."
+        ));
         if sweep.refused_commits {
             // A later merge is the one retry a person would try, and it is up to date: saying so keeps the silence that follows
             //  from reading as a removal that happened.
@@ -126,12 +132,14 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
     //  the same words are recorded for the person whose merge this was: the path they want next is still taken, and the output
     //  of a merge is easily missed.
     for removed in &sweep.removed_around {
-        lines.push(crate::worktree_removal_goes_around_a_foreign_volume::landed_around_line(
-            sweep.landed_branch.as_str(),
-            removed.worktree.as_path(),
-            removed.branch.as_str(),
-            removed.left.as_slice(),
-        ));
+        lines.push(
+            crate::worktree_removal_goes_around_a_foreign_volume::landed_around_line(
+                sweep.landed_branch.as_str(),
+                removed.worktree.as_path(),
+                removed.branch.as_str(),
+                removed.left.as_slice(),
+            ),
+        );
     }
     for unfinished in &sweep.unfinished {
         lines.push(format!(

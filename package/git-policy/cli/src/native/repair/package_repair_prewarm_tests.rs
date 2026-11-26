@@ -3,34 +3,71 @@
 //! what it refuses,
 //! and what a hand-over leaves behind when no service can be reached.
 
-use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, common_directory_awaiting, decode, encode, hand_over_with, item_of, object_name_of};
+use super::{
+    PREWARM_REFERENCE,
+    PrewarmEntry,
+    Reach,
+    common_directory_awaiting,
+    decode,
+    encode,
+    hand_over_with,
+    item_of,
+    object_name_of,
+};
 use crate::service_route::Route;
 use crate::service_work::work_directory;
-use crate::test_support::{fixture, git, git_context, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
-use std::path::{Path, PathBuf};
+use crate::work_item::{
+    DONE,
+    FAILED,
+    PENDING,
+    WorkItem,
+    WorkKind,
+    state_directory,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One workspace whose build directory is to be filled,
 /// with two members so the payload holds more than one name.
-fn entry(root: &str, from: &str, to: &str) -> PrewarmEntry {
+fn entry(
+    root: &str,
+    from: &str,
+    to: &str,
+) -> PrewarmEntry {
     return PrewarmEntry {
         root: PathBuf::from(root),
         from: Some(PathBuf::from(from)),
         to: PathBuf::from(to),
-        members: vec![String::from("monochromatic-lint"), String::from("monochromatic-lint-closure")],
+        members: vec![
+            String::from("monochromatic-lint"),
+            String::from("monochromatic-lint-closure"),
+        ],
         staged_in: None,
     };
 }
 
 /// A route finder that names no service,
 /// as a session with no unit for this repository does.
-fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
+fn no_service(
+    _git: &Path,
+    _git_dir: &Path,
+) -> Option<Route> {
     return None;
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(
+    _host: &crate::service_provision::ProvisionHost
+) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 
@@ -38,7 +75,11 @@ fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<
 /// a route finder that finds nothing and a provisioner that sets nothing up,
 /// so no service and no session bus is reached.
 fn no_reach() -> Reach<'static> {
-    return Reach { router: &no_service, provisioner: &nothing_to_set_up, start_wait: std::time::Duration::from_millis(200) };
+    return Reach {
+        router: &no_service,
+        provisioner: &nothing_to_set_up,
+        start_wait: std::time::Duration::from_millis(200),
+    };
 }
 
 /// What:
@@ -50,8 +91,16 @@ fn no_reach() -> Reach<'static> {
 #[test]
 fn two_entries_round_trip_through_the_payload() {
     let entries: Vec<PrewarmEntry> = vec![
-        entry("/w/package/linter/rust", "/var/mnt/encrypted/cargo-build/ae/b0b48f8399eb6a", "/var/mnt/encrypted/cargo-build/6f/0123456789abcd"),
-        entry("/w/package/git-policy/cli", "/var/mnt/encrypted/cargo-build/2b/89abcdef012345", "/var/mnt/encrypted/cargo-build/7c/ba9876543210fe"),
+        entry(
+            "/w/package/linter/rust",
+            "/var/mnt/encrypted/cargo-build/ae/b0b48f8399eb6a",
+            "/var/mnt/encrypted/cargo-build/6f/0123456789abcd",
+        ),
+        entry(
+            "/w/package/git-policy/cli",
+            "/var/mnt/encrypted/cargo-build/2b/89abcdef012345",
+            "/var/mnt/encrypted/cargo-build/7c/ba9876543210fe",
+        ),
     ];
     let text: String = encode(entries.as_slice()).expect("the payload");
     assert_eq!(decode(text.as_str()).expect("the entries"), entries);
@@ -78,7 +127,13 @@ fn a_payload_that_names_no_member_is_refused() {
 ///   A record a person or another release wrote must be reported rather than acted on.
 #[test]
 fn a_payload_of_nothing_is_refused() {
-    for text in ["[]", "not json", "{}", "[{\"root\":\"/w\",\"from\":\"/a\",\"to\":\"/b\",\"members\":[\"x\"]", "{\"root\":\"/w\"}"] {
+    for text in [
+        "[]",
+        "not json",
+        "{}",
+        "[{\"root\":\"/w\",\"from\":\"/a\",\"to\":\"/b\",\"members\":[\"x\"]",
+        "{\"root\":\"/w\"}",
+    ] {
         let refused: Result<Vec<PrewarmEntry>, String> = decode(text);
         assert!(refused.is_err(), "{text} was accepted as {refused:?}");
     }
@@ -102,9 +157,20 @@ fn two_worktrees_get_their_own_object_name() {
     let two: &Path = Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/two");
     let first: String = object_name_of(one, moment);
     assert_eq!(first.len(), 40, "{first}");
-    assert!(first.as_bytes().iter().all(u8::is_ascii_hexdigit), "{first}");
-    assert_ne!(first, object_name_of(two, moment), "two worktrees of one commit are told apart by their paths");
-    assert_ne!(first, object_name_of(one, later), "two hand-overs of one path are told apart by when they were asked for");
+    assert!(
+        first.as_bytes().iter().all(u8::is_ascii_hexdigit),
+        "{first}"
+    );
+    assert_ne!(
+        first,
+        object_name_of(two, moment),
+        "two worktrees of one commit are told apart by their paths"
+    );
+    assert_ne!(
+        first,
+        object_name_of(one, later),
+        "two hand-overs of one path are told apart by when they were asked for"
+    );
 }
 
 /// What:
@@ -121,13 +187,19 @@ fn the_record_names_the_worktree_the_common_directory_and_the_payload() {
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
-    let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
-    let item: WorkItem = item_of(common.as_path(), destination.as_path(), entries.as_slice()).expect("the record");
+    let entries: Vec<PrewarmEntry> =
+        vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+    let item: WorkItem =
+        item_of(common.as_path(), destination.as_path(), entries.as_slice()).expect("the record");
     assert_eq!(item.kind, WorkKind::Prewarm);
     assert_eq!(item.repository, destination);
     assert_eq!(item.git_dir, common);
     assert_eq!(item.branch_ref, PREWARM_REFERENCE);
-    assert_eq!(item.oid, object_name_of(destination.as_path(), item.created.as_str()), "the object name is the worktree's path and the moment the record was written");
+    assert_eq!(
+        item.oid,
+        object_name_of(destination.as_path(), item.created.as_str()),
+        "the object name is the worktree's path and the moment the record was written"
+    );
     assert_eq!(decode(item.parent.as_str()).expect("the entries"), entries);
     remove(root.as_path());
 }
@@ -148,15 +220,30 @@ fn a_hand_over_with_no_service_leaves_the_record_and_says_why() {
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
-    let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
-    let told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
+    let entries: Vec<PrewarmEntry> =
+        vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+    let told: Result<(), String> = hand_over_with(
+        &git_context(),
+        common.as_path(),
+        destination.as_path(),
+        entries.as_slice(),
+        &no_reach(),
+    );
     let reason: String = told.expect_err("a session with no service is reported");
-    assert!(reason.contains("no commit service can be started from this session"), "{reason}");
+    assert!(
+        reason.contains("no commit service can be started from this session"),
+        "{reason}"
+    );
     let queued: Vec<String> = records_in(work_directory(common.as_path()).as_path(), PENDING);
     assert_eq!(queued.len(), 1, "one record is queued: {queued:?}");
-    assert!(queued[0].starts_with("prewarm-"), "the record is a prewarm's: {queued:?}");
-    let record: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING).join(&queued[0]);
-    let text: String = std::fs::read_to_string(record.as_path()).expect("the record the hand-over wrote");
+    assert!(
+        queued[0].starts_with("prewarm-"),
+        "the record is a prewarm's: {queued:?}"
+    );
+    let record: PathBuf =
+        state_directory(work_directory(common.as_path()).as_path(), PENDING).join(&queued[0]);
+    let text: String =
+        std::fs::read_to_string(record.as_path()).expect("the record the hand-over wrote");
     let item: WorkItem = WorkItem::decode(text.as_str()).expect("the record is a work item");
     assert_eq!(item.kind, WorkKind::Prewarm);
     assert_eq!(decode(item.parent.as_str()).expect("the entries"), entries);
@@ -175,8 +262,18 @@ fn a_hand_over_of_nothing_writes_no_record() {
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
-    hand_over_with(&git_context(), common.as_path(), destination.as_path(), &[], &no_reach()).expect("nothing to hand over never fails");
-    assert!(!work_directory(common.as_path()).exists(), "no work directory is made for nothing");
+    hand_over_with(
+        &git_context(),
+        common.as_path(),
+        destination.as_path(),
+        &[],
+        &no_reach(),
+    )
+    .expect("nothing to hand over never fails");
+    assert!(
+        !work_directory(common.as_path()).exists(),
+        "no work directory is made for nothing"
+    );
     remove(root.as_path());
 }
 
@@ -188,7 +285,9 @@ fn a_hand_over_of_nothing_writes_no_record() {
 /// and the record's own acceptability check refused every record of such a repository.
 #[test]
 fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
-    if !in_a_fixture_root_taking_any_name("repair::package_repair_prewarm::tests::the_common_directory_of_a_repository_whose_name_is_not_text_is_gits") {
+    if !in_a_fixture_root_taking_any_name(
+        "repair::package_repair_prewarm::tests::the_common_directory_of_a_repository_whose_name_is_not_text_is_gits",
+    ) {
         return;
     }
     use std::ffi::OsString;
@@ -196,14 +295,20 @@ fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
     let root: PathBuf = fixture("prewarm-common-not-utf8");
     let repo: PathBuf = root.join(OsString::from_vec(b"rep\xefo".to_vec()));
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     let context = git_context();
     let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
         return common_directory_awaiting(&context, repo.as_path()).await;
     })
     .expect("the runtime")
     .expect("Git names the common directory");
-    assert_eq!(named, std::fs::canonicalize(repo.join(".git")).expect("the common directory"));
+    assert_eq!(
+        named,
+        std::fs::canonicalize(repo.join(".git")).expect("the common directory")
+    );
     remove(root.as_path());
 }
 
@@ -231,11 +336,21 @@ fn the_common_directory_of_a_repository_whose_name_ends_in_a_space_is_gits() {
             repo.to_str().expect("a UTF-8 fixture path"),
         ],
     );
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let linked: PathBuf = root.join("linked");
     git(
         repo.as_path(),
-        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "topic",
+            linked.to_str().expect("a UTF-8 fixture path"),
+        ],
     );
     let context = git_context();
     let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
@@ -243,7 +358,10 @@ fn the_common_directory_of_a_repository_whose_name_ends_in_a_space_is_gits() {
     })
     .expect("the runtime")
     .expect("Git names the common directory");
-    assert_eq!(named, std::fs::canonicalize(administered.as_path()).expect("the directory Git made"));
+    assert_eq!(
+        named,
+        std::fs::canonicalize(administered.as_path()).expect("the directory Git made")
+    );
     remove(root.as_path());
 }
 
@@ -260,9 +378,17 @@ fn the_common_directory_of_a_repository_whose_name_ends_in_a_space_is_gits() {
 /// ```ts
 /// const recordsIn = (work, state) => readdirSync(join(work, state)).sort();
 /// ```
-fn records_in(work: &Path, state: &str) -> Vec<String> {
+fn records_in(
+    work: &Path,
+    state: &str,
+) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(state_directory(work, state))
-        .map(|listing| return listing.flatten().filter_map(|entry| return entry.file_name().into_string().ok()).collect())
+        .map(|listing| {
+            return listing
+                .flatten()
+                .filter_map(|entry| return entry.file_name().into_string().ok())
+                .collect();
+        })
         .unwrap_or_default();
     names.sort();
     return names;
@@ -279,9 +405,13 @@ fn records_in(work: &Path, state: &str) -> Vec<String> {
 /// and the control would then prove nothing
 /// (the suite run of 2026-11-11 failed this way).
 fn after_the_clock_moves(moment: &str) {
-    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let deadline: std::time::Instant =
+        std::time::Instant::now() + std::time::Duration::from_secs(30);
     while crate::iso_time::now_iso() == moment {
-        assert!(std::time::Instant::now() < deadline, "the clock did not move past {moment}");
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the clock did not move past {moment}"
+        );
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
@@ -302,31 +432,69 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let root: PathBuf = fixture(format!("prewarm-added-again-{settled}").as_str());
         let common: PathBuf = root.join("common");
         let destination: PathBuf = root.join("topic");
-        let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+        let entries: Vec<PrewarmEntry> =
+            vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
         let work: PathBuf = work_directory(common.as_path());
         std::fs::create_dir_all(common.as_path()).expect("the common directory");
         std::fs::create_dir_all(destination.as_path()).expect("the first worktree");
-        let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
+        let _told: Result<(), String> = hand_over_with(
+            &git_context(),
+            common.as_path(),
+            destination.as_path(),
+            entries.as_slice(),
+            &no_reach(),
+        );
         let first: Vec<String> = records_in(work.as_path(), PENDING);
-        assert_eq!(first.len(), 1, "the first worktree's record is queued: {first:?}");
-        let queued: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&first[0])).expect("the first record");
-        let first_item: WorkItem = WorkItem::decode(queued.as_str()).expect("the first record is a work item");
+        assert_eq!(
+            first.len(),
+            1,
+            "the first worktree's record is queued: {first:?}"
+        );
+        let queued: String =
+            std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&first[0]))
+                .expect("the first record");
+        let first_item: WorkItem =
+            WorkItem::decode(queued.as_str()).expect("the first record is a work item");
         // The object name carries the moment the add asked, so the second hand-over needs a moment of its own: within
         //  one millisecond it would be answered as the first record's known id, and this control proved nothing.
         after_the_clock_moves(first_item.created.as_str());
         // The service runs the record and settles it into the state its verdict names.
         let settled_at: PathBuf = state_directory(work.as_path(), settled).join(&first[0]);
-        std::fs::rename(state_directory(work.as_path(), PENDING).join(&first[0]), settled_at.as_path()).expect("the record is settled");
+        std::fs::rename(
+            state_directory(work.as_path(), PENDING).join(&first[0]),
+            settled_at.as_path(),
+        )
+        .expect("the record is settled");
         // The worktree is removed, and another is added at the same path.
         remove(destination.as_path());
-        std::fs::create_dir_all(destination.as_path()).expect("a worktree added again at the same path");
-        let _told_again: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
+        std::fs::create_dir_all(destination.as_path())
+            .expect("a worktree added again at the same path");
+        let _told_again: Result<(), String> = hand_over_with(
+            &git_context(),
+            common.as_path(),
+            destination.as_path(),
+            entries.as_slice(),
+            &no_reach(),
+        );
         let second: Vec<String> = records_in(work.as_path(), PENDING);
-        assert_eq!(second.len(), 1, "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}");
-        assert_ne!(second[0], first[0], "the second record is not the first one ({settled})");
-        let queued_again: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&second[0])).expect("the second record");
-        let second_item: WorkItem = WorkItem::decode(queued_again.as_str()).expect("the second record is a work item");
-        assert_ne!(second_item.created, first_item.created, "the two hand-overs are two moments ({settled})");
+        assert_eq!(
+            second.len(),
+            1,
+            "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}"
+        );
+        assert_ne!(
+            second[0], first[0],
+            "the second record is not the first one ({settled})"
+        );
+        let queued_again: String =
+            std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&second[0]))
+                .expect("the second record");
+        let second_item: WorkItem =
+            WorkItem::decode(queued_again.as_str()).expect("the second record is a work item");
+        assert_ne!(
+            second_item.created, first_item.created,
+            "the two hand-overs are two moments ({settled})"
+        );
         remove(root.as_path());
     }
 }
@@ -357,15 +525,22 @@ fn every_hand_over_of_one_path_gets_an_object_name_of_its_own() {
     let destination: PathBuf = root.join("topic");
     std::fs::create_dir_all(common.as_path()).expect("the common directory");
     std::fs::create_dir_all(destination.as_path()).expect("the worktree");
-    let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+    let entries: Vec<PrewarmEntry> =
+        vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
     let mut names: Vec<String> = Vec::with_capacity(HAND_OVERS);
     for _ in 0..HAND_OVERS {
-        let item: WorkItem = item_of(common.as_path(), destination.as_path(), entries.as_slice()).expect("the record");
+        let item: WorkItem = item_of(common.as_path(), destination.as_path(), entries.as_slice())
+            .expect("the record");
         names.push(item.oid);
     }
     let mut distinct: Vec<String> = names.clone();
     distinct.sort();
     distinct.dedup();
-    assert_eq!(distinct.len(), names.len(), "each of the {} hand-overs of one path has an object name of its own", names.len());
+    assert_eq!(
+        distinct.len(),
+        names.len(),
+        "each of the {} hand-overs of one path has an object name of its own",
+        names.len()
+    );
     remove(root.as_path());
 }

@@ -4,9 +4,15 @@
 //! and the private name the fallback fills and leaves nothing of.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::fs::OpenOptions;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
 use std::sync::mpsc::channel;
 
 /// A name one copy uses for one entry.
@@ -20,15 +26,24 @@ fn make_pipe(path: &Path) {
     let text: CString = CString::new(path.as_os_str().as_bytes()).expect("path");
     // SAFETY: the string is NUL-terminated and outlives the call, and a new path is made at that name.
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "making the pipe: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        made,
+        0,
+        "making the pipe: {}",
+        std::io::Error::last_os_error()
+    );
 }
 
 /// Whether this process holds a file inside `directory`,
 /// which is the proof that a copy has made the file it is filling.
 fn filling_a_file_in(directory: &Path) -> bool {
-    let Ok(listing) = std::fs::read_dir("/proc/self/fd") else { return false };
+    let Ok(listing) = std::fs::read_dir("/proc/self/fd") else {
+        return false;
+    };
     for listed in listing.flatten() {
-        let Ok(target) = std::fs::read_link(listed.path()) else { continue };
+        let Ok(target) = std::fs::read_link(listed.path()) else {
+            continue;
+        };
         if target.parent() == Some(directory) {
             return true;
         }
@@ -39,7 +54,8 @@ fn filling_a_file_in(directory: &Path) -> bool {
 /// Wait until this process holds a file inside `directory`,
 /// or until the deadline passes.
 fn waiting_for_the_fill_of(directory: &Path) -> bool {
-    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline: std::time::Instant =
+        std::time::Instant::now() + std::time::Duration::from_secs(10);
     while std::time::Instant::now() < deadline {
         if filling_a_file_in(directory) {
             return true;
@@ -73,16 +89,26 @@ fn start_a_held_fill(
     let stage: PathBuf = source.to_path_buf();
     let target: PathBuf = destination.to_path_buf();
     let name: OsString = temporary();
-    let publishing: std::thread::JoinHandle<Result<(), WorktreeCopyError>> = std::thread::spawn(move || {
-        let _told: Result<(), std::sync::mpsc::SendError<()>> = told.send(());
-        return publish_copy_of_file_with(stage.as_path(), target.as_path(), mode, name.as_os_str(), unnamed);
-    });
+    let publishing: std::thread::JoinHandle<Result<(), WorktreeCopyError>> =
+        std::thread::spawn(move || {
+            let _told: Result<(), std::sync::mpsc::SendError<()>> = told.send(());
+            return publish_copy_of_file_with(
+                stage.as_path(),
+                target.as_path(),
+                mode,
+                name.as_os_str(),
+                unnamed,
+            );
+        });
     heard.recv().expect("the publishing thread started");
     let writer: std::fs::File = OpenOptions::new()
         .write(true)
         .open(source)
         .expect("the pipe's writing end");
-    return HeldFill { writer, publishing };
+    return HeldFill {
+        writer,
+        publishing,
+    };
 }
 
 /// While a staged file is being filled,
@@ -95,7 +121,8 @@ fn a_file_being_filled_is_never_readable_under_its_destination_name() {
     let stage: PathBuf = root.join("stage.key");
     make_pipe(stage.as_path());
     let destination: PathBuf = root.join("key.pem");
-    let mut held: HeldFill = start_a_held_fill(stage.as_path(), destination.as_path(), 0o600, open_unnamed);
+    let mut held: HeldFill =
+        start_a_held_fill(stage.as_path(), destination.as_path(), 0o600, open_unnamed);
     assert!(
         waiting_for_the_fill_of(root.as_path()),
         "the copy must have made the file it fills before this control looks"
@@ -103,12 +130,24 @@ fn a_file_being_filled_is_never_readable_under_its_destination_name() {
     let seen: std::io::Result<std::fs::Metadata> = std::fs::symlink_metadata(destination.as_path());
     held.writer.write_all(b"KEY=credential\n").expect("bytes");
     drop(held.writer);
-    let published: Result<(), WorktreeCopyError> = held.publishing.join().expect("the publishing thread");
-    assert!(seen.is_err(), "the destination name held a file while the copy was still filling it");
+    let published: Result<(), WorktreeCopyError> =
+        held.publishing.join().expect("the publishing thread");
+    assert!(
+        seen.is_err(),
+        "the destination name held a file while the copy was still filling it"
+    );
     published.expect("published");
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(destination.as_path()).expect("published");
-    assert_eq!(metadata.permissions().mode() & 0o777, 0o600, "the entry's own mode, at the first look");
-    assert_eq!(std::fs::read(destination.as_path()).expect("bytes"), b"KEY=credential\n");
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(destination.as_path()).expect("published");
+    assert_eq!(
+        metadata.permissions().mode() & 0o777,
+        0o600,
+        "the entry's own mode, at the first look"
+    );
+    assert_eq!(
+        std::fs::read(destination.as_path()).expect("bytes"),
+        b"KEY=credential\n"
+    );
     assert!(
         !root.join(temporary()).exists(),
         "no file of the copy's own name stays beside the entry"
@@ -124,7 +163,12 @@ fn the_fallback_also_fills_under_a_name_of_its_own() {
     let stage: PathBuf = root.join("stage.key");
     make_pipe(stage.as_path());
     let destination: PathBuf = root.join("key.pem");
-    let mut held: HeldFill = start_a_held_fill(stage.as_path(), destination.as_path(), 0o640, unnamed_is_refused);
+    let mut held: HeldFill = start_a_held_fill(
+        stage.as_path(),
+        destination.as_path(),
+        0o640,
+        unnamed_is_refused,
+    );
     assert!(
         waiting_for_the_fill_of(root.as_path()),
         "the copy must have made the file it fills before this control looks"
@@ -136,19 +180,33 @@ fn the_fallback_also_fills_under_a_name_of_its_own() {
     );
     held.writer.write_all(b"KEY=credential\n").expect("bytes");
     drop(held.writer);
-    let published: Result<(), WorktreeCopyError> = held.publishing.join().expect("the publishing thread");
-    assert!(seen.is_err(), "the destination name held a file while the copy was still filling it");
+    let published: Result<(), WorktreeCopyError> =
+        held.publishing.join().expect("the publishing thread");
+    assert!(
+        seen.is_err(),
+        "the destination name held a file while the copy was still filling it"
+    );
     published.expect("published");
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(destination.as_path()).expect("published");
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(destination.as_path()).expect("published");
     assert_eq!(metadata.permissions().mode() & 0o777, 0o640);
-    assert_eq!(std::fs::read(destination.as_path()).expect("bytes"), b"KEY=credential\n");
-    assert!(!root.join(temporary()).exists(), "the private name goes with the publication");
+    assert_eq!(
+        std::fs::read(destination.as_path()).expect("bytes"),
+        b"KEY=credential\n"
+    );
+    assert!(
+        !root.join(temporary()).exists(),
+        "the private name goes with the publication"
+    );
     remove(root.as_path());
 }
 
 /// A filesystem that refuses the unnamed file,
 /// as the fallback's systems do.
-fn unnamed_is_refused(_directory: &std::fs::File, _mode: u32) -> std::io::Result<std::fs::File> {
+fn unnamed_is_refused(
+    _directory: &std::fs::File,
+    _mode: u32,
+) -> std::io::Result<std::fs::File> {
     return Err(std::io::Error::from_raw_os_error(libc::EOPNOTSUPP));
 }
 
@@ -162,8 +220,18 @@ fn a_temporary_left_by_a_killed_run_is_removed_and_never_published() {
     let left: PathBuf = root.join(temporary());
     std::fs::write(left.as_path(), b"half").expect("leftover");
     let destination: PathBuf = root.join("key.pem");
-    publish_copy_of_file_with(stage.as_path(), destination.as_path(), 0o600, temporary().as_os_str(), unnamed_is_refused).expect("published");
-    assert_eq!(std::fs::read(destination.as_path()).expect("bytes"), b"KEY=whole\n");
+    publish_copy_of_file_with(
+        stage.as_path(),
+        destination.as_path(),
+        0o600,
+        temporary().as_os_str(),
+        unnamed_is_refused,
+    )
+    .expect("published");
+    assert_eq!(
+        std::fs::read(destination.as_path()).expect("bytes"),
+        b"KEY=whole\n"
+    );
     assert!(!left.exists(), "the name the killed run left is gone");
     remove(root.as_path());
 }
@@ -172,17 +240,40 @@ fn a_temporary_left_by_a_killed_run_is_removed_and_never_published() {
 /// by the unnamed link or by the fallback's rename that does not replace.
 #[test]
 fn an_entry_already_at_the_destination_name_is_kept() {
-    for (label, unnamed) in [("unnamed", open_unnamed as fn(&std::fs::File, u32) -> std::io::Result<std::fs::File>), ("fallback", unnamed_is_refused)] {
+    for (label, unnamed) in [
+        (
+            "unnamed",
+            open_unnamed as fn(&std::fs::File, u32) -> std::io::Result<std::fs::File>,
+        ),
+        ("fallback", unnamed_is_refused),
+    ] {
         let root: PathBuf = fixture(format!("publish-existing-{label}").as_str());
         let stage: PathBuf = root.join("stage.key");
         std::fs::write(stage.as_path(), b"KEY=staged\n").expect("stage");
         let destination: PathBuf = root.join("key.pem");
         std::fs::write(destination.as_path(), b"KEY=theirs\n").expect("existing entry");
-        let published: Result<(), WorktreeCopyError> = publish_copy_of_file_with(stage.as_path(), destination.as_path(), 0o600, temporary().as_os_str(), unnamed);
-        assert!(published.is_err(), "{label}: a publication must not replace an entry");
-        assert_eq!(std::fs::read(destination.as_path()).expect("kept"), b"KEY=theirs\n", "{label}");
+        let published: Result<(), WorktreeCopyError> = publish_copy_of_file_with(
+            stage.as_path(),
+            destination.as_path(),
+            0o600,
+            temporary().as_os_str(),
+            unnamed,
+        );
+        assert!(
+            published.is_err(),
+            "{label}: a publication must not replace an entry"
+        );
         assert_eq!(
-            std::fs::symlink_metadata(destination.as_path()).expect("kept").permissions().mode() & 0o777,
+            std::fs::read(destination.as_path()).expect("kept"),
+            b"KEY=theirs\n",
+            "{label}"
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(destination.as_path())
+                .expect("kept")
+                .permissions()
+                .mode()
+                & 0o777,
             0o644,
             "{label}: the existing entry keeps its mode"
         );
@@ -198,8 +289,17 @@ fn a_refused_fallback_publication_leaves_no_private_name() {
     std::fs::write(stage.as_path(), b"KEY=staged\n").expect("stage");
     let destination: PathBuf = root.join("key.pem");
     std::fs::write(destination.as_path(), b"KEY=theirs\n").expect("existing entry");
-    let _ = publish_copy_of_file_with(stage.as_path(), destination.as_path(), 0o600, temporary().as_os_str(), unnamed_is_refused);
-    assert!(!root.join(temporary()).exists(), "the temporary goes with the refused publication");
+    let _ = publish_copy_of_file_with(
+        stage.as_path(),
+        destination.as_path(),
+        0o600,
+        temporary().as_os_str(),
+        unnamed_is_refused,
+    );
+    assert!(
+        !root.join(temporary()).exists(),
+        "the temporary goes with the refused publication"
+    );
     remove(root.as_path());
 }
 
@@ -208,7 +308,12 @@ fn a_refused_fallback_publication_leaves_no_private_name() {
 fn a_missing_staged_file_leaves_nothing_at_the_destination_name() {
     let root: PathBuf = fixture("publish-missing-stage");
     let destination: PathBuf = root.join("key.pem");
-    let published: Result<(), WorktreeCopyError> = publish_copy_of_file(root.join("absent").as_path(), destination.as_path(), 0o600, temporary().as_os_str());
+    let published: Result<(), WorktreeCopyError> = publish_copy_of_file(
+        root.join("absent").as_path(),
+        destination.as_path(),
+        0o600,
+        temporary().as_os_str(),
+    );
     assert!(published.is_err());
     assert!(std::fs::symlink_metadata(destination.as_path()).is_err());
     assert!(!root.join(temporary()).exists());
@@ -240,7 +345,9 @@ fn the_private_name_names_the_stage_and_the_entry() {
 #[test]
 fn the_private_name_is_the_one_this_release_computes() {
     assert_eq!(
-        temporary_name_of(".cli-git-worktree-copy-one", b"cache/a").to_str().expect("text"),
+        temporary_name_of(".cli-git-worktree-copy-one", b"cache/a")
+            .to_str()
+            .expect("text"),
         ".monochromatic-git-policy-cli-partial-66f6f876576d64a7"
     );
 }
@@ -253,10 +360,21 @@ fn a_published_file_shares_no_storage_with_the_stage() {
     let stage: PathBuf = root.join("stage.key");
     std::fs::write(stage.as_path(), b"KEY=staged\n").expect("stage");
     let destination: PathBuf = root.join("key.pem");
-    publish_copy_of_file_with(stage.as_path(), destination.as_path(), 0o600, temporary().as_os_str(), unnamed_is_refused).expect("published");
+    publish_copy_of_file_with(
+        stage.as_path(),
+        destination.as_path(),
+        0o600,
+        temporary().as_os_str(),
+        unnamed_is_refused,
+    )
+    .expect("published");
     assert_ne!(
-        std::fs::symlink_metadata(stage.as_path()).expect("stage").ino(),
-        std::fs::symlink_metadata(destination.as_path()).expect("published").ino(),
+        std::fs::symlink_metadata(stage.as_path())
+            .expect("stage")
+            .ino(),
+        std::fs::symlink_metadata(destination.as_path())
+            .expect("published")
+            .ino(),
         "the copy is its own object"
     );
     remove(root.as_path());
@@ -292,16 +410,25 @@ fn a_pipe_where_the_destinations_directory_was_is_refused_without_waiting() {
     make_pipe(directory.as_path());
     let destination: PathBuf = directory.join("file");
     let wanted: (PathBuf, PathBuf, OsString) = (stage.clone(), destination.clone(), temporary());
-    let answered: Option<Result<(), WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
-        crate::parallel_test_support::PATIENCE,
-        move || {
-            return publish_copy_of_file(wanted.0.as_path(), wanted.1.as_path(), 0o600, wanted.2.as_os_str());
-        },
-    );
+    let answered: Option<Result<(), WorktreeCopyError>> =
+        crate::parallel_test_support::finished_within_at(
+            crate::parallel_test_support::PATIENCE,
+            move || {
+                return publish_copy_of_file(
+                    wanted.0.as_path(),
+                    wanted.1.as_path(),
+                    0o600,
+                    wanted.2.as_os_str(),
+                );
+            },
+        );
     let Some(outcome) = answered else {
-        panic!("the publication waited for a writer of the named pipe where the destination's directory was and never came");
+        panic!(
+            "the publication waited for a writer of the named pipe where the destination's directory was and never came"
+        );
     };
-    let failure: WorktreeCopyError = outcome.expect_err("a named pipe is no directory to publish into");
+    let failure: WorktreeCopyError =
+        outcome.expect_err("a named pipe is no directory to publish into");
     assert!(
         failure.0.contains(directory.to_string_lossy().as_ref()),
         "the refusal names the directory: {}",

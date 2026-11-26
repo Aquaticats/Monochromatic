@@ -15,7 +15,10 @@
 //! const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
 //! ```
 
-use git_policy_cli::service_client_listen_and_ask_to_retire::{Reached, reach};
+use git_policy_cli::service_client_listen_and_ask_to_retire::{
+    Reached,
+    reach,
+};
 use git_policy_cli::service_server::Bind;
 
 /// How long the fixture's service may show no sign of work before the fixture fails the control,
@@ -53,7 +56,10 @@ impl SignsOfWork {
     /// The signs of the service `pid` now.
     pub(crate) fn of(pid: u32) -> SignsOfWork {
         let (ticks, bytes): (u64, u64) = SignsOfWork::read(pid);
-        return SignsOfWork { ticks, bytes };
+        return SignsOfWork {
+            ticks,
+            bytes,
+        };
     }
 
     /// The counters of the service `pid`,
@@ -63,7 +69,9 @@ impl SignsOfWork {
         // The fields after the process name: state, then the user and system times, which only grow.
         let ticks: u64 = stat
             .rfind(')')
-            .and_then(|close| { return stat.get(close + 2..); })
+            .and_then(|close| {
+                return stat.get(close + 2..);
+            })
             .and_then(|after_name| {
                 let fields: Vec<&str> = after_name.split(' ').collect();
                 let user: u64 = fields.get(11)?.parse().ok()?;
@@ -74,7 +82,9 @@ impl SignsOfWork {
         let io: String = std::fs::read_to_string(format!("/proc/{pid}/io")).unwrap_or_default();
         let mut bytes: u64 = 0;
         for line in io.lines() {
-            let value: &str = match line.strip_prefix("rchar: ").or_else(|| { return line.strip_prefix("wchar: "); }) {
+            let value: &str = match line.strip_prefix("rchar: ").or_else(|| {
+                return line.strip_prefix("wchar: ");
+            }) {
                 Some(count) => count,
                 None => continue,
             };
@@ -85,7 +95,10 @@ impl SignsOfWork {
 
     /// Whether the service moved since the last call,
     /// and takes the signs read now.
-    pub(crate) fn changed(&mut self, pid: u32) -> bool {
+    pub(crate) fn changed(
+        &mut self,
+        pid: u32,
+    ) -> bool {
         let (ticks, bytes): (u64, u64) = SignsOfWork::read(pid);
         let moved: bool = ticks != self.ticks || bytes != self.bytes;
         self.ticks = ticks;
@@ -114,13 +127,19 @@ impl SignsOfWork {
 /// ```
 pub fn service_is_serving(address: &Bind) -> bool {
     use std::io::BufRead;
-    let Reached::Ours(stream) = reach(address) else { return false };
+    let Reached::Ours(stream) = reach(address) else {
+        return false;
+    };
     // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
     //  caller's loop, which has its own bound.
     let _timeout = stream.set_read_timeout(Some(GREETING_READ));
     let mut line: String = String::new();
     // An empty read is a connection that ended without a greeting: the service went away as it was starting.
-    return std::io::BufReader::new(stream).read_line(&mut line).is_ok_and(|read| { return read > 0; });
+    return std::io::BufReader::new(stream)
+        .read_line(&mut line)
+        .is_ok_and(|read| {
+            return read > 0;
+        });
 }
 
 /// How long one readiness check waits for the greeting.

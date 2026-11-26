@@ -14,18 +14,44 @@
 //! const { commits, newTip } = await objectsOfBatch(...)
 //! ```
 
+use crate::service_built_checks::{
+    BuiltCommit,
+    adds_only_present_objects,
+    read_commit,
+};
 use crate::service_fault::reach;
-use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, read_commit};
 use crate::service_land_follow::classify;
-use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput};
-use std::path::{Path, PathBuf};
-use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
+use crate::service_land_git_steps_and_import_stream::{
+    commits_from_marks,
+    import_stream,
+    run,
+};
 use crate::service_land_settings::Settings;
-use crate::service_land_side_reference_write::{ASideRefWrite, keep_on_the_scratch_reference, remember_the_tip_a_side_reference_does_not_hold};
+use crate::service_land_side_reference_write::{
+    ASideRefWrite,
+    keep_on_the_scratch_reference,
+    remember_the_tip_a_side_reference_does_not_hold,
+};
 use crate::service_land_without_its_scratch_reference::remember_why_it_has_none;
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+    is_zero_object,
+};
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
-use crate::side_reference_written_here::{SideReferenceWrite, SideReferenceWritePlan, write_side_reference};
+use crate::side_reference_written_here::{
+    SideReferenceWrite,
+    SideReferenceWritePlan,
+    write_side_reference,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Makes the commits a batch lands:
@@ -59,8 +85,13 @@ pub(crate) fn objects_of_batch(
         //  commit has the branch tip first (a merge conclusion has the merged commits after it).
         // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
         //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
-        let read: Option<BuiltCommit> = if settings.plain_history { read_commit(git, repository, first.common_dir.as_path(), built) } else { None };
-        let (named_itself, parents): (bool, Vec<String>) = the_parents_of(git, repository, built, read.as_ref())?;
+        let read: Option<BuiltCommit> = if settings.plain_history {
+            read_commit(git, repository, first.common_dir.as_path(), built)
+        } else {
+            None
+        };
+        let (named_itself, parents): (bool, Vec<String>) =
+            the_parents_of(git, repository, built, read.as_ref())?;
         let acceptable: bool = if first.amend {
             parents == amended_parents
         } else if unborn {
@@ -77,11 +108,17 @@ pub(crate) fn objects_of_batch(
         // A commit whose one parent is the tip adds the objects that differ from the tip's tree, and the object store shows
         //  they are all there; any other commit, and any object that looks absent, is checked by the `rev-list` Git always ran.
         let proven: bool = match read.as_ref() {
-            Some(commit) => !unborn && adds_only_present_objects(first.common_dir.as_path(), commit, old),
+            Some(commit) => {
+                !unborn && adds_only_present_objects(first.common_dir.as_path(), commit, old)
+            }
             None => false,
         };
         if !proven {
-            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old] };
+            let connected: Vec<&str> = if unborn {
+                vec!["rev-list", "--objects", built]
+            } else {
+                vec!["rev-list", "--objects", built, "--not", old]
+            };
             if !run(git, repository, connected.as_slice(), None)?.succeeded() {
                 return Err(FailureCode::Unavailable);
             }
@@ -103,10 +140,12 @@ pub(crate) fn objects_of_batch(
         //  the reference exactly as it did before, its refusals in its own words (`side_reference_written_here.rs`).
         let here: Option<ASideRefWrite> = match settings.side_reference {
             SideReferenceWritePlan::LeftToGit => None,
-            SideReferenceWritePlan::Here(mark) => match write_side_reference(first.git_dir.as_path(), scratch, built, mark) {
-                SideReferenceWrite::Written => Some(ASideRefWrite::Written),
-                SideReferenceWrite::LeftToGit => None,
-            },
+            SideReferenceWritePlan::Here(mark) => {
+                match write_side_reference(first.git_dir.as_path(), scratch, built, mark) {
+                    SideReferenceWrite::Written => Some(ASideRefWrite::Written),
+                    SideReferenceWrite::LeftToGit => None,
+                }
+            }
         };
         let written: ASideRefWrite = match here {
             Some(done) => done,
@@ -115,20 +154,31 @@ pub(crate) fn objects_of_batch(
         return match written {
             ASideRefWrite::Written => Ok((vec![built.to_string()], built.to_string())),
             ASideRefWrite::Refused(words) => {
-                crate::service_error!("batch {seq}: the commit Git built lands without its own reference: Git refused the write of {scratch} ({words})");
+                crate::service_error!(
+                    "batch {seq}: the commit Git built lands without its own reference: Git refused the write of {scratch} ({words})"
+                );
                 remember_why_it_has_none(format!("Git refused the write of {scratch} ({words})"));
                 Ok((vec![built.to_string()], built.to_string()))
             }
             ASideRefWrite::LeftRunning => {
-                crate::service_error!("batch {seq}: the commit Git built lands without its own reference: the write of {scratch} was left running, so whether it names the commit is not known");
-                remember_why_it_has_none(format!("this command stopped waiting for the write of {scratch}, so whether that reference names it is not known"));
+                crate::service_error!(
+                    "batch {seq}: the commit Git built lands without its own reference: the write of {scratch} was left running, so whether it names the commit is not known"
+                );
+                remember_why_it_has_none(format!(
+                    "this command stopped waiting for the write of {scratch}, so whether that reference names it is not known"
+                ));
                 Ok((vec![built.to_string()], built.to_string()))
             }
             // Git could not be run, or the service's stop ended the write: the branch write that would name the commit cannot run
             //  either, so the commit is kept beside the failure (`keep_what_a_side_reference_write_left`).
             ASideRefWrite::Ended(code) => {
-                crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch}, because the write of it was ended ({code:?})");
-                remember_the_tip_a_side_reference_does_not_hold(built, format!("the write of {scratch} was ended ({code:?})"));
+                crate::service_error!(
+                    "batch {seq}: the commit Git built cannot be kept on {scratch}, because the write of it was ended ({code:?})"
+                );
+                remember_the_tip_a_side_reference_does_not_hold(
+                    built,
+                    format!("the write of {scratch} was ended ({code:?})"),
+                );
                 Err(code)
             }
         };
@@ -148,13 +198,23 @@ pub(crate) fn objects_of_batch(
         // The import moves `refs/worktree/cli-git-service/<seq>` at its end, and a service killed between that and the intent
         //  leaves the reference with nothing that names its worktree; the record written here is what a restart finds it by
         //  (`service_scratch_ref_marker_of_a_batch.rs`).
-        record_scratch_ref(journal, seq, first.repository.as_path(), first.git_dir.as_path());
+        record_scratch_ref(
+            journal,
+            seq,
+            first.repository.as_path(),
+            first.git_dir.as_path(),
+        );
         let mut import_arguments: Vec<&str> = Vec::new();
         if settings.import_fsync.is_some() {
             import_arguments.extend(["-c", fsync_setting.as_str()]);
         }
         import_arguments.extend(["fast-import", "--done", marks_argument.as_str()]);
-        let imported: GitOutput = run(git, repository, import_arguments.as_slice(), Some(import_stream(scratch, old, batch, amended_parents)))?;
+        let imported: GitOutput = run(
+            git,
+            repository,
+            import_arguments.as_slice(),
+            Some(import_stream(scratch, old, batch, amended_parents)),
+        )?;
         // What this import made, and the cause the person is told when its own reference is what the repository refused.
         let mut refused_reference: Option<String> = None;
         let (made, last): (Vec<String>, String) = if imported.succeeded() {
@@ -164,7 +224,8 @@ pub(crate) fn objects_of_batch(
                 Ok(read_marks) => read_marks,
                 Err(_unreadable) => return Err(FailureCode::Unavailable),
             };
-            let made: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;
+            let made: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len())
+                .ok_or(FailureCode::Unavailable)?;
             let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
             (made, last)
         } else {
@@ -177,16 +238,26 @@ pub(crate) fn objects_of_batch(
             //  (`service_land_without_its_scratch_reference.rs`).
             // The whole of Git's words go to the service's log, and the person reads the line that names the refusal: the
             //  import follows it with its statistics report, which is no sentence for a person (`the_refusal_line_of`).
-            let refused: String = crate::service_land_side_reference_write::refused_words_of(&imported);
-            let told: String = crate::service_land_side_reference_write::the_refusal_line_of(&imported);
-            let whole: Option<Vec<String>> = match imported.code.is_some() && marks_are_this_attempts {
+            let refused: String =
+                crate::service_land_side_reference_write::refused_words_of(&imported);
+            let told: String =
+                crate::service_land_side_reference_write::the_refusal_line_of(&imported);
+            let whole: Option<Vec<String>> = match imported.code.is_some()
+                && marks_are_this_attempts
+            {
                 true => the_commits_a_refused_reference_left_unnamed(marks.as_path(), batch.len()),
                 false => None,
             };
-            let Some(made) = whole else { return Err(classify(&imported)) };
+            let Some(made) = whole else {
+                return Err(classify(&imported));
+            };
             let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
-            crate::service_error!("batch {seq}: the batch without its own reference: the import could not write {scratch} ({refused})");
-            refused_reference = Some(format!("the import of this batch could not write {scratch} ({told})"));
+            crate::service_error!(
+                "batch {seq}: the batch without its own reference: the import could not write {scratch} ({refused})"
+            );
+            refused_reference = Some(format!(
+                "the import of this batch could not write {scratch} ({told})"
+            ));
             (made, last)
         };
         // The last door of this path, where the path that takes a commit Git built has its own: a branch write asks `update-ref`
@@ -199,9 +270,19 @@ pub(crate) fn objects_of_batch(
         } else {
             Some(old)
         };
-        if !the_commit_this_attempt_built_stands_on(git, repository, made.first().map(String::as_str), expected, first, settings)? {
+        if !the_commit_this_attempt_built_stands_on(
+            git,
+            repository,
+            made.first().map(String::as_str),
+            expected,
+            first,
+            settings,
+        )? {
             let first_made: String = made.first().cloned().unwrap_or_default();
-            let why: String = format!("the import of this batch built {first_made} on another base than the one this attempt found ({})", expected.unwrap_or("no parent"));
+            let why: String = format!(
+                "the import of this batch built {first_made} on another base than the one this attempt found ({})",
+                expected.unwrap_or("no parent")
+            );
             crate::service_error!("batch {seq}: {why}, so this batch is not landed");
             remember_the_tip_a_side_reference_does_not_hold(last.as_str(), why);
             return Err(FailureCode::Unavailable);
@@ -230,7 +311,12 @@ pub(crate) fn objects_of_batch(
 /// ```ts
 /// const { namedItself, parents } = await theParentsOf(git, repo, commit, readCommit?)
 /// ```
-fn the_parents_of(git: &GitContext, repository: &Path, commit: &str, read: Option<&BuiltCommit>) -> Result<(bool, Vec<String>), FailureCode> {
+fn the_parents_of(
+    git: &GitContext,
+    repository: &Path,
+    commit: &str,
+    read: Option<&BuiltCommit>,
+) -> Result<(bool, Vec<String>), FailureCode> {
     let Some(commit_read) = read else {
         let listed: Vec<&str> = vec!["rev-list", "--parents", "--max-count=1", commit];
         let listing: GitOutput = run(git, repository, listed.as_slice(), None)?;
@@ -266,12 +352,15 @@ fn the_commit_this_attempt_built_stands_on(
     first: &CommitRequest,
     settings: &Settings<'_>,
 ) -> Result<bool, FailureCode> {
-    let Some(built) = commit else { return Ok(false) };
+    let Some(built) = commit else {
+        return Ok(false);
+    };
     let read: Option<BuiltCommit> = match settings.plain_history {
         true => read_commit(git, repository, first.common_dir.as_path(), built),
         false => None,
     };
-    let (named_itself, parents): (bool, Vec<String>) = the_parents_of(git, repository, built, read.as_ref())?;
+    let (named_itself, parents): (bool, Vec<String>) =
+        the_parents_of(git, repository, built, read.as_ref())?;
     return Ok(named_itself && parents.first().map(String::as_str) == expected);
 }
 
@@ -290,12 +379,18 @@ fn the_commit_this_attempt_built_stands_on(
 /// ```ts
 /// const fresh = (marks) => { try { unlinkSync(marks); return true } catch (error) { return error.code === 'ENOENT' } }
 /// ```
-fn fresh_marks_file(marks: &Path, seq: u64) -> bool {
+fn fresh_marks_file(
+    marks: &Path,
+    seq: u64,
+) -> bool {
     return match std::fs::remove_file(marks) {
         Ok(()) => true,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
         Err(error) => {
-            crate::service_error!("batch {seq}: the marks file {} of an earlier attempt could not be removed ({error}), so no marks are read for this attempt", marks.display());
+            crate::service_error!(
+                "batch {seq}: the marks file {} of an earlier attempt could not be removed ({error}), so no marks are read for this attempt",
+                marks.display()
+            );
             false
         }
     };
@@ -317,7 +412,10 @@ fn fresh_marks_file(marks: &Path, seq: u64) -> bool {
 /// ```ts
 /// const made = commitsFromMarks(readMarks(marks), requests) // nothing unless every request is there
 /// ```
-fn the_commits_a_refused_reference_left_unnamed(marks: &Path, requests: usize) -> Option<Vec<String>> {
+fn the_commits_a_refused_reference_left_unnamed(
+    marks: &Path,
+    requests: usize,
+) -> Option<Vec<String>> {
     let text: String = std::fs::read_to_string(marks).ok()?;
     return commits_from_marks(text.as_str(), requests);
 }

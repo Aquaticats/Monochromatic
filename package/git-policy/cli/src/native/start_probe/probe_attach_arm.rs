@@ -26,11 +26,26 @@
 //! const attached = attachSnapshot(slotDescriptor, 'pool/dataset@ready'); // { mountId, mount }
 //! ```
 
-use super::probe_attach_verify::{AttachEvidence, verify_after_move};
+use super::probe_attach_verify::{
+    AttachEvidence,
+    verify_after_move,
+};
 use super::probe_call_error::CallError;
-use super::probe_descriptor_calls::{NODEV_OPTION, NOSUID_OPTION, READ_ONLY_OPTION, SOURCE_OPTION, ZFS_FILESYSTEM, fsconfig_create, fsconfig_flag, fsconfig_text, fsopen, fsmount, move_mount_onto_descriptor};
-use super::probe_mount_calls::mount_id_of;
+use super::probe_descriptor_calls::{
+    NODEV_OPTION,
+    NOSUID_OPTION,
+    READ_ONLY_OPTION,
+    SOURCE_OPTION,
+    ZFS_FILESYSTEM,
+    fsconfig_create,
+    fsconfig_flag,
+    fsconfig_text,
+    fsmount,
+    fsopen,
+    move_mount_onto_descriptor,
+};
 use super::probe_errno_names::errno_of;
+use super::probe_mount_calls::mount_id_of;
 use std::os::fd::AsRawFd;
 
 /// What:
@@ -62,8 +77,14 @@ impl AttachFailure {
 
 /// The step one call is,
 /// so a failure names it.
-fn failed(step: super::probe_arms::ProbeStep, error: CallError) -> AttachFailure {
-    return AttachFailure { step, errno: Some(error.errno) };
+fn failed(
+    step: super::probe_arms::ProbeStep,
+    error: CallError,
+) -> AttachFailure {
+    return AttachFailure {
+        step,
+        errno: Some(error.errno),
+    };
 }
 
 /// What:
@@ -94,23 +115,34 @@ pub fn attach_snapshot<F: FnMut(super::probe_arms::ProbeStep)>(
     mut on_step: F,
 ) -> Result<AttachEvidence, AttachFailure> {
     use super::probe_arms::ProbeStep;
-    let context = fsopen(ZFS_FILESYSTEM).map_err(|error| return failed(ProbeStep::AttachContext, error))?;
+    let context =
+        fsopen(ZFS_FILESYSTEM).map_err(|error| return failed(ProbeStep::AttachContext, error))?;
     on_step(ProbeStep::AttachContext);
-    fsconfig_text(context.as_raw_fd(), SOURCE_OPTION, source).map_err(|error| return failed(ProbeStep::AttachSource, error))?;
+    fsconfig_text(context.as_raw_fd(), SOURCE_OPTION, source)
+        .map_err(|error| return failed(ProbeStep::AttachSource, error))?;
     on_step(ProbeStep::AttachSource);
     for option in [READ_ONLY_OPTION, NOSUID_OPTION, NODEV_OPTION] {
-        fsconfig_flag(context.as_raw_fd(), option).map_err(|error| return failed(ProbeStep::AttachOptions, error))?;
+        fsconfig_flag(context.as_raw_fd(), option)
+            .map_err(|error| return failed(ProbeStep::AttachOptions, error))?;
     }
     on_step(ProbeStep::AttachOptions);
-    fsconfig_create(context.as_raw_fd(), true).map_err(|error| return failed(ProbeStep::AttachExclusiveCreate, error))?;
+    fsconfig_create(context.as_raw_fd(), true)
+        .map_err(|error| return failed(ProbeStep::AttachExclusiveCreate, error))?;
     on_step(ProbeStep::AttachExclusiveCreate);
-    let mount = fsmount(context.as_raw_fd()).map_err(|error| return failed(ProbeStep::AttachMountDescriptor, error))?;
+    let mount = fsmount(context.as_raw_fd())
+        .map_err(|error| return failed(ProbeStep::AttachMountDescriptor, error))?;
     let mount_id: u64 = match mount_id_of(mount.as_raw_fd()) {
         Ok(number) => number,
-        Err(_) => return Err(AttachFailure { step: ProbeStep::AttachMountDescriptor, errno: Some(libc::ENOENT) }),
+        Err(_) => {
+            return Err(AttachFailure {
+                step: ProbeStep::AttachMountDescriptor,
+                errno: Some(libc::ENOENT),
+            });
+        }
     };
     on_step(ProbeStep::AttachMountDescriptor);
-    move_mount_onto_descriptor(mount.as_raw_fd(), slot.as_raw_fd()).map_err(|error| return failed(ProbeStep::AttachPlace, error))?;
+    move_mount_onto_descriptor(mount.as_raw_fd(), slot.as_raw_fd())
+        .map_err(|error| return failed(ProbeStep::AttachPlace, error))?;
     on_step(ProbeStep::AttachPlace);
     // The mount descriptor holds a reference on the mount, and a reference the worker keeps would make the unmount arm answer EBUSY.
     if keep_descriptor {
@@ -118,7 +150,12 @@ pub fn attach_snapshot<F: FnMut(super::probe_arms::ProbeStep)>(
     } else {
         drop(mount);
     }
-    let evidence = verify_after_move(slot_path, mount_id, source).map_err(|failure| return AttachFailure { step: ProbeStep::VerifyMount, errno: failure.errno })?;
+    let evidence = verify_after_move(slot_path, mount_id, source).map_err(|failure| {
+        return AttachFailure {
+            step: ProbeStep::VerifyMount,
+            errno: failure.errno,
+        };
+    })?;
     on_step(ProbeStep::VerifyMount);
     return Ok(evidence);
 }

@@ -20,7 +20,10 @@
 //! const ceiling = CopyCeiling.lasting(OWED_COPY_CEILING); if (ceiling.reached()) return stopped(ceiling);
 //! ```
 
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  How long a command that finishes a copy it did not start may spend on it.
@@ -59,7 +62,10 @@ pub struct CopyCeiling {
 impl CopyCeiling {
     /// A copy no bound holds: the creating command's own.
     pub const fn unbounded() -> CopyCeiling {
-        return CopyCeiling { deadline: None, longest: None };
+        return CopyCeiling {
+            deadline: None,
+            longest: None,
+        };
     }
 
     /// A copy that must stop `longest` from now.
@@ -70,10 +76,15 @@ impl CopyCeiling {
     /// ```
     pub fn lasting(longest: Duration) -> CopyCeiling {
         #[cfg(test)]
-        let shortened: Duration = SHORTER_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(longest);
+        let shortened: Duration = SHORTER_FOR_THIS_THREAD
+            .with(std::cell::Cell::get)
+            .unwrap_or(longest);
         #[cfg(not(test))]
         let shortened: Duration = longest;
-        return CopyCeiling { deadline: Some(Instant::now() + shortened), longest: Some(shortened) };
+        return CopyCeiling {
+            deadline: Some(Instant::now() + shortened),
+            longest: Some(shortened),
+        };
     }
 
     /// Whether the copy has run past its bound,
@@ -84,7 +95,9 @@ impl CopyCeiling {
     /// reached(): boolean { return this.deadline !== undefined && performance.now() >= this.deadline; }
     /// ```
     pub fn reached(&self) -> bool {
-        return self.deadline.is_some_and(|deadline| { return Instant::now() >= deadline; });
+        return self.deadline.is_some_and(|deadline| {
+            return Instant::now() >= deadline;
+        });
     }
 
     /// What a stopped copy's failure says.
@@ -99,7 +112,9 @@ impl CopyCeiling {
     /// stoppedSentence(): string { return `... did not finish within the ${seconds}-second ceiling ...`; }
     /// ```
     pub fn stopped_sentence(&self) -> String {
-        let seconds: u64 = self.longest.map_or(0, |longest| { return longest.as_secs(); });
+        let seconds: u64 = self.longest.map_or(0, |longest| {
+            return longest.as_secs();
+        });
         return format!(
             "monochromatic-git-policy-cli: the ignored-state copy did not finish within the {seconds}-second ceiling one command holds for a copy it did not start, so it was stopped and its worktree's ignored files are still missing."
         );
@@ -112,7 +127,10 @@ impl CopyCeiling {
     /// stoppedError(): WorktreeCopyError { return new WorktreeCopyError(this.stoppedSentence()); }
     /// ```
     pub fn stopped_error(&self) -> crate::worktree_copy_error::WorktreeCopyError {
-        return crate::worktree_copy_error::failure_with_cause(self.stopped_sentence().as_str(), None);
+        return crate::worktree_copy_error::failure_with_cause(
+            self.stopped_sentence().as_str(),
+            None,
+        );
     }
 }
 
@@ -136,7 +154,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub fn a_shorter_ceiling_for_this_thread(longest: Duration) -> ShorterCeilingForTheControl {
-    SHORTER_FOR_THIS_THREAD.with(|cell| { return cell.set(Some(longest)); });
+    SHORTER_FOR_THIS_THREAD.with(|cell| {
+        return cell.set(Some(longest));
+    });
     return ShorterCeilingForTheControl;
 }
 
@@ -148,7 +168,9 @@ pub struct ShorterCeilingForTheControl;
 #[cfg(test)]
 impl Drop for ShorterCeilingForTheControl {
     fn drop(&mut self) {
-        SHORTER_FOR_THIS_THREAD.with(|cell| { return cell.set(None); });
+        SHORTER_FOR_THIS_THREAD.with(|cell| {
+            return cell.set(None);
+        });
     }
 }
 

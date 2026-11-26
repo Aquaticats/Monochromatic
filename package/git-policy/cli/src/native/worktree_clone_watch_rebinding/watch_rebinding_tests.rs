@@ -10,11 +10,20 @@
 //! names.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a control waits for one inotify event before it calls the wait a silence.
 ///  Short, because the write it waits for follows at once and the wait only has to
@@ -54,14 +63,27 @@ impl Probe {
     /// function on(directory: string): Probe;
     /// ```
     fn on(directory: &Path) -> Probe {
-        let named: std::ffi::CString = std::ffi::CString::new(directory.as_os_str().as_bytes()).expect("a path without NUL");
+        let named: std::ffi::CString =
+            std::ffi::CString::new(directory.as_os_str().as_bytes()).expect("a path without NUL");
         // SAFETY: the descriptor is created here and closed by `Drop`, whatever the waits answered.
         let watch: std::ffi::c_int = unsafe { libc::inotify_init1(libc::IN_CLOEXEC) };
-        assert!(watch >= 0, "inotify_init1 refused: {}", std::io::Error::last_os_error());
+        assert!(
+            watch >= 0,
+            "inotify_init1 refused: {}",
+            std::io::Error::last_os_error()
+        );
         // SAFETY: `named` is a NUL-terminated name of a directory this fixture holds.
-        let added: std::ffi::c_int = unsafe { libc::inotify_add_watch(watch, named.as_ptr(), libc::IN_CREATE) };
-        let probe: Probe = Probe { watch };
-        assert!(added >= 0, "inotify_add_watch refused for {}: {}", directory.display(), std::io::Error::last_os_error());
+        let added: std::ffi::c_int =
+            unsafe { libc::inotify_add_watch(watch, named.as_ptr(), libc::IN_CREATE) };
+        let probe: Probe = Probe {
+            watch,
+        };
+        assert!(
+            added >= 0,
+            "inotify_add_watch refused for {}: {}",
+            directory.display(),
+            std::io::Error::last_os_error()
+        );
         return probe;
     }
 
@@ -84,16 +106,25 @@ impl Probe {
             if left.is_zero() {
                 return false;
             }
-            let mut entry: libc::pollfd = libc::pollfd { fd: self.watch, events: libc::POLLIN, revents: 0 };
-            let milliseconds: std::ffi::c_int = std::ffi::c_int::try_from(left.as_millis()).unwrap_or(std::ffi::c_int::MAX).max(1);
+            let mut entry: libc::pollfd = libc::pollfd {
+                fd: self.watch,
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let milliseconds: std::ffi::c_int = std::ffi::c_int::try_from(left.as_millis())
+                .unwrap_or(std::ffi::c_int::MAX)
+                .max(1);
             // SAFETY: `entry` names this probe's one descriptor and lives for the call.
             if unsafe { libc::poll(&raw mut entry, 1, milliseconds) } <= 0 {
                 return false;
             }
             let mut buffer: [u8; 4096] = [0; 4096];
             // SAFETY: the buffer is valid for its length.
-            let read: isize = unsafe { libc::read(self.watch, buffer.as_mut_ptr().cast(), buffer.len()) };
-            let Ok(count) = usize::try_from(read) else { return false };
+            let read: isize =
+                unsafe { libc::read(self.watch, buffer.as_mut_ptr().cast(), buffer.len()) };
+            let Ok(count) = usize::try_from(read) else {
+                return false;
+            };
             if count == 0 {
                 return false;
             }
@@ -108,7 +139,12 @@ impl Drop for Probe {
     fn drop(&mut self) {
         // SAFETY: the descriptor belongs to this probe and is closed once.
         let closed: std::ffi::c_int = unsafe { libc::close(self.watch) };
-        assert_eq!(closed, 0, "the watch closes: {}", std::io::Error::last_os_error());
+        assert_eq!(
+            closed,
+            0,
+            "the watch closes: {}",
+            std::io::Error::last_os_error()
+        );
     }
 }
 
@@ -123,15 +159,23 @@ impl Drop for Probe {
 /// ```ts
 /// const names = (buffer) => events(buffer).map((event) => event.name);
 /// ```
-fn names_the_file(buffer: &[u8], wanted: &[u8]) -> bool {
+fn names_the_file(
+    buffer: &[u8],
+    wanted: &[u8],
+) -> bool {
     let mut rest: &[u8] = buffer;
     while rest.len() >= 16 {
-        let length: usize = usize::try_from(u32::from_ne_bytes([rest[12], rest[13], rest[14], rest[15]])).expect("a length");
+        let length: usize =
+            usize::try_from(u32::from_ne_bytes([rest[12], rest[13], rest[14], rest[15]]))
+                .expect("a length");
         let payload: &[u8] = &rest[16..];
         if payload.len() < length {
             return false;
         }
-        let name: &[u8] = payload[..length].split(|byte| return *byte == 0).next().unwrap_or(&[]);
+        let name: &[u8] = payload[..length]
+            .split(|byte| return *byte == 0)
+            .next()
+            .unwrap_or(&[]);
         if name == wanted {
             return true;
         }
@@ -213,7 +257,11 @@ fn a_path_that_names_another_object_makes_every_watch_blind() {
     let line: String = after.line.expect("a sentence for the person");
     assert!(line.contains(slot.to_str().expect("utf8")), "{line}");
     assert!(line.contains("editor"), "{line}");
-    assert!(line.contains("git fsmonitor--daemon status") && line.contains("git fsmonitor--daemon stop"), "{line}");
+    assert!(
+        line.contains("git fsmonitor--daemon status")
+            && line.contains("git fsmonitor--daemon stop"),
+        "{line}"
+    );
     remove(&root);
 }
 
@@ -241,13 +289,19 @@ fn a_watch_from_before_the_replacement_is_blind_and_one_set_after_it_sees_the_wr
     std::fs::rename(mounted.as_path(), slot.as_path()).expect("the tree takes the slot's path");
     write_through_slot(slot.as_path());
     let covered_sees: bool = covered.sees();
-    assert!(!covered_sees, "a watch set on the covered directory saw a write in the tree the path names");
+    assert!(
+        !covered_sees,
+        "a watch set on the covered directory saw a write in the tree the path names"
+    );
     drop(covered);
     // The positive control: the same probe, the same write, on the tree the path names now.
     let _gone: std::io::Result<()> = std::fs::remove_file(slot.join(WRITTEN));
     let fresh: Probe = Probe::on(slot.as_path());
     write_through_slot(slot.as_path());
-    assert!(fresh.sees(), "a watch set on the tree the path names must see a file written there");
+    assert!(
+        fresh.sees(),
+        "a watch set on the tree the path names must see a file written there"
+    );
     remove(&root);
 }
 
@@ -267,7 +321,13 @@ fn a_slot_that_is_not_a_directory_is_an_error() {
     let (root, _slot, _mounted) = scene("watch-rebinding-not-a-directory");
     let file: PathBuf = root.join("a-file");
     std::fs::write(file.as_path(), b"not a directory\n").expect("a file at the path");
-    assert!(the_object_the_path_shows(file.as_path()).is_err(), "a plain file is not a slot");
-    assert!(the_object_the_path_shows(root.join("gone").as_path()).is_err(), "a missing path is not a slot");
+    assert!(
+        the_object_the_path_shows(file.as_path()).is_err(),
+        "a plain file is not a slot"
+    );
+    assert!(
+        the_object_the_path_shows(root.join("gone").as_path()).is_err(),
+        "a missing path is not a slot"
+    );
     remove(&root);
 }

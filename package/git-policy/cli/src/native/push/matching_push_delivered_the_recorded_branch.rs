@@ -44,15 +44,22 @@
 //!   : false;
 //! ```
 
-/// The real Git of a push and the failure type of its coordination,
-/// with the queries that ask it.
-use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query_awaiting};
+/// The two markers Git prints for a refused ref:
+/// the stale `[rejected]` and the remote's own `[remote rejected]`.
+use crate::auto_push_reconcile_basics_and_limits::{
+    REJECTED_MARKER,
+    REMOTE_REJECTED_MARKER,
+};
 /// The synchronous query the control of the synchronous face still asks.
 #[cfg(test)]
 use crate::auto_push_single_flight::run_query;
-/// The two markers Git prints for a refused ref:
-/// the stale `[rejected]` and the remote's own `[remote rejected]`.
-use crate::auto_push_reconcile_basics_and_limits::{REJECTED_MARKER, REMOTE_REJECTED_MARKER};
+/// The real Git of a push and the failure type of its coordination,
+/// with the queries that ask it.
+use crate::auto_push_single_flight::{
+    PushGit,
+    SingleFlightError,
+    run_query_awaiting,
+};
 /// Owned OS strings for the query's arguments.
 use std::ffi::OsString;
 
@@ -84,7 +91,10 @@ pub(crate) fn remote_ref_of(branch_ref: &str) -> Option<String> {
 /// ```ts
 /// gitMatched && exitCode !== 0
 /// ```
-pub(crate) fn asks_the_remote(git_matched: bool, exit_code: i64) -> bool {
+pub(crate) fn asks_the_remote(
+    git_matched: bool,
+    exit_code: i64,
+) -> bool {
     return git_matched && exit_code != 0;
 }
 
@@ -161,7 +171,10 @@ fn is_a_url(line: &&str) -> bool {
 /// ```ts
 /// listing === undefined ? [remote] : listing.split('\n').map((line) => line.trim()).filter((line) => line !== '')
 /// ```
-pub(crate) fn urls_the_push_went_to(listing: Option<&str>, remote: &str) -> Vec<String> {
+pub(crate) fn urls_the_push_went_to(
+    listing: Option<&str>,
+    remote: &str,
+) -> Vec<String> {
     let Some(answered): Option<&str> = listing else {
         return vec![remote.to_owned()];
     };
@@ -180,7 +193,10 @@ pub(crate) fn urls_the_push_went_to(listing: Option<&str>, remote: &str) -> Vec<
 /// ```ts
 /// answers.length > 0 && answers.every((answer) => answer === landedOid)
 /// ```
-pub(crate) fn every_url_named_it(answers: &[Option<String>], landed_oid: &str) -> bool {
+pub(crate) fn every_url_named_it(
+    answers: &[Option<String>],
+    landed_oid: &str,
+) -> bool {
     if answers.is_empty() {
         return false;
     }
@@ -206,7 +222,10 @@ pub(crate) fn every_url_named_it(answers: &[Option<String>], landed_oid: &str) -
 /// ```ts
 /// for (const line of listing.split('\n')) { const [oid, ref] = line.split('\t'); if (ref === wanted) return oid; }
 /// ```
-pub(crate) fn object_named_by(listing: &str, wanted: &str) -> Option<String> {
+pub(crate) fn object_named_by(
+    listing: &str,
+    wanted: &str,
+) -> Option<String> {
     for line in listing.lines() {
         let (object, name): (&str, &str) = line.split_once('\t')?;
         if name == wanted && !object.is_empty() {
@@ -267,7 +286,10 @@ fn push_url_arguments<'facts>(remote: &'facts str) -> [&'facts str; 5] {
 /// ```ts
 /// ['ls-remote', '--refs', url, ref]
 /// ```
-fn ask_arguments<'facts>(url: &'facts str, remote_ref: &'facts str) -> [&'facts str; 4] {
+fn ask_arguments<'facts>(
+    url: &'facts str,
+    remote_ref: &'facts str,
+) -> [&'facts str; 4] {
     return ["ls-remote", "--refs", url, remote_ref];
 }
 
@@ -298,27 +320,39 @@ fn argv_of<'text>(arguments: &[&'text str]) -> Vec<OsString> {
 /// return everyUrlNamedIt(urls.map((url) => lsRemote(git, [url, ref])), push.landedOid);
 /// ```
 #[cfg(test)]
-pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'_>) -> Result<bool, SingleFlightError> {
+pub(crate) fn delivered_although_git_failed(
+    git: &PushGit,
+    push: &MatchingPush<'_>,
+) -> Result<bool, SingleFlightError> {
     if !asks_the_remote(push.git_matched, push.exit_code) {
         return Ok(false);
     }
     let Some(remote_ref): Option<String> = remote_ref_of(push.branch_ref) else {
         return Ok(false);
     };
-    let listing: Option<String> = match run_query(git, argv_of(&push_url_arguments(push.remote)).as_slice()) {
-        Ok(output) if output.code == Some(0) => Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned()),
-        // A remote this repository does not name is the URL the push went to.
-        Ok(_) => None,
-        Err(_) => return Ok(false),
-    };
+    let listing: Option<String> =
+        match run_query(git, argv_of(&push_url_arguments(push.remote)).as_slice()) {
+            Ok(output) if output.code == Some(0) => {
+                Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned())
+            }
+            // A remote this repository does not name is the URL the push went to.
+            Ok(_) => None,
+            Err(_) => return Ok(false),
+        };
     let mut answers: Vec<Option<String>> = Vec::new();
     for url in urls_the_push_went_to(listing.as_deref(), push.remote) {
-        let answer = match run_query(git, argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice()) {
+        let answer = match run_query(
+            git,
+            argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice(),
+        ) {
             Ok(output) if output.code == Some(0) => output,
             // A push URL that cannot be asked holds nothing this wrapper can prove.
             Ok(_) | Err(_) => return Ok(false),
         };
-        answers.push(object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()));
+        answers.push(object_named_by(
+            String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(),
+            remote_ref.as_str(),
+        ));
     }
     return Ok(every_url_named_it(answers.as_slice(), push.landed_oid));
 }
@@ -337,27 +371,41 @@ pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'
 /// ```ts
 /// await deliveredAlthoughGitFailedOnTheRuntime(git, push)
 /// ```
-pub(crate) async fn delivered_although_git_failed_awaiting(git: &PushGit, push: &MatchingPush<'_>) -> Result<bool, SingleFlightError> {
+pub(crate) async fn delivered_although_git_failed_awaiting(
+    git: &PushGit,
+    push: &MatchingPush<'_>,
+) -> Result<bool, SingleFlightError> {
     if !asks_the_remote(push.git_matched, push.exit_code) {
         return Ok(false);
     }
     let Some(remote_ref): Option<String> = remote_ref_of(push.branch_ref) else {
         return Ok(false);
     };
-    let listing: Option<String> = match run_query_awaiting(git, argv_of(&push_url_arguments(push.remote)).as_slice()).await {
-        Ok(output) if output.code == Some(0) => Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned()),
-        // A remote this repository does not name is the URL the push went to.
-        Ok(_) => None,
-        Err(_) => return Ok(false),
-    };
+    let listing: Option<String> =
+        match run_query_awaiting(git, argv_of(&push_url_arguments(push.remote)).as_slice()).await {
+            Ok(output) if output.code == Some(0) => {
+                Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned())
+            }
+            // A remote this repository does not name is the URL the push went to.
+            Ok(_) => None,
+            Err(_) => return Ok(false),
+        };
     let mut answers: Vec<Option<String>> = Vec::new();
     for url in urls_the_push_went_to(listing.as_deref(), push.remote) {
-        let answer = match run_query_awaiting(git, argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice()).await {
+        let answer = match run_query_awaiting(
+            git,
+            argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice(),
+        )
+        .await
+        {
             Ok(output) if output.code == Some(0) => output,
             // A push URL that cannot be asked holds nothing this wrapper can prove.
             Ok(_) | Err(_) => return Ok(false),
         };
-        answers.push(object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()));
+        answers.push(object_named_by(
+            String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(),
+            remote_ref.as_str(),
+        ));
     }
     return Ok(every_url_named_it(answers.as_slice(), push.landed_oid));
 }

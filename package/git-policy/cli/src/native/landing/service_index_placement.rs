@@ -26,7 +26,10 @@
 use crate::fs_mount_options::read_mount_facts;
 use crate::process_identity::ProcessIdentityError;
 use crate::service_index_marker::own_identity;
-use crate::service_index_ownership::{Ownership, inspect_ownership};
+use crate::service_index_ownership::{
+    Ownership,
+    inspect_ownership,
+};
 use crate::service_index_watch::Watch;
 use std::path::Path;
 
@@ -124,19 +127,29 @@ pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
     return crate::service_durable::defer_file(file, LOCK_MARKER_SYNC);
 }
 
-fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {
+fn link_file(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     return std::fs::hard_link(from, to);
 }
 
 fn create_exclusive(path: &Path) -> std::io::Result<std::fs::File> {
-    return std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(path);
+    return std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(path);
 }
 
 fn unlink_file(path: &Path) -> std::io::Result<()> {
     return std::fs::remove_file(path);
 }
 
-pub use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
+pub use crate::rename_that_never_replaces::{
+    rename_noreplace,
+    rename_unsupported,
+};
 
 /// Whether a failed hard link means the filesystem makes none (link(2):
 /// `EPERM`),
@@ -178,7 +191,11 @@ enum Atomic {
 /// ```ts
 /// await renameNoReplace(staged, lock) ?? await link(staged, lock) ?? refused()
 /// ```
-fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), Atomic> {
+fn place_whole(
+    platform: &Platform,
+    staged: &Path,
+    lock: &Path,
+) -> Result<(), Atomic> {
     let refused_rename: std::io::Error = match (platform.rename)(staged, lock) {
         Ok(()) => return Ok(()),
         Err(error) if !rename_unsupported(&error) => return Err(Atomic::Failed(error)),
@@ -193,7 +210,9 @@ fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), At
         Err(refused_link) => {
             return Err(Atomic::Refused(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
-                format!("renaming without replacing failed ({refused_rename}) and hard links failed ({refused_link})"),
+                format!(
+                    "renaming without replacing failed ({refused_rename}) and hard links failed ({refused_link})"
+                ),
             )));
         }
     }
@@ -230,7 +249,11 @@ fn error_of(refusal: Atomic) -> std::io::Error {
 /// `AlreadyExists` when the file exists,
 /// `Unsupported` (naming both refusals) when the filesystem can place neither way,
 /// and the storage error otherwise.
-pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
+pub fn place_marked(
+    platform: &Platform,
+    staged: &Path,
+    lock: &Path,
+) -> std::io::Result<()> {
     return place_whole(platform, staged, lock).map_err(error_of);
 }
 
@@ -250,7 +273,10 @@ impl Placed {
     /// The descriptor that names the lock's inode:
     /// the one the lock was created with,
     /// else the staged file's.
-    pub fn held_or(self, staged: std::fs::File) -> std::fs::File {
+    pub fn held_or(
+        self,
+        staged: std::fs::File,
+    ) -> std::fs::File {
         return match self {
             Placed::Whole => staged,
             Placed::Created(created) => created,
@@ -260,7 +286,11 @@ impl Placed {
 
 /// Write `marker` to the lock file just created and flush it,
 /// with the fault points of a kill between the two.
-fn write_marker_and_sync(platform: &Platform, file: &mut std::fs::File, marker: &str) -> std::io::Result<()> {
+fn write_marker_and_sync(
+    platform: &Platform,
+    file: &mut std::fs::File,
+    marker: &str,
+) -> std::io::Result<()> {
     std::io::Write::write_all(file, marker.as_bytes())?;
     // A kill here leaves a lock with its marker, not yet flushed.
     crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
@@ -295,7 +325,12 @@ fn write_marker_and_sync(platform: &Platform, file: &mut std::fs::File, marker: 
 /// `AlreadyExists` when the lock exists,
 /// and the storage error otherwise;
 /// a lock created here whose marker could not be written or flushed is removed again.
-pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path) -> std::io::Result<Placed> {
+pub fn place_lock(
+    platform: &Platform,
+    staged: &Path,
+    marker: &str,
+    lock: &Path,
+) -> std::io::Result<Placed> {
     let refusal: std::io::Error = match place_whole(platform, staged, lock) {
         Ok(()) => return Ok(Placed::Whole),
         Err(Atomic::Failed(error)) => return Err(error),
@@ -312,7 +347,10 @@ pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path)
     if let Err(error) = marked {
         drop(file);
         if let Err(removal) = std::fs::remove_file(lock) {
-            crate::service_error!("the index lock {} could not be given its marker ({error}) and could not be removed again ({removal}); it stays", lock.display());
+            crate::service_error!(
+                "the index lock {} could not be given its marker ({error}) and could not be removed again ({removal}); it stays",
+                lock.display()
+            );
         }
         return Err(error);
     }
@@ -333,7 +371,10 @@ pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path)
 /// ```ts
 /// console.error(`cli-git-service: could not place ${lock}: ${error}`)
 /// ```
-pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
+pub fn log_placement_failure(
+    lock: &Path,
+    error: &std::io::Error,
+) {
     if let Some(text) = placement_failure_text(lock, error) {
         crate::service_error!("{text}");
     }
@@ -351,16 +392,26 @@ pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
 /// ```ts
 /// placementFailureText(lock, error) // string | undefined
 /// ```
-pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<String> {
+pub fn placement_failure_text(
+    lock: &Path,
+    error: &std::io::Error,
+) -> Option<String> {
     if error.kind() == std::io::ErrorKind::AlreadyExists {
         return None;
     }
     if error.kind() != std::io::ErrorKind::Unsupported {
-        return Some(format!("cannot take the index lock {}: {error}", lock.display()));
+        return Some(format!(
+            "cannot take the index lock {}: {error}",
+            lock.display()
+        ));
     }
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let filesystem: String = match read_mount_facts(directory) {
-        Ok(Some(facts)) => format!("the {} filesystem mounted at {}", facts.filesystem_type, facts.mount_point.display()),
+        Ok(Some(facts)) => format!(
+            "the {} filesystem mounted at {}",
+            facts.filesystem_type,
+            facts.mount_point.display()
+        ),
         Ok(None) => format!("the filesystem of {}", directory.display()),
         Err(reason) => format!("the filesystem of {} ({reason})", directory.display()),
     };
@@ -377,8 +428,15 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
 /// while no other reclaimer holds it;
 /// what came of it is the answer (`Reclaimed`),
 /// and the log says why a stale lock stays.
-pub fn reclaim(platform: &Platform, lock: &Path) -> Reclaimed {
+pub fn reclaim(
+    platform: &Platform,
+    lock: &Path,
+) -> Reclaimed {
     return reclaim_if(platform, lock, StaleMark::HolderIsGone);
 }
 
-pub use crate::service_index_reclaim::{Reclaimed, StaleMark, reclaim_if};
+pub use crate::service_index_reclaim::{
+    Reclaimed,
+    StaleMark,
+    reclaim_if,
+};

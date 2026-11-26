@@ -39,13 +39,27 @@
 
 use crate::auto_push_dirty_paths::listed;
 use crate::lazy_runtime::run_on_runtime;
-use crate::merge_isolation_carry_reads::{changes_between, path_argument, run_bytes_awaiting};
-use crate::merge_isolation_changes::{Change, the_directory_holds_only_what_the_merge_deletes, worktree_path};
-use crate::transaction_git::{GitContext, GitOutput};
+use crate::merge_isolation_carry_reads::{
+    changes_between,
+    path_argument,
+    run_bytes_awaiting,
+};
+use crate::merge_isolation_changes::{
+    Change,
+    the_directory_holds_only_what_the_merge_deletes,
+    worktree_path,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+};
 /// `OsString` spells a path Git reads as bytes that need not be text.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A directory the merge would replace with a file,
 /// and the entries below it,
@@ -130,7 +144,10 @@ pub fn a_directory_the_merge_would_replace(
             continue;
         }
         let entries: Vec<String> = the_entries_below(root, path.as_slice());
-        return Ok(Some(InTheWay { path, entries }));
+        return Ok(Some(InTheWay {
+            path,
+            entries,
+        }));
     }
     return Ok(None);
 }
@@ -142,7 +159,10 @@ pub fn a_directory_the_merge_would_replace(
 /// ```ts
 /// const changeNamed = (changes, path) => changes.find((one) => one.path === path);
 /// ```
-fn change_named<'a>(changes: &'a [Change], path: &[u8]) -> Option<&'a Change> {
+fn change_named<'a>(
+    changes: &'a [Change],
+    path: &[u8],
+) -> Option<&'a Change> {
     for change in changes {
         if change.path == path {
             return Some(change);
@@ -171,7 +191,11 @@ fn change_named<'a>(changes: &'a [Change], path: &[u8]) -> Option<&'a Change> {
 /// ```ts
 /// function theDirectoryHoldsOnlyTheBranchsOwnBytes(context, root, path): boolean; // git diff-index --quiet HEAD -- <path>
 /// ```
-fn the_directory_holds_only_the_branchs_own_bytes(context: &GitContext, root: &Path, path: &[u8]) -> bool {
+fn the_directory_holds_only_the_branchs_own_bytes(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+) -> bool {
     let arguments: Vec<OsString> = vec![
         OsString::from("diff-index"),
         OsString::from("--quiet"),
@@ -179,7 +203,12 @@ fn the_directory_holds_only_the_branchs_own_bytes(context: &GitContext, root: &P
         OsString::from("--"),
         path_argument(path),
     ];
-    let output: GitOutput = match run_on_runtime(run_bytes_awaiting(context, root, arguments.as_slice(), None)) {
+    let output: GitOutput = match run_on_runtime(run_bytes_awaiting(
+        context,
+        root,
+        arguments.as_slice(),
+        None,
+    )) {
         Ok(Ok(found)) => found,
         Ok(Err(refusal)) => {
             crate::diagnostic_log::debug(
@@ -191,7 +220,10 @@ fn the_directory_holds_only_the_branchs_own_bytes(context: &GitContext, root: &P
         Err(refusal) => {
             crate::diagnostic_log::debug(
                 "theDirectoryHoldsOnlyTheBranchsOwnBytes",
-                format!("the runtime refused the read, so the directory counts as changed: {refusal}").as_str(),
+                format!(
+                    "the runtime refused the read, so the directory counts as changed: {refusal}"
+                )
+                .as_str(),
             );
             return false;
         }
@@ -209,7 +241,9 @@ fn the_directory_holds_only_the_branchs_own_bytes(context: &GitContext, root: &P
 /// symlinkMetadataSync(location).isDirectory();
 /// ```
 fn is_a_directory(location: &Path) -> bool {
-    return std::fs::symlink_metadata(location).map(is_a_directory_entry).unwrap_or(false);
+    return std::fs::symlink_metadata(location)
+        .map(is_a_directory_entry)
+        .unwrap_or(false);
 }
 
 /// Whether one entry's own metadata says it is a directory.
@@ -239,7 +273,10 @@ fn is_a_directory_entry(found: std::fs::Metadata) -> bool {
 /// ```ts
 /// function theEntriesBelow(root, prefix): string[]; // walk every directory below, name each entry
 /// ```
-fn the_entries_below(root: &Path, prefix: &[u8]) -> Vec<String> {
+fn the_entries_below(
+    root: &Path,
+    prefix: &[u8],
+) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     let location: PathBuf = worktree_path(root, prefix);
     let listing: std::fs::ReadDir = match std::fs::read_dir(location.as_path()) {
@@ -284,7 +321,10 @@ fn the_bytes_of(name: &String) -> Vec<u8> {
 /// ```ts
 /// `git merge ${reference}: ${path} stands as a directory that holds ${listed}, and the merge puts a file there, so the merge was not made...`;
 /// ```
-pub fn the_line(reference: &str, found: &InTheWay) -> String {
+pub fn the_line(
+    reference: &str,
+    found: &InTheWay,
+) -> String {
     let path: String = String::from_utf8_lossy(found.path.as_slice()).into_owned();
     let named: Vec<Vec<u8>> = found.entries.iter().map(the_bytes_of).collect();
     return format!(

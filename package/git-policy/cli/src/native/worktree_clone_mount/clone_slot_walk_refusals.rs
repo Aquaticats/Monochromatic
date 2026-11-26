@@ -15,7 +15,11 @@
 //! const refusal = holdCloneSlot({ checkout, slot, store }); // throws with a sentence naming the field
 //! ```
 
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
+use super::clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+    field_names,
+};
 use super::slot_identity_store_refusals::StoreRefusal;
 use crate::fs_beneath_walk_chain::ChainRefusal;
 use std::path::PathBuf;
@@ -190,20 +194,34 @@ impl CloneSlotRefusal {
         return match self {
             CloneSlotRefusal::Walk(refusal) => refusal.message(),
             CloneSlotRefusal::Store(refusal) => refusal.message(),
-            CloneSlotRefusal::ParentIdentity { checkout, recorded, found, fields } => format!(
+            CloneSlotRefusal::ParentIdentity {
+                checkout,
+                recorded,
+                found,
+                fields,
+            } => format!(
                 "the `.claude/worktrees` parent folder below {} is not the folder whose identity was recorded: the {} differs. Recorded: {}. Found: {}. A changed identity is not permission to adopt the replacement, so no clone is mounted, and one store records one checkout: a folder of a second checkout never matches this record. Ways forward: restore the folder whose identity is recorded; or, after a checkout restore or a controlled recreation, an administrator runs the words `monochromatic-git-policy-cli zfs-root adopt-worktree-parent`, after the root-owned file's path, as root and with the intended replacement's device and inode, and runs the command again. Plan step 19's setup installs that root-owned file and links it for ZED, and no release installs it yet, so nothing on this machine starts those words today.",
                 checkout.display(),
                 field_names(fields),
                 recorded.describe(),
                 found.describe()
             ),
-            CloneSlotRefusal::SlotIdentity { slot, recorded, found, fields } => format!(
+            CloneSlotRefusal::SlotIdentity {
+                slot,
+                recorded,
+                found,
+                fields,
+            } => format!(
                 "the clone slot `{slot}` is not the folder whose identity was recorded: the {} differs. Recorded: {}. Found: {}. The record is never refreshed because a new inode or mode appeared. Ways forward: restore the folder whose identity is recorded, or settle the binding with the removal workflow; a slot with no managed binding takes ordinary reflink creation or Git's own checkout instead, and only an administrator's `adopt-worktree-parent` may replace the parent folder's record.",
                 field_names(fields),
                 recorded.describe(),
                 found.describe()
             ),
-            CloneSlotRefusal::TargetAnotherObject { slot, first, second } => format!(
+            CloneSlotRefusal::TargetAnotherObject {
+                slot,
+                first,
+                second,
+            } => format!(
                 "the clone slot `{slot}` changed between the two descriptors this walk opened: one names {first} and the mount target names {second}. Nothing is mounted onto a folder that moved between two looks. Ways forward: run the command again once the account stops renaming the slot; anything already attached stays where it is."
             ),
         };
@@ -215,20 +233,48 @@ impl CloneSlotRefusal {
 /// Why:
 ///  The chain reports the component's position and the open's error;
 ///  a person reads the folder's name and a sentence that fits the cause.
-pub fn chain_walk_refusal(names: &[&str], refusal: &ChainRefusal) -> WalkRefusal {
+pub fn chain_walk_refusal(
+    names: &[&str],
+    refusal: &ChainRefusal,
+) -> WalkRefusal {
     let step: usize = match refusal {
-        ChainRefusal::Link { step, .. } | ChainRefusal::Boundary { step, .. } | ChainRefusal::Unreadable { step, .. } => *step,
+        ChainRefusal::Link {
+            step,
+            ..
+        }
+        | ChainRefusal::Boundary {
+            step,
+            ..
+        }
+        | ChainRefusal::Unreadable {
+            step,
+            ..
+        } => *step,
     };
     let reason: WalkRefusalReason = match refusal {
-        ChainRefusal::Link { .. } => WalkRefusalReason::LinkInTheWay,
-        ChainRefusal::Boundary { .. } => WalkRefusalReason::BoundaryCrossed,
-        ChainRefusal::Unreadable { error, .. } => reason_of(error),
+        ChainRefusal::Link {
+            ..
+        } => WalkRefusalReason::LinkInTheWay,
+        ChainRefusal::Boundary {
+            ..
+        } => WalkRefusalReason::BoundaryCrossed,
+        ChainRefusal::Unreadable {
+            error,
+            ..
+        } => reason_of(error),
     };
     let detail: String = match refusal {
-        ChainRefusal::Unreadable { error, .. } if reason == WalkRefusalReason::Unreadable => error.to_string(),
+        ChainRefusal::Unreadable {
+            error,
+            ..
+        } if reason == WalkRefusalReason::Unreadable => error.to_string(),
         _ => String::new(),
     };
-    return WalkRefusal { component: component_of(names, step), reason, detail };
+    return WalkRefusal {
+        component: component_of(names, step),
+        reason,
+        detail,
+    };
 }
 
 /// What:
@@ -237,17 +283,30 @@ pub fn chain_walk_refusal(names: &[&str], refusal: &ChainRefusal) -> WalkRefusal
 /// Why:
 ///  The slot's own open fails outside the chain,
 ///  and its sentence names the slot as a person reads it.
-pub fn one_component_refusal(component: &str, error: &std::io::Error) -> WalkRefusal {
+pub fn one_component_refusal(
+    component: &str,
+    error: &std::io::Error,
+) -> WalkRefusal {
     let reason: WalkRefusalReason = match error.raw_os_error() {
         Some(libc::ELOOP) => WalkRefusalReason::LinkInTheWay,
         Some(libc::EXDEV) => WalkRefusalReason::BoundaryCrossed,
         Some(libc::ENOENT) => WalkRefusalReason::Missing,
         Some(libc::ENOTDIR) => WalkRefusalReason::NotADirectory,
-        None if error.kind() == std::io::ErrorKind::InvalidInput => WalkRefusalReason::NotAPlainName,
+        None if error.kind() == std::io::ErrorKind::InvalidInput => {
+            WalkRefusalReason::NotAPlainName
+        }
         _ => WalkRefusalReason::Unreadable,
     };
-    let detail: String = if reason == WalkRefusalReason::Unreadable { error.to_string() } else { String::new() };
-    return WalkRefusal { component: component.to_string(), reason, detail };
+    let detail: String = if reason == WalkRefusalReason::Unreadable {
+        error.to_string()
+    } else {
+        String::new()
+    };
+    return WalkRefusal {
+        component: component.to_string(),
+        reason,
+        detail,
+    };
 }
 
 /// What:
@@ -257,8 +316,15 @@ pub fn one_component_refusal(component: &str, error: &std::io::Error) -> WalkRef
 /// Why:
 ///  An over-large ACL or a missing `/proc` line is not an open failure,
 ///  and a person told the folder could not be opened looks in the wrong place.
-pub fn fields_refusal(component: &str, error: &std::io::Error) -> CloneSlotRefusal {
-    return CloneSlotRefusal::Walk(WalkRefusal { component: component.to_string(), reason: WalkRefusalReason::UnreadableFields, detail: error.to_string() });
+pub fn fields_refusal(
+    component: &str,
+    error: &std::io::Error,
+) -> CloneSlotRefusal {
+    return CloneSlotRefusal::Walk(WalkRefusal {
+        component: component.to_string(),
+        reason: WalkRefusalReason::UnreadableFields,
+        detail: error.to_string(),
+    });
 }
 
 /// The reason for an open failure inside a chain,
@@ -273,7 +339,12 @@ fn reason_of(error: &std::io::Error) -> WalkRefusalReason {
 
 /// The component at `step` as a person reads it,
 /// below the checkout.
-fn component_of(names: &[&str], step: usize) -> String {
-    let Some(part) = names.get(..=step) else { return String::from("a folder below the checkout") };
+fn component_of(
+    names: &[&str],
+    step: usize,
+) -> String {
+    let Some(part) = names.get(..=step) else {
+        return String::from("a folder below the checkout");
+    };
     return part.join("/");
 }

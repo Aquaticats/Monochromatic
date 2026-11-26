@@ -40,7 +40,12 @@
 use std::path::Path;
 
 use super::blocking_code_off_the_runtime_tests::read_the_code_of;
-use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source_root};
+use crate::source_scan_tests::{
+    CrateRoot,
+    classified_sources,
+    real_roots,
+    source_root,
+};
 
 /// The folder the removal's own steps live in,
 /// whose files are the ones allowed to name the writing functions.
@@ -148,9 +153,14 @@ const THE_COMMAND_PATH: &str = "worktree_copying/worktree_removal_of_a_bound_clo
 /// ```ts
 /// const code = mask(readFileSync(path, 'utf8'));
 /// ```
-fn code_of(root: &Path, path: &str) -> Result<String, String> {
-    let text: String = std::fs::read_to_string(root.join(path)).map_err(|error| return format!("{path} cannot be read: {error}"))?;
-    let read = read_the_code_of(text.as_str()).map_err(|error| return format!("{path} cannot be read as code: {error}"))?;
+fn code_of(
+    root: &Path,
+    path: &str,
+) -> Result<String, String> {
+    let text: String = std::fs::read_to_string(root.join(path))
+        .map_err(|error| return format!("{path} cannot be read: {error}"))?;
+    let read = read_the_code_of(text.as_str())
+        .map_err(|error| return format!("{path} cannot be read as code: {error}"))?;
     return Ok(read.masked.join("\n"));
 }
 
@@ -177,7 +187,10 @@ struct Scan {
 }
 
 /// One scan over the crate's release sources.
-fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, String> {
+fn scan_the_release_tree(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Scan, String> {
     let mut callers: Vec<String> = Vec::new();
     let mut the_command_path_reads: bool = false;
     let mut declared: Vec<&'static str> = Vec::new();
@@ -191,8 +204,12 @@ fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, Strin
                 declared.push(writing.banned);
             }
             // A declaration is no call, and neither is the re-export a batch's own module publishes.
-            let publishes: bool = file.path == writing.declaring_file || writing.publishing_files.contains(&file.path.as_str());
-            if !publishes && !file.path.starts_with(THE_REMOVAL_FOLDER) && code.contains(writing.banned) {
+            let publishes: bool = file.path == writing.declaring_file
+                || writing.publishing_files.contains(&file.path.as_str());
+            if !publishes
+                && !file.path.starts_with(THE_REMOVAL_FOLDER)
+                && code.contains(writing.banned)
+            {
                 callers.push(format!("{} names {}", file.path, writing.banned));
             }
         }
@@ -200,7 +217,11 @@ fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, Strin
             the_command_path_reads = true;
         }
     }
-    return Ok(Scan { callers, the_command_path_reads, declared });
+    return Ok(Scan {
+        callers,
+        the_command_path_reads,
+        declared,
+    });
 }
 
 /// What:
@@ -217,7 +238,8 @@ fn scan_the_release_tree(root: &Path, roots: &[CrateRoot]) -> Result<Scan, Strin
 #[test]
 fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
     let root = source_root();
-    let scan: Scan = scan_the_release_tree(root.as_path(), real_roots().as_slice()).expect("the crate's release source tree reads");
+    let scan: Scan = scan_the_release_tree(root.as_path(), real_roots().as_slice())
+        .expect("the crate's release source tree reads");
     for writing in THE_WRITING_NAMES {
         assert!(
             scan.declared.contains(&writing.banned),
@@ -226,7 +248,10 @@ fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
             writing.declaration
         );
     }
-    assert!(scan.the_command_path_reads, "`{THE_COMMAND_PATH}` must call `{THE_READING_CALL}…)`: this release's removal proves its lineage read-only and writes nothing");
+    assert!(
+        scan.the_command_path_reads,
+        "`{THE_COMMAND_PATH}` must call `{THE_READING_CALL}…)`: this release's removal proves its lineage read-only and writes nothing"
+    );
     assert!(
         scan.callers.is_empty(),
         "no release file outside `{THE_REMOVAL_FOLDER}` may name a function that writes or destroys, nor the plan folder's own type, until the round that switches the command path on, and these do: {:?}",
@@ -244,6 +269,10 @@ fn the_removal_command_path_runs_the_reading_and_no_writing_entry() {
 #[test]
 fn every_banned_name_says_what_it_does() {
     for writing in THE_WRITING_NAMES {
-        assert!(!writing.what.is_empty(), "`{}` names what it does for a reader of a failure", writing.banned);
+        assert!(
+            !writing.what.is_empty(),
+            "`{}` names what it does for a reader of a failure",
+            writing.banned
+        );
     }
 }

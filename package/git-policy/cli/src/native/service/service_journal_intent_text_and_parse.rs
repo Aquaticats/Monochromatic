@@ -21,11 +21,14 @@
 //! const text = intentText(intent); const intent2 = parseIntent(text); // undefined when damaged
 //! ```
 
-use crate::path_bytes_in_records::HEX_SUFFIX;
 use crate::path_bytes_in_records as path_bytes;
+use crate::path_bytes_in_records::HEX_SUFFIX;
 use crate::repo_read_layout::dot_git_target;
 use crate::service_protocol::Cleanup;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  What the service decided to do for a batch,
 /// written before the branch moves.
@@ -113,12 +116,18 @@ pub struct Intent {
 /// ```ts
 /// const pathLines = (key, path) => [textInOneLine(path) && `${key}=${textInOneLine(path)}`, `${key}Hex=${pathBytesHex(path)}`].filter(Boolean)
 /// ```
-fn path_lines(key: &str, path: &Path) -> Vec<String> {
+fn path_lines(
+    key: &str,
+    path: &Path,
+) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     if let Some(text) = path_bytes::text_in_one_line(path) {
         lines.push(format!("{key}={text}"));
     }
-    lines.push(format!("{key}{HEX_SUFFIX}={}", path_bytes::hex_of_path(path)));
+    lines.push(format!(
+        "{key}{HEX_SUFFIX}={}",
+        path_bytes::hex_of_path(path)
+    ));
     return lines;
 }
 
@@ -142,10 +151,21 @@ fn cleanup_lines(cleanup: Option<&Cleanup>) -> Vec<String> {
         return Vec::new();
     };
     let mut lines: Vec<String> = Vec::new();
-    if let (Some(git_dir), Some(scratch)) = (path_bytes::text_in_one_line(found.git_dir.as_path()), path_bytes::text_in_one_line(found.scratch.as_path())) {
-        lines.push(format!("cleanup={git_dir}\t{scratch}\t{}", u8::from(found.reftable)));
+    if let (Some(git_dir), Some(scratch)) = (
+        path_bytes::text_in_one_line(found.git_dir.as_path()),
+        path_bytes::text_in_one_line(found.scratch.as_path()),
+    ) {
+        lines.push(format!(
+            "cleanup={git_dir}\t{scratch}\t{}",
+            u8::from(found.reftable)
+        ));
     }
-    lines.push(format!("cleanup{HEX_SUFFIX}={}\t{}\t{}", path_bytes::hex_of_path(found.git_dir.as_path()), path_bytes::hex_of_path(found.scratch.as_path()), u8::from(found.reftable)));
+    lines.push(format!(
+        "cleanup{HEX_SUFFIX}={}\t{}\t{}",
+        path_bytes::hex_of_path(found.git_dir.as_path()),
+        path_bytes::hex_of_path(found.scratch.as_path()),
+        u8::from(found.reftable)
+    ));
     return lines;
 }
 
@@ -187,7 +207,9 @@ fn read_reference(text: &str) -> Option<crate::ref_name::RefName> {
     if let Some(hexadecimal) = intent_value(text, "refHex") {
         return crate::ref_name::RefName::from_hex(hexadecimal);
     }
-    return Some(crate::ref_name::RefName::from_text(intent_value(text, "ref")?));
+    return Some(crate::ref_name::RefName::from_text(intent_value(
+        text, "ref",
+    )?));
 }
 
 /// What a request that named no deciding command is spelled as in an intent.
@@ -230,12 +252,50 @@ pub fn intent_text(intent: &Intent) -> String {
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
-        format!("holders={}", intent.holders.iter().map(String::as_str).map(holder_text).collect::<Vec<String>>().join("\t")),
+        format!(
+            "holders={}",
+            intent
+                .holders
+                .iter()
+                .map(String::as_str)
+                .map(holder_text)
+                .collect::<Vec<String>>()
+                .join("\t")
+        ),
         // One item per commit, so a request whose command chose no transport keeps the later commits' items on their own
         //  commits (`NO_HOLDER`'s reason, one field over).
-        format!("transports={}", intent.transports.iter().map(|set| { return u8::from(*set).to_string(); }).collect::<Vec<String>>().join("\t")),
-        format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
-        format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
+        format!(
+            "transports={}",
+            intent
+                .transports
+                .iter()
+                .map(|set| {
+                    return u8::from(*set).to_string();
+                })
+                .collect::<Vec<String>>()
+                .join("\t")
+        ),
+        format!(
+            "paths={}",
+            intent
+                .paths
+                .iter()
+                .map(Vec::as_slice)
+                .map(String::from_utf8_lossy)
+                .map(std::borrow::Cow::into_owned)
+                .collect::<Vec<String>>()
+                .join("\t")
+        ),
+        format!(
+            "paths{HEX_SUFFIX}={}",
+            intent
+                .paths
+                .iter()
+                .map(Vec::as_slice)
+                .map(path_bytes::hex_of_bytes)
+                .collect::<Vec<String>>()
+                .join("\t")
+        ),
         format!("derived={}", u8::from(intent.derived)),
     ]);
     lines.extend(cleanup_lines(intent.cleanup.as_ref()));
@@ -278,7 +338,10 @@ pub(crate) fn git_dir_of_worktree(repository: &Path) -> PathBuf {
 /// ```ts
 /// text.split('\n').map((line) => line.startsWith(key + '=') ? line.slice(key.length + 1) : undefined).find((value) => value !== undefined)
 /// ```
-pub(crate) fn intent_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+pub(crate) fn intent_value<'a>(
+    text: &'a str,
+    key: &str,
+) -> Option<&'a str> {
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix(key)
             && let Some(found) = rest.strip_prefix('=')
@@ -305,8 +368,14 @@ pub(crate) fn intent_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 /// ```ts
 /// const intentPath = (text, key) => pathOfTwoFields(value(text, key + 'Hex'), value(text, key));
 /// ```
-pub(crate) fn intent_path(text: &str, key: &str) -> Result<Option<PathBuf>, String> {
-    return path_bytes::path_of_the_two_fields(intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()), intent_value(text, key));
+pub(crate) fn intent_path(
+    text: &str,
+    key: &str,
+) -> Result<Option<PathBuf>, String> {
+    return path_bytes::path_of_the_two_fields(
+        intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()),
+        intent_value(text, key),
+    );
 }
 
 /// What:
@@ -320,7 +389,10 @@ pub(crate) fn intent_path(text: &str, key: &str) -> Result<Option<PathBuf>, Stri
 /// ```ts
 /// value(key)?.split('\t').filter((item) => item !== '')
 /// ```
-pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
+pub(crate) fn intent_list(
+    text: &str,
+    key: &str,
+) -> Option<Vec<String>> {
     let found: &str = intent_value(text, key)?;
     let mut items: Vec<String> = Vec::new();
     for item in found.split('\t') {
@@ -344,7 +416,13 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
 /// ```
 fn holders_of(text: &str) -> Option<Vec<String>> {
     let items: Vec<String> = intent_list(text, "holders")?;
-    return Some(items.iter().map(String::as_str).map(holder_of_item).collect());
+    return Some(
+        items
+            .iter()
+            .map(String::as_str)
+            .map(holder_of_item)
+            .collect(),
+    );
 }
 
 /// What:
@@ -380,7 +458,10 @@ fn holder_of_item(item: &str) -> String {
 /// ```ts
 /// const intentPathList = (text, key) => { const hex = value(text, key + 'Hex'); return (hex ?? value(text, key))?.split('\t').filter(Boolean).map((item) => hex === undefined ? item : pathOfHex(item)); };
 /// ```
-pub(crate) fn intent_path_list(text: &str, key: &str) -> Result<Option<Vec<Vec<u8>>>, String> {
+pub(crate) fn intent_path_list(
+    text: &str,
+    key: &str,
+) -> Result<Option<Vec<Vec<u8>>>, String> {
     let items: Vec<&str> = match intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()) {
         Some(bytes) => {
             let mut paths: Vec<Vec<u8>> = Vec::new();
@@ -389,7 +470,9 @@ pub(crate) fn intent_path_list(text: &str, key: &str) -> Result<Option<Vec<Vec<u
                     continue;
                 }
                 let Some(path) = path_bytes::path_of_hex(item) else {
-                    return Err(String::from("an item of a list of bytes is not the bytes of a path"));
+                    return Err(String::from(
+                        "an item of a list of bytes is not the bytes of a path",
+                    ));
                 };
                 paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
             }
@@ -423,13 +506,24 @@ pub(crate) fn intent_path_list(text: &str, key: &str) -> Result<Option<Vec<Vec<u
 /// ```ts
 /// const [gitDir, scratch, reftable] = entry.split('\t'); return reftable === undefined ? undefined : { gitDir, scratch, reftable: reftable === '1' };
 /// ```
-pub(crate) fn parse_cleanup(entry: &str, hexadecimal: bool) -> Option<Cleanup> {
+pub(crate) fn parse_cleanup(
+    entry: &str,
+    hexadecimal: bool,
+) -> Option<Cleanup> {
     let mut parts = entry.split('\t');
     let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
     if hexadecimal {
-        return Some(Cleanup { git_dir: path_bytes::path_of_hex(git_dir)?, scratch: path_bytes::path_of_hex(scratch)?, reftable: reftable == "1" });
+        return Some(Cleanup {
+            git_dir: path_bytes::path_of_hex(git_dir)?,
+            scratch: path_bytes::path_of_hex(scratch)?,
+            reftable: reftable == "1",
+        });
     }
-    return Some(Cleanup { git_dir: PathBuf::from(git_dir), scratch: PathBuf::from(scratch), reftable: reftable == "1" });
+    return Some(Cleanup {
+        git_dir: PathBuf::from(git_dir),
+        scratch: PathBuf::from(scratch),
+        reftable: reftable == "1",
+    });
 }
 
 /// What:
@@ -459,7 +553,8 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         Err(_damaged) => return None,
     };
     // The line that holds the paths' bytes is the one a reader takes; the plain line is an earlier release's.
-    let cleanup: Option<Cleanup> = match intent_value(text, format!("cleanup{HEX_SUFFIX}").as_str()) {
+    let cleanup: Option<Cleanup> = match intent_value(text, format!("cleanup{HEX_SUFFIX}").as_str())
+    {
         Some(hexadecimal) => Some(parse_cleanup(hexadecimal, true)?),
         None => match intent_value(text, "cleanup") {
             Some(plain) => parse_cleanup(plain, false),
@@ -479,7 +574,13 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         holders: holders_of(text).unwrap_or_default(),
         // An intent written before this field existed was made by a release whose pushes could not carry a transport at all, so
         //  every commit of it says that its command chose none.
-        transports: intent_list(text, "transports").unwrap_or_default().iter().map(|set| { return set == "1"; }).collect(),
+        transports: intent_list(text, "transports")
+            .unwrap_or_default()
+            .iter()
+            .map(|set| {
+                return set == "1";
+            })
+            .collect(),
         paths: intent_path_list(text, "paths").ok()??,
         // Intents written before these fields existed name neither.
         derived: intent_value(text, "derived") == Some("1"),

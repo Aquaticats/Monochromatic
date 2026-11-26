@@ -19,10 +19,18 @@
 
 /// Import the decision under test and the fixtures shared with the forwarding controls.
 use super::plan_invocation;
-use super::tests::{forward, inputs, text};
+use super::tests::{
+    forward,
+    inputs,
+    text,
+};
 use crate::action::Action;
 use crate::real_git::ResolutionInputs;
-use crate::test_support::{REAL_GIT, fixture, remove};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    remove,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -34,7 +42,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///  real Git as a child,
 /// the same overlay as a plain forward,
 /// and this text after Git's answer.
-fn announced(arguments: Vec<OsString>, announcement: String) -> Action {
+fn announced(
+    arguments: Vec<OsString>,
+    announcement: String,
+) -> Action {
     let Action::Forward {
         real_git,
         overlay,
@@ -114,7 +125,11 @@ fn a_global_prefix_keeps_the_query_announced() {
             banner(),
         ),
         // A word after the query is an ordinary argument that Git ignores.
-        (vec!["--help", "monochromatic-git-policy-cli"], vec!["--help", "monochromatic-git-policy-cli"], help_section()),
+        (
+            vec!["--help", "monochromatic-git-policy-cli"],
+            vec!["--help", "monochromatic-git-policy-cli"],
+            help_section(),
+        ),
     ] {
         assert_eq!(
             plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution),
@@ -142,7 +157,8 @@ fn the_other_queries_stay_an_exact_replacement() {
         vec!["--version-extra"],
         vec!["--helpful"],
     ] {
-        let planned: Action = plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution);
+        let planned: Action =
+            plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution);
         assert!(
             !matches!(planned, Action::ForwardAnnounced { .. }),
             "{arguments:?} must not be announced"
@@ -176,7 +192,8 @@ fn subcommand_help_is_not_announced() {
         vec!["help", "--version"],
         vec!["version", "--build-options"],
     ] {
-        let planned: Action = plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution);
+        let planned: Action =
+            plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution);
         assert!(
             !matches!(planned, Action::ForwardAnnounced { .. }),
             "{arguments:?} must not be announced"

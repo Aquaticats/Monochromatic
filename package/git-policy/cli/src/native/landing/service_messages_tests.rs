@@ -11,11 +11,40 @@ use std::collections::BTreeSet;
 /// so a new variant cannot go unrendered.
 fn samples() -> Vec<ClientFailure> {
     let mut all: Vec<ClientFailure> = vec![
-        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::State(String::from("failed")), asked: RequestedStart::ResetAndStart },
-        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::NotHeld, asked: RequestedStart::Start },
-        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::State(String::from("activating")), asked: RequestedStart::Nothing },
-        ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Restart },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"), waited: Duration::from_secs(10) },
+        ClientFailure::DidNotStart {
+            unit: Some(String::from(
+                "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service",
+            )),
+            answer: ManagerLastWords::State(String::from("failed")),
+            asked: RequestedStart::ResetAndStart,
+        },
+        ClientFailure::DidNotStart {
+            unit: Some(String::from(
+                "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service",
+            )),
+            answer: ManagerLastWords::NotHeld,
+            asked: RequestedStart::Start,
+        },
+        ClientFailure::DidNotStart {
+            unit: Some(String::from(
+                "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service",
+            )),
+            answer: ManagerLastWords::State(String::from("activating")),
+            asked: RequestedStart::Nothing,
+        },
+        ClientFailure::DidNotStart {
+            unit: Some(String::from(
+                "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service",
+            )),
+            answer: ManagerLastWords::Silent,
+            asked: RequestedStart::Restart,
+        },
+        ClientFailure::NothingAnswered {
+            address: String::from(
+                "/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
+            ),
+            waited: Duration::from_secs(10),
+        },
         ClientFailure::OtherAccount,
         ClientFailure::MayNotHaveLanded,
         ClientFailure::NoCommonVersion,
@@ -24,55 +53,141 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::RepositoryReadOnly(String::from("/work/repo")),
         ClientFailure::PermissionDenied(String::from("/work/repo")),
         ClientFailure::RepositoryFrozen(String::from("/work/repo")),
-        ClientFailure::BranchKeepsChanging { branch: String::from("main"), times: 5 },
-        ClientFailure::BranchMoved { branch: String::from("main") },
-        ClientFailure::ConclusionStateChanged { branch: String::from("main") },
-        ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"), amend: false },
-        ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"), amend: true },
-        ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12")) },
-        ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
+        ClientFailure::BranchKeepsChanging {
+            branch: String::from("main"),
+            times: 5,
+        },
+        ClientFailure::BranchMoved {
+            branch: String::from("main"),
+        },
+        ClientFailure::ConclusionStateChanged {
+            branch: String::from("main"),
+        },
+        ClientFailure::BranchMovedMessageSaved {
+            branch: String::from("main"),
+            file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"),
+            amend: false,
+        },
+        ClientFailure::BranchMovedMessageSaved {
+            branch: String::from("main"),
+            file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"),
+            amend: true,
+        },
+        ClientFailure::BranchSwitched {
+            branch: String::from("main"),
+            now: String::from("side"),
+            file: Some(String::from(
+                "/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12",
+            )),
+        },
+        ClientFailure::BranchSwitched {
+            branch: String::from("main"),
+            now: String::from("side"),
+            file: None,
+        },
         ClientFailure::ServiceSilent,
-        ClientFailure::ServiceNotReading { took_nothing: true },
-        ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Made },
-        ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::NotMade },
-        ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Unread },
+        ClientFailure::ServiceNotReading {
+            took_nothing: true,
+        },
+        ClientFailure::ServiceNotReading {
+            took_nothing: false,
+        },
+        ClientFailure::ServiceSilentAfterPreparing {
+            shows: crate::service_messages::WhatTheBranchShows::Made,
+        },
+        ClientFailure::ServiceSilentAfterPreparing {
+            shows: crate::service_messages::WhatTheBranchShows::NotMade,
+        },
+        ClientFailure::ServiceSilentAfterPreparing {
+            shows: crate::service_messages::WhatTheBranchShows::Unread,
+        },
         ClientFailure::StepTooSlow,
-        ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("a landing behind another program's index lock")) },
-        ClientFailure::StillWithService { minutes: 20, blocker: None },
-        ClientFailure::WithdrawalUnconfirmed { blocker: None },
-        ClientFailure::WithdrawalUnconfirmed { blocker: Some(String::from("monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes and has not heard back: `git update-ref --stdin` in /work/repo (it moves refs/heads/main to abc123; the commit is also at refs/worktree/cli-git-service/7 until the update ends).")) },
+        ClientFailure::StillWithService {
+            minutes: 20,
+            blocker: Some(String::from(
+                "a landing behind another program's index lock",
+            )),
+        },
+        ClientFailure::StillWithService {
+            minutes: 20,
+            blocker: None,
+        },
+        ClientFailure::WithdrawalUnconfirmed {
+            blocker: None,
+        },
+        ClientFailure::WithdrawalUnconfirmed {
+            blocker: Some(String::from(
+                "monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes and has not heard back: `git update-ref --stdin` in /work/repo (it moves refs/heads/main to abc123; the commit is also at refs/worktree/cli-git-service/7 until the update ends).",
+            )),
+        },
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
         ClientFailure::ReferenceLocked {
             branch: String::from("main"),
-            words: String::from("Nothing proves that a Git process still holds the lock `/work/repo/.git/refs/heads/main.lock`. If no Git process is running in this repository, remove it with `rm -- /work/repo/.git/refs/heads/main.lock`."),
+            words: String::from(
+                "Nothing proves that a Git process still holds the lock `/work/repo/.git/refs/heads/main.lock`. If no Git process is running in this repository, remove it with `rm -- /work/repo/.git/refs/heads/main.lock`.",
+            ),
         },
         ClientFailure::Unavailable,
-        ClientFailure::ProgramMissing(String::from("/opt/monochromatic-git-policy-cli/cli-git-service")),
+        ClientFailure::ProgramMissing(String::from(
+            "/opt/monochromatic-git-policy-cli/cli-git-service",
+        )),
         ClientFailure::CouldNotStart(String::from("the runtime directory has no space left")),
         ClientFailure::SocketPathTooLong {
-            path: String::from("/home/a/temp/agent/a-long-folder/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"),
+            path: String::from(
+                "/home/a/temp/agent/a-long-folder/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
+            ),
             length: 113,
             longest: 107,
             longest_runtime: 40,
         },
         ClientFailure::ServiceElsewhere {
-            made: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"),
-            looked_for: String::from("/home/a/temp/agent/rt/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"),
+            made: String::from(
+                "/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
+            ),
+            looked_for: String::from(
+                "/home/a/temp/agent/rt/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
+            ),
             manager_runtime: String::from("/run/user/1000"),
             client_runtime: String::from("/home/a/temp/agent/rt"),
         },
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
         ClientFailure::ContentPruned,
-        ClientFailure::ManagerDidNotAnswer { waited: Duration::from_secs(20) },
-        ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(4242), blocker: Some(String::from("a landing behind another program's index lock")) },
-        ClientFailure::Interrupted { signal: libc::SIGTERM, sender: None, blocker: None },
-        ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, sender: None, blocker: None },
-        ClientFailure::InterruptedNotKnown { signal: libc::SIGTERM, sender: Some(4242), blocker: Some(String::from("the commit service has been inside a write for 21 minutes and has not heard back")) },
+        ClientFailure::ManagerDidNotAnswer {
+            waited: Duration::from_secs(20),
+        },
+        ClientFailure::Interrupted {
+            signal: libc::SIGINT,
+            sender: Some(4242),
+            blocker: Some(String::from(
+                "a landing behind another program's index lock",
+            )),
+        },
+        ClientFailure::Interrupted {
+            signal: libc::SIGTERM,
+            sender: None,
+            blocker: None,
+        },
+        ClientFailure::InterruptedNotKnown {
+            signal: libc::SIGINT,
+            sender: None,
+            blocker: None,
+        },
+        ClientFailure::InterruptedNotKnown {
+            signal: libc::SIGTERM,
+            sender: Some(4242),
+            blocker: Some(String::from(
+                "the commit service has been inside a write for 21 minutes and has not heard back",
+            )),
+        },
     ];
-    for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
+    for platform in [
+        Platform::Windows,
+        Platform::Bsd,
+        Platform::LinuxWithoutUserServices,
+        Platform::Other,
+    ] {
         all.push(ClientFailure::NoActivation(platform));
     }
     return all;
@@ -178,15 +293,22 @@ fn without_commands(text: &str) -> String {
 
 /// Whether `word` (one or more words) occurs in `text` as whole words,
 /// ignoring case.
-fn contains_whole(text: &str, word: &str) -> bool {
+fn contains_whole(
+    text: &str,
+    word: &str,
+) -> bool {
     let haystack: String = text.to_lowercase();
     let needle: String = word.to_lowercase();
     let mut from: usize = 0;
     while let Some(at) = haystack[from..].find(needle.as_str()) {
         let start: usize = from + at;
         let end: usize = start + needle.len();
-        let before_ok: bool = haystack[..start].chars().next_back().is_none_or(|c| { return !c.is_alphanumeric(); });
-        let after_ok: bool = haystack[end..].chars().next().is_none_or(|c| { return !c.is_alphanumeric(); });
+        let before_ok: bool = haystack[..start].chars().next_back().is_none_or(|c| {
+            return !c.is_alphanumeric();
+        });
+        let after_ok: bool = haystack[end..].chars().next().is_none_or(|c| {
+            return !c.is_alphanumeric();
+        });
         if before_ok && after_ok {
             return true;
         }
@@ -214,7 +336,10 @@ fn every_failure_variant_is_rendered() {
     let covered: BTreeSet<&'static str> = samples().iter().map(variant_name).collect();
     let expected: BTreeSet<&'static str> = VARIANT_NAMES.iter().copied().collect();
     let unsampled: Vec<&str> = expected.difference(&covered).copied().collect();
-    assert!(unsampled.is_empty(), "these variants of `ClientFailure` have no sample: {unsampled:?}");
+    assert!(
+        unsampled.is_empty(),
+        "these variants of `ClientFailure` have no sample: {unsampled:?}"
+    );
     assert_eq!(
         covered.len(),
         VARIANT_NAMES.len(),
@@ -229,7 +354,10 @@ fn no_message_leaks_an_implementation_term() {
     for failure in samples() {
         let plain: String = without_commands(render(&failure).as_str());
         for term in DENYLIST {
-            assert!(!contains_whole(plain.as_str(), term), "{failure:?} leaks {term:?}: {plain}");
+            assert!(
+                !contains_whole(plain.as_str(), term),
+                "{failure:?} leaks {term:?}: {plain}"
+            );
         }
     }
     for notice in [STARTING_NOTICE, UPDATING_NOTICE] {
@@ -240,17 +368,28 @@ fn no_message_leaks_an_implementation_term() {
     for (number, of) in [(1, 1), (2, 5), (9, 9)] {
         let notice: String = position_notice(number, of);
         for term in DENYLIST {
-            assert!(!contains_whole(notice.as_str(), term), "{notice:?} leaks {term:?}");
+            assert!(
+                !contains_whole(notice.as_str(), term),
+                "{notice:?} leaks {term:?}"
+            );
         }
     }
-    for waited in [Duration::ZERO, Duration::from_millis(400), Duration::from_secs(1), Duration::from_secs(12), Duration::from_secs(3_600)] {
+    for waited in [
+        Duration::ZERO,
+        Duration::from_millis(400),
+        Duration::from_secs(1),
+        Duration::from_secs(12),
+        Duration::from_secs(3_600),
+    ] {
         let notice: String = unplaced_notice(waited);
         for term in DENYLIST {
-            assert!(!contains_whole(notice.as_str(), term), "{notice:?} leaks {term:?}");
+            assert!(
+                !contains_whole(notice.as_str(), term),
+                "{notice:?} leaks {term:?}"
+            );
         }
     }
 }
-
 
 /// What:
 ///  A commit the service named no place for is told what the client knows,
@@ -263,11 +402,29 @@ fn no_message_leaks_an_implementation_term() {
 #[test]
 fn the_unplaced_notice_says_what_the_client_knows_and_no_more() {
     let waited: String = unplaced_notice(Duration::from_secs(12));
-    assert_eq!(waited, "The commit service has not said where this commit stands yet; it has waited 12 seconds.");
-    assert_eq!(unplaced_notice(Duration::from_secs(1)), "The commit service has not said where this commit stands yet; it has waited 1 second.");
-    assert_eq!(unplaced_notice(Duration::from_millis(400)), "The commit service has not said where this commit stands yet; it has waited 1 second.", "a part second is a second waited");
-    for claim in ["has not started", "still reading", "has begun", "is waiting for the index"] {
-        assert!(!waited.contains(claim), "the notice may not say {claim:?}: {waited}");
+    assert_eq!(
+        waited,
+        "The commit service has not said where this commit stands yet; it has waited 12 seconds."
+    );
+    assert_eq!(
+        unplaced_notice(Duration::from_secs(1)),
+        "The commit service has not said where this commit stands yet; it has waited 1 second."
+    );
+    assert_eq!(
+        unplaced_notice(Duration::from_millis(400)),
+        "The commit service has not said where this commit stands yet; it has waited 1 second.",
+        "a part second is a second waited"
+    );
+    for claim in [
+        "has not started",
+        "still reading",
+        "has begun",
+        "is waiting for the index",
+    ] {
+        assert!(
+            !waited.contains(claim),
+            "the notice may not say {claim:?}: {waited}"
+        );
     }
 }
 
@@ -294,7 +451,10 @@ fn the_silent_notice_names_the_seconds_and_asks_nothing_of_the_reader() {
          a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do.",
         "a part second is a second waited"
     );
-    assert!(!waited.contains("stopped"), "the client cannot say the service stopped: {waited}");
+    assert!(
+        !waited.contains("stopped"),
+        "the client cannot say the service stopped: {waited}"
+    );
 }
 
 /// The denylist check can fail:
@@ -302,7 +462,10 @@ fn the_silent_notice_names_the_seconds_and_asks_nothing_of_the_reader() {
 /// and a word inside another word is not.
 #[test]
 fn the_denylist_catches_a_leak_and_ignores_inner_words() {
-    assert!(contains_whole("The daemon refused the request id.", "request id"));
+    assert!(contains_whole(
+        "The daemon refused the request id.",
+        "request id"
+    ));
     assert!(contains_whole("Socket closed (EPIPE).", "socket"));
     assert!(!contains_whole("Please avoid the voided path.", "oid"));
     assert!(!contains_whole("The rapid pipeline.", "pid"));
@@ -313,12 +476,20 @@ fn the_denylist_catches_a_leak_and_ignores_inner_words() {
 /// a quoted command or one of the plain verbs that start a remedy.
 #[test]
 fn every_message_gives_an_action() {
-    let verbs = ["run", "use", "install", "free", "make", "wait", "update", "raise", "ask", "turn", "check", "commit"];
+    let verbs = [
+        "run", "use", "install", "free", "make", "wait", "update", "raise", "ask", "turn", "check",
+        "commit",
+    ];
     for failure in samples() {
         let text: String = render(&failure);
         let has_command: bool = text.contains('`');
-        let has_verb: bool = verbs.iter().any(|verb| { return contains_whole(text.as_str(), verb); });
-        assert!(has_command || has_verb, "{failure:?} gives no action: {text}");
+        let has_verb: bool = verbs.iter().any(|verb| {
+            return contains_whole(text.as_str(), verb);
+        });
+        assert!(
+            has_command || has_verb,
+            "{failure:?} gives no action: {text}"
+        );
         assert!(!text.trim().is_empty());
     }
 }
@@ -327,8 +498,22 @@ fn every_message_gives_an_action() {
 /// so it cannot drift from them.
 #[test]
 fn messages_quote_their_constants_and_facts() {
-    assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
-    assert!(render(&ClientFailure::DidNotStart { unit: Some(String::from("monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service")), answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing }).contains(LOG_COMMAND));
+    assert!(
+        render(&ClientFailure::UnitInTheWay(String::from(
+            "/home/a/.config/systemd/user/cli-git.socket"
+        )))
+        .contains("/home/a/.config/systemd/user/cli-git.socket")
+    );
+    assert!(
+        render(&ClientFailure::DidNotStart {
+            unit: Some(String::from(
+                "monochromatic-git-policy-cli@0123456789abcdef0123456789abcdef.service"
+            )),
+            answer: ManagerLastWords::Silent,
+            asked: RequestedStart::Nothing
+        })
+        .contains(LOG_COMMAND)
+    );
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
     // What: The failure that a program other than this release answers names the link whose pointing decides it.
@@ -343,55 +528,142 @@ fn messages_quote_their_constants_and_facts() {
     for command in CHECK_COMMANDS {
         assert!(unsure.contains(command), "{unsure}");
     }
-    assert!(render(&ClientFailure::NoActivation(Platform::LinuxWithoutUserServices)).contains(LINGER_COMMAND));
-    let branch: String = render(&ClientFailure::BranchKeepsChanging { branch: String::from("topic"), times: 7 });
+    assert!(
+        render(&ClientFailure::NoActivation(
+            Platform::LinuxWithoutUserServices
+        ))
+        .contains(LINGER_COMMAND)
+    );
+    let branch: String = render(&ClientFailure::BranchKeepsChanging {
+        branch: String::from("topic"),
+        times: 7,
+    });
     assert!(branch.contains("topic") && branch.contains('7'), "{branch}");
-    assert!(render(&ClientFailure::BranchMoved { branch: String::from("topic") }).contains("topic"));
-    let changed: String = render(&ClientFailure::ConclusionStateChanged { branch: String::from("topic") });
-    assert!(changed.contains("topic") && changed.contains("cherry-pick") && changed.contains("revert"), "{changed}");
-    let saved: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: true });
-    assert!(saved.contains("`git commit --amend -F /r/.git/saved`") && saved.contains("topic"), "{saved}");
-    let plain: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: false });
+    assert!(
+        render(&ClientFailure::BranchMoved {
+            branch: String::from("topic")
+        })
+        .contains("topic")
+    );
+    let changed: String = render(&ClientFailure::ConclusionStateChanged {
+        branch: String::from("topic"),
+    });
+    assert!(
+        changed.contains("topic") && changed.contains("cherry-pick") && changed.contains("revert"),
+        "{changed}"
+    );
+    let saved: String = render(&ClientFailure::BranchMovedMessageSaved {
+        branch: String::from("topic"),
+        file: String::from("/r/.git/saved"),
+        amend: true,
+    });
+    assert!(
+        saved.contains("`git commit --amend -F /r/.git/saved`") && saved.contains("topic"),
+        "{saved}"
+    );
+    let plain: String = render(&ClientFailure::BranchMovedMessageSaved {
+        branch: String::from("topic"),
+        file: String::from("/r/.git/saved"),
+        amend: false,
+    });
     assert!(plain.contains("`git commit -F /r/.git/saved`"), "{plain}");
-    let switched: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: Some(String::from("/r/.git/saved")) });
-    assert!(switched.contains("topic") && switched.contains("side") && switched.contains("`git commit -F /r/.git/saved`"), "{switched}");
-    let unsaved: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: None });
+    let switched: String = render(&ClientFailure::BranchSwitched {
+        branch: String::from("topic"),
+        now: String::from("side"),
+        file: Some(String::from("/r/.git/saved")),
+    });
+    assert!(
+        switched.contains("topic")
+            && switched.contains("side")
+            && switched.contains("`git commit -F /r/.git/saved`"),
+        "{switched}"
+    );
+    let unsaved: String = render(&ClientFailure::BranchSwitched {
+        branch: String::from("topic"),
+        now: String::from("side"),
+        file: None,
+    });
     assert!(!unsaved.contains("saved in"), "{unsaved}");
-    assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
+    assert!(
+        render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo")
+    );
     // What a service that stopped leaves a person to do: read the state of this worktree's service, restart the one unit it
     //  names, and read whether the commit was made. A restart of every service of the account is what these words must never
     //  ask for, and what the wildcard `RESTART_COMMAND` of the other failures still does.
     for failure in [
         ClientFailure::ServiceSilent,
-        ClientFailure::ServiceNotReading { took_nothing: true },
-        ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+        ClientFailure::ServiceNotReading {
+            took_nothing: true,
+        },
+        ClientFailure::ServiceNotReading {
+            took_nothing: false,
+        },
+        ClientFailure::NothingAnswered {
+            address: String::from("/run/user/1000/x.sock"),
+            waited: Duration::from_secs(10),
+        },
     ] {
         let words: String = render(&failure);
         for command in [STATUS_COMMAND, RESTART_ONE_UNIT_COMMAND] {
-            assert!(words.contains(command), "{failure:?} names {command}: {words}");
+            assert!(
+                words.contains(command),
+                "{failure:?} names {command}: {words}"
+            );
         }
-        assert!(!words.contains(RESTART_COMMAND), "{failure:?} must not restart every service of the account: {words}");
-        assert!(!words.contains(LOG_COMMAND), "{failure:?} must not read the journal of every service: {words}");
+        assert!(
+            !words.contains(RESTART_COMMAND),
+            "{failure:?} must not restart every service of the account: {words}"
+        );
+        assert!(
+            !words.contains(LOG_COMMAND),
+            "{failure:?} must not read the journal of every service: {words}"
+        );
     }
     // A commit that was not made says so and says the staged work is untouched; one whose result nobody knows yet names the
     //  read that shows it.
     for not_made in [
-        ClientFailure::ServiceNotReading { took_nothing: true },
-        ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+        ClientFailure::ServiceNotReading {
+            took_nothing: true,
+        },
+        ClientFailure::ServiceNotReading {
+            took_nothing: false,
+        },
+        ClientFailure::NothingAnswered {
+            address: String::from("/run/user/1000/x.sock"),
+            waited: Duration::from_secs(10),
+        },
     ] {
         let words: String = render(&not_made);
-        assert!(words.contains(NOTHING_CHANGED), "{not_made:?} says nothing in the repository changed: {words}");
-        assert!(words.contains("was not made"), "{not_made:?} says the commit was not made: {words}");
+        assert!(
+            words.contains(NOTHING_CHANGED),
+            "{not_made:?} says nothing in the repository changed: {words}"
+        );
+        assert!(
+            words.contains("was not made"),
+            "{not_made:?} says the commit was not made: {words}"
+        );
     }
-    for not_known in [ClientFailure::ServiceSilent, ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread }] {
+    for not_known in [
+        ClientFailure::ServiceSilent,
+        ClientFailure::ServiceSilentAfterPreparing {
+            shows: WhatTheBranchShows::Unread,
+        },
+    ] {
         let words: String = render(&not_known);
-        assert!(words.contains(CHECK_COMMANDS[0]), "{not_known:?} names what shows whether the commit was made: {words}");
-        assert!(!words.contains(NOTHING_CHANGED), "{not_known:?} must not claim nothing changed: {words}");
+        assert!(
+            words.contains(CHECK_COMMANDS[0]),
+            "{not_known:?} names what shows whether the commit was made: {words}"
+        );
+        assert!(
+            !words.contains(NOTHING_CHANGED),
+            "{not_known:?} must not claim nothing changed: {words}"
+        );
     }
     let silent: String = render(&ClientFailure::ServiceSilent);
-    assert!(!silent.contains("raise") && !silent.contains("setting"), "the text must not name a setting that does not exist: {silent}");
+    assert!(
+        !silent.contains("raise") && !silent.contains("setting"),
+        "the text must not name a setting that does not exist: {silent}"
+    );
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));
 }
 
@@ -433,21 +705,47 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
 /// ```
 #[test]
 fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_land() {
-    let not_made: String =
-        render(&ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::NotMade });
-    assert!(not_made.contains("may still land it"), "the words allow a service that wakes to land it: {not_made}");
-    assert!(not_made.contains(CHECK_COMMANDS[0]), "they name the read that shows whether it has: {not_made}");
-    assert!(!not_made.contains("dropped before it lands"), "they do not claim a drop the landing does not promise: {not_made}");
-    assert!(not_made.contains("once `git log -1` has shown that it was not made"), "and the step that runs it again waits for that read: {not_made}");
+    let not_made: String = render(&ClientFailure::ServiceSilentAfterPreparing {
+        shows: WhatTheBranchShows::NotMade,
+    });
+    assert!(
+        not_made.contains("may still land it"),
+        "the words allow a service that wakes to land it: {not_made}"
+    );
+    assert!(
+        not_made.contains(CHECK_COMMANDS[0]),
+        "they name the read that shows whether it has: {not_made}"
+    );
+    assert!(
+        !not_made.contains("dropped before it lands"),
+        "they do not claim a drop the landing does not promise: {not_made}"
+    );
+    assert!(
+        not_made.contains("once `git log -1` has shown that it was not made"),
+        "and the step that runs it again waits for that read: {not_made}"
+    );
     // The other way round: a request that never reached the service whole says the reason that is true.
     for never_arrived in [
-        ClientFailure::ServiceNotReading { took_nothing: true },
-        ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+        ClientFailure::ServiceNotReading {
+            took_nothing: true,
+        },
+        ClientFailure::ServiceNotReading {
+            took_nothing: false,
+        },
+        ClientFailure::NothingAnswered {
+            address: String::from("/run/user/1000/x.sock"),
+            waited: Duration::from_secs(10),
+        },
     ] {
         let words: String = render(&never_arrived);
-        assert!(words.contains("framing newline"), "{never_arrived:?} says a request is read only when its newline arrived: {words}");
-        assert!(!words.contains("dropped before it lands"), "{never_arrived:?} claims no drop: {words}");
+        assert!(
+            words.contains("framing newline"),
+            "{never_arrived:?} says a request is read only when its newline arrived: {words}"
+        );
+        assert!(
+            !words.contains("dropped before it lands"),
+            "{never_arrived:?} claims no drop: {words}"
+        );
     }
 }
 
@@ -472,17 +770,42 @@ fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_lan
 #[test]
 fn a_manager_that_did_not_answer_names_the_status_command_only_for_a_reader_it_helps() {
     let waited: Duration = Duration::from_secs(20);
-    let words: String = render(&ClientFailure::ManagerDidNotAnswer { waited });
-    assert!(words.contains("did not answer within the 20 seconds"), "the words name the time the exchange was given: {words}");
-    assert!(words.contains("says nothing about whether the manager is there"), "they do not claim the manager is absent: {words}");
-    assert!(words.contains("nothing of it was written") && words.contains("nothing that could land later by itself"), "they say what became of the commit: {words}");
-    assert!(words.contains("Run the commit again"), "the step that always works is named: {words}");
+    let words: String = render(&ClientFailure::ManagerDidNotAnswer {
+        waited,
+    });
+    assert!(
+        words.contains("did not answer within the 20 seconds"),
+        "the words name the time the exchange was given: {words}"
+    );
+    assert!(
+        words.contains("says nothing about whether the manager is there"),
+        "they do not claim the manager is absent: {words}"
+    );
+    assert!(
+        words.contains("nothing of it was written")
+            && words.contains("nothing that could land later by itself"),
+        "they say what became of the commit: {words}"
+    );
+    assert!(
+        words.contains("Run the commit again"),
+        "the step that always works is named: {words}"
+    );
     // One mention, in the sentence that says which reader it is for.
-    assert_eq!(words.matches(STATUS_COMMAND).count(), 1, "the status command is named once: {words}");
+    assert_eq!(
+        words.matches(STATUS_COMMAND).count(),
+        1,
+        "the status command is named once: {words}"
+    );
     let named_at: usize = words.find(STATUS_COMMAND).expect("named");
     let before: &str = &words[..named_at];
-    assert!(before.contains("was already running before this commit"), "the command is named for the reader whose service was already running: {words}");
-    assert!(!words.contains(LINGER_COMMAND), "an account with user services is not told to turn them on: {words}");
+    assert!(
+        before.contains("was already running before this commit"),
+        "the command is named for the reader whose service was already running: {words}"
+    );
+    assert!(
+        !words.contains(LINGER_COMMAND),
+        "an account with user services is not told to turn them on: {words}"
+    );
 }
 
 /// Queue notices count the commits ahead.
@@ -500,14 +823,31 @@ fn position_notices_count_the_commits_ahead() {
 /// none of them borrowed from another.
 #[test]
 fn a_read_only_filesystem_a_permission_error_and_a_frozen_move_each_have_their_own_sentence() {
-    let read_only: String = render(&ClientFailure::RepositoryReadOnly(String::from("/work/repo")));
-    assert!(read_only.contains("cannot be written to") && read_only.contains("mounted read-only"), "{read_only}");
+    let read_only: String = render(&ClientFailure::RepositoryReadOnly(String::from(
+        "/work/repo",
+    )));
+    assert!(
+        read_only.contains("cannot be written to") && read_only.contains("mounted read-only"),
+        "{read_only}"
+    );
     let denied: String = render(&ClientFailure::PermissionDenied(String::from("/work/repo")));
-    assert!(denied.contains("/work/repo") && denied.contains("permission"), "{denied}");
-    assert!(!denied.contains("mounted read-only") && !denied.contains("move"), "a permission problem is not a read-only disk or a move: {denied}");
+    assert!(
+        denied.contains("/work/repo") && denied.contains("permission"),
+        "{denied}"
+    );
+    assert!(
+        !denied.contains("mounted read-only") && !denied.contains("move"),
+        "a permission problem is not a read-only disk or a move: {denied}"
+    );
     let frozen: String = render(&ClientFailure::RepositoryFrozen(String::from("/work/repo")));
-    assert!(frozen.contains("a repository move has frozen the repository"), "{frozen}");
-    assert!(frozen.contains("thaws when the move's thaw step runs"), "{frozen}");
+    assert!(
+        frozen.contains("a repository move has frozen the repository"),
+        "{frozen}"
+    );
+    assert!(
+        frozen.contains("thaws when the move's thaw step runs"),
+        "{frozen}"
+    );
     assert!(frozen.contains(NOTHING_CHANGED), "{frozen}");
     assert!(!frozen.contains("permission"), "{frozen}");
 }
@@ -518,11 +858,25 @@ fn a_read_only_filesystem_a_permission_error_and_a_frozen_move_each_have_their_o
 /// and promises nothing it does not do.
 #[test]
 fn the_rebuild_notice_names_the_branch_the_builds_the_time_and_the_ceiling() {
-    let said: String = rebuild_notice("main", 3, std::time::Duration::from_secs(41), std::time::Duration::from_secs(1200));
-    for part in ["the branch main moved", "3 builds so far, 41 seconds", "built again on the new tip", "nothing conflicted", "stops after 1200 seconds"] {
+    let said: String = rebuild_notice(
+        "main",
+        3,
+        std::time::Duration::from_secs(41),
+        std::time::Duration::from_secs(1200),
+    );
+    for part in [
+        "the branch main moved",
+        "3 builds so far, 41 seconds",
+        "built again on the new tip",
+        "nothing conflicted",
+        "stops after 1200 seconds",
+    ] {
         assert!(said.contains(part), "{part}: {said}");
     }
-    assert!(said.ends_with('\n') && !said.contains("so it was built again"), "{said}");
+    assert!(
+        said.ends_with('\n') && !said.contains("so it was built again"),
+        "{said}"
+    );
 }
 
 /// What:
@@ -539,9 +893,21 @@ fn the_rebuild_notice_names_the_branch_the_builds_the_time_and_the_ceiling() {
 #[test]
 fn an_older_git_is_told_how_to_get_a_service_it_can_work_with() {
     let text: String = render(&ClientFailure::NoCommonVersion);
-    assert!(text.contains(STOP_COMMAND), "the stop a rollback needs is named: {text}");
-    assert!(text.contains("Update this git"), "the upgrade is still named: {text}");
-    assert!(text.contains("install the release"), "the rollback is named: {text}");
+    assert!(
+        text.contains(STOP_COMMAND),
+        "the stop a rollback needs is named: {text}"
+    );
+    assert!(
+        text.contains("Update this git"),
+        "the upgrade is still named: {text}"
+    );
+    assert!(
+        text.contains("install the release"),
+        "the rollback is named: {text}"
+    );
     assert!(text.contains(NOTHING_CHANGED), "nothing landed: {text}");
-    assert!(!text.contains(RESTART_COMMAND), "a restart starts the newer service again, so it is not the remedy here: {text}");
+    assert!(
+        !text.contains(RESTART_COMMAND),
+        "a restart starts the newer service again, so it is not the remedy here: {text}"
+    );
 }

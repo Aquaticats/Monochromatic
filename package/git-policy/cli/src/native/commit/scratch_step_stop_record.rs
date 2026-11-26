@@ -28,11 +28,14 @@
 /// and the stop the wait that owns the child answered.
 use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
 use crate::scratch_commit_step::ScratchStepFacts;
+use crate::scratch_step_stall_decided_once::TheStall;
 /// The words of a stop,
 /// the bound that ended it,
 /// and what a step was waited for.
-use crate::scratch_step_stop_words::{ScratchStepStop, TheBoundThatEndedACommit};
-use crate::scratch_step_stall_decided_once::TheStall;
+use crate::scratch_step_stop_words::{
+    ScratchStepStop,
+    TheBoundThatEndedACommit,
+};
 /// Time spans,
 /// for the usual ceiling a stop names.
 use std::time::Duration;
@@ -80,12 +83,23 @@ pub struct TheEnforcersOfAStep<'a> {
 /// if (!theWaitsStop) return undefined; return { waited: theWaitsStop.waited, bound: theBound(theStall, theUsualCeiling), below: theWaitsStop };
 /// ```
 pub fn the_stop_of_the_step(enforcers: TheEnforcersOfAStep<'_>) -> Option<ScratchStepStop> {
-    let TheEnforcersOfAStep { facts, the_waits_stop, the_stall, the_usual_ceiling, signs } = enforcers;
+    let TheEnforcersOfAStep {
+        facts,
+        the_waits_stop,
+        the_stall,
+        the_usual_ceiling,
+        signs,
+    } = enforcers;
     let bound_that_ended_it: TheBoundThatEndedACommit = match the_stall {
-        TheStall::StoodAside(stall) => TheBoundThatEndedACommit::TheStallBound { bound: stall.bound, why: stall.why.clone() },
+        TheStall::StoodAside(stall) => TheBoundThatEndedACommit::TheStallBound {
+            bound: stall.bound,
+            why: stall.why.clone(),
+        },
         // A ceiling that ended a step never stood aside for it, and one still deciding ended nothing:
         // the usual ceiling is the bound such a step ran under.
-        TheStall::TheUsualCeilingEndsIt | TheStall::Undecided => TheBoundThatEndedACommit::TheUsualCeiling(the_usual_ceiling),
+        TheStall::TheUsualCeilingEndsIt | TheStall::Undecided => {
+            TheBoundThatEndedACommit::TheUsualCeiling(the_usual_ceiling)
+        }
     };
     if let Some(waited) = facts.stopped_after {
         return Some(ScratchStepStop {

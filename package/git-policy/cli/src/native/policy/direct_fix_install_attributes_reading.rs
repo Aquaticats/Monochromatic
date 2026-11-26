@@ -16,15 +16,18 @@
 //! // const names = (path) => llistxattr(path).split('\0').filter(Boolean); const value = (path, name) => lgetxattr(path, name);
 //! ```
 
+/// How many times a list or a value is asked for before a changing file is refused.
+use super::ATTRIBUTE_ATTEMPTS;
 /// `CStr` is a NUL-terminated name for the system calls;
 ///  `CString` is one this code builds.
-use std::ffi::{CStr, CString};
+use std::ffi::{
+    CStr,
+    CString,
+};
 /// `OsStrExt` lends a path's bytes.
 use std::os::unix::ffi::OsStrExt;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
-/// How many times a list or a value is asked for before a changing file is refused.
-use super::ATTRIBUTE_ATTEMPTS;
 
 /// What:
 ///  A pathname as the system calls want it.
@@ -171,7 +174,10 @@ fn length_of_list_on_path(path: &mut CString) -> std::io::Result<usize> {
 /// const fillList = (path, buffer) => llistxattr(path, buffer, buffer.length);
 /// ```
 #[cfg(unix)]
-fn fill_list_on_path(path: &mut CString, buffer: &mut [u8]) -> std::io::Result<usize> {
+fn fill_list_on_path(
+    path: &mut CString,
+    buffer: &mut [u8],
+) -> std::io::Result<usize> {
     // SAFETY: `buffer` holds `buffer.len()` writable bytes, and the pathname outlives the call.
     let filled: libc::ssize_t =
         unsafe { libc::llistxattr(path.as_ptr(), buffer.as_mut_ptr().cast(), buffer.len()) };
@@ -206,7 +212,10 @@ fn length_of_list_on_descriptor(descriptor: &mut libc::c_int) -> std::io::Result
 /// const fillList = (fd, buffer) => flistxattr(fd, buffer, buffer.length);
 /// ```
 #[cfg(unix)]
-fn fill_list_on_descriptor(descriptor: &mut libc::c_int, buffer: &mut [u8]) -> std::io::Result<usize> {
+fn fill_list_on_descriptor(
+    descriptor: &mut libc::c_int,
+    buffer: &mut [u8],
+) -> std::io::Result<usize> {
     // SAFETY: `buffer` holds `buffer.len()` writable bytes, and the descriptor is this file's.
     let filled: libc::ssize_t =
         unsafe { libc::flistxattr(*descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
@@ -247,7 +256,12 @@ struct ValueOnDisk {
 fn length_of_value(asked: &mut ValueOnDisk) -> std::io::Result<usize> {
     // SAFETY: a null buffer with size 0 asks the system for the length of the value.
     let length: libc::ssize_t = unsafe {
-        libc::lgetxattr(asked.path.as_ptr(), asked.name.as_ptr(), std::ptr::null_mut(), 0)
+        libc::lgetxattr(
+            asked.path.as_ptr(),
+            asked.name.as_ptr(),
+            std::ptr::null_mut(),
+            0,
+        )
     };
     return answer_of(length);
 }
@@ -265,7 +279,10 @@ fn length_of_value(asked: &mut ValueOnDisk) -> std::io::Result<usize> {
 /// const fillValue = ({ path, name }, buffer) => lgetxattr(path, name, buffer, buffer.length);
 /// ```
 #[cfg(unix)]
-fn fill_value(asked: &mut ValueOnDisk, buffer: &mut [u8]) -> std::io::Result<usize> {
+fn fill_value(
+    asked: &mut ValueOnDisk,
+    buffer: &mut [u8],
+) -> std::io::Result<usize> {
     // SAFETY: `buffer` holds `buffer.len()` writable bytes, and both names outlive the call.
     let read: libc::ssize_t = unsafe {
         libc::lgetxattr(
@@ -349,7 +366,10 @@ pub(super) fn names_on_descriptor(descriptor: libc::c_int) -> std::io::Result<Ve
 /// const value = (path, attribute) => lgetxattr(path, attribute);
 /// ```
 #[cfg(unix)]
-pub(super) fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
+pub(super) fn value_of_attribute(
+    path: &Path,
+    name: &CStr,
+) -> std::io::Result<Vec<u8>> {
     let mut asked: ValueOnDisk = ValueOnDisk {
         path: name_of(path)?,
         name: CString::from(name),

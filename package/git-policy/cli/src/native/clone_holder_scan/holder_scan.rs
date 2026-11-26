@@ -48,11 +48,25 @@
 use crate::clone_holder_scan::held_mounts::HeldMount;
 use crate::clone_holder_scan::incomplete_reads::IncompleteRead;
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
-use crate::mount_namespace_scan::mount_namespace_tasks::{NamespaceListing, NamespaceRoot, RootIdentity};
-use crate::mount_namespace_scan::{ListingRequest, MountNamespaceTasks, TaskTableAttempt, mounts_of_source, read_one_namespace, threads_by_mount_namespace};
+use crate::mount_namespace_scan::mount_namespace_tasks::{
+    NamespaceListing,
+    NamespaceRoot,
+    RootIdentity,
+};
+use crate::mount_namespace_scan::{
+    ListingRequest,
+    MountNamespaceTasks,
+    TaskTableAttempt,
+    mounts_of_source,
+    read_one_namespace,
+    threads_by_mount_namespace,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many mount namespaces one scan reads before it stops.
 /// Why:
@@ -203,7 +217,11 @@ impl HolderScan {
 
     /// How many mounts of the dataset those namespaces hold between them.
     pub fn holder_mounts(&self) -> usize {
-        return self.holders.iter().map(|holder| return holder.mount_count()).sum();
+        return self
+            .holders
+            .iter()
+            .map(|holder| return holder.mount_count())
+            .sum();
     }
 
     /// How many reads the scan could not complete.
@@ -233,7 +251,10 @@ struct DetailBudget {
 impl DetailBudget {
     /// A budget of `lines` findings.
     fn new(lines: usize) -> Self {
-        return DetailBudget { left: lines, exceeded: false };
+        return DetailBudget {
+            left: lines,
+            exceeded: false,
+        };
     }
 
     /// Take one line for a finding,
@@ -299,10 +320,16 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
         incomplete: Vec::new(),
         time: request.time.clone(),
     };
-    let listing: NamespaceListing = match threads_by_mount_namespace(&ListingRequest { proc_root: request.proc_root, readers_root: request.readers_root }) {
+    let listing: NamespaceListing = match threads_by_mount_namespace(&ListingRequest {
+        proc_root: request.proc_root,
+        readers_root: request.readers_root,
+    }) {
         Ok(listing) => listing,
         Err(refusal) => {
-            scan.incomplete.push(IncompleteRead::Listing { proc_root: refusal.path, reason: bounded_reason(refusal.reason.as_str()) });
+            scan.incomplete.push(IncompleteRead::Listing {
+                proc_root: refusal.path,
+                reason: bounded_reason(refusal.reason.as_str()),
+            });
             return scan;
         }
     };
@@ -311,7 +338,11 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
         if !budget.take() {
             break;
         }
-        scan.incomplete.push(IncompleteRead::NamespaceLinkUnreadable { thread: link.thread.clone(), reason: bounded_reason(link.reason.as_str()) });
+        scan.incomplete
+            .push(IncompleteRead::NamespaceLinkUnreadable {
+                thread: link.thread.clone(),
+                reason: bounded_reason(link.reason.as_str()),
+            });
     }
     let more_namespaces_than_the_bound: bool = listing.namespaces.len() > MAXIMUM_MOUNT_NAMESPACES;
     for group in listing.namespaces.iter().take(MAXIMUM_MOUNT_NAMESPACES) {
@@ -321,10 +352,15 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
         }
     }
     if more_namespaces_than_the_bound {
-        scan.incomplete.push(IncompleteRead::NamespacesPastTheBound { bound: MAXIMUM_MOUNT_NAMESPACES });
+        scan.incomplete
+            .push(IncompleteRead::NamespacesPastTheBound {
+                bound: MAXIMUM_MOUNT_NAMESPACES,
+            });
     }
     if budget.exceeded {
-        scan.incomplete.push(IncompleteRead::DetailsPastTheBound { bound: MAXIMUM_DETAIL_LINES });
+        scan.incomplete.push(IncompleteRead::DetailsPastTheBound {
+            bound: MAXIMUM_DETAIL_LINES,
+        });
     }
     return scan;
 }
@@ -344,7 +380,12 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
 /// ```ts
 /// scanOneNamespace(scan, group, request, budget);
 /// ```
-fn scan_one_namespace(scan: &mut HolderScan, group: &MountNamespaceTasks, request: &HolderScanRequest<'_>, budget: &mut DetailBudget) -> bool {
+fn scan_one_namespace(
+    scan: &mut HolderScan,
+    group: &MountNamespaceTasks,
+    request: &HolderScanRequest<'_>,
+    budget: &mut DetailBudget,
+) -> bool {
     let read = read_one_namespace(group, request.readers_root);
     let namespace: String = read.namespace.clone();
     for cause in causes_of(&read, namespace.as_str()) {
@@ -360,13 +401,22 @@ fn scan_one_namespace(scan: &mut HolderScan, group: &MountNamespaceTasks, reques
         if !budget.take() {
             return true;
         }
-        scan.incomplete.push(IncompleteRead::NoTaskAtTheNamespaceRoot { namespace: namespace.clone() });
+        scan.incomplete
+            .push(IncompleteRead::NoTaskAtTheNamespaceRoot {
+                namespace: namespace.clone(),
+            });
     }
     let mut kept: Vec<HeldMount> = Vec::new();
     let mut stopped: bool = false;
-    for (listed, facts) in mounts_of_source(mounts, request.source).into_iter().enumerate() {
+    for (listed, facts) in mounts_of_source(mounts, request.source)
+        .into_iter()
+        .enumerate()
+    {
         if listed == MAXIMUM_MOUNTS_PER_NAMESPACE {
-            scan.incomplete.push(IncompleteRead::MountsPastTheBound { namespace: namespace.clone(), bound: MAXIMUM_MOUNTS_PER_NAMESPACE });
+            scan.incomplete.push(IncompleteRead::MountsPastTheBound {
+                namespace: namespace.clone(),
+                bound: MAXIMUM_MOUNTS_PER_NAMESPACE,
+            });
             break;
         }
         if !budget.take() {
@@ -380,7 +430,11 @@ fn scan_one_namespace(scan: &mut HolderScan, group: &MountNamespaceTasks, reques
     if is_own {
         scan.own_mounts.extend(kept);
     } else if !kept.is_empty() {
-        scan.holders.push(NamespaceHolder { namespace, task: task_path, mounts: kept });
+        scan.holders.push(NamespaceHolder {
+            namespace,
+            task: task_path,
+            mounts: kept,
+        });
     }
     return stopped;
 }
@@ -395,9 +449,16 @@ fn scan_one_namespace(scan: &mut HolderScan, group: &MountNamespaceTasks, reques
 ///  the tables it may not read when there were any,
 ///  and otherwise a single "no live member" entry,
 ///  so a reader never counts one namespace as two unknowns.
-fn causes_of(read: &crate::mount_namespace_scan::NamespaceTableRead, namespace: &str) -> Vec<IncompleteRead> {
+fn causes_of(
+    read: &crate::mount_namespace_scan::NamespaceTableRead,
+    namespace: &str,
+) -> Vec<IncompleteRead> {
     let mut causes: Vec<IncompleteRead> = Vec::with_capacity(read.attempts.len());
-    let unreadable: Vec<&TaskTableAttempt> = read.attempts.iter().filter(|attempt| return matches!(attempt, TaskTableAttempt::Unreadable { .. })).collect();
+    let unreadable: Vec<&TaskTableAttempt> = read
+        .attempts
+        .iter()
+        .filter(|attempt| return matches!(attempt, TaskTableAttempt::Unreadable { .. }))
+        .collect();
     if read.table().is_none() {
         if !unreadable.is_empty() {
             for attempt in unreadable {
@@ -405,8 +466,16 @@ fn causes_of(read: &crate::mount_namespace_scan::NamespaceTableRead, namespace: 
             }
             return causes;
         }
-        let reason: &str = read.attempts.last().and_then(|attempt| return attempt.reason()).unwrap_or("no thread of it was tried");
-        causes.push(IncompleteRead::NoLiveMember { namespace: String::from(namespace), tasks_tried: read.attempts.len(), reason: bounded_reason(reason) });
+        let reason: &str = read
+            .attempts
+            .last()
+            .and_then(|attempt| return attempt.reason())
+            .unwrap_or("no thread of it was tried");
+        causes.push(IncompleteRead::NoLiveMember {
+            namespace: String::from(namespace),
+            tasks_tried: read.attempts.len(),
+            reason: bounded_reason(reason),
+        });
         return causes;
     }
     for attempt in &read.attempts {
@@ -418,11 +487,30 @@ fn causes_of(read: &crate::mount_namespace_scan::NamespaceTableRead, namespace: 
 /// What:
 ///  One failed attempt as the cause it names,
 ///  or nothing when the attempt answered a table.
-fn cause_of(attempt: &TaskTableAttempt, namespace: &str) -> Option<IncompleteRead> {
+fn cause_of(
+    attempt: &TaskTableAttempt,
+    namespace: &str,
+) -> Option<IncompleteRead> {
     return match attempt {
-        TaskTableAttempt::Read { .. } => None,
-        TaskTableAttempt::Ended { thread, reason } => Some(IncompleteRead::TaskEnded { namespace: String::from(namespace), task: thread.clone(), reason: bounded_reason(reason) }),
-        TaskTableAttempt::Unreadable { thread, reason } => Some(IncompleteRead::TableUnreadable { namespace: String::from(namespace), task: thread.clone(), reason: bounded_reason(reason) }),
+        TaskTableAttempt::Read {
+            ..
+        } => None,
+        TaskTableAttempt::Ended {
+            thread,
+            reason,
+        } => Some(IncompleteRead::TaskEnded {
+            namespace: String::from(namespace),
+            task: thread.clone(),
+            reason: bounded_reason(reason),
+        }),
+        TaskTableAttempt::Unreadable {
+            thread,
+            reason,
+        } => Some(IncompleteRead::TableUnreadable {
+            namespace: String::from(namespace),
+            task: thread.clone(),
+            reason: bounded_reason(reason),
+        }),
     };
 }
 

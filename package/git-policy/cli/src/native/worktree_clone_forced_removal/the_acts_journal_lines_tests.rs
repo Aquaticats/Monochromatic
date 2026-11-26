@@ -15,8 +15,18 @@
 //! ```
 
 use super::{
-    ABlockersEnd, AClosingLine, ADestinationDirectory, AHolderNotEnded, APropagationChange, ARefusedNamespace, AStoppedUnit,
-    AStructuralRefusal, TheActsJournal, as_a_block, dataset_word, quoted,
+    ABlockersEnd,
+    AClosingLine,
+    ADestinationDirectory,
+    AHolderNotEnded,
+    APropagationChange,
+    ARefusedNamespace,
+    AStoppedUnit,
+    AStructuralRefusal,
+    TheActsJournal,
+    as_a_block,
+    dataset_word,
+    quoted,
 };
 use crate::worktree_clone_forced_removal::blocker_end::EndResult;
 use crate::worktree_clone_forced_removal::forced_removal_words::Stage;
@@ -30,7 +40,10 @@ fn a_nonce() -> RequestNonce {
 
 /// The act's own two fields.
 fn a_journal<'a>(nonce: &'a RequestNonce) -> TheActsJournal<'a> {
-    return TheActsJournal { dataset: "tank/clones/one", nonce };
+    return TheActsJournal {
+        dataset: "tank/clones/one",
+        nonce,
+    };
 }
 
 #[test]
@@ -45,8 +58,14 @@ fn a_value_with_a_space_or_a_quote_stays_one_field() {
         holder: "a command with spaces",
         failed_proof: "the read answered EACCES",
     });
-    assert!(line.contains("holder='a command with spaces'"), "the holder stays one value, and the line reads {line}");
-    assert!(line.contains("failed-proof='the read answered EACCES'"), "the proof stays one value, and the line reads {line}");
+    assert!(
+        line.contains("holder='a command with spaces'"),
+        "the holder stays one value, and the line reads {line}"
+    );
+    assert!(
+        line.contains("failed-proof='the read answered EACCES'"),
+        "the proof stays one value, and the line reads {line}"
+    );
 }
 
 #[test]
@@ -62,9 +81,26 @@ fn a_blocker_s_line_names_what_was_found_sent_and_become_of_it() {
         signals: &["SIGTERM", "SIGKILL"],
         result: EndResult::Killed,
     });
-    assert!(line.starts_with("forced-removal blocker-ended "), "the line names its event first, and it reads {line}");
-    for wanted in ["dataset='tank/clones/one'", "nonce='00112233445566778899aabbccddeeff'", "namespace='mnt:[4026532001]'", "mount=77", "pid=4321", "started=987654", "session=4300", "found-by='cwd'", "signals='SIGTERM,SIGKILL'", "result=killed"] {
-        assert!(line.contains(wanted), "the line carries `{wanted}`, and it reads {line}");
+    assert!(
+        line.starts_with("forced-removal blocker-ended "),
+        "the line names its event first, and it reads {line}"
+    );
+    for wanted in [
+        "dataset='tank/clones/one'",
+        "nonce='00112233445566778899aabbccddeeff'",
+        "namespace='mnt:[4026532001]'",
+        "mount=77",
+        "pid=4321",
+        "started=987654",
+        "session=4300",
+        "found-by='cwd'",
+        "signals='SIGTERM,SIGKILL'",
+        "result=killed",
+    ] {
+        assert!(
+            line.contains(wanted),
+            "the line carries `{wanted}`, and it reads {line}"
+        );
     }
     assert!(!line.contains('\n'), "a journal line is one line");
 }
@@ -82,8 +118,14 @@ fn a_holder_that_held_the_mount_without_a_copy_names_no_mount() {
         signals: &[],
         result: EndResult::Gone,
     });
-    assert!(line.contains("mount=none"), "a path holder names no copy's mount, and it reads {line}");
-    assert!(line.contains("signals=''"), "nothing was sent to a task that had gone, and it reads {line}");
+    assert!(
+        line.contains("mount=none"),
+        "a path holder names no copy's mount, and it reads {line}"
+    );
+    assert!(
+        line.contains("signals=''"),
+        "nothing was sent to a task that had gone, and it reads {line}"
+    );
     assert!(line.contains("result=gone"));
 }
 
@@ -101,7 +143,10 @@ fn the_propagation_line_names_both_tag_words_and_whether_the_removal_finished() 
     assert!(line.contains("was='shared:12'"), "and it reads {line}");
     assert!(line.contains("now='master:12'"));
     assert!(line.contains("change='slave'"));
-    assert!(line.contains("removal=failed"), "a change left after a failed removal says so, and it reads {line}");
+    assert!(
+        line.contains("removal=failed"),
+        "a change left after a failed removal says so, and it reads {line}"
+    );
 }
 
 #[test]
@@ -113,7 +158,10 @@ fn the_structural_refusal_says_no_copy_moved_and_what_was_changed() {
         directory: "removed",
         said: "mount MS_SLAVE answered EINVAL",
     });
-    assert!(line.contains("copy-moved=no"), "the third state's own fact, and it reads {line}");
+    assert!(
+        line.contains("copy-moved=no"),
+        "the third state's own fact, and it reads {line}"
+    );
     assert!(line.contains("changed='mnt:[8]'"));
     assert!(line.contains("directory='removed'"));
 }
@@ -122,31 +170,82 @@ fn the_structural_refusal_says_no_copy_moved_and_what_was_changed() {
 fn the_other_lines_carry_their_own_facts() {
     let nonce: RequestNonce = a_nonce();
     let journal: TheActsJournal<'_> = a_journal(&nonce);
-    let directory: String = journal.a_destination_directory(&ADestinationDirectory { namespace: "mnt:[3]", name: ".git-worktree-clone-removal-9", removed: true });
+    let directory: String = journal.a_destination_directory(&ADestinationDirectory {
+        namespace: "mnt:[3]",
+        name: ".git-worktree-clone-removal-9",
+        removed: true,
+    });
     assert!(directory.contains("name='.git-worktree-clone-removal-9'"));
-    assert!(directory.contains("left=no"), "the directory's life is the line's own field, and it reads {directory}");
-    let unit: String = journal.a_stopped_unit(&AStoppedUnit { unit: "watcher.service", cgroup: "/user.slice/watcher.service", namespace: "mnt:[4]" });
-    assert!(unit.contains("unit='watcher.service'"), "and it reads {unit}");
-    assert!(unit.contains("again=run-the-removal-and-start-the-unit"), "the person is told the unit may be started again");
-    let refused: String = journal.a_refused_namespace(&ARefusedNamespace { namespace: "mnt:[5]", word: "holder-blind", said: "EACCES" });
-    assert!(refused.contains("word='holder-blind'"), "and it reads {refused}");
+    assert!(
+        directory.contains("left=no"),
+        "the directory's life is the line's own field, and it reads {directory}"
+    );
+    let unit: String = journal.a_stopped_unit(&AStoppedUnit {
+        unit: "watcher.service",
+        cgroup: "/user.slice/watcher.service",
+        namespace: "mnt:[4]",
+    });
+    assert!(
+        unit.contains("unit='watcher.service'"),
+        "and it reads {unit}"
+    );
+    assert!(
+        unit.contains("again=run-the-removal-and-start-the-unit"),
+        "the person is told the unit may be started again"
+    );
+    let refused: String = journal.a_refused_namespace(&ARefusedNamespace {
+        namespace: "mnt:[5]",
+        word: "holder-blind",
+        said: "EACCES",
+    });
+    assert!(
+        refused.contains("word='holder-blind'"),
+        "and it reads {refused}"
+    );
 }
 
 #[test]
 fn the_closing_line_counts_what_the_design_asks() {
     let nonce: RequestNonce = a_nonce();
-    let line: String = a_journal(&nonce).closed(&AClosingLine { ended: 3, unproven: 1, scan_clear: true, propagation_changes: 2, stage: Stage::Done });
-    for wanted in ["ended=3", "unproven=1", "scan=clear", "changed=2", "stage='done'"] {
-        assert!(line.contains(wanted), "the closing line carries `{wanted}`, and it reads {line}");
+    let line: String = a_journal(&nonce).closed(&AClosingLine {
+        ended: 3,
+        unproven: 1,
+        scan_clear: true,
+        propagation_changes: 2,
+        stage: Stage::Done,
+    });
+    for wanted in [
+        "ended=3",
+        "unproven=1",
+        "scan=clear",
+        "changed=2",
+        "stage='done'",
+    ] {
+        assert!(
+            line.contains(wanted),
+            "the closing line carries `{wanted}`, and it reads {line}"
+        );
     }
-    let not_clear: String = a_journal(&nonce).closed(&AClosingLine { ended: 0, unproven: 0, scan_clear: false, propagation_changes: 0, stage: Stage::Unmount });
+    let not_clear: String = a_journal(&nonce).closed(&AClosingLine {
+        ended: 0,
+        unproven: 0,
+        scan_clear: false,
+        propagation_changes: 0,
+        stage: Stage::Unmount,
+    });
     assert!(not_clear.contains("scan=not-clear"));
 }
 
 #[test]
 fn a_block_of_lines_puts_one_event_on_each_line_and_names_the_dataset_canonically() {
     let nonce: RequestNonce = a_nonce();
-    let lines: Vec<String> = vec![a_journal(&nonce).closed(&AClosingLine { ended: 0, unproven: 0, scan_clear: true, propagation_changes: 0, stage: Stage::Done })];
+    let lines: Vec<String> = vec![a_journal(&nonce).closed(&AClosingLine {
+        ended: 0,
+        unproven: 0,
+        scan_clear: true,
+        propagation_changes: 0,
+        stage: Stage::Done,
+    })];
     let text: String = as_a_block(lines.as_slice());
     assert_eq!(text.lines().count(), 1);
     assert!(text.ends_with('\n'));

@@ -35,10 +35,23 @@
 //! const split = splitTheTree({ entries, tree, root, indexSeconds }); // throws the reason a clone cannot serve
 //! ```
 
-use crate::fs_beneath::{entry_metadata_at, open_root, plain_components};
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_root,
+    plain_components,
+};
 use crate::fs_beneath_directory_chain::DirectoryChain;
-use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
-use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, metadata_verdict};
+use crate::repo_read_tree::{
+    FlatEntry,
+    MODE_GITLINK,
+};
+use crate::worktree_clean::{
+    CleanRefusal,
+    CleanRefusalKind,
+    StatEntry,
+    StatVerdict,
+    metadata_verdict,
+};
 use crate::worktree_clean_stat_verdicts::ASSUME_VALID;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -98,7 +111,10 @@ pub struct Split {
 /// ```ts
 /// new Refusal('notPlain', `${shown} is a submodule`)
 /// ```
-fn not_plain(shown: &str, reason: &str) -> CleanRefusal {
+fn not_plain(
+    shown: &str,
+    reason: &str,
+) -> CleanRefusal {
     return CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{shown} {reason}"));
 }
 
@@ -113,7 +129,10 @@ fn not_plain(shown: &str, reason: &str) -> CleanRefusal {
 /// ```ts
 /// function kindOf(mode: number, shown: string): 'file' | 'link'; // throws
 /// ```
-fn kind_of(mode: u32, shown: &str) -> Result<(), CleanRefusal> {
+fn kind_of(
+    mode: u32,
+    shown: &str,
+) -> Result<(), CleanRefusal> {
     return match mode & MODE_TYPE {
         MODE_REGULAR | MODE_SYMLINK => Ok(()),
         MODE_GITLINK => Err(not_plain(shown, "is a submodule")),
@@ -135,7 +154,10 @@ fn kind_of(mode: u32, shown: &str) -> Result<(), CleanRefusal> {
 /// ```ts
 /// function flagsRefusal(entry: StatEntry, shown: string): CleanRefusal | undefined;
 /// ```
-fn flags_refusal(entry: &StatEntry, shown: &str) -> Option<CleanRefusal> {
+fn flags_refusal(
+    entry: &StatEntry,
+    shown: &str,
+) -> Option<CleanRefusal> {
     if entry.flags & ASSUME_VALID != 0 {
         return Some(not_plain(shown, "is marked assume-unchanged"));
     }
@@ -155,12 +177,19 @@ fn flags_refusal(entry: &StatEntry, shown: &str) -> Option<CleanRefusal> {
 /// ```ts
 /// function judgeable(entry: StatEntry, shown: string): void; // throws
 /// ```
-fn judgeable(indexed: &crate::repo_read_index::IndexEntry, entry: &StatEntry, shown: &str) -> Result<(), CleanRefusal> {
+fn judgeable(
+    indexed: &crate::repo_read_index::IndexEntry,
+    entry: &StatEntry,
+    shown: &str,
+) -> Result<(), CleanRefusal> {
     if indexed.stage != 0 {
         return Err(not_plain(shown, "is unmerged"));
     }
     if indexed.extended != 0 {
-        return Err(not_plain(shown, "is an intent-to-add or skip-worktree entry"));
+        return Err(not_plain(
+            shown,
+            "is an intent-to-add or skip-worktree entry",
+        ));
     }
     if let Some(refusal) = flags_refusal(entry, shown) {
         return Err(refusal);
@@ -190,11 +219,25 @@ fn judgeable(indexed: &crate::repo_read_index::IndexEntry, entry: &StatEntry, sh
 /// ```ts
 /// function theFileIsTheEntry(chain, names, entry, indexSeconds): boolean;
 /// ```
-fn the_file_is_the_entry(chain: &mut DirectoryChain<'_>, names: &[std::ffi::OsString], entry: &StatEntry, index_seconds: u32) -> bool {
-    let Some((name, parents)) = names.split_last() else { return false };
-    let Some(directory) = chain.directory(parents).ok() else { return false };
-    let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return false };
-    return matches!(metadata_verdict(entry, &metadata, index_seconds), StatVerdict::Agrees);
+fn the_file_is_the_entry(
+    chain: &mut DirectoryChain<'_>,
+    names: &[std::ffi::OsString],
+    entry: &StatEntry,
+    index_seconds: u32,
+) -> bool {
+    let Some((name, parents)) = names.split_last() else {
+        return false;
+    };
+    let Some(directory) = chain.directory(parents).ok() else {
+        return false;
+    };
+    let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else {
+        return false;
+    };
+    return matches!(
+        metadata_verdict(entry, &metadata, index_seconds),
+        StatVerdict::Agrees
+    );
 }
 
 /// What:
@@ -210,15 +253,33 @@ fn the_file_is_the_entry(chain: &mut DirectoryChain<'_>, names: &[std::ffi::OsSt
 /// ```ts
 /// const split = splitTheTree({ entries, indexed, tree, root, indexSeconds });
 /// ```
-pub fn split_the_tree(entries: &[StatEntry], indexed: &[crate::repo_read_index::IndexEntry], tree: &[FlatEntry], root: &Path, index_seconds: u32) -> Result<Split, CleanRefusal> {
+pub fn split_the_tree(
+    entries: &[StatEntry],
+    indexed: &[crate::repo_read_index::IndexEntry],
+    tree: &[FlatEntry],
+    root: &Path,
+    index_seconds: u32,
+) -> Result<Split, CleanRefusal> {
     if entries.len() != indexed.len() {
-        return Err(CleanRefusal::unreadable(String::from("the index entries and their stat data are not the same files")));
+        return Err(CleanRefusal::unreadable(String::from(
+            "the index entries and their stat data are not the same files",
+        )));
     }
     let held: std::fs::File = match open_root(root) {
         Ok(opened) => opened,
-        Err(error) => return Err(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", root.display()))),
+        Err(error) => {
+            return Err(CleanRefusal::unreadable(format!(
+                "{} cannot be opened without following a link ({error})",
+                root.display()
+            )));
+        }
     };
-    let Ok(mut chain) = DirectoryChain::new(&held) else { return Err(CleanRefusal::unreadable(format!("{} cannot be examined", root.display()))) };
+    let Ok(mut chain) = DirectoryChain::new(&held) else {
+        return Err(CleanRefusal::unreadable(format!(
+            "{} cannot be examined",
+            root.display()
+        )));
+    };
     let mut clones: Vec<usize> = Vec::new();
     let mut writes: Vec<Vec<u8>> = Vec::new();
     let mut stale_times: Vec<Vec<u8>> = Vec::new();
@@ -231,7 +292,9 @@ pub fn split_the_tree(entries: &[StatEntry], indexed: &[crate::repo_read_index::
         while at < entries.len() && entries[at].path.as_slice() < committed.path.as_slice() {
             at += 1;
         }
-        let same_path = |found: &&StatEntry| { return found.path == committed.path; };
+        let same_path = |found: &&StatEntry| {
+            return found.path == committed.path;
+        };
         let Some(entry) = entries.get(at).filter(same_path) else {
             // The tree names a path the index lacks: a deletion staged in the source, which Git's checkout writes.
             writes.push(committed.path.clone());
@@ -243,8 +306,11 @@ pub fn split_the_tree(entries: &[StatEntry], indexed: &[crate::repo_read_index::
             writes.push(committed.path.clone());
             continue;
         }
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(committed.path.as_slice()))) else {
-            return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path")));
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(committed.path.as_slice())))
+        else {
+            return Err(CleanRefusal::unreadable(format!(
+                "{shown} is not a plain path"
+            )));
         };
         if the_file_is_the_entry(&mut chain, names.as_slice(), entry, index_seconds) {
             clones.push(at);
@@ -260,14 +326,21 @@ pub fn split_the_tree(entries: &[StatEntry], indexed: &[crate::repo_read_index::
         stale_times.push(committed.path.clone());
         writes.push(committed.path.clone());
     }
-    return Ok(Split { clones, writes, stale_times });
+    return Ok(Split {
+        clones,
+        writes,
+        stale_times,
+    });
 }
 
 /// Where the entry of one path is.
 impl Split {
     /// The index entries the clones take,
     /// in the index's order.
-    pub fn cloned_entries<'entries>(&self, entries: &'entries [StatEntry]) -> Vec<StatEntry> {
+    pub fn cloned_entries<'entries>(
+        &self,
+        entries: &'entries [StatEntry],
+    ) -> Vec<StatEntry> {
         let mut taken: Vec<StatEntry> = Vec::with_capacity(self.clones.len());
         for at in &self.clones {
             if let Some(entry) = entries.get(*at) {

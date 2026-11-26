@@ -22,25 +22,58 @@
 //! ```
 
 use super::add_capture::Capture;
-use super::add_route_git::RouteGit;
-use crate::private_storage::read_regular_file;
-use super::add_capture_store::{marker_is_ours, publish_marker};
-use super::add_exchange::{PreparedExchange, exchange_the_git_entry, prepare_the_exchange};
+use super::add_capture_store::{
+    marker_is_ours,
+    publish_marker,
+};
+use super::add_exchange::{
+    PreparedExchange,
+    exchange_the_git_entry,
+    prepare_the_exchange,
+};
 use super::add_frozen_proof::prove_the_clone;
-use super::add_index::{PENDING_INDEX_NAME, index_for_the_fill, pending_stands, publish_the_private_index, published_stands, write_the_private_index};
-use crate::fs_beneath::{entry_metadata_at, open_root};
+use super::add_index::{
+    PENDING_INDEX_NAME,
+    index_for_the_fill,
+    pending_stands,
+    publish_the_private_index,
+    published_stands,
+    write_the_private_index,
+};
+use super::add_route_git::RouteGit;
+use crate::fs_beneath::{
+    entry_metadata_at,
+    open_root,
+};
+use crate::private_storage::read_regular_file;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_clean_content_attribute_sources::for_context;
 use crate::worktree_dirty_restore::restore_dirty;
 use crate::worktree_ladder_target::Target;
-use crate::worktree_snapshot_placeholders::{HandOver, remove_snapshot_placeholders};
+use crate::worktree_snapshot_placeholders::{
+    HandOver,
+    remove_snapshot_placeholders,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
-use crate::worktree_trash::{PendingTrash, Pruned, TRASH_PARENT, TrashManifest, is_trash_name, prune_snapshot};
+use crate::worktree_trash::{
+    PendingTrash,
+    Pruned,
+    TRASH_PARENT,
+    TrashManifest,
+    is_trash_name,
+    prune_snapshot,
+};
 use crate::worktree_trash_own_manifest;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Everything one fill reads.
@@ -123,8 +156,15 @@ pub struct Filled {
 /// the exchange refused,
 /// or the result is not the worktree the record names.
 pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
-    let root: std::fs::File = open_root(input.clone_root).map_err(|error| return format!("the clone root {} cannot be opened without a link ({error})", input.clone_root.display()))?;
-    let already_exchanged: bool = entry_metadata_at(&root, OsStr::new(".git")).map(|found| return found.is_file()).unwrap_or(false);
+    let root: std::fs::File = open_root(input.clone_root).map_err(|error| {
+        return format!(
+            "the clone root {} cannot be opened without a link ({error})",
+            input.clone_root.display()
+        );
+    })?;
+    let already_exchanged: bool = entry_metadata_at(&root, OsStr::new(".git"))
+        .map(|found| return found.is_file())
+        .unwrap_or(false);
     if !already_exchanged {
         if marker_is_ours(input.home, input.slot, input.nonce)? {
             // The proof passed before the first write; the tree has been written
@@ -132,8 +172,17 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
         } else {
             prove_the_clone(input.capture, input.clone_root)?;
             input.stops.after("proof");
-            publish_marker(&crate::fs_beneath::open_root(input.home).map_err(|error| return format!("the record home {} cannot be opened ({error})", input.home.display()))?, input.slot, input.nonce)
-                .map_err(|error| return format!("the proof's marker cannot be published ({error})"))?;
+            publish_marker(
+                &crate::fs_beneath::open_root(input.home).map_err(|error| {
+                    return format!(
+                        "the record home {} cannot be opened ({error})",
+                        input.home.display()
+                    );
+                })?,
+                input.slot,
+                input.nonce,
+            )
+            .map_err(|error| return format!("the proof's marker cannot be published ({error})"))?;
             input.nonce.as_str();
         }
     }
@@ -155,7 +204,12 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
         // A killed Git leaves its waiting index and its lock behind, and the write
         // below refuses a name that stands: the wrapper's own step clears both.
         crate::worktree_copy_interrupted_add_settlement::clear_the_waiting_index(input.admin_path);
-        let admin: std::fs::File = open_root(input.admin_path).map_err(|error| return format!("the registration {} cannot be opened ({error})", input.admin_path.display()))?;
+        let admin: std::fs::File = open_root(input.admin_path).map_err(|error| {
+            return format!(
+                "the registration {} cannot be opened ({error})",
+                input.admin_path.display()
+            );
+        })?;
         write_the_private_index(&admin, bytes.as_slice())?;
         input.stops.after("index");
     }
@@ -163,9 +217,15 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
         restore_the_clone(input)?;
         input.stops.after("restore");
     }
-    let prepared: PreparedExchange = prepare_the_exchange(input.clone_root, input.pointer, manifest)?;
+    let prepared: PreparedExchange =
+        prepare_the_exchange(input.clone_root, input.pointer, manifest)?;
     input.stops.after("trash-entry");
-    let admin: std::fs::File = open_root(input.admin_path).map_err(|error| return format!("the registration {} cannot be opened ({error})", input.admin_path.display()))?;
+    let admin: std::fs::File = open_root(input.admin_path).map_err(|error| {
+        return format!(
+            "the registration {} cannot be opened ({error})",
+            input.admin_path.display()
+        );
+    })?;
     if !published_stands(input.admin_path) {
         publish_the_private_index(&admin, input.admin_path)?;
     }
@@ -177,7 +237,13 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
     // them leaves a capture whose nonce the next add clears.
     super::add_capture_store::remove_capture(input.home, input.slot);
     return Ok(Filled {
-        trash: Some(PendingTrash { destination: input.clone_root.to_path_buf(), common_dir: input.common_dir.to_path_buf(), manifest: prepared.manifest, taken_over: 0, quiet: input.quiet }),
+        trash: Some(PendingTrash {
+            destination: input.clone_root.to_path_buf(),
+            common_dir: input.common_dir.to_path_buf(),
+            manifest: prepared.manifest,
+            taken_over: 0,
+            quiet: input.quiet,
+        }),
     });
 }
 
@@ -195,7 +261,11 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
 ///  the rows for a mounted clone with the real-name index and for the saved
 ///  pointer).
 ///  A run resumed after the exchange is past the restore for the same reason.
-pub(super) fn the_restore_still_runs(admin_path: &Path, clone_root: &Path, already_exchanged: bool) -> bool {
+pub(super) fn the_restore_still_runs(
+    admin_path: &Path,
+    clone_root: &Path,
+    already_exchanged: bool,
+) -> bool {
     if already_exchanged || published_stands(admin_path) {
         return false;
     }
@@ -219,10 +289,27 @@ pub(super) fn the_restore_still_runs(admin_path: &Path, clone_root: &Path, alrea
 /// # Errors
 /// The restore refused: the clean, the reset or its own proof.
 fn restore_the_clone(input: &FillInput<'_>) -> Result<(), String> {
-    let target: Target = Target { admin: input.admin_path.to_path_buf(), index: Some(input.admin_path.join(PENDING_INDEX_NAME)), pointer: input.pointer.to_vec(), commit: input.capture.head.clone(), differs: false, line: String::new() };
+    let target: Target = Target {
+        admin: input.admin_path.to_path_buf(),
+        index: Some(input.admin_path.join(PENDING_INDEX_NAME)),
+        pointer: input.pointer.to_vec(),
+        commit: input.capture.head.clone(),
+        differs: false,
+        line: String::new(),
+    };
     let conversion: ConversionEnvironment = for_context(input.context);
-    let mut runner: RouteGit<'_> = RouteGit { real_git: input.real_git, overlay: input.overlay };
-    return restore_dirty(input.source, &target, input.clone_root, &mut runner, input.context, &conversion);
+    let mut runner: RouteGit<'_> = RouteGit {
+        real_git: input.real_git,
+        overlay: input.overlay,
+    };
+    return restore_dirty(
+        input.source,
+        &target,
+        input.clone_root,
+        &mut runner,
+        input.context,
+        &conversion,
+    );
 }
 
 /// The trash the leave-out makes for the clone, written so a kill after it
@@ -230,7 +317,12 @@ fn restore_the_clone(input: &FillInput<'_>) -> Result<(), String> {
 fn leave_out_the_clone(input: &FillInput<'_>) -> Result<Option<TrashManifest>, String> {
     let pruned: Pruned = prune_snapshot(input.clone_root, input.source)?;
     let mut hand_over: HandOver = HandOver::starting(pruned.trash);
-    let root: std::fs::File = open_root(input.clone_root).map_err(|error| return format!("the clone root {} cannot be opened without a link ({error})", input.clone_root.display()))?;
+    let root: std::fs::File = open_root(input.clone_root).map_err(|error| {
+        return format!(
+            "the clone root {} cannot be opened without a link ({error})",
+            input.clone_root.display()
+        );
+    })?;
     remove_snapshot_placeholders(&root, input.source, input.plan, &mut hand_over)?;
     let manifest: Option<TrashManifest> = hand_over.finish();
     if let Some(written) = manifest.as_ref() {
@@ -245,24 +337,42 @@ fn the_existing_trash(clone_root: &Path) -> Result<Option<TrashManifest>, String
     let listing: std::fs::ReadDir = match std::fs::read_dir(parent.as_path()) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("the trash place {} cannot be listed ({error})", parent.display())),
+        Err(error) => {
+            return Err(format!(
+                "the trash place {} cannot be listed ({error})",
+                parent.display()
+            ));
+        }
     };
     let mut found: Vec<TrashManifest> = Vec::new();
     for listed in listing {
-        let entry: std::fs::DirEntry = listed.map_err(|error| return format!("the trash place {} cannot be listed ({error})", parent.display()))?;
-        let Some(name) = entry.file_name().to_str().map(String::from) else { continue };
+        let entry: std::fs::DirEntry = listed.map_err(|error| {
+            return format!(
+                "the trash place {} cannot be listed ({error})",
+                parent.display()
+            );
+        })?;
+        let Some(name) = entry.file_name().to_str().map(String::from) else {
+            continue;
+        };
         if !is_trash_name(name.as_str()) {
             continue;
         }
         let Some(manifest) = worktree_trash_own_manifest::read(clone_root, name.as_str()) else {
-            return Err(format!("the trash {name} under {} holds no record this add wrote, so nothing proves what it is; Ways forward: inspect it and remove it if it is not the add's", parent.display()));
+            return Err(format!(
+                "the trash {name} under {} holds no record this add wrote, so nothing proves what it is; Ways forward: inspect it and remove it if it is not the add's",
+                parent.display()
+            ));
         };
         found.push(manifest);
     }
     return match found.len() {
         0 => Ok(None),
         1 => Ok(Some(found.remove(0))),
-        _several => Err(format!("the clone at {} holds more than one trash, and one add leaves one; Ways forward: inspect them and remove the ones this add did not make", clone_root.display())),
+        _several => Err(format!(
+            "the clone at {} holds more than one trash, and one add leaves one; Ways forward: inspect them and remove the ones this add did not make",
+            clone_root.display()
+        )),
     };
 }
 
@@ -274,32 +384,72 @@ fn the_existing_trash(clone_root: &Path) -> Result<Option<TrashManifest>, String
 ///  and the verification is the facts every later reader relies on.
 fn check_the_result(input: &FillInput<'_>) -> Result<(), String> {
     let git: PathBuf = input.clone_root.join(".git");
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(git.as_path()).map_err(|error| return format!("the filled worktree's .git cannot be examined ({error})"))?;
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(git.as_path()).map_err(|error| {
+            return format!("the filled worktree's .git cannot be examined ({error})");
+        })?;
     if !metadata.is_file() {
-        return Err(format!("the filled worktree {} holds a .git that is no pointer file, so the exchange did not land", input.clone_root.display()));
+        return Err(format!(
+            "the filled worktree {} holds a .git that is no pointer file, so the exchange did not land",
+            input.clone_root.display()
+        ));
     }
     // The pointer is read as a plain file and to a bound, so a name swapped for a named pipe after the look above is
     //  refused at once and the fill is reported as not landed (`add_fill_tests`).
-    let pointer: Vec<u8> = crate::plain_file::read_plain_file(git.as_path(), crate::worktree_convert_inspection::GIT_FILE_LIMIT)
-        .map_err(|error| return format!("the filled worktree's .git cannot be read ({error})"))?;
+    let pointer: Vec<u8> = crate::plain_file::read_plain_file(
+        git.as_path(),
+        crate::worktree_convert_inspection::GIT_FILE_LIMIT,
+    )
+    .map_err(|error| return format!("the filled worktree's .git cannot be read ({error})"))?;
     if pointer != input.pointer {
-        return Err(String::from("the filled worktree's .git is not the pointer this add saved, so the fill is not the worktree the record names"));
+        return Err(String::from(
+            "the filled worktree's .git is not the pointer this add saved, so the fill is not the worktree the record names",
+        ));
     }
-    let registration: PathBuf = crate::worktree_add_binding::pointer_target(input.clone_root, pointer.as_slice())?;
+    let registration: PathBuf =
+        crate::worktree_add_binding::pointer_target(input.clone_root, pointer.as_slice())?;
     if registration != input.admin_path {
-        return Err(format!("the filled worktree's pointer names {}, and this add's registration is {}", registration.display(), input.admin_path.display()));
+        return Err(format!(
+            "the filled worktree's pointer names {}, and this add's registration is {}",
+            registration.display(),
+            input.admin_path.display()
+        ));
     }
     // The one reader of `commondir` (`foundation/common_directory_of_a_git_directory.rs`) opens the file as a plain one, so a
     //  named pipe there is a fill that cannot be verified rather than a wait.
-    let commondir: Vec<u8> = crate::common_directory_of_a_git_directory::bytes_named(registration.as_path())
-        .map_err(|error| return format!("the registration's commondir cannot be read ({error})"))?
-        .ok_or_else(|| return String::from("the registration's commondir is not there, so the fill is not whole"))?;
-    let resolved: PathBuf = crate::worktree_add_binding::resolve_lexically(registration.as_path(), commondir.strip_suffix(b"\n").unwrap_or(commondir.as_slice())).map_err(|()| return String::from("the registration's commondir leaves the file system root"))?;
-    if resolved != input.common_dir && std::fs::canonicalize(resolved.as_path()).ok() != std::fs::canonicalize(input.common_dir).ok() {
-        return Err(format!("the registration's commondir names {}, and this repository's common directory is {}", resolved.display(), input.common_dir.display()));
+    let commondir: Vec<u8> =
+        crate::common_directory_of_a_git_directory::bytes_named(registration.as_path())
+            .map_err(|error| {
+                return format!("the registration's commondir cannot be read ({error})");
+            })?
+            .ok_or_else(|| {
+                return String::from(
+                    "the registration's commondir is not there, so the fill is not whole",
+                );
+            })?;
+    let resolved: PathBuf = crate::worktree_add_binding::resolve_lexically(
+        registration.as_path(),
+        commondir
+            .strip_suffix(b"\n")
+            .unwrap_or(commondir.as_slice()),
+    )
+    .map_err(|()| {
+        return String::from("the registration's commondir leaves the file system root");
+    })?;
+    if resolved != input.common_dir
+        && std::fs::canonicalize(resolved.as_path()).ok()
+            != std::fs::canonicalize(input.common_dir).ok()
+    {
+        return Err(format!(
+            "the registration's commondir names {}, and this repository's common directory is {}",
+            resolved.display(),
+            input.common_dir.display()
+        ));
     }
     if !input.admin_path.join("index").is_file() {
-        return Err(String::from("the filled worktree's registration holds no index, so the fill is not whole"));
+        return Err(String::from(
+            "the filled worktree's registration holds no index, so the fill is not whole",
+        ));
     }
     return Ok(());
 }

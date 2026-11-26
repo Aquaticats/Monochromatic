@@ -94,25 +94,42 @@
 //! if (!(await earlierServiceHold(instance))) await recoverInstance(earlierJournal, instance);
 //! ```
 
-use crate::earlier_service_process_look::{Holding, ServiceLook, earlier_service_hold, effective_user};
+use crate::earlier_service_process_look::{
+    Holding,
+    ServiceLook,
+    earlier_service_hold,
+    effective_user,
+};
 use crate::earlier_service_unsure_program::UnsureProgram;
-/// How long that look may take.
-use crate::wait_ceilings::PROCESS_LOOK_CEILING;
-/// The context a recovery runs in,
-///  and the recovery itself.
-use crate::service_land::{Handled, LandContext, RecoveryReport, recover_instance_without_drops};
-use crate::service_instance::instance_of;
-use crate::transaction_git::GitContext;
 /// The log of the service.
 use crate::journald_native::Priority;
-use crate::service_journal::{OPEN_EXTENSION, batch_path, list_intents_read_only};
-use crate::service_timing::log_entry;
-/// The names of the folders.
-use crate::wrapper_names_old_and_new::DATA_FOLDER;
+use crate::service_instance::instance_of;
 /// Paths.
 use crate::service_journal::landed_commits_read_only;
+use crate::service_journal::{
+    OPEN_EXTENSION,
+    batch_path,
+    list_intents_read_only,
+};
+/// The context a recovery runs in,
+///  and the recovery itself.
+use crate::service_land::{
+    Handled,
+    LandContext,
+    RecoveryReport,
+    recover_instance_without_drops,
+};
+use crate::service_timing::log_entry;
+use crate::transaction_git::GitContext;
+/// How long that look may take.
+use crate::wait_ceilings::PROCESS_LOOK_CEILING;
+/// The names of the folders.
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name of the folder below the state folder that holds the service journals.
 const SERVICE_FOLDER: &str = "service";
@@ -140,7 +157,10 @@ pub struct EarlierJournals {
 /// ```ts
 /// function earlierJournalsOf(journal: string, instance: string): EarlierJournals | undefined;
 /// ```
-pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJournals> {
+pub fn earlier_journals_of(
+    journal: &Path,
+    instance: &str,
+) -> Option<EarlierJournals> {
     if journal.file_name()? != instance {
         return None;
     }
@@ -156,9 +176,15 @@ pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJour
 }
 
 /// The earlier journals of an instance below a state folder (`<state>/cli-git/service/<instance>` and `<state>/cli-git/service`).
-pub fn earlier_journals_in_state(state: &Path, instance: &str) -> EarlierJournals {
+pub fn earlier_journals_in_state(
+    state: &Path,
+    instance: &str,
+) -> EarlierJournals {
     let shared: PathBuf = state.join(DATA_FOLDER.earlier).join(SERVICE_FOLDER);
-    return EarlierJournals { per_instance: shared.join(instance), shared };
+    return EarlierJournals {
+        per_instance: shared.join(instance),
+        shared,
+    };
 }
 
 /// What:
@@ -179,13 +205,20 @@ pub fn earlier_journals_in_state(state: &Path, instance: &str) -> EarlierJournal
 /// ```ts
 /// function openBatchCount(earlier: EarlierJournals, instance: string): number;
 /// ```
-pub fn open_batch_count(earlier: &EarlierJournals, instance: &str) -> usize {
-    return open_batches_of(earlier.per_instance.as_path(), instance).len() + open_batches_of(earlier.shared.as_path(), instance).len();
+pub fn open_batch_count(
+    earlier: &EarlierJournals,
+    instance: &str,
+) -> usize {
+    return open_batches_of(earlier.per_instance.as_path(), instance).len()
+        + open_batches_of(earlier.shared.as_path(), instance).len();
 }
 
 /// The numbers of the open batches of the worktree that one journal holds,
 /// read without changing a file.
-fn open_batches_of(journal: &Path, instance: &str) -> Vec<u64> {
+fn open_batches_of(
+    journal: &Path,
+    instance: &str,
+) -> Vec<u64> {
     let mut seqs: Vec<u64> = Vec::new();
     for (_path, parsed) in list_intents_read_only(journal, OPEN_EXTENSION) {
         if let Some(intent) = parsed
@@ -245,7 +278,11 @@ pub enum RequestedSettlement {
 
 /// The look at the sockets and processes of the earlier helper of an instance,
 /// for journals in `earlier`.
-pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_root: &Path) -> Option<Holding> {
+pub fn hold_on_earlier_helper(
+    earlier: &EarlierJournals,
+    instance: &str,
+    proc_root: &Path,
+) -> Option<Holding> {
     let look: ServiceLook = ServiceLook {
         instance: instance.to_string(),
         journals: vec![earlier.per_instance.clone(), earlier.shared.clone()],
@@ -261,11 +298,17 @@ pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_ro
 /// the program,
 /// the journal folder it names and why the folder was not resolved.
 fn program_note(program: &UnsureProgram) -> String {
-    return format!(" (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)", program.pid, program.program, program.journal_word, program.reason);
+    return format!(
+        " (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)",
+        program.pid, program.program, program.journal_word, program.reason
+    );
 }
 
 /// Whether the recovery's reports include the batch `seq`.
-fn was_reported(reports: &[RecoveryReport], seq: u64) -> bool {
+fn was_reported(
+    reports: &[RecoveryReport],
+    seq: u64,
+) -> bool {
     for report in reports {
         if report.seq == seq {
             return true;
@@ -298,7 +341,13 @@ fn was_reported(reports: &[RecoveryReport], seq: u64) -> bool {
 /// ```ts
 /// function settleOnRequest(git, earlier, instance, procRoot, lockCeiling): RequestedSettlement;
 /// ```
-pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: &str, proc_root: &Path, lock_ceiling: std::time::Duration) -> RequestedSettlement {
+pub fn settle_on_request(
+    git: &GitContext,
+    earlier: &EarlierJournals,
+    instance: &str,
+    proc_root: &Path,
+    lock_ceiling: std::time::Duration,
+) -> RequestedSettlement {
     let open: usize = open_batch_count(earlier, instance);
     if open == 0 {
         return RequestedSettlement::NothingOpen;
@@ -309,9 +358,15 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
             earlier.per_instance.display(),
             earlier.shared.display(),
             because.because.words(),
-            because.program.as_ref().map_or_else(String::new, program_note)
+            because
+                .program
+                .as_ref()
+                .map_or_else(String::new, program_note)
         );
-        return RequestedSettlement::Held { open, because };
+        return RequestedSettlement::Held {
+            open,
+            because,
+        };
     }
     let mut settled: Vec<SettledBatch> = Vec::new();
     let mut unanswered: Vec<UnansweredBatch> = Vec::new();
@@ -320,22 +375,37 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
             continue;
         }
         let selected: Vec<u64> = open_batches_of(journal.as_path(), instance);
-        let earlier_context: LandContext = LandContext { git: git.clone(), journal: journal.clone(), on_objects_written: None, lock_ceiling };
-        let reports: Vec<RecoveryReport> = recover_instance_without_drops(&earlier_context, instance);
+        let earlier_context: LandContext = LandContext {
+            git: git.clone(),
+            journal: journal.clone(),
+            on_objects_written: None,
+            lock_ceiling,
+        };
+        let reports: Vec<RecoveryReport> =
+            recover_instance_without_drops(&earlier_context, instance);
         log_adopted_batches(reports.as_slice(), journal.as_path());
         // The recovery leaves out a batch Git gave no answer for. It is named, with its intent still on disk, so the person is
         //  never told that everything was dealt with when a batch was not even examined.
         for seq in selected {
             let reported: bool = was_reported(reports.as_slice(), seq);
             if !reported && batch_path(journal.as_path(), seq, OPEN_EXTENSION).exists() {
-                unanswered.push(UnansweredBatch { journal: journal.clone(), seq });
+                unanswered.push(UnansweredBatch {
+                    journal: journal.clone(),
+                    seq,
+                });
             }
         }
         for report in reports {
-            settled.push(SettledBatch { journal: journal.clone(), report });
+            settled.push(SettledBatch {
+                journal: journal.clone(),
+                report,
+            });
         }
     }
-    return RequestedSettlement::Settled { batches: settled, unanswered };
+    return RequestedSettlement::Settled {
+        batches: settled,
+        unanswered,
+    };
 }
 
 /// What:
@@ -354,7 +424,10 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
 /// ```ts
 /// function earlierCommitsLanded(journal: string, instance: string): Map<string, string>;
 /// ```
-pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String, String> {
+pub fn earlier_commits_landed(
+    journal: &Path,
+    instance: &str,
+) -> HashMap<String, String> {
     let mut landed: HashMap<String, String> = HashMap::new();
     let Some(earlier) = earlier_journals_of(journal, instance) else {
         return landed;
@@ -381,14 +454,23 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
 /// ```ts
 /// for (const report of reports) log(Warning, `${verb(report.handled)} batch=${report.seq} journal=${journal}`, { CLI_GIT_BATCH: report.seq })
 /// ```
-pub(crate) fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
+pub(crate) fn log_adopted_batches(
+    reports: &[RecoveryReport],
+    journal: &Path,
+) {
     for report in reports {
         let what: &str = match report.handled {
             Handled::Finished => "finished the batch the earlier service left open",
-            Handled::StillOpen => "left open the batch the earlier service left open, which could not be finished now (the index lock is held or a record cannot be read); the next start tries again",
-            Handled::Left => "left on disk the intent of a batch the earlier service wrote: the branch shows it as not landed, and a landing in progress writes its intent first, so the earlier service's own start settles it",
+            Handled::StillOpen => {
+                "left open the batch the earlier service left open, which could not be finished now (the index lock is held or a record cannot be read); the next start tries again"
+            }
+            Handled::Left => {
+                "left on disk the intent of a batch the earlier service wrote: the branch shows it as not landed, and a landing in progress writes its intent first, so the earlier service's own start settles it"
+            }
             Handled::Dropped => "dropped the intent of a batch the earlier service wrote",
-            Handled::Held => "left the batch the earlier service wrote held behind a reference lock: its branch has not moved and the next command that finds the lock gone moves it",
+            Handled::Held => {
+                "left the batch the earlier service wrote held behind a reference lock: its branch has not moved and the next command that finds the lock gone moves it"
+            }
         };
         log_entry(
             Priority::Warning,

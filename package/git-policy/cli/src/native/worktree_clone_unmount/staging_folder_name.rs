@@ -75,13 +75,20 @@ impl StagingNameRefusal {
     /// The refusal in words.
     pub fn message(&self) -> String {
         return match self {
-            StagingNameRefusal::Prefix { name } => format!(
+            StagingNameRefusal::Prefix {
+                name,
+            } => format!(
                 "`{name}` does not begin with `{STAGING_FOLDER_PREFIX}`, so it is not a staging name this route derives. Nothing was read, bound or removed under it."
             ),
-            StagingNameRefusal::Suffix { name } => format!(
+            StagingNameRefusal::Suffix {
+                name,
+            } => format!(
                 "`{name}` does not carry the suffix this shape has (`{RECORD_SUFFIX}`, `{TEMPORARY_SUFFIX}` or `{CLAIM_SUFFIX}`). Nothing was read, bound or removed under it."
             ),
-            StagingNameRefusal::Guid { component, said } => format!(
+            StagingNameRefusal::Guid {
+                component,
+                said,
+            } => format!(
                 "`{component}` is not the canonical numeric dataset GUID this route derives: {said}. Nothing was read, bound or removed under it."
             ),
         };
@@ -122,12 +129,21 @@ pub fn staging_claim_name(guid: DatasetGuid) -> String {
 /// ```
 pub fn guid_of_folder_name(name: &str) -> Result<DatasetGuid, StagingNameRefusal> {
     let Some(component) = name.strip_prefix(STAGING_FOLDER_PREFIX) else {
-        return Err(StagingNameRefusal::Prefix { name: String::from(name) });
+        return Err(StagingNameRefusal::Prefix {
+            name: String::from(name),
+        });
     };
     if component.ends_with(RECORD_SUFFIX) || component.ends_with(CLAIM_SUFFIX) {
-        return Err(StagingNameRefusal::Suffix { name: String::from(name) });
+        return Err(StagingNameRefusal::Suffix {
+            name: String::from(name),
+        });
     }
-    return DatasetGuid::parse(component).map_err(|refusal| return StagingNameRefusal::Guid { component: String::from(component), said: refusal.message() });
+    return DatasetGuid::parse(component).map_err(|refusal| {
+        return StagingNameRefusal::Guid {
+            component: String::from(component),
+            said: refusal.message(),
+        };
+    });
 }
 
 /// What:
@@ -143,7 +159,9 @@ pub fn guid_of_folder_name(name: &str) -> Result<DatasetGuid, StagingNameRefusal
 /// ```
 pub fn guid_of_record_name(name: &str) -> Result<DatasetGuid, StagingNameRefusal> {
     let Some(component) = name.strip_suffix(RECORD_SUFFIX) else {
-        return Err(StagingNameRefusal::Suffix { name: String::from(name) });
+        return Err(StagingNameRefusal::Suffix {
+            name: String::from(name),
+        });
     };
     return guid_of_folder_name(component);
 }
@@ -161,12 +179,21 @@ pub fn guid_of_record_name(name: &str) -> Result<DatasetGuid, StagingNameRefusal
 /// ```
 pub fn guid_of_claim_name(name: &str) -> Result<DatasetGuid, StagingNameRefusal> {
     let Some(component) = name.strip_suffix(CLAIM_SUFFIX) else {
-        return Err(StagingNameRefusal::Suffix { name: String::from(name) });
+        return Err(StagingNameRefusal::Suffix {
+            name: String::from(name),
+        });
     };
     if component.starts_with(STAGING_FOLDER_PREFIX) {
-        return Err(StagingNameRefusal::Prefix { name: String::from(name) });
+        return Err(StagingNameRefusal::Prefix {
+            name: String::from(name),
+        });
     }
-    return DatasetGuid::parse(component).map_err(|refusal| return StagingNameRefusal::Guid { component: String::from(component), said: refusal.message() });
+    return DatasetGuid::parse(component).map_err(|refusal| {
+        return StagingNameRefusal::Guid {
+            component: String::from(component),
+            said: refusal.message(),
+        };
+    });
 }
 
 /// Controls stay out of the release executable.

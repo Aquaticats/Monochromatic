@@ -20,11 +20,21 @@
 /// Import the removal of the copies no install rewrites.
 use super::copy_removal::remove_what_no_install_rewrites;
 /// Import the one reading of the launcher directory both faces decide from.
-use super::launcher_records::{Launchers, launchers_of};
-/// Import the program and the variables it runs with.
-use super::names_and_bounds::{OWN_LINK, PROGRAM, ROOT_VARIABLE};
+use super::launcher_records::{
+    Launchers,
+    launchers_of,
+};
 /// Import the command a person runs and the log tag.
-use super::names_and_bounds::{MANUAL_COMMAND, TAG};
+use super::names_and_bounds::{
+    MANUAL_COMMAND,
+    TAG,
+};
+/// Import the program and the variables it runs with.
+use super::names_and_bounds::{
+    OWN_LINK,
+    PROGRAM,
+    ROOT_VARIABLE,
+};
 /// Import the refusal a place of the blocking pool gives.
 use crate::blocking_job::BlockingJobError;
 /// Import the run of a blocking job within the process's budget,
@@ -33,19 +43,37 @@ use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
 /// Import the command and the bounds of one package-manager program.
-use crate::package_repair_command::{ToolCommand, ToolLimits};
+use crate::package_repair_command::{
+    ToolCommand,
+    ToolLimits,
+};
 /// Import the run of one package-manager program.
-use crate::package_repair_command::{ToolRun, find_program, run_refused, run_tool_awaiting};
+use crate::package_repair_command::{
+    ToolRun,
+    find_program,
+    run_refused,
+    run_tool_awaiting,
+};
 /// Import the finding and the outcome a repair reports.
-use crate::package_repair_report::{Finding, Outcome, Tool};
+use crate::package_repair_report::{
+    Finding,
+    Outcome,
+    Tool,
+};
 /// Import the constructors of a finding for a run that ended.
-use crate::package_repair_report::{finding_from, missing_tool};
+use crate::package_repair_report::{
+    finding_from,
+    missing_tool,
+};
 /// Import what the process offers a repair.
 use crate::package_repair_request::RepairEnvironment;
 /// Import the owned argument a command is started with.
 use std::ffi::OsString;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Import the moment a run began.
 use std::time::Instant;
 /// What:
@@ -58,10 +86,23 @@ use std::time::Instant;
 /// ```ts
 /// function mpmCommand(destination: string, verb: string[]): ToolCommand;
 /// ```
-fn mpm_command(destination: &Path, arguments: &[&str], environment: &RepairEnvironment) -> ToolCommand {
-    let mut set: Vec<(OsString, OsString)> = vec![(OsString::from(ROOT_VARIABLE), destination.as_os_str().to_os_string())];
-    set.extend(crate::package_repair_request::with_the_persons_path(environment));
-    return ToolCommand { arguments: arguments.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set };
+fn mpm_command(
+    destination: &Path,
+    arguments: &[&str],
+    environment: &RepairEnvironment,
+) -> ToolCommand {
+    let mut set: Vec<(OsString, OsString)> = vec![(
+        OsString::from(ROOT_VARIABLE),
+        destination.as_os_str().to_os_string(),
+    )];
+    set.extend(crate::package_repair_request::with_the_persons_path(
+        environment,
+    ));
+    return ToolCommand {
+        arguments: arguments.iter().map(OsString::from).collect(),
+        directory: PathBuf::from(destination),
+        set,
+    };
 }
 
 /// What:
@@ -146,7 +187,9 @@ pub(super) enum ToolchainRepair {
 /// ```ts
 /// function prepareInstallInAJob([destination, environment]: [string, RepairEnvironment]): ToolchainRepair;
 /// ```
-fn prepare_install_in_a_job((destination, environment): (PathBuf, RepairEnvironment)) -> ToolchainRepair {
+fn prepare_install_in_a_job(
+    (destination, environment): (PathBuf, RepairEnvironment)
+) -> ToolchainRepair {
     return prepare_install_on_a_caller_thread(destination.as_path(), &environment);
 }
 
@@ -165,7 +208,10 @@ fn prepare_install_in_a_job((destination, environment): (PathBuf, RepairEnvironm
 /// ```ts
 /// const decided = await prepareInstallWithinTheBudget(destination, environment);
 /// ```
-pub(super) async fn prepare_install_within_the_budget(destination: &Path, environment: &RepairEnvironment) -> Result<ToolchainRepair, BlockingJobError> {
+pub(super) async fn prepare_install_within_the_budget(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> Result<ToolchainRepair, BlockingJobError> {
     let state: (PathBuf, RepairEnvironment) = (destination.to_path_buf(), environment.clone());
     return run_a_job_or_in_turn(state, prepare_install_in_a_job).await;
 }
@@ -199,7 +245,9 @@ fn count_stale_in_a_job(destination: PathBuf) -> usize {
 /// ```ts
 /// const left = await countStaleWithinTheBudget(destination);
 /// ```
-pub(super) async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, BlockingJobError> {
+pub(super) async fn count_stale_within_the_budget(
+    destination: &Path
+) -> Result<usize, BlockingJobError> {
     return run_a_job_or_in_turn(destination.to_path_buf(), count_stale_in_a_job).await;
 }
 
@@ -221,28 +269,48 @@ pub(super) async fn count_stale_within_the_budget(destination: &Path) -> Result<
 /// ```ts
 /// function prepareInstall(destination: string, environment: RepairEnvironment): ToolchainRepair;
 /// ```
-fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
+fn prepare_install_on_a_caller_thread(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> ToolchainRepair {
     let launchers: Launchers = launchers_of(destination);
     // A copy of an earlier release's layout is removed rather than reported: no install rewrites it, and it names another
     //  checkout's lock until it goes. The removal proves the bytes it deletes again, because a concurrent update and
     //  install can write a correct record and launcher for a name the lock declares between the two.
     remove_what_no_install_rewrites(destination, launchers.unrewritable.as_slice());
     if launchers.stale.is_empty() {
-        debug(TAG, format!("{}: every launcher record this worktree's lock declares names this worktree", destination.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{}: every launcher record this worktree's lock declares names this worktree",
+                destination.display()
+            )
+            .as_str(),
+        );
         return ToolchainRepair::NothingToDo;
     }
     let own_link: PathBuf = destination.join(OWN_LINK);
     // The link in the worktree is looked at only when the search path gave no program, as `.or_else(...)` ran it.
-    let found_program: Option<PathBuf> = match find_program(PROGRAM, environment.path(), &environment.start_directory) {
-        Some(program) => Some(program),
-        None => {
-            if own_link.is_file() { Some(own_link.clone()) } else { None }
-        }
-    };
+    let found_program: Option<PathBuf> =
+        match find_program(PROGRAM, environment.path(), &environment.start_directory) {
+            Some(program) => Some(program),
+            None => {
+                if own_link.is_file() {
+                    Some(own_link.clone())
+                } else {
+                    None
+                }
+            }
+        };
     let Some(program) = found_program else {
         return ToolchainRepair::NoProgram(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
-    return ToolchainRepair::Install(Install { program, command: mpm_command(destination, &["install", "--frozen-lockfile"], environment), destination: PathBuf::from(destination), limits: environment.limits() });
+    return ToolchainRepair::Install(Install {
+        program,
+        command: mpm_command(destination, &["install", "--frozen-lockfile"], environment),
+        destination: PathBuf::from(destination),
+        limits: environment.limits(),
+    });
 }
 
 /// What:
@@ -301,7 +369,10 @@ fn need_of_prepared(prepared: ToolchainRepair) -> ToolchainNeed {
 /// ```ts
 /// const needWithinTheBudget = async (destination, environment) => needOfPrepared(await prepareInstallWithinTheBudget(destination, environment));
 /// ```
-pub(crate) async fn need_within_the_budget(destination: &Path, environment: &RepairEnvironment) -> Result<ToolchainNeed, BlockingJobError> {
+pub(crate) async fn need_within_the_budget(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> Result<ToolchainNeed, BlockingJobError> {
     return match prepare_install_within_the_budget(destination, environment).await {
         Ok(prepared) => Ok(need_of_prepared(prepared)),
         Err(refusal) => Err(refusal),
@@ -330,8 +401,21 @@ pub(super) async fn install_awaiting(work: &Install) -> ToolRun {
 /// ```ts
 /// const installFinding = (work: Install, run: ToolRun, remaining: number | Refusal) => Finding | undefined;
 /// ```
-pub(super) fn install_finding(work: &Install, run: &ToolRun, remaining: Result<usize, BlockingJobError>) -> Option<Finding> {
-    debug(TAG, format!("{}: install ended {:?} after {} ms", work.destination.display(), run.end, run.millis).as_str());
+pub(super) fn install_finding(
+    work: &Install,
+    run: &ToolRun,
+    remaining: Result<usize, BlockingJobError>,
+) -> Option<Finding> {
+    debug(
+        TAG,
+        format!(
+            "{}: install ended {:?} after {} ms",
+            work.destination.display(),
+            run.end,
+            run.millis
+        )
+        .as_str(),
+    );
     let detail: String = match install_summary(run.stdout.as_slice()) {
         Some(summary) => format!("mpm-shadow rebuilt the toolchain links ({summary})"),
         None => String::from("mpm-shadow rebuilt the toolchain links"),
@@ -342,12 +426,22 @@ pub(super) fn install_finding(work: &Install, run: &ToolRun, remaining: Result<u
     }
     let left: Option<String> = match remaining {
         Ok(0) => None,
-        Ok(count) => Some(format!("{count} launcher records still name another lock file")),
-        Err(refusal) => Some(format!("the launcher records could not be read again ({refusal})")),
+        Ok(count) => Some(format!(
+            "{count} launcher records still name another lock file"
+        )),
+        Err(refusal) => Some(format!(
+            "the launcher records could not be read again ({refusal})"
+        )),
     };
     return match left {
         None => Some(finding),
-        Some(said) => Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason: said, run_instead: String::from(MANUAL_COMMAND) } }),
+        Some(said) => Some(Finding {
+            tool: Tool::Toolchain,
+            outcome: Outcome::Failed {
+                reason: said,
+                run_instead: String::from(MANUAL_COMMAND),
+            },
+        }),
     };
 }
 
@@ -368,7 +462,10 @@ pub(super) fn install_finding(work: &Install, run: &ToolRun, remaining: Result<u
 /// ```ts
 /// function repairToolchain(destination: string, environment: RepairEnvironment): Finding | undefined;
 /// ```
-pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+pub fn repair_toolchain(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> Option<Finding> {
     return match prepare_install_on_a_caller_thread(destination, environment) {
         ToolchainRepair::NothingToDo => None,
         ToolchainRepair::NoProgram(finding) => Some(finding),
@@ -379,7 +476,11 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
                 // No install was made, and the runtime's own reason is what the person is told.
                 Err(refusal) => run_refused(work.program.as_path(), started, &refusal),
             };
-            install_finding(&work, &run, Ok(launchers_of(work.destination.as_path()).stale.len()))
+            install_finding(
+                &work,
+                &run,
+                Ok(launchers_of(work.destination.as_path()).stale.len()),
+            )
         }
     };
 }
@@ -402,18 +503,30 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
 /// ```ts
 /// async function repairToolchainAwaiting(destination: string, environment: RepairEnvironment): Promise<Finding | undefined>;
 /// ```
-pub async fn repair_toolchain_awaiting(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
+pub async fn repair_toolchain_awaiting(
+    destination: &Path,
+    environment: &RepairEnvironment,
+) -> Option<Finding> {
     return match prepare_install_within_the_budget(destination, environment).await {
         Ok(ToolchainRepair::NothingToDo) => None,
         Ok(ToolchainRepair::NoProgram(finding)) => Some(finding),
         Ok(ToolchainRepair::Install(work)) => {
             let run: ToolRun = install_awaiting(&work).await;
-            install_finding(&work, &run, count_stale_within_the_budget(work.destination.as_path()).await)
+            install_finding(
+                &work,
+                &run,
+                count_stale_within_the_budget(work.destination.as_path()).await,
+            )
         }
         // The records were not read, so nothing about the launchers is known; the person is told the reason.
         Err(refusal) => Some(Finding {
             tool: Tool::Toolchain,
-            outcome: Outcome::Failed { reason: format!("the launcher records of the worktree could not be read ({refusal})"), run_instead: String::from(MANUAL_COMMAND) },
+            outcome: Outcome::Failed {
+                reason: format!(
+                    "the launcher records of the worktree could not be read ({refusal})"
+                ),
+                run_instead: String::from(MANUAL_COMMAND),
+            },
         }),
     };
 }

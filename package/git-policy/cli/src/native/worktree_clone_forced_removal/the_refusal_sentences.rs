@@ -76,7 +76,12 @@ pub enum WhyNotStopped<'a> {
 ///  It names the process,
 ///  its session and the reason the removal never ends it,
 ///  and then the one act that frees the folder.
-pub fn caller_holds_in_its_working_directory(slot: &str, pid: i32, command: &str, session: i32) -> String {
+pub fn caller_holds_in_its_working_directory(
+    slot: &str,
+    pid: i32,
+    command: &str,
+    session: i32,
+) -> String {
     return format!(
         "the clone at {} is held by the removal's own protected set, and a removal never ends it.\n\
          process {pid} ({command}) holds it in its working directory, in session {session}, and that process is the caller, or is in the caller's session or its ancestor chain.\n\
@@ -91,7 +96,15 @@ pub fn caller_holds_in_its_working_directory(slot: &str, pid: i32, command: &str
 /// Why:
 ///  Leaving the folder does not release a namespace's copy,
 ///  which is the one thing a person would otherwise try first.
-pub fn the_callers_namespace_holds(slot: &str, namespace: &str, mount_point: &str, mount_id: u64, pid: i32, command: &str, session: i32) -> String {
+pub fn the_callers_namespace_holds(
+    slot: &str,
+    namespace: &str,
+    mount_point: &str,
+    mount_id: u64,
+    pid: i32,
+    command: &str,
+    session: i32,
+) -> String {
     return format!(
         "the clone at {} is held by the removal's own protected set, and a removal never ends it.\n\
          mount namespace {namespace} keeps a copy at {} (mount {mount_id}), and process {pid} ({command}) in session {session} is the caller, or is in the caller's session or its ancestor chain.\n\
@@ -109,7 +122,11 @@ pub fn the_callers_namespace_holds(slot: &str, namespace: &str, mount_point: &st
 ///  The reason line,
 ///  what was ended before the refusal and what was left must each be there,
 ///  or a person cannot tell what the removal already changed.
-pub fn a_holder_that_would_not_end(slot: &str, reason: &str, what_was_left: &str) -> String {
+pub fn a_holder_that_would_not_end(
+    slot: &str,
+    reason: &str,
+    what_was_left: &str,
+) -> String {
     return format!(
         "the removal of {} was asked to end the holders and could not.\n\
          {reason}\n\
@@ -127,18 +144,37 @@ pub fn a_holder_that_would_not_end(slot: &str, reason: &str, what_was_left: &str
 ///  and,
 ///  for a unit of the account's own manager,
 ///  the exact command that stops it.
-pub fn a_locked_holder(slot: &str, holder: &TheHolder<'_>, namespace: &str, mount_point: &str, mount_id: u64, why: &WhyNotStopped<'_>) -> String {
+pub fn a_locked_holder(
+    slot: &str,
+    holder: &TheHolder<'_>,
+    namespace: &str,
+    mount_point: &str,
+    mount_id: u64,
+    why: &WhyNotStopped<'_>,
+) -> String {
     let reason: String = match why {
-        WhyNotStopped::NotAUnitOfThisAccountsManager => {
-            String::from("it is not a service unit of this account's own user manager, so this removal may not stop it")
-        }
-        WhyNotStopped::TheStopFailed { said } => {
-            format!("it is that unit and the manager's stop failed, or left its cgroup, or the unit restarted: {said}")
+        WhyNotStopped::NotAUnitOfThisAccountsManager => String::from(
+            "it is not a service unit of this account's own user manager, so this removal may not stop it",
+        ),
+        WhyNotStopped::TheStopFailed {
+            said,
+        } => {
+            format!(
+                "it is that unit and the manager's stop failed, or left its cgroup, or the unit restarted: {said}"
+            )
         }
     };
     let remedy: String = match (why, holder) {
-        (WhyNotStopped::TheStopFailed { .. }, named) => {
-            format!("stop it with `systemctl --user stop {}` and run the removal again.\n", quoted(named.named))
+        (
+            WhyNotStopped::TheStopFailed {
+                ..
+            },
+            named,
+        ) => {
+            format!(
+                "stop it with `systemctl --user stop {}` and run the removal again.\n",
+                quoted(named.named)
+            )
         }
         (WhyNotStopped::NotAUnitOfThisAccountsManager, _holder) => String::new(),
     };

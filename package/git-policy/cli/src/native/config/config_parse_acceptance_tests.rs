@@ -14,10 +14,19 @@
 ///  the typed settings and the registry identities.
 use super::parse_config;
 use crate::config_schema::{
-    CliGitConfig, ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting,
-    RulesFileEntry, unlisted_severity,
+    CliGitConfig,
+    ForbiddenStringsOptions,
+    MarkdownAutofixOptions,
+    MarkdownRule,
+    PolicySetting,
+    RulesFileEntry,
+    unlisted_severity,
 };
-use crate::policy_registry::{POLICY_REGISTRY, PolicyId, Severity};
+use crate::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+    Severity,
+};
 
 /// An empty object,
 ///  with or without comments and trailing commas,
@@ -62,7 +71,10 @@ fn empty_documents_equal_the_defaults() {
 }
 
 /// The settings every policy must have after loading this repository's configuration.
-fn assert_repository_settings(config: &CliGitConfig, dependent_bump: (Severity, bool)) {
+fn assert_repository_settings(
+    config: &CliGitConfig,
+    dependent_bump: (Severity, bool),
+) {
     for (id, severity, explicit) in [
         (PolicyId::RequireRoot, Severity::Error, false),
         (PolicyId::LinkedWorktreeOnly, Severity::Error, false),
@@ -143,7 +155,10 @@ fn rules_file_takes_a_path_or_an_array_of_entries() {
     // A configured string is never split: JSON already says which file is meant.
     assert_eq!(
         single.policies.forbidden_strings.rules_files,
-        Some(vec![RulesFileEntry { path: String::from("a,b?.txt"), optional: false }])
+        Some(vec![RulesFileEntry {
+            path: String::from("a,b?.txt"),
+            optional: false
+        }])
     );
     let listed: CliGitConfig = parse_config(
         r#"{ "policies": { "security/forbidden-strings": { "rulesFile": [
@@ -157,10 +172,22 @@ fn rules_file_takes_a_path_or_an_array_of_entries() {
     assert_eq!(
         listed.policies.forbidden_strings.rules_files,
         Some(vec![
-            RulesFileEntry { path: String::from("forbidden-strings.append.txt"), optional: false },
-            RulesFileEntry { path: String::from("forbidden-strings.append.local.txt"), optional: true },
-            RulesFileEntry { path: String::from("extra.txt"), optional: false },
-            RulesFileEntry { path: String::from("never.txt"), optional: false },
+            RulesFileEntry {
+                path: String::from("forbidden-strings.append.txt"),
+                optional: false
+            },
+            RulesFileEntry {
+                path: String::from("forbidden-strings.append.local.txt"),
+                optional: true
+            },
+            RulesFileEntry {
+                path: String::from("extra.txt"),
+                optional: false
+            },
+            RulesFileEntry {
+                path: String::from("never.txt"),
+                optional: false
+            },
         ])
     );
     assert!(listed.policies.forbidden_strings.builtin_rules);
@@ -474,7 +501,9 @@ fn concurrency_keys_apply_independently() {
     assert_eq!(all.policies, CliGitConfig::defaults().policies);
     let hooks_only: CliGitConfig =
         parse_config(r#"{ "hooks": { "concurrentCommits": false } }"#).expect("hooks");
-    assert!(hooks_only.concurrency.hooks.present && !hooks_only.concurrency.hooks.concurrent_commits);
+    assert!(
+        hooks_only.concurrency.hooks.present && !hooks_only.concurrency.hooks.concurrent_commits
+    );
     assert_eq!(hooks_only.policies, CliGitConfig::defaults().policies);
     let lock_only: CliGitConfig =
         parse_config(r#"{ "indexLock": { "unprovenOwnerTimeoutMs": 2.5e3 } }"#).expect("lock");
@@ -484,12 +513,20 @@ fn concurrency_keys_apply_independently() {
     );
     assert_eq!(lock_only.concurrency.landing.reserve_after_lost_races, 1);
     assert!(!lock_only.concurrency.hooks.concurrent_commits);
-    assert!(lock_only.concurrency.index_lock.present, "a stated indexLock key is recorded as present");
-    assert!(!lock_only.concurrency.landing.present && !lock_only.concurrency.hooks.present, "only the stated key is");
+    assert!(
+        lock_only.concurrency.index_lock.present,
+        "a stated indexLock key is recorded as present"
+    );
+    assert!(
+        !lock_only.concurrency.landing.present && !lock_only.concurrency.hooks.present,
+        "only the stated key is"
+    );
     let landing_only: CliGitConfig =
         parse_config(r#"{ "landing": { "reserveAfterLostRaces": 1 } }"#).expect("landing");
     assert_eq!(landing_only.concurrency.landing.reserve_after_lost_races, 1);
-    assert!(landing_only.concurrency.landing.present && !landing_only.concurrency.index_lock.present);
+    assert!(
+        landing_only.concurrency.landing.present && !landing_only.concurrency.index_lock.present
+    );
     assert_eq!(
         landing_only
             .concurrency

@@ -52,7 +52,10 @@ pub fn owed_in_another_worktree_notice(destination: &Path) -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: finishing the ignored-state copy an interrupted \`git worktree add\` owed ${shown} from ${source}; this command waits for it, and it stops at the ceiling one command holds for a copy it did not start.`
 /// ```
-pub(crate) fn finishing_notice(destination: &Path, source: &Path) -> String {
+pub(crate) fn finishing_notice(
+    destination: &Path,
+    source: &Path,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: finishing the ignored-state copy an interrupted `git worktree add` owed {} from {}, because this command runs in that worktree and its files are missing there; it stops at the ceiling one command holds for a copy it did not start.",
         quote(destination.to_string_lossy().as_ref()),
@@ -72,7 +75,10 @@ pub(crate) fn finishing_notice(destination: &Path, source: &Path) -> String {
 /// ```ts
 /// `the ignored-state copy an interrupted \`git worktree add\` owed ${shown} is still owed, and this command did not make it: ${reason}`
 /// ```
-pub(crate) fn still_owed_notice(destination: &Path, reason: &str) -> String {
+pub(crate) fn still_owed_notice(
+    destination: &Path,
+    reason: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {} is still owed, and this command did not make it: {reason}. Nothing was changed; the next command run in that worktree tries again.",
         quote(destination.to_string_lossy().as_ref())
@@ -91,7 +97,11 @@ pub(crate) fn still_owed_notice(destination: &Path, reason: &str) -> String {
 /// ```ts
 /// `finished the ignored-state copy an interrupted git worktree add owed ${destination}: copied ${copied} entries from ${source}.`
 /// ```
-pub(crate) fn finished_notice(destination: &Path, source: &Path, copied: usize) -> String {
+pub(crate) fn finished_notice(
+    destination: &Path,
+    source: &Path,
+    copied: usize,
+) -> String {
     let entry_noun: &str = if copied == 1 { "entry" } else { "entries" };
     return format!(
         "monochromatic-git-policy-cli: finished the ignored-state copy an interrupted `git worktree add` owed {}: copied {copied} ignored filesystem {entry_noun} from {}.",
@@ -113,7 +123,10 @@ pub(crate) fn finished_notice(destination: &Path, source: &Path, copied: usize) 
 /// ```ts
 /// `the ignored-state copy an interrupted git worktree add owed ${destination} could not be made (${reason}); ...`
 /// ```
-pub(crate) fn not_finished_notice(destination: &Path, reason: &str) -> String {
+pub(crate) fn not_finished_notice(
+    destination: &Path,
+    reason: &str,
+) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let commands: String = shell_quote(destination.as_os_str().as_bytes());
     return format!(

@@ -182,46 +182,122 @@ pub mod parent_adoption_decision;
 #[path = "attach_arm_tests.rs"]
 mod attach_arm_tests;
 
+/// The post-attach check.
+pub use attach_post_check::{
+    AttachOutcome,
+    AttachPostCheck,
+    MisplacedAttach,
+    MisplacedReason,
+    post_attach_check,
+};
+/// The attach's calls,
+/// the mount it made and the descriptor-bound unmount.
+pub use attach_the_clone::{
+    AttachCall,
+    AttachRefusal,
+    AttachedMount,
+    Placement,
+    attach_the_clone,
+    unmount_through_descriptor,
+};
+/// The mount facts and the enforced flags.
+pub use attached_mount_identity::{
+    ATTACH_MOUNT_FLAGS,
+    MountIdentity,
+    MountIdentityRefusal,
+    mount_facts_of,
+    mount_identity_of,
+};
 /// The identity fields and their compare.
-pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+pub use clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+};
 /// The bound one ACL read accepts.
 pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
+/// The slot's Git pointer and the registration it must name.
+pub use clone_slot_git_pointer::{
+    GitPointerRefusal,
+    read_the_slot_git_pointer,
+    the_registration_of,
+};
+/// The walks and what they hold.
+pub use clone_slot_walk::{
+    FreshSlotLookup,
+    HeldCloneSlot,
+    HeldWorktreesParent,
+    HoldCloneSlotRequest,
+    LookAgainAtSlotRequest,
+    SlotRecord,
+    WORKTREES_PARENT_NAMES,
+    hold_clone_slot,
+    hold_clone_slot_under_root_control,
+    hold_the_worktrees_parent,
+    look_again_at_the_slot,
+    mount_id_at_the_held_target,
+    observe_the_clone_slot,
+    observe_the_clone_slot_under_root_control,
+};
+/// Why a walk or an identity compare refused.
+pub use clone_slot_walk_refusals::{
+    CloneSlotRefusal,
+    WalkRefusal,
+    WalkRefusalReason,
+};
+/// The rollback plan and its report.
+pub use misplaced_attach_rollback::{
+    RollbackOutcome,
+    RollbackPlan,
+    RollbackRefusal,
+    plan_rollback,
+    plan_rollback_of,
+};
+/// The adoption decision.
+pub use parent_adoption_decision::{
+    Adoption,
+    AdoptionFacts,
+    AdoptionRefusal,
+    decide_adoption,
+};
+/// The shapes an adoption compares against.
+pub use parent_adoption_facts::{
+    BindingState,
+    ParentPolicy,
+    SlotState,
+};
 /// The store folder's path,
 /// its open and its lookups and listing.
-pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore};
+pub use slot_identity_store::{
+    SLOT_IDENTITY_STORE_PATH,
+    SlotIdentityStore,
+};
 /// Whose the store folder and its records must be,
 /// and the modes they are made with.
-pub use slot_identity_store_control::{RECORD_MODE, STORE_FOLDER_MODE, STORE_OWNER, store_control_refusal};
+pub use slot_identity_store_control::{
+    RECORD_MODE,
+    STORE_FOLDER_MODE,
+    STORE_OWNER,
+    store_control_refusal,
+};
+/// The store's three writes.
+pub use slot_identity_store_publication::{
+    publish_parent_identity_under_root_control,
+    publish_slot_identity_under_root_control,
+    replace_parent_identity_under_root_control,
+};
 /// The per-file bound,
 /// derived from the kernel's own limits.
 pub use slot_identity_store_reading::RECORD_MAXIMUM_BYTES;
-/// The store's three writes.
-pub use slot_identity_store_publication::{publish_parent_identity_under_root_control, publish_slot_identity_under_root_control, replace_parent_identity_under_root_control};
 /// The store's header line,
 /// its record type and the key its parent record carries.
-pub use slot_identity_store_records::{PARENT_KEY, PARENT_RECORD_NAME, STORE_HEADER, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_known_staging_name};
-pub(crate) use slot_name::slot_name_refusal;
+pub use slot_identity_store_records::{
+    PARENT_KEY,
+    PARENT_RECORD_NAME,
+    SLOT_NAME_MAXIMUM_BYTES,
+    STORE_HEADER,
+    StoredIdentity,
+    is_known_staging_name,
+};
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
-/// The mount facts and the enforced flags.
-pub use attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, MountIdentityRefusal, mount_facts_of, mount_identity_of};
-/// The attach's calls,
-/// the mount it made and the descriptor-bound unmount.
-pub use attach_the_clone::{AttachCall, AttachRefusal, AttachedMount, Placement, attach_the_clone, unmount_through_descriptor};
-/// Why a walk or an identity compare refused.
-pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
-/// The walks and what they hold.
-pub use clone_slot_walk::{
-    FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, SlotRecord, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control,
-    hold_the_worktrees_parent, look_again_at_the_slot, mount_id_at_the_held_target, observe_the_clone_slot, observe_the_clone_slot_under_root_control,
-};
-/// The post-attach check.
-pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
-/// The slot's Git pointer and the registration it must name.
-pub use clone_slot_git_pointer::{GitPointerRefusal, read_the_slot_git_pointer, the_registration_of};
-/// The rollback plan and its report.
-pub use misplaced_attach_rollback::{RollbackOutcome, RollbackPlan, RollbackRefusal, plan_rollback, plan_rollback_of};
-/// The shapes an adoption compares against.
-pub use parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
-/// The adoption decision.
-pub use parent_adoption_decision::{Adoption, AdoptionFacts, AdoptionRefusal, decide_adoption};
+pub(crate) use slot_name::slot_name_refusal;

@@ -50,12 +50,24 @@ fn now_has_the_shape() {
 fn no_file_holds_hand_written_calendar_arithmetic() {
     let sources: [(&str, &str); 2] = [
         ("foundation/iso_time.rs", include_str!("iso_time.rs")),
-        ("conflict/discarded_prune_stamps.rs", include_str!("../conflict/discarded_prune_stamps.rs")),
+        (
+            "conflict/discarded_prune_stamps.rs",
+            include_str!("../conflict/discarded_prune_stamps.rs"),
+        ),
     ];
     for (name, source) in sources {
-        let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+        let code: String = source
+            .lines()
+            .filter(|line| {
+                return !line.trim_start().starts_with("//");
+            })
+            .collect::<Vec<&str>>()
+            .join("\n");
         for needle in ["146_097", "719_468", "days_from_civil", "civil_from_days"] {
-            assert!(!code.contains(needle), "{name} still holds `{needle}`: the calendar comes from the jiff crate");
+            assert!(
+                !code.contains(needle),
+                "{name} still holds `{needle}`: the calendar comes from the jiff crate"
+            );
         }
     }
 }
@@ -69,16 +81,31 @@ fn no_file_holds_hand_written_calendar_arithmetic() {
 #[test]
 fn known_instants_format_as_the_wrapper_always_wrote_them() {
     assert_eq!(format_iso_milliseconds(0), "1970-01-01T00:00:00.000Z");
-    assert_eq!(format_iso_milliseconds(1_709_210_096_789), "2024-02-29T12:34:56.789Z");
+    assert_eq!(
+        format_iso_milliseconds(1_709_210_096_789),
+        "2024-02-29T12:34:56.789Z"
+    );
     assert_eq!(format_iso_milliseconds(-1), "1969-12-31T23:59:59.999Z");
-    assert_eq!(format_iso_milliseconds(4_102_444_800_000), "2100-01-01T00:00:00.000Z");
+    assert_eq!(
+        format_iso_milliseconds(4_102_444_800_000),
+        "2100-01-01T00:00:00.000Z"
+    );
     // The crate's range ends a little before the end of year 9999; a later instant is clamped to that end, not misprinted.
-    assert_eq!(format_iso_milliseconds(i64::MAX), "9999-12-30T22:00:00.999Z");
-    assert_eq!(format_iso_milliseconds(i64::MIN), "-9999-01-02T01:59:59.000Z");
+    assert_eq!(
+        format_iso_milliseconds(i64::MAX),
+        "9999-12-30T22:00:00.999Z"
+    );
+    assert_eq!(
+        format_iso_milliseconds(i64::MIN),
+        "-9999-01-02T01:59:59.000Z"
+    );
 }
 
 /// The version of the package `name` in the crate's lockfile text.
-fn locked_version<'a>(lock: &'a str, name: &str) -> Option<&'a str> {
+fn locked_version<'a>(
+    lock: &'a str,
+    name: &str,
+) -> Option<&'a str> {
     let header: String = format!("name = \"{name}\"\nversion = \"");
     let start: usize = lock.find(header.as_str())? + header.len();
     return lock[start..].split('"').next();
@@ -89,10 +116,14 @@ fn locked_version<'a>(lock: &'a str, name: &str) -> Option<&'a str> {
 ///  jiff."),
 /// so the lock no longer holds `jiff` at the 0.2.24 it was kept at while the trust policy refused `defmt-parser` 1.1.0.
 #[test]
-fn the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones() {
+fn the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones()
+{
     let lock: &str = include_str!("../../../Cargo.lock");
     let version: &str = locked_version(lock, "jiff").expect("jiff is locked");
-    assert_ne!(version, "0.2.24", "jiff is still held at the pin; move it to the newest release the policy allows");
+    assert_ne!(
+        version, "0.2.24",
+        "jiff is still held at the pin; move it to the newest release the policy allows"
+    );
 }
 
 /// What:
@@ -111,7 +142,9 @@ fn a_stamp_written_again_in_one_millisecond_is_still_a_moment_of_its_own() {
     /// each takes far less than a millisecond,
     /// so this many cannot all fall in different milliseconds.
     const STAMPS: usize = 1000;
-    let stamps: Vec<String> = (0..STAMPS).map(|_unused| return now_iso_never_the_same_twice()).collect();
+    let stamps: Vec<String> = (0..STAMPS)
+        .map(|_unused| return now_iso_never_the_same_twice())
+        .collect();
     for stamp in &stamps {
         assert_eq!(stamp.len(), 24, "{stamp} is not a `toISOString` stamp");
         assert!(stamp.ends_with('Z'), "{stamp} is not a `toISOString` stamp");
@@ -119,10 +152,18 @@ fn a_stamp_written_again_in_one_millisecond_is_still_a_moment_of_its_own() {
     let mut distinct: Vec<String> = stamps.clone();
     distinct.sort();
     distinct.dedup();
-    assert_eq!(distinct.len(), stamps.len(), "each of the {} stamps is a moment of its own", stamps.len());
+    assert_eq!(
+        distinct.len(),
+        stamps.len(),
+        "each of the {} stamps is a moment of its own",
+        stamps.len()
+    );
     // A stamp is a moment this process asks for, never one before it: the newest reading is not older than this test.
     let newest: &String = distinct.last().expect("the stamps");
-    assert!(newest.as_str() > "2026-10-06T00:00:00.000Z", "{newest} is a moment before this control was written");
+    assert!(
+        newest.as_str() > "2026-10-06T00:00:00.000Z",
+        "{newest} is a moment before this control was written"
+    );
 }
 
 /// What:
@@ -139,10 +180,25 @@ fn a_stamp_written_again_in_one_millisecond_is_still_a_moment_of_its_own() {
 #[test]
 fn a_stamp_reads_back_as_the_instant_it_names() {
     let read: Option<std::time::SystemTime> = instant_of_iso("2026-10-07T03:34:01.123Z");
-    let millis: u128 = read.expect("the stamp is one this module writes").duration_since(std::time::SystemTime::UNIX_EPOCH).expect("after the epoch").as_millis();
-    assert_eq!(millis, 1_791_344_041_123, "the stamp names another instant than it was written from");
+    let millis: u128 = read
+        .expect("the stamp is one this module writes")
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_millis();
+    assert_eq!(
+        millis, 1_791_344_041_123,
+        "the stamp names another instant than it was written from"
+    );
     let written: String = format_iso_milliseconds(1_791_344_041_123);
-    assert_eq!(instant_of_iso(written.as_str()), read, "a stamp this module wrote does not read back as itself");
+    assert_eq!(
+        instant_of_iso(written.as_str()),
+        read,
+        "a stamp this module wrote does not read back as itself"
+    );
     assert_eq!(instant_of_iso("a while ago"), None);
-    assert_eq!(instant_of_iso("1969-12-31T23:59:59.999Z"), None, "a stamp before 1970 names no instant a record carries");
+    assert_eq!(
+        instant_of_iso("1969-12-31T23:59:59.999Z"),
+        None,
+        "a stamp before 1970 names no instant a record carries"
+    );
 }

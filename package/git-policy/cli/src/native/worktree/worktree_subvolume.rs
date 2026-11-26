@@ -34,13 +34,29 @@
 //! if (made) await settleSubvolumeDestination(made); // rmdir when still empty
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
-use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
+use crate::fs_beneath::{
+    ObjectId,
+    handle_path,
+    identity_at,
+    identity_of,
+    open_directory_at,
+    remove_at,
+};
 use crate::fs_btrfs_ioctl::subvolume_create_at;
-use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 use crate::worktree_add_plan::AddPlan;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSubvolume";
@@ -85,7 +101,14 @@ pub struct CreatedSubvolume {
 pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume> {
     let destination: &Path = plan.destination.as_path();
     if std::fs::symlink_metadata(destination).is_ok() {
-        debug(TAG, format!("{} exists already; Git decides whether it is acceptable", destination.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} exists already; Git decides whether it is acceptable",
+                destination.display()
+            )
+            .as_str(),
+        );
         return None;
     }
     let parent: &Path = destination.parent()?;
@@ -93,15 +116,32 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
         Ok(FilesystemKind::Btrfs) => {}
         Ok(_) => return None,
         Err(error) => {
-            debug(TAG, format!("the filesystem of {} is unknown ({error}); Git makes the directory", parent.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "the filesystem of {} is unknown ({error}); Git makes the directory",
+                    parent.display()
+                )
+                .as_str(),
+            );
             return None;
         }
     }
     if let Err(error) = subvolume_create_at(destination) {
-        debug(TAG, format!("no subvolume at {} ({error}); Git makes the directory", destination.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "no subvolume at {} ({error}); Git makes the directory",
+                destination.display()
+            )
+            .as_str(),
+        );
         return None;
     }
-    debug(TAG, format!("created the empty subvolume {}", destination.display()).as_str());
+    debug(
+        TAG,
+        format!("created the empty subvolume {}", destination.display()).as_str(),
+    );
     let read: std::io::Result<ObjectId> = match std::fs::File::open(parent) {
         Ok(held) => identity_at(&held, destination.file_name().unwrap_or_default()),
         Err(error) => Err(error),
@@ -113,7 +153,10 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
             None
         }
     };
-    return Some(CreatedSubvolume { path: destination.to_path_buf(), identity });
+    return Some(CreatedSubvolume {
+        path: destination.to_path_buf(),
+        identity,
+    });
 }
 
 /// What:
@@ -201,7 +244,9 @@ pub fn reserve_destination(destination: &Path) -> Reservation {
     // `match` on the exclusive creation: the command that makes the directory owns the destination.
     match std::fs::DirBuilder::new().create(destination) {
         Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Reservation::Anothers(identity_of_entry(destination)),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Reservation::Anothers(identity_of_entry(destination));
+        }
         Err(error) => {
             debug(TAG, format!("no reservation of {} ({error}); Git makes the directory and this command copies nothing", destination.display()).as_str());
             return Reservation::NotAttempted;
@@ -211,14 +256,27 @@ pub fn reserve_destination(destination: &Path) -> Reservation {
         Some(parent) => match std::fs::File::open(parent) {
             Ok(held) => identity_at(&held, destination.file_name().unwrap_or_default()).ok(),
             Err(error) => {
-                debug(TAG, format!("the identity of the reserved {} cannot be read ({error})", destination.display()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the identity of the reserved {} cannot be read ({error})",
+                        destination.display()
+                    )
+                    .as_str(),
+                );
                 None
             }
         },
         None => None,
     };
-    debug(TAG, format!("reserved the empty destination {}", destination.display()).as_str());
-    return Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: read });
+    debug(
+        TAG,
+        format!("reserved the empty destination {}", destination.display()).as_str(),
+    );
+    return Reservation::Mine(CreatedSubvolume {
+        path: destination.to_path_buf(),
+        identity: read,
+    });
 }
 
 /// What:
@@ -284,25 +342,47 @@ pub enum CreatedDestinationSettlement {
 pub fn settle_created_destination(created: &CreatedSubvolume) -> CreatedDestinationSettlement {
     let shown: &Path = created.path.as_path();
     let Some(expected) = created.identity else {
-        debug(TAG, format!("{} was not identified when it was created; left alone", shown.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} was not identified when it was created; left alone",
+                shown.display()
+            )
+            .as_str(),
+        );
         return CreatedDestinationSettlement::LeftAlone;
     };
     let (Some(parent_path), Some(name)) = (shown.parent(), shown.file_name()) else {
-        debug(TAG, format!("{} has no parent and name; left alone", shown.display()).as_str());
+        debug(
+            TAG,
+            format!("{} has no parent and name; left alone", shown.display()).as_str(),
+        );
         return CreatedDestinationSettlement::LeftAlone;
     };
     let parent: std::fs::File = match std::fs::File::open(parent_path) {
         Ok(parent) => parent,
         Err(error) => {
-            debug(TAG, format!("{} cannot be settled ({error}); left alone", parent_path.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} cannot be settled ({error}); left alone",
+                    parent_path.display()
+                )
+                .as_str(),
+            );
             return CreatedDestinationSettlement::LeftAlone;
         }
     };
     let held: std::fs::File = match open_directory_at(&parent, name) {
         Ok(held) => held,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return CreatedDestinationSettlement::Gone,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return CreatedDestinationSettlement::Gone;
+        }
         Err(error) => {
-            debug(TAG, format!("{} cannot be opened ({error}); left alone", shown.display()).as_str());
+            debug(
+                TAG,
+                format!("{} cannot be opened ({error}); left alone", shown.display()).as_str(),
+            );
             return CreatedDestinationSettlement::LeftAlone;
         }
     };
@@ -313,7 +393,10 @@ pub fn settle_created_destination(created: &CreatedSubvolume) -> CreatedDestinat
     let mut listing = match std::fs::read_dir(handle_path(&held)) {
         Ok(listing) => listing,
         Err(error) => {
-            debug(TAG, format!("{} cannot be listed ({error}); left alone", shown.display()).as_str());
+            debug(
+                TAG,
+                format!("{} cannot be listed ({error}); left alone", shown.display()).as_str(),
+            );
             return CreatedDestinationSettlement::LeftAlone;
         }
     };
@@ -322,12 +405,28 @@ pub fn settle_created_destination(created: &CreatedSubvolume) -> CreatedDestinat
     }
     match remove_at(&parent, name, true) {
         Ok(()) => {
-            debug(TAG, format!("removed the empty destination {} that Git did not fill", shown.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "removed the empty destination {} that Git did not fill",
+                    shown.display()
+                )
+                .as_str(),
+            );
             return CreatedDestinationSettlement::Removed;
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return CreatedDestinationSettlement::Gone,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return CreatedDestinationSettlement::Gone;
+        }
         Err(error) => {
-            debug(TAG, format!("could not remove the empty destination {} ({error})", shown.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "could not remove the empty destination {} ({error})",
+                    shown.display()
+                )
+                .as_str(),
+            );
             return CreatedDestinationSettlement::LeftAlone;
         }
     }

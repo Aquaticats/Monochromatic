@@ -14,7 +14,10 @@ use super::*;
 ///  refused the line altogether.
 #[test]
 fn the_commands_about_a_kept_copy_quote_both_paths() {
-    let commands: String = commands_that_end_the_copy(Path::new("/repo/.cli-git-carry-1-2abc-gone with space.txt"), b"gone with space.txt");
+    let commands: String = commands_that_end_the_copy(
+        Path::new("/repo/.cli-git-carry-1-2abc-gone with space.txt"),
+        b"gone with space.txt",
+    );
     assert_eq!(
         commands,
         "`mv -- '/repo/.cli-git-carry-1-2abc-gone with space.txt' 'gone with space.txt'` puts the copy back over what is there, \
@@ -25,7 +28,14 @@ fn the_commands_about_a_kept_copy_quote_both_paths() {
 /// A name a shell reads as it stands is printed as it stands.
 #[test]
 fn a_plain_name_is_printed_without_quotes() {
-    let commands: String = commands_that_end_the_copy(Path::new("/repo/.cli-git-carry-1-2abc-a.txt"), b"a.txt");
-    assert!(commands.contains("`mv -- /repo/.cli-git-carry-1-2abc-a.txt a.txt`"), "{commands}");
-    assert!(commands.contains("`rm -- /repo/.cli-git-carry-1-2abc-a.txt`"), "{commands}");
+    let commands: String =
+        commands_that_end_the_copy(Path::new("/repo/.cli-git-carry-1-2abc-a.txt"), b"a.txt");
+    assert!(
+        commands.contains("`mv -- /repo/.cli-git-carry-1-2abc-a.txt a.txt`"),
+        "{commands}"
+    );
+    assert!(
+        commands.contains("`rm -- /repo/.cli-git-carry-1-2abc-a.txt`"),
+        "{commands}"
+    );
 }

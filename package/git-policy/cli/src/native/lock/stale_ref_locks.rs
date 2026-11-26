@@ -32,14 +32,22 @@
 //! if (outcome.clearedAny()) await runAgain(command); else process.stderr.write(outcome.notice());
 //! ```
 
-/// How a candidate is judged and what a judgement can say.
-pub use crate::stale_ref_lock_judge::{Judge, Proof, Verdict};
 /// The shapes of a finding and of the outcome of one clearing.
-pub use crate::stale_ref_lock_found::{Found, Outcome, PidFile};
-/// Candidates are found here.
-use crate::stale_ref_lock_walk::ref_lock_candidates;
+pub use crate::stale_ref_lock_found::{
+    Found,
+    Outcome,
+    PidFile,
+};
+/// How a candidate is judged and what a judgement can say.
+pub use crate::stale_ref_lock_judge::{
+    Judge,
+    Proof,
+    Verdict,
+};
 /// Judging and removing one candidate.
 use crate::stale_ref_lock_retire::judge_and_clear;
+/// Candidates are found here.
+use crate::stale_ref_lock_walk::ref_lock_candidates;
 
 /// What:
 ///  Judge every reference lock below the given Git directories,
@@ -56,7 +64,10 @@ use crate::stale_ref_lock_retire::judge_and_clear;
 /// ```ts
 /// function clearStaleRefLocks(roots: string[], judge: Judge): Outcome;
 /// ```
-pub fn clear_stale_ref_locks(roots: &[std::path::PathBuf], judge: &Judge) -> Outcome {
+pub fn clear_stale_ref_locks(
+    roots: &[std::path::PathBuf],
+    judge: &Judge,
+) -> Outcome {
     return clear_stale_ref_locks_of(ref_lock_candidates(roots).as_slice(), judge);
 }
 
@@ -75,7 +86,10 @@ pub fn clear_stale_ref_locks(roots: &[std::path::PathBuf], judge: &Judge) -> Out
 /// ```ts
 /// function clearStaleRefLocksOf(candidates: Candidate[], judge: Judge): Outcome;
 /// ```
-pub fn clear_stale_ref_locks_of(candidates: &[crate::stale_ref_lock_walk::Candidate], judge: &Judge) -> Outcome {
+pub fn clear_stale_ref_locks_of(
+    candidates: &[crate::stale_ref_lock_walk::Candidate],
+    judge: &Judge,
+) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
     for candidate in candidates {
         judge_and_clear(candidate, judge, &mut outcome);

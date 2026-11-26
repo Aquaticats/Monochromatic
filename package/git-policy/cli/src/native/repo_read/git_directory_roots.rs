@@ -19,18 +19,21 @@
 //! const roots = rootsOfCommand(command); // [gitDir] or [gitDir, commonDir]; [] when no repository is found
 //! ```
 
-/// Owned OS strings of a command's environment.
-use std::ffi::OsStr;
-/// Paths of the repository.
-use std::path::{Path, PathBuf};
-/// The command whose repository is wanted.
-use std::process::Command;
 /// The one reader of a Git directory's `commondir` file,
 /// which opens it as a plain file so a named pipe there cannot hold the sweep.
 use crate::common_directory_of_a_git_directory::common_directory_of;
 /// The reader that cannot wait, and the bound a `.git` pointer file is read to.
 use crate::plain_file::read_plain_file;
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
+/// Owned OS strings of a command's environment.
+use std::ffi::OsStr;
+/// Paths of the repository.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// The command whose repository is wanted.
+use std::process::Command;
 
 /// Where the Git directory of a working directory is:
 /// `.git` as a directory,
@@ -73,7 +76,10 @@ pub fn git_directory_of(start: &Path) -> Option<PathBuf> {
 /// ```ts
 /// function rootsFor(working: string, named?: string): string[];
 /// ```
-pub fn roots_for(working: &Path, named: Option<PathBuf>) -> Vec<PathBuf> {
+pub fn roots_for(
+    working: &Path,
+    named: Option<PathBuf>,
+) -> Vec<PathBuf> {
     let git_dir: Option<PathBuf> = match named {
         Some(explicit) => Some(explicit),
         None => git_directory_of(working),

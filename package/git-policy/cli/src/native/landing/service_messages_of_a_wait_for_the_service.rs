@@ -37,7 +37,10 @@ use std::time::Duration;
 /// ```
 pub(crate) fn waiting_for(blocker: Option<&str>) -> String {
     return match blocker {
-        Some(text) => format!(" It was waiting for: {}", ending_in_a_full_stop(text.trim())),
+        Some(text) => format!(
+            " It was waiting for: {}",
+            ending_in_a_full_stop(text.trim())
+        ),
         None => String::new(),
     };
 }
@@ -55,7 +58,11 @@ pub(crate) fn waiting_for(blocker: Option<&str>) -> String {
 /// text.endsWith('.') ? text : text + '.'
 /// ```
 fn ending_in_a_full_stop(text: &str) -> String {
-    return if text.ends_with('.') { text.to_string() } else { format!("{text}.") };
+    return if text.ends_with('.') {
+        text.to_string()
+    } else {
+        format!("{text}.")
+    };
 }
 
 /// What:
@@ -98,8 +105,13 @@ pub const STARTING_NOTICE: &str = "Waiting for the commit service of this worktr
 /// ```ts
 /// startingNotice('/run/user/1000/monochromatic-git-policy-cli/abc.sock', 'the service manager says monochromatic-git-policy-cli@abc.service is active');
 /// ```
-pub fn starting_notice(address: &str, who: &str) -> String {
-    return format!("monochromatic-git-policy-cli: {STARTING_NOTICE} nothing has answered at {address} yet ({who}); this wait ends as soon as it answers.");
+pub fn starting_notice(
+    address: &str,
+    who: &str,
+) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: {STARTING_NOTICE} nothing has answered at {address} yet ({who}); this wait ends as soon as it answers."
+    );
 }
 
 /// What:
@@ -117,7 +129,10 @@ pub fn starting_notice(address: &str, who: &str) -> String {
 /// ```ts
 /// restartingNotice('monochromatic-git-policy-cli@abc.service', 3)
 /// ```
-pub fn restarting_notice(unit: &str, waited: Duration) -> String {
+pub fn restarting_notice(
+    unit: &str,
+    waited: Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the commit service of this worktree has answered nothing for {} seconds, so it is stopped inside its own process; \
          it is asked to restart ({unit}), and this commit goes on once it answers.",
@@ -179,7 +194,10 @@ pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 /// ```ts
 /// replacingNotice('monochromatic-git-policy-cli@abc.service', 10)
 /// ```
-pub fn replacing_notice(unit: &str, waited: Duration) -> String {
+pub fn replacing_notice(
+    unit: &str,
+    waited: Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the commit service of this worktree was started from another release and has not stopped after {} seconds, so it is ended and started again from the program this release installs ({unit}); this commit goes on once it answers.",
         waited.as_secs()
@@ -196,7 +214,10 @@ pub fn replacing_notice(unit: &str, waited: Duration) -> String {
 /// ```ts
 /// positionNotice(number, of)
 /// ```
-pub fn position_notice(number: usize, of: usize) -> String {
+pub fn position_notice(
+    number: usize,
+    of: usize,
+) -> String {
     let ahead: usize = number.saturating_sub(1);
     let _ = of;
     return match ahead {
@@ -227,7 +248,9 @@ pub fn unplaced_notice(waited: Duration) -> String {
     // A part second of waiting is a second waited, and a long wait counts in whole seconds.
     let seconds: u64 = waited.as_secs().max(1);
     let unit: &str = if seconds == 1 { "second" } else { "seconds" };
-    return format!("The commit service has not said where this commit stands yet; it has waited {seconds} {unit}.");
+    return format!(
+        "The commit service has not said where this commit stands yet; it has waited {seconds} {unit}."
+    );
 }
 
 /// What:
@@ -244,7 +267,12 @@ pub fn unplaced_notice(waited: Duration) -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: the branch ${branch} moved ...`
 /// ```
-pub fn rebuild_notice(branch: &str, builds: usize, waited: std::time::Duration, ceiling: std::time::Duration) -> String {
+pub fn rebuild_notice(
+    branch: &str,
+    builds: usize,
+    waited: std::time::Duration,
+    ceiling: std::time::Duration,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the branch {branch} moved while this commit was being built ({builds} builds so far, {} seconds), so it is built again on the new tip; \
          nothing conflicted, and the building stops after {} seconds in all.\n",

@@ -12,7 +12,10 @@
 //! ```
 
 use crate::repo_read_config_scan::ScopeEnvironment;
-use crate::worktree_clean_content::{ConversionEnvironment, SystemAttributes};
+use crate::worktree_clean_content::{
+    ConversionEnvironment,
+    SystemAttributes,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -30,7 +33,13 @@ use std::path::PathBuf;
 /// ```
 pub(crate) fn content_environment() -> ConversionEnvironment {
     return ConversionEnvironment {
-        scope: ScopeEnvironment { no_system: true, global: Some(PathBuf::from("/nonexistent-global-config")), home: None, xdg: None, ..ScopeEnvironment::default() },
+        scope: ScopeEnvironment {
+            no_system: true,
+            global: Some(PathBuf::from("/nonexistent-global-config")),
+            home: None,
+            xdg: None,
+            ..ScopeEnvironment::default()
+        },
         system_attributes: SystemAttributes::Disabled,
         alternate_attribute_source: None,
         variables: Vec::new(),

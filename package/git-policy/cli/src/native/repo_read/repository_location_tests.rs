@@ -14,14 +14,20 @@
 
 /// The functions under test and the identity type they return.
 use super::{
-    PREFIX_OPTION, RepositoryLocation, effective_directory, location_query_arguments,
+    PREFIX_OPTION,
+    RepositoryLocation,
+    effective_directory,
+    location_query_arguments,
     parse_location_output,
 };
 use crate::command_test_support::os_arguments;
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The main-worktree identity of a repository rooted at `/r`.
 fn main_at_r() -> WorktreeIdentity {
@@ -118,7 +124,9 @@ fn unexpected_output_shapes_are_rejected() {
     ] {
         let error = parse_location_output(true, stdout).expect_err("malformed");
         assert!(
-            error.to_string().starts_with("monochromatic-git-policy-cli could not "),
+            error
+                .to_string()
+                .starts_with("monochromatic-git-policy-cli could not "),
             "{error}"
         );
     }

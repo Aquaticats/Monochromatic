@@ -4,7 +4,10 @@
 //! and the sources that are not devices.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// A folder with two device stand-ins,
@@ -33,7 +36,12 @@ fn devices(name: &str) -> Devices {
     std::os::unix::fs::symlink(&second, by_uuid.join("2222-bbbb")).expect("second uuid link");
     let first_alias: PathBuf = mapper.join("crypt");
     std::os::unix::fs::symlink(&first, &first_alias).expect("alias");
-    return Devices { root, first_alias, second, by_uuid };
+    return Devices {
+        root,
+        first_alias,
+        second,
+        by_uuid,
+    };
 }
 
 /// The UUID link is found through an alias of the device,
@@ -41,8 +49,20 @@ fn devices(name: &str) -> Devices {
 #[test]
 fn the_uuid_of_a_device_is_found_through_an_alias_of_it() {
     let devices: Devices = devices("uuid-of-source-alias");
-    assert_eq!(filesystem_uuid_of_source(devices.first_alias.to_str().expect("text"), devices.by_uuid.as_path()), Some(String::from("1111-aaaa")));
-    assert_eq!(filesystem_uuid_of_source(devices.second.to_str().expect("text"), devices.by_uuid.as_path()), Some(String::from("2222-bbbb")));
+    assert_eq!(
+        filesystem_uuid_of_source(
+            devices.first_alias.to_str().expect("text"),
+            devices.by_uuid.as_path()
+        ),
+        Some(String::from("1111-aaaa"))
+    );
+    assert_eq!(
+        filesystem_uuid_of_source(
+            devices.second.to_str().expect("text"),
+            devices.by_uuid.as_path()
+        ),
+        Some(String::from("2222-bbbb"))
+    );
     remove(devices.root.as_path());
 }
 
@@ -51,10 +71,26 @@ fn the_uuid_of_a_device_is_found_through_an_alias_of_it() {
 #[test]
 fn a_source_that_is_not_a_device_path_has_no_uuid() {
     let devices: Devices = devices("uuid-of-source-none");
-    assert_eq!(filesystem_uuid_of_source("tmpfs", devices.by_uuid.as_path()), None);
-    assert_eq!(filesystem_uuid_of_source("overlay", devices.by_uuid.as_path()), None);
-    assert_eq!(filesystem_uuid_of_source("dev/dm-0", devices.by_uuid.as_path()), None, "a relative source");
-    assert_eq!(filesystem_uuid_of_source(devices.root.join("absent").to_str().expect("text"), devices.by_uuid.as_path()), None);
+    assert_eq!(
+        filesystem_uuid_of_source("tmpfs", devices.by_uuid.as_path()),
+        None
+    );
+    assert_eq!(
+        filesystem_uuid_of_source("overlay", devices.by_uuid.as_path()),
+        None
+    );
+    assert_eq!(
+        filesystem_uuid_of_source("dev/dm-0", devices.by_uuid.as_path()),
+        None,
+        "a relative source"
+    );
+    assert_eq!(
+        filesystem_uuid_of_source(
+            devices.root.join("absent").to_str().expect("text"),
+            devices.by_uuid.as_path()
+        ),
+        None
+    );
     remove(devices.root.as_path());
 }
 
@@ -66,7 +102,16 @@ fn a_device_without_a_link_or_without_a_folder_has_no_uuid() {
     let devices: Devices = devices("uuid-of-source-unlinked");
     let third: PathBuf = devices.root.join("dev/dm-2");
     std::fs::write(&third, b"").expect("third device");
-    assert_eq!(filesystem_uuid_of_source(third.to_str().expect("text"), devices.by_uuid.as_path()), None);
-    assert_eq!(filesystem_uuid_of_source(devices.second.to_str().expect("text"), devices.root.join("no-such-folder").as_path()), None);
+    assert_eq!(
+        filesystem_uuid_of_source(third.to_str().expect("text"), devices.by_uuid.as_path()),
+        None
+    );
+    assert_eq!(
+        filesystem_uuid_of_source(
+            devices.second.to_str().expect("text"),
+            devices.root.join("no-such-folder").as_path()
+        ),
+        None
+    );
     remove(devices.root.as_path());
 }

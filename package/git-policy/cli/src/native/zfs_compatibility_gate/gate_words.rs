@@ -34,7 +34,10 @@
 //! const words = verdict.compatible ? compatibleLine(verdict.facts) : refusalLine(verdict.refusal);
 //! ```
 
-use super::gate_verdict::{Facts, Verdict};
+use super::gate_verdict::{
+    Facts,
+    Verdict,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityRefusal as Refusal;
 
 /// The release text the module the design tested reported,

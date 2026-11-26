@@ -74,7 +74,10 @@ impl UnprotectedReason {
             UnprotectedReason::ImmutableClear => String::from(
                 "the checkout's covered entry does not carry the immutable attribute, so the account can rename or remove the path while it is unmounted. Nothing was attached or changed. Ways forward: re-run the setup's protection step (`chattr +i <checkout path>` as root on the home dataset) and verify again; a rollback to a snapshot taken before the flag loses it, which is why the check runs after every reimport and rollback.",
             ),
-            UnprotectedReason::Owner { found, wanted } => format!(
+            UnprotectedReason::Owner {
+                found,
+                wanted,
+            } => format!(
                 "the checkout's covered entry is owned by user {found}, and the route requires user {wanted}. Nothing was attached or changed. Ways forward: restore the entry's owner from the backup the migration kept (`chown {wanted}: {wanted} <checkout path>` as root on the home dataset) and verify again; do not chown a clone's slot."
             ),
         };
@@ -142,23 +145,39 @@ impl UnderlayVerdict {
 
     /// The verdict in words,
     /// naming what was read and what to do next.
-    pub fn message(&self, facts: &CoveredEntryFacts) -> String {
+    pub fn message(
+        &self,
+        facts: &CoveredEntryFacts,
+    ) -> String {
         let read: String = format!(
             "device {} inode {} owner {} mode {:06o} immutable {} attributes-reported {} same-device-as-parent {}",
-            facts.device, facts.inode, facts.owner, facts.mode, facts.immutable, facts.attributes_reported, facts.same_device_as_parent
+            facts.device,
+            facts.inode,
+            facts.owner,
+            facts.mode,
+            facts.immutable,
+            facts.attributes_reported,
+            facts.same_device_as_parent
         );
         return match self {
             UnderlayVerdict::Protected => format!(
                 "the checkout's covered entry is protected: it is the unmounted underlay entry on its parent's device and carries the immutable attribute ({read})."
             ),
-            UnderlayVerdict::Unprotected(reason) => format!("{}. The reading was: {read}.", reason.message()),
-            UnderlayVerdict::Unproven(reason) => format!("{}. The reading was: {read}.", reason.message()),
+            UnderlayVerdict::Unprotected(reason) => {
+                format!("{}. The reading was: {read}.", reason.message())
+            }
+            UnderlayVerdict::Unproven(reason) => {
+                format!("{}. The reading was: {read}.", reason.message())
+            }
         };
     }
 
     /// The one line a boot logs for this reading,
     /// so a journal shows what was compared without the sentence.
-    pub fn line(&self, facts: &CoveredEntryFacts) -> String {
+    pub fn line(
+        &self,
+        facts: &CoveredEntryFacts,
+    ) -> String {
         let answer: &str = match self {
             UnderlayVerdict::Protected => "protected",
             UnderlayVerdict::Unprotected(_) => "unprotected",
@@ -166,7 +185,13 @@ impl UnderlayVerdict {
         };
         return format!(
             "UNDERLAY entry={answer} device={} inode={} owner={} mode={:06o} immutable={} attributes-reported={} same-device-as-parent={}",
-            facts.device, facts.inode, facts.owner, facts.mode, facts.immutable, facts.attributes_reported, facts.same_device_as_parent
+            facts.device,
+            facts.inode,
+            facts.owner,
+            facts.mode,
+            facts.immutable,
+            facts.attributes_reported,
+            facts.same_device_as_parent
         );
     }
 }
@@ -186,7 +211,10 @@ impl UnderlayVerdict {
 /// ```ts
 /// const verdict = verify(facts, account);
 /// ```
-pub fn verify(facts: &CoveredEntryFacts, wanted_owner: u32) -> UnderlayVerdict {
+pub fn verify(
+    facts: &CoveredEntryFacts,
+    wanted_owner: u32,
+) -> UnderlayVerdict {
     if !facts.directory {
         return UnderlayVerdict::Unprotected(UnprotectedReason::NotADirectory);
     }
@@ -200,7 +228,10 @@ pub fn verify(facts: &CoveredEntryFacts, wanted_owner: u32) -> UnderlayVerdict {
         return UnderlayVerdict::Unprotected(UnprotectedReason::ImmutableClear);
     }
     if facts.owner != wanted_owner {
-        return UnderlayVerdict::Unprotected(UnprotectedReason::Owner { found: facts.owner, wanted: wanted_owner });
+        return UnderlayVerdict::Unprotected(UnprotectedReason::Owner {
+            found: facts.owner,
+            wanted: wanted_owner,
+        });
     }
     return UnderlayVerdict::Protected;
 }

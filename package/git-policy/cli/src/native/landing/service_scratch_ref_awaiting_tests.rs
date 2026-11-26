@@ -5,8 +5,18 @@
 //! and a task can clear a dropped batch where the synchronous face cannot.
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::a_controls_answer::{AStatesAnswer, state_the_answer};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::blocking_jobs_within_the_budget::a_controls_answer::{
+    AStatesAnswer,
+    state_the_answer,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 
 /// The batch every control here names.
 const THE_BATCH: u64 = 1;
@@ -23,14 +33,22 @@ const THE_BATCH: u64 = 1;
 /// ```ts
 /// const repo = initRepo(); git(repo, ['update-ref', scratchRef(THE_BATCH), headOf(repo)]);
 /// ```
-fn a_repository_with_a_dropped_batch(name: &str) -> (PathBuf, PathBuf, PathBuf, GitContext, String) {
+fn a_repository_with_a_dropped_batch(
+    name: &str
+) -> (PathBuf, PathBuf, PathBuf, GitContext, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("a journal directory");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["update-ref", scratch_ref(THE_BATCH).as_str(), head.as_str()]);
-    let context: GitContext = GitContext { common_dir: Some(repo.join(".git")), ..git_context() };
+    git(
+        repo.as_path(),
+        &["update-ref", scratch_ref(THE_BATCH).as_str(), head.as_str()],
+    );
+    let context: GitContext = GitContext {
+        common_dir: Some(repo.join(".git")),
+        ..git_context()
+    };
     return (root, repo, journal, context, head);
 }
 
@@ -46,7 +64,10 @@ fn a_repository_with_a_dropped_batch(name: &str) -> (PathBuf, PathBuf, PathBuf, 
 /// ```ts
 /// const kept = valueOf(git, repo, keptRef(THE_BATCH));
 /// ```
-fn kept_after(git: &GitContext, repo: &Path) -> RefValue {
+fn kept_after(
+    git: &GitContext,
+    repo: &Path,
+) -> RefValue {
     return value_of(git, repo, kept_ref(THE_BATCH).as_str());
 }
 
@@ -62,7 +83,10 @@ fn kept_after(git: &GitContext, repo: &Path) -> RefValue {
 /// ```ts
 /// const landing = new LandContext({ git, journal, onObjectsWritten: null, lockCeiling });
 /// ```
-fn the_landing_context(git: &GitContext, journal: &Path) -> LandContext {
+fn the_landing_context(
+    git: &GitContext,
+    journal: &Path,
+) -> LandContext {
     return LandContext {
         git: git.clone(),
         journal: journal.to_path_buf(),
@@ -122,15 +146,31 @@ fn a_request_for(repo: &Path) -> CommitRequest {
 /// ```
 #[test]
 fn the_awaited_clearing_answers_what_the_synchronous_one_answers() {
-    let (root, repo, _journal, context, head) = a_repository_with_a_dropped_batch("scratch-ref-faces");
-    let synchronous: ScratchRefRemoval = clear_after_dropped_batch(&context, repo.as_path(), THE_BATCH);
+    let (root, repo, _journal, context, head) =
+        a_repository_with_a_dropped_batch("scratch-ref-faces");
+    let synchronous: ScratchRefRemoval =
+        clear_after_dropped_batch(&context, repo.as_path(), THE_BATCH);
     let synchronous_kept: RefValue = kept_after(&context, repo.as_path());
-    let (awaited_root, awaited_repo, _awaited_journal, awaited_context, awaited_head) = a_repository_with_a_dropped_batch("scratch-ref-faces-awaited");
-    let awaited: ScratchRefRemoval = crate::lazy_runtime::run_on_runtime(clear_after_dropped_batch_awaiting(&awaited_context, awaited_repo.as_path(), THE_BATCH))
-        .expect("the runtime");
-    assert_eq!(synchronous, ScratchRefRemoval::Removed, "a batch that did not land has its scratch reference removed once its commit is kept");
-    assert_eq!(awaited, synchronous, "both faces answer one thing about the same batch");
-    assert_eq!(synchronous_kept, RefValue::Names(head), "the commit of the synchronous face's batch is kept where the person is told to look");
+    let (awaited_root, awaited_repo, _awaited_journal, awaited_context, awaited_head) =
+        a_repository_with_a_dropped_batch("scratch-ref-faces-awaited");
+    let awaited: ScratchRefRemoval = crate::lazy_runtime::run_on_runtime(
+        clear_after_dropped_batch_awaiting(&awaited_context, awaited_repo.as_path(), THE_BATCH),
+    )
+    .expect("the runtime");
+    assert_eq!(
+        synchronous,
+        ScratchRefRemoval::Removed,
+        "a batch that did not land has its scratch reference removed once its commit is kept"
+    );
+    assert_eq!(
+        awaited, synchronous,
+        "both faces answer one thing about the same batch"
+    );
+    assert_eq!(
+        synchronous_kept,
+        RefValue::Names(head),
+        "the commit of the synchronous face's batch is kept where the person is told to look"
+    );
     assert_eq!(
         kept_after(&awaited_context, awaited_repo.as_path()),
         RefValue::Names(awaited_head),
@@ -155,18 +195,54 @@ fn the_awaited_clearing_answers_what_the_synchronous_one_answers() {
 /// ```
 #[test]
 fn a_kept_reference_another_batch_holds_leaves_the_scratch_reference_through_both_faces() {
-    let (root, repo, _journal, context, _head) = a_repository_with_a_dropped_batch("scratch-ref-kept-elsewhere");
-    let elsewhere: String = git_text(repo.as_path(), &["commit-tree", "-m", "another batch", "HEAD^{tree}"]);
-    git(repo.as_path(), &["update-ref", kept_ref(THE_BATCH).as_str(), elsewhere.as_str()]);
-    let synchronous: ScratchRefRemoval = clear_after_dropped_batch(&context, repo.as_path(), THE_BATCH);
-    let (awaited_root, awaited_repo, _awaited_journal, awaited_context, _awaited_head) = a_repository_with_a_dropped_batch("scratch-ref-kept-elsewhere-awaited");
-    let awaited_elsewhere: String = git_text(awaited_repo.as_path(), &["commit-tree", "-m", "another batch", "HEAD^{tree}"]);
-    git(awaited_repo.as_path(), &["update-ref", kept_ref(THE_BATCH).as_str(), awaited_elsewhere.as_str()]);
-    let awaited: ScratchRefRemoval =
-        crate::lazy_runtime::run_on_runtime(clear_after_dropped_batch_awaiting(&awaited_context, awaited_repo.as_path(), THE_BATCH)).expect("the runtime");
-    assert_eq!(synchronous, ScratchRefRemoval::Left, "a kept reference another batch holds leaves the scratch reference where it is");
-    assert_eq!(awaited, synchronous, "both faces leave the scratch reference where it is for the same reason");
-    assert_eq!(kept_after(&awaited_context, awaited_repo.as_path()), RefValue::Names(awaited_elsewhere), "the kept reference of the other batch is not replaced");
+    let (root, repo, _journal, context, _head) =
+        a_repository_with_a_dropped_batch("scratch-ref-kept-elsewhere");
+    let elsewhere: String = git_text(
+        repo.as_path(),
+        &["commit-tree", "-m", "another batch", "HEAD^{tree}"],
+    );
+    git(
+        repo.as_path(),
+        &[
+            "update-ref",
+            kept_ref(THE_BATCH).as_str(),
+            elsewhere.as_str(),
+        ],
+    );
+    let synchronous: ScratchRefRemoval =
+        clear_after_dropped_batch(&context, repo.as_path(), THE_BATCH);
+    let (awaited_root, awaited_repo, _awaited_journal, awaited_context, _awaited_head) =
+        a_repository_with_a_dropped_batch("scratch-ref-kept-elsewhere-awaited");
+    let awaited_elsewhere: String = git_text(
+        awaited_repo.as_path(),
+        &["commit-tree", "-m", "another batch", "HEAD^{tree}"],
+    );
+    git(
+        awaited_repo.as_path(),
+        &[
+            "update-ref",
+            kept_ref(THE_BATCH).as_str(),
+            awaited_elsewhere.as_str(),
+        ],
+    );
+    let awaited: ScratchRefRemoval = crate::lazy_runtime::run_on_runtime(
+        clear_after_dropped_batch_awaiting(&awaited_context, awaited_repo.as_path(), THE_BATCH),
+    )
+    .expect("the runtime");
+    assert_eq!(
+        synchronous,
+        ScratchRefRemoval::Left,
+        "a kept reference another batch holds leaves the scratch reference where it is"
+    );
+    assert_eq!(
+        awaited, synchronous,
+        "both faces leave the scratch reference where it is for the same reason"
+    );
+    assert_eq!(
+        kept_after(&awaited_context, awaited_repo.as_path()),
+        RefValue::Names(awaited_elsewhere),
+        "the kept reference of the other batch is not replaced"
+    );
     remove(root.as_path());
     remove(awaited_root.as_path());
 }
@@ -191,15 +267,30 @@ fn a_kept_reference_another_batch_holds_leaves_the_scratch_reference_through_bot
 /// ```
 #[test]
 fn a_look_at_an_intent_that_gives_no_answer_sets_no_removal_in_motion() {
-    let (root, repo, journal, context, head) = a_repository_with_a_dropped_batch("scratch-ref-intent-no-answer");
+    let (root, repo, journal, context, head) =
+        a_repository_with_a_dropped_batch("scratch-ref-intent-no-answer");
     let landing: LandContext = the_landing_context(&context, journal.as_path());
     let requests: Vec<CommitRequest> = vec![a_request_for(repo.as_path())];
     let _stated = state_the_answer(AStatesAnswer::NoAnswer);
-    let removal: ScratchRefRemoval = crate::lazy_runtime::run_on_runtime(clear_after_a_failed_landing_awaiting(&landing, requests.as_slice(), THE_BATCH))
-        .expect("the runtime");
-    assert_eq!(removal, ScratchRefRemoval::Left, "a look at the intent that gave no answer leaves the batch's scratch reference where it is");
-    assert_eq!(value_of(&context, repo.as_path(), scratch_ref(THE_BATCH).as_str()), RefValue::Names(head), "the commit of the batch is still named by its scratch reference");
-    assert_eq!(kept_after(&context, repo.as_path()), RefValue::Absent, "nothing was kept, because nothing was read");
+    let removal: ScratchRefRemoval = crate::lazy_runtime::run_on_runtime(
+        clear_after_a_failed_landing_awaiting(&landing, requests.as_slice(), THE_BATCH),
+    )
+    .expect("the runtime");
+    assert_eq!(
+        removal,
+        ScratchRefRemoval::Left,
+        "a look at the intent that gave no answer leaves the batch's scratch reference where it is"
+    );
+    assert_eq!(
+        value_of(&context, repo.as_path(), scratch_ref(THE_BATCH).as_str()),
+        RefValue::Names(head),
+        "the commit of the batch is still named by its scratch reference"
+    );
+    assert_eq!(
+        kept_after(&context, repo.as_path()),
+        RefValue::Absent,
+        "nothing was kept, because nothing was read"
+    );
     remove(root.as_path());
 }
 
@@ -220,26 +311,55 @@ fn a_look_at_an_intent_that_gives_no_answer_sets_no_removal_in_motion() {
 /// ```
 #[test]
 fn a_failed_landings_batch_is_cleared_inside_a_task() {
-    let (root, repo, journal, context, head) = a_repository_with_a_dropped_batch("scratch-ref-in-a-task");
+    let (root, repo, journal, context, head) =
+        a_repository_with_a_dropped_batch("scratch-ref-in-a-task");
     let requests: Vec<CommitRequest> = vec![a_request_for(repo.as_path())];
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime of one worker");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("a runtime of one worker");
     let awaited_landing: LandContext = the_landing_context(&context, journal.as_path());
     let awaited_requests: Vec<CommitRequest> = requests.clone();
     let awaited: ScratchRefRemoval = runtime.block_on(async move {
-        return clear_after_a_failed_landing_awaiting(&awaited_landing, awaited_requests.as_slice(), THE_BATCH).await;
+        return clear_after_a_failed_landing_awaiting(
+            &awaited_landing,
+            awaited_requests.as_slice(),
+            THE_BATCH,
+        )
+        .await;
     });
-    assert_eq!(awaited, ScratchRefRemoval::Removed, "the awaited face clears the batch of a failed landing inside a task");
-    assert_eq!(kept_after(&context, repo.as_path()), RefValue::Names(head.clone()), "the commit of the batch is kept at the reference the person is told to look at");
+    assert_eq!(
+        awaited,
+        ScratchRefRemoval::Removed,
+        "the awaited face clears the batch of a failed landing inside a task"
+    );
+    assert_eq!(
+        kept_after(&context, repo.as_path()),
+        RefValue::Names(head.clone()),
+        "the commit of the batch is kept at the reference the person is told to look at"
+    );
     // The same work, through the synchronous face, on the fixture as it now stands: the batch has no scratch reference left.
-    git(repo.as_path(), &["update-ref", scratch_ref(THE_BATCH).as_str(), head.as_str()]);
+    git(
+        repo.as_path(),
+        &["update-ref", scratch_ref(THE_BATCH).as_str(), head.as_str()],
+    );
     let refused_landing: LandContext = the_landing_context(&context, journal.as_path());
     let refused_requests: Vec<CommitRequest> = requests.clone();
     let refused: ScratchRefRemoval = runtime.block_on(async move {
         let asking = tokio::spawn(async move {
-            return clear_after_a_failed_landing(&refused_landing, refused_requests.as_slice(), THE_BATCH);
+            return clear_after_a_failed_landing(
+                &refused_landing,
+                refused_requests.as_slice(),
+                THE_BATCH,
+            );
         });
         return asking.await.expect("the task that asks ends");
     });
-    assert_eq!(refused, ScratchRefRemoval::Left, "the synchronous face cannot start its Git from inside the runtime, so it leaves the reference where it is");
+    assert_eq!(
+        refused,
+        ScratchRefRemoval::Left,
+        "the synchronous face cannot start its Git from inside the runtime, so it leaves the reference where it is"
+    );
     remove(root.as_path());
 }

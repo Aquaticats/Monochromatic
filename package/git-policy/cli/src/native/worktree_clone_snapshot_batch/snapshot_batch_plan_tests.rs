@@ -24,7 +24,10 @@
 
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::request_refusal::BatchRefusal;
-use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::{RequestPlan, plan_requests};
+use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::{
+    RequestPlan,
+    plan_requests,
+};
 use crate::worktree_clone_snapshot_batch::snapshot_destroy_request::encoded_request_bytes;
 
 /// The pool every plan names.
@@ -48,13 +51,14 @@ fn five() -> Vec<String> {
 
 /// The budget that exactly fits the given names' own request.
 fn budget_for(set: &[String]) -> RequestBudget {
-    return RequestBudget::of_input_bytes(
-        encoded_request_bytes(POOL, set).expect("the names fit"),
-    );
+    return RequestBudget::of_input_bytes(encoded_request_bytes(POOL, set).expect("the names fit"));
 }
 
 /// The names one request would carry for the first `take` names of `set`.
-fn prefix(set: &[String], take: usize) -> Vec<String> {
+fn prefix(
+    set: &[String],
+    take: usize,
+) -> Vec<String> {
     return set[..take].to_vec();
 }
 
@@ -103,8 +107,8 @@ fn a_set_over_the_budget_is_split_by_the_largest_fitting_prefix() {
     let mut remaining: &[String] = set.as_slice();
     for chunk in plan.chunks() {
         if chunk.len() < remaining.len() {
-            let one_more: usize = encoded_request_bytes(POOL, &remaining[..chunk.len() + 1])
-                .expect("the names fit");
+            let one_more: usize =
+                encoded_request_bytes(POOL, &remaining[..chunk.len() + 1]).expect("the names fit");
             assert!(
                 one_more > budget.input_bytes(),
                 "the split must take the largest fitting prefix, and one more name fits"
@@ -156,8 +160,9 @@ fn the_boundary_is_the_encoded_request() {
 #[test]
 fn one_name_over_the_budget_is_refused_before_any_request() {
     let set: Vec<String> = five();
-    let refusal: BatchRefusal = plan_requests(POOL, set.as_slice(), RequestBudget::of_input_bytes(1))
-        .expect_err("one byte cannot carry a request");
+    let refusal: BatchRefusal =
+        plan_requests(POOL, set.as_slice(), RequestBudget::of_input_bytes(1))
+            .expect_err("one byte cannot carry a request");
     match refusal {
         BatchRefusal::OneNameOverTheBudget {
             name,
@@ -179,7 +184,10 @@ fn a_repeated_name_is_refused() {
     let refusal: BatchRefusal = plan_requests(POOL, set.as_slice(), budget_for(set.as_slice()))
         .expect_err("a repeated name has no single per-name outcome");
     assert!(matches!(refusal, BatchRefusal::RepeatedName { .. }));
-    if let BatchRefusal::RepeatedName { name } = refusal {
+    if let BatchRefusal::RepeatedName {
+        name,
+    } = refusal
+    {
         assert_eq!(name, set[0]);
     }
 }

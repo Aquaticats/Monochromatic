@@ -33,39 +33,83 @@
 /// ```
 use crate::candidate_error::CandidateError;
 /// Candidate preparation on a private index.
-use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use crate::candidate_prediction::{
+    CandidateRequest,
+    PreparedCandidates,
+    prepare_candidates,
+};
+use crate::command_clean::clean_deleted_paths_from_answer;
 /// The captured-query runner and its byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git};
-use crate::repo_read_adapter::{location_of, sequencer_of};
+use crate::git_metadata::{
+    MetadataOutput,
+    path_from_git_bytes,
+    read_stopped_text,
+    run_metadata_git,
+};
 use crate::git_system_config::with_real_git;
 use crate::kept_names_in_the_git_directories::settle_kept_names;
-use crate::repo_read_layout::{RepoLayout, read_layout};
+use crate::repo_read_adapter::{
+    location_of,
+    sequencer_of,
+};
+use crate::repo_read_layout::{
+    RepoLayout,
+    read_layout,
+};
 /// The one query for the main checkout,
 ///  which a linked-worktree refusal names.
-use crate::repo_read_main_worktree::{main_worktree_from_answer, main_worktree_query_arguments};
-use crate::repository_location::{
-    RepositoryLocation, location_query_arguments, parse_location_output,
+use crate::repo_read_main_worktree::{
+    main_worktree_from_answer,
+    main_worktree_query_arguments,
 };
-use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
-use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
-use crate::command_clean::clean_deleted_paths_from_answer;
+use crate::repository_location::{
+    RepositoryLocation,
+    location_query_arguments,
+    parse_location_output,
+};
 /// The reading of a dry run written with one force,
 ///  which names the nested repositories that force keeps.
 /// The answer one `git add` selection question gives.
 use crate::rule_add_explicit::StagedSelection;
-use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
-use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
-use crate::rule_commit_sequencer::{
-    SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
-    sequencer_state, sequencer_state_when_query_fails,
+use crate::rule_branch_worktree::{
+    remote_guess_creates_branch,
+    remote_guess_query_arguments,
 };
-/// What one abort form would discard,
-/// and the forms that ask.
-use crate::{repository_facts_abort_discard::AbortDiscard, rule_linked_worktree::GuardedCommand};
+use crate::rule_commit_index::{
+    IndexVsHead,
+    index_query_arguments,
+    index_state_from_exit,
+};
+use crate::rule_commit_sequencer::{
+    SequencerFacts,
+    SequencerState,
+    sequencer_head_paths,
+    sequencer_query_arguments,
+    sequencer_state,
+    sequencer_state_when_query_fails,
+};
+use crate::rule_repository_stash::{
+    stash_from_output,
+    stash_query_arguments,
+};
+use crate::rule_worktree_dirty::{
+    DirtyScope,
+    dirty_from_output,
+    dirty_query_arguments,
+};
 /// The transaction Git context.
 use crate::transaction_git::GitContext;
 /// The common directory of a location's identity.
-use crate::worktree_identity::{common_directory, git_directory};
+use crate::worktree_identity::{
+    common_directory,
+    git_directory,
+};
+/// What one abort form would discard,
+/// and the forms that ask.
+use crate::{
+    repository_facts_abort_discard::AbortDiscard,
+    rule_linked_worktree::GuardedCommand,
+};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 ///  Sibling
@@ -79,9 +123,15 @@ use crate::worktree_identity::{common_directory, git_directory};
 /// ```ts
 /// // string, but byte-preserving.
 /// ```
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The facts a rule may ask for.
@@ -113,9 +163,15 @@ pub trait RepositoryFacts {
     ///  and how many the whole worktree and the directory the command runs in give,
     ///  for the `git add` these pathspecs belong to.
     /// Asked only when a pathspec is no ordinary named path.
-    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String>;
+    fn staged_selection(
+        &mut self,
+        pathspecs: Vec<OsString>,
+    ) -> Result<StagedSelection, String>;
     /// Whether the worktree holds uncommitted state of the given scope.
-    fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String>;
+    fn worktree_dirty(
+        &mut self,
+        scope: DirtyScope,
+    ) -> Result<bool, String>;
     /// The worktree's ignored files whose paths the given revision's tree also tracks,
     /// asked for a
     ///  forced checkout,
@@ -125,12 +181,18 @@ pub trait RepositoryFacts {
     ///  names no tree writes `HEAD`'s content into the worktree;
     /// an unreadable `HEAD` is a failure,
     ///  never an empty answer.
-    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String>;
+    fn ignored_files_the_tree_tracks(
+        &mut self,
+        revision: Option<&OsStr>,
+    ) -> Result<Vec<String>, String>;
     /// The worktree's untracked files whose paths the given revision's tree also tracks,
     /// asked before an abort restores that tree.
     /// A reset refuses an untracked file at one of those paths and loses nothing,
     ///  so the command does not run and no copy is owed.
-    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String>;
+    fn untracked_files_the_tree_tracks(
+        &mut self,
+        revision: &OsStr,
+    ) -> Result<Vec<String>, String>;
     /// Whether the repository holds a stash entry.
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
@@ -139,7 +201,10 @@ pub trait RepositoryFacts {
     /// each as Git printed it,
     /// asked for a clean
     ///  that carries its own `-e`/`--exclude` patterns.
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
+    fn clean_deleted_paths(
+        &mut self,
+        arguments: Vec<OsString>,
+    ) -> Result<Vec<Vec<u8>>, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -154,10 +219,16 @@ pub trait RepositoryFacts {
     /// and whether that operation waits at all.
     /// Asked before an abort form runs,
     /// so the person's own work is saved first and the operation's own state is let go.
-    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String>;
+    fn abort_discard(
+        &mut self,
+        command: GuardedCommand,
+    ) -> Result<AbortDiscard, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
-    fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
+    fn remote_guess_creates_branch(
+        &mut self,
+        target: &OsStr,
+    ) -> Result<bool, String>;
     /// The candidates a content policy reads for this request,
     ///  prepared on a private
     /// index;
@@ -283,7 +354,11 @@ pub fn git_facts(
 /// ```ts
 /// const message = `monochromatic-git-policy-cli could not start ${realGit} to read ${fact}: ${error}`;
 /// ```
-fn not_started(real_git: &Path, fact: &str, error: &std::io::Error) -> String {
+fn not_started(
+    real_git: &Path,
+    fact: &str,
+    error: &std::io::Error,
+) -> String {
     // `format!` builds owned text; `.display()` shows a path, replacing undecodable bytes.
     return format!(
         "monochromatic-git-policy-cli could not start {} to read {fact}: {error}",
@@ -307,7 +382,11 @@ impl GitFacts {
     /// ```ts
     /// async query(args: string[], fact: string): Promise<MetadataOutput>;
     /// ```
-    pub(super) fn query(&mut self, arguments: Vec<OsString>, fact: &str) -> Result<MetadataOutput, String> {
+    pub(super) fn query(
+        &mut self,
+        arguments: Vec<OsString>,
+        fact: &str,
+    ) -> Result<MetadataOutput, String> {
         self.queries += 1;
         // `match` unpacks the start result; `Ok`/`Err` are the success/failure variants.
         match run_metadata_git(
@@ -340,7 +419,10 @@ impl GitFacts {
     /// ```
     fn layout(&mut self) -> Option<&RepoLayout> {
         if self.layout.is_none() {
-            self.layout = Some(read_layout(self.global_prefix.as_slice(), with_real_git(self.overlay.as_slice(), self.real_git.as_path()).as_slice()));
+            self.layout = Some(read_layout(
+                self.global_prefix.as_slice(),
+                with_real_git(self.overlay.as_slice(), self.real_git.as_path()).as_slice(),
+            ));
             // The first time the Git directories are known, a name an earlier release kept in them is moved to its current name.
             if let Some(Some(known)) = &self.layout {
                 settle_kept_names(known.git_dir.as_path(), known.common_dir.as_path());
@@ -348,7 +430,6 @@ impl GitFacts {
         }
         return self.layout.as_ref().and_then(Option::as_ref);
     }
-
 }
 
 /// What:
@@ -402,7 +483,10 @@ impl RepositoryFacts for GitFacts {
         if let Ok(found) = &answer
             && let Some(git_dir) = git_directory(&found.identity)
         {
-            settle_kept_names(git_dir, common_directory(&found.identity).unwrap_or(git_dir));
+            settle_kept_names(
+                git_dir,
+                common_directory(&found.identity).unwrap_or(git_dir),
+            );
         }
         self.location = Some(answer.clone());
         return answer;
@@ -415,11 +499,17 @@ impl RepositoryFacts for GitFacts {
         return Ok(index_state_from_exit(output.code));
     }
 
-    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+    fn staged_selection(
+        &mut self,
+        pathspecs: Vec<OsString>,
+    ) -> Result<StagedSelection, String> {
         return crate::repository_facts_staged_selection::staged_selection(self, pathspecs);
     }
 
-    fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
+    fn worktree_dirty(
+        &mut self,
+        scope: DirtyScope,
+    ) -> Result<bool, String> {
         let arguments: Vec<OsString> = dirty_query_arguments(self.global_prefix.as_slice(), scope);
         let output: MetadataOutput = self.query(arguments, "the worktree status")?;
         return dirty_from_output(&output);
@@ -431,18 +521,31 @@ impl RepositoryFacts for GitFacts {
         return stash_from_output(&output);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+    fn clean_deleted_paths(
+        &mut self,
+        arguments: Vec<OsString>,
+    ) -> Result<Vec<Vec<u8>>, String> {
         let output: MetadataOutput = self.query(arguments, "what the clean would delete")?;
         return clean_deleted_paths_from_answer(&output);
     }
 
-    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+    fn ignored_files_the_tree_tracks(
+        &mut self,
+        revision: Option<&OsStr>,
+    ) -> Result<Vec<String>, String> {
         // The query and its reading live beside this provider, as the `git add` fact's do.
-        return crate::repository_facts_ignored_files::ignored_files_the_tree_tracks(self, revision);
+        return crate::repository_facts_ignored_files::ignored_files_the_tree_tracks(
+            self, revision,
+        );
     }
 
-    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
-        return crate::repository_facts_untracked_files::untracked_files_the_tree_tracks(self, revision);
+    fn untracked_files_the_tree_tracks(
+        &mut self,
+        revision: &OsStr,
+    ) -> Result<Vec<String>, String> {
+        return crate::repository_facts_untracked_files::untracked_files_the_tree_tracks(
+            self, revision,
+        );
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
@@ -467,17 +570,22 @@ impl RepositoryFacts for GitFacts {
 
     fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
         // `--porcelain -z` prints the main worktree's path on the first line, whatever its bytes are.
-        let arguments: Vec<OsString> =
-            main_worktree_query_arguments(self.global_prefix.as_slice());
+        let arguments: Vec<OsString> = main_worktree_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the worktrees of the repository")?;
         return main_worktree_from_answer(&output);
     }
 
-    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+    fn abort_discard(
+        &mut self,
+        command: GuardedCommand,
+    ) -> Result<AbortDiscard, String> {
         return crate::repository_facts_abort_discard::abort_discard(self, command);
     }
 
-    fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
+    fn remote_guess_creates_branch(
+        &mut self,
+        target: &OsStr,
+    ) -> Result<bool, String> {
         let arguments: Vec<OsString> =
             remote_guess_query_arguments(self.global_prefix.as_slice(), target);
         let output: MetadataOutput = self.query(arguments, "branch names")?;

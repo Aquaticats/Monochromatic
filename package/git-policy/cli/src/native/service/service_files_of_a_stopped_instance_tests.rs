@@ -6,22 +6,55 @@
 
 use super::*;
 use crate::claim_time::ClaimTime;
-use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
-use crate::service_commit_looking_for_what_landed::{LookForWhatLanded, looking_for_what_landed};
-use crate::service_instance::{instance_of, service_unit_instance};
-use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, Intent, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION, intent_text};
+use crate::service_claim_watch::{
+    ClaimWatch,
+    WATCH_DIRECTORY,
+};
+use crate::service_commit_looking_for_what_landed::{
+    LookForWhatLanded,
+    looking_for_what_landed,
+};
+use crate::service_instance::{
+    instance_of,
+    service_unit_instance,
+};
+use crate::service_journal::{
+    CLAIM_EXTENSION,
+    DONE_EXTENSION,
+    Intent,
+    OPEN_EXTENSION,
+    SCRATCH_EXTENSION,
+    START_EXTENSION,
+    TEMPORARY_EXTENSION,
+    intent_text,
+};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine, write_a_claim_watch_note};
-use crate::service_units_of_removed_worktrees::{stop_own_socket_of_a_gone_worktree, stop_units_of_gone_worktrees};
-use crate::test_support::{fixture, git_context, remove};
-use std::time::SystemTime;
+use crate::service_units_fixture_test_support::{
+    Machine,
+    age_a_journal,
+    machine,
+    write_a_claim_watch_note,
+};
+use crate::service_units_of_removed_worktrees::{
+    stop_own_socket_of_a_gone_worktree,
+    stop_units_of_gone_worktrees,
+};
+use crate::test_support::{
+    fixture,
+    git_context,
+    remove,
+};
 use crate::transaction_git::GitContext;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::time::Duration;
+use std::time::SystemTime;
 
 /// The journal folder of an instance as the unit's `--journal` names it,
 /// made for a machine of the controls.
-fn journal_folder(state: &std::path::Path, instance: &str) -> PathBuf {
+fn journal_folder(
+    state: &std::path::Path,
+    instance: &str,
+) -> PathBuf {
     let wrapper_state: PathBuf = state.join(SERVICE_UNIT.current);
     let journal: PathBuf = journal_of(wrapper_state.as_path(), instance);
     std::fs::create_dir_all(&journal).expect("journal folder");
@@ -38,10 +71,20 @@ fn the_note_written_at_provisioning_names_the_worktree_of_its_instance() {
     let machine: Machine = machine("files-note");
     let removed: PathBuf = machine.linked("removed", false);
     let instance: String = instance_of(removed.as_path());
-    record_worktree(machine.runtime.as_path(), instance.as_str(), removed.as_path()).expect("note written");
+    record_worktree(
+        machine.runtime.as_path(),
+        instance.as_str(),
+        removed.as_path(),
+    )
+    .expect("note written");
     assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists());
     // Written again with the same text, it stays.
-    record_worktree(machine.runtime.as_path(), instance.as_str(), removed.as_path()).expect("note written again");
+    record_worktree(
+        machine.runtime.as_path(),
+        instance.as_str(),
+        removed.as_path(),
+    )
+    .expect("note written again");
     remove(machine.root.as_path());
 }
 
@@ -54,8 +97,13 @@ fn a_note_that_cannot_be_written_is_no_failure() {
     // The note lives under `<runtime>/systemd/user`, so a file where that folder belongs refuses it.
     let runtime: PathBuf = root.join("run");
     std::fs::create_dir_all(&runtime).expect("runtime directory");
-    std::fs::write(runtime.join("systemd"), b"not a folder").expect("a file where the folder belongs");
-    note_worktree(runtime.as_path(), "3f9a3f9a3f9a3f9a3f9a3f9a3f9a3f9a", root.join("repository/.git").as_path());
+    std::fs::write(runtime.join("systemd"), b"not a folder")
+        .expect("a file where the folder belongs");
+    note_worktree(
+        runtime.as_path(),
+        "3f9a3f9a3f9a3f9a3f9a3f9a3f9a3f9a",
+        root.join("repository/.git").as_path(),
+    );
     assert!(!note_path(runtime.as_path(), "3f9a3f9a3f9a3f9a3f9a3f9a3f9a3f9a").exists());
     remove(root.as_path());
 }
@@ -77,10 +125,24 @@ fn the_sweep_takes_the_note_the_socket_file_and_the_journal_of_a_stopped_instanc
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note goes with the units");
-    assert!(!crate::service_instance::socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the socket file goes with the units");
-    assert!(!journal.exists(), "the journal of a stopped instance is removed with its units");
-    assert!(outcome.journals_kept.is_empty(), "{:?}", outcome.journals_kept);
+    assert!(
+        !note_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the note goes with the units"
+    );
+    assert!(
+        !crate::service_instance::socket_path(machine.runtime.as_path(), instance.as_str())
+            .exists(),
+        "the socket file goes with the units"
+    );
+    assert!(
+        !journal.exists(),
+        "the journal of a stopped instance is removed with its units"
+    );
+    assert!(
+        outcome.journals_kept.is_empty(),
+        "{:?}",
+        outcome.journals_kept
+    );
     remove(machine.root.as_path());
 }
 
@@ -106,16 +168,34 @@ fn the_service_keeps_its_own_journal_while_its_own_task_may_still_write_it() {
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
     let mut recorder: Recorder = Recorder::default();
-    let stopped: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    let stopped: Option<PathBuf> =
+        stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder)
+            .expect("stopped");
     assert_eq!(stopped, Some(gone.clone()));
-    assert!(journal.exists(), "a service never removes the journal its own writers may still write");
+    assert!(
+        journal.exists(),
+        "a service never removes the journal its own writers may still write"
+    );
     // The record the after-commit task writes after the socket was stopped,
     // which the removal that ran there took with the whole tree.
-    let mut watch: ClaimWatch = ClaimWatch::restored(journal.join(WATCH_DIRECTORY).as_path(), Some(instance.as_str()));
+    let mut watch: ClaimWatch = ClaimWatch::restored(
+        journal.join(WATCH_DIRECTORY).as_path(),
+        Some(instance.as_str()),
+    );
     watch.remember(gone.as_path());
-    assert_eq!(watch.directories(), vec![gone], "the repository the service is still to look at is written down where a restart reads it");
-    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep that follows the process's exit finds the instance");
-    assert!(socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the socket file stays with the note");
+    assert_eq!(
+        watch.directories(),
+        vec![gone],
+        "the repository the service is still to look at is written down where a restart reads it"
+    );
+    assert!(
+        note_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the note stays, so the sweep that follows the process's exit finds the instance"
+    );
+    assert!(
+        socket_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the socket file stays with the note"
+    );
     remove(machine.root.as_path());
 }
 
@@ -138,10 +218,18 @@ fn the_service_keeps_its_journal_and_the_files_that_name_it_when_a_batch_did_not
     let intent: PathBuf = journal.join(format!("7.{OPEN_EXTENSION}"));
     std::fs::write(&intent, b"seq=7\n").expect("a batch that did not land");
     let mut recorder: Recorder = Recorder::default();
-    let stopped: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    let stopped: Option<PathBuf> =
+        stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder)
+            .expect("stopped");
     assert_eq!(stopped, Some(gone));
-    assert!(intent.exists(), "the record of a commit that has not landed is kept");
-    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep finds the instance and names it");
+    assert!(
+        intent.exists(),
+        "the record of a commit that has not landed is kept"
+    );
+    assert!(
+        note_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the note stays, so the sweep finds the instance and names it"
+    );
     remove(machine.root.as_path());
 }
 
@@ -164,12 +252,28 @@ fn a_journal_of_a_commit_that_has_not_landed_stays_and_is_named() {
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(intent.exists(), "the record of a commit that has not landed is kept");
-    assert!(journal.join(format!("1.{DONE_EXTENSION}")).exists(), "a kept journal is kept whole");
-    assert_eq!(outcome.journals_kept.len(), 1, "the command is told which journal stayed");
+    assert!(
+        intent.exists(),
+        "the record of a commit that has not landed is kept"
+    );
+    assert!(
+        journal.join(format!("1.{DONE_EXTENSION}")).exists(),
+        "a kept journal is kept whole"
+    );
+    assert_eq!(
+        outcome.journals_kept.len(),
+        1,
+        "the command is told which journal stayed"
+    );
     assert_eq!(outcome.journals_kept[0].0, instance);
-    assert_eq!(outcome.journals_kept[0].1.entry, format!("7.{OPEN_EXTENSION}"));
-    assert_eq!(outcome.journals_kept[0].1.reason, "the record of a commit that has not landed");
+    assert_eq!(
+        outcome.journals_kept[0].1.entry,
+        format!("7.{OPEN_EXTENSION}")
+    );
+    assert_eq!(
+        outcome.journals_kept[0].1.reason,
+        "the record of a commit that has not landed"
+    );
     remove(machine.root.as_path());
 }
 
@@ -184,12 +288,19 @@ fn a_journal_of_a_landing_that_was_in_flight_stays() {
     let step: PathBuf = journal.join(LANDING_RECORD_DIRECTORY).join("step");
     std::fs::create_dir_all(step.parent().expect("the landing's record")).expect("landing record");
     std::fs::write(&step, b"promote").expect("the step of a landing");
-    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), "0000000000000000000000000000000c", true) {
+    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(
+        Some(state.as_path()),
+        "0000000000000000000000000000000c",
+        true,
+    ) {
         Some(JournalAfterStop::HoldsWork(kept)) => kept,
         other => panic!("a landing that was in flight keeps the journal and is named: {other:?}"),
     };
     assert_eq!(kept.entry, LANDING_RECORD_DIRECTORY);
-    assert!(step.exists(), "the step of a landing that did not end is kept");
+    assert!(
+        step.exists(),
+        "the step of a landing that did not end is kept"
+    );
     remove(root.as_path());
 }
 
@@ -205,15 +316,34 @@ fn a_journal_of_a_record_no_branch_shows_stays() {
     let root: PathBuf = fixture("files-unpublished");
     let state: PathBuf = root.join("state");
     for (name, reason) in [
-        (format!("3.{TEMPORARY_EXTENSION}"), "a record that was written and not published"),
-        (format!("4.{SCRATCH_EXTENSION}"), "the record of a batch whose objects a scratch reference may hold"),
-        (format!("5.{CLAIM_EXTENSION}"), "the record of a batch that was being landed"),
-        (format!("6.{START_EXTENSION}"), "the record of a batch that was being landed"),
-        (String::from("notes-from-a-later-release.txt"), "a file this release does not know"),
+        (
+            format!("3.{TEMPORARY_EXTENSION}"),
+            "a record that was written and not published",
+        ),
+        (
+            format!("4.{SCRATCH_EXTENSION}"),
+            "the record of a batch whose objects a scratch reference may hold",
+        ),
+        (
+            format!("5.{CLAIM_EXTENSION}"),
+            "the record of a batch that was being landed",
+        ),
+        (
+            format!("6.{START_EXTENSION}"),
+            "the record of a batch that was being landed",
+        ),
+        (
+            String::from("notes-from-a-later-release.txt"),
+            "a file this release does not know",
+        ),
     ] {
         let journal: PathBuf = journal_folder(state.as_path(), "0000000000000000000000000000000d");
         std::fs::write(journal.join(name.as_str()), b"seq=3\n").expect("a record");
-        let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), "0000000000000000000000000000000d", true) {
+        let kept: KeptJournal = match remove_journal_of_a_stopped_instance(
+            Some(state.as_path()),
+            "0000000000000000000000000000000d",
+            true,
+        ) {
             Some(JournalAfterStop::HoldsWork(kept)) => kept,
             other => panic!("{name} keeps the journal and is named: {other:?}"),
         };
@@ -227,7 +357,10 @@ fn a_journal_of_a_record_no_branch_shows_stays() {
 
 /// The record of a batch that landed,
 /// naming one request and the commit it became.
-fn a_landed_batch(commit: &str, request: &str) -> Intent {
+fn a_landed_batch(
+    commit: &str,
+    request: &str,
+) -> Intent {
     return Intent {
         seq: 7,
         repository: PathBuf::from("/nowhere/repository"),
@@ -249,9 +382,18 @@ fn a_landed_batch(commit: &str, request: &str) -> Intent {
 
 /// The commit the record of `request` names,
 /// as the client of a commit whose answer was lost looks for it.
-fn looking_up(journal: &std::path::Path, request: &str) -> Option<String> {
+fn looking_up(
+    journal: &std::path::Path,
+    request: &str,
+) -> Option<String> {
     let context: GitContext = git_context();
-    return looking_for_what_landed(LookForWhatLanded { context: &context, cwd: journal, journal: Some(journal), id: request, wait: Duration::from_millis(200) });
+    return looking_for_what_landed(LookForWhatLanded {
+        context: &context,
+        cwd: journal,
+        journal: Some(journal),
+        id: request,
+        wait: Duration::from_millis(200),
+    });
 }
 
 /// What:
@@ -268,8 +410,16 @@ fn a_landed_batch_a_lost_answer_may_still_read_keeps_the_journal() {
     let request: &str = "0d1e2f3a-4b5c-6d7e-8f90-a1b2c3d4e5f6";
     let commit: String = "1".repeat(40);
     let journal: PathBuf = journal_folder(state.as_path(), instance);
-    std::fs::write(journal.join(format!("7.{DONE_EXTENSION}")), intent_text(&a_landed_batch(commit.as_str(), request))).expect("a finished batch");
-    assert_eq!(looking_up(journal.as_path(), request), Some(commit.clone()), "the record is what a client whose answer was lost reads");
+    std::fs::write(
+        journal.join(format!("7.{DONE_EXTENSION}")),
+        intent_text(&a_landed_batch(commit.as_str(), request)),
+    )
+    .expect("a finished batch");
+    assert_eq!(
+        looking_up(journal.as_path(), request),
+        Some(commit.clone()),
+        "the record is what a client whose answer was lost reads"
+    );
     assert_eq!(
         remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true),
         Some(JournalAfterStop::StillRead(KeptJournal {
@@ -279,8 +429,15 @@ fn a_landed_batch_a_lost_answer_may_still_read_keeps_the_journal() {
         })),
         "a landed record a client may still read keeps the journal, quietly",
     );
-    assert!(journal.exists(), "the records of its landed batches stay while a client of the instance may still read them");
-    assert_eq!(looking_up(journal.as_path(), request), Some(commit), "the cleanup took the only record that tells a lost answer what its commit became");
+    assert!(
+        journal.exists(),
+        "the records of its landed batches stay while a client of the instance may still read them"
+    );
+    assert_eq!(
+        looking_up(journal.as_path(), request),
+        Some(commit),
+        "the cleanup took the only record that tells a lost answer what its commit became"
+    );
     remove(root.as_path());
 }
 
@@ -288,15 +445,24 @@ fn a_landed_batch_a_lost_answer_may_still_read_keeps_the_journal() {
 /// the batch's own lines and the reading of the clocks it was written by.
 /// The key is spelled here and not read from the product,
 /// because this control has to run on the release before records carried a reading.
-fn stamped_record(batch: &Intent, written: &ClaimTime) -> String {
+fn stamped_record(
+    batch: &Intent,
+    written: &ClaimTime,
+) -> String {
     return format!("{}stamp={}\n", intent_text(batch), written.encode());
 }
 
 /// Set the modification time of one fixture path,
 /// so a control says what a wall clock that moved made a file look like
 /// without waiting for that time to pass.
-fn set_time(path: &std::path::Path, when: SystemTime) {
-    std::fs::File::open(path).expect("a fixture path whose time is set").set_modified(when).expect("a fixture time");
+fn set_time(
+    path: &std::path::Path,
+    when: SystemTime,
+) {
+    std::fs::File::open(path)
+        .expect("a fixture path whose time is set")
+        .set_modified(when)
+        .expect("a fixture time");
 }
 
 /// What:
@@ -322,9 +488,20 @@ fn a_finished_record_a_wall_clock_step_ages_keeps_the_journal() {
     let journal: PathBuf = journal_folder(state.as_path(), instance);
     let record: PathBuf = journal.join(format!("7.{DONE_EXTENSION}"));
     // The reading the record carries was taken a moment ago; the step is what its modification time shows.
-    std::fs::write(&record, stamped_record(&a_landed_batch(commit.as_str(), request), &ClaimTime::read().rewound(Duration::from_secs(30)))).expect("a finished batch");
+    std::fs::write(
+        &record,
+        stamped_record(
+            &a_landed_batch(commit.as_str(), request),
+            &ClaimTime::read().rewound(Duration::from_secs(30)),
+        ),
+    )
+    .expect("a finished batch");
     age_a_journal(journal.as_path());
-    assert_eq!(looking_up(journal.as_path(), request), Some(commit.clone()), "the record is there for the look a lost answer makes");
+    assert_eq!(
+        looking_up(journal.as_path(), request),
+        Some(commit.clone()),
+        "the record is there for the look a lost answer makes"
+    );
     assert_eq!(
         remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true),
         Some(JournalAfterStop::StillRead(KeptJournal {
@@ -334,8 +511,15 @@ fn a_finished_record_a_wall_clock_step_ages_keeps_the_journal() {
         })),
         "a record the monotonic clock says is a moment old keeps the journal however far the wall clock moved",
     );
-    assert!(journal.exists(), "the records of its landed batches stay while a client of the instance may still read them");
-    assert_eq!(looking_up(journal.as_path(), request), Some(commit), "the cleanup took the only record that tells a lost answer what its commit became");
+    assert!(
+        journal.exists(),
+        "the records of its landed batches stay while a client of the instance may still read them"
+    );
+    assert_eq!(
+        looking_up(journal.as_path(), request),
+        Some(commit),
+        "the cleanup took the only record that tells a lost answer what its commit became"
+    );
     remove(root.as_path());
 }
 
@@ -356,7 +540,14 @@ fn a_finished_record_of_an_earlier_release_is_judged_by_its_modification_time() 
     let instance: &str = "0000000000000000000000000000000c";
     let journal: PathBuf = journal_folder(state.as_path(), instance);
     let record: PathBuf = journal.join(format!("7.{DONE_EXTENSION}"));
-    std::fs::write(&record, intent_text(&a_landed_batch("4".repeat(40).as_str(), "3c4d5e6f-7081-92a3-b4c5-d6e7f8091223"))).expect("a finished batch of an earlier release");
+    std::fs::write(
+        &record,
+        intent_text(&a_landed_batch(
+            "4".repeat(40).as_str(),
+            "3c4d5e6f-7081-92a3-b4c5-d6e7f8091223",
+        )),
+    )
+    .expect("a finished batch of an earlier release");
     assert_eq!(
         remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true),
         Some(JournalAfterStop::StillRead(KeptJournal {
@@ -367,7 +558,9 @@ fn a_finished_record_of_an_earlier_release_is_judged_by_its_modification_time() 
         "a record a moment old keeps the journal while a client may still look",
     );
     let long_ago: SystemTime = SystemTime::now()
-        .checked_sub(crate::wait_ceilings::A_FINISHED_RECORD_IS_READ.saturating_add(Duration::from_secs(1)))
+        .checked_sub(
+            crate::wait_ceilings::A_FINISHED_RECORD_IS_READ.saturating_add(Duration::from_secs(1)),
+        )
         .expect("a fixture time after the epoch");
     set_time(journal.as_path(), long_ago);
     set_time(&record, long_ago);
@@ -394,14 +587,23 @@ fn a_journal_of_after_commit_work_stays_and_is_named_for_what_it_holds() {
     let state: PathBuf = root.join("state");
     let instance: &str = "0000000000000000000000000000000f";
     let journal: PathBuf = journal_folder(state.as_path(), instance);
-    std::fs::create_dir_all(journal.join(PLAN_DIRECTORY)).expect("the folder of the pushes to try again");
-    std::fs::write(journal.join(PLAN_DIRECTORY).join("a-record"), b"a push the service had left").expect("a record in it");
-    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
-        Some(JournalAfterStop::HoldsWork(kept)) => kept,
-        other => panic!("the pushes keep the journal and are named: {other:?}"),
-    };
+    std::fs::create_dir_all(journal.join(PLAN_DIRECTORY))
+        .expect("the folder of the pushes to try again");
+    std::fs::write(
+        journal.join(PLAN_DIRECTORY).join("a-record"),
+        b"a push the service had left",
+    )
+    .expect("a record in it");
+    let kept: KeptJournal =
+        match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+            Some(JournalAfterStop::HoldsWork(kept)) => kept,
+            other => panic!("the pushes keep the journal and are named: {other:?}"),
+        };
     assert_eq!(kept.entry, PLAN_DIRECTORY);
-    assert_eq!(kept.reason, "the pushes this service was still to try again, which a service of this worktree reads when it starts again");
+    assert_eq!(
+        kept.reason,
+        "the pushes this service was still to try again, which a service of this worktree reads when it starts again"
+    );
     assert!(journal.exists(), "a journal of a pending push stays");
     remove(root.as_path());
 }
@@ -420,13 +622,23 @@ fn a_claim_watch_file_this_release_does_not_explain_keeps_the_journal() {
     let instance: &str = "0000000000000000000000000000000f";
     let journal: PathBuf = journal_folder(state.as_path(), instance);
     std::fs::create_dir_all(journal.join(WATCH_DIRECTORY)).expect("a claim watch");
-    std::fs::write(journal.join(WATCH_DIRECTORY).join("a-record"), b"a record of work the service had left").expect("a record in it");
-    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
-        Some(JournalAfterStop::HoldsWork(kept)) => kept,
-        other => panic!("a claim watch file this release does not explain keeps the journal: {other:?}"),
-    };
+    std::fs::write(
+        journal.join(WATCH_DIRECTORY).join("a-record"),
+        b"a record of work the service had left",
+    )
+    .expect("a record in it");
+    let kept: KeptJournal =
+        match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+            Some(JournalAfterStop::HoldsWork(kept)) => kept,
+            other => panic!(
+                "a claim watch file this release does not explain keeps the journal: {other:?}"
+            ),
+        };
     assert_eq!(kept.entry, format!("{WATCH_DIRECTORY}/a-record"));
-    assert_eq!(kept.reason, "a file in the claim watch that this release does not explain");
+    assert_eq!(
+        kept.reason,
+        "a file in the claim watch that this release does not explain"
+    );
     assert!(journal.exists(), "the journal stays");
     remove(root.as_path());
 }
@@ -448,9 +660,17 @@ fn the_journal_of_finished_batches_and_the_remembered_repository_goes_with_the_u
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.settled_journal_of(instance.as_str());
     let remembered: String = String::from("/nowhere/a-repository\n");
-    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), remembered.as_bytes()).expect("the repository the service remembered");
     std::fs::write(
-        journal.join(format!("{}{}", crate::service_rules_precompile::REMEMBERED_FILE, crate::service_rules_precompile::REMEMBERED_STAGING_ENDING)),
+        journal.join(crate::service_rules_precompile::REMEMBERED_FILE),
+        remembered.as_bytes(),
+    )
+    .expect("the repository the service remembered");
+    std::fs::write(
+        journal.join(format!(
+            "{}{}",
+            crate::service_rules_precompile::REMEMBERED_FILE,
+            crate::service_rules_precompile::REMEMBERED_STAGING_ENDING
+        )),
         remembered.as_bytes(),
     )
     .expect("the staging copy of the repository the service remembered");
@@ -458,9 +678,20 @@ fn the_journal_of_finished_batches_and_the_remembered_repository_goes_with_the_u
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(outcome.journals_kept.is_empty(), "nothing in it asks a person: {:?}", outcome.journals_kept);
-    assert_eq!(outcome.journals_removed, vec![(instance, journal.clone())], "the command says which journal it removed and where it was");
-    assert!(!journal.exists(), "a journal of landed batches and the remembered repository carries no work");
+    assert!(
+        outcome.journals_kept.is_empty(),
+        "nothing in it asks a person: {:?}",
+        outcome.journals_kept
+    );
+    assert_eq!(
+        outcome.journals_removed,
+        vec![(instance, journal.clone())],
+        "the command says which journal it removed and where it was"
+    );
+    assert!(
+        !journal.exists(),
+        "a journal of landed batches and the remembered repository carries no work"
+    );
     remove(machine.root.as_path());
 }
 
@@ -483,8 +714,15 @@ fn the_journal_whose_claim_watch_names_only_the_removed_worktree_goes_with_the_u
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(outcome.journals_kept.is_empty(), "nothing in it asks a person: {:?}", outcome.journals_kept);
-    assert!(!journal.exists(), "a claim watch of the removed worktree leads a service to nothing");
+    assert!(
+        outcome.journals_kept.is_empty(),
+        "nothing in it asks a person: {:?}",
+        outcome.journals_kept
+    );
+    assert!(
+        !journal.exists(),
+        "a claim watch of the removed worktree leads a service to nothing"
+    );
     remove(machine.root.as_path());
 }
 
@@ -504,16 +742,30 @@ fn a_journal_whose_claim_watch_names_a_repository_that_is_still_there_is_kept_an
     let instance: &str = "0000000000000000000000000000000f";
     let journal: PathBuf = journal_folder(state.as_path(), instance);
     let alive: PathBuf = root.join("alive/.git");
-    std::fs::create_dir_all(alive.join("monochromatic-git-policy-cli/work")).expect("a repository with the work directory a look reads");
+    std::fs::create_dir_all(alive.join("monochromatic-git-policy-cli/work"))
+        .expect("a repository with the work directory a look reads");
     write_a_claim_watch_note(journal.as_path(), alive.as_path());
     age_a_journal(journal.as_path());
-    let kept: KeptJournal = match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
-        Some(JournalAfterStop::HoldsWork(kept)) => kept,
-        other => panic!("a note of a repository that is there keeps the journal and is named: {other:?}"),
-    };
-    assert_eq!(kept.entry, format!("{WATCH_DIRECTORY}/0123456789abcdef-0.watch"));
-    assert!(kept.reason.contains(alive.display().to_string().as_str()), "the line names the repository the note names: {}", kept.reason);
-    assert!(journal.exists(), "the journal stays while the repository the note names is there");
+    let kept: KeptJournal =
+        match remove_journal_of_a_stopped_instance(Some(state.as_path()), instance, true) {
+            Some(JournalAfterStop::HoldsWork(kept)) => kept,
+            other => panic!(
+                "a note of a repository that is there keeps the journal and is named: {other:?}"
+            ),
+        };
+    assert_eq!(
+        kept.entry,
+        format!("{WATCH_DIRECTORY}/0123456789abcdef-0.watch")
+    );
+    assert!(
+        kept.reason.contains(alive.display().to_string().as_str()),
+        "the line names the repository the note names: {}",
+        kept.reason
+    );
+    assert!(
+        journal.exists(),
+        "the journal stays while the repository the note names is there"
+    );
     remove(root.as_path());
 }
 
@@ -532,7 +784,11 @@ fn a_journal_of_a_batch_that_did_not_land_keeps_the_entries_the_removal_would_di
     record_worktree(machine.runtime.as_path(), instance.as_str(), gone.as_path()).expect("note");
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.settled_journal_of(instance.as_str());
-    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), b"/nowhere/a-repository\n").expect("the repository the service remembered");
+    std::fs::write(
+        journal.join(crate::service_rules_precompile::REMEMBERED_FILE),
+        b"/nowhere/a-repository\n",
+    )
+    .expect("the repository the service remembered");
     write_a_claim_watch_note(journal.as_path(), gone.as_path());
     let intent: PathBuf = journal.join(format!("7.{OPEN_EXTENSION}"));
     std::fs::write(intent.as_path(), b"seq=7\n").expect("a batch that did not land");
@@ -540,10 +796,24 @@ fn a_journal_of_a_batch_that_did_not_land_keeps_the_entries_the_removal_would_di
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(outcome.journals_removed.is_empty(), "nothing is removed from a journal that holds work: {:?}", outcome.journals_removed);
-    assert_eq!(outcome.journals_kept.len(), 1, "the command is told which journal it kept");
-    assert_eq!(outcome.journals_kept[0].1.entry, format!("7.{OPEN_EXTENSION}"));
-    assert!(intent.exists(), "the record of the commit that has not landed stays");
+    assert!(
+        outcome.journals_removed.is_empty(),
+        "nothing is removed from a journal that holds work: {:?}",
+        outcome.journals_removed
+    );
+    assert_eq!(
+        outcome.journals_kept.len(),
+        1,
+        "the command is told which journal it kept"
+    );
+    assert_eq!(
+        outcome.journals_kept[0].1.entry,
+        format!("7.{OPEN_EXTENSION}")
+    );
+    assert!(
+        intent.exists(),
+        "the record of the commit that has not landed stays"
+    );
     assert!(journal.exists(), "a journal that holds work is kept whole");
     remove(machine.root.as_path());
 }
@@ -566,17 +836,40 @@ fn the_sweep_clears_a_journal_of_a_removed_worktree_that_no_note_or_socket_names
     let journal: PathBuf = machine.journal_of(instance.as_str());
     std::fs::write(
         journal.join(format!("1.{DONE_EXTENSION}")),
-        format!("seq=1\n{}{}\n", GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(gone.as_path())),
+        format!(
+            "seq=1\n{}{}\n",
+            GITDIR_HEX_PREFIX,
+            crate::path_bytes_in_records::hex_of_path(gone.as_path())
+        ),
     )
     .expect("a landed batch that names the Git directory");
-    std::fs::write(journal.join(crate::service_rules_precompile::REMEMBERED_FILE), b"/nowhere/a-repository\n").expect("the repository the service remembered");
+    std::fs::write(
+        journal.join(crate::service_rules_precompile::REMEMBERED_FILE),
+        b"/nowhere/a-repository\n",
+    )
+    .expect("the repository the service remembered");
     age_a_journal(journal.as_path());
-    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the removal that kept it took the note");
+    assert!(
+        !note_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the removal that kept it took the note"
+    );
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
-    assert!(outcome.stopped.is_empty(), "no unit is left to stop: {:?}", outcome.stopped);
-    assert!(recorder.stops().is_empty(), "the manager is asked about no instance that has no unit: {:?}", recorder.stops());
-    assert_eq!(outcome.journals_removed, vec![(instance, journal.clone())], "the sweep finds the journal by its own folder and record");
+    assert!(
+        outcome.stopped.is_empty(),
+        "no unit is left to stop: {:?}",
+        outcome.stopped
+    );
+    assert!(
+        recorder.stops().is_empty(),
+        "the manager is asked about no instance that has no unit: {:?}",
+        recorder.stops()
+    );
+    assert_eq!(
+        outcome.journals_removed,
+        vec![(instance, journal.clone())],
+        "the sweep finds the journal by its own folder and record"
+    );
     assert!(!journal.exists());
     remove(machine.root.as_path());
 }
@@ -600,8 +893,15 @@ fn the_sweep_leaves_a_journal_it_cannot_map_to_a_worktree() {
     let journal: PathBuf = machine.settled_journal_of(instance);
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
-    assert_eq!(outcome.survey.journals_without_units, vec![String::from(instance)], "the instance is counted, never touched");
-    assert!(outcome.survey.unmapped.is_empty(), "no unit stands beside it, so nothing of it could be matched to one");
+    assert_eq!(
+        outcome.survey.journals_without_units,
+        vec![String::from(instance)],
+        "the instance is counted, never touched"
+    );
+    assert!(
+        outcome.survey.unmapped.is_empty(),
+        "no unit stands beside it, so nothing of it could be matched to one"
+    );
     assert!(outcome.journals_removed.is_empty());
     assert!(journal.exists(), "a journal nothing names stays");
     remove(machine.root.as_path());
@@ -626,12 +926,25 @@ fn a_service_that_may_still_run_keeps_the_journal_and_the_files_that_name_it() {
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
     let mut recorder: Recorder = Recorder::default();
-    recorder.report_state_of(service_unit_instance(instance.as_str()).as_str(), Some("active"));
+    recorder.report_state_of(
+        service_unit_instance(instance.as_str()).as_str(),
+        Some("active"),
+    );
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(journal.exists(), "the journal stays while its service may still write to it");
-    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so a later sweep finds the instance again");
-    assert_eq!(outcome.journals_kept.len(), 0, "nothing in the journal needs a person: only its service has to be gone");
+    assert!(
+        journal.exists(),
+        "the journal stays while its service may still write to it"
+    );
+    assert!(
+        note_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the note stays, so a later sweep finds the instance again"
+    );
+    assert_eq!(
+        outcome.journals_kept.len(),
+        0,
+        "nothing in the journal needs a person: only its service has to be gone"
+    );
     remove(machine.root.as_path());
 }
 
@@ -650,11 +963,20 @@ fn the_journal_goes_once_the_manager_reports_the_service_gone() {
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
     let mut recorder: Recorder = Recorder::default();
-    recorder.report_states_of(service_unit_instance(instance.as_str()).as_str(), &[Some("deactivating"), Some("inactive")]);
+    recorder.report_states_of(
+        service_unit_instance(instance.as_str()).as_str(),
+        &[Some("deactivating"), Some("inactive")],
+    );
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(!journal.exists(), "a journal whose records are old and whose service is gone is removed");
-    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note goes with it");
+    assert!(
+        !journal.exists(),
+        "a journal whose records are old and whose service is gone is removed"
+    );
+    assert!(
+        !note_path(machine.runtime.as_path(), instance.as_str()).exists(),
+        "the note goes with it"
+    );
     remove(machine.root.as_path());
 }
 
@@ -665,12 +987,26 @@ fn a_missing_journal_and_an_unknown_state_directory_remove_nothing() {
     let root: PathBuf = fixture("files-missing");
     let state: PathBuf = root.join("state");
     std::fs::create_dir_all(&state).expect("state directory");
-    assert_eq!(remove_journal_of_a_stopped_instance(Some(state.as_path()), "0000000000000000000000000000000e", true), Some(JournalAfterStop::Removed));
+    assert_eq!(
+        remove_journal_of_a_stopped_instance(
+            Some(state.as_path()),
+            "0000000000000000000000000000000e",
+            true
+        ),
+        Some(JournalAfterStop::Removed)
+    );
     let journal: PathBuf = journal_folder(state.as_path(), "0000000000000000000000000000000f");
-    std::fs::write(journal.join(format!("1.{DONE_EXTENSION}")), b"seq=1\n").expect("a finished batch");
+    std::fs::write(journal.join(format!("1.{DONE_EXTENSION}")), b"seq=1\n")
+        .expect("a finished batch");
     age_a_journal(journal.as_path());
-    assert_eq!(remove_journal_of_a_stopped_instance(None, "0000000000000000000000000000000f", true), None);
-    assert!(journal.exists(), "an unknown state directory keeps the journal");
+    assert_eq!(
+        remove_journal_of_a_stopped_instance(None, "0000000000000000000000000000000f", true),
+        None
+    );
+    assert!(
+        journal.exists(),
+        "an unknown state directory keeps the journal"
+    );
     remove(root.as_path());
 }
 
@@ -699,17 +1035,27 @@ fn the_copy_of_a_batchs_conclusion_state_goes_with_the_journal_of_a_stopped_inst
     machine.socket_of(instance.as_str());
     let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
     let copy: PathBuf = journal.join(format!("1.{CONCLUSION_COPY_EXTENSION}"));
-    std::fs::create_dir_all(copy.join("conclusion").as_path()).expect("the copy of the conclusion state");
-    std::fs::write(copy.join("conclusion/MERGE_HEAD"), b"a commit\n").expect("a copy of the state file");
+    std::fs::create_dir_all(copy.join("conclusion").as_path())
+        .expect("the copy of the conclusion state");
+    std::fs::write(copy.join("conclusion/MERGE_HEAD"), b"a commit\n")
+        .expect("a copy of the state file");
     std::fs::create_dir_all(copy.join("shadow").as_path()).expect("the copy of the shadow's state");
-    std::fs::write(copy.join("shadow/MERGE_MSG"), b"a message\n").expect("a copy of the shadow's state file");
+    std::fs::write(copy.join("shadow/MERGE_MSG"), b"a message\n")
+        .expect("a copy of the shadow's state file");
     // The copy was made by a landing that has long ended, so the journal is as old as the records beside it.
     crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
     let mut recorder: Recorder = Recorder::default();
     let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
     assert_eq!(outcome.stopped, vec![instance.clone()]);
-    assert!(outcome.journals_kept.is_empty(), "the copy is the service's own, so nothing keeps the journal: {:?}", outcome.journals_kept);
-    assert!(!journal.exists(), "the journal goes with the copy of the conclusion state it made");
+    assert!(
+        outcome.journals_kept.is_empty(),
+        "the copy is the service's own, so nothing keeps the journal: {:?}",
+        outcome.journals_kept
+    );
+    assert!(
+        !journal.exists(),
+        "the journal goes with the copy of the conclusion state it made"
+    );
     remove(machine.root.as_path());
 }
 
@@ -724,13 +1070,26 @@ fn a_note_that_is_a_named_pipe_is_written_over_at_once() {
     let instance: &str = "0123456789abcdef";
     let note: PathBuf = note_path(runtime.as_path(), instance);
     std::fs::create_dir_all(note.parent().expect("the note's folder")).expect("the notes folder");
-    crate::subvolume_sync_attrs::make_fifo(note.as_path(), 0o600).expect("a named pipe where the note goes");
+    crate::subvolume_sync_attrs::make_fifo(note.as_path(), 0o600)
+        .expect("a named pipe where the note goes");
     let git_dir: PathBuf = root.join("worktree/.git");
     let over_runtime: PathBuf = runtime.clone();
     let over_git_dir: PathBuf = git_dir.clone();
-    let answered = crate::test_support::finished_within(move || return record_worktree(over_runtime.as_path(), instance, over_git_dir.as_path()).map_err(|error| return error.to_string()));
-    let Some(recorded) = answered else { panic!("a note that is a named pipe held the commit") };
+    let answered = crate::test_support::finished_within(move || {
+        return record_worktree(over_runtime.as_path(), instance, over_git_dir.as_path())
+            .map_err(|error| return error.to_string());
+    });
+    let Some(recorded) = answered else {
+        panic!("a note that is a named pipe held the commit")
+    };
     assert_eq!(recorded, Ok(()), "the note is replaced where a pipe stood");
-    assert_eq!(std::fs::read_to_string(note.as_path()).expect("the note"), format!("{}{}\n", crate::path_bytes_in_records::GITDIR_HEX_PREFIX, crate::path_bytes_in_records::hex_of_path(git_dir.as_path())));
+    assert_eq!(
+        std::fs::read_to_string(note.as_path()).expect("the note"),
+        format!(
+            "{}{}\n",
+            crate::path_bytes_in_records::GITDIR_HEX_PREFIX,
+            crate::path_bytes_in_records::hex_of_path(git_dir.as_path())
+        )
+    );
     remove(root.as_path());
 }

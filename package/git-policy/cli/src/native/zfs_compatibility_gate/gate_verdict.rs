@@ -32,13 +32,25 @@
 //! ```
 
 use super::gate_paths::GatePaths;
-use super::gate_target::{current_target, target_refusal};
+use super::gate_target::{
+    current_target,
+    target_refusal,
+};
 use super::module_identity::ModuleIdentity;
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
-    Compatible as LayoutCompatible, CompatibilityRefusal as Refusal, CompatibilityStep as Step,
-    LayoutRequest, ZfsDevice, check_module_layout,
+    CompatibilityRefusal as Refusal,
+    CompatibilityStep as Step,
+    Compatible as LayoutCompatible,
+    LayoutRequest,
+    ZfsDevice,
+    check_module_layout,
 };
-use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+    OnceLock,
+    PoisonError,
+};
 
 /// The most attempts one check makes:
 /// the first,
@@ -157,8 +169,13 @@ impl VerdictCache {
 
     /// The gate's answer,
     /// reused only while the module's identity holds.
-    pub fn answer(&self, paths: &GatePaths, compare: Comparison<'_>) -> Verdict {
-        let mut slot: MutexGuard<'_, Option<Remembered>> = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
+    pub fn answer(
+        &self,
+        paths: &GatePaths,
+        compare: Comparison<'_>,
+    ) -> Verdict {
+        let mut slot: MutexGuard<'_, Option<Remembered>> =
+            self.slot.lock().unwrap_or_else(PoisonError::into_inner);
         let now: ModuleIdentity = ModuleIdentity::read(paths);
         if let Some(remembered) = slot.as_ref()
             && remembered.identity.same_module_as(&now)
@@ -185,7 +202,11 @@ pub fn before_requests() -> Verdict {
 
 /// The gate's answer for one set of paths,
 /// one comparison and one cache.
-pub fn before_requests_with(paths: &GatePaths, compare: Comparison<'_>, cache: &VerdictCache) -> Verdict {
+pub fn before_requests_with(
+    paths: &GatePaths,
+    compare: Comparison<'_>,
+    cache: &VerdictCache,
+) -> Verdict {
     return cache.answer(paths, compare);
 }
 
@@ -202,7 +223,10 @@ pub fn check(paths: &GatePaths) -> Verdict {
 
 /// Check one set of paths against one comparison,
 /// in the design's order.
-pub fn check_with(paths: &GatePaths, compare: Comparison<'_>) -> Verdict {
+pub fn check_with(
+    paths: &GatePaths,
+    compare: Comparison<'_>,
+) -> Verdict {
     if let Some(refusal) = target_refusal(current_target()) {
         return Verdict::Refused(refusal);
     }
@@ -244,9 +268,7 @@ fn open_the_device(paths: &GatePaths) -> Result<(), Refusal> {
         Err(error) => Err(Refusal {
             step: Step::Device,
             file: Some(paths.device.clone()),
-            detail: format!(
-                "it could not be opened, and every raw request needs it: {error}"
-            ),
+            detail: format!("it could not be opened, and every raw request needs it: {error}"),
         }),
     };
 }

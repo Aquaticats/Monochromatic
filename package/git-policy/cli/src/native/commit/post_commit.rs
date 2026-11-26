@@ -19,10 +19,10 @@
 /// The landed-commit object name and the candidate layer's landed-delta source.
 use crate::candidate_object::parse_object_id;
 use crate::candidate_prediction::CandidateRequest;
-/// The policy configuration the gate runs with.
-use crate::config_schema::PolicyConfig;
 /// The reading of the invocation's environment.
 use crate::child_environment::environment_value;
+/// The policy configuration the gate runs with.
+use crate::config_schema::PolicyConfig;
 /// The failure code and the event kinds the gate emits.
 use crate::diagnostics::EngineFailureCode;
 /// The linter the Markdown policy finds on,
@@ -30,12 +30,19 @@ use crate::diagnostics::EngineFailureCode;
 /// the invocation's environment.
 use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
-use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    pass_exit_code,
+};
 use crate::policy_events::PolicyEvent;
+use crate::policy_pass::run_policy_pass;
 /// The effective severity of a finding,
 /// and the registry row that names a policy the way the person configures it.
-use crate::policy_registry::{Severity, policy_descriptor};
-use crate::policy_pass::run_policy_pass;
+use crate::policy_registry::{
+    Severity,
+    policy_descriptor,
+};
 use crate::policy_trigger::Trigger;
 use crate::repository_facts::git_facts;
 /// The variable naming the forbidden-strings rules file.
@@ -149,7 +156,9 @@ pub fn run_post_commit_gate(request: &PostCommitRequest) -> PostCommitGate {
         };
     let blocked = pass_exit_code(events.as_slice(), end) != 0;
     if blocked {
-        events.push(PolicyEvent::CommitLanded { oid: oid.clone() });
+        events.push(PolicyEvent::CommitLanded {
+            oid: oid.clone(),
+        });
     }
     return PostCommitGate {
         oid,
@@ -213,18 +222,42 @@ pub fn blocked_reason(events: &[PolicyEvent]) -> String {
     for event in events {
         match event {
             PolicyEvent::Finding(finding) if finding.severity == Severity::Error => {
-                said.push(format!("{}: {}", policy_descriptor(finding.policy).name, finding.message));
+                said.push(format!(
+                    "{}: {}",
+                    policy_descriptor(finding.policy).name,
+                    finding.message
+                ));
             }
-            PolicyEvent::CoreFinding { core_id, message, .. } => {
+            PolicyEvent::CoreFinding {
+                core_id,
+                message,
+                ..
+            } => {
                 said.push(format!("{core_id}: {message}"));
             }
-            PolicyEvent::EngineFailure { policy, message, .. } => {
+            PolicyEvent::EngineFailure {
+                policy,
+                message,
+                ..
+            } => {
                 said.push(match policy {
                     Some(known) => format!("{}: {message}", policy_descriptor(*known).name),
                     None => String::from(message.as_str()),
                 });
             }
-            PolicyEvent::Finding(_) | PolicyEvent::WarnUnsafe { .. } | PolicyEvent::FixSummary { .. } | PolicyEvent::CommitLanded { .. } | PolicyEvent::WordMerged { .. } => {}
+            PolicyEvent::Finding(_)
+            | PolicyEvent::WarnUnsafe {
+                ..
+            }
+            | PolicyEvent::FixSummary {
+                ..
+            }
+            | PolicyEvent::CommitLanded {
+                ..
+            }
+            | PolicyEvent::WordMerged {
+                ..
+            } => {}
         }
     }
     // A gate that stopped without a blocking event still has a cause in its own words; the caller words that case.

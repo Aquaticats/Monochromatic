@@ -82,7 +82,10 @@ pub const DESTROY_FORCED_HERE_NOTICE: &str = "monochromatic-git-policy-cli: remo
 /// ```ts
 /// const notice = destroyNotice({ force, where: 'here' | 'handed-over' });
 /// ```
-pub fn destroy_notice(force: bool, handed_over: bool) -> &'static str {
+pub fn destroy_notice(
+    force: bool,
+    handed_over: bool,
+) -> &'static str {
     return match (handed_over, force) {
         (true, true) => DESTROY_FORCED_NOTICE,
         (true, false) => DESTROY_NOTICE,

@@ -22,8 +22,15 @@
 //! const now = walk.lookAgain(checkout, 'one'); // a second whole walk
 //! ```
 
-use super::staging_calls::{StagingCall, StagingCallRefusal};
-use crate::fs_beneath::{handle_directory_at, open_handle_at_a_mount, open_root};
+use super::staging_calls::{
+    StagingCall,
+    StagingCallRefusal,
+};
+use crate::fs_beneath::{
+    handle_directory_at,
+    open_handle_at_a_mount,
+    open_root,
+};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::fs_beneath_walk_chain::open_chain_beneath;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
@@ -44,12 +51,24 @@ use std::path::Path;
 pub trait SlotWalk {
     /// The slot's path handle,
     /// crossing the clone's own mount at the final hop.
-    fn open_the_slot(&self, checkout: &Path, slot: &str) -> Result<std::fs::File, StagingCallRefusal>;
+    fn open_the_slot(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal>;
     /// The slot's path handle,
     /// refusing a mount at the final hop.
-    fn open_the_slot_uncrossed(&self, checkout: &Path, slot: &str) -> Result<std::fs::File, StagingCallRefusal>;
+    fn open_the_slot_uncrossed(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal>;
     /// The mount a fresh whole walk of the slot reaches.
-    fn look_again(&self, checkout: &Path, slot: &str) -> Result<u64, StagingCallRefusal>;
+    fn look_again(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<u64, StagingCallRefusal>;
 }
 
 /// What:
@@ -65,7 +84,10 @@ pub trait SlotWalk {
 /// ```
 pub trait DatasetGuids {
     /// The dataset's GUID as the pool reports it now.
-    fn live_guid(&self, dataset: &str) -> Result<DatasetGuid, String>;
+    fn live_guid(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetGuid, String>;
 }
 
 /// The `.claude/worktrees` names above a slot.
@@ -75,11 +97,30 @@ fn worktrees_names() -> Vec<OsString> {
 
 /// The held `.claude/worktrees` folder of one checkout.
 fn parent_of(checkout: &Path) -> Result<std::fs::File, StagingCallRefusal> {
-    let root: std::fs::File = open_root(checkout).map_err(|error| return StagingCallRefusal { call: StagingCall::OpenSlot, errno: error.raw_os_error().unwrap_or(0), detail: format!("the checkout {} could not be held: {error}", checkout.display()) })?;
-    let mut chain = open_chain_beneath(&root, worktrees_names().as_slice()).map_err(|refusal| {
-        return StagingCallRefusal { call: StagingCall::OpenSlot, errno: 0, detail: format!("the walk to `.claude/worktrees` refused: {refusal:?}") };
+    let root: std::fs::File = open_root(checkout).map_err(|error| {
+        return StagingCallRefusal {
+            call: StagingCall::OpenSlot,
+            errno: error.raw_os_error().unwrap_or(0),
+            detail: format!(
+                "the checkout {} could not be held: {error}",
+                checkout.display()
+            ),
+        };
     })?;
-    return chain.pop().ok_or_else(|| return StagingCallRefusal { call: StagingCall::OpenSlot, errno: libc::ENOENT, detail: String::from("the walk answered no worktrees folder") });
+    let mut chain = open_chain_beneath(&root, worktrees_names().as_slice()).map_err(|refusal| {
+        return StagingCallRefusal {
+            call: StagingCall::OpenSlot,
+            errno: 0,
+            detail: format!("the walk to `.claude/worktrees` refused: {refusal:?}"),
+        };
+    })?;
+    return chain.pop().ok_or_else(|| {
+        return StagingCallRefusal {
+            call: StagingCall::OpenSlot,
+            errno: libc::ENOENT,
+            detail: String::from("the walk answered no worktrees folder"),
+        };
+    });
 }
 
 /// What:
@@ -100,19 +141,51 @@ fn parent_of(checkout: &Path) -> Result<std::fs::File, StagingCallRefusal> {
 pub struct LiveSlotWalk;
 
 impl SlotWalk for LiveSlotWalk {
-    fn open_the_slot(&self, checkout: &Path, slot: &str) -> Result<std::fs::File, StagingCallRefusal> {
+    fn open_the_slot(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         let parent: std::fs::File = parent_of(checkout)?;
-        return open_handle_at_a_mount(&parent, std::ffi::OsStr::new(slot)).map_err(|error| return StagingCallRefusal { call: StagingCall::OpenSlot, errno: error.raw_os_error().unwrap_or(0), detail: format!("the slot `{slot}` could not be opened across its mount: {error}") });
+        return open_handle_at_a_mount(&parent, std::ffi::OsStr::new(slot)).map_err(|error| {
+            return StagingCallRefusal {
+                call: StagingCall::OpenSlot,
+                errno: error.raw_os_error().unwrap_or(0),
+                detail: format!("the slot `{slot}` could not be opened across its mount: {error}"),
+            };
+        });
     }
 
-    fn open_the_slot_uncrossed(&self, checkout: &Path, slot: &str) -> Result<std::fs::File, StagingCallRefusal> {
+    fn open_the_slot_uncrossed(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         let parent: std::fs::File = parent_of(checkout)?;
-        return handle_directory_at(&parent, std::ffi::OsStr::new(slot)).map_err(|error| return StagingCallRefusal { call: StagingCall::OpenSlot, errno: error.raw_os_error().unwrap_or(0), detail: format!("the slot `{slot}` could not be opened without crossing its mount: {error}") });
+        return handle_directory_at(&parent, std::ffi::OsStr::new(slot)).map_err(|error| {
+            return StagingCallRefusal {
+                call: StagingCall::OpenSlot,
+                errno: error.raw_os_error().unwrap_or(0),
+                detail: format!(
+                    "the slot `{slot}` could not be opened without crossing its mount: {error}"
+                ),
+            };
+        });
     }
 
-    fn look_again(&self, checkout: &Path, slot: &str) -> Result<u64, StagingCallRefusal> {
+    fn look_again(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<u64, StagingCallRefusal> {
         let fresh: std::fs::File = self.open_the_slot(checkout, slot)?;
-        return mount_id_of(&fresh).map_err(|error| return StagingCallRefusal { call: StagingCall::LookAgain, errno: error.raw_os_error().unwrap_or(0), detail: error.to_string() });
+        return mount_id_of(&fresh).map_err(|error| {
+            return StagingCallRefusal {
+                call: StagingCall::LookAgain,
+                errno: error.raw_os_error().unwrap_or(0),
+                detail: error.to_string(),
+            };
+        });
     }
 }
 

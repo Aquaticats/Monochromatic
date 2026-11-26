@@ -27,15 +27,51 @@ use crate::claim_time::ClaimTime;
 use crate::path_bytes_in_records as path_bytes;
 use crate::private_storage::create_private_directory_all;
 use crate::service_timing::log;
+pub use crate::work_item_enqueue::{
+    Enqueued,
+    enqueue,
+    enqueue_all,
+};
+pub use crate::work_item_holding::{
+    block,
+    forget_held,
+    hold,
+    promote,
+    record_pass,
+    record_refusal,
+    record_verdict,
+    requeue_after_giving_up,
+};
 pub use crate::work_item_kinds_and_their_names::WorkKind;
-pub use crate::work_item_enqueue::{Enqueued, enqueue, enqueue_all};
-pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict, requeue_after_giving_up};
 pub use crate::work_item_queued_ids::queued_ids;
-pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
-pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+pub use crate::work_item_state_directories_and_claim_names::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    HELD,
+    PENDING,
+    RECOVERING,
+    claim_file_name,
+    id_of_entry,
+    state_directory,
+};
+pub(crate) use crate::work_item_state_directories_and_claim_names::{
+    entries_oldest_first,
+    new_generation,
+    parse_claim_name,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The record format version.
 pub const VERSION: u64 = 1;
@@ -121,10 +157,20 @@ impl WorkItem {
     /// ```
     pub fn id(&self) -> String {
         if self.kind == WorkKind::Push {
-            return format!("{}-{}-{}", self.kind.name(), self.oid, crate::work_item_ids_and_names::branch_digest(self.branch_ref.as_str()));
+            return format!(
+                "{}-{}-{}",
+                self.kind.name(),
+                self.oid,
+                crate::work_item_ids_and_names::branch_digest(self.branch_ref.as_str())
+            );
         }
         if self.kind == WorkKind::SubvolumeDelete {
-            return format!("{}-{}-{}", self.kind.name(), self.oid, crate::work_item_ids_and_names::parent_digest(self.parent.as_str()));
+            return format!(
+                "{}-{}-{}",
+                self.kind.name(),
+                self.oid,
+                crate::work_item_ids_and_names::parent_digest(self.parent.as_str())
+            );
         }
         return format!("{}-{}", self.kind.name(), self.oid);
     }
@@ -211,11 +257,16 @@ impl WorkItem {
             created: text_field(&value, "created")?,
             tries,
             // A record of an earlier release, or of a push whose command chose no transport, says nothing.
-            transport: value.get("transport").and_then(Value::as_bool).unwrap_or(false),
+            transport: value
+                .get("transport")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
         };
         let named: String = text_field(&value, "id")?;
         if named != item.id() && named != item.id_before_the_branch() {
-            return Err(String::from("the record's id is not derived from its kind, object and branch"));
+            return Err(String::from(
+                "the record's id is not derived from its kind, object and branch",
+            ));
         }
         return Ok(item);
     }
@@ -240,7 +291,9 @@ impl WorkItem {
 /// const later = (text) => { const value = JSON.parse(text); return value.v > VERSION || !WorkKind.fromName(value.kind) };
 /// ```
 pub(crate) fn record_of_a_later_release(text: &str) -> bool {
-    let Ok(value) = serde_json::from_str::<Value>(text) else { return false };
+    let Ok(value) = serde_json::from_str::<Value>(text) else {
+        return false;
+    };
     if let Some(version) = value.get("v").and_then(Value::as_u64)
         && version > VERSION
     {
@@ -261,7 +314,10 @@ pub(crate) fn record_of_a_later_release(text: &str) -> bool {
 /// ```ts
 /// const textField = (value: object, name: string): string => { if (typeof value[name] !== 'string') throw new Error(`the record has no text field ${name}`); return value[name]; };
 /// ```
-fn text_field(value: &Value, name: &str) -> Result<String, String> {
+fn text_field(
+    value: &Value,
+    name: &str,
+) -> Result<String, String> {
     return match value.get(name).and_then(Value::as_str) {
         Some(text) => Ok(String::from(text)),
         None => Err(format!("the record has no text field {name}")),
@@ -298,12 +354,12 @@ pub struct Claimed {
     pub item: WorkItem,
 }
 
+#[cfg(test)]
+pub(crate) use crate::work_item_ids_and_names::MAX_OBJECT_NAME_LENGTH;
 /// The shape of an id,
 /// and the length an object name may have,
 /// beside the digest they work with.
 pub(crate) use crate::work_item_ids_and_names::is_valid_id;
-#[cfg(test)]
-pub(crate) use crate::work_item_ids_and_names::MAX_OBJECT_NAME_LENGTH;
 
 /// What:
 ///  Set the modification time of the file at `path` to now.
@@ -336,7 +392,10 @@ type Stamp<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
 
 /// The path of the file that holds the claim of `id` now,
 /// or nothing when it is not claimed or being recovered.
-pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
+pub fn find_claim(
+    work_dir: &Path,
+    id: &str,
+) -> Option<PathBuf> {
     // `claimed` first, then `recovering`, each oldest first; the first entry that is the claim of `id`.
     for state in [CLAIMED, RECOVERING] {
         for (name, _modified) in entries_oldest_first(work_dir, state) {
@@ -365,8 +424,24 @@ pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
 /// ```ts
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', claimFileName(id, newGeneration(), now)))
 /// ```
-pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, String> {
-    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead]);
+pub fn claim_next(
+    work_dir: &Path,
+    now: &ClaimTime,
+) -> Result<Option<Claimed>, String> {
+    return claim_next_of(
+        work_dir,
+        now,
+        &[
+            WorkKind::Review,
+            WorkKind::Push,
+            WorkKind::Maintenance,
+            WorkKind::Trash,
+            WorkKind::Prewarm,
+            WorkKind::Relink,
+            WorkKind::SubvolumeDelete,
+            WorkKind::SnapshotAhead,
+        ],
+    );
 }
 
 /// What:
@@ -383,7 +458,11 @@ pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, S
 /// ```ts
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', name)) // only ids that start with a handled kind
 /// ```
-pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Result<Option<Claimed>, String> {
+pub fn claim_next_of(
+    work_dir: &Path,
+    now: &ClaimTime,
+    kinds: &[WorkKind],
+) -> Result<Option<Claimed>, String> {
     return claim_next_stamped(work_dir, now, kinds, &stamp_modification_time);
 }
 
@@ -404,12 +483,22 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 /// ```ts
 /// const claimed = []; for (const name of entriesOldestFirst(workDir, 'pending')) { const item = await take(name, now()); if (item) claimed.push(item) }; return claimed
 /// ```
-pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind]) -> Result<Vec<Claimed>, String> {
+pub fn claim_all_of(
+    work_dir: &Path,
+    kinds: &[WorkKind],
+) -> Result<Vec<Claimed>, String> {
     let mut claimed: Vec<Claimed> = Vec::new();
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {
         // Each claim carries the reading of the moment it is taken, not of the start of the round, which a long round makes
         //  most of a lease old.
-        if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, &ClaimTime::read(), &stamp_modification_time)? {
+        if let Some(taken) = take_entry(
+            work_dir,
+            id.as_str(),
+            queued,
+            kinds,
+            &ClaimTime::read(),
+            &stamp_modification_time,
+        )? {
             claimed.push(taken);
         }
     }
@@ -436,7 +525,12 @@ pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind]) -> Result<Vec<Claimed>,
 /// await stamp(staged);
 /// await rename(staged, join(workDir, 'claimed', name))
 /// ```
-fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
+fn claim_next_stamped(
+    work_dir: &Path,
+    now: &ClaimTime,
+    kinds: &[WorkKind],
+    stamp: Stamp<'_>,
+) -> Result<Option<Claimed>, String> {
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {
         if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, now, stamp)? {
             return Ok(Some(taken));
@@ -461,7 +555,14 @@ fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stam
 ///
 /// A generation that cannot be made,
 /// or a claim that cannot be read.
-fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind], now: &ClaimTime, stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
+fn take_entry(
+    work_dir: &Path,
+    id: &str,
+    queued: SystemTime,
+    kinds: &[WorkKind],
+    now: &ClaimTime,
+    stamp: Stamp<'_>,
+) -> Result<Option<Claimed>, String> {
     let mut found_kind: Option<&WorkKind> = None;
     for candidate in kinds {
         if id.starts_with(format!("{}-", candidate.name()).as_str()) {
@@ -495,7 +596,9 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     let pending_path: PathBuf = state_directory(work_dir, PENDING).join(id);
     let staged: PathBuf = state_directory(work_dir, RECOVERING).join(name.as_str());
     let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
-    if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
+    if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err()
+        || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err()
+    {
         return Ok(None);
     }
     let stamped: std::io::Result<()> = stamp(staged.as_path());
@@ -508,7 +611,8 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
         // goes where nothing runs it, with a line naming it, rather than back into the queue it would block for ever.
         if error.kind() == std::io::ErrorKind::InvalidInput {
             let failed: PathBuf = state_directory(work_dir, FAILED);
-            let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(staged.as_path(), failed.join(id)).is_ok();
+            let moved: bool = create_private_directory_all(failed.as_path()).is_ok()
+                && std::fs::rename(staged.as_path(), failed.join(id)).is_ok();
             log(format!(
                 "the queued entry {id:?} is not a plain file (a named pipe, a device or a directory), so it was {}",
                 if moved { "moved to failed" } else { "left in recovering because moving it failed" }
@@ -516,11 +620,15 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
             .as_str());
             return Ok(None);
         }
-        log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
+        log(
+            format!("the claim of {id} could not be taken, so the item stays queued: {error}")
+                .as_str(),
+        );
         // The staged file is this instance's alone:
         // the age it had is put back before it is queued again,
         // whatever the stamp did.
-        let opened: std::io::Result<std::fs::File> = crate::plain_file::open_plain_file(staged.as_path());
+        let opened: std::io::Result<std::fs::File> =
+            crate::plain_file::open_plain_file(staged.as_path());
         let restored: std::io::Result<()> = match opened {
             Ok(file) => file.set_modified(queued),
             Err(open_error) => Err(open_error),
@@ -541,16 +649,26 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     return match WorkItem::decode(text.as_str()) {
         // The record is the work the file name says;
         // a record of other work would be settled as done under this id.
-        Ok(item) if item.id() == id || item.id_before_the_branch() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
+        Ok(item) if item.id() == id || item.id_before_the_branch() == id => Ok(Some(Claimed {
+            id: id.to_owned(),
+            name,
+            item,
+        })),
         _ => {
             // A record of a kind or a version this build does not know is a later release's, and it is queued again for
             // that release rather than settled in `failed`, where nothing reads it again.
             if left_for_a_later_release(claimed_path.as_path()) {
                 log(format!("the claim of {id} is a record of a later release, so it is queued again for that release").as_str());
-                let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, PENDING).join(id));
+                let _ = std::fs::rename(
+                    claimed_path.as_path(),
+                    state_directory(work_dir, PENDING).join(id),
+                );
                 return Ok(None);
             }
-            let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id));
+            let _ = std::fs::rename(
+                claimed_path.as_path(),
+                state_directory(work_dir, FAILED).join(id),
+            );
             Ok(None)
         }
     };
@@ -578,10 +696,23 @@ fn left_for_a_later_release(path: &Path) -> bool {
 
 /// Moves the entry `id` of `pending` to `failed` and says why,
 /// where nothing can be done about a failure of either.
-fn quarantine_pending(work_dir: &Path, id: &str, reason: &str) {
+fn quarantine_pending(
+    work_dir: &Path,
+    id: &str,
+    reason: &str,
+) {
     let failed: PathBuf = state_directory(work_dir, FAILED);
-    let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(state_directory(work_dir, PENDING).join(id), failed.join(id)).is_ok();
-    log(format!("the queued entry {id:?} {reason}, so it was {}", if moved { "moved to failed" } else { "left in pending because moving it failed" }).as_str());
+    let moved: bool = create_private_directory_all(failed.as_path()).is_ok()
+        && std::fs::rename(state_directory(work_dir, PENDING).join(id), failed.join(id)).is_ok();
+    log(format!(
+        "the queued entry {id:?} {reason}, so it was {}",
+        if moved {
+            "moved to failed"
+        } else {
+            "left in pending because moving it failed"
+        }
+    )
+    .as_str());
 }
 
 /// What:
@@ -601,15 +732,26 @@ fn quarantine_pending(work_dir: &Path, id: &str, reason: &str) {
 /// ```ts
 /// await rename(join(workDir, 'claimed', claimed.name), join(workDir, 'done', claimed.id))
 /// ```
-pub fn settle(work_dir: &Path, claimed: &Claimed, state: &str) -> Result<(), String> {
+pub fn settle(
+    work_dir: &Path,
+    claimed: &Claimed,
+    state: &str,
+) -> Result<(), String> {
     return settle_named(work_dir, claimed.name.as_str(), state);
 }
 
 /// `settle` for the claim file `name`,
 /// whose id is the part of the name before the generation.
-pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), String> {
+pub fn settle_named(
+    work_dir: &Path,
+    name: &str,
+    state: &str,
+) -> Result<(), String> {
     let id: &str = id_of_entry(name);
-    return match std::fs::rename(state_directory(work_dir, CLAIMED).join(name), state_directory(work_dir, state).join(id)) {
+    return match std::fs::rename(
+        state_directory(work_dir, CLAIMED).join(name),
+        state_directory(work_dir, state).join(id),
+    ) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("moving {id} to {state} failed: {error}")),
     };
@@ -636,7 +778,11 @@ pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), Stri
 /// ```ts
 /// await rename(join(workDir, 'claimed', name), join(workDir, 'claimed', claimFileName(id, token, now)))
 /// ```
-pub fn renew_claim(work_dir: &Path, name: &str, now: &ClaimTime) -> Option<String> {
+pub fn renew_claim(
+    work_dir: &Path,
+    name: &str,
+    now: &ClaimTime,
+) -> Option<String> {
     return renew_claim_stamped(work_dir, name, now, &stamp_modification_time);
 }
 
@@ -645,7 +791,12 @@ pub fn renew_claim(work_dir: &Path, name: &str, now: &ClaimTime) -> Option<Strin
 /// A renewal whose
 ///  stamp failed is no renewal:
 /// an older reader would still see the old modification time and take the claim.
-fn renew_claim_stamped(work_dir: &Path, name: &str, now: &ClaimTime, stamp: Stamp<'_>) -> Option<String> {
+fn renew_claim_stamped(
+    work_dir: &Path,
+    name: &str,
+    now: &ClaimTime,
+    stamp: Stamp<'_>,
+) -> Option<String> {
     let id: &str = id_of_entry(name);
     // A claim by an earlier release has no generation; its renewal gives it one.
     let token: String = match parse_claim_name(name) {
@@ -676,7 +827,10 @@ fn renew_claim_stamped(work_dir: &Path, name: &str, now: &ClaimTime, stamp: Stam
 /// ```ts
 /// now - oldestPending.mtime
 /// ```
-pub fn oldest_pending_age(work_dir: &Path, now: SystemTime) -> Option<Duration> {
+pub fn oldest_pending_age(
+    work_dir: &Path,
+    now: SystemTime,
+) -> Option<Duration> {
     let pending: Vec<(String, SystemTime)> = entries_oldest_first(work_dir, PENDING);
     let (_name, created) = pending.first()?;
     return Some(now.duration_since(*created).unwrap_or(Duration::ZERO));

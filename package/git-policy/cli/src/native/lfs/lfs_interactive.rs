@@ -20,34 +20,47 @@
 //! const stop = await uploadBeforePush({ prefix, region, realGit, environment, overlay, settings }); if (stop !== undefined) return stop;
 //! ```
 
+/// The wait a question that shows no sign of work is ended by,
+/// and its grace.
+use crate::bounded_push::STOP_GRACE;
+use crate::bounded_query::{
+    query_window,
+    run_bounded_query,
+};
 /// The invocation's directory option.
 use crate::commit_command::effective_directory;
 /// The builder of real-Git commands.
 use crate::forwarding::git_command;
-/// The wait a question that shows no sign of work is ended by,
-/// and its grace.
-use crate::bounded_push::STOP_GRACE;
-use crate::bounded_query::{query_window, run_bounded_query};
+/// The repository found from the files.
+use crate::git_system_config::with_real_git;
 /// Who a real-Git start runs for:
 /// the wrapper's own work,
 /// not the person's command.
 use crate::hooks_off::StartOwner;
-/// The refusal texts.
-use crate::lfs_pre_push::plan_failed_message;
-/// The pre-check that the program can start.
-use crate::lfs_push_precheck::lfs_refusal;
-/// Narrows the plan to the objects the push introduces.
-use crate::lfs_object_plan::narrow_plan;
-/// The upload itself.
-use crate::lfs_upload::{run_upload_interactive, submodule_notice};
-/// The repository found from the files.
-use crate::git_system_config::with_real_git;
-use crate::repo_read_layout::read_layout_after_success_for;
 /// What to upload.
 /// What to upload,
 /// and the destination branches the push's discovery already read.
 use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
-use crate::lfs_upload_plan::{GitQuery, PlanError, Settings, UploadPlan, plan_upload, read_settings};
+/// Narrows the plan to the objects the push introduces.
+use crate::lfs_object_plan::narrow_plan;
+/// The refusal texts.
+use crate::lfs_pre_push::plan_failed_message;
+/// The pre-check that the program can start.
+use crate::lfs_push_precheck::lfs_refusal;
+/// The upload itself.
+use crate::lfs_upload::{
+    run_upload_interactive,
+    submodule_notice,
+};
+use crate::lfs_upload_plan::{
+    GitQuery,
+    PlanError,
+    Settings,
+    UploadPlan,
+    plan_upload,
+    read_settings,
+};
+use crate::repo_read_layout::read_layout_after_success_for;
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard error as a writable stream.
@@ -105,7 +118,10 @@ struct InteractiveQuery<'a> {
 }
 
 impl GitQuery for InteractiveQuery<'_> {
-    fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
+    fn ask(
+        &mut self,
+        query_arguments: &[&str],
+    ) -> Result<String, String> {
         let mut arguments: Vec<OsString> = self.request.prefix.to_vec();
         arguments.extend(query_arguments.iter().map(OsString::from));
         // The question is asked through the push's own bounded query, so a Git that never answers is stopped and named instead of
@@ -114,18 +130,33 @@ impl GitQuery for InteractiveQuery<'_> {
         //  tried again instead of ending the push.
         // The question is the wrapper's own read-only Git, so it runs with the monitor and the hooks off (`StartOwner::Wrapper`),
         //  never with the person's setting.
-        let command: std::process::Command =
-            git_command(self.request.real_git, arguments.as_slice(), self.request.overlay, StartOwner::Wrapper);
+        let command: std::process::Command = git_command(
+            self.request.real_git,
+            arguments.as_slice(),
+            self.request.overlay,
+            StartOwner::Wrapper,
+        );
         let asked: String = query_arguments.join(" ");
-        let output = match run_bounded_query(command, asked.as_str(), query_window(self.request.environment), STOP_GRACE, self.request.environment) {
+        let output = match run_bounded_query(
+            command,
+            asked.as_str(),
+            query_window(self.request.environment),
+            STOP_GRACE,
+            self.request.environment,
+        ) {
             Ok(done) => done,
             Err(error) => return Err(error.to_string()),
         };
-        let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
         return match output.code {
             Some(0) => Ok(text),
             Some(1) if text.is_empty() => Ok(text),
-            code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+            code => Err(format!(
+                "exited with {code:?}: {}",
+                String::from_utf8_lossy(output.stderr.as_slice()).trim()
+            )),
         };
     }
 }
@@ -144,14 +175,23 @@ impl GitQuery for InteractiveQuery<'_> {
 /// ```
 pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
     // The directory the upload's `git-lfs` runs in, which is where its own relative `PATH` entries are read.
-    let directory: std::path::PathBuf =
-        effective_directory(std::env::current_dir().unwrap_or_default().as_path(), request.prefix);
-    if let Some(refusal) = lfs_refusal(request.prefix, request.region, request.environment, directory.as_path()) {
+    let directory: std::path::PathBuf = effective_directory(
+        std::env::current_dir().unwrap_or_default().as_path(),
+        request.prefix,
+    );
+    if let Some(refusal) = lfs_refusal(
+        request.prefix,
+        request.region,
+        request.environment,
+        directory.as_path(),
+    ) {
         // Terminal output error: the exit status already carries the refusal.
         let _written = std::io::stderr().write_all(refusal.as_bytes());
         return Some(1);
     }
-    let mut query: InteractiveQuery<'_> = InteractiveQuery { request };
+    let mut query: InteractiveQuery<'_> = InteractiveQuery {
+        request,
+    };
     let read: Result<Settings, PlanError> = match request.settings {
         Some(held) => Ok(held.to_vec()),
         None => read_settings(&mut query),
@@ -175,7 +215,10 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
             // so Git had its say about the values it consults;
             // the files are read again,
             // and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
-            let layout = read_layout_after_success_for(request.prefix, with_real_git(request.overlay, request.real_git).as_slice());
+            let layout = read_layout_after_success_for(
+                request.prefix,
+                with_real_git(request.overlay, request.real_git).as_slice(),
+            );
             let submodules: bool = plan.submodules;
             let Some(narrowed) = narrow_plan(plan, layout.as_ref()) else {
                 // Nothing of this repository to upload, but Git still pushes the submodules, whose objects are not covered.
@@ -198,7 +241,8 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
         Ok(None) => return None,
         Err(error) => {
             // Terminal output error: the exit status already carries the refusal.
-            let _written = std::io::stderr().write_all(plan_failed_message(error.0.as_str()).as_bytes());
+            let _written =
+                std::io::stderr().write_all(plan_failed_message(error.0.as_str()).as_bytes());
             return Some(1);
         }
     }

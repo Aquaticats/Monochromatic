@@ -16,7 +16,13 @@
 
 /// The line-level reader under test.
 use super::{
-    YamlLine, YamlProblem, is_item, item_content, read_lines, read_scalar, split_key,
+    YamlLine,
+    YamlProblem,
+    is_item,
+    item_content,
+    read_lines,
+    read_scalar,
+    split_key,
 };
 
 /// The lines of a text that carries content.
@@ -163,7 +169,10 @@ fn refuses_keys_it_does_not_read() {
     assert_eq!(split_key("app # publication: enabled"), Ok(None));
     assert_eq!(
         split_key("name: github # publication: enabled"),
-        Ok(Some((String::from("name"), "github # publication: enabled")))
+        Ok(Some((
+            String::from("name"),
+            "github # publication: enabled"
+        )))
     );
     assert_eq!(
         split_key("'a':b"),
@@ -184,8 +193,14 @@ fn reads_and_refuses_scalars() {
     assert_eq!(read_scalar("'it''s'"), Ok(String::from("it's")));
     assert_eq!(read_scalar("'@s/a'  # one"), Ok(String::from("@s/a")));
     assert_eq!(read_scalar("\"a\\\\b\\\"c\""), Ok(String::from("a\\b\"c")));
-    assert_eq!(read_scalar("${PNPR_SECRET}"), Ok(String::from("${PNPR_SECRET}")));
-    assert_eq!(read_scalar("https://pnpr.example"), Ok(String::from("https://pnpr.example")));
+    assert_eq!(
+        read_scalar("${PNPR_SECRET}"),
+        Ok(String::from("${PNPR_SECRET}"))
+    );
+    assert_eq!(
+        read_scalar("https://pnpr.example"),
+        Ok(String::from("https://pnpr.example"))
+    );
     assert_eq!(read_scalar("$all  # everyone"), Ok(String::from("$all")));
     assert_eq!(read_scalar(""), Ok(String::new()));
     assert_eq!(

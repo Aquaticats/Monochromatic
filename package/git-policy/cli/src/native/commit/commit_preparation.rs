@@ -22,22 +22,30 @@
 /// Journal record shape and its encoder.
 /// Invocation capture facts the shadow was built from.
 use crate::capture_invocation::InvocationCapture;
+use crate::forwarding::git_command;
 /// The hooks-off value Git is given again after the caller's options.
 use crate::hooks_off::NO_HOOKS_DIRECTORY;
-/// Shadow removal,
-/// so a failed preparation leaves no shadow.
-/// The shadow request and the real-Git command builder.
-/// The shadow request every shadow command of the wrapper is made of.
-use crate::shadow_git::{git_dir_option, shadow_request};
-use crate::forwarding::git_command;
 /// Who a real-Git start runs for:
 /// the wrapper's own work,
 /// not the person's command.
 use crate::hooks_off::StartOwner;
+/// Shadow removal,
+/// so a failed preparation leaves no shadow.
+/// The shadow request and the real-Git command builder.
+/// The shadow request every shadow command of the wrapper is made of.
+use crate::shadow_git::{
+    git_dir_option,
+    shadow_request,
+};
 use crate::signal_relay::SignalGuard;
 /// Context,
 /// one required Git start and failure text.
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    run_git_checked,
+};
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -45,7 +53,12 @@ use std::path::Path;
 
 /// Variables native Git must not inherit,
 /// so every object it writes lands in the shadow store.
-pub const NATIVE_UNSET_VARIABLES: [&str; 4] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY"];
+pub const NATIVE_UNSET_VARIABLES: [&str; 4] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+];
 
 /// What:
 ///  Everything one native preparation needs from its transaction.
@@ -99,7 +112,10 @@ pub enum PreparationError {
 
 impl std::fmt::Display for PreparationError {
     /// Writes the wording of the failure.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Self::Git(error) => write!(formatter, "{error}"),
         };
@@ -153,21 +169,27 @@ pub struct PreparedCommit {
 /// # Errors
 ///
 /// The error of writing the file the configuration travels in.
-fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>, PreparationError> {
+fn native_commit_arguments(
+    request: &PreparationRequest
+) -> Result<Vec<OsString>, PreparationError> {
     // The caller's directory changes already applied when the wrapper placed the shadow, and the shadow names its own repository:
     //  forwarding a `-C`, `--git-dir`, `--work-tree` or `--bare` would move Git away from the shadow or name the real repository
     //  beside it. The configuration options the caller wrote stay, because they are the person's settings for the commit.
     let own_globals: Vec<OsString> = request.global_args.to_vec();
-    let mut arguments: Vec<OsString> = crate::repository_selection::without_repository_selection(own_globals.as_slice());
+    let mut arguments: Vec<OsString> =
+        crate::repository_selection::without_repository_selection(own_globals.as_slice());
     arguments.push(git_dir_option(request.shadow));
-    let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
-        request.capture.layout.config_snapshot.as_ref(),
-        request.scratch,
-    )
-    .map_err(configuration_write_failure)?;
+    let configuration: Vec<OsString> =
+        crate::native_commit_configuration::native_commit_configuration(
+            request.capture.layout.config_snapshot.as_ref(),
+            request.scratch,
+        )
+        .map_err(configuration_write_failure)?;
     arguments.extend(configuration);
     arguments.push(OsString::from("-c"));
-    arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    arguments.push(OsString::from(format!(
+        "core.hooksPath={NO_HOOKS_DIRECTORY}"
+    )));
     arguments.push(OsString::from("commit"));
     arguments.extend(request.commit_args.iter().cloned());
     return Ok(arguments);
@@ -183,7 +205,9 @@ fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>
 /// const failure = (error: Error) => new GitFailedError(`writing the configuration the native commit reads failed: ${error}`);
 /// ```
 fn configuration_write_failure(error: std::io::Error) -> PreparationError {
-    return PreparationError::Git(GitFailure(format!("writing the configuration the native commit reads failed: {error}")));
+    return PreparationError::Git(GitFailure(format!(
+        "writing the configuration the native commit reads failed: {error}"
+    )));
 }
 
 /// What:
@@ -207,7 +231,12 @@ pub fn run_native_commit(
     cwd: &Path,
     request: &PreparationRequest,
 ) -> Result<i32, PreparationError> {
-    return run_native_commit_within(context, cwd, request, crate::native_commit_waiting_notice::scratch_ceiling());
+    return run_native_commit_within(
+        context,
+        cwd,
+        request,
+        crate::native_commit_waiting_notice::scratch_ceiling(),
+    );
 }
 
 /// What:
@@ -230,7 +259,12 @@ pub fn run_native_commit_within(
     ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
     let arguments: Vec<OsString> = native_commit_arguments(request)?;
-    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice(), StartOwner::Wrapper);
+    let mut command = git_command(
+        context.real_git.as_path(),
+        arguments.as_slice(),
+        context.overlay.as_slice(),
+        StartOwner::Wrapper,
+    );
     command
         .current_dir(cwd)
         .env("GIT_INDEX_FILE", request.commit_index);
@@ -243,20 +277,23 @@ pub fn run_native_commit_within(
     // This step runs with the terminal attached and no watch, so no other record knows it: its own entry says how long it took,
     //  signing and an editor included.
     let step: String = crate::add_timing::git_step_label(arguments.as_slice());
-    let cadence: crate::wait_progress::Cadence = crate::child_watch::WatchTerms::for_class(crate::child_class::ChildClass::Object).cadence;
-    let snapshot: Option<&crate::config_snapshot::ConfigSnapshot> = request.capture.layout.config_snapshot.as_ref();
-    let notice: crate::native_commit_waiting_notice::NativeCommitNotice = crate::native_commit_waiting_notice::NativeCommitNotice::start_within(
-        crate::native_commit_waiting_notice::NoticeStart {
-            snapshot,
-            commit_arguments: request.commit_args,
-            cadence,
-            ceiling,
-            // The writer thread this sink belongs to is abandoned when a reader stops draining, so the sink is the
-            //  descriptor itself: `std::io::stderr()` is one lock for the whole process, and the commit's own reports
-            //  would wait behind a notice holding it (`standard_error_descriptor.rs`).
-            sink: Box::new(crate::standard_error_descriptor::StandardErrorDescriptor),
-        },
-    );
+    let cadence: crate::wait_progress::Cadence =
+        crate::child_watch::WatchTerms::for_class(crate::child_class::ChildClass::Object).cadence;
+    let snapshot: Option<&crate::config_snapshot::ConfigSnapshot> =
+        request.capture.layout.config_snapshot.as_ref();
+    let notice: crate::native_commit_waiting_notice::NativeCommitNotice =
+        crate::native_commit_waiting_notice::NativeCommitNotice::start_within(
+            crate::native_commit_waiting_notice::NoticeStart {
+                snapshot,
+                commit_arguments: request.commit_args,
+                cadence,
+                ceiling,
+                // The writer thread this sink belongs to is abandoned when a reader stops draining, so the sink is the
+                //  descriptor itself: `std::io::stderr()` is one lock for the whole process, and the commit's own reports
+                //  would wait behind a notice holding it (`standard_error_descriptor.rs`).
+                sink: Box::new(crate::standard_error_descriptor::StandardErrorDescriptor),
+            },
+        );
     let began: std::time::Instant = std::time::Instant::now();
     // Two enforcers of one ceiling: the notice's thread, which prints the lines and ends the step through the descriptor
     //  taken at its start, and the wait that owns the child, which needs no thread and no number a reuse can reach.
@@ -274,7 +311,8 @@ pub fn run_native_commit_within(
     };
     let finished = run_guarded_child(&mut command, duty);
     // The decision both enforcers read, taken before the notice is ended: it can change no more than the step it watched.
-    let the_stall: crate::scratch_step_stall_decided_once::TheStall = notice.the_stall_decided_once().state();
+    let the_stall: crate::scratch_step_stall_decided_once::TheStall =
+        notice.the_stall_decided_once().state();
     // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
     // the signing program ran below the step is there too, so a long step names no work the person's terminal did and no
     // line the notice could not hand to a reader that stopped reading.
@@ -292,24 +330,35 @@ pub fn run_native_commit_within(
         //  enforced it names the bound here, so the record still says the step was waited for.
         if let Some(stall) = &stop.stall {
             facts.stall_ceiling = facts.stall_ceiling.or(Some(stall.bound));
-            if matches!(stall.why, crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor::TheKernelHeldIt(_)) && facts.held_after_ceiling.is_none() {
+            if matches!(
+                stall.why,
+                crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor::TheKernelHeldIt(_)
+            ) && facts.held_after_ceiling.is_none()
+            {
                 facts.held_after_ceiling = Some(stall.stood_aside_after);
             }
         }
     }
-    let the_stop: Option<crate::scratch_step_stop_words::ScratchStepStop> = crate::scratch_step_stop_record::the_stop_of_the_step(crate::scratch_step_stop_record::TheEnforcersOfAStep {
-        facts: &facts,
-        the_waits_stop: match &finished {
-            Ok((_outcome, stop)) => stop.as_ref(),
-            Err(_not_started) => None,
-        },
-        the_stall: &the_stall,
-        the_usual_ceiling: ceiling,
-        signs: crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args),
-    });
+    let the_stop: Option<crate::scratch_step_stop_words::ScratchStepStop> =
+        crate::scratch_step_stop_record::the_stop_of_the_step(
+            crate::scratch_step_stop_record::TheEnforcersOfAStep {
+                facts: &facts,
+                the_waits_stop: match &finished {
+                    Ok((_outcome, stop)) => stop.as_ref(),
+                    Err(_not_started) => None,
+                },
+                the_stall: &the_stall,
+                the_usual_ceiling: ceiling,
+                signs: crate::native_commit_waiting_notice::signs_commit(
+                    snapshot,
+                    request.commit_args,
+                ),
+            },
+        );
     crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(stop_of_the_step) = the_stop {
-        let bound_that_ended_it: std::time::Duration = stop_of_the_step.bound_that_ended_it.the_bound();
+        let bound_that_ended_it: std::time::Duration =
+            stop_of_the_step.bound_that_ended_it.the_bound();
         crate::diagnostic_log::warn(
             "runNativeCommit",
             format!(
@@ -321,9 +370,14 @@ pub fn run_native_commit_within(
         );
         // A step the ceiling ended never exited by itself, so the note carries its name and no status.
         crate::git_step_failure::note_failed_step(step.as_str(), None);
-        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop_of_the_step))));
+        return Err(PreparationError::Git(GitFailure(
+            crate::scratch_step_stop_words::stop_words(stop_of_the_step),
+        )));
     }
-    let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = match finished {
+    let (outcome, _no_ceiling): (
+        crate::forwarding::ChildOutcome,
+        Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>,
+    ) = match finished {
         Ok(ended) => ended,
         // The step never started, so the note carries its name and no status, as every other step that cannot start does.
         Err(error) => {
@@ -359,17 +413,27 @@ pub fn run_native_commit_within(
 fn run_guarded_child(
     command: &mut std::process::Command,
     duty: crate::signal_relay::CeilingDuty<'_>,
-) -> Result<(crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>), PreparationError> {
+) -> Result<
+    (
+        crate::forwarding::ChildOutcome,
+        Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>,
+    ),
+    PreparationError,
+> {
     let guard: SignalGuard = match SignalGuard::install() {
         Ok(installed) => installed,
         Err(error) => {
-            return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));
+            return Err(PreparationError::Git(GitFailure(format!(
+                "installing the signal guard failed: {error}"
+            ))));
         }
     };
     let outcome = match guard.run_child_telling_its_number(command, duty) {
         Ok(finished) => finished,
         Err(error) => {
-            return Err(PreparationError::Git(GitFailure(format!("git commit could not start: {error}"))));
+            return Err(PreparationError::Git(GitFailure(format!(
+                "git commit could not start: {error}"
+            ))));
         }
     };
     return Ok(outcome);
@@ -387,12 +451,17 @@ fn run_guarded_child(
 /// ```ts
 /// await readPreparedCommit({ gitPath, shadowPath });
 /// ```
-pub fn read_prepared_commit(context: &GitContext, shadow: &Path) -> Result<PreparedCommit, GitFailure> {
+pub fn read_prepared_commit(
+    context: &GitContext,
+    shadow: &Path,
+) -> Result<PreparedCommit, GitFailure> {
     let oid_output: GitOutput = run_git_checked(
         context,
         &shadow_request(shadow, shadow, &["rev-parse", "--verify", "HEAD^{commit}"]),
     )?;
-    let oid: String = String::from_utf8_lossy(oid_output.stdout.as_slice()).trim().to_string();
+    let oid: String = String::from_utf8_lossy(oid_output.stdout.as_slice())
+        .trim()
+        .to_string();
     let raw: Vec<u8> = run_git_checked(
         context,
         &shadow_request(shadow, shadow, &["cat-file", "commit", oid.as_str()]),

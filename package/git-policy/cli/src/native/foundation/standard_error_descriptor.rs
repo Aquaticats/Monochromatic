@@ -48,11 +48,15 @@ pub struct StandardErrorDescriptor;
 impl Write for StandardErrorDescriptor {
     /// Write the bytes to descriptor 2.
     #[cfg(unix)]
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         loop {
             // SAFETY: descriptor 2 is this process's own standard error, and the buffer is read for the length given
             //  and nothing else.
-            let written: libc::ssize_t = unsafe { libc::write(libc::STDERR_FILENO, bytes.as_ptr().cast(), bytes.len()) };
+            let written: libc::ssize_t =
+                unsafe { libc::write(libc::STDERR_FILENO, bytes.as_ptr().cast(), bytes.len()) };
             if written < 0 {
                 let error: std::io::Error = std::io::Error::last_os_error();
                 // `.write_all(..)` retries an interrupted write, so the interruption is handed back as it is.
@@ -71,7 +75,10 @@ impl Write for StandardErrorDescriptor {
     /// README,
     /// Requirements).
     #[cfg(not(unix))]
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         return std::io::stderr().write(bytes);
     }
 

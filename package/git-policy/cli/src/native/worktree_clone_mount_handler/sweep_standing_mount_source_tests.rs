@@ -20,8 +20,18 @@
 //! expect(kernelMountSource().sourceOf(uniqueNumberOf(target))).toEqual({ kind: 'source', source: 'tmpfs' });
 //! ```
 
-use super::{KernelMountSource, MOUNT_NUMBER_REQUEST_BYTES, MountNumberRequest, MountSourceAnswer, MountSourceByNumber, STATMOUNT_HEADER_BYTES};
-use crate::worktree_clone_mount_handler::standing_mount_source_call_refusal::{self, the_call_must_answer};
+use super::{
+    KernelMountSource,
+    MOUNT_NUMBER_REQUEST_BYTES,
+    MountNumberRequest,
+    MountSourceAnswer,
+    MountSourceByNumber,
+    STATMOUNT_HEADER_BYTES,
+};
+use crate::worktree_clone_mount_handler::standing_mount_source_call_refusal::{
+    self,
+    the_call_must_answer,
+};
 use std::os::unix::ffi::OsStrExt as _;
 
 /// The variable the inner half of the control sets.
@@ -48,26 +58,46 @@ struct MountedFolder {
 
 impl Drop for MountedFolder {
     fn drop(&mut self) {
-        let target: std::ffi::CString = std::ffi::CString::new(self.path.as_os_str().as_bytes()).expect("no NUL in the path");
+        let target: std::ffi::CString =
+            std::ffi::CString::new(self.path.as_os_str().as_bytes()).expect("no NUL in the path");
         // SAFETY: `target` is a NUL-terminated path that outlives the call, and no flag is passed.
         let _taken: libc::c_int = unsafe { libc::umount2(target.as_ptr(), 0) };
     }
 }
 
 /// Mount one tmpfs named `source` at `path`.
-fn mount_tmpfs(source: &str, path: &std::path::Path) {
-    let source_name: std::ffi::CString = std::ffi::CString::new(source).expect("no NUL in the source");
-    let target: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
+fn mount_tmpfs(
+    source: &str,
+    path: &std::path::Path,
+) {
+    let source_name: std::ffi::CString =
+        std::ffi::CString::new(source).expect("no NUL in the source");
+    let target: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
     let kind: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("no NUL in the type");
     // SAFETY: both strings outlive the call, the type is a NUL-terminated name, and no data pointer is read.
-    let mounted: libc::c_int = unsafe { libc::mount(source_name.as_ptr(), target.as_ptr(), kind.as_ptr(), 0, std::ptr::null()) };
-    assert_eq!(mounted, 0, "the control's tmpfs mounts: {}", std::io::Error::last_os_error());
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            source_name.as_ptr(),
+            target.as_ptr(),
+            kind.as_ptr(),
+            0,
+            std::ptr::null(),
+        )
+    };
+    assert_eq!(
+        mounted,
+        0,
+        "the control's tmpfs mounts: {}",
+        std::io::Error::last_os_error()
+    );
 }
 
 /// The unique mount number of the mount a folder is on.
 fn unique_number_of(path: &std::path::Path) -> u64 {
     let opened: std::fs::File = std::fs::File::open(path).expect("the folder opens");
-    return crate::fs_beneath_mount_facts::unique_mount_number_of(&opened).expect("this kernel reports a unique mount number");
+    return crate::fs_beneath_mount_facts::unique_mount_number_of(&opened)
+        .expect("this kernel reports a unique mount number");
 }
 
 /// What:
@@ -93,10 +123,19 @@ fn the_answer_for(unique: u64) -> Result<Vec<u8>, std::io::Error> {
         fields: super::STATMOUNT_MOUNT_ROOT | super::STATMOUNT_SOURCE,
     };
     let mut buffer: Vec<u8> = vec![0_u8; STATMOUNT_HEADER_BYTES + ROOM_FOR_THE_ANSWER_BYTES];
-    let number: libc::c_long = super::STATMOUNT_NUMBER.expect("this architecture declares the call");
+    let number: libc::c_long =
+        super::STATMOUNT_NUMBER.expect("this architecture declares the call");
     // SAFETY: the request and the buffer are this call's own and outlive it, the buffer is writable for its length, and
     // the flags argument is the zero the call takes.
-    let answered: libc::c_long = unsafe { libc::syscall(number, &request as *const MountNumberRequest, buffer.as_mut_ptr(), buffer.len(), 0_u32) };
+    let answered: libc::c_long = unsafe {
+        libc::syscall(
+            number,
+            &request as *const MountNumberRequest,
+            buffer.as_mut_ptr(),
+            buffer.len(),
+            0_u32,
+        )
+    };
     if answered < 0 {
         return Err(std::io::Error::last_os_error());
     }
@@ -115,7 +154,10 @@ fn the_answer_for(unique: u64) -> Result<Vec<u8>, std::io::Error> {
 /// ```ts
 /// function theCallAnsweredNothing(control: string, error: Error): void; // throws where the run states the allowance
 /// ```
-fn the_call_answered_nothing(control: &str, error: &std::io::Error) {
+fn the_call_answered_nothing(
+    control: &str,
+    error: &std::io::Error,
+) {
     if the_call_must_answer(control, format!("the call answered {}", error).as_str()) {
         panic!(
             "this run states that its containers allow statmount(2) through their seccomp profile \
@@ -141,12 +183,17 @@ fn the_kernel_names_the_source_of_one_mount_by_its_unique_number() {
     let folder: std::path::PathBuf = root.join("slot");
     std::fs::create_dir_all(folder.as_path()).expect("the folder is made");
     mount_tmpfs(THE_SOURCE_THE_RELEASE_CONTROL_MOUNTS, folder.as_path());
-    let _guard: MountedFolder = MountedFolder { path: folder.clone() };
+    let _guard: MountedFolder = MountedFolder {
+        path: folder.clone(),
+    };
     let unique: u64 = unique_number_of(folder.as_path());
     let answer: MountSourceAnswer = KernelMountSource.source_of(Some(unique));
     let why: String = match answer {
         MountSourceAnswer::Source(source) => {
-            assert_eq!(source, THE_SOURCE_THE_RELEASE_CONTROL_MOUNTS, "the kernel named the mount's own source");
+            assert_eq!(
+                source, THE_SOURCE_THE_RELEASE_CONTROL_MOUNTS,
+                "the kernel named the mount's own source"
+            );
             return;
         }
         MountSourceAnswer::NoAnswer(why) => why,
@@ -189,7 +236,9 @@ fn the_answer_reads_its_strings_at_the_offsets_it_names() {
     let folder: std::path::PathBuf = root.join("slot");
     std::fs::create_dir_all(folder.as_path()).expect("the folder is made");
     mount_tmpfs(THE_SOURCE_THE_LAYOUT_CONTROL_MOUNTS, folder.as_path());
-    let _guard: MountedFolder = MountedFolder { path: folder.clone() };
+    let _guard: MountedFolder = MountedFolder {
+        path: folder.clone(),
+    };
     let unique: u64 = unique_number_of(folder.as_path());
     let buffer: Vec<u8> = match the_answer_for(unique) {
         Ok(buffer) => buffer,
@@ -200,16 +249,24 @@ fn the_answer_reads_its_strings_at_the_offsets_it_names() {
     };
     let mask: u64 = super::number_at(buffer.as_slice(), super::MASK_AT);
     if mask & super::STATMOUNT_SOURCE == 0 {
-        eprintln!("STATMOUNT SOURCE CONTROL NOT RUN: {control} (this kernel reports no mount source, so only the call itself is proved here)");
+        eprintln!(
+            "STATMOUNT SOURCE CONTROL NOT RUN: {control} (this kernel reports no mount source, so only the call itself is proved here)"
+        );
         return;
     }
     assert_eq!(
-        super::string_at(buffer.as_slice(), super::field_at(buffer.as_slice(), super::MOUNT_ROOT_AT) as usize),
+        super::string_at(
+            buffer.as_slice(),
+            super::field_at(buffer.as_slice(), super::MOUNT_ROOT_AT) as usize
+        ),
         Some("/"),
         "the root string sits where this build reads it"
     );
     assert_eq!(
-        super::string_at(buffer.as_slice(), super::field_at(buffer.as_slice(), super::SOURCE_AT) as usize),
+        super::string_at(
+            buffer.as_slice(),
+            super::field_at(buffer.as_slice(), super::SOURCE_AT) as usize
+        ),
         Some(THE_SOURCE_THE_LAYOUT_CONTROL_MOUNTS),
         "the source string sits where this build reads it"
     );
@@ -225,12 +282,23 @@ fn the_answer_reads_its_strings_at_the_offsets_it_names() {
 #[test]
 fn an_answer_that_names_no_mount_is_no_answer() {
     let absent: MountSourceAnswer = KernelMountSource.source_of(Some(u64::MAX - 1));
-    assert!(matches!(absent, MountSourceAnswer::NoAnswer(_)), "{absent:?}");
+    assert!(
+        matches!(absent, MountSourceAnswer::NoAnswer(_)),
+        "{absent:?}"
+    );
     let unnumbered: MountSourceAnswer = KernelMountSource.source_of(None);
-    assert!(matches!(unnumbered, MountSourceAnswer::NoAnswer(_)), "{unnumbered:?}");
+    assert!(
+        matches!(unnumbered, MountSourceAnswer::NoAnswer(_)),
+        "{unnumbered:?}"
+    );
     let said: String = match unnumbered {
         MountSourceAnswer::NoAnswer(why) => why,
-        MountSourceAnswer::Source(source) => panic!("no unique number is no answer, not the source {source}"),
+        MountSourceAnswer::Source(source) => {
+            panic!("no unique number is no answer, not the source {source}")
+        }
     };
-    assert!(said.contains("no unique mount number"), "the answer says what was missing: {said}");
+    assert!(
+        said.contains("no unique mount number"),
+        "the answer says what was missing: {said}"
+    );
 }

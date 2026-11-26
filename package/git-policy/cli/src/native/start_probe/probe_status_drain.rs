@@ -17,7 +17,10 @@
 //! drainStatus(fd, feed, report); // keeps every whole line, marks an unreadable one
 //! ```
 
-use super::probe_pipe_lines::{ReadSome, read_available};
+use super::probe_pipe_lines::{
+    ReadSome,
+    read_available,
+};
 use super::probe_report::ProbeReport;
 use super::probe_status_line::LineFeed;
 use std::os::fd::RawFd;
@@ -50,7 +53,11 @@ pub enum Drained {
 /// Never:
 ///  a line the mode cannot read is kept as the report's own unreadable-line
 ///  ending.
-pub fn drain_status(fd: RawFd, feed: &mut LineFeed, report: &mut ProbeReport) -> Drained {
+pub fn drain_status(
+    fd: RawFd,
+    feed: &mut LineFeed,
+    report: &mut ProbeReport,
+) -> Drained {
     let mut drained: Drained = Drained::Nothing;
     loop {
         let mut buffer: [u8; 512] = [0; 512];
@@ -72,11 +79,17 @@ pub fn drain_status(fd: RawFd, feed: &mut LineFeed, report: &mut ProbeReport) ->
 }
 
 /// Keep the whole lines one read completed.
-fn keep(feed: &mut LineFeed, report: &mut ProbeReport, bytes: &[u8]) {
+fn keep(
+    feed: &mut LineFeed,
+    report: &mut ProbeReport,
+    bytes: &[u8],
+) {
     for parsed in feed.push(bytes) {
         match parsed {
             Ok(step_line) => report.record(step_line),
-            Err(refusal) => report.finish_with(super::probe_report::ChildEnding::UnparsedLine { text: refusal.message() }),
+            Err(refusal) => report.finish_with(super::probe_report::ChildEnding::UnparsedLine {
+                text: refusal.message(),
+            }),
         }
     }
 }

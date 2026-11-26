@@ -22,19 +22,29 @@
 //! ```
 
 use super::merge_second_pass_worktree::conflicts_of_index;
-use crate::merge_second_pass::{Conflict, Merged};
+use crate::merge_second_pass::{
+    Conflict,
+    Merged,
+};
 use crate::path_bytes::os_from_path_bytes;
 use crate::repo_read_index::IndexEntry;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The largest worktree file the pass records:
 /// a conflicted file holds both sides' bytes and Git's markers,
 /// and the pass merges no stage larger than `LARGEST_STAGE_BYTES`,
 /// so three of them bound it,
 /// with room for the markers.
-pub(super) const LARGEST_RECORDED_BYTES: u64 = 3 * crate::merge_second_pass::LARGEST_STAGE_BYTES + 64 * 1024;
+pub(super) const LARGEST_RECORDED_BYTES: u64 =
+    3 * crate::merge_second_pass::LARGEST_STAGE_BYTES + 64 * 1024;
 
 /// What a worktree path held when the conflicts were read:
 /// its bytes,
@@ -67,22 +77,37 @@ pub(super) type Held = Option<Vec<u8>>;
 pub(super) fn worktree_state(path: &Path) -> Held {
     let file: std::fs::File = crate::plain_file::open_plain_file(path).ok()?;
     let mut bytes: Vec<u8> = Vec::new();
-    let kept: std::io::Result<usize> = file.take(LARGEST_RECORDED_BYTES + 1).read_to_end(&mut bytes);
+    let kept: std::io::Result<usize> = file
+        .take(LARGEST_RECORDED_BYTES + 1)
+        .read_to_end(&mut bytes);
     let Ok(read) = kept else { return None };
-    return if read as u64 > LARGEST_RECORDED_BYTES { None } else { Some(bytes) };
+    return if read as u64 > LARGEST_RECORDED_BYTES {
+        None
+    } else {
+        Some(bytes)
+    };
 }
 
 /// The path a stage names,
 /// below the top of the worktree.
-fn path_under(root: &Path, path: &[u8]) -> PathBuf {
+fn path_under(
+    root: &Path,
+    path: &[u8],
+) -> PathBuf {
     return root.join(os_from_path_bytes(path));
 }
 
 /// What the worktree holds at each of `paths`.
-pub(super) fn held_paths(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Held> {
+pub(super) fn held_paths(
+    root: &Path,
+    paths: &BTreeSet<Vec<u8>>,
+) -> BTreeMap<Vec<u8>, Held> {
     let mut held: BTreeMap<Vec<u8>, Held> = BTreeMap::new();
     for path in paths {
-        held.insert(path.clone(), worktree_state(path_under(root, path).as_path()));
+        held.insert(
+            path.clone(),
+            worktree_state(path_under(root, path).as_path()),
+        );
     }
     return held;
 }
@@ -158,14 +183,20 @@ enum Stillness {
 /// const stillness = (file) => stagesOf(index, file.path) === file.stages ? 'same' : 'moved';
 /// const read = (bytes) => bytes === undefined ? 'unreadable' : bytes === recorded ? 'same' : 'moved';
 /// ```
-fn stillness(before: &Before<'_>, file: &Merged) -> Stillness {
+fn stillness(
+    before: &Before<'_>,
+    file: &Merged,
+) -> Stillness {
     let only: BTreeSet<Vec<u8>> = [file.path.clone()].into_iter().collect();
     let stages_now: Vec<Conflict> = conflicts_of_index(before.entries, &only);
     if stages_now.as_slice() != [file.stages.clone()] {
         return Stillness::Moved;
     }
-    let Some(recorded) = before.held.get(&file.path) else { return Stillness::Unreadable };
-    let current: Held = worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
+    let Some(recorded) = before.held.get(&file.path) else {
+        return Stillness::Unreadable;
+    };
+    let current: Held =
+        worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
     // A read that produced nothing is not a read that produced the same bytes: two failures say nothing about the file.
     return match (recorded, current.as_ref()) {
         (Some(when_read), Some(now)) if when_read == now => Stillness::Same,
@@ -188,8 +219,17 @@ fn stillness(before: &Before<'_>, file: &Merged) -> Stillness {
 /// ```ts
 /// function stillTheSame(before, merged, oids) { ... } // { files, oids, moved, unreadable }
 /// ```
-pub(super) fn still_the_same(before: &Before<'_>, merged: Vec<Merged>, oids: Vec<String>) -> Kept {
-    let mut kept: Kept = Kept { files: Vec::new(), oids: Vec::new(), moved: Vec::new(), unreadable: Vec::new() };
+pub(super) fn still_the_same(
+    before: &Before<'_>,
+    merged: Vec<Merged>,
+    oids: Vec<String>,
+) -> Kept {
+    let mut kept: Kept = Kept {
+        files: Vec::new(),
+        oids: Vec::new(),
+        moved: Vec::new(),
+        unreadable: Vec::new(),
+    };
     for (file, oid) in merged.into_iter().zip(oids) {
         match stillness(before, &file) {
             Stillness::Same => {

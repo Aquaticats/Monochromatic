@@ -13,15 +13,34 @@
 //! expect(theListing(pass, limits)).toContain(`${PRUNED_NEXT} it is older than the 30-day age limit`);
 //! ```
 
-use super::{KEPT_NEXT, PRUNED_NEXT, the_listing, the_pruning_report};
-use crate::kept_reference_limits::{KEPT_REFERENCE_FLOOR, KEPT_REFERENCE_MAX_AGE, KEPT_REFERENCE_MAX_BYTES, KeptReferenceLimits};
-use crate::kept_reference_pass::{Kept, Pruned, WhyNotPruned, WhyPruned};
+use super::{
+    KEPT_NEXT,
+    PRUNED_NEXT,
+    the_listing,
+    the_pruning_report,
+};
+use crate::kept_reference_limits::{
+    KEPT_REFERENCE_FLOOR,
+    KEPT_REFERENCE_MAX_AGE,
+    KEPT_REFERENCE_MAX_BYTES,
+    KeptReferenceLimits,
+};
+use crate::kept_reference_pass::{
+    Kept,
+    Pruned,
+    WhyNotPruned,
+    WhyPruned,
+};
 use crate::kept_reference_pass_answers::ThePass;
 use std::path::Path;
 
 /// The limits of the release.
 fn the_limits() -> KeptReferenceLimits {
-    return KeptReferenceLimits { max_age: KEPT_REFERENCE_MAX_AGE, max_bytes: KEPT_REFERENCE_MAX_BYTES, floor: KEPT_REFERENCE_FLOOR };
+    return KeptReferenceLimits {
+        max_age: KEPT_REFERENCE_MAX_AGE,
+        max_bytes: KEPT_REFERENCE_MAX_BYTES,
+        floor: KEPT_REFERENCE_FLOOR,
+    };
 }
 
 /// A pass that prunes one reference and keeps another.
@@ -61,19 +80,37 @@ fn a_pass() -> ThePass {
 #[test]
 fn a_listing_names_what_is_kept_and_what_the_next_pass_takes() {
     let text: String = the_listing(&a_pass(), the_limits());
-    assert!(text.starts_with("2 kept references hold objects only they reach, 7573 bytes on disk."), "{text}");
-    assert!(text.contains("refs/cli-git/kept/1794071191963902"), "{text}");
-    assert!(text.contains("commit deb10b333be2e7c350d4d5cce35b8d474161fbbc"), "{text}");
+    assert!(
+        text.starts_with("2 kept references hold objects only they reach, 7573 bytes on disk."),
+        "{text}"
+    );
+    assert!(
+        text.contains("refs/cli-git/kept/1794071191963902"),
+        "{text}"
+    );
+    assert!(
+        text.contains("commit deb10b333be2e7c350d4d5cce35b8d474161fbbc"),
+        "{text}"
+    );
     assert!(text.contains("31 days 0 hours ago"), "{text}");
     assert!(text.contains("worktree /a worktree/with a space"), "{text}");
     assert!(text.contains("batch 1794071191963902\n"), "{text}");
     assert!(text.contains(PRUNED_NEXT), "{text}");
-    assert!(text.contains("it reached no branch and was older than the age limit of 30 days"), "{text}");
-    assert!(text.contains("refs/cli-git/kept/1794071191963903-rescue"), "{text}");
+    assert!(
+        text.contains("it reached no branch and was older than the age limit of 30 days"),
+        "{text}"
+    );
+    assert!(
+        text.contains("refs/cli-git/kept/1794071191963903-rescue"),
+        "{text}"
+    );
     assert!(text.contains(", the name beside the batch's own"), "{text}");
     assert!(text.contains("worktree not recorded"), "{text}");
     assert!(text.contains(KEPT_NEXT), "{text}");
-    assert!(text.contains("The next pass prunes 1 of them, leaving 0 bytes."), "{text}");
+    assert!(
+        text.contains("The next pass prunes 1 of them, leaving 0 bytes."),
+        "{text}"
+    );
 }
 
 /// A listing of references the pass takes none of says so.
@@ -91,8 +128,21 @@ fn a_listing_with_nothing_to_prune_says_the_objects_stay() {
 fn a_pruning_report_names_where_the_line_is() {
     let mut pass: ThePass = a_pass();
     pass.dry_run = false;
-    let text: String = the_pruning_report(&pass, the_limits(), Path::new("/a repository/.git/monochromatic-git-policy-cli-kept-references.jsonl"));
-    assert!(text.contains("pruned refs/cli-git/kept/1794071191963902"), "{text}");
-    assert!(text.contains("commit deb10b333be2e7c350d4d5cce35b8d474161fbbc"), "{text}");
-    assert!(text.contains("/a repository/.git/monochromatic-git-policy-cli-kept-references.jsonl"), "{text}");
+    let text: String = the_pruning_report(
+        &pass,
+        the_limits(),
+        Path::new("/a repository/.git/monochromatic-git-policy-cli-kept-references.jsonl"),
+    );
+    assert!(
+        text.contains("pruned refs/cli-git/kept/1794071191963902"),
+        "{text}"
+    );
+    assert!(
+        text.contains("commit deb10b333be2e7c350d4d5cce35b8d474161fbbc"),
+        "{text}"
+    );
+    assert!(
+        text.contains("/a repository/.git/monochromatic-git-policy-cli-kept-references.jsonl"),
+        "{text}"
+    );
 }

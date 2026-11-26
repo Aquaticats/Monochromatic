@@ -9,13 +9,28 @@ use super::*;
 const ITEM_BYTES: u64 = 1 << 28;
 
 /// A host with this many threads and this much available memory.
-fn host(parallelism: usize, memory_available: Option<u64>) -> HostResources {
-    return HostResources { parallelism, memory_available };
+fn host(
+    parallelism: usize,
+    memory_available: Option<u64>,
+) -> HostResources {
+    return HostResources {
+        parallelism,
+        memory_available,
+    };
 }
 
 /// A request for `items` items on `host` with no ceiling and no cap.
-fn request(items: usize, host: &HostResources) -> BudgetRequest<'_> {
-    return BudgetRequest { items, per_item_memory: ITEM_BYTES, ceiling: None, cap: None, host };
+fn request(
+    items: usize,
+    host: &HostResources,
+) -> BudgetRequest<'_> {
+    return BudgetRequest {
+        items,
+        per_item_memory: ITEM_BYTES,
+        ceiling: None,
+        cap: None,
+        host,
+    };
 }
 
 /// The margin is an eighth of the threads,
@@ -34,7 +49,10 @@ fn the_margin_is_an_eighth_of_the_threads_and_nothing_for_two() {
 #[test]
 fn the_cpus_minus_the_margin_bound_the_workers() {
     let large: HostResources = host(CPU_MARGIN_DIVISOR * 4, None);
-    assert_eq!(worker_budget(&request(usize::MAX, &large)), large.parallelism - cpu_margin(large.parallelism));
+    assert_eq!(
+        worker_budget(&request(usize::MAX, &large)),
+        large.parallelism - cpu_margin(large.parallelism)
+    );
     let small: HostResources = host(2, None);
     assert_eq!(worker_budget(&request(usize::MAX, &small)), 2);
 }
@@ -51,8 +69,14 @@ fn the_items_bound_the_workers() {
 #[test]
 fn the_free_memory_bounds_the_workers() {
     let fits: u64 = 5;
-    let tight: HostResources = host(CPU_MARGIN_DIVISOR * 4, Some(ITEM_BYTES * fits * MEMORY_SHARE_DIVISOR));
-    assert_eq!(worker_budget(&request(usize::MAX, &tight)), usize::try_from(fits).expect("a small count"));
+    let tight: HostResources = host(
+        CPU_MARGIN_DIVISOR * 4,
+        Some(ITEM_BYTES * fits * MEMORY_SHARE_DIVISOR),
+    );
+    assert_eq!(
+        worker_budget(&request(usize::MAX, &tight)),
+        usize::try_from(fits).expect("a small count")
+    );
 }
 
 /// A host with almost no memory still runs one item,
@@ -73,10 +97,36 @@ fn the_ceiling_and_the_cap_bound_the_workers() {
     let large: HostResources = host(CPU_MARGIN_DIVISOR * 4, None);
     let ceiling: usize = 4;
     let cap: usize = 2;
-    assert_eq!(worker_budget(&BudgetRequest { ceiling: Some(ceiling), ..request(usize::MAX, &large) }), ceiling);
-    assert_eq!(worker_budget(&BudgetRequest { cap: Some(cap), ..request(usize::MAX, &large) }), cap);
-    assert_eq!(worker_budget(&BudgetRequest { ceiling: Some(ceiling), cap: Some(cap), ..request(usize::MAX, &large) }), cap);
-    assert_eq!(worker_budget(&BudgetRequest { ceiling: Some(cap), cap: Some(ceiling), ..request(usize::MAX, &large) }), cap);
+    assert_eq!(
+        worker_budget(&BudgetRequest {
+            ceiling: Some(ceiling),
+            ..request(usize::MAX, &large)
+        }),
+        ceiling
+    );
+    assert_eq!(
+        worker_budget(&BudgetRequest {
+            cap: Some(cap),
+            ..request(usize::MAX, &large)
+        }),
+        cap
+    );
+    assert_eq!(
+        worker_budget(&BudgetRequest {
+            ceiling: Some(ceiling),
+            cap: Some(cap),
+            ..request(usize::MAX, &large)
+        }),
+        cap
+    );
+    assert_eq!(
+        worker_budget(&BudgetRequest {
+            ceiling: Some(cap),
+            cap: Some(ceiling),
+            ..request(usize::MAX, &large)
+        }),
+        cap
+    );
 }
 
 /// The real host reports at least one thread.
@@ -95,8 +145,14 @@ fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
     let large: HostResources = host(CPU_MARGIN_DIVISOR * 8, None);
     assert_eq!(sliced_workers(usize::MAX, ceiling, &large), ceiling);
     let small: HostResources = host(ceiling, None);
-    assert_eq!(sliced_workers(usize::MAX, ceiling, &small), ceiling - cpu_margin(ceiling));
-    let tight: HostResources = host(large.parallelism, Some(SLICE_MEMORY * MEMORY_SHARE_DIVISOR * 3));
+    assert_eq!(
+        sliced_workers(usize::MAX, ceiling, &small),
+        ceiling - cpu_margin(ceiling)
+    );
+    let tight: HostResources = host(
+        large.parallelism,
+        Some(SLICE_MEMORY * MEMORY_SHARE_DIVISOR * 3),
+    );
     assert_eq!(sliced_workers(usize::MAX, ceiling, &tight), 3);
 }
 
@@ -107,10 +163,24 @@ fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
 #[test]
 fn the_budget_reads_no_memory_file_itself() {
     let source: &str = include_str!("parallel_budget.rs");
-    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    let code: String = source
+        .lines()
+        .filter(|line| {
+            return !line.trim_start().starts_with("//");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
     // Quoted, so the method call `per_item_memory.max(1)` is not mistaken for the group file `memory.max`.
-    for needle in ["\"MemAvailable", "\"memory.max\"", "\"memory.current\"", "/proc/meminfo"] {
-        assert!(!code.contains(needle), "parallel_budget.rs still holds `{needle}`: the memory figures come from the sysinfo crate");
+    for needle in [
+        "\"MemAvailable",
+        "\"memory.max\"",
+        "\"memory.current\"",
+        "/proc/meminfo",
+    ] {
+        assert!(
+            !code.contains(needle),
+            "parallel_budget.rs still holds `{needle}`: the memory figures come from the sysinfo crate"
+        );
     }
 }
 
@@ -122,9 +192,21 @@ fn the_read_memory_is_a_figure_below_the_system_total() {
     let total: u64 = std::fs::read_to_string("/proc/meminfo")
         .expect("meminfo")
         .lines()
-        .find_map(|line| { return line.strip_prefix("MemTotal:")?.split_whitespace().next()?.parse::<u64>().ok(); })
+        .find_map(|line| {
+            return line
+                .strip_prefix("MemTotal:")?
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok();
+        })
         .expect("MemTotal")
         * 1024;
-    let available: u64 = host.memory_available.expect("this host reports its available memory");
-    assert!(available > 0 && available <= total, "{available} of {total}");
+    let available: u64 = host
+        .memory_available
+        .expect("this host reports its available memory");
+    assert!(
+        available > 0 && available <= total,
+        "{available} of {total}"
+    );
 }

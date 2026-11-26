@@ -263,12 +263,6 @@ pub mod worktree_copy_unreadable_record_words;
 #[cfg(unix)]
 pub mod worktree_removal_of_a_bound_clone;
 
-/// The records of an interrupted copy that cannot be read:
-/// each is moved aside with one line,
-/// what it named is found again from the records beside it where it can be,
-/// and the command that met it runs.
-#[cfg(unix)]
-pub mod worktree_copy_unreadable_records;
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,
@@ -276,6 +270,12 @@ pub mod worktree_copy_unreadable_records;
 /// and the pending check.
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
+/// The records of an interrupted copy that cannot be read:
+/// each is moved aside with one line,
+/// what it named is found again from the records beside it where it can be,
+/// and the command that met it runs.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_records;
 
 /// Whether a source worktree is itself the destination of a copy that still runs:
 /// a copy stages nothing from it and tells the person why.

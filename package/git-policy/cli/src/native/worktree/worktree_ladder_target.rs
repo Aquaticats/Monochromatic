@@ -21,24 +21,42 @@
 //! await applyDifference(source, target, workTree, runGit);
 //! ```
 
-use crate::config_snapshot::{ConfigEntry, read_config_snapshot};
+use crate::config_snapshot::{
+    ConfigEntry,
+    read_config_snapshot,
+};
+use crate::forwarding::NoChildRecorded;
+use crate::fs_beneath::handle_path;
 /// A pathname from the bytes a configuration value holds.
 use crate::hooks_path_values::path_answer;
-use crate::forwarding::NoChildRecorded;
 use crate::landed_summary::short_name;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::from_hex;
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
+use crate::repo_read_tree::{
+    FlatEntry,
+    flatten_tree,
+    parse_commit,
+    subject_of,
+};
 use crate::transaction_git::GitContext;
+use crate::worktree_add_binding::{
+    Bound,
+    path_identity,
+};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::head_commit;
-use crate::worktree_copy::{GitRunner, GitStatus, GitStep};
-use crate::fs_beneath::handle_path;
-use crate::worktree_add_binding::{Bound, path_identity};
+use crate::worktree_copy::{
+    GitRunner,
+    GitStatus,
+    GitStep,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The target of one `git worktree add` as real Git left it.
@@ -100,12 +118,24 @@ fn attribute_files(tree: &[FlatEntry]) -> Vec<(&[u8], &[u8])> {
 /// ```ts
 /// function attributesAgree(database: ObjectDatabase, from: Uint8Array, to: Uint8Array, format: ObjectFormat): boolean;
 /// ```
-fn attributes_agree(database: &ObjectDatabase, from: &[u8], to: &[u8], format: ObjectFormat) -> Result<(), String> {
-    let (Some(old), Some(new)) = (flatten_tree(database, from, format), flatten_tree(database, to, format)) else { return Err(String::from("a tree is unreadable")) };
+fn attributes_agree(
+    database: &ObjectDatabase,
+    from: &[u8],
+    to: &[u8],
+    format: ObjectFormat,
+) -> Result<(), String> {
+    let (Some(old), Some(new)) = (
+        flatten_tree(database, from, format),
+        flatten_tree(database, to, format),
+    ) else {
+        return Err(String::from("a tree is unreadable"));
+    };
     return if attribute_files(old.as_slice()) == attribute_files(new.as_slice()) {
         Ok(())
     } else {
-        Err(String::from("the .gitattributes files differ between the source and the commit the worktree is made at, so the rules the add read are not the rules Git writes with; commit the source's .gitattributes change, and the next add clones"))
+        Err(String::from(
+            "the .gitattributes files differ between the source and the commit the worktree is made at, so the rules the add read are not the rules Git writes with; commit the source's .gitattributes change, and the next add clones",
+        ))
     };
 }
 
@@ -149,7 +179,10 @@ const CONVERSION_KEYS: &[&str] = &[
 fn conversion_settings(entries: &[ConfigEntry]) -> Vec<(String, Option<Vec<u8>>)> {
     let mut settings: Vec<(String, Option<Vec<u8>>)> = Vec::new();
     for entry in entries {
-        if entry.key.starts_with("filter.") || entry.key.starts_with("extensions.") || CONVERSION_KEYS.contains(&entry.key.as_str()) {
+        if entry.key.starts_with("filter.")
+            || entry.key.starts_with("extensions.")
+            || CONVERSION_KEYS.contains(&entry.key.as_str())
+        {
             settings.push((entry.key.clone(), entry.value.clone()));
         }
     }
@@ -178,8 +211,14 @@ fn conversion_settings(entries: &[ConfigEntry]) -> Vec<(String, Option<Vec<u8>>)
 /// ```ts
 /// function conversionAgrees(source: ConfigEntry[], target: ConfigEntry[]): void; // throws the first difference
 /// ```
-fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(), String> {
-    let (old, new): (Vec<(String, Option<Vec<u8>>)>, Vec<(String, Option<Vec<u8>>)>) = (conversion_settings(source), conversion_settings(target));
+fn conversion_agrees(
+    source: &[ConfigEntry],
+    target: &[ConfigEntry],
+) -> Result<(), String> {
+    let (old, new): (
+        Vec<(String, Option<Vec<u8>>)>,
+        Vec<(String, Option<Vec<u8>>)>,
+    ) = (conversion_settings(source), conversion_settings(target));
     if old == new {
         return Ok(());
     }
@@ -199,7 +238,9 @@ fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(
         Some((name, _value)) => name.clone(),
         None => String::new(),
     };
-    return Err(format!("the conversion setting {key} differs between the source and the new worktree, or comes in another order"));
+    return Err(format!(
+        "the conversion setting {key} differs between the source and the new worktree, or comes in another order"
+    ));
 }
 
 /// The attribute names a line of an attributes file applies as a filter,
@@ -256,7 +297,10 @@ const LFS_FILTER: [(&str, &str); 4] = [
 /// ```ts
 /// entries.findLast((entry) => entry.key === key)?.value
 /// ```
-fn last_value_of<'entries>(entries: &'entries [ConfigEntry], key: &str) -> Option<&'entries [u8]> {
+fn last_value_of<'entries>(
+    entries: &'entries [ConfigEntry],
+    key: &str,
+) -> Option<&'entries [u8]> {
     for entry in entries.iter().rev() {
         if entry.key == key {
             return entry.value.as_deref();
@@ -325,7 +369,10 @@ fn has_lfs_extension(entries: &[ConfigEntry]) -> bool {
 /// ```ts
 /// function externalConversionRefusal(settings: ConfigEntry[], attributeTexts: Buffer[]): string | undefined;
 /// ```
-fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Vec<u8>]) -> Option<String> {
+fn external_conversion_refusal(
+    entries: &[ConfigEntry],
+    attribute_texts: &[Vec<u8>],
+) -> Option<String> {
     // The first entry that names a relative attributes file; the loop stops there, as `find` did.
     for entry in entries {
         let absolute: bool = match entry.value.as_deref() {
@@ -333,7 +380,10 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Vec<u
             None => false,
         };
         if entry.key == "core.attributesfile" && !absolute {
-            return Some(format!("core.attributesFile is {:?}, which is not an absolute path", entry.value.as_deref().map(String::from_utf8_lossy)));
+            return Some(format!(
+                "core.attributesFile is {:?}, which is not an absolute path",
+                entry.value.as_deref().map(String::from_utf8_lossy)
+            ));
         }
     }
     let mut used: Vec<Vec<u8>> = Vec::new();
@@ -342,10 +392,15 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Vec<u
     }
     for name in &used {
         if name.as_slice() != b"lfs" {
-            return Some(format!("an attribute applies the filter {}, whose result is not proven equal in both worktrees", String::from_utf8_lossy(name)));
+            return Some(format!(
+                "an attribute applies the filter {}, whose result is not proven equal in both worktrees",
+                String::from_utf8_lossy(name)
+            ));
         }
         if !lfs_filter_is_standard(entries) {
-            return Some(String::from("the lfs filter is not the standard Git LFS definition"));
+            return Some(String::from(
+                "the lfs filter is not the standard Git LFS definition",
+            ));
         }
         if has_lfs_extension(entries) {
             return Some(String::from("Git LFS extensions are configured"));
@@ -372,7 +427,10 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Vec<u
 /// ```ts
 /// readdirAttributes([commonDir + '/info/attributes', pathFromBytes(attributesFileValue), ...]).filter(found => found)
 /// ```
-fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -> Vec<Vec<u8>> {
+fn untracked_attribute_texts(
+    source: &SnapshotSource,
+    entries: &[ConfigEntry],
+) -> Vec<Vec<u8>> {
     let mut paths: Vec<PathBuf> = vec![source.common_dir.join("info/attributes")];
     // The last entry that names an attributes file decides, even when its value is empty; the loop stops there.
     for entry in entries.iter().rev() {
@@ -407,9 +465,19 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 /// ```ts
 /// await runStep(runGit, args, env);
 /// ```
-pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
+pub(crate) fn run_step(
+    run_git: &mut dyn GitRunner,
+    arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> Result<GitStatus, String> {
     // A step of the ladder runs after the add's binding is recorded, so its Git needs no name in a record.
-    return match run_git.run(&GitStep::Other { arguments, environment }, &mut NoChildRecorded) {
+    return match run_git.run(
+        &GitStep::Other {
+            arguments,
+            environment,
+        },
+        &mut NoChildRecorded,
+    ) {
         Ok(status) => Ok(status),
         Err(error) => Err(error.0),
     };
@@ -425,7 +493,10 @@ pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], envi
 /// ```ts
 /// const env = { GIT_DIR: gitDir, GIT_WORK_TREE: workTree };
 /// ```
-pub(crate) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsString, OsString)> {
+pub(crate) fn checkout_environment(
+    git_dir: &Path,
+    work_tree: &Path,
+) -> Vec<(OsString, OsString)> {
     return checkout_environment_with_index((git_dir, work_tree), None);
 }
 
@@ -440,10 +511,25 @@ pub(crate) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsS
 /// ```ts
 /// const env = { GIT_DIR: gitDir, GIT_WORK_TREE: workTree, GIT_INDEX_FILE: index };
 /// ```
-pub(crate) fn checkout_environment_with_index((git_dir, work_tree): (&Path, &Path), index: Option<&Path>) -> Vec<(OsString, OsString)> {
-    let mut environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_DIR"), git_dir.as_os_str().to_os_string()), (OsString::from("GIT_WORK_TREE"), work_tree.as_os_str().to_os_string())];
+pub(crate) fn checkout_environment_with_index(
+    (git_dir, work_tree): (&Path, &Path),
+    index: Option<&Path>,
+) -> Vec<(OsString, OsString)> {
+    let mut environment: Vec<(OsString, OsString)> = vec![
+        (
+            OsString::from("GIT_DIR"),
+            git_dir.as_os_str().to_os_string(),
+        ),
+        (
+            OsString::from("GIT_WORK_TREE"),
+            work_tree.as_os_str().to_os_string(),
+        ),
+    ];
     if let Some(named) = index {
-        environment.push((OsString::from("GIT_INDEX_FILE"), named.as_os_str().to_os_string()));
+        environment.push((
+            OsString::from("GIT_INDEX_FILE"),
+            named.as_os_str().to_os_string(),
+        ));
     }
     return environment;
 }
@@ -463,7 +549,10 @@ pub(crate) fn checkout_environment_with_index((git_dir, work_tree): (&Path, &Pat
 /// ```ts
 /// const database = openObjectDatabaseOfTheRepositoryAlone({ commonDir, format });
 /// ```
-fn the_targets_database(common_dir: &Path, format: ObjectFormat) -> Option<ObjectDatabase> {
+fn the_targets_database(
+    common_dir: &Path,
+    format: ObjectFormat,
+) -> Option<ObjectDatabase> {
     return ObjectDatabase::open_of_the_repository_alone(common_dir, None, format);
 }
 
@@ -484,7 +573,12 @@ fn the_targets_database(common_dir: &Path, format: ObjectFormat) -> Option<Objec
 /// ```ts
 /// function prepareTarget(source: SnapshotSource, plan: AddPlan, context: GitContext): Target; // throws a reason
 /// ```
-pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitContext, bound: &Bound) -> Result<Target, String> {
+pub fn prepare_target(
+    source: &SnapshotSource,
+    plan: &AddPlan,
+    context: &GitContext,
+    bound: &Bound,
+) -> Result<Target, String> {
     let destination: &Path = plan.destination.as_path();
     if bound.binding.destination != destination {
         return Err(String::from("the add is bound to another destination"));
@@ -493,7 +587,9 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     let admin: PathBuf = bound.binding.admin.clone();
     // The destination as bound must still be the one directory Git made, holding nothing but Git's pointer.
     if path_identity(destination) != Some(bound.binding.destination_id) {
-        return Err(String::from("the destination is no longer the directory Git made"));
+        return Err(String::from(
+            "the destination is no longer the directory Git made",
+        ));
     }
     let held_listing = match std::fs::read_dir(handle_path(&bound.destination)) {
         Ok(listing) => listing,
@@ -501,13 +597,21 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     };
     let held_entries: usize = held_listing.count();
     if held_entries != 1 {
-        return Err(String::from("the destination holds more than Git's .git file"));
+        return Err(String::from(
+            "the destination holds more than Git's .git file",
+        ));
     }
     let Some(target_config) = read_config_snapshot(context, destination) else {
-        return Err(String::from("the new worktree's configuration could not be read"));
+        return Err(String::from(
+            "the new worktree's configuration could not be read",
+        ));
     };
     conversion_agrees(source.config.entries(), target_config.entries())?;
-    let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let format: ObjectFormat = if source.clean.hash_length == 32 {
+        ObjectFormat::Sha256
+    } else {
+        ObjectFormat::Sha1
+    };
     let Some(commit) = head_commit(admin.as_path(), source.common_dir.as_path(), format) else {
         return Err(String::from("the new HEAD is not a plain ref to a commit"));
     };
@@ -521,32 +625,61 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
         return Err(String::from("the new HEAD commit is unreadable"));
     };
     let Some(fields) = parse_commit(raw.bytes.as_slice(), format) else {
-        return Err(String::from("the new HEAD commit has a layout the reader does not know"));
+        return Err(String::from(
+            "the new HEAD commit has a layout the reader does not know",
+        ));
     };
     let differs: bool = fields.tree != source.clean.head_tree;
     if differs {
-        attributes_agree(&database, source.clean.head_tree.as_slice(), fields.tree.as_slice(), format)?;
+        attributes_agree(
+            &database,
+            source.clean.head_tree.as_slice(),
+            fields.tree.as_slice(),
+            format,
+        )?;
     }
     // The tracked attributes files are the same in both trees by now, so the source's stand for both.
-    let mut attribute_texts: Vec<Vec<u8>> = untracked_attribute_texts(source, target_config.entries());
+    let mut attribute_texts: Vec<Vec<u8>> =
+        untracked_attribute_texts(source, target_config.entries());
     for (path, id) in &source.clean.attribute_blobs {
         let Some(blob) = database.read(id.as_slice()) else {
             return Err(format!("{} is unreadable", String::from_utf8_lossy(path)));
         };
         attribute_texts.push(blob.bytes.clone());
     }
-    if let Some(reason) = external_conversion_refusal(target_config.entries(), attribute_texts.as_slice()) {
+    if let Some(reason) =
+        external_conversion_refusal(target_config.entries(), attribute_texts.as_slice())
+    {
         return Err(reason);
     }
     let line: String = if plan.quiet {
         String::new()
     } else {
         let Some(subject) = subject_of(fields.message.as_slice()) else {
-            return Err(String::from("the subject of the new HEAD needs Git to print"));
+            return Err(String::from(
+                "the subject of the new HEAD needs Git to print",
+            ));
         };
-        format!("HEAD is now at {} {}\n", short_name(context, destination, source.common_dir.join("objects").as_path(), Some(&source.config), commit.as_str()), String::from_utf8_lossy(subject.as_slice()))
+        format!(
+            "HEAD is now at {} {}\n",
+            short_name(
+                context,
+                destination,
+                source.common_dir.join("objects").as_path(),
+                Some(&source.config),
+                commit.as_str()
+            ),
+            String::from_utf8_lossy(subject.as_slice())
+        )
     };
-    return Ok(Target { admin, index: None, pointer, commit, differs, line });
+    return Ok(Target {
+        admin,
+        index: None,
+        pointer,
+        commit,
+        differs,
+        line,
+    });
 }
 
 impl Target {
@@ -579,7 +712,12 @@ impl Target {
 /// ```ts
 /// await applyDifference(source, target, workTree, runGit); // throws a reason
 /// ```
-pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Path, run_git: &mut dyn GitRunner) -> Result<(), String> {
+pub fn apply_difference(
+    source: &SnapshotSource,
+    target: &Target,
+    work_tree: &Path,
+    run_git: &mut dyn GitRunner,
+) -> Result<(), String> {
     return apply_difference_with_index((source, target, work_tree, run_git), None);
 }
 
@@ -595,7 +733,10 @@ pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Pa
 /// ```ts
 /// await applyDifferenceWithIndex({ source, target, workTree, runGit }, pendingIndex); // throws a reason
 /// ```
-pub fn apply_difference_with_index((source, target, work_tree, run_git): (&SnapshotSource, &Target, &Path, &mut dyn GitRunner), index: Option<&Path>) -> Result<(), String> {
+pub fn apply_difference_with_index(
+    (source, target, work_tree, run_git): (&SnapshotSource, &Target, &Path, &mut dyn GitRunner),
+    index: Option<&Path>,
+) -> Result<(), String> {
     if !target.differs {
         return Ok(());
     }
@@ -608,8 +749,19 @@ pub fn apply_difference_with_index((source, target, work_tree, run_git): (&Snaps
         OsString::from(source.clean.head_commit.as_str()),
         OsString::from(target.commit.as_str()),
     ];
-    let status: GitStatus = run_step(run_git, arguments.as_slice(), checkout_environment_with_index((target.admin.as_path(), work_tree), index).as_slice())?;
-    return if status.succeeded() { Ok(()) } else { Err(format!("`git read-tree -m -u` ended with {:?}", status.code)) };
+    let status: GitStatus = run_step(
+        run_git,
+        arguments.as_slice(),
+        checkout_environment_with_index((target.admin.as_path(), work_tree), index).as_slice(),
+    )?;
+    return if status.succeeded() {
+        Ok(())
+    } else {
+        Err(format!(
+            "`git read-tree -m -u` ended with {:?}",
+            status.code
+        ))
+    };
 }
 
 /// Ladder target controls stay out of the release executable.

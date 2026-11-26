@@ -12,18 +12,45 @@
 //! ```
 
 /// Import the module under test.
-use super::{AttributeSource, CandidateAttributes, parse_text_unset};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use crate::candidate_object::{ObjectId, parse_object_id};
-use std::collections::{HashMap, HashSet};
+use super::{
+    AttributeSource,
+    CandidateAttributes,
+    parse_text_unset,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    remove,
+    repository,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use std::ffi::OsString;
-use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The names asked about,
 /// as owned byte lists.
 fn asked(names: &[&str]) -> Vec<Vec<u8>> {
-    return names.iter().map(|name| { return name.as_bytes().to_vec(); }).collect();
+    return names
+        .iter()
+        .map(|name| {
+            return name.as_bytes().to_vec();
+        })
+        .collect();
 }
 
 /// The failure cause of a parse that must fail.
@@ -112,7 +139,11 @@ fn a_git_that_cannot_be_started_fails_the_lookup() {
     let error: CandidateError = attributes.text_unset(&[b"a"]).expect_err("no Git");
     assert_eq!(error.failure, CandidateFailure::GitNotStarted);
     // The message names the operation and never the candidate's pathname.
-    assert!(error.message.contains("git rev-parse could not be started"), "{}", error.message);
+    assert!(
+        error.message.contains("git rev-parse could not be started"),
+        "{}",
+        error.message
+    );
     assert!(!error.message.contains("\"a\""), "{}", error.message);
 }
 
@@ -145,8 +176,14 @@ fn a_lookup_from_outside_the_worktree_resolves_top_level_paths() {
     std::fs::write(repo.join(".gitattributes"), b"seed/** -text\n").expect("attributes");
     git(repo.as_path(), &["add", ".gitattributes"]);
     let overlay: Vec<(OsString, OsString)> = vec![
-        (OsString::from("GIT_DIR"), repo.join(".git").into_os_string()),
-        (OsString::from("GIT_WORK_TREE"), repo.as_os_str().to_os_string()),
+        (
+            OsString::from("GIT_DIR"),
+            repo.join(".git").into_os_string(),
+        ),
+        (
+            OsString::from("GIT_WORK_TREE"),
+            repo.as_os_str().to_os_string(),
+        ),
     ];
     let attributes: CandidateAttributes = CandidateAttributes::new(
         Path::new(REAL_GIT),

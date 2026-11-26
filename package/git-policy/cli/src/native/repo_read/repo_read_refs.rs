@@ -22,7 +22,10 @@
 #![cfg(unix)]
 
 use crate::private_storage::read_regular_file;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The longest loose ref file or `packed-refs` line this reader looks at.
 ///  Exempt from a citation under `LQM` (class:
@@ -147,7 +150,8 @@ pub fn is_listable_ref_name(name: &str) -> bool {
 ///   `.` and `{` are handled by their own rules in `is_listable_ref_name`,
 /// and the bytes outside printable ASCII are left to Git.
 fn is_reference_name_byte(byte: u8) -> bool {
-    return byte.is_ascii_graphic() && !matches!(byte, b'*' | b':' | b'?' | b'[' | b'\\' | b'^' | b'~');
+    return byte.is_ascii_graphic()
+        && !matches!(byte, b'*' | b':' | b'?' | b'[' | b'\\' | b'^' | b'~');
 }
 
 /// Whether `byte` is a lower-case hexadecimal digit.
@@ -170,21 +174,33 @@ fn is_control_byte(byte: u8) -> bool {
 impl Refs {
     /// Readers for the refs under `directory`,
     /// with object names of `hex_length` digits.
-    pub fn new(directory: &Path, hex_length: usize) -> Refs {
-        return Refs { directory: directory.to_path_buf(), hex_length };
+    pub fn new(
+        directory: &Path,
+        hex_length: usize,
+    ) -> Refs {
+        return Refs {
+            directory: directory.to_path_buf(),
+            hex_length,
+        };
     }
 
     /// Whether `text` is a plain,
     /// non-null,
     /// lower-case object name.
-    fn is_name(&self, text: &str) -> bool {
+    fn is_name(
+        &self,
+        text: &str,
+    ) -> bool {
         return text.len() == self.hex_length
             && text.bytes().all(is_lower_hex_digit)
             && !text.bytes().all(is_zero_digit);
     }
 
     /// The value of a loose file's text.
-    fn parse_loose(&self, text: &str) -> Option<RefValue> {
+    fn parse_loose(
+        &self,
+        text: &str,
+    ) -> Option<RefValue> {
         let line: &str = text.strip_suffix('\n')?;
         if let Some(target) = line.strip_prefix("ref: ") {
             if is_listable_ref_name(target) {
@@ -221,11 +237,12 @@ impl Refs {
     /// countPackedRefs(directory): number | undefined;
     /// ```
     pub fn packed_ref_count(&self) -> Option<usize> {
-        let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
-            Ok(bytes) => bytes,
-            Err(crate::private_storage::ReadRefusal::Missing) => return Some(0),
-            Err(_) => return None,
-        };
+        let bytes: Vec<u8> =
+            match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
+                Ok(bytes) => bytes,
+                Err(crate::private_storage::ReadRefusal::Missing) => return Some(0),
+                Err(_) => return None,
+            };
         let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
         let mut count: usize = 0;
         for (position, line) in text.lines().enumerate() {
@@ -256,12 +273,16 @@ impl Refs {
     /// "ignoring ref with broken name"),
     /// and the reader leaves the reading of such a listing to Git.
     /// A line with a damaged object name still ends the read.
-    fn packed_named(&self, skip_unplain: bool) -> Option<Vec<(String, String)>> {
-        let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
-            Ok(bytes) => bytes,
-            Err(crate::private_storage::ReadRefusal::Missing) => return Some(Vec::new()),
-            Err(_) => return None,
-        };
+    fn packed_named(
+        &self,
+        skip_unplain: bool,
+    ) -> Option<Vec<(String, String)>> {
+        let bytes: Vec<u8> =
+            match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
+                Ok(bytes) => bytes,
+                Err(crate::private_storage::ReadRefusal::Missing) => return Some(Vec::new()),
+                Err(_) => return None,
+            };
         let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
         let mut packed: Vec<(String, String)> = Vec::new();
         // A peeled line (`^<name>`) is valid only directly after a ref line.
@@ -298,14 +319,20 @@ impl Refs {
 
     /// What the `HEAD` file of `git_dir` holds,
     /// when it is a plain symbolic or direct spelling.
-    pub fn lookup_head(&self, git_dir: &Path) -> Option<RefValue> {
+    pub fn lookup_head(
+        &self,
+        git_dir: &Path,
+    ) -> Option<RefValue> {
         let bytes: Vec<u8> = read_regular_file(git_dir.join("HEAD").as_path(), LOOSE_LIMIT).ok()?;
         return self.parse_loose(std::str::from_utf8(bytes.as_slice()).ok()?);
     }
 
     /// What ref `name` holds,
     /// loose first.
-    pub fn lookup(&self, name: &str) -> Lookup {
+    pub fn lookup(
+        &self,
+        name: &str,
+    ) -> Lookup {
         if !is_listable_ref_name(name) {
             return Lookup::Unsure;
         }
@@ -326,7 +353,11 @@ impl Refs {
             Ok(metadata) if metadata.is_dir() => {}
             Ok(_) => return Lookup::Unsure,
             // A file where a directory is expected (`refs/heads/a` as a file, asked for `refs/heads/a/b`) is absence.
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ) => {}
             Err(_) => return Lookup::Unsure,
         }
         let Some(packed) = self.packed_named(true) else {
@@ -342,7 +373,10 @@ impl Refs {
 
     /// The object name `name` resolves to through symbolic refs;
     /// `None` when it is missing or unsure.
-    pub fn resolve(&self, name: &str) -> Option<String> {
+    pub fn resolve(
+        &self,
+        name: &str,
+    ) -> Option<String> {
         let mut current: String = name.to_string();
         for _ in 0..SYMBOLIC_DEPTH_LIMIT {
             match self.lookup(current.as_str()) {
@@ -359,7 +393,8 @@ impl Refs {
     /// loose over packed;
     /// `None` when a name is one Git refuses or one this reader keeps declining on.
     pub fn list(&self) -> Option<Vec<(String, RefValue)>> {
-        let mut found: std::collections::BTreeMap<String, RefValue> = std::collections::BTreeMap::new();
+        let mut found: std::collections::BTreeMap<String, RefValue> =
+            std::collections::BTreeMap::new();
         for (name, object) in self.packed()? {
             found.insert(name, RefValue::Direct(object));
         }
@@ -385,11 +420,15 @@ impl Refs {
     /// ```ts
     /// looseNamespace('refs/bisect'): [name, value][] | undefined;
     /// ```
-    pub fn loose_namespace(&self, namespace: &str) -> Option<Vec<(String, RefValue)>> {
+    pub fn loose_namespace(
+        &self,
+        namespace: &str,
+    ) -> Option<Vec<(String, RefValue)>> {
         if !namespace.starts_with("refs/") {
             return None;
         }
-        let mut found: std::collections::BTreeMap<String, RefValue> = std::collections::BTreeMap::new();
+        let mut found: std::collections::BTreeMap<String, RefValue> =
+            std::collections::BTreeMap::new();
         self.walk(namespace, &mut found)?;
         return Some(found.into_iter().collect());
     }
@@ -405,7 +444,11 @@ impl Refs {
     /// ```ts
     /// walk(start, found): boolean;
     /// ```
-    fn walk(&self, start: &str, found: &mut std::collections::BTreeMap<String, RefValue>) -> Option<()> {
+    fn walk(
+        &self,
+        start: &str,
+        found: &mut std::collections::BTreeMap<String, RefValue>,
+    ) -> Option<()> {
         let mut pending: Vec<String> = vec![start.to_string()];
         while let Some(directory) = pending.pop() {
             let listing = match std::fs::read_dir(self.directory.join(&directory)) {

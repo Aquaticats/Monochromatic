@@ -17,6 +17,19 @@
 //! // const outcome = checkLinkedWorktree({ facts, forwarded, allowedDirs, limits, notices });
 //! ```
 
+/// The abort and skip carve-out:
+/// the operation's own state is what the command lets go,
+/// and the person's own work is what it may not.
+use crate::abort_discard_guard::{
+    AbortVerdict,
+    judge_abort_discard,
+};
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
+use crate::abort_recheck::{
+    AbortRecheckPlan,
+    plan_the_second_look,
+};
 /// What:
 ///  `use` brings names from sibling files into this file;
 ///  `super::` means "the parent
@@ -29,74 +42,105 @@
 /// ```ts
 /// import { dirtyQuestion, targetTree } from '../command/rule_linked_worktree.ts';
 /// ```
-use crate::command_clean::{clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, paths_only_the_exclusions_add};
+use crate::command_clean::{
+    clean_dry_run_arguments,
+    clean_dry_run_arguments_without_exclusions,
+    paths_only_the_exclusions_add,
+};
+/// The conflicted files a `checkout` or `restore` would replace,
+///  read before the command is refused.
+use crate::conflict_side_guard::{
+    SideVerdict,
+    judge_conflict_sides,
+};
+/// The record of every decision.
+use crate::discard_audit::{
+    AuditOutcome,
+    record_audit,
+    record_audit_with_facts,
+};
+/// The named facts a record of an exemption carries.
+use crate::discard_audit_facts::AuditFact;
+/// The limits of the folder of saved copies of conflicted files.
+use crate::discarded_prune::Limits;
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
 use crate::effective_target::{
-    EffectiveTarget, ToolCacheDirectory, classify_effective_target,
+    EffectiveTarget,
+    ToolCacheDirectory,
+    classify_effective_target,
     matching_allowed_worktree_dir_for_repository,
 };
+/// The tokens after the subcommand word.
+use crate::global_arguments::command_tokens;
 /// The guarded decision about the command Git will run,
 /// alias expansion included.
 use crate::guarded_forwarded_command::GuardedForwarded;
-/// The named facts a record of an exemption carries.
-use crate::discard_audit_facts::AuditFact;
-/// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_facts};
-/// The limits of the folder of saved copies of conflicted files.
-use crate::discarded_prune::Limits;
-/// The conflicted files a `checkout` or `restore` would replace,
-///  read before the command is refused.
-use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
-/// The rejection text that names every conflicted file the command would replace.
-use crate::rule_linked_worktree_messages::conflicted_files_message;
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
-/// The abort and skip carve-out:
-/// the operation's own state is what the command lets go,
-/// and the person's own work is what it may not.
-use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
-/// The second measurement of an abort or a skip,
-/// owed immediately before Git starts.
-use crate::abort_recheck::{AbortRecheckPlan, plan_the_second_look};
-/// What a guarded form does to the operation it finds waiting.
-use crate::rule_abort_operation::ended_operation;
+use crate::policy_checks::{
+    clean,
+    fact_unavailable,
+    rejected,
+};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
-/// The facts interface every check asks.
-use crate::repository_facts::RepositoryFacts;
-/// Where a command runs.
-use crate::repository_location::RepositoryLocation;
-use crate::policy_checks::{fact_unavailable, clean, rejected};
-/// The linked-worktree rule core.
-use crate::rule_linked_worktree::{
-    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, TargetTree,
-    dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
-    repository_stash_message, resolve_linked_worktree, target_tree,
-};
-/// Whether a `git remote` or `git config` command writes the settings every worktree shares.
-use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
-/// The text that refusal prints.
-use crate::rule_shared_remote_messages::shared_remote_settings_message;
-/// Whether a Git directory has no index file yet.
-use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
-use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form};
-/// The common Git directory,
-///  for naming the file every worktree shares.
-use crate::worktree_identity::common_directory;
+use crate::policy_linked_worktree_nested_repositories::{
+    AllowedForm,
+    allow_a_discarding_form,
+};
+/// The facts interface every check asks.
+use crate::repository_facts::RepositoryFacts;
 /// The path with every link resolved as far as it exists,
 ///  for comparing two spellings of one file,
 ///  and the directory a command runs in,
 ///  which `--work-tree` does not move.
-use crate::repository_link_paths::{chain_directory, resolve_as_far_as_it_exists};
-/// The tokens after the subcommand word.
-use crate::global_arguments::command_tokens;
+use crate::repository_link_paths::{
+    chain_directory,
+    resolve_as_far_as_it_exists,
+};
+/// Where a command runs.
+use crate::repository_location::RepositoryLocation;
+/// What a guarded form does to the operation it finds waiting.
+use crate::rule_abort_operation::ended_operation;
+/// The linked-worktree rule core.
+use crate::rule_linked_worktree::{
+    DirtyQuestion,
+    GuardedCommand,
+    LINKED_WORKTREE_REQUIRED_CODE,
+    LinkedWorktreeDecision,
+    TargetTree,
+    dirty_question,
+    dirty_worktree_message,
+    exemption_notice,
+    ignored_file_message,
+    repository_stash_message,
+    resolve_linked_worktree,
+    target_tree,
+};
+/// The rejection text that names every conflicted file the command would replace.
+use crate::rule_linked_worktree_messages::conflicted_files_message;
+/// Whether a `git remote` or `git config` command writes the settings every worktree shares.
+use crate::rule_shared_remote::{
+    SHARED_REMOTE_SETTINGS_CODE,
+    SharedRemoteChange,
+};
+/// The text that refusal prints.
+use crate::rule_shared_remote_messages::shared_remote_settings_message;
+/// Whether a Git directory has no index file yet.
+use crate::rule_worktree_dirty::index_file_is_absent;
+/// The common Git directory,
+///  for naming the file every worktree shares.
+use crate::worktree_identity::common_directory;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The directory a command of the caller's own runs in,
@@ -120,7 +164,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const commandDirectory = (globalPrefix) => chainDirectory(process.cwd(), globalPrefix);
 /// ```
-fn command_directory(global_prefix: &[OsString], start: Option<&Path>) -> Result<PathBuf, String> {
+fn command_directory(
+    global_prefix: &[OsString],
+    start: Option<&Path>,
+) -> Result<PathBuf, String> {
     // The caller's own directory, which no option changes: Git moves it only for `-C`.
     let Some(cwd) = start else {
         return Err(String::from(
@@ -151,13 +198,18 @@ fn command_directory(global_prefix: &[OsString], start: Option<&Path>) -> Result
 /// ```ts
 /// const namesTheSharedFile = (named, directory, shared) => resolve(named.startsWith('/') ? named : join(directory, named)) === resolve(shared);
 /// ```
-fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> bool {
+fn names_the_shared_file(
+    named: &Path,
+    directory: &Path,
+    shared_file: &Path,
+) -> bool {
     let spelled: PathBuf = if named.is_absolute() {
         named.to_path_buf()
     } else {
         directory.join(named)
     };
-    return resolve_as_far_as_it_exists(spelled.as_path()) == resolve_as_far_as_it_exists(shared_file);
+    return resolve_as_far_as_it_exists(spelled.as_path())
+        == resolve_as_far_as_it_exists(shared_file);
 }
 
 /// What:
@@ -223,10 +275,13 @@ fn refuse_shared_remote_settings(
         //  while every other command starts where the caller's `-C` chain ends.
         let directory: PathBuf = match shell_directory {
             Some(found) => found.to_path_buf(),
-            None => match command_directory(facts.transaction_context().global_prefix.as_slice(), start) {
-                Ok(found) => found,
-                Err(message) => return fact_unavailable(message),
-            },
+            None => {
+                match command_directory(facts.transaction_context().global_prefix.as_slice(), start)
+                {
+                    Ok(found) => found,
+                    Err(message) => return fact_unavailable(message),
+                }
+            }
         };
         if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
             return clean();
@@ -238,7 +293,11 @@ fn refuse_shared_remote_settings(
     };
     return rejected(
         SHARED_REMOTE_SETTINGS_CODE,
-        shared_remote_settings_message(&change.setting, shared_file.as_path(), main_checkout.as_path()),
+        shared_remote_settings_message(
+            &change.setting,
+            shared_file.as_path(),
+            main_checkout.as_path(),
+        ),
     );
 }
 
@@ -297,11 +356,15 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
     }
     // The same clean without them deletes what the worktree itself ignores; both answers name a path the same way,
     //  so they are compared as Git printed them.
-    let Some(without_patterns) = clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region) else {
+    let Some(without_patterns) =
+        clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region)
+    else {
         return Ok(true);
     };
     let otherwise_deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(without_patterns)?;
-    return Ok(!paths_only_the_exclusions_add(deleted.as_slice(), otherwise_deleted.as_slice()).is_empty());
+    return Ok(
+        !paths_only_the_exclusions_add(deleted.as_slice(), otherwise_deleted.as_slice()).is_empty(),
+    );
 }
 
 /// What:
@@ -365,12 +428,32 @@ pub(crate) fn check_linked_worktree(
     // A checkout or a restore that writes a worktree file would replace the resolution of a conflict, which exists
     // nowhere else, so the command is refused and the refusal names every such file. No copy is kept: the person who
     // means to replace that work passes `--no-enforce-worktree` and the command then runs exactly as real Git runs it.
-    if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
-        && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree | EffectiveTarget::Allowlisted)
-        && let SideVerdict::WouldReplace { operation, paths } = judge_conflict_sides(&facts.transaction_context(), seen)
+    if matches!(
+        command,
+        GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree
+    ) && matches!(
+        target,
+        EffectiveTarget::MainWorktree
+            | EffectiveTarget::LinkedWorktree
+            | EffectiveTarget::Allowlisted
+    ) && let SideVerdict::WouldReplace {
+        operation,
+        paths,
+    } = judge_conflict_sides(&facts.transaction_context(), seen)
     {
-        record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
-        let message: String = conflicted_files_message(command, operation, target == EffectiveTarget::MainWorktree, paths.as_slice());
+        record_audit(
+            &location.identity,
+            command,
+            AuditOutcome::Rejected,
+            seen,
+            None,
+        );
+        let message: String = conflicted_files_message(
+            command,
+            operation,
+            target == EffectiveTarget::MainWorktree,
+            paths.as_slice(),
+        );
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
     }
     if moves_head_only {
@@ -383,7 +466,13 @@ pub(crate) fn check_linked_worktree(
     {
         // Every abort and every skip is decided by the carve-out below, in the main worktree as in a linked one:
         //  the same reading answers both, and only the work it finds decides the command.
-        record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+        record_audit(
+            &location.identity,
+            command,
+            AuditOutcome::Rejected,
+            seen,
+            None,
+        );
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
     }
     if target == EffectiveTarget::Allowlisted {
@@ -398,7 +487,14 @@ pub(crate) fn check_linked_worktree(
             why.push(AuditFact::Text("exemptedBy", found.named_by.to_string()));
             notices.push(exemption_notice(found.named_by, found.path.as_path()));
         }
-        record_audit_with_facts(&location.identity, command, AuditOutcome::Exempt, seen, None, why.as_slice());
+        record_audit_with_facts(
+            &location.identity,
+            command,
+            AuditOutcome::Exempt,
+            seen,
+            None,
+            why.as_slice(),
+        );
         return clean();
     }
     // A merge, a rebase, a cherry-pick, a revert or an `am` that waits for its conflicts is undone by its own abort,
@@ -409,7 +505,13 @@ pub(crate) fn check_linked_worktree(
         AbortVerdict::NotApplicable => {}
         AbortVerdict::LeftToGit => {
             // The command discards nothing this policy knows of, so it runs, and the line says the guard left it alone.
-            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            record_audit(
+                &location.identity,
+                command,
+                AuditOutcome::Allowed,
+                seen,
+                None,
+            );
             return clean();
         }
         AbortVerdict::Allowed => {
@@ -421,18 +523,41 @@ pub(crate) fn check_linked_worktree(
                 identity: location.identity.clone(),
                 seen: seen.to_vec(),
             });
-            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            record_audit(
+                &location.identity,
+                command,
+                AuditOutcome::Allowed,
+                seen,
+                None,
+            );
             return clean();
         }
         AbortVerdict::Refused(message) => {
-            record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+            record_audit(
+                &location.identity,
+                command,
+                AuditOutcome::Rejected,
+                seen,
+                None,
+            );
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
         }
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
     // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
-    if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
-        record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
+    if moves_head_only
+        && index_file_is_absent(
+            facts.known_git_dir().as_deref(),
+            std::env::var_os("GIT_INDEX_FILE").as_deref(),
+        )
+    {
+        record_audit(
+            &location.identity,
+            command,
+            AuditOutcome::Allowed,
+            seen,
+            Some(false),
+        );
         return clean();
     }
     // The tokens after the subcommand, read once: which tree a forced form writes and which question a clean asks
@@ -461,18 +586,29 @@ pub(crate) fn check_linked_worktree(
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
     //  nothing about it and the repository's own stash is asked instead.
     let (measured, rejection): (Result<bool, String>, String) = match question {
-        DirtyQuestion::Worktree(scope) => (facts.worktree_dirty(scope), dirty_worktree_message(command)),
+        DirtyQuestion::Worktree(scope) => {
+            (facts.worktree_dirty(scope), dirty_worktree_message(command))
+        }
         // A clean that names its own exclusions is measured by what Git would delete only because of them, which is
         //  the one reading that applies those patterns.
         DirtyQuestion::CleanDryRun => (
             clean_deletes_a_path_only_its_exclusions_ignore(facts, region),
             dirty_worktree_message(command),
         ),
-        DirtyQuestion::RepositoryStash => (facts.repository_holds_a_stash(), repository_stash_message(command)),
+        DirtyQuestion::RepositoryStash => (
+            facts.repository_holds_a_stash(),
+            repository_stash_message(command),
+        ),
     };
     match measured {
         Ok(true) => {
-            record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
+            record_audit(
+                &location.identity,
+                command,
+                AuditOutcome::Rejected,
+                seen,
+                Some(true),
+            );
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, rejection);
         }
         Ok(false) => {
@@ -481,12 +617,14 @@ pub(crate) fn check_linked_worktree(
             //  keeps their environment and their local secrets. The rejected form is not confirmed clean: a tree that
             //  cannot be read leaves the command unread, never allowed.
             if let Some(written) = tree.as_ref() {
-                let shared: Vec<String> = match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
-                    Ok(found) => found,
-                    Err(message) => return fact_unavailable(message),
-                };
+                let shared: Vec<String> =
+                    match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
+                        Ok(found) => found,
+                        Err(message) => return fact_unavailable(message),
+                    };
                 if !shared.is_empty() {
-                    let why: Vec<AuditFact> = vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
+                    let why: Vec<AuditFact> =
+                        vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
                     record_audit_with_facts(
                         &location.identity,
                         command,
@@ -497,7 +635,11 @@ pub(crate) fn check_linked_worktree(
                     );
                     return rejected(
                         LINKED_WORKTREE_REQUIRED_CODE,
-                        ignored_file_message(command, written.revision.as_deref(), shared.as_slice()),
+                        ignored_file_message(
+                            command,
+                            written.revision.as_deref(),
+                            shared.as_slice(),
+                        ),
                     );
                 }
             }

@@ -15,7 +15,10 @@
 /// The decision under test,
 ///  its result type and the shared argument builder.
 use super::atomic_push;
-use crate::command_options::{OptionError, OptionErrorKind};
+use crate::command_options::{
+    OptionError,
+    OptionErrorKind,
+};
 use crate::command_test_support::os_arguments;
 use crate::rule_argument_rewrite::ArgumentRewrite;
 

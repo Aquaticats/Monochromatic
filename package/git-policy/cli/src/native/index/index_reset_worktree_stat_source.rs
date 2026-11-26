@@ -35,7 +35,12 @@ pub trait WorktreeStatSource {
     /// The stat data the file at `path` provably has,
     /// for the entry `mode` records the bytes of `blob`,
     /// or nothing when the file proves nothing.
-    fn recorded(&self, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData>;
+    fn recorded(
+        &self,
+        path: &[u8],
+        blob: &[u8],
+        mode: u32,
+    ) -> Option<StatData>;
 }
 
 /// What:

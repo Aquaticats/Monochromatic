@@ -17,22 +17,58 @@
 //!  to start the socket,
 //! as the manager's socket activation would.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::service_commit::{Running, start_in, start_in_release};
-use super::support::{Fixture, fixture, git, repository};
-use git_policy_cli::service_journal::DONE_EXTENSION;
-use git_policy_cli::service_messages::{LINGER_COMMAND, UPDATING_NOTICE};
-use git_policy_cli::service_provision::{
-    LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, OWN_MARKERS, SERVICE_UNIT_NAME, SOCKET_UNIT_NAME,
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
 };
-use git_policy_cli::service_instance::{LEGACY_SOCKET_RELATIVE, program_link, socket_for};
+use super::service_commit::{
+    Running,
+    start_in,
+    start_in_release,
+};
+use super::support::{
+    Fixture,
+    fixture,
+    git,
+    repository,
+};
+use git_policy_cli::service_instance::{
+    LEGACY_SOCKET_RELATIVE,
+    program_link,
+    socket_for,
+};
+use git_policy_cli::service_journal::DONE_EXTENSION;
+use git_policy_cli::service_messages::{
+    LINGER_COMMAND,
+    UPDATING_NOTICE,
+};
+use git_policy_cli::service_provision::{
+    LEGACY_SERVICE_UNIT_NAME,
+    LEGACY_SOCKET_UNIT_NAME,
+    OWN_MARKERS,
+    SERVICE_UNIT_NAME,
+    SOCKET_UNIT_NAME,
+};
 use std::ffi::OsStr;
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 use std::os::unix::net::UnixListener;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 pub(super) const PATIENCE: Duration = Duration::from_secs(60);
 
@@ -45,18 +81,30 @@ pub(super) fn prepared(name: &str) -> (Fixture, PathBuf, PathBuf) {
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
     let runtime: PathBuf = super::service_commit::runtime_for(name);
     std::fs::create_dir_all(&runtime).expect("runtime directory");
     return (fixture, repo, runtime);
 }
 
-pub(super) fn commit(fixture: &Fixture, repo: &Path, runtime: &Path, bus: bool) -> Output {
+pub(super) fn commit(
+    fixture: &Fixture,
+    repo: &Path,
+    runtime: &Path,
+    bus: bool,
+) -> Output {
     let mut command = wrapped_commit(fixture, repo, &["commit", "-m", "subject", "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime);
     if bus {
-        command.env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", runtime.join("bus").display()));
+        command.env(
+            "DBUS_SESSION_BUS_ADDRESS",
+            format!("unix:path={}", runtime.join("bus").display()),
+        );
     }
     return command.output().expect("the wrapped commit runs");
 }
@@ -65,16 +113,28 @@ pub(super) fn finished_batches(fixture: &Fixture) -> usize {
     return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
         return entries
             .flatten()
-            .filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == DONE_EXTENSION; }); })
+            .filter(|entry| {
+                return entry.path().extension().is_some_and(|extension| {
+                    return extension == DONE_EXTENSION;
+                });
+            })
             .count();
     });
 }
 
-pub(super) fn subject(fixture: &Fixture, repo: &Path) -> String {
-    return git_text(fixture, repo, &["log", "-1", "--format=%s"]).trim_end().to_string();
+pub(super) fn subject(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
+    return git_text(fixture, repo, &["log", "-1", "--format=%s"])
+        .trim_end()
+        .to_string();
 }
 
-pub(super) fn finish(fixture: &Fixture, runtime: &Path) {
+pub(super) fn finish(
+    fixture: &Fixture,
+    runtime: &Path,
+) {
     let _removed = std::fs::remove_dir_all(runtime);
     remove_settled(fixture);
 }
@@ -92,7 +152,11 @@ fn return_for(serial: u32) -> Vec<u8> {
 
 /// A method return with a signature and a body,
 /// naming the call it answers.
-fn return_with(serial: u32, signature: &str, body: &[u8]) -> Vec<u8> {
+fn return_with(
+    serial: u32,
+    signature: &str,
+    body: &[u8],
+) -> Vec<u8> {
     let mut fields: Vec<u8> = vec![5, 1, b'u', 0];
     fields.extend(serial.to_le_bytes());
     while fields.len() % 8 != 0 {
@@ -117,7 +181,10 @@ fn return_with(serial: u32, signature: &str, body: &[u8]) -> Vec<u8> {
 /// the connection's unique name.
 fn unique_name_return(serial: u32) -> Vec<u8> {
     let name: &str = ":1.42";
-    let mut body: Vec<u8> = u32::try_from(name.len()).expect("short").to_le_bytes().to_vec();
+    let mut body: Vec<u8> = u32::try_from(name.len())
+        .expect("short")
+        .to_le_bytes()
+        .to_vec();
     body.extend(name.as_bytes());
     body.push(0);
     return return_with(serial, "s", &body);
@@ -165,7 +232,10 @@ fn no_such_unit(serial: u32) -> Vec<u8> {
 /// whichever unit was asked for.
 fn unit_path_return(serial: u32) -> Vec<u8> {
     let path: &str = "/org/freedesktop/systemd1/unit/stand_2din";
-    let mut body: Vec<u8> = u32::try_from(path.len()).expect("short").to_le_bytes().to_vec();
+    let mut body: Vec<u8> = u32::try_from(path.len())
+        .expect("short")
+        .to_le_bytes()
+        .to_vec();
     body.extend(path.as_bytes());
     body.push(0);
     return return_with(serial, "o", &body);
@@ -232,7 +302,8 @@ fn serve_connection(
             return asked;
         }
         let body: usize = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
-        let fields: usize = u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
+        let fields: usize =
+            u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
         let serial: u32 = u32::from_le_bytes([header[8], header[9], header[10], header[11]]);
         let mut rest: Vec<u8> = vec![0; (16 + fields).div_ceil(8) * 8 + body - 16];
         if stream.read_exact(&mut rest).is_err() {
@@ -240,14 +311,27 @@ fn serve_connection(
         }
         header.extend(rest);
         // `GetUnit` comes before `Get`: the first name found is the member, and the longer one contains the shorter.
-        let member: &str = ["Hello", "ResetFailedUnit", "StartUnit", "StopUnit", "GetUnit", "Get"]
-            .into_iter()
-            .find(|name| { return header.windows(name.len()).any(|window| { return window == name.as_bytes(); }); })
-            .unwrap_or("Unknown");
+        let member: &str = [
+            "Hello",
+            "ResetFailedUnit",
+            "StartUnit",
+            "StopUnit",
+            "GetUnit",
+            "Get",
+        ]
+        .into_iter()
+        .find(|name| {
+            return header.windows(name.len()).any(|window| {
+                return window == name.as_bytes();
+            });
+        })
+        .unwrap_or("Unknown");
         asked.push(member.to_string());
         // The unit a call names, for the calls that name one: the first argument is the unit's name.
         let named: Option<String> = match member {
-            "GetUnit" | "StopUnit" | "StartUnit" | "ResetFailedUnit" => unit_named_in(&header[(16 + fields).div_ceil(8) * 8..]),
+            "GetUnit" | "StopUnit" | "StartUnit" | "ResetFailedUnit" => {
+                unit_named_in(&header[(16 + fields).div_ceil(8) * 8..])
+            }
             _ => None,
         };
         if member == "StartUnit"
@@ -264,7 +348,11 @@ fn serve_connection(
                     let _held = held.insert(name.clone());
                 }
                 "StopUnit" => {
-                    for counterpart in [name.clone(), name.replace(".socket", ".service"), name.replace(".service", ".socket")] {
+                    for counterpart in [
+                        name.clone(),
+                        name.replace(".socket", ".service"),
+                        name.replace(".service", ".socket"),
+                    ] {
                         let _dropped = held.remove(&counterpart);
                     }
                 }
@@ -274,10 +362,22 @@ fn serve_connection(
         let answer: Vec<u8> = match member {
             // `zbus` reads the unique name that `Hello` returns, so the reply to it carries one.
             "Hello" => unique_name_return(serial),
-            "GetUnit" if named.as_ref().is_some_and(|name| { return held.contains(name); }) => unit_path_return(serial),
+            "GetUnit"
+                if named.as_ref().is_some_and(|name| {
+                    return held.contains(name);
+                }) =>
+            {
+                unit_path_return(serial)
+            }
             "GetUnit" => no_such_unit(serial),
             // The property the wrapper reads decides the answer: where the unit listens, or the state it is in.
-            "Get" if header.windows(6).any(|window| { return window == b"Listen"; }) => addresses_return(serial, listens),
+            "Get"
+                if header.windows(6).any(|window| {
+                    return window == b"Listen";
+                }) =>
+            {
+                addresses_return(serial, listens)
+            }
             "Get" => inactive_state_return(serial),
             _ => return_for(serial),
         };
@@ -295,21 +395,40 @@ fn serve_connection(
 /// The starter
 ///  runs at the first start of a unit,
 /// as the manager's socket activation would.
-pub(super) fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn Fn() + Send>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
+pub(super) fn fake_bus_many(
+    runtime: &Path,
+    refuse: bool,
+    connections: usize,
+    starter: Box<dyn Fn() + Send>,
+) -> std::thread::JoinHandle<Vec<Vec<String>>> {
     return fake_bus_many_answering(runtime, refuse, connections, starter, Vec::new());
 }
 
 /// `fake_bus_many` whose manager also says where a unit listens,
 /// which a manager that made the unit's address answers.
-pub(super) fn fake_bus_many_answering(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn Fn() + Send>, listens: Vec<String>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
+pub(super) fn fake_bus_many_answering(
+    runtime: &Path,
+    refuse: bool,
+    connections: usize,
+    starter: Box<dyn Fn() + Send>,
+    listens: Vec<String>,
+) -> std::thread::JoinHandle<Vec<Vec<String>>> {
     let listener: UnixListener = UnixListener::bind(runtime.join("bus")).expect("the bus socket");
     return std::thread::spawn(move || {
         let on_start: Option<Box<dyn Fn() + Send>> = Some(starter);
         let mut held: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut all: Vec<Vec<String>> = Vec::new();
         for _ in 0..connections {
-            let Ok((stream, _)) = listener.accept() else { return all };
-            all.push(serve_connection(stream, refuse, &on_start, listens.as_slice(), &mut held));
+            let Ok((stream, _)) = listener.accept() else {
+                return all;
+            };
+            all.push(serve_connection(
+                stream,
+                refuse,
+                &on_start,
+                listens.as_slice(),
+                &mut held,
+            ));
         }
         return all;
     });
@@ -317,13 +436,22 @@ pub(super) fn fake_bus_many_answering(runtime: &Path, refuse: bool, connections:
 
 /// A stand-in for the session bus for one wrapper connection:
 /// the methods it was asked for.
-pub(super) fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn Fn() + Send>) -> std::thread::JoinHandle<Vec<String>> {
+pub(super) fn fake_bus(
+    runtime: &Path,
+    refuse: bool,
+    starter: Box<dyn Fn() + Send>,
+) -> std::thread::JoinHandle<Vec<String>> {
     let many = fake_bus_many(runtime, refuse, 1, starter);
-    return std::thread::spawn(move || { return many.join().expect("bus").into_iter().flatten().collect(); });
+    return std::thread::spawn(move || {
+        return many.join().expect("bus").into_iter().flatten().collect();
+    });
 }
 
 /// A method return whose body is a variant holding a list of address pairs (`a(ss)`).
-fn addresses_return(serial: u32, addresses: &[String]) -> Vec<u8> {
+fn addresses_return(
+    serial: u32,
+    addresses: &[String],
+) -> Vec<u8> {
     // Each pair starts on an eight-byte boundary; each string in it on a four-byte one.
     let mut entries: Vec<u8> = Vec::new();
     for address in addresses {
@@ -354,7 +482,11 @@ fn addresses_return(serial: u32, addresses: &[String]) -> Vec<u8> {
 /// Starts the real service at the socket the wrapper looks for,
 /// the way socket activation would,
 /// and keeps it alive.
-pub(super) fn activation(fixture_root: PathBuf, runtime: PathBuf, keep: Arc<Mutex<Vec<Running>>>) -> Box<dyn Fn() + Send> {
+pub(super) fn activation(
+    fixture_root: PathBuf,
+    runtime: PathBuf,
+    keep: Arc<Mutex<Vec<Running>>>,
+) -> Box<dyn Fn() + Send> {
     return Box::new(move || {
         // What: What the manager does with a start of this instance: the unit that ran before it is gone, and then the
         //       program the unit file names runs.
@@ -376,7 +508,11 @@ fn an_existing_socket_is_used_with_no_bus() {
     let (fixture, repo, runtime) = prepared("provision-socket");
     let service: Running = start_in(fixture.root.as_path(), runtime.as_path());
     let output: Output = commit(&fixture, &repo, runtime.as_path(), false);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(finished_batches(&fixture), 1, "the service landed it");
     assert!(!runtime.join("systemd").exists(), "no unit was written");
     drop(service);
@@ -394,30 +530,66 @@ fn an_existing_socket_is_used_with_no_bus() {
 fn the_first_commit_provisions_and_the_second_does_not() {
     let (fixture, repo, runtime) = prepared("provision-first");
     let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
-    let bus = fake_bus(runtime.as_path(), false, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let bus = fake_bus(
+        runtime.as_path(),
+        false,
+        activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)),
+    );
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(finished_batches(&fixture), 1, "the service landed it");
     let units: PathBuf = runtime.join("systemd/user");
-    let socket_unit: String = std::fs::read_to_string(units.join(SOCKET_UNIT_NAME)).expect("socket unit");
-    let service_unit: String = std::fs::read_to_string(units.join(SERVICE_UNIT_NAME)).expect("service unit");
+    let socket_unit: String =
+        std::fs::read_to_string(units.join(SOCKET_UNIT_NAME)).expect("socket unit");
+    let service_unit: String =
+        std::fs::read_to_string(units.join(SERVICE_UNIT_NAME)).expect("service unit");
     for text in [&socket_unit, &service_unit] {
-        assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "the marker names the writer");
-        assert!(!text.contains("@SERVICE_BINARY@") && !text.contains("@GIT@"), "no placeholder is left");
+        assert!(
+            OWN_MARKERS.iter().any(|marker| {
+                return text.contains(marker);
+            }),
+            "the marker names the writer"
+        );
+        assert!(
+            !text.contains("@SERVICE_BINARY@") && !text.contains("@GIT@"),
+            "no placeholder is left"
+        );
     }
-    let instance: String = git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
+    let instance: String =
+        git_policy_cli::service_instance::instance_of(repo.join(".git").as_path());
     assert!(
-        socket_unit.contains(&format!("ListenStream={}", git_policy_cli::service_address_of_a_worktree::listen_stream_of(runtime.as_path(), instance.as_str()))),
+        socket_unit.contains(&format!(
+            "ListenStream={}",
+            git_policy_cli::service_address_of_a_worktree::listen_stream_of(
+                runtime.as_path(),
+                instance.as_str()
+            )
+        )),
         "one socket per worktree instance, at the address this runtime directory takes: {socket_unit}"
     );
     // The service runs the per-user link, never the release's own path, which is what keeps an upgrade from changing the text
     //  the manager holds.
     let link: PathBuf = program_link(runtime.as_path());
-    assert!(service_unit.contains(&link.display().to_string()), "{service_unit}");
-    assert_eq!(std::fs::read_link(&link).expect("the program link"), fixture.root.join("wrapper/monochromatic-git-policy-cli"), "and the link names this release");
+    assert!(
+        service_unit.contains(&link.display().to_string()),
+        "{service_unit}"
+    );
+    assert_eq!(
+        std::fs::read_link(&link).expect("the program link"),
+        fixture.root.join("wrapper/monochromatic-git-policy-cli"),
+        "and the link names this release"
+    );
     std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
     let second: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
     assert_eq!(finished_batches(&fixture), 2);
     drop(second);
     // What the stand-in's single connection saw, in order:
@@ -428,7 +600,20 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     //  one start (a new unit file needs no manager-wide operation);
     //  the same listening question again, this time answered with the address the manager made;
     //  and the two questions about the earlier release's units of the worktree (its service and its socket).
-    assert_eq!(bus.join().expect("bus"), vec!["Hello", "GetUnit", "GetUnit", "GetUnit", "StartUnit", "GetUnit", "Get", "GetUnit", "GetUnit"]);
+    assert_eq!(
+        bus.join().expect("bus"),
+        vec![
+            "Hello",
+            "GetUnit",
+            "GetUnit",
+            "GetUnit",
+            "StartUnit",
+            "GetUnit",
+            "Get",
+            "GetUnit",
+            "GetUnit"
+        ]
+    );
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
@@ -466,31 +651,86 @@ fn point_unit_at_removed_program(runtime: &Path) {
 fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     let (fixture, repo, runtime) = prepared("provision-heal");
     let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
-    let bus = fake_bus_many(runtime.as_path(), false, 2, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let bus = fake_bus_many(
+        runtime.as_path(),
+        false,
+        2,
+        activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)),
+    );
     let first: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
     point_unit_at_removed_program(runtime.as_path());
     std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
     let second: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
-    assert_eq!(finished_batches(&fixture), 2, "both commits landed through the service");
-    let unit: String = std::fs::read_to_string(runtime.join("systemd/user").join(SERVICE_UNIT_NAME)).expect("service unit");
-    assert!(!unit.contains(REMOVED_PROGRAM), "the unit names the link and not the program an upgrade removed: {unit}");
-    assert!(unit.contains(&program_link(runtime.as_path()).display().to_string()), "{unit}");
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    assert_eq!(
+        finished_batches(&fixture),
+        2,
+        "both commits landed through the service"
+    );
+    let unit: String =
+        std::fs::read_to_string(runtime.join("systemd/user").join(SERVICE_UNIT_NAME))
+            .expect("service unit");
+    assert!(
+        !unit.contains(REMOVED_PROGRAM),
+        "the unit names the link and not the program an upgrade removed: {unit}"
+    );
+    assert!(
+        unit.contains(&program_link(runtime.as_path()).display().to_string()),
+        "{unit}"
+    );
     // What the stand-in saw: no operation of the manager whose cost grows with the units it holds, and the two commits'
     //  calls in the order they must come in.
     let calls: Vec<Vec<String>> = bus.join().expect("bus");
     assert!(
-        !calls.iter().flatten().any(|call| { return call == "Reload"; }),
+        !calls.iter().flatten().any(|call| {
+            return call == "Reload";
+        }),
         "no command makes the manager read every unit it holds: {calls:?}"
     );
     let second_calls: &Vec<String> = calls.get(1).expect("the second commit asked the bus");
-    let stopped: usize = second_calls.iter().position(|call| { return call == "StopUnit"; }).expect("the worktree's units are dropped");
-    let started: usize = second_calls.iter().position(|call| { return call == "StartUnit"; }).expect("the socket is started again");
-    assert!(stopped < started, "the units are dropped before the socket is started: {second_calls:?}");
+    let stopped: usize = second_calls
+        .iter()
+        .position(|call| {
+            return call == "StopUnit";
+        })
+        .expect("the worktree's units are dropped");
+    let started: usize = second_calls
+        .iter()
+        .position(|call| {
+            return call == "StartUnit";
+        })
+        .expect("the socket is started again");
+    assert!(
+        stopped < started,
+        "the units are dropped before the socket is started: {second_calls:?}"
+    );
     assert_eq!(
         calls.first(),
-        Some(&vec!["Hello", "GetUnit", "GetUnit", "GetUnit", "StartUnit", "GetUnit", "Get", "GetUnit", "GetUnit"].into_iter().map(String::from).collect::<Vec<String>>()),
+        Some(
+            &vec![
+                "Hello",
+                "GetUnit",
+                "GetUnit",
+                "GetUnit",
+                "StartUnit",
+                "GetUnit",
+                "Get",
+                "GetUnit",
+                "GetUnit"
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<String>>()
+        ),
         "the first commit sets the service up"
     );
     keep.lock().expect("lock").clear();
@@ -507,25 +747,60 @@ fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
 fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
     let (fixture, repo, runtime) = prepared("provision-fast");
     let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
-    let bus = fake_bus_many(runtime.as_path(), false, 1, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let bus = fake_bus_many(
+        runtime.as_path(),
+        false,
+        1,
+        activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)),
+    );
     let first: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
     let units: PathBuf = runtime.join("systemd/user");
     let stamps = |names: [&str; 2]| -> Vec<std::time::SystemTime> {
-        return names.map(|name| { return std::fs::metadata(units.join(name)).expect("unit").modified().expect("time"); }).to_vec();
+        return names
+            .map(|name| {
+                return std::fs::metadata(units.join(name))
+                    .expect("unit")
+                    .modified()
+                    .expect("time");
+            })
+            .to_vec();
     };
     let before = stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]);
     for round in 0..3 {
-        std::fs::write(repo.join("a.txt"), format!("base\nmore\nround {round}\n")).expect("edit again");
+        std::fs::write(repo.join("a.txt"), format!("base\nmore\nround {round}\n"))
+            .expect("edit again");
         let next: Output = commit(&fixture, &repo, runtime.as_path(), true);
-        assert!(next.status.success(), "{}", String::from_utf8_lossy(&next.stderr));
+        assert!(
+            next.status.success(),
+            "{}",
+            String::from_utf8_lossy(&next.stderr)
+        );
     }
     assert_eq!(finished_batches(&fixture), 4);
-    assert_eq!(stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]), before, "no unit was rewritten");
+    assert_eq!(
+        stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]),
+        before,
+        "no unit was rewritten"
+    );
     // Had a later commit connected, the stand-in would have been asked again, or the connection refused.
     assert_eq!(
         bus.join().expect("bus"),
-        vec![vec!["Hello", "GetUnit", "GetUnit", "GetUnit", "StartUnit", "GetUnit", "Get", "GetUnit", "GetUnit"]],
+        vec![vec![
+            "Hello",
+            "GetUnit",
+            "GetUnit",
+            "GetUnit",
+            "StartUnit",
+            "GetUnit",
+            "Get",
+            "GetUnit",
+            "GetUnit"
+        ]],
         "the first commit sets the service up and no later commit asks the bus anything"
     );
     keep.lock().expect("lock").clear();
@@ -543,7 +818,11 @@ fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
 #[test]
 fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
     let (fixture, repo, runtime) = prepared("provision-retire");
-    let earlier: Running = start_in_release(fixture.root.as_path(), runtime.as_path(), Some("0.0.1-earlier"));
+    let earlier: Running = start_in_release(
+        fixture.root.as_path(),
+        runtime.as_path(),
+        Some("0.0.1-earlier"),
+    );
     let old_socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
     // The manager starts the next service on the socket when the old one has gone; the test plays that part.
     let replacement = std::thread::spawn({
@@ -551,23 +830,43 @@ fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
         let socket_directory: PathBuf = runtime.clone();
         move || {
             let mut old: Running = earlier;
-            let Some(status) = old.exited_within(PATIENCE / 6) else { return (None, None) };
+            let Some(status) = old.exited_within(PATIENCE / 6) else {
+                return (None, None);
+            };
             std::fs::remove_file(old_socket).expect("the old socket goes");
             // Dropping the old handle would remove the runtime directory the next service listens in. The process has
             //  exited and been waited for, so there is nothing left for the handle to release.
             std::mem::forget(old);
-            return (Some(status), Some(start_in(root.as_path(), socket_directory.as_path())));
+            return (
+                Some(status),
+                Some(start_in(root.as_path(), socket_directory.as_path())),
+            );
         }
     });
     let output: Output = commit(&fixture, &repo, runtime.as_path(), false);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let (exit, replaced) = replacement.join().expect("replacement");
     let status = exit.expect("the old service exited when it was asked to retire");
-    assert!(status.success(), "the old service retired by itself: {status:?}");
+    assert!(
+        status.success(),
+        "the old service retired by itself: {status:?}"
+    );
     let current: Running = replaced.expect("the replacement started");
-    assert!(String::from_utf8_lossy(&output.stderr).contains(UPDATING_NOTICE), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(UPDATING_NOTICE),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(subject(&fixture, &repo), "subject");
-    assert_eq!(finished_batches(&fixture), 1, "the current service landed it");
+    assert_eq!(
+        finished_batches(&fixture),
+        1,
+        "the current service landed it"
+    );
     drop(current);
     finish(&fixture, runtime.as_path());
 }
@@ -582,10 +881,17 @@ fn a_commit_the_service_does_not_take_sets_nothing_up() {
     let bus = fake_bus(runtime.as_path(), false, Box::new(|| {}));
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     assert!(!output.status.success(), "there was nothing to commit");
-    assert!(!runtime.join("systemd").exists(), "no unit was written for a commit the service never saw");
+    assert!(
+        !runtime.join("systemd").exists(),
+        "no unit was written for a commit the service never saw"
+    );
     // A connection made and dropped here lets the stand-in's wait for the wrapper end.
     drop(std::os::unix::net::UnixStream::connect(runtime.join("bus")));
-    assert_eq!(bus.join().expect("bus"), Vec::<String>::new(), "the bus was never asked");
+    assert_eq!(
+        bus.join().expect("bus"),
+        Vec::<String>::new(),
+        "the bus was never asked"
+    );
     finish(&fixture, runtime.as_path());
 }
 
@@ -598,11 +904,17 @@ fn a_refusing_bus_stops_the_commit_plainly() {
     let bus = fake_bus(runtime.as_path(), true, Box::new(|| {}));
     let before: String = subject(&fixture, &repo);
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(!output.status.success(), "the commit must not land behind the person's back");
+    assert!(
+        !output.status.success(),
+        "the commit must not land behind the person's back"
+    );
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(stderr.contains(LINGER_COMMAND), "{stderr}");
     assert_eq!(subject(&fixture, &repo), before, "nothing changed");
-    assert!(!runtime.join("systemd").exists(), "no unit was written for a manager that cannot be reached");
+    assert!(
+        !runtime.join("systemd").exists(),
+        "no unit was written for a manager that cannot be reached"
+    );
     bus.join().expect("bus");
     finish(&fixture, runtime.as_path());
 }
@@ -619,8 +931,15 @@ fn a_foreign_unit_in_the_way_stops_the_commit_and_is_left_alone() {
     let bus = fake_bus(runtime.as_path(), false, Box::new(|| {}));
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains(foreign.to_string_lossy().as_ref()), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(std::fs::read_to_string(&foreign).expect("still there"), "[Socket]\nListenStream=/somewhere/else\n");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(foreign.to_string_lossy().as_ref()),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&foreign).expect("still there"),
+        "[Socket]\nListenStream=/somewhere/else\n"
+    );
     drop(output);
     bus.join().expect("bus");
     finish(&fixture, runtime.as_path());
@@ -635,15 +954,48 @@ fn units_of_an_earlier_release_are_removed() {
     let (fixture, repo, runtime) = prepared("provision-earlier");
     let units: PathBuf = fixture.root.join("home/.config/systemd/user");
     std::fs::create_dir_all(units.join("sockets.target.wants")).expect("unit directory");
-    std::fs::write(units.join(LEGACY_SOCKET_UNIT_NAME), "[Unit]\nDescription=Commit service socket for the git wrapper\n").expect("earlier socket unit");
-    std::fs::write(units.join(LEGACY_SERVICE_UNIT_NAME), "[Unit]\nDescription=Commit service for the git wrapper\n").expect("earlier service unit");
-    std::os::unix::fs::symlink("../cli-git.socket", units.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).expect("enabling link");
+    std::fs::write(
+        units.join(LEGACY_SOCKET_UNIT_NAME),
+        "[Unit]\nDescription=Commit service socket for the git wrapper\n",
+    )
+    .expect("earlier socket unit");
+    std::fs::write(
+        units.join(LEGACY_SERVICE_UNIT_NAME),
+        "[Unit]\nDescription=Commit service for the git wrapper\n",
+    )
+    .expect("earlier service unit");
+    std::os::unix::fs::symlink(
+        "../cli-git.socket",
+        units
+            .join("sockets.target.wants")
+            .join(LEGACY_SOCKET_UNIT_NAME),
+    )
+    .expect("enabling link");
     let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
-    let bus = fake_bus(runtime.as_path(), false, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let bus = fake_bus(
+        runtime.as_path(),
+        false,
+        activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)),
+    );
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists());
-    assert!(std::fs::symlink_metadata(units.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).is_err(), "the enabling link is gone");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !units.join(LEGACY_SOCKET_UNIT_NAME).exists()
+            && !units.join(LEGACY_SERVICE_UNIT_NAME).exists()
+    );
+    assert!(
+        std::fs::symlink_metadata(
+            units
+                .join("sockets.target.wants")
+                .join(LEGACY_SOCKET_UNIT_NAME)
+        )
+        .is_err(),
+        "the enabling link is gone"
+    );
     assert_eq!(finished_batches(&fixture), 1);
     drop(output);
     bus.join().expect("bus");
@@ -653,28 +1005,62 @@ fn units_of_an_earlier_release_are_removed() {
 
 /// A bare repository the work repository pushes to,
 /// set as the branch's upstream.
-fn with_remote(fixture: &Fixture, repo: &Path) -> PathBuf {
+fn with_remote(
+    fixture: &Fixture,
+    repo: &Path,
+) -> PathBuf {
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(fixture, &fixture.root, &["init", "--quiet", "--bare", remote.to_str().expect("UTF-8")]);
-    git(fixture, repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(fixture, repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(
+        fixture,
+        &fixture.root,
+        &["init", "--quiet", "--bare", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        fixture,
+        repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        fixture,
+        repo,
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+    );
     return remote;
 }
 
 /// The commit a branch names in a repository,
 /// or empty text when it names none.
-fn tip(fixture: &Fixture, directory: &Path, branch: &str) -> String {
-    return git_text(fixture, directory, &["rev-parse", "--quiet", "--verify", branch]).trim_end().to_string();
+fn tip(
+    fixture: &Fixture,
+    directory: &Path,
+    branch: &str,
+) -> String {
+    return git_text(
+        fixture,
+        directory,
+        &["rev-parse", "--quiet", "--verify", branch],
+    )
+    .trim_end()
+    .to_string();
 }
 
-fn states(repo: &Path, state: &str) -> usize {
-    let directory: PathBuf = repo.join(".git").join(git_policy_cli::work_item::WORK_DIRECTORY).join(state);
+fn states(
+    repo: &Path,
+    state: &str,
+) -> usize {
+    let directory: PathBuf = repo
+        .join(".git")
+        .join(git_policy_cli::work_item::WORK_DIRECTORY)
+        .join(state);
     return std::fs::read_dir(directory).map_or(0, Iterator::count);
 }
 
 /// Waits for a condition the service brings about after the commit returned,
 /// up to the patience of these controls.
-fn eventually(what: &str, mut condition: impl FnMut() -> bool) {
+fn eventually(
+    what: &str,
+    mut condition: impl FnMut() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
         assert!(began.elapsed() < PATIENCE, "{what} never happened");
@@ -694,10 +1080,19 @@ fn the_service_pushes_after_the_commit_returned() {
     let remote: PathBuf = with_remote(&fixture, &repo);
     let service: Running = start_in(fixture.root.as_path(), runtime.as_path());
     let output: Output = commit(&fixture, &repo, runtime.as_path(), false);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let landed: String = tip(&fixture, &repo, "HEAD");
-    let branch: String = format!("refs/heads/{}", git_text(&fixture, &repo, &["branch", "--show-current"]).trim_end());
-    eventually("the push", || { return tip(&fixture, &remote, branch.as_str()) == landed; });
+    let branch: String = format!(
+        "refs/heads/{}",
+        git_text(&fixture, &repo, &["branch", "--show-current"]).trim_end()
+    );
+    eventually("the push", || {
+        return tip(&fixture, &remote, branch.as_str()) == landed;
+    });
     settle_every_work_record(&repo);
     drop(service);
     finish(&fixture, runtime.as_path());
@@ -720,7 +1115,9 @@ fn settle_every_work_record(repo: &Path) {
     loop {
         let unfinished: Vec<&str> = ["pending", "claimed", "recovering", "failed"]
             .into_iter()
-            .filter(|state| { return states(repo, state) > 0; })
+            .filter(|state| {
+                return states(repo, state) > 0;
+            })
             .collect();
         if unfinished.is_empty() && states(repo, "done") >= wanted {
             return;
@@ -744,13 +1141,29 @@ fn a_failed_push_is_reported_by_the_next_commit() {
     let service: Running = start_in(fixture.root.as_path(), runtime.as_path());
     std::fs::remove_dir_all(&remote).expect("the remote disappears");
     let first: Output = commit(&fixture, &repo, runtime.as_path(), false);
-    assert!(first.status.success(), "the commit stands: {}", String::from_utf8_lossy(&first.stderr));
-    eventually("the failed record", || { return states(&repo, "failed") > 0; });
+    assert!(
+        first.status.success(),
+        "the commit stands: {}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    eventually("the failed record", || {
+        return states(&repo, "failed") > 0;
+    });
     std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
     let second: Output = commit(&fixture, &repo, runtime.as_path(), false);
-    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
     let stderr: String = String::from_utf8_lossy(&second.stderr).to_string();
-    assert_eq!(stderr.matches(super::support::push_unfinished_words()).count(), 1, "said once, and as a push that did not finish: {stderr}");
+    assert_eq!(
+        stderr
+            .matches(super::support::push_unfinished_words())
+            .count(),
+        1,
+        "said once, and as a push that did not finish: {stderr}"
+    );
     drop(service);
     finish(&fixture, runtime.as_path());
 }
@@ -766,7 +1179,12 @@ fn an_idle_service_exits_with_success() {
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let idle: Duration = Duration::from_secs(2);
     let mut child = super::support::service_command()
-        .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+        .args([
+            "--journal",
+            fixture.root.join("journal").to_str().expect("UTF-8"),
+            "--path",
+            socket.to_str().expect("UTF-8"),
+        ])
         .args(["--idle-seconds", idle.as_secs().to_string().as_str()])
         .env_clear()
         .spawn()
@@ -777,7 +1195,10 @@ fn an_idle_service_exits_with_success() {
         std::thread::sleep(Duration::from_millis(10));
     }
     // That connection was the service's last activity; it must still be alive just after it.
-    assert!(child.try_wait().expect("status").is_none(), "alive just after a connection");
+    assert!(
+        child.try_wait().expect("status").is_none(),
+        "alive just after a connection"
+    );
     let status = loop {
         if let Some(status) = child.try_wait().expect("status") {
             break status;
@@ -795,13 +1216,21 @@ fn an_idle_service_exits_with_success() {
 /// as the manager's socket activation left
 ///  it:
 /// this build's program announcing the earlier release on the one socket every worktree shared.
-fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Child {
+fn start_per_user_service(
+    fixture: &Fixture,
+    runtime: &Path,
+) -> std::process::Child {
     let socket: PathBuf = runtime.join(LEGACY_SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     // Owned: its idle exit is hours away, so a control that fails before the wrapper retires it would leave it running.
     let child: std::process::Child = super::support::spawn_owned(
         super::support::service_command()
-            .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+            .args([
+                "--journal",
+                fixture.root.join("journal").to_str().expect("UTF-8"),
+                "--path",
+                socket.to_str().expect("UTF-8"),
+            ])
             .args(["--release", "0.5.5"])
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
@@ -815,7 +1244,10 @@ fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Ch
     .expect("the per-user service starts");
     let began: Instant = Instant::now();
     while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-        assert!(began.elapsed() < PATIENCE, "the per-user service never listened");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the per-user service never listened"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     return child;
@@ -841,26 +1273,59 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
     let units: PathBuf = runtime.join("systemd/user");
     std::fs::create_dir_all(&units).expect("unit directory");
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
-        std::fs::write(units.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
+        std::fs::write(
+            units.join(name),
+            "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n",
+        )
+        .expect("earlier unit");
     }
     let mut old: std::process::Child = start_per_user_service(&fixture, runtime.as_path());
     let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
-    let bus = fake_bus_many(runtime.as_path(), false, 1, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let bus = fake_bus_many(
+        runtime.as_path(),
+        false,
+        1,
+        activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)),
+    );
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let began: Instant = Instant::now();
     let status = loop {
         if let Some(status) = old.try_wait().expect("status") {
             break status;
         }
-        assert!(began.elapsed() < PATIENCE, "the earlier service never retired");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the earlier service never retired"
+        );
         std::thread::sleep(Duration::from_millis(20));
     };
-    assert!(status.success(), "the earlier service retired by itself: {status:?}");
-    assert_eq!(finished_batches(&fixture), 1, "the worktree's own service landed it");
-    assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "its units are gone");
-    assert!(!runtime.join(LEGACY_SOCKET_RELATIVE).exists(), "its socket file is gone");
-    assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the worktree has its own socket");
+    assert!(
+        status.success(),
+        "the earlier service retired by itself: {status:?}"
+    );
+    assert_eq!(
+        finished_batches(&fixture),
+        1,
+        "the worktree's own service landed it"
+    );
+    assert!(
+        !units.join(LEGACY_SOCKET_UNIT_NAME).exists()
+            && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(),
+        "its units are gone"
+    );
+    assert!(
+        !runtime.join(LEGACY_SOCKET_RELATIVE).exists(),
+        "its socket file is gone"
+    );
+    assert!(
+        socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(),
+        "the worktree has its own socket"
+    );
     // What the stand-in's single connection saw, in order: hello; the stop of the earlier socket; the two questions that wait
     //  for the earlier service to leave by itself, then its stop and the two questions that wait for both to be gone; the
     //  question about where this worktree's socket listens; the two questions about this worktree's own units, which the
@@ -925,23 +1390,60 @@ fn a_runtime_directory_no_path_can_carry_is_refused_at_once_naming_the_setting()
     let took: Duration = began.elapsed();
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(took < PATIENCE / 6, "the refusal takes {took:?}, not the start ceiling: {stderr}");
+    assert!(
+        took < PATIENCE / 6,
+        "the refusal takes {took:?}, not the start ceiling: {stderr}"
+    );
     // The address form this system has is what makes the runtime directory carry the service's address,
     // so the words for a path too long are not the words for this arrangement.
-    let address: git_policy_cli::service_server::Bind = git_policy_cli::service_address_of_a_worktree::socket_address_of(runtime.as_path(), git_policy_cli::service_instance::instance_of(repo.join(".git").as_path()).as_str());
-    assert!(matches!(address, git_policy_cli::service_server::Bind::Abstract(_)), "a runtime directory this long is named without a path here: {}", git_policy_cli::service_server::address_text(&address));
-    assert!(stderr.contains(LINGER_COMMAND), "the setting that starts the service is the one that has to change, and its remedy is named: {stderr}");
-    assert!(!stderr.contains("107"), "the room a socket path has is not what refused this: {stderr}");
-    assert!(stderr.contains(git_policy_cli::service_messages::NOTHING_CHANGED), "what did not change is said: {stderr}");
+    let address: git_policy_cli::service_server::Bind =
+        git_policy_cli::service_address_of_a_worktree::socket_address_of(
+            runtime.as_path(),
+            git_policy_cli::service_instance::instance_of(repo.join(".git").as_path()).as_str(),
+        );
+    assert!(
+        matches!(address, git_policy_cli::service_server::Bind::Abstract(_)),
+        "a runtime directory this long is named without a path here: {}",
+        git_policy_cli::service_server::address_text(&address)
+    );
+    assert!(
+        stderr.contains(LINGER_COMMAND),
+        "the setting that starts the service is the one that has to change, and its remedy is named: {stderr}"
+    );
+    assert!(
+        !stderr.contains("107"),
+        "the room a socket path has is not what refused this: {stderr}"
+    );
+    assert!(
+        stderr.contains(git_policy_cli::service_messages::NOTHING_CHANGED),
+        "what did not change is said: {stderr}"
+    );
     assert_eq!(subject(&fixture, &repo), "base", "nothing was committed");
-    assert!(!runtime.join("systemd").exists(), "no unit was written for a service that could never answer");
+    assert!(
+        !runtime.join("systemd").exists(),
+        "no unit was written for a service that could never answer"
+    );
     // The address has no file, so a refusal leaves no socket behind either.
-    let sockets: Vec<PathBuf> = match std::fs::read_dir(runtime.join("monochromatic-git-policy-cli")) {
-        Ok(listed) => listed.flatten().map(|entry| { return entry.path(); }).filter(|path| { return path.extension().is_some_and(|extension| { return extension == "sock"; }); }).collect(),
-        // No folder of sockets at all is no socket either.
-        Err(_no_folder) => Vec::new(),
-    };
-    assert!(sockets.is_empty(), "a refused start left no socket: {sockets:?}");
+    let sockets: Vec<PathBuf> =
+        match std::fs::read_dir(runtime.join("monochromatic-git-policy-cli")) {
+            Ok(listed) => listed
+                .flatten()
+                .map(|entry| {
+                    return entry.path();
+                })
+                .filter(|path| {
+                    return path.extension().is_some_and(|extension| {
+                        return extension == "sock";
+                    });
+                })
+                .collect(),
+            // No folder of sockets at all is no socket either.
+            Err(_no_folder) => Vec::new(),
+        };
+    assert!(
+        sockets.is_empty(),
+        "a refused start left no socket: {sockets:?}"
+    );
     finish(&fixture, runtime.as_path());
 }
 
@@ -957,18 +1459,41 @@ fn a_runtime_directory_no_path_can_carry_is_refused_at_once_naming_the_setting()
 #[test]
 fn a_service_started_where_this_command_does_not_look_is_named_at_once() {
     let (fixture, repo, runtime) = prepared("provision-elsewhere");
-    let elsewhere: String = String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock");
-    let bus = fake_bus_many_answering(runtime.as_path(), false, 1, Box::new(|| {}), vec![elsewhere.clone()]);
+    let elsewhere: String = String::from(
+        "/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock",
+    );
+    let bus = fake_bus_many_answering(
+        runtime.as_path(),
+        false,
+        1,
+        Box::new(|| {}),
+        vec![elsewhere.clone()],
+    );
     let began: Instant = Instant::now();
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     let took: Duration = began.elapsed();
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(took < PATIENCE / 6, "the refusal takes {took:?}, not the start ceiling: {stderr}");
-    assert!(stderr.contains(elsewhere.as_str()), "the address the service listens at is named: {stderr}");
-    assert!(stderr.contains("/run/user/1000"), "the manager's runtime directory is named: {stderr}");
-    assert!(stderr.contains(runtime.to_string_lossy().as_ref()), "the runtime directory this command used is named: {stderr}");
-    assert!(stderr.contains("XDG_RUNTIME_DIR"), "the setting that has to change is named: {stderr}");
+    assert!(
+        took < PATIENCE / 6,
+        "the refusal takes {took:?}, not the start ceiling: {stderr}"
+    );
+    assert!(
+        stderr.contains(elsewhere.as_str()),
+        "the address the service listens at is named: {stderr}"
+    );
+    assert!(
+        stderr.contains("/run/user/1000"),
+        "the manager's runtime directory is named: {stderr}"
+    );
+    assert!(
+        stderr.contains(runtime.to_string_lossy().as_ref()),
+        "the runtime directory this command used is named: {stderr}"
+    );
+    assert!(
+        stderr.contains("XDG_RUNTIME_DIR"),
+        "the setting that has to change is named: {stderr}"
+    );
     assert_eq!(subject(&fixture, &repo), "base", "nothing was committed");
     assert_eq!(finished_batches(&fixture), 0, "no service landed anything");
     bus.join().expect("bus");

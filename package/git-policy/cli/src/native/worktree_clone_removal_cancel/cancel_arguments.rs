@@ -125,14 +125,24 @@ impl CancelMistake {
     pub fn message(&self) -> String {
         let shape: &str = "`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` takes exactly one slot name and no option; `--help` prints its usage.";
         return match self {
-            CancelMistake::NoArgument => format!("no slot was named, so there is nothing to cancel. {shape}"),
-            CancelMistake::TooManyArguments { first, second } => format!(
+            CancelMistake::NoArgument => {
+                format!("no slot was named, so there is nothing to cancel. {shape}")
+            }
+            CancelMistake::TooManyArguments {
+                first,
+                second,
+            } => format!(
                 "two words were named, `{first}` and `{second}`, and this command cancels one slot. {shape}"
             ),
-            CancelMistake::AnOption { option } => format!(
+            CancelMistake::AnOption {
+                option,
+            } => format!(
                 "`{option}` is an option, and this command takes none: what it does is fixed by the records it proves. {shape}"
             ),
-            CancelMistake::NotASlotName { slot, reason } => format!(
+            CancelMistake::NotASlotName {
+                slot,
+                reason,
+            } => format!(
                 "`{slot}` is not a slot name ({reason}), so no worktree folder under `.claude/worktrees` carries it. {shape}"
             ),
         };
@@ -169,7 +179,10 @@ pub fn parse_cancel_arguments(arguments: &[OsString]) -> Result<CancelInvocation
     let first_text: String = text_of(first)?;
     if first_text == "--help" || first_text == "-h" {
         if arguments.len() > 1 {
-            return Err(CancelMistake::TooManyArguments { first: first_text, second: text_of(&arguments[1])? });
+            return Err(CancelMistake::TooManyArguments {
+                first: first_text,
+                second: text_of(&arguments[1])?,
+            });
         }
         return Ok(CancelInvocation::Help);
     }
@@ -179,15 +192,23 @@ pub fn parse_cancel_arguments(arguments: &[OsString]) -> Result<CancelInvocation
             return Err(CancelMistake::NoArgument);
         };
         if let Some(extra) = arguments.get(2) {
-            return Err(CancelMistake::TooManyArguments { first: text_of(raw)?, second: text_of(extra)? });
+            return Err(CancelMistake::TooManyArguments {
+                first: text_of(raw)?,
+                second: text_of(extra)?,
+            });
         }
         return slot_invocation(text_of(raw)?.as_str());
     }
     if first_text.starts_with('-') {
-        return Err(CancelMistake::AnOption { option: first_text });
+        return Err(CancelMistake::AnOption {
+            option: first_text,
+        });
     }
     if let Some(second) = arguments.get(1) {
-        return Err(CancelMistake::TooManyArguments { first: first_text, second: text_of(second)? });
+        return Err(CancelMistake::TooManyArguments {
+            first: first_text,
+            second: text_of(second)?,
+        });
     }
     return slot_invocation(first_text.as_str());
 }
@@ -196,7 +217,10 @@ pub fn parse_cancel_arguments(arguments: &[OsString]) -> Result<CancelInvocation
 /// or the mistake a name this route cannot read is.
 fn text_of(argument: &OsString) -> Result<String, CancelMistake> {
     return argument.clone().into_string().map_err(|refused| {
-        return CancelMistake::NotASlotName { slot: refused.to_string_lossy().into_owned(), reason: String::from("it is not UTF-8 text") };
+        return CancelMistake::NotASlotName {
+            slot: refused.to_string_lossy().into_owned(),
+            reason: String::from("it is not UTF-8 text"),
+        };
     });
 }
 
@@ -205,9 +229,14 @@ fn text_of(argument: &OsString) -> Result<String, CancelMistake> {
 /// the walk and the per-slot claim share.
 fn slot_invocation(slot: &str) -> Result<CancelInvocation, CancelMistake> {
     if let Some(reason) = slot_name_refusal(slot) {
-        return Err(CancelMistake::NotASlotName { slot: String::from(slot), reason });
+        return Err(CancelMistake::NotASlotName {
+            slot: String::from(slot),
+            reason,
+        });
     }
-    return Ok(CancelInvocation::Cancel(CancelRequest { slot: String::from(slot) }));
+    return Ok(CancelInvocation::Cancel(CancelRequest {
+        slot: String::from(slot),
+    }));
 }
 
 /// Controls stay out of the release executable.

@@ -29,12 +29,38 @@
 //! expect(await control).toBe(true);  // it reached the pass, and the pass waited for it
 //! ```
 
-use super::supervisor::{IdleHold, hold_idle_judgment};
-use super::support::{Fixture, Observed, REAL_GIT, TIME_BOUND_SECONDS, bounded_for, executable, without_hint_fields};
-use std::ffi::{OsStr, OsString};
-use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use super::supervisor::{
+    IdleHold,
+    hold_idle_judgment,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    REAL_GIT,
+    TIME_BOUND_SECONDS,
+    bounded_for,
+    executable,
+    without_hint_fields,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::io::{
+    BufRead,
+    BufReader,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
 
 /// The word the stand-in Git writes once the pass reaches its attribute query.
 const REACHED_WORD: &str = "reached";
@@ -108,11 +134,20 @@ impl PassGate {
         let marker: PathBuf = root.join("reached.marker");
         make_pipe(reached.as_path());
         make_pipe(release.as_path());
-        executable(shim.join("git").as_path(), shim_script(root.as_path()).as_bytes());
+        executable(
+            shim.join("git").as_path(),
+            shim_script(root.as_path()).as_bytes(),
+        );
         let mut path: OsString = fixture.root.join("bin").into_os_string();
         path.push(":");
         path.push(shim);
-        return PassGate { path, reached, release, starts, marker };
+        return PassGate {
+            path,
+            reached,
+            release,
+            starts,
+            marker,
+        };
     }
 
     /// What:
@@ -142,7 +177,9 @@ impl PassGate {
     /// readFileSync(join(root, 'starts.log'), 'utf8').trim().split('\n')
     /// ```
     pub(super) fn starts(&self) -> Vec<String> {
-        let Ok(text) = std::fs::read_to_string(self.starts.as_path()) else { return Vec::new() };
+        let Ok(text) = std::fs::read_to_string(self.starts.as_path()) else {
+            return Vec::new();
+        };
         return text.lines().map(String::from).collect();
     }
 
@@ -165,9 +202,25 @@ impl PassGate {
     /// const child = spawn(join(fixture.root, 'bin/git'), args, { env: { PATH: gate.path } });
     /// const control = watch(gate, when); const observed = await finish(child); wake(control); return [observed, control]
     /// ```
-    pub(super) fn held_run(&self, fixture: &Fixture, repo: &Path, arguments: &[&str], when: impl FnOnce() + Send + 'static) -> (Observed, std::thread::JoinHandle<bool>) {
-        let mut command: Command = bounded_for(fixture, fixture.root.join("bin/git").as_path(), self.path.as_os_str(), TIME_BOUND_SECONDS);
-        command.current_dir(repo).args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    pub(super) fn held_run(
+        &self,
+        fixture: &Fixture,
+        repo: &Path,
+        arguments: &[&str],
+        when: impl FnOnce() + Send + 'static,
+    ) -> (Observed, std::thread::JoinHandle<bool>) {
+        let mut command: Command = bounded_for(
+            fixture,
+            fixture.root.join("bin/git").as_path(),
+            self.path.as_os_str(),
+            TIME_BOUND_SECONDS,
+        );
+        command
+            .current_dir(repo)
+            .args(arguments)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         // Both pipes are held at both ends before the wrapper starts, so no open waits for its other end at any point of the run.
         let waiting: std::fs::File = both_ends(self.reached.as_path());
         let release_held: std::fs::File = both_ends(self.release.as_path());
@@ -184,14 +237,17 @@ impl PassGate {
             let idle: IdleHold = hold_idle_judgment(watched);
             when();
             let mut pipe: std::fs::File = both_ends(release.as_path());
-            let wrote: std::io::Result<()> = pipe.write_all(format!("{RELEASED_WORD}\n").as_bytes());
+            let wrote: std::io::Result<()> =
+                pipe.write_all(format!("{RELEASED_WORD}\n").as_bytes());
             drop(idle);
             return wrote.is_ok();
         });
         let output: Output = child.wait_with_output().expect("the wrapper finishes");
         // A control still waiting for a word means the pass never reached the query, so the command's own end is that word.
         let mut ended: std::fs::File = both_ends(self.reached.as_path());
-        ended.write_all(format!("{ENDED_WORD}\n").as_bytes()).expect("the waiting control hears that the command ended");
+        ended
+            .write_all(format!("{ENDED_WORD}\n").as_bytes())
+            .expect("the waiting control hears that the command ended");
         drop(release_held);
         let observed: Observed = Observed {
             code: output.status.code(),
@@ -215,13 +271,20 @@ impl PassGate {
 /// ```
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a path without a NUL byte");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a path without a NUL byte");
     // SAFETY:
     // `name` is a live, NUL-terminated C string for the whole call,
     // and `mkfifo` reads it and nothing else;
     // its failure is inspected through the error it left.
     let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "a pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+    assert_eq!(
+        made,
+        0,
+        "a pipe at {}: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
 }
 
 /// What:

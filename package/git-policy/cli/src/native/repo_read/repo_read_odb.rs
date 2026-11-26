@@ -21,14 +21,32 @@
 
 #![cfg(unix)]
 
-use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::private_storage::{
+    ReadRefusal,
+    read_regular_file,
+};
 use crate::repo_read_config_scan::read_following;
-use crate::repo_read_config_text::{last_entry, parse_config_text};
+use crate::repo_read_config_text::{
+    last_entry,
+    parse_config_text,
+};
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
-use crate::repo_read_pack::{BaseByName, Pack};
+use crate::repo_read_object::{
+    OBJECT_SIZE_LIMIT,
+    RawObject,
+    name_length,
+    parse_loose,
+    to_hex,
+};
+use crate::repo_read_pack::{
+    BaseByName,
+    Pack,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
 ///  Exempt from a citation under `LQM` (class:
@@ -115,7 +133,11 @@ pub struct ObjectDatabase {
 
 /// The extra object directories `objects/info/alternates` names;
 /// `None` when the file cannot be read.
-pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Option<()> {
+pub fn alternates_of(
+    root: &Path,
+    depth: usize,
+    found: &mut Vec<PathBuf>,
+) -> Option<()> {
     if depth > ALTERNATE_DEPTH_LIMIT {
         return None;
     }
@@ -154,7 +176,11 @@ const REFERENCE_BACKEND_ENVIRONMENT: &str = "GIT_REFERENCE_BACKEND";
 /// the object store itself (`GIT_OBJECT_DIRECTORY`),
 /// the directories searched beside it (`GIT_ALTERNATE_OBJECT_DIRECTORIES`),
 /// and the namespace replacement refs are read from (`GIT_REPLACE_REF_BASE`).
-const MOVED_READ_ENVIRONMENTS: [&str; 3] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE"];
+const MOVED_READ_ENVIRONMENTS: [&str; 3] = [
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_REPLACE_REF_BASE",
+];
 
 /// What:
 ///  Whether the environment sends an object read where this reader does not look.
@@ -179,10 +205,14 @@ const MOVED_READ_ENVIRONMENTS: [&str; 3] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNA
 /// Git answers there,
 /// at the price of its starts.
 fn environment_names_another_read() -> bool {
-    if std::env::var_os(REFERENCE_BACKEND_ENVIRONMENT).is_some_and(|value| { return value.as_os_str() != OsStr::new("files"); }) {
+    if std::env::var_os(REFERENCE_BACKEND_ENVIRONMENT).is_some_and(|value| {
+        return value.as_os_str() != OsStr::new("files");
+    }) {
         return true;
     }
-    return MOVED_READ_ENVIRONMENTS.iter().any(|name| { return std::env::var_os(name).is_some(); });
+    return MOVED_READ_ENVIRONMENTS.iter().any(|name| {
+        return std::env::var_os(name).is_some();
+    });
 }
 
 /// What:
@@ -245,7 +275,9 @@ fn ref_store_is_reftable_in_the_repository(common_dir: &Path) -> bool {
 ///  `+1`) cannot decide whether a store is declined.
 /// A file that cannot be parsed is left to Git rather than guessed at.
 fn config_names_another_ref_store(text: &[u8]) -> bool {
-    let Some(entries) = parse_config_text(text) else { return true };
+    let Some(entries) = parse_config_text(text) else {
+        return true;
+    };
     return match last_entry(entries.as_slice(), "extensions.refstorage") {
         Some(entry) => entry.value.as_deref() != Some(b"files"),
         None => false,
@@ -296,7 +328,11 @@ fn objects_are_replaced(common_dir: &Path) -> bool {
 /// ```ts
 /// openTheObjects({ commonDir, objectsDir, format }): ObjectDatabase | undefined;
 /// ```
-fn open_the_objects(common_dir: &Path, objects_dir: Option<&Path>, format: ObjectFormat) -> Option<ObjectDatabase> {
+fn open_the_objects(
+    common_dir: &Path,
+    objects_dir: Option<&Path>,
+    format: ObjectFormat,
+) -> Option<ObjectDatabase> {
     if objects_are_replaced(common_dir) {
         return None;
     }
@@ -321,7 +357,11 @@ fn open_the_objects(common_dir: &Path, objects_dir: Option<&Path>, format: Objec
             }
         }
     }
-    return Some(ObjectDatabase { roots, packs, format });
+    return Some(ObjectDatabase {
+        roots,
+        packs,
+        format,
+    });
 }
 
 /// What:
@@ -343,7 +383,10 @@ struct BaseOneDeeper<'a> {
 }
 
 impl BaseByName for BaseOneDeeper<'_> {
-    fn base_named(&self, name: &[u8]) -> Option<RawObject> {
+    fn base_named(
+        &self,
+        name: &[u8],
+    ) -> Option<RawObject> {
         return self.database.read_at_depth(name, self.depth + 1);
     }
 }
@@ -360,7 +403,11 @@ impl ObjectDatabase {
     /// ```ts
     /// openObjectDatabase({ commonDir, objectsDir, format }): ObjectDatabase | undefined;
     /// ```
-    pub fn open(common_dir: &Path, objects_dir: Option<&Path>, format: ObjectFormat) -> Option<ObjectDatabase> {
+    pub fn open(
+        common_dir: &Path,
+        objects_dir: Option<&Path>,
+        format: ObjectFormat,
+    ) -> Option<ObjectDatabase> {
         if ref_store_is_reftable(common_dir) {
             return None;
         }
@@ -385,7 +432,11 @@ impl ObjectDatabase {
     /// ```ts
     /// openObjectDatabaseOfTheRepositoryAlone({ commonDir, objectsDir, format }): ObjectDatabase | undefined;
     /// ```
-    pub fn open_of_the_repository_alone(common_dir: &Path, objects_dir: Option<&Path>, format: ObjectFormat) -> Option<ObjectDatabase> {
+    pub fn open_of_the_repository_alone(
+        common_dir: &Path,
+        objects_dir: Option<&Path>,
+        format: ObjectFormat,
+    ) -> Option<ObjectDatabase> {
         if ref_store_is_reftable_in_the_repository(common_dir) {
             return None;
         }
@@ -411,7 +462,10 @@ impl ObjectDatabase {
     /// ```ts
     /// openObjectDatabaseFromProof({ commonDir: layout.commonDir, objectsDir, format: layout.objectFormat }): ObjectDatabase | undefined;
     /// ```
-    pub fn open_where_the_layout_proved_the_store(layout: &crate::repo_read_layout::RepoLayout, objects_dir: Option<&Path>) -> Option<ObjectDatabase> {
+    pub fn open_where_the_layout_proved_the_store(
+        layout: &crate::repo_read_layout::RepoLayout,
+        objects_dir: Option<&Path>,
+    ) -> Option<ObjectDatabase> {
         // The layout proved the ref store when it was read, and a store moved under a command that holds the layout (a
         //  `git refs migrate` inside a forwarded `merge`, say) leaves that proof stale. The folder is asked again, which is
         //  the cheap half of what the proof skipped; the environment and the configuration are not, since the layout refused
@@ -419,13 +473,20 @@ impl ObjectDatabase {
         if layout.git_dir.join("reftable").exists() || layout.common_dir.join("reftable").exists() {
             return None;
         }
-        return open_the_objects(layout.common_dir.as_path(), objects_dir, layout.object_format);
+        return open_the_objects(
+            layout.common_dir.as_path(),
+            objects_dir,
+            layout.object_format,
+        );
     }
 
     /// The object named `name`,
     /// or `None` when it is absent,
     /// unreadable or beyond the size limit.
-    pub fn read(&self, name: &[u8]) -> Option<RawObject> {
+    pub fn read(
+        &self,
+        name: &[u8],
+    ) -> Option<RawObject> {
         return self.read_at_depth(name, 0);
     }
 
@@ -437,7 +498,10 @@ impl ObjectDatabase {
 
     /// Whether the object named `name` is stored loose or in a pack,
     /// without reading it.
-    pub fn contains(&self, name: &[u8]) -> bool {
+    pub fn contains(
+        &self,
+        name: &[u8],
+    ) -> bool {
         if name.len() != name_length(self.format) {
             return false;
         }
@@ -461,14 +525,21 @@ impl ObjectDatabase {
 
     /// The same read,
     /// counting the delta bases already followed through names so a cycle ends.
-    fn read_at_depth(&self, name: &[u8], depth: usize) -> Option<RawObject> {
+    fn read_at_depth(
+        &self,
+        name: &[u8],
+        depth: usize,
+    ) -> Option<RawObject> {
         if name.len() != name_length(self.format) || depth > 8 {
             return None;
         }
         // Git searches the packs first and the loose files after, and so does this: nearly every object a commit reads is packed,
         //  and a look at a loose path that is not there is a system call for each of thousands of objects.
         // The pack follows a delta chain through this value, which carries the database and the depth so far.
-        let by_name: BaseOneDeeper<'_> = BaseOneDeeper { database: self, depth };
+        let by_name: BaseOneDeeper<'_> = BaseOneDeeper {
+            database: self,
+            depth,
+        };
         for pack in &self.packs {
             if let Some(offset) = pack.find(name) {
                 if let Some(found) = pack.read(offset, &by_name, 0) {

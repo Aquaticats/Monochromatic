@@ -21,9 +21,26 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, bounded, bounded_for, fixture, git, observe, porcelain, remove, repository};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use super::support::{
+    Fixture,
+    Observed,
+    bounded,
+    bounded_for,
+    fixture,
+    git,
+    observe,
+    porcelain,
+    remove,
+    repository,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The object URL of `pkg/asset/shot.png`;
 ///  the digest is `sha256sum` of `image bytes`.
@@ -41,7 +58,12 @@ fn plain_path(fixture: &Fixture) -> OsString {
 }
 
 /// Run the wrapper in `repo` under `path` and return what the caller saw.
-fn run_with(fixture: &Fixture, path: &OsStr, repo: &Path, arguments: &[&str]) -> Observed {
+fn run_with(
+    fixture: &Fixture,
+    path: &OsStr,
+    repo: &Path,
+    arguments: &[&str],
+) -> Observed {
     return observe(
         bounded(fixture, fixture.root.join("bin/git").as_path(), path)
             .current_dir(repo)
@@ -56,7 +78,10 @@ fn run_with(fixture: &Fixture, path: &OsStr, repo: &Path, arguments: &[&str]) ->
 ///  the Markdown policy
 /// configured with `setting` and `final-newline` off,
 ///  and all of that committed.
-fn lfs_repository(fixture: &Fixture, setting: &str) -> PathBuf {
+fn lfs_repository(
+    fixture: &Fixture,
+    setting: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::create_dir_all(repo.join("pkg/asset")).expect("tree");
     std::fs::write(
@@ -89,7 +114,13 @@ fn lfs_repository(fixture: &Fixture, setting: &str) -> PathBuf {
 
 /// The autofix finding about `path` for one trigger,
 ///  severity and fix state.
-fn autofix(sequence: u64, trigger: &str, severity: &str, path: &str, fix: &str) -> String {
+fn autofix(
+    sequence: u64,
+    trigger: &str,
+    severity: &str,
+    path: &str,
+    fix: &str,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"{trigger}\",\
          \"policyId\":\"markdown/autofix\",\"severity\":\"{severity}\",\"code\":\"markdown/autofix/markdown-autofix\",\
@@ -99,7 +130,11 @@ fn autofix(sequence: u64, trigger: &str, severity: &str, path: &str, fix: &str) 
 
 /// The staged bytes of `path`,
 ///  read from the index by real Git.
-fn staged(fixture: &Fixture, repo: &Path, path: &str) -> Vec<u8> {
+fn staged(
+    fixture: &Fixture,
+    repo: &Path,
+    path: &str,
+) -> Vec<u8> {
     return git(fixture, repo, &["show", format!(":{path}").as_str()]).stdout;
 }
 
@@ -146,7 +181,12 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
         &["add", "--", "package/ssg/a.md", "pkg/done.md"],
     );
     assert_eq!((quiet.code, quiet.stderr), (Some(0), Vec::new()));
-    let checked: Observed = run_with(&fixture, &path, &repo, &["monochromatic-git-policy-cli", "check", "--all"]);
+    let checked: Observed = run_with(
+        &fixture,
+        &path,
+        &repo,
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
     assert_eq!(
         (
             checked.code,
@@ -158,7 +198,12 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
         )
     );
     let index_before: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
-    let fixed: Observed = run_with(&fixture, &path, &repo, &["monochromatic-git-policy-cli", "fix", "--all"]);
+    let fixed: Observed = run_with(
+        &fixture,
+        &path,
+        &repo,
+        &["monochromatic-git-policy-cli", "fix", "--all"],
+    );
     assert_eq!(
         (
             fixed.code,
@@ -210,7 +255,10 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
 /// The engine failure of a Markdown candidate the policy could not check,
 /// with no path because the failure is the
 /// policy's own option.
-fn unchecked_without_path(trigger: &str, reason: &str) -> String {
+fn unchecked_without_path(
+    trigger: &str,
+    reason: &str,
+) -> String {
     // The message is a JSON string value, so the quotes in the pattern's reason are escaped as the event escapes them.
     let message: String = serde_json::to_string(&format!(
         "{reason}. The Markdown candidate was not checked and nothing was changed; fix the cause, \
@@ -239,7 +287,9 @@ fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
     std::fs::write(repo.join("a.md"), RELATIVE).expect("markdown");
     std::fs::write(repo.join("b.txt"), b"text\n").expect("text");
     let reason: String = git_policy_cli::markdown_exclude::compile_exclude(&[String::from("a\\")])
-        .map(|_| { return String::new(); })
+        .map(|_| {
+            return String::new();
+        })
         .expect_err("the pattern does not compile");
     let stopped: Observed = run_with(&fixture, &path, &repo, &["add", "--", "a.md"]);
     assert_eq!(
@@ -247,9 +297,17 @@ fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
             stopped.code,
             String::from_utf8_lossy(&stopped.stderr).into_owned()
         ),
-        (Some(2), unchecked_without_path("pre-forward", reason.as_str()))
+        (
+            Some(2),
+            unchecked_without_path("pre-forward", reason.as_str())
+        )
     );
-    let checked: Observed = run_with(&fixture, &path, &repo, &["monochromatic-git-policy-cli", "check", "--", "a.md"]);
+    let checked: Observed = run_with(
+        &fixture,
+        &path,
+        &repo,
+        &["monochromatic-git-policy-cli", "check", "--", "a.md"],
+    );
     assert_eq!(checked.code, Some(2));
     assert_eq!(
         String::from_utf8_lossy(&checked.stdout).into_owned(),
@@ -286,7 +344,10 @@ const SCRATCH_SETTLE: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// The commit `main` names,
 /// read by real Git.
-fn head(fixture: &Fixture, repo: &Path) -> String {
+fn head(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     return String::from_utf8_lossy(&git(fixture, repo, &["rev-parse", "HEAD"]).stdout)
         .trim()
         .to_owned();
@@ -303,7 +364,10 @@ fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
     let path: OsString = plain_path(&fixture);
     let repo: PathBuf = lfs_repository(&fixture, "\"warn\"");
     let base: String = head(&fixture, repo.as_path());
-    let stale: String = format!("![shot](https://lfs.example.com/org/repo/{}/pkg/asset/gone.png)\n", "b".repeat(64));
+    let stale: String = format!(
+        "![shot](https://lfs.example.com/org/repo/{}/pkg/asset/gone.png)\n",
+        "b".repeat(64)
+    );
     std::fs::write(repo.join("doc.md"), stale.as_bytes()).expect("markdown");
     git(&fixture, repo.as_path(), &["add", "--", "doc.md"]);
     let committed: Observed = observe(
@@ -320,7 +384,13 @@ fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
     let stderr: String = String::from_utf8_lossy(&committed.stderr).into_owned();
     assert_eq!(committed.code, Some(0), "{stderr}");
     assert!(
-        stderr.contains(format!("markdown/autofix/{}", git_policy_cli::policy_markdown::MARKDOWN_VIOLATION_CODE).as_str()),
+        stderr.contains(
+            format!(
+                "markdown/autofix/{}",
+                git_policy_cli::policy_markdown::MARKDOWN_VIOLATION_CODE
+            )
+            .as_str()
+        ),
         "{stderr}"
     );
     assert_ne!(head(&fixture, repo.as_path()), base);
@@ -344,7 +414,11 @@ fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("base.txt"), b"base\n").expect("base");
     git(&fixture, repo.as_path(), &["add", "--", "base.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     let base: String = head(&fixture, repo.as_path());
     std::fs::write(repo.join("doc.txt"), b"plain\n").expect("text");
     git(&fixture, repo.as_path(), &["add", "--", "doc.txt"]);
@@ -362,24 +436,40 @@ fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
         b"",
     );
     assert_eq!(
-        (committed.code, String::from_utf8_lossy(&committed.stderr).into_owned()),
+        (
+            committed.code,
+            String::from_utf8_lossy(&committed.stderr).into_owned()
+        ),
         (Some(0), String::new())
     );
     assert_ne!(head(&fixture, repo.as_path()), base, "the commit landed");
-    let scratch: PathBuf = repo.join(".git").join("monochromatic-git-policy-cli-scratch");
+    let scratch: PathBuf = repo
+        .join(".git")
+        .join("monochromatic-git-policy-cli-scratch");
     let began: std::time::Instant = std::time::Instant::now();
     let mut left: Vec<OsString> = std::fs::read_dir(&scratch)
         .expect("the repository scratch directory exists")
-        .map(|entry| { return entry.expect("entry").file_name(); })
+        .map(|entry| {
+            return entry.expect("entry").file_name();
+        })
         .collect();
     while !left.is_empty() && began.elapsed() < SCRATCH_SETTLE {
         std::thread::sleep(std::time::Duration::from_millis(20));
         left = std::fs::read_dir(&scratch)
             .expect("the repository scratch directory exists")
-            .map(|entry| { return entry.expect("entry").file_name(); })
+            .map(|entry| {
+                return entry.expect("entry").file_name();
+            })
             .collect();
     }
-    assert!(left.is_empty(), "nothing is left in {} after {SCRATCH_SETTLE:?}: {left:?}", scratch.display());
-    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    assert!(
+        left.is_empty(),
+        "nothing is left in {} after {SCRATCH_SETTLE:?}: {left:?}",
+        scratch.display()
+    );
+    assert!(
+        !unusable.exists(),
+        "nothing created the unusable temporary directory"
+    );
     remove(&fixture);
 }

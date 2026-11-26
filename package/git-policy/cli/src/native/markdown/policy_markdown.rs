@@ -39,9 +39,16 @@ use crate::candidate_object::CandidateMode;
 /// Import the candidate's change kinds.
 use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// Import the policy's validated options and the configuration spelling of a rule.
-use crate::config_schema::{MarkdownAutofixOptions, PolicyConfig, markdown_rule_name};
+use crate::config_schema::{
+    MarkdownAutofixOptions,
+    PolicyConfig,
+    markdown_rule_name,
+};
 /// Import the engine-failure codes.
 use crate::diagnostics::EngineFailureCode;
 /// Import the event form of a pathname.
@@ -49,13 +56,26 @@ use crate::event_path::EventPath;
 /// Import the conversion of Git's pathname bytes to a path.
 use crate::git_metadata::path_from_git_bytes;
 /// Import the compiled `exclude` patterns.
-use crate::markdown_exclude::{ExcludeMatcher, compile_exclude};
+use crate::markdown_exclude::{
+    ExcludeMatcher,
+    compile_exclude,
+};
 /// Import what one usable linter run returns.
-use crate::markdown_linter_output::{LintRun, RemainingFinding};
+use crate::markdown_linter_output::{
+    LintRun,
+    RemainingFinding,
+};
 /// Import the lifecycle's candidates and the correction a fix applies.
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
+};
 /// Import the finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// Import the lifecycle points;
 ///  a direct fix and a commit's patch-enabled pass correct.
 use crate::policy_trigger::Trigger;
@@ -66,7 +86,10 @@ use crate::repository_location::RepositoryLocation;
 /// Import the worktree's top level from Git's answer.
 use crate::worktree_identity::worktree_root;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
@@ -133,7 +156,10 @@ pub trait MarkdownLinter {
     ///  the usable run,
     ///  or why there is none,
     ///  for the person.
-    fn lint(&mut self, request: &LintRequest<'_>) -> Result<LintRun, String>;
+    fn lint(
+        &mut self,
+        request: &LintRequest<'_>,
+    ) -> Result<LintRun, String>;
 }
 
 /// What:
@@ -202,7 +228,10 @@ impl MarkdownState {
     /// ```ts
     /// excludes(path: Uint8Array): boolean; // throws string
     /// ```
-    fn excludes(&mut self, path: &[u8]) -> Result<bool, String> {
+    fn excludes(
+        &mut self,
+        path: &[u8],
+    ) -> Result<bool, String> {
         if self.exclude.is_none() {
             self.exclude = Some(compile_exclude(self.options.exclude.as_slice()));
         }
@@ -279,7 +308,10 @@ fn is_eligible(candidate: &Candidate) -> bool {
 /// ```ts
 /// const unchecked = (path, reason): PolicyOutcome => ({ kind: 'failed', code: 'policy-incomplete', message: `${reason}. ${REMEDY}`, path });
 /// ```
-fn unchecked(path: Option<&[u8]>, reason: &str) -> PolicyOutcome {
+fn unchecked(
+    path: Option<&[u8]>,
+    reason: &str,
+) -> PolicyOutcome {
     return PolicyOutcome::Failed {
         code: EngineFailureCode::PolicyIncomplete,
         message: format!("{reason}. {UNCHECKED_REMEDY}"),
@@ -357,7 +389,10 @@ fn rule_list(options: &MarkdownAutofixOptions) -> String {
 /// ```ts
 /// const violation = (path, d) => ({ code: 'markdown-violation', message: `${d.ruleId} at ${path}:${d.line}:${d.column}: ${d.message}`, path });
 /// ```
-fn violation(path: &EventPath, remaining: &RemainingFinding) -> PolicyFinding {
+fn violation(
+    path: &EventPath,
+    remaining: &RemainingFinding,
+) -> PolicyFinding {
     return PolicyFinding {
         code: MARKDOWN_VIOLATION_CODE,
         message: format!(

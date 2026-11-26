@@ -71,10 +71,16 @@ impl PointerState {
     pub fn word(&self) -> &'static str {
         return match self {
             PointerState::Intact => "intact",
-            PointerState::Differs { .. } => "different",
-            PointerState::Present { .. } => "present, and the record keeps no bytes to compare it with",
+            PointerState::Differs {
+                ..
+            } => "different",
+            PointerState::Present {
+                ..
+            } => "present, and the record keeps no bytes to compare it with",
             PointerState::Missing => "absent",
-            PointerState::Unprovable { .. } => "cannot be proved",
+            PointerState::Unprovable {
+                ..
+            } => "cannot be proved",
         };
     }
 }
@@ -118,10 +124,20 @@ impl PointerSite {
     /// The sentence a report prints for the copy it read.
     pub fn sentence(&self) -> String {
         return match self {
-            PointerSite::Underlay => String::from("the check reads the underlay pointer the add kept for `git worktree prune`, which is the copy the slot shows while the clone is unmounted"),
-            PointerSite::AtTheCloneRoot => String::from("the check reads the clone's own pointer, which is the copy the slot shows while the clone is mounted; the underlay's copy is covered by the mount"),
-            PointerSite::AnotherMount { described } => format!("{described} stands at the slot, so the `.git` there is neither copy this route wrote"),
-            PointerSite::Unprovable { reason } => format!("which copy of the pointer the slot shows cannot be read: {reason}"),
+            PointerSite::Underlay => String::from(
+                "the check reads the underlay pointer the add kept for `git worktree prune`, which is the copy the slot shows while the clone is unmounted",
+            ),
+            PointerSite::AtTheCloneRoot => String::from(
+                "the check reads the clone's own pointer, which is the copy the slot shows while the clone is mounted; the underlay's copy is covered by the mount",
+            ),
+            PointerSite::AnotherMount {
+                described,
+            } => format!(
+                "{described} stands at the slot, so the `.git` there is neither copy this route wrote"
+            ),
+            PointerSite::Unprovable {
+                reason,
+            } => format!("which copy of the pointer the slot shows cannot be read: {reason}"),
         };
     }
 }
@@ -145,9 +161,19 @@ pub fn pointer_site_of(mount: &CloneMount) -> PointerSite {
         CloneMount::AtItsSlot => PointerSite::AtTheCloneRoot,
         CloneMount::Nowhere => PointerSite::Underlay,
         // A clone mounted elsewhere leaves the slot's own folder showing, which is the underlay this route made.
-        CloneMount::Elsewhere { .. } => PointerSite::Underlay,
-        CloneMount::SomethingElseAtTheSlot { described } => PointerSite::AnotherMount { described: described.clone() },
-        CloneMount::Unreadable { reason } => PointerSite::Unprovable { reason: reason.clone() },
+        CloneMount::Elsewhere {
+            ..
+        } => PointerSite::Underlay,
+        CloneMount::SomethingElseAtTheSlot {
+            described,
+        } => PointerSite::AnotherMount {
+            described: described.clone(),
+        },
+        CloneMount::Unreadable {
+            reason,
+        } => PointerSite::Unprovable {
+            reason: reason.clone(),
+        },
     };
 }
 
@@ -162,15 +188,24 @@ pub fn pointer_site_of(mount: &CloneMount) -> PointerSite {
 /// ```ts
 /// const state = pointerStateOf(recorded, reading);
 /// ```
-pub fn pointer_state_of(recorded: Option<&[u8]>, reading: &Reading) -> PointerState {
+pub fn pointer_state_of(
+    recorded: Option<&[u8]>,
+    reading: &Reading,
+) -> PointerState {
     return match reading {
         Reading::Absent => PointerState::Missing,
         Reading::Bytes(found) => match recorded {
             Some(wanted) if found.as_slice() == wanted => PointerState::Intact,
-            Some(_other) => PointerState::Differs { found: found.len() as u64 },
-            None => PointerState::Present { found: found.len() as u64 },
+            Some(_other) => PointerState::Differs {
+                found: found.len() as u64,
+            },
+            None => PointerState::Present {
+                found: found.len() as u64,
+            },
         },
-        Reading::Refused(cause) => PointerState::Unprovable { reason: cause.words() },
+        Reading::Refused(cause) => PointerState::Unprovable {
+            reason: cause.words(),
+        },
     };
 }
 
@@ -186,7 +221,10 @@ pub fn pointer_state_of(recorded: Option<&[u8]>, reading: &Reading) -> PointerSt
 /// ```ts
 /// const state = readPointerStateAt(slotPath, record.pointer);
 /// ```
-pub fn read_pointer_state_at(slot_path: &Path, recorded: Option<&[u8]>) -> PointerState {
+pub fn read_pointer_state_at(
+    slot_path: &Path,
+    recorded: Option<&[u8]>,
+) -> PointerState {
     let reading: Reading = read_the_slot_pointer(slot_path);
     return pointer_state_of(recorded, &reading);
 }

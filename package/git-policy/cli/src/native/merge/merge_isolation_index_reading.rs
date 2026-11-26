@@ -21,8 +21,14 @@
 //! ```
 
 use crate::lazy_runtime::run_on_runtime;
-use crate::merge_isolation_changes::{Change, parse_raw_changes};
-use crate::merge_isolation_recovery_steps::{RecoveryPlace, Standing};
+use crate::merge_isolation_changes::{
+    Change,
+    parse_raw_changes,
+};
+use crate::merge_isolation_recovery_steps::{
+    RecoveryPlace,
+    Standing,
+};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
@@ -84,7 +90,11 @@ pub async fn index_standings_awaiting(
     let mut found: Vec<Standing> = Vec::with_capacity(changes.len());
     for change in changes {
         crate::collected_elements_looked_at::note_looked_at(1);
-        found.push(standing_of_index(entries.get(change.path.as_slice()).copied(), change, change));
+        found.push(standing_of_index(
+            entries.get(change.path.as_slice()).copied(),
+            change,
+            change,
+        ));
     }
     return Ok(found);
 }
@@ -124,7 +134,11 @@ pub fn entries_by_path(staged: &[Change]) -> HashMap<&[u8], &Change> {
 /// ```ts
 /// parseRawChanges(await git(['diff-index', '--cached', '-z', '--raw', oldOid, '--']));
 /// ```
-pub fn index_entries(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Result<Vec<Change>, RecoveryError> {
+pub fn index_entries(
+    place: &RecoveryPlace,
+    root: &Path,
+    old_oid: &str,
+) -> Result<Vec<Change>, RecoveryError> {
     return match run_on_runtime(index_entries_awaiting(place, root, old_oid)) {
         Ok(found) => found,
         Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
@@ -142,10 +156,23 @@ pub fn index_entries(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Resul
 /// ```ts
 /// async function indexEntries({ place, root, oldOid }): Promise<Change[]>;
 /// ```
-pub async fn index_entries_awaiting(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Result<Vec<Change>, RecoveryError> {
+pub async fn index_entries_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    old_oid: &str,
+) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
-        &["diff-index", "--cached", "-z", "--raw", "--no-renames", "--no-abbrev", old_oid, "--"],
+        &[
+            "diff-index",
+            "--cached",
+            "-z",
+            "--raw",
+            "--no-renames",
+            "--no-abbrev",
+            old_oid,
+            "--",
+        ],
     );
     let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
@@ -169,7 +196,11 @@ pub async fn index_entries_awaiting(place: &RecoveryPlace, root: &Path, old_oid:
 /// ```ts
 /// function standingOfIndex(entry, old, next): Standing; // absent or equal to old ? 'old' : equal to next ? 'new' : 'foreign'
 /// ```
-pub fn standing_of_index(entry: Option<&Change>, old: &Change, next: &Change) -> Standing {
+pub fn standing_of_index(
+    entry: Option<&Change>,
+    old: &Change,
+    next: &Change,
+) -> Standing {
     let Some(found) = entry else {
         return Standing::Old;
     };

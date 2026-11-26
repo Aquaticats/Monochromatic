@@ -27,8 +27,16 @@
 //! if (pid === 0) { childEnd.moveTo(4); closeRange(5); _exit(0); }
 //! ```
 
-use super::probe_call_error::{CallError, failed};
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+use super::probe_call_error::{
+    CallError,
+    failed,
+};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+    RawFd,
+};
 use std::time::Duration;
 
 /// What:
@@ -69,7 +77,10 @@ pub fn pipe_pair() -> Result<PipeEnds, CallError> {
         return Err(failed("pipe2"));
     }
     // SAFETY: the call answered two descriptors this process owns, each owned exactly once.
-    return Ok(PipeEnds { read: unsafe { OwnedFd::from_raw_fd(ends[0]) }, write: unsafe { OwnedFd::from_raw_fd(ends[1]) } });
+    return Ok(PipeEnds {
+        read: unsafe { OwnedFd::from_raw_fd(ends[0]) },
+        write: unsafe { OwnedFd::from_raw_fd(ends[1]) },
+    });
 }
 
 /// What:
@@ -105,7 +116,11 @@ pub fn fork() -> Result<Option<libc::pid_t>, CallError> {
 pub fn set_process_group(pid: libc::pid_t) -> Result<(), CallError> {
     // SAFETY: `setpgid` reads two process identifiers and touches no memory of ours.
     let set: libc::c_int = unsafe { libc::setpgid(pid, pid) };
-    return if set == 0 { Ok(()) } else { Err(failed("setpgid")) };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(failed("setpgid"))
+    };
 }
 
 /// What:
@@ -138,14 +153,27 @@ pub fn pid_descriptor(pid: libc::pid_t) -> Result<OwnedFd, CallError> {
 ///
 /// # Errors
 /// The call refused.
-pub fn poll_descriptors(watched: &mut [libc::pollfd], timeout: Option<Duration>) -> Result<libc::c_int, CallError> {
+pub fn poll_descriptors(
+    watched: &mut [libc::pollfd],
+    timeout: Option<Duration>,
+) -> Result<libc::c_int, CallError> {
     let milliseconds: libc::c_int = match timeout {
         None => -1,
         Some(left) => libc::c_int::try_from(left.as_millis().max(1)).unwrap_or(libc::c_int::MAX),
     };
     // SAFETY: the array is the caller's and holds its length; the call writes each entry's answer.
-    let ready: libc::c_int = unsafe { libc::poll(watched.as_mut_ptr(), libc::nfds_t::try_from(watched.len()).unwrap_or(0), milliseconds) };
-    return if ready < 0 { Err(failed("poll")) } else { Ok(ready) };
+    let ready: libc::c_int = unsafe {
+        libc::poll(
+            watched.as_mut_ptr(),
+            libc::nfds_t::try_from(watched.len()).unwrap_or(0),
+            milliseconds,
+        )
+    };
+    return if ready < 0 {
+        Err(failed("poll"))
+    } else {
+        Ok(ready)
+    };
 }
 
 /// What:
@@ -227,9 +255,13 @@ pub fn wait_blocking(pid: libc::pid_t) -> Result<Exit, CallError> {
 /// The ending one wait status holds.
 pub fn exit_from_status(status: libc::c_int) -> Exit {
     if libc::WIFSIGNALED(status) {
-        return Exit::Signaled { signal: libc::WTERMSIG(status) };
+        return Exit::Signaled {
+            signal: libc::WTERMSIG(status),
+        };
     }
-    return Exit::Exited { status: libc::WEXITSTATUS(status) };
+    return Exit::Exited {
+        status: libc::WEXITSTATUS(status),
+    };
 }
 
 /// What:
@@ -244,7 +276,11 @@ pub fn exit_from_status(status: libc::c_int) -> Exit {
 pub fn kill_process_group(pid: libc::pid_t) -> Result<(), CallError> {
     // SAFETY: `kill` reads two numbers and touches no memory of ours; the group is the worker's own.
     let killed: libc::c_int = unsafe { libc::kill(-pid, libc::SIGKILL) };
-    return if killed == 0 { Ok(()) } else { Err(failed("kill")) };
+    return if killed == 0 {
+        Ok(())
+    } else {
+        Err(failed("kill"))
+    };
 }
 
 /// What:
@@ -259,7 +295,11 @@ pub fn kill_process_group(pid: libc::pid_t) -> Result<(), CallError> {
 pub fn kill_process(pid: libc::pid_t) -> Result<(), CallError> {
     // SAFETY: `kill` reads two numbers and touches no memory of ours.
     let killed: libc::c_int = unsafe { libc::kill(pid, libc::SIGKILL) };
-    return if killed == 0 { Ok(()) } else { Err(failed("kill")) };
+    return if killed == 0 {
+        Ok(())
+    } else {
+        Err(failed("kill"))
+    };
 }
 
 /// The descriptor a pipe's end is,

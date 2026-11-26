@@ -15,12 +15,27 @@
 
 /// The decision,
 ///  its result types and the argument and real-Git fixture helpers.
-use super::RequireRootExemption::{ConfigScope, NoCommand, Subcommand};
-use super::{
-    NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
-    RequireRootViolation, decide_require_root, resolve_require_root,
+use super::RequireRootExemption::{
+    ConfigScope,
+    NoCommand,
+    Subcommand,
 };
-use crate::command_test_support::{fixture, git, os_arguments, remove, repository};
+use super::{
+    NOT_AT_ROOT_CODE,
+    RequireRootDecision,
+    RequireRootFacts,
+    RequireRootVerdict,
+    RequireRootViolation,
+    decide_require_root,
+    resolve_require_root,
+};
+use crate::command_test_support::{
+    fixture,
+    git,
+    os_arguments,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 use std::process::Output;
 
@@ -36,7 +51,10 @@ fn decide(line: &str) -> RequireRootDecision {
 
 /// Measurements with a known repository root,
 ///  or with none.
-fn facts(directory: &str, root: Option<&str>) -> RequireRootFacts {
+fn facts(
+    directory: &str,
+    root: Option<&str>,
+) -> RequireRootFacts {
     let mut repository_root: Option<PathBuf> = None;
     if let Some(found) = root {
         repository_root = Some(PathBuf::from(found));
@@ -49,7 +67,10 @@ fn facts(directory: &str, root: Option<&str>) -> RequireRootFacts {
 
 /// The rejection text of the incumbent,
 ///  verbatim.
-fn violation(root: &str, directory: &str) -> RequireRootVerdict {
+fn violation(
+    root: &str,
+    directory: &str,
+) -> RequireRootVerdict {
     return RequireRootVerdict::NotAtRoot(RequireRootViolation {
         message: format!(
             "monochromatic-git-policy-cli: not at the root of the git repository. Repo root is {root} but effective cwd is {directory}. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand."

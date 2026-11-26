@@ -22,7 +22,10 @@
 //! ```
 
 use crate::service_protocol::CommitRequest;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// A path in the quoted form `fast-import` reads,
 /// so no byte of a name can end the line or the field.
@@ -60,14 +63,22 @@ pub(super) fn ends_a_field(byte: &u8) -> bool {
 /// Why:
 ///   Both are the bytes Git listed,
 /// so a name that is not text is compared as itself and never as a spelling that two names can share.
-pub(crate) fn overlaps(path: &[u8], changed: &[u8]) -> bool {
+pub(crate) fn overlaps(
+    path: &[u8],
+    changed: &[u8],
+) -> bool {
     return path == changed || is_below(path, changed) || is_below(changed, path);
 }
 
 /// Whether `directory` holds `path`,
 /// which is the same test as `path.startsWith(directory + '/')` on the bytes.
-fn is_below(path: &[u8], directory: &[u8]) -> bool {
-    return path.len() > directory.len() && path.starts_with(directory) && path[directory.len()] == b'/';
+fn is_below(
+    path: &[u8],
+    directory: &[u8],
+) -> bool {
+    return path.len() > directory.len()
+        && path.starts_with(directory)
+        && path[directory.len()] == b'/';
 }
 
 /// The stream that makes one commit per request on a scratch branch that starts at `old`,
@@ -75,14 +86,26 @@ fn is_below(path: &[u8], directory: &[u8]) -> bool {
 /// for an amend,
 /// one commit
 ///  whose parents are `amended_parents` and whose whole tree is the request's tree.
-pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest], amended_parents: &[String]) -> Vec<u8> {
+pub(crate) fn import_stream(
+    scratch: &str,
+    old: &str,
+    requests: &[&CommitRequest],
+    amended_parents: &[String],
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     for (index, request) in requests.iter().enumerate() {
         bytes.extend(format!("commit {scratch}\nmark :{}\n", index + 1).as_bytes());
         if let Some(author) = &request.author {
             bytes.extend(format!("author {author}\n").as_bytes());
         }
-        bytes.extend(format!("committer {}\ndata {}\n", request.committer, request.message.len()).as_bytes());
+        bytes.extend(
+            format!(
+                "committer {}\ndata {}\n",
+                request.committer,
+                request.message.len()
+            )
+            .as_bytes(),
+        );
         bytes.extend(request.message.as_bytes());
         bytes.push(b'\n');
         if request.amend
@@ -90,7 +113,13 @@ pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest
         {
             // An amend replaces the tip: its parents are the base's parents, and its tree is the one the client wrote.
             for (position, parent) in amended_parents.iter().enumerate() {
-                bytes.extend(format!("{} {parent}\n", if position == 0 { "from" } else { "merge" }).as_bytes());
+                bytes.extend(
+                    format!(
+                        "{} {parent}\n",
+                        if position == 0 { "from" } else { "merge" }
+                    )
+                    .as_bytes(),
+                );
             }
             bytes.extend(format!("M 040000 {tree} \"\"\n").as_bytes());
             bytes.push(b'\n');
@@ -116,11 +145,16 @@ pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest
 
 /// The object names `fast-import` recorded for the marks,
 /// in request order.
-pub(crate) fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
+pub(crate) fn commits_from_marks(
+    text: &str,
+    count: usize,
+) -> Option<Vec<String>> {
     let mut commits: Vec<Option<String>> = vec![None; count];
     for line in text.lines() {
         let mut parts = line.split(' ');
-        let (Some(mark), Some(name)) = (parts.next(), parts.next()) else { continue };
+        let (Some(mark), Some(name)) = (parts.next(), parts.next()) else {
+            continue;
+        };
         let slot: usize = mark.trim_start_matches(':').parse::<usize>().ok()?;
         if slot >= 1 && slot <= count {
             commits[slot - 1] = Some(name.to_string());
@@ -155,13 +189,19 @@ pub(crate) fn ids_of(batch: &[&CommitRequest]) -> Vec<String> {
 /// ```ts
 /// request.changes.some((change) => changedSince?.some((name) => overlaps(change.path, name)))
 /// ```
-pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTreeSet<Vec<u8>>>) -> bool {
+pub(crate) fn changes_overlap_names(
+    request: &CommitRequest,
+    names: Option<&BTreeSet<Vec<u8>>>,
+) -> bool {
     let Some(changed) = names else {
         return false;
     };
     for change in &request.changes {
         for name in changed {
-            if overlaps(crate::path_bytes::path_bytes_of(change.path.as_path()), name.as_slice()) {
+            if overlaps(
+                crate::path_bytes::path_bytes_of(change.path.as_path()),
+                name.as_slice(),
+            ) {
                 return true;
             }
         }
@@ -179,10 +219,16 @@ pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTre
 /// ```ts
 /// request.changes.some((c) => earlier.changes.some((m) => overlaps(c.path, m.path)))
 /// ```
-pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitRequest) -> bool {
+pub(crate) fn changes_overlap_members(
+    request: &CommitRequest,
+    earlier: &CommitRequest,
+) -> bool {
     for change in &request.changes {
         for member in &earlier.changes {
-            if overlaps(crate::path_bytes::path_bytes_of(change.path.as_path()), crate::path_bytes::path_bytes_of(member.path.as_path())) {
+            if overlaps(
+                crate::path_bytes::path_bytes_of(change.path.as_path()),
+                crate::path_bytes::path_bytes_of(member.path.as_path()),
+            ) {
                 return true;
             }
         }
@@ -206,10 +252,15 @@ pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitR
 /// ```ts
 /// const landing = (requests, old, changedSince) => requests.flatMap((r, i) => (conflictsSince(r) || shadowedByEarlier(r)) ? [] : [[i, r]]);
 /// ```
-pub(super) fn landing_of<'a>(requests: &'a [CommitRequest], old: &str, changed_since: &HashMap<&str, BTreeSet<Vec<u8>>>) -> Vec<(usize, &'a CommitRequest)> {
+pub(super) fn landing_of<'a>(
+    requests: &'a [CommitRequest],
+    old: &str,
+    changed_since: &HashMap<&str, BTreeSet<Vec<u8>>>,
+) -> Vec<(usize, &'a CommitRequest)> {
     let mut landing: Vec<(usize, &CommitRequest)> = Vec::new();
     for (index, request) in requests.iter().enumerate() {
-        let conflicts: bool = request.base != old && changes_overlap_names(request, changed_since.get(request.base.as_str()));
+        let conflicts: bool = request.base != old
+            && changes_overlap_names(request, changed_since.get(request.base.as_str()));
         // A member of this batch that an earlier member overlaps would replace that member's bytes in the stream below. It
         //  stays in the batch only when it captured the worktree (a batch has one) later than that member, so its bytes
         //  hold the member's edit; any other request is sent back and merged against the member's landed commit.

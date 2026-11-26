@@ -10,15 +10,38 @@
 //! and the acquisition that goes on to land over it.
 
 use super::*;
-use crate::index_lock_holders::{Holder, ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
+use crate::index_lock_holders::{
+    Holder,
+    ScanLimit,
+    scan_platform_holders_bounded,
+    scan_proc_fd_holders_stopping,
+};
 use crate::service_fault::hooks;
-use crate::service_index_lock::{Announce, LockFailure, acquire_on, acquire_within, lock_path_of};
-use crate::service_index_marker::{marker_text, own_identity};
-use crate::service_index_placement::{Platform, SYSTEM};
+use crate::service_index_lock::{
+    Announce,
+    LockFailure,
+    acquire_on,
+    acquire_within,
+    lock_path_of,
+};
+use crate::service_index_marker::{
+    marker_text,
+    own_identity,
+};
+use crate::service_index_placement::{
+    Platform,
+    SYSTEM,
+};
 use crate::service_protocol::FailureCode;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 fn index_in(name: &str) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
@@ -28,8 +51,17 @@ fn index_in(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// A scan that looked at every process and found no holder.
-fn complete_and_empty(_lock: &Path, _device: u64, _inode: u64) -> HolderEvidence {
-    return HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: Vec::new(), unresolvable: Vec::new() };
+fn complete_and_empty(
+    _lock: &Path,
+    _device: u64,
+    _inode: u64,
+) -> HolderEvidence {
+    return HolderEvidence {
+        method: "proc-fd",
+        holders: Vec::new(),
+        partial: Vec::new(),
+        unresolvable: Vec::new(),
+    };
 }
 
 /// A child of this process that has the file at `lock` open as its standard input,
@@ -52,7 +84,9 @@ fn release(mut child: std::process::Child) {
 
 /// The number of a process that has exited and been reaped.
 fn dead_pid() -> i64 {
-    let mut child = std::process::Command::new("true").spawn().expect("a short process");
+    let mut child = std::process::Command::new("true")
+        .spawn()
+        .expect("a short process");
     let pid: i64 = i64::from(child.id());
     child.wait().expect("reaped");
     return pid;
@@ -72,8 +106,21 @@ fn an_empty_unheld_lock_with_no_pid_file_is_removed_and_the_proof_names_the_file
     std::fs::write(&lock, "").expect("empty foreign lock");
     let before: std::fs::Metadata = std::fs::metadata(&lock).expect("lock");
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
-    let Unheld::Removed(proof) = outcome else { panic!("an unheld lock was not removed: {outcome:?}") };
-    assert_eq!(proof, Proof { lock: lock.clone(), disuse: Disuse::NoPidFile, gone_pid: None, device: before.dev(), inode: before.ino(), size: before.len(), unreadable: 0 });
+    let Unheld::Removed(proof) = outcome else {
+        panic!("an unheld lock was not removed: {outcome:?}")
+    };
+    assert_eq!(
+        proof,
+        Proof {
+            lock: lock.clone(),
+            disuse: Disuse::NoPidFile,
+            gone_pid: None,
+            device: before.dev(),
+            inode: before.ino(),
+            size: before.len(),
+            unreadable: 0
+        }
+    );
     assert!(!lock.exists());
     remove(root.as_path());
 }
@@ -126,15 +173,25 @@ fn a_lock_with_content_is_never_removed_and_a_real_commit_in_its_editor_is_why()
     assert!(started.exists(), "the real commit never reached its editor");
     let index: PathBuf = repo.join(".git").join("index");
     let lock: PathBuf = lock_path_of(&index);
-    let meta: std::fs::Metadata = std::fs::metadata(&lock).expect("the editor phase holds the lock");
-    assert!(meta.len() > 0, "the lock of an editor-phase commit holds the index");
+    let meta: std::fs::Metadata =
+        std::fs::metadata(&lock).expect("the editor phase holds the lock");
+    assert!(
+        meta.len() > 0,
+        "the lock of an editor-phase commit holds the index"
+    );
     let seen: HolderEvidence = scan_platform_holders_bounded(&lock, meta.dev(), meta.ino());
-    assert!(seen.holders.is_empty(), "the scan sees a holder the measurement says there is none: {seen:?}");
+    assert!(
+        seen.holders.is_empty(),
+        "the scan sees a holder the measurement says there is none: {seen:?}"
+    );
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &scan_platform_holders_bounded);
     std::fs::write(root.join("editor.release"), "").expect("release");
     let status: std::process::ExitStatus = commit.wait().expect("the commit ends");
     assert_eq!(outcome, Unheld::Kept);
-    assert!(status.success(), "the commit failed after its lock was judged: {status}");
+    assert!(
+        status.success(),
+        "the commit failed after its lock was judged: {status}"
+    );
     assert!(!lock.exists(), "Git released its own lock");
     remove(root.as_path());
 }
@@ -152,7 +209,12 @@ fn a_lock_a_live_process_has_open_is_never_removed() {
     let holder: std::process::Child = holder_of(&lock);
     let meta: std::fs::Metadata = std::fs::metadata(&lock).expect("lock");
     let seen: HolderEvidence = scan_platform_holders_bounded(&lock, meta.dev(), meta.ino());
-    assert!(seen.holders.iter().any(|found| { return found.pid == i64::from(holder.id()); }), "the scan does not see the holder: {seen:?}");
+    assert!(
+        seen.holders.iter().any(|found| {
+            return found.pid == i64::from(holder.id());
+        }),
+        "the scan does not see the holder: {seen:?}"
+    );
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &scan_platform_holders_bounded);
     release(holder);
     assert_eq!(outcome, Unheld::Kept);
@@ -167,8 +229,15 @@ fn a_lock_with_a_pid_file_naming_a_live_process_is_never_removed() {
     let (root, index) = index_in("unheld-pid-file-live");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, "").expect("empty foreign lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {}\n", std::process::id())).expect("PID file");
-    assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(&index),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("PID file");
+    assert_eq!(
+        remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
     assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), "");
     remove(root.as_path());
 }
@@ -180,12 +249,19 @@ fn a_lock_with_a_pid_file_naming_a_live_process_is_never_removed() {
 /// so the lock stands for the wait to name.
 #[test]
 fn a_lock_with_any_pid_file_at_all_is_never_removed() {
-    for (name, text) in [("malformed", String::from("not a pid line\n")), ("gone", format!("pid {}\n", dead_pid()))] {
+    for (name, text) in [
+        ("malformed", String::from("not a pid line\n")),
+        ("gone", format!("pid {}\n", dead_pid())),
+    ] {
         let (root, index) = index_in(format!("unheld-pid-file-{name}").as_str());
         let lock: PathBuf = lock_path_of(&index);
         std::fs::write(&lock, "").expect("empty foreign lock");
         std::fs::write(crate::recovery_files::lock_pid_path(&index), text).expect("PID file");
-        assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Kept, "{name}");
+        assert_eq!(
+            remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+            Unheld::Kept,
+            "{name}"
+        );
         assert!(lock.exists(), "{name}");
         remove(root.as_path());
     }
@@ -200,14 +276,24 @@ fn a_lock_replaced_between_the_scan_and_the_unlink_is_never_removed() {
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, "").expect("empty foreign lock");
     let (hook_lock, hook_root) = (lock.clone(), root.clone());
-    hooks::set("unheld-scanned", std::rc::Rc::new(move || {
-        // The scanned lock goes and another program's lock takes its name, as Git's own `index.lock` would.
-        std::fs::remove_file(&hook_lock).expect("the scanned lock is removed by someone else");
-        std::fs::write(hook_root.join("staged-foreign"), "a foreign program's lock").expect("staged");
-        std::fs::rename(hook_root.join("staged-foreign"), &hook_lock).expect("placed");
-    }));
-    assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Changed);
-    assert_eq!(std::fs::read_to_string(&lock).expect("the other program's lock stands"), "a foreign program's lock");
+    hooks::set(
+        "unheld-scanned",
+        std::rc::Rc::new(move || {
+            // The scanned lock goes and another program's lock takes its name, as Git's own `index.lock` would.
+            std::fs::remove_file(&hook_lock).expect("the scanned lock is removed by someone else");
+            std::fs::write(hook_root.join("staged-foreign"), "a foreign program's lock")
+                .expect("staged");
+            std::fs::rename(hook_root.join("staged-foreign"), &hook_lock).expect("placed");
+        }),
+    );
+    assert_eq!(
+        remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Changed
+    );
+    assert_eq!(
+        std::fs::read_to_string(&lock).expect("the other program's lock stands"),
+        "a foreign program's lock"
+    );
     remove(root.as_path());
 }
 
@@ -226,13 +312,20 @@ fn a_lock_filled_during_the_scan_is_never_removed() {
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, "").expect("empty foreign lock");
     let hook_lock: PathBuf = lock.clone();
-    hooks::set("unheld-scanned", std::rc::Rc::new(move || {
-        // A native Git writes the whole index into its lock and closes the descriptor, as its editor phase does.
-        std::fs::write(&hook_lock, "DIRC".repeat(48)).expect("the index written into the lock");
-    }));
+    hooks::set(
+        "unheld-scanned",
+        std::rc::Rc::new(move || {
+            // A native Git writes the whole index into its lock and closes the descriptor, as its editor phase does.
+            std::fs::write(&hook_lock, "DIRC".repeat(48)).expect("the index written into the lock");
+        }),
+    );
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
     hooks::clear();
-    assert_eq!(outcome, Unheld::Kept, "a lock a Git filled after the scan was removed");
+    assert_eq!(
+        outcome,
+        Unheld::Kept,
+        "a lock a Git filled after the scan was removed"
+    );
     assert!(lock.exists(), "a live commit's lock was unlinked");
     remove(root.as_path());
 }
@@ -264,15 +357,27 @@ fn a_memory_file_of_this_process_does_not_keep_an_abandoned_lock() {
     // SAFETY: `memfd_create` takes a name that outlives the call and a flag word of zero, and returns a descriptor this
     //  control keeps open until the memory file is dropped.
     let descriptor: std::os::fd::RawFd = unsafe { libc::memfd_create(name.as_ptr(), 0) };
-    assert!(descriptor >= 0, "a memory file: {}", std::io::Error::last_os_error());
+    assert!(
+        descriptor >= 0,
+        "a memory file: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: the descriptor came from `memfd_create` and is owned by this control alone.
-    let capture: std::fs::File = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(descriptor) };
+    let capture: std::fs::File =
+        unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(descriptor) };
     let link: PathBuf = PathBuf::from(format!("/proc/self/fd/{descriptor}"));
     let named: PathBuf = std::fs::read_link(link.as_path()).expect("the memory file's link");
-    assert!(named.to_string_lossy().starts_with("/memfd:"), "the link names a memory file: {}", named.display());
+    assert!(
+        named.to_string_lossy().starts_with("/memfd:"),
+        "the link names a memory file: {}",
+        named.display()
+    );
     let outcome: Unheld = remove_if_unheld(&SYSTEM, &index, &complete_and_empty);
     drop(capture);
-    assert!(matches!(outcome, Unheld::Removed(_)), "a memory file of this process kept an abandoned lock: {outcome:?}");
+    assert!(
+        matches!(outcome, Unheld::Removed(_)),
+        "a memory file of this process kept an abandoned lock: {outcome:?}"
+    );
     assert!(!lock.exists());
     remove(root.as_path());
 }
@@ -282,7 +387,10 @@ fn a_memory_file_of_this_process_does_not_keep_an_abandoned_lock() {
 #[test]
 fn a_lock_that_is_gone_asks_for_another_placement() {
     let (root, index) = index_in("unheld-gone");
-    assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Changed);
+    assert_eq!(
+        remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Changed
+    );
     remove(root.as_path());
 }
 
@@ -298,16 +406,49 @@ fn a_lock_that_is_gone_asks_for_another_placement() {
 fn only_a_scan_that_finished_may_prove_a_lock_unheld() {
     let proc: PathBuf = fixture("unheld-fake-proc");
     std::fs::create_dir_all(proc.join("9")).expect("a process");
-    let cut = |_lock: &Path, device: u64, inode: u64| { return scan_proc_fd_holders_stopping(&proc, device, inode, 0, ScanLimit { deadline: None, processes: Some(0) }); };
+    let cut = |_lock: &Path, device: u64, inode: u64| {
+        return scan_proc_fd_holders_stopping(
+            &proc,
+            device,
+            inode,
+            0,
+            ScanLimit {
+                deadline: None,
+                processes: Some(0),
+            },
+        );
+    };
     let missing_proc: PathBuf = proc.join("no-such-proc-root");
-    let unlistable = |_lock: &Path, device: u64, inode: u64| { return scan_proc_fd_holders_stopping(&missing_proc, device, inode, 0, ScanLimit::default()); };
+    let unlistable = |_lock: &Path, device: u64, inode: u64| {
+        return scan_proc_fd_holders_stopping(
+            &missing_proc,
+            device,
+            inode,
+            0,
+            ScanLimit::default(),
+        );
+    };
     // The process 9 has a descriptor directory that is not a directory, which the scan reports as that process's descriptors being unreadable.
     std::fs::write(proc.join("9").join("fd"), "").expect("descriptors that cannot be listed");
-    let refused = |_lock: &Path, device: u64, inode: u64| { return scan_proc_fd_holders_stopping(&proc, device, inode, 0, ScanLimit::default()); };
+    let refused = |_lock: &Path, device: u64, inode: u64| {
+        return scan_proc_fd_holders_stopping(&proc, device, inode, 0, ScanLimit::default());
+    };
     for (name, scan, removed) in [
-        ("cut at its bound", &cut as &dyn Fn(&Path, u64, u64) -> HolderEvidence, false),
-        ("no process list", &unlistable as &dyn Fn(&Path, u64, u64) -> HolderEvidence, false),
-        ("one process refused", &refused as &dyn Fn(&Path, u64, u64) -> HolderEvidence, true),
+        (
+            "cut at its bound",
+            &cut as &dyn Fn(&Path, u64, u64) -> HolderEvidence,
+            false,
+        ),
+        (
+            "no process list",
+            &unlistable as &dyn Fn(&Path, u64, u64) -> HolderEvidence,
+            false,
+        ),
+        (
+            "one process refused",
+            &refused as &dyn Fn(&Path, u64, u64) -> HolderEvidence,
+            true,
+        ),
     ] {
         let (root, index) = index_in(format!("unheld-scan-{}", name.replace(' ', "-")).as_str());
         let lock: PathBuf = lock_path_of(&index);
@@ -333,10 +474,19 @@ fn a_lock_a_thread_of_this_process_holds_open_is_never_removed() {
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, "").expect("empty foreign lock");
     let held: std::fs::File = std::fs::File::open(&lock).expect("another thread's descriptor");
-    assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert_eq!(
+        remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
     assert!(lock.exists());
     drop(held);
-    assert!(matches!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Removed(_)), "closing the descriptor makes it removable");
+    assert!(
+        matches!(
+            remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+            Unheld::Removed(_)
+        ),
+        "closing the descriptor makes it removable"
+    );
     remove(root.as_path());
 }
 
@@ -347,8 +497,12 @@ fn a_lock_a_thread_of_this_process_holds_open_is_never_removed() {
 fn a_lock_with_the_services_marker_is_not_judged_here() {
     let (root, index) = index_in("unheld-marked");
     let lock: PathBuf = lock_path_of(&index);
-    std::fs::write(&lock, marker_text(7, &own_identity).expect("an identity")).expect("a marked lock");
-    assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    std::fs::write(&lock, marker_text(7, &own_identity).expect("an identity"))
+        .expect("a marked lock");
+    assert_eq!(
+        remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
     assert!(lock.exists());
     remove(root.as_path());
 }
@@ -362,9 +516,20 @@ fn a_link_named_as_the_lock_is_left_and_its_target_is_untouched() {
     let target: PathBuf = root.join("target");
     std::fs::write(&target, "the person's file").expect("target");
     std::os::unix::fs::symlink(&target, &lock).expect("link");
-    assert_eq!(remove_if_unheld(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
-    assert!(std::fs::symlink_metadata(&lock).expect("the link stands").file_type().is_symlink());
-    assert_eq!(std::fs::read_to_string(&target).expect("target"), "the person's file");
+    assert_eq!(
+        remove_if_unheld(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
+    assert!(
+        std::fs::symlink_metadata(&lock)
+            .expect("the link stands")
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read_to_string(&target).expect("target"),
+        "the person's file"
+    );
     remove(root.as_path());
 }
 
@@ -372,13 +537,33 @@ fn a_link_named_as_the_lock_is_left_and_its_target_is_untouched() {
 /// and the person's words add what the scan cannot see and what to do about it.
 #[test]
 fn the_journal_and_the_person_are_given_the_proof_and_its_limit() {
-    let proof: Proof = Proof { lock: PathBuf::from("/repo/.git/index.lock"), disuse: Disuse::NoPidFile, gone_pid: None, device: 2049, inode: 9183, size: 0, unreadable: 3 };
+    let proof: Proof = Proof {
+        lock: PathBuf::from("/repo/.git/index.lock"),
+        disuse: Disuse::NoPidFile,
+        gone_pid: None,
+        device: 2049,
+        inode: 9183,
+        size: 0,
+        unreadable: 3,
+    };
     let journal: String = journal_words(&proof);
-    for part in ["/repo/.git/index.lock", "device 2049", "inode 9183", "0 bytes", "no Git lock PID file", "unreadable processes: 3"] {
+    for part in [
+        "/repo/.git/index.lock",
+        "device 2049",
+        "inode 9183",
+        "0 bytes",
+        "no Git lock PID file",
+        "unreadable processes: 3",
+    ] {
         assert!(journal.contains(part), "{part}: {journal}");
     }
     let told: String = told_words(&proof);
-    for part in ["/repo/.git/index.lock", "removed the empty index lock", "another user namespace", "run its command again"] {
+    for part in [
+        "/repo/.git/index.lock",
+        "removed the empty index lock",
+        "another user namespace",
+        "run its command again",
+    ] {
         assert!(told.contains(part), "{part}: {told}");
     }
     assert!(told.ends_with('\n'));
@@ -407,12 +592,29 @@ fn a_landing_over_an_unheld_lock_removes_it_and_goes_on() {
     let (root, index) = index_in("unheld-acquire");
     std::fs::write(lock_path_of(&index), "").expect("empty foreign lock");
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-    let unheld: Platform = Platform { scan: complete_and_empty, ..SYSTEM };
-    let lock = acquire_on(&unheld, &index, 3, &|note| { heard.lock().expect("lock").push(note); }).expect("taken over the unheld lock");
+    let unheld: Platform = Platform {
+        scan: complete_and_empty,
+        ..SYSTEM
+    };
+    let lock = acquire_on(&unheld, &index, 3, &|note| {
+        heard.lock().expect("lock").push(note);
+    })
+    .expect("taken over the unheld lock");
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
-    assert_eq!(said.len(), 1, "the person hears the removal and no wait for a lock nothing holds: {said:?}");
-    assert!(matches!(&said[0], Announce::Waiting(text) if text.contains("removed") && text.contains("index.lock")), "the first line is the removal: {said:?}");
-    assert!(std::fs::read_to_string(lock_path_of(&index)).expect("the service's lock").starts_with("cli-git-service "));
+    assert_eq!(
+        said.len(),
+        1,
+        "the person hears the removal and no wait for a lock nothing holds: {said:?}"
+    );
+    assert!(
+        matches!(&said[0], Announce::Waiting(text) if text.contains("removed") && text.contains("index.lock")),
+        "the first line is the removal: {said:?}"
+    );
+    assert!(
+        std::fs::read_to_string(lock_path_of(&index))
+            .expect("the service's lock")
+            .starts_with("cli-git-service ")
+    );
     drop(lock);
     remove(root.as_path());
 }
@@ -427,7 +629,8 @@ fn a_landing_never_removes_a_lock_a_live_process_holds() {
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, "").expect("empty foreign lock");
     let holder: std::process::Child = holder_of(&lock);
-    let refused: Result<_, LockFailure> = acquire_within(&SYSTEM, &index, 4, Duration::from_millis(1500), &|_| {});
+    let refused: Result<_, LockFailure> =
+        acquire_within(&SYSTEM, &index, 4, Duration::from_millis(1500), &|_| {});
     release(holder);
     assert_eq!(refused.expect_err("refused").code, FailureCode::IndexInUse);
     assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), "");
@@ -440,8 +643,13 @@ fn a_landing_never_removes_a_lock_whose_pid_file_names_a_live_process() {
     let (root, index) = index_in("unheld-acquire-pid-file");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, "").expect("empty foreign lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {}\n", std::process::id())).expect("PID file");
-    let refused: Result<_, LockFailure> = acquire_within(&SYSTEM, &index, 5, Duration::from_millis(1500), &|_| {});
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(&index),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("PID file");
+    let refused: Result<_, LockFailure> =
+        acquire_within(&SYSTEM, &index, 5, Duration::from_millis(1500), &|_| {});
     assert_eq!(refused.expect_err("refused").code, FailureCode::IndexInUse);
     assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), "");
     remove(root.as_path());
@@ -462,7 +670,9 @@ fn a_descriptor_the_scan_could_not_identify_keeps_the_lock() {
             method: "proc-fd",
             holders: Vec::new(),
             partial: Vec::new(),
-            unresolvable: vec![String::from("PID 4242 fd 3: its mount is a `fuse` file system, whose attributes are not in the memory of this kernel, so the file is not read")],
+            unresolvable: vec![String::from(
+                "PID 4242 fd 3: its mount is a `fuse` file system, whose attributes are not in the memory of this kernel, so the file is not read",
+            )],
         };
     };
     assert_eq!(remove_if_unheld(&SYSTEM, &index, &refused), Unheld::Kept);
@@ -483,9 +693,18 @@ fn a_descriptor_the_scan_could_not_identify_keeps_the_lock() {
 #[test]
 fn this_processes_descriptors_are_read_through_the_reader_that_walks_no_path() {
     let source: &str = include_str!("service_index_unheld_removal.rs");
-    assert!(!source.contains("fs::metadata("), "no descriptor of this process is read with `metadata`");
-    assert!(source.contains("opened_file_of_our_own("), "the reader that asks the kernel about the open file is what reads them");
-    assert!(!source.contains("open_file_of_a_descriptor::opened_file_of("), "no descriptor of this process is read through the path of its link");
+    assert!(
+        !source.contains("fs::metadata("),
+        "no descriptor of this process is read with `metadata`"
+    );
+    assert!(
+        source.contains("opened_file_of_our_own("),
+        "the reader that asks the kernel about the open file is what reads them"
+    );
+    assert!(
+        !source.contains("open_file_of_a_descriptor::opened_file_of("),
+        "no descriptor of this process is read through the path of its link"
+    );
 }
 
 /// A descriptor of this process that is no file of a repository at all
@@ -501,7 +720,11 @@ fn this_processes_descriptors_are_read_through_the_reader_that_walks_no_path() {
 fn a_pipe_or_a_device_of_this_process_does_not_make_the_count_unknown() {
     /// The device of a lock this host cannot have.
     const NOWHERE: u64 = 0;
-    assert_eq!(own_descriptors_of(NOWHERE, NOWHERE), 0, "the counts of this process's pipes and devices name no lock, and are not unknown");
+    assert_eq!(
+        own_descriptors_of(NOWHERE, NOWHERE),
+        0,
+        "the counts of this process's pipes and devices name no lock, and are not unknown"
+    );
 }
 
 /// What:
@@ -528,14 +751,22 @@ fn a_lock_a_process_this_table_does_not_have_left_is_removed_and_one_a_live_proc
     let lock: PathBuf = lock_path_of(&index);
     let pid_file: PathBuf = crate::recovery_files::lock_pid_path(&index);
     std::fs::write(&lock, "").expect("the killed Git's lock");
-    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid())).expect("the PID file of a process that is gone");
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid()))
+        .expect("the PID file of a process that is gone");
     let outcome: Unheld = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty);
-    assert!(matches!(outcome, Unheld::Removed(_)), "a lock a process this table does not have left is removed: {outcome:?}");
+    assert!(
+        matches!(outcome, Unheld::Removed(_)),
+        "a lock a process this table does not have left is removed: {outcome:?}"
+    );
     assert!(!lock.exists());
     // The same again, with a PID file naming a process this table has: nothing proves it is done with the index.
     std::fs::write(&lock, "").expect("a live Git's lock");
-    std::fs::write(pid_file.as_path(), format!("pid {}\n", std::process::id())).expect("the PID file of this process, which runs");
-    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", std::process::id()))
+        .expect("the PID file of this process, which runs");
+    assert_eq!(
+        remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
     assert!(lock.exists(), "a live owner's lock is left where it is");
     remove(root.as_path());
 }
@@ -550,27 +781,47 @@ fn a_killed_processes_lock_is_kept_when_anything_may_still_use_it() {
     let (root, index) = index_in("unheld-gone-owner-kept");
     let lock: PathBuf = lock_path_of(&index);
     let pid_file: PathBuf = crate::recovery_files::lock_pid_path(&index);
-    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid())).expect("the PID file of a process that is gone");
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid()))
+        .expect("the PID file of a process that is gone");
     // A Git's editor-phase lock holds the whole index; removing it would make that commit fail when the editor closes.
     std::fs::write(&lock, "a written index").expect("a lock with content");
-    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert_eq!(
+        remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
     assert!(lock.exists(), "a lock with content is never removed");
     // The service's own marker is the service's to judge, not a merge's.
-    std::fs::write(&lock, marker_text(1, &own_identity).expect("the marker's text")).expect("the service's marker");
-    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
-    assert!(lock.exists(), "the service's lock is not a merge's to remove");
+    std::fs::write(
+        &lock,
+        marker_text(1, &own_identity).expect("the marker's text"),
+    )
+    .expect("the service's marker");
+    assert_eq!(
+        remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty),
+        Unheld::Kept
+    );
+    assert!(
+        lock.exists(),
+        "the service's lock is not a merge's to remove"
+    );
     // A process that has the lock open is a holder, whatever the PID file says.
     std::fs::write(&lock, "").expect("an empty lock");
     let child: std::process::Child = holder_of(&lock);
     let scanned = |_lock: &Path, _device: u64, _inode: u64| -> HolderEvidence {
         return HolderEvidence {
             method: "proc-fd",
-            holders: vec![Holder { pid: i64::from(child.id()), command: None }],
+            holders: vec![Holder {
+                pid: i64::from(child.id()),
+                command: None,
+            }],
             partial: Vec::new(),
             unresolvable: Vec::new(),
         };
     };
-    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &scanned), Unheld::Kept);
+    assert_eq!(
+        remove_if_the_owner_is_gone(&SYSTEM, &index, &scanned),
+        Unheld::Kept
+    );
     assert!(lock.exists(), "a held lock is never removed");
     release(child);
     remove(root.as_path());
@@ -595,18 +846,38 @@ fn the_words_of_a_removal_that_acted_on_a_pid_file_name_the_evidence_it_acted_on
     let lock: PathBuf = lock_path_of(&index);
     let pid: i64 = dead_pid();
     std::fs::write(&lock, "").expect("the killed Git's lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {pid}\n")).expect("the PID file of a process that is gone");
-    let Unheld::Removed(proof) = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty) else {
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(&index),
+        format!("pid {pid}\n"),
+    )
+    .expect("the PID file of a process that is gone");
+    let Unheld::Removed(proof) = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty)
+    else {
         panic!("a lock a process this table does not have left is removed");
     };
     assert_eq!(proof.disuse, Disuse::PidFileOfAGoneProcess);
     assert_eq!(proof.gone_pid, Some(pid));
     let journal: String = journal_words(&proof);
     let told: String = told_words(&proof);
-    assert!(journal.contains(format!("{pid}").as_str()), "the process is named: {journal}");
-    assert!(journal.contains("which this process table does not have"), "the number is said for what it is: {journal}");
-    assert!(!journal.contains("there is no Git lock PID file"), "it does not claim there was none: {journal}");
-    assert!(!told.contains("no Git lock PID file stood beside it"), "the person is told what was judged: {told}");
-    assert!(told.contains(format!("{pid}").as_str()), "the process is named: {told}");
+    assert!(
+        journal.contains(format!("{pid}").as_str()),
+        "the process is named: {journal}"
+    );
+    assert!(
+        journal.contains("which this process table does not have"),
+        "the number is said for what it is: {journal}"
+    );
+    assert!(
+        !journal.contains("there is no Git lock PID file"),
+        "it does not claim there was none: {journal}"
+    );
+    assert!(
+        !told.contains("no Git lock PID file stood beside it"),
+        "the person is told what was judged: {told}"
+    );
+    assert!(
+        told.contains(format!("{pid}").as_str()),
+        "the process is named: {told}"
+    );
     remove(root.as_path());
 }

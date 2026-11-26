@@ -16,12 +16,33 @@
 //! and every read of native Git keeps the stream in a file rather than a pipe.
 
 use super::service_landing_support::text_of_within;
-use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, REAL_GIT, direct, executable, fixture, git, native_git_within, remove, repository};
+use super::support::{
+    Fixture,
+    NATIVE_GIT_BOUND_SECONDS,
+    REAL_GIT,
+    direct,
+    executable,
+    fixture,
+    git,
+    native_git_within,
+    remove,
+    repository,
+};
 use std::ffi::OsStr;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::{Path, PathBuf};
+use std::panic::{
+    AssertUnwindSafe,
+    catch_unwind,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{
+    Receiver,
+    Sender,
+    channel,
+};
 use std::time::Duration;
 
 /// The bound a control gives a native Git command it means to see ended,
@@ -53,7 +74,9 @@ const STAND_IN_DELAY_SECONDS: u64 = 8;
 /// as the harness starts it.
 fn words_of(command: &Command) -> Vec<String> {
     let mut words: Vec<String> = vec![command.get_program().to_string_lossy().into_owned()];
-    words.extend(command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }));
+    words.extend(command.get_args().map(|argument| {
+        return argument.to_string_lossy().into_owned();
+    }));
     return words;
 }
 
@@ -78,7 +101,11 @@ fn message_of(payload: Box<dyn std::any::Any + Send>) -> String {
 /// that is the shape of Git that a bound cannot end.
 /// The hook writes its own process number and the program's to `pids`,
 ///  so a control can free both after it judged the read.
-fn never_answering_hook(fixture: &Fixture, name: &str, pids: &Path) -> PathBuf {
+fn never_answering_hook(
+    fixture: &Fixture,
+    name: &str,
+    pids: &Path,
+) -> PathBuf {
     let hook: PathBuf = fixture.root.join(name);
     executable(
         hook.as_path(),
@@ -112,7 +139,12 @@ fn free_holders(pids: &Path) {
 fn every_native_git_command_a_fixture_starts_carries_its_own_bound() {
     let fixture: Fixture = fixture("native-git-bound");
     let command: Command = direct(&fixture);
-    let expected: Vec<String> = vec![String::from("/usr/bin/timeout"), String::from("--signal=KILL"), NATIVE_GIT_BOUND_SECONDS.to_string(), REAL_GIT.to_string()];
+    let expected: Vec<String> = vec![
+        String::from("/usr/bin/timeout"),
+        String::from("--signal=KILL"),
+        NATIVE_GIT_BOUND_SECONDS.to_string(),
+        REAL_GIT.to_string(),
+    ];
     let line: Vec<String> = words_of(&command);
     assert_eq!(
         line.as_slice(),
@@ -136,14 +168,24 @@ fn a_native_git_command_that_never_answers_ends_at_its_bound_and_names_it() {
     let hook: PathBuf = fixture.root.join("never-answering-fsmonitor");
     // The stand-in needs no stream of its own: this control is about the command's bound,
     // and the read that waits for a stream is the subject of the control below.
-    executable(hook.as_path(), format!("#!/bin/sh\nexec sleep {STAND_IN_DELAY_SECONDS} </dev/null >/dev/null 2>&1\n").as_bytes());
+    executable(
+        hook.as_path(),
+        format!("#!/bin/sh\nexec sleep {STAND_IN_DELAY_SECONDS} </dev/null >/dev/null 2>&1\n")
+            .as_bytes(),
+    );
     let root: PathBuf = fixture.root.clone();
     let printed = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let (sender, receiver): (Sender<_>, Receiver<_>) = channel();
     let running = std::thread::spawn(move || {
         let setting: String = format!("core.fsmonitor={}", hook.display());
-        let arguments: [&str; 5] = ["-c", setting.as_str(), "status", "--short", "--untracked-files=all"];
+        let arguments: [&str; 5] = [
+            "-c",
+            setting.as_str(),
+            "status",
+            "--short",
+            "--untracked-files=all",
+        ];
         let ended = catch_unwind(AssertUnwindSafe(|| {
             return native_git_within(&fixture, &repo, arguments.as_slice(), READ_BOUND_SECONDS);
         }));
@@ -156,12 +198,24 @@ fn a_native_git_command_that_never_answers_ends_at_its_bound_and_names_it() {
         panic!("a native Git command bounded at {READ_BOUND_SECONDS} s was still running {CONTROL_LIMIT_SECONDS} s after it started, and its stand-in answers after {STAND_IN_DELAY_SECONDS} s: the harness waits for an oracle that its own bound does not end")
     });
     let message: String = match ended {
-        Ok(output) => panic!("a Git command that never answers must be ended at its bound instead of answering: {:?}", output.status),
+        Ok(output) => panic!(
+            "a Git command that never answers must be ended at its bound instead of answering: {:?}",
+            output.status
+        ),
         Err(payload) => message_of(payload),
     };
-    assert!(message.contains("status"), "the failure names the command it waited for: {message}");
-    assert!(message.contains(root.display().to_string().as_str()), "the failure names the directory: {message}");
-    assert!(message.contains(format!("{READ_BOUND_SECONDS} s bound").as_str()), "the failure names the bound: {message}");
+    assert!(
+        message.contains("status"),
+        "the failure names the command it waited for: {message}"
+    );
+    assert!(
+        message.contains(root.display().to_string().as_str()),
+        "the failure names the directory: {message}"
+    );
+    assert!(
+        message.contains(format!("{READ_BOUND_SECONDS} s bound").as_str()),
+        "the failure names the bound: {message}"
+    );
     // The read owned the fixture in its own thread, so this control cleans up by the root it kept.
     let _removed = std::fs::remove_dir_all(&root);
 }
@@ -190,7 +244,13 @@ fn a_native_git_read_ended_at_its_bound_does_not_wait_for_a_hook_s_descendant() 
     let (sender, receiver): (Sender<_>, Receiver<_>) = channel();
     let reading = std::thread::spawn(move || {
         let setting: String = format!("core.fsmonitor={}", hook.display());
-        let arguments: [&str; 5] = ["-c", setting.as_str(), "status", "--short", "--untracked-files=all"];
+        let arguments: [&str; 5] = [
+            "-c",
+            setting.as_str(),
+            "status",
+            "--short",
+            "--untracked-files=all",
+        ];
         let ended = catch_unwind(AssertUnwindSafe(|| {
             return text_of_within(&fixture, &repo, arguments.as_slice(), READ_BOUND_SECONDS);
         }));
@@ -208,12 +268,23 @@ fn a_native_git_read_ended_at_its_bound_does_not_wait_for_a_hook_s_descendant() 
         );
     });
     let message: String = match ended {
-        Ok(text) => panic!("a read that never answers must be ended at its bound instead of answering after its holders were freed: {text}"),
+        Ok(text) => panic!(
+            "a read that never answers must be ended at its bound instead of answering after its holders were freed: {text}"
+        ),
         Err(payload) => message_of(payload),
     };
-    assert!(message.contains("status"), "the failure names the command it waited for: {message}");
-    assert!(message.contains(root.display().to_string().as_str()), "the failure names the directory: {message}");
-    assert!(message.contains(format!("{READ_BOUND_SECONDS} s bound").as_str()), "the failure names the bound: {message}");
+    assert!(
+        message.contains("status"),
+        "the failure names the command it waited for: {message}"
+    );
+    assert!(
+        message.contains(root.display().to_string().as_str()),
+        "the failure names the directory: {message}"
+    );
+    assert!(
+        message.contains(format!("{READ_BOUND_SECONDS} s bound").as_str()),
+        "the failure names the bound: {message}"
+    );
     // The read owned the fixture in its own thread, so this control cleans up by the root it kept.
     let _removed = std::fs::remove_dir_all(&root);
 }

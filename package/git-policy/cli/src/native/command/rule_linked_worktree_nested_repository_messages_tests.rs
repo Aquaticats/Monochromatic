@@ -15,8 +15,15 @@
 //! // expect(nestedRepositoryNotSavedMessage({ repositories: [Buffer.from('nested')], ... })).toContain('The repository is still where it was.');
 //! ```
 
-use super::{NotSaved, nested_repository_not_saved_message, saved_nested_repository_notice};
-use crate::conflict_sides::{SavedCopy, SaveFailure};
+use super::{
+    NotSaved,
+    nested_repository_not_saved_message,
+    saved_nested_repository_notice,
+};
+use crate::conflict_sides::{
+    SaveFailure,
+    SavedCopy,
+};
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 use std::path::PathBuf;
 
@@ -42,21 +49,33 @@ fn failure() -> SaveFailure {
 /// and the command that shows what it holds.
 #[test]
 fn the_notice_names_the_repository_and_where_it_went() {
-    let notice: String = saved_nested_repository_notice(&[copy("/common/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested")]);
+    let notice: String = saved_nested_repository_notice(&[copy(
+        "/common/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested",
+    )]);
     assert!(notice.contains("the Git repository nested"), "{notice}");
-    assert!(notice.contains("/common/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested"), "{notice}");
+    assert!(
+        notice
+            .contains("/common/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested"),
+        "{notice}"
+    );
     assert!(
         notice.contains("`git -C /common/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested status`"),
         "{notice}"
     );
-    assert!(notice.contains("the rest of the clean runs as typed"), "{notice}");
+    assert!(
+        notice.contains("the rest of the clean runs as typed"),
+        "{notice}"
+    );
 }
 
 /// A copy with no place is not one this notice can explain,
 ///  so it writes nothing rather than a place that does not exist.
 #[test]
 fn a_copy_with_no_place_is_not_announced() {
-    let absent: SavedCopy = SavedCopy { path: String::from("nested"), saved_to: None };
+    let absent: SavedCopy = SavedCopy {
+        path: String::from("nested"),
+        saved_to: None,
+    };
     assert_eq!(saved_nested_repository_notice(&[absent]), "");
 }
 
@@ -81,7 +100,10 @@ fn the_rejection_names_one_repository_in_the_singular() {
         "/common/monochromatic-git-policy-cli/discarded",
         "--no-enforce-worktree",
     ] {
-        assert!(message.contains(expected), "{expected} missing from {message}");
+        assert!(
+            message.contains(expected),
+            "{expected} missing from {message}"
+        );
     }
 }
 
@@ -89,7 +111,11 @@ fn the_rejection_names_one_repository_in_the_singular() {
 ///  and only the first few are listed.
 #[test]
 fn the_rejection_names_many_repositories_and_counts_the_rest() {
-    let many: Vec<Vec<u8>> = (0..SHARED_PATHS_NAMED + 2).map(|number| { return format!("repo{number}").into_bytes(); }).collect();
+    let many: Vec<Vec<u8>> = (0..SHARED_PATHS_NAMED + 2)
+        .map(|number| {
+            return format!("repo{number}").into_bytes();
+        })
+        .collect();
     let saved_root: PathBuf = PathBuf::from("/common/monochromatic-git-policy-cli/discarded");
     let message: String = nested_repository_not_saved_message(NotSaved {
         repositories: many.as_slice(),
@@ -97,11 +123,20 @@ fn the_rejection_names_many_repositories_and_counts_the_rest() {
         saved_root: saved_root.as_path(),
         still_moved: &[],
     });
-    assert!(message.contains("the Git repositories repo0, repo1"), "{message}");
+    assert!(
+        message.contains("the Git repositories repo0, repo1"),
+        "{message}"
+    );
     assert!(message.contains("and 2 more"), "{message}");
     assert!(message.contains("everything in them"), "{message}");
-    assert!(message.contains("nothing of them could be saved first"), "{message}");
-    assert!(message.contains("The repositories are still where they were."), "{message}");
+    assert!(
+        message.contains("nothing of them could be saved first"),
+        "{message}"
+    );
+    assert!(
+        message.contains("The repositories are still where they were."),
+        "{message}"
+    );
     assert!(!message.contains("repo7"), "{message}");
 }
 
@@ -115,7 +150,9 @@ fn the_rejection_names_many_repositories_and_counts_the_rest() {
 fn a_repository_that_could_not_be_put_back_is_named_where_it_is() {
     let subject: Vec<Vec<u8>> = vec![b"nested".to_vec(), b"vendor/lib".to_vec()];
     let saved_root: PathBuf = PathBuf::from("/common/.git/monochromatic-git-policy-cli/discarded");
-    let stayed: Vec<SavedCopy> = vec![copy("/common/.git/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested")];
+    let stayed: Vec<SavedCopy> = vec![copy(
+        "/common/.git/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested",
+    )];
     let message: String = nested_repository_not_saved_message(NotSaved {
         repositories: subject.as_slice(),
         failure: &failure(),
@@ -127,7 +164,10 @@ fn a_repository_that_could_not_be_put_back_is_named_where_it_is() {
         "could not be put back where they were and are kept here:",
         "Every other repository is still where it was.",
     ] {
-        assert!(message.contains(expected), "{expected} missing from {message}");
+        assert!(
+            message.contains(expected),
+            "{expected} missing from {message}"
+        );
     }
     assert!(!message.contains("nothing was changed"), "{message}");
 }

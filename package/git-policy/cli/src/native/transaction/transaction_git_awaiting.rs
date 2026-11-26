@@ -36,21 +36,42 @@
 //! const { stdout } = await runTransactionGitOnTheRuntime({ gitPath, cwd, args, indexPath, input });
 //! ```
 
-/// Building a Git child from an argument array and an overlay,
-/// the private input file and the subject a notice names.
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, RefusableGitRun, TermsOfRequest, WatchTermsSource, checked_from, command_text};
-/// The rules for which steps may be run again.
-use crate::transaction_git_step_rerun_and_end_rules::may_be_rerun;
-/// The step both faces start,
-/// and what it answers once it ended.
-use crate::transaction_git_step_about_to_start::{StepAboutToStart, answer_of_a_start, start_failure, step_about_to_start, step_finished, step_is_run_again};
-/// An in-process answer to an exact read-only command line.
-use crate::repo_read_hook::try_request;
 /// The watched run for a caller that is a task of the runtime.
 use crate::child_watch_output_watched_on_the_runtime::output_watched_within_for_a_stop_awaiting;
+/// An in-process answer to an exact read-only command line.
+use crate::repo_read_hook::try_request;
 /// Starts that ride out a short shortage of processes,
 /// awaited on the runtime's timer.
-use crate::start_retry::{RefusableAwaitingStart, START_RETRY_BUDGET, retry_refused_awaiting_start};
+use crate::start_retry::{
+    RefusableAwaitingStart,
+    START_RETRY_BUDGET,
+    retry_refused_awaiting_start,
+};
+/// Building a Git child from an argument array and an overlay,
+/// the private input file and the subject a notice names.
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    RefusableGitRun,
+    TermsOfRequest,
+    WatchTermsSource,
+    checked_from,
+    command_text,
+};
+/// The step both faces start,
+/// and what it answers once it ended.
+use crate::transaction_git_step_about_to_start::{
+    StepAboutToStart,
+    answer_of_a_start,
+    start_failure,
+    step_about_to_start,
+    step_finished,
+    step_is_run_again,
+};
+/// The rules for which steps may be run again.
+use crate::transaction_git_step_rerun_and_end_rules::may_be_rerun;
 /// A span of time,
 /// for the retry budget.
 use std::time::Duration;
@@ -72,14 +93,18 @@ use std::time::Duration;
 /// ```ts
 /// await runTransactionGitOnTheRuntime({ ..., allowFailure: true })
 /// ```
-pub async fn run_git_awaiting(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
+pub async fn run_git_awaiting(
+    context: &GitContext,
+    request: &GitRequest,
+) -> std::io::Result<GitOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     let entered: bool = crate::add_timing::begin_step(label.as_str());
-    let output: std::io::Result<GitOutput> = run_git_pausing_awaiting(context, request, START_RETRY_BUDGET).await;
+    let output: std::io::Result<GitOutput> =
+        run_git_pausing_awaiting(context, request, START_RETRY_BUDGET).await;
     crate::add_timing::end_step(entered);
     return output;
 }
@@ -97,13 +122,22 @@ pub async fn run_git_awaiting(context: &GitContext, request: &GitRequest) -> std
 /// ```ts
 /// await retryWhile(() => runGitOnce(request), (output) => refusedBySystem(output) && mayBeRerun(request));
 /// ```
-async fn run_git_pausing_awaiting(context: &GitContext, request: &GitRequest, budget: Duration) -> std::io::Result<GitOutput> {
+async fn run_git_pausing_awaiting(
+    context: &GitContext,
+    request: &GitRequest,
+    budget: Duration,
+) -> std::io::Result<GitOutput> {
     if !may_be_rerun(request) {
         return run_git_once_awaiting(context, request).await;
     }
     let what: String = command_text(&request.arguments);
-    let mut attempt: RefusableGitRun<'_> = RefusableGitRun { context, request, refused: None };
-    let result: std::io::Result<GitOutput> = retry_refused_awaiting_start(what.as_str(), budget, &mut attempt).await;
+    let mut attempt: RefusableGitRun<'_> = RefusableGitRun {
+        context,
+        request,
+        refused: None,
+    };
+    let result: std::io::Result<GitOutput> =
+        retry_refused_awaiting_start(what.as_str(), budget, &mut attempt).await;
     return match (result, attempt.refused.take()) {
         (Ok(finished), _) => Ok(finished),
         (Err(error), Some(last)) if error.kind() == std::io::ErrorKind::WouldBlock => Ok(last),
@@ -169,8 +203,18 @@ impl RefusableAwaitingStart<GitOutput> for RefusableGitRun<'_> {
 /// ```ts
 /// await runTransactionGitOnceOnTheRuntime({ gitPath, cwd, args })
 /// ```
-async fn run_git_once_awaiting(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
-    return run_git_once_with_awaiting(context, request, &TermsOfRequest { request }).await;
+async fn run_git_once_awaiting(
+    context: &GitContext,
+    request: &GitRequest,
+) -> std::io::Result<GitOutput> {
+    return run_git_once_with_awaiting(
+        context,
+        request,
+        &TermsOfRequest {
+            request,
+        },
+    )
+    .await;
 }
 
 /// What:
@@ -188,10 +232,19 @@ async fn run_git_once_awaiting(context: &GitContext, request: &GitRequest) -> st
 /// ```ts
 /// try { return await runOnce(terms.terms()); } catch (quiet) { if (!mayBeRerun(request)) throw quiet; return await runOnce(terms.terms()); }
 /// ```
-async fn run_git_once_with_awaiting<Terms: WatchTermsSource + Sync>(context: &GitContext, request: &GitRequest, terms: &Terms) -> std::io::Result<GitOutput> {
-    let first: std::io::Result<GitOutput> = run_git_watched_awaiting(context, request, terms.terms()).await;
+async fn run_git_once_with_awaiting<Terms: WatchTermsSource + Sync>(
+    context: &GitContext,
+    request: &GitRequest,
+    terms: &Terms,
+) -> std::io::Result<GitOutput> {
+    let first: std::io::Result<GitOutput> =
+        run_git_watched_awaiting(context, request, terms.terms()).await;
     return match first {
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !crate::child_watch::is_ceiling(&error) => {
+        Err(error)
+            if error.kind() == std::io::ErrorKind::TimedOut
+                && may_be_rerun(request)
+                && !crate::child_watch::is_ceiling(&error) =>
+        {
             step_is_run_again(request);
             run_git_watched_awaiting(context, request, terms.terms()).await
         }
@@ -213,7 +266,11 @@ async fn run_git_once_with_awaiting<Terms: WatchTermsSource + Sync>(context: &Gi
 /// ```ts
 /// await runWatchedOnTheRuntime({ gitPath, cwd, args, terms, stoppable: mayBeRerun(request) })
 /// ```
-async fn run_git_watched_awaiting(context: &GitContext, request: &GitRequest, terms: crate::child_watch::WatchTerms) -> std::io::Result<GitOutput> {
+async fn run_git_watched_awaiting(
+    context: &GitContext,
+    request: &GitRequest,
+    terms: crate::child_watch::WatchTerms,
+) -> std::io::Result<GitOutput> {
     // What:     `step_about_to_start(...)` makes the command, the words, the terms, the bound and the record of the step,
     //           exactly as the synchronous face does.
     // Why:      The two faces must start the same step, and this is the one place that decides what it is.
@@ -248,7 +305,12 @@ async fn run_git_watched_awaiting(context: &GitContext, request: &GitRequest, te
     // ```ts
     // return stepFinished(step.ledgerStep, request, step.began, watched);
     // ```
-    return Ok(step_finished(step.ledger_step.as_str(), request, step.began, watched?));
+    return Ok(step_finished(
+        step.ledger_step.as_str(),
+        request,
+        step.began,
+        watched?,
+    ));
 }
 
 /// What:
@@ -265,8 +327,14 @@ async fn run_git_watched_awaiting(context: &GitContext, request: &GitRequest, te
 /// ```ts
 /// await runTransactionGitOnTheRuntime({ gitPath, cwd, args }) // throws CommitTransactionGitError
 /// ```
-pub async fn run_git_checked_awaiting(context: &GitContext, request: &GitRequest) -> Result<GitOutput, GitFailure> {
-    return checked_from(run_git_awaiting(context, request).await, request.arguments.as_slice());
+pub async fn run_git_checked_awaiting(
+    context: &GitContext,
+    request: &GitRequest,
+) -> Result<GitOutput, GitFailure> {
+    return checked_from(
+        run_git_awaiting(context, request).await,
+        request.arguments.as_slice(),
+    );
 }
 
 /// Awaiting-run controls stay out of the release executable.

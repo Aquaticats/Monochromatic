@@ -19,7 +19,10 @@
 //! export const proofs = { note, forget, proved };
 //! ```
 use std::cell::RefCell;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 thread_local! {
     static PROVED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
@@ -35,7 +38,9 @@ thread_local! {
 /// proved.push(path);
 /// ```
 pub(crate) fn note(path: &Path) {
-    PROVED.with(|proved| { proved.borrow_mut().push(path.to_path_buf()); });
+    PROVED.with(|proved| {
+        proved.borrow_mut().push(path.to_path_buf());
+    });
 }
 
 /// What:
@@ -49,7 +54,9 @@ pub(crate) fn note(path: &Path) {
 /// proved.length = 0;
 /// ```
 pub(crate) fn forget() {
-    PROVED.with(|proved| { proved.borrow_mut().clear(); });
+    PROVED.with(|proved| {
+        proved.borrow_mut().clear();
+    });
 }
 
 /// What:
@@ -63,5 +70,7 @@ pub(crate) fn forget() {
 /// return [...proved];
 /// ```
 pub(crate) fn proved() -> Vec<PathBuf> {
-    return PROVED.with(|proved| { return proved.borrow().clone(); });
+    return PROVED.with(|proved| {
+        return proved.borrow().clone();
+    });
 }

@@ -4,15 +4,28 @@
 //! pathspec files and listings.
 
 use super::*;
-use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-use crate::transaction_journal::RefFormat;
+use crate::capture_invocation::{
+    capture_invocation_base,
+    capture_invocation_layout,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::fs::FileTimes;
+use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::fs::FileTimes;
 use std::os::unix::ffi::OsStringExt;
-use std::time::{Duration, SystemTime};
+use std::path::PathBuf;
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// A repository with `a.txt` and `b.txt` committed,
 /// and the private indexes beside the real index.
@@ -49,13 +62,28 @@ fn selection<'a>(
 }
 
 /// Runs initialization of the private index with the real index of the repository.
-fn initialize(repo: &Path, indexes: &CaptureIndexes, choice: &IndexSelection) {
-    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, choice)
-        .expect("initialize");
+fn initialize(
+    repo: &Path,
+    indexes: &CaptureIndexes,
+    choice: &IndexSelection,
+) {
+    initialize_commit_index(
+        &git_context(),
+        repo,
+        repo,
+        repo.join(".git").join("index").as_path(),
+        indexes,
+        choice,
+    )
+    .expect("initialize");
 }
 
 /// The repository paths the private index changes against the base.
-fn changed(repo: &Path, indexes: &CaptureIndexes, base: &str) -> Vec<Vec<u8>> {
+fn changed(
+    repo: &Path,
+    indexes: &CaptureIndexes,
+    base: &str,
+) -> Vec<Vec<u8>> {
     return list_changed_index_paths(
         &git_context(),
         repo,
@@ -77,15 +105,25 @@ fn copy_keeps_the_source_modification_time() {
     std::fs::File::options()
         .write(true)
         .open(&source)
-        .and_then(|file| { return file.set_times(FileTimes::new().set_modified(past)); })
+        .and_then(|file| {
+            return file.set_times(FileTimes::new().set_modified(past));
+        })
         .expect("age the source");
     let destination: PathBuf = root.join("copy");
     copy_index_with_timestamps(source.as_path(), destination.as_path()).expect("copy");
     assert_eq!(
-        std::fs::metadata(&destination).expect("copy").modified().expect("mtime"),
-        std::fs::metadata(&source).expect("source").modified().expect("mtime")
+        std::fs::metadata(&destination)
+            .expect("copy")
+            .modified()
+            .expect("mtime"),
+        std::fs::metadata(&source)
+            .expect("source")
+            .modified()
+            .expect("mtime")
     );
-    assert!(copy_index_with_timestamps(root.join("absent").as_path(), destination.as_path()).is_err());
+    assert!(
+        copy_index_with_timestamps(root.join("absent").as_path(), destination.as_path()).is_err()
+    );
     remove(root.as_path());
 }
 
@@ -106,9 +144,14 @@ fn both_private_indexes_hold_the_bytes_of_one_read_of_the_real_index() {
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
     git(repo.as_path(), &["add", "a.txt"]);
-    let snapshot: Vec<u8> = std::fs::read(repo.join(".git").join("index")).expect("the real index's bytes");
+    let snapshot: Vec<u8> =
+        std::fs::read(repo.join(".git").join("index")).expect("the real index's bytes");
     let none: Vec<OsString> = Vec::new();
-    initialize(&repo, &indexes, &selection(TransactionMode::Index, &none, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::Index, &none, &base),
+    );
     assert_eq!(
         std::fs::read(&indexes.captured_index).expect("the captured copy"),
         snapshot,
@@ -153,10 +196,22 @@ fn a_staging_that_lands_after_the_read_reaches_neither_private_copy() {
         read,
         "the control: the staging landed in the real index after the read"
     );
-    index.write_copy(indexes.captured_index.as_path()).expect("the captured copy");
-    index.write_copy(indexes.commit_index.as_path()).expect("the commit's copy");
-    assert_eq!(std::fs::read(&indexes.captured_index).expect("the captured copy"), read, "the writer's staging is not the landing's reference");
-    assert_eq!(std::fs::read(&indexes.commit_index).expect("the commit's copy"), read, "the writer's staging is not this commit's");
+    index
+        .write_copy(indexes.captured_index.as_path())
+        .expect("the captured copy");
+    index
+        .write_copy(indexes.commit_index.as_path())
+        .expect("the commit's copy");
+    assert_eq!(
+        std::fs::read(&indexes.captured_index).expect("the captured copy"),
+        read,
+        "the writer's staging is not the landing's reference"
+    );
+    assert_eq!(
+        std::fs::read(&indexes.commit_index).expect("the commit's copy"),
+        read,
+        "the writer's staging is not this commit's"
+    );
     assert_eq!(
         seed_of_index_bytes(index.bytes()),
         PrivateIndexSeed::Copy,
@@ -189,16 +244,33 @@ fn every_selection_mode_states_its_one_read_and_its_seed_walk() {
     let all: Vec<OsString> = Vec::new();
     let modes: [(&str, TransactionMode, &Vec<OsString>, Option<usize>); 2] = [
         ("index", TransactionMode::Index, &all, None),
-        ("explicit path", TransactionMode::ExplicitPath, &named, Some(1)),
+        (
+            "explicit path",
+            TransactionMode::ExplicitPath,
+            &named,
+            Some(1),
+        ),
     ];
     for (called, mode, pathspecs, seed_walks) in modes {
         let _previous = crate::prepare_work_spans::drain_spans();
         initialize(&repo, &indexes, &selection(mode, pathspecs, &base));
         let (spans, dropped) = crate::prepare_work_spans::drain_spans();
         assert_eq!(dropped, 0, "{called}: every step name fits");
-        assert_eq!(calls_of(spans.as_slice(), "index read"), Some(1), "{called}: the one read of the real index is stated: {spans:?}");
-        assert_eq!(calls_of(spans.as_slice(), "index seed"), seed_walks, "{called}: the walk of those bytes for the seed is stated only where the mode decides one: {spans:?}");
-        assert_eq!(calls_of(spans.as_slice(), "index copy"), Some(2), "{called}: both private copies are stated: {spans:?}");
+        assert_eq!(
+            calls_of(spans.as_slice(), "index read"),
+            Some(1),
+            "{called}: the one read of the real index is stated: {spans:?}"
+        );
+        assert_eq!(
+            calls_of(spans.as_slice(), "index seed"),
+            seed_walks,
+            "{called}: the walk of those bytes for the seed is stated only where the mode decides one: {spans:?}"
+        );
+        assert_eq!(
+            calls_of(spans.as_slice(), "index copy"),
+            Some(2),
+            "{called}: both private copies are stated: {spans:?}"
+        );
     }
     remove(root.as_path());
 }
@@ -213,9 +285,19 @@ fn every_selection_mode_states_its_one_read_and_its_seed_walk() {
 /// ```ts
 /// const callsOf = (spans, name) => spans.find((span) => span.name === name)?.calls;
 /// ```
-fn calls_of(spans: &[crate::prepare_work_spans::PrepareSpan], name: &str) -> Option<usize> {
+fn calls_of(
+    spans: &[crate::prepare_work_spans::PrepareSpan],
+    name: &str,
+) -> Option<usize> {
     // A name the ledger never noted answers nothing, which is what makes a missing step a failure of the control.
-    return spans.iter().find(|span| { return span.name == name; }).map(|span| { return span.calls; });
+    return spans
+        .iter()
+        .find(|span| {
+            return span.name == name;
+        })
+        .map(|span| {
+            return span.calls;
+        });
 }
 
 /// Explicit-path selection stages exactly the named paths against the recorded base.
@@ -226,7 +308,11 @@ fn explicit_path_stages_only_the_named_paths() {
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
     let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
     assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
     remove(root.as_path());
 }
@@ -240,7 +326,11 @@ fn index_without_staging_matches_the_real_index() {
     git(repo.as_path(), &["add", "a.txt"]);
     std::fs::write(repo.join("u.txt"), "u\n").expect("untracked");
     let pathspecs: Vec<OsString> = Vec::new();
-    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::Index, &pathspecs, &base),
+    );
     let real_tree: String = write_private_tree(
         &git_context(),
         repo.as_path(),
@@ -288,7 +378,11 @@ fn an_index_commit_without_staging_stages_none_of_the_paths_it_names() {
     git(repo.as_path(), &["add", "a.txt"]);
     std::fs::write(repo.join("a.txt"), "worktree\n").expect("change a");
     let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::Index, &pathspecs, &base),
+    );
     let real_tree: String = write_private_tree(
         &git_context(),
         repo.as_path(),
@@ -328,9 +422,16 @@ fn a_repository_with_no_index_file_is_prepared_without_taking_the_real_index() {
     let held: PathBuf = repo.join(".git").join("index.lock");
     std::fs::write(&held, "held by another command\n").expect("hold the index lock");
     let pathspecs: Vec<OsString> = Vec::new();
-    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::Index, &pathspecs, &base),
+    );
     assert!(!real.exists(), "the preparation wrote the person's index");
-    assert!(indexes.commit_index.exists(), "the commit's own copy is built");
+    assert!(
+        indexes.commit_index.exists(),
+        "the commit's own copy is built"
+    );
     std::fs::remove_file(&held).expect("release the index lock");
     remove(root.as_path());
 }
@@ -361,10 +462,21 @@ fn index_with_tracked_staging_survives_the_callers_conflicting_glob_modes() {
     let mut choice: IndexSelection = selection(TransactionMode::Index, &pathspecs, &base);
     choice.stage_tracked_changes = true;
     let mut inherited: GitContext = git_context();
-    inherited.overlay.push((OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")));
-    inherited.overlay.push((OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")));
-    initialize_commit_index(&inherited, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
-        .expect("the tracked staging start survives the caller's modes");
+    inherited
+        .overlay
+        .push((OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")));
+    inherited
+        .overlay
+        .push((OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")));
+    initialize_commit_index(
+        &inherited,
+        repo.as_path(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        &indexes,
+        &choice,
+    )
+    .expect("the tracked staging start survives the caller's modes");
     assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
     remove(root.as_path());
 }
@@ -383,7 +495,10 @@ fn include_stages_the_named_path_into_the_copy_only() {
     choice.stage_into_index = true;
     initialize(&repo, &indexes, &choice);
     assert_eq!(changed(&repo, &indexes, &base), vec![b"b.txt".to_vec()]);
-    assert_eq!(std::fs::read(repo.join(".git").join("index")).expect("index"), real_before);
+    assert_eq!(
+        std::fs::read(repo.join(".git").join("index")).expect("index"),
+        real_before
+    );
     remove(root.as_path());
 }
 
@@ -396,7 +511,11 @@ fn an_exclusion_removes_the_exact_path_it_names() {
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
     let pathspecs: Vec<OsString> = vec![OsString::from("a.txt"), OsString::from(":(exclude)a.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
     assert_eq!(changed(&repo, &indexes, &base), Vec::<Vec<u8>>::new());
     remove(root.as_path());
 }
@@ -409,8 +528,16 @@ fn an_exclusion_narrows_the_exact_paths_without_staging_another() {
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
-    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt"), OsString::from("b.txt"), OsString::from(":(exclude)b.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    let pathspecs: Vec<OsString> = vec![
+        OsString::from("a.txt"),
+        OsString::from("b.txt"),
+        OsString::from(":(exclude)b.txt"),
+    ];
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
     assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
     remove(root.as_path());
 }
@@ -425,7 +552,11 @@ fn a_selection_of_exclusions_alone_stages_every_other_path() {
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
     std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
     let pathspecs: Vec<OsString> = vec![OsString::from(":(exclude)b.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
     assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
     remove(root.as_path());
 }
@@ -440,12 +571,20 @@ fn an_exclusion_inside_a_directory_selection_is_honoured() {
     std::fs::create_dir(repo.join("dir")).expect("dir");
     std::fs::write(repo.join("dir").join("c.txt"), "c\n").expect("c");
     git(repo.as_path(), &["add", "--", "dir/c.txt"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=directory"]);
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--message=directory"],
+    );
     let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     std::fs::write(repo.join("dir").join("c.txt"), "changed\n").expect("change c");
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
-    let pathspecs: Vec<OsString> = vec![OsString::from("dir"), OsString::from(":(exclude)dir/c.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    let pathspecs: Vec<OsString> =
+        vec![OsString::from("dir"), OsString::from(":(exclude)dir/c.txt")];
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
     assert_eq!(changed(&repo, &indexes, &base), Vec::<Vec<u8>>::new());
     remove(root.as_path());
 }
@@ -496,7 +635,11 @@ fn private_tree_is_the_tree_of_the_private_index() {
     let (repo, indexes, base) = committed_repository(root.as_path());
     std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
     let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
     let oid: String = write_private_tree(
         &git_context(),
         repo.as_path(),
@@ -504,7 +647,10 @@ fn private_tree_is_the_tree_of_the_private_index() {
         indexes.object_directory.as_path(),
     )
     .expect("tree");
-    assert_eq!(git_text(repo.as_path(), &["cat-file", "-t", oid.as_str()]), "tree");
+    assert_eq!(
+        git_text(repo.as_path(), &["cat-file", "-t", oid.as_str()]),
+        "tree"
+    );
     assert_ne!(oid, git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]));
     remove(root.as_path());
 }
@@ -516,7 +662,8 @@ fn unmerged_paths_are_listed_once() {
     let root: PathBuf = fixture("commit-index-unmerged");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "a.txt"]);
-    let info: String = format!("100644 {blob} 1\ta.txt\n100644 {blob} 2\ta.txt\n100644 {blob} 3\ta.txt\n");
+    let info: String =
+        format!("100644 {blob} 1\ta.txt\n100644 {blob} 2\ta.txt\n100644 {blob} 3\ta.txt\n");
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
         &context,
@@ -528,7 +675,12 @@ fn unmerged_paths_are_listed_once() {
     request.input = Some(info.into_bytes());
     run_git_checked(&git_context(), &request).expect("conflict stages");
     assert_eq!(
-        list_unmerged_index_paths(&git_context(), repo.as_path(), indexes.commit_index.as_path()).expect("unmerged"),
+        list_unmerged_index_paths(
+            &git_context(),
+            repo.as_path(),
+            indexes.commit_index.as_path()
+        )
+        .expect("unmerged"),
         vec![b"a.txt".to_vec()]
     );
     remove(root.as_path());
@@ -544,7 +696,8 @@ fn unmerged_paths_of_a_nested_directory_are_named_from_the_top() {
     std::fs::create_dir(repo.join("sub")).expect("sub directory");
     std::fs::write(repo.join("sub/f"), b"conflict\n").expect("write sub/f");
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "sub/f"]);
-    let info: String = format!("100644 {blob} 1\tsub/f\n100644 {blob} 2\tsub/f\n100644 {blob} 3\tsub/f\n");
+    let info: String =
+        format!("100644 {blob} 1\tsub/f\n100644 {blob} 2\tsub/f\n100644 {blob} 3\tsub/f\n");
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
         &context,
@@ -556,7 +709,12 @@ fn unmerged_paths_of_a_nested_directory_are_named_from_the_top() {
     request.input = Some(info.into_bytes());
     run_git_checked(&git_context(), &request).expect("conflict stages");
     assert_eq!(
-        list_unmerged_index_paths(&git_context(), repo.join("sub").as_path(), indexes.commit_index.as_path()).expect("unmerged"),
+        list_unmerged_index_paths(
+            &git_context(),
+            repo.join("sub").as_path(),
+            indexes.commit_index.as_path()
+        )
+        .expect("unmerged"),
         vec![b"sub/f".to_vec()],
         "the path is named as the specs and the warning write it"
     );
@@ -575,7 +733,6 @@ fn selection_base_is_the_recorded_base() {
     remove(root.as_path());
 }
 
-
 /// The incumbent's committed tree when one file is selected,
 /// recorded by the incumbent driver
 /// `native-interop/capture-differential.mjs` (deleted;
@@ -588,7 +745,10 @@ const INCUMBENT_TWO_FILE_TREE: &str = "efe77971c159b0a29a5d97e7169b8c35fa33a1f1"
 /// two committed files,
 /// both changed,
 /// one untracked.
-fn differential_state(root: &Path, stage: &[&str]) -> (PathBuf, CaptureIndexes, String) {
+fn differential_state(
+    root: &Path,
+    stage: &[&str],
+) -> (PathBuf, CaptureIndexes, String) {
     std::fs::create_dir_all(root).expect("state root");
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
@@ -615,9 +775,20 @@ fn differential_state(root: &Path, stage: &[&str]) -> (PathBuf, CaptureIndexes, 
 }
 
 /// Initializes the private index for one selection and returns the tree written from it.
-fn native_tree(repo: &Path, indexes: &CaptureIndexes, choice: &IndexSelection) -> String {
-    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, choice)
-        .expect("initialize");
+fn native_tree(
+    repo: &Path,
+    indexes: &CaptureIndexes,
+    choice: &IndexSelection,
+) -> String {
+    initialize_commit_index(
+        &git_context(),
+        repo,
+        repo,
+        repo.join(".git").join("index").as_path(),
+        indexes,
+        choice,
+    )
+    .expect("initialize");
     return write_private_tree(
         &git_context(),
         repo,
@@ -637,13 +808,17 @@ fn native_tree(repo: &Path, indexes: &CaptureIndexes, choice: &IndexSelection) -
 fn private_index_trees_match_the_incumbent_for_each_selection() {
     let root: PathBuf = fixture("commit-index-incumbent-explicit");
     {
-    let (repo, indexes, base) = differential_state(root.join("p").as_path(), &[]);
-    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
-    assert_eq!(
-        native_tree(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base)),
-        INCUMBENT_ONE_FILE_TREE,
-        "explicit-path"
-    );
+        let (repo, indexes, base) = differential_state(root.join("p").as_path(), &[]);
+        let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
+        assert_eq!(
+            native_tree(
+                &repo,
+                &indexes,
+                &selection(TransactionMode::ExplicitPath, &pathspecs, &base)
+            ),
+            INCUMBENT_ONE_FILE_TREE,
+            "explicit-path"
+        );
     }
     remove(root.as_path());
 }
@@ -655,27 +830,37 @@ fn index_mode_trees_match_the_incumbent() {
     let none: Vec<OsString> = Vec::new();
 
     {
-    let (repo, indexes, base) = differential_state(root.join("plain").as_path(), &["a.txt"]);
-    assert_eq!(
-        native_tree(&repo, &indexes, &selection(TransactionMode::Index, &none, &base)),
-        INCUMBENT_ONE_FILE_TREE,
-        "index-plain"
-    );
-
+        let (repo, indexes, base) = differential_state(root.join("plain").as_path(), &["a.txt"]);
+        assert_eq!(
+            native_tree(
+                &repo,
+                &indexes,
+                &selection(TransactionMode::Index, &none, &base)
+            ),
+            INCUMBENT_ONE_FILE_TREE,
+            "index-plain"
+        );
     }
     {
-    let (repo, indexes, base) = differential_state(root.join("tracked").as_path(), &[]);
-    let mut tracked: IndexSelection = selection(TransactionMode::Index, &none, &base);
-    tracked.stage_tracked_changes = true;
-    assert_eq!(native_tree(&repo, &indexes, &tracked), INCUMBENT_TWO_FILE_TREE, "tracked-all");
-
+        let (repo, indexes, base) = differential_state(root.join("tracked").as_path(), &[]);
+        let mut tracked: IndexSelection = selection(TransactionMode::Index, &none, &base);
+        tracked.stage_tracked_changes = true;
+        assert_eq!(
+            native_tree(&repo, &indexes, &tracked),
+            INCUMBENT_TWO_FILE_TREE,
+            "tracked-all"
+        );
     }
     {
-    let (repo, indexes, base) = differential_state(root.join("include").as_path(), &["a.txt"]);
-    let include_paths: Vec<OsString> = vec![OsString::from("b.txt")];
-    let mut include: IndexSelection = selection(TransactionMode::Index, &include_paths, &base);
-    include.stage_into_index = true;
-    assert_eq!(native_tree(&repo, &indexes, &include), INCUMBENT_TWO_FILE_TREE, "include");
+        let (repo, indexes, base) = differential_state(root.join("include").as_path(), &["a.txt"]);
+        let include_paths: Vec<OsString> = vec![OsString::from("b.txt")];
+        let mut include: IndexSelection = selection(TransactionMode::Index, &include_paths, &base);
+        include.stage_into_index = true;
+        assert_eq!(
+            native_tree(&repo, &indexes, &include),
+            INCUMBENT_TWO_FILE_TREE,
+            "include"
+        );
     }
     remove(root.as_path());
 }
@@ -689,23 +874,29 @@ fn pathspec_file_trees_match_the_incumbent() {
     let none: Vec<OsString> = Vec::new();
 
     {
-    let (repo, indexes, base) = differential_state(root.join("newline").as_path(), &[]);
-    let list: PathBuf = root.join("newline.list");
-    std::fs::write(&list, "a.txt\n").expect("list");
-    let mut newline: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
-    newline.pathspec_file = Some(list.as_path());
-    assert_eq!(native_tree(&repo, &indexes, &newline), INCUMBENT_ONE_FILE_TREE, "newline file");
-
+        let (repo, indexes, base) = differential_state(root.join("newline").as_path(), &[]);
+        let list: PathBuf = root.join("newline.list");
+        std::fs::write(&list, "a.txt\n").expect("list");
+        let mut newline: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
+        newline.pathspec_file = Some(list.as_path());
+        assert_eq!(
+            native_tree(&repo, &indexes, &newline),
+            INCUMBENT_ONE_FILE_TREE,
+            "newline file"
+        );
     }
     {
-    let (repo, indexes, base) = differential_state(root.join("nul").as_path(), &[]);
-    let list: PathBuf = root.join("nul.list");
-    std::fs::write(&list, b"a.txt\0b.txt\0").expect("nul list");
-    let mut nul: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
-    nul.pathspec_file = Some(list.as_path());
-    nul.pathspec_file_nul = true;
-    assert_eq!(native_tree(&repo, &indexes, &nul), INCUMBENT_TWO_FILE_TREE, "nul file");
-
+        let (repo, indexes, base) = differential_state(root.join("nul").as_path(), &[]);
+        let list: PathBuf = root.join("nul.list");
+        std::fs::write(&list, b"a.txt\0b.txt\0").expect("nul list");
+        let mut nul: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
+        nul.pathspec_file = Some(list.as_path());
+        nul.pathspec_file_nul = true;
+        assert_eq!(
+            native_tree(&repo, &indexes, &nul),
+            INCUMBENT_TWO_FILE_TREE,
+            "nul file"
+        );
     }
     remove(root.as_path());
 }
@@ -729,7 +920,11 @@ fn interactive_selection_reports_a_failed_git_add() {
         &choice,
     )
     .expect_err("missing pathspec file");
-    assert!(error.0.starts_with("git add --patch --pathspec-from-file="), "{}", error.0);
+    assert!(
+        error.0.starts_with("git add --patch --pathspec-from-file="),
+        "{}",
+        error.0
+    );
     assert!(error.0.contains("exited"), "{}", error.0);
     remove(root.as_path());
 }
@@ -746,7 +941,11 @@ fn interactive_selection_succeeds_without_changes() {
     let transaction: PathBuf = root.join("transaction");
     std::fs::create_dir(&transaction).expect("transaction");
     let commit_index: PathBuf = transaction.join("commit.index");
-    copy_index_with_timestamps(repo.join(".git").join("index").as_path(), commit_index.as_path()).expect("copy");
+    copy_index_with_timestamps(
+        repo.join(".git").join("index").as_path(),
+        commit_index.as_path(),
+    )
+    .expect("copy");
     let none: Vec<OsString> = Vec::new();
     let choice: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
     prepare_interactive_selection(
@@ -767,7 +966,9 @@ fn interactive_selection_succeeds_without_changes() {
 ///  and a conflicted name is listed with its bytes once.
 #[test]
 fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
-    if !in_a_fixture_root_taking_any_name("commit::commit_index::tests::names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings") {
+    if !in_a_fixture_root_taking_any_name(
+        "commit::commit_index::tests::names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings",
+    ) {
         return;
     }
     let root: PathBuf = fixture("commit-index-odd-name");
@@ -777,8 +978,15 @@ fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
     std::fs::write(repo.join(&odd), "odd\n").expect("odd");
     std::fs::write(repo.join(&other), "other\n").expect("other");
     let pathspecs: Vec<OsString> = vec![odd.clone()];
-    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
-    assert_eq!(changed(&repo, &indexes, &base), vec![b"caf\xe9.txt".to_vec()]);
+    initialize(
+        &repo,
+        &indexes,
+        &selection(TransactionMode::ExplicitPath, &pathspecs, &base),
+    );
+    assert_eq!(
+        changed(&repo, &indexes, &base),
+        vec![b"caf\xe9.txt".to_vec()]
+    );
     let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "a.txt"]);
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let mut request = indexed_request(
@@ -796,7 +1004,12 @@ fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
     request.input = Some(stages);
     run_git_checked(&git_context(), &request).expect("conflict stages");
     assert_eq!(
-        list_unmerged_index_paths(&git_context(), repo.as_path(), indexes.commit_index.as_path()).expect("unmerged"),
+        list_unmerged_index_paths(
+            &git_context(),
+            repo.as_path(),
+            indexes.commit_index.as_path()
+        )
+        .expect("unmerged"),
         vec![b"caf\xe9.txt".to_vec()]
     );
     remove(root.as_path());
@@ -804,14 +1017,21 @@ fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
 
 /// The lines of `git ls-files --debug` for one index:
 /// each entry's stat data as Git cached it.
-fn stat_lines(repo: &Path, index: &Path) -> String {
+fn stat_lines(
+    repo: &Path,
+    index: &Path,
+) -> String {
     let shown = std::process::Command::new(crate::test_support::REAL_GIT)
         .current_dir(repo)
         .env("GIT_INDEX_FILE", index)
         .args(["ls-files", "--debug"])
         .output()
         .expect("ls-files runs");
-    assert!(shown.status.success(), "{}", String::from_utf8_lossy(&shown.stderr));
+    assert!(
+        shown.status.success(),
+        "{}",
+        String::from_utf8_lossy(&shown.stderr)
+    );
     return String::from_utf8_lossy(&shown.stdout).into_owned();
 }
 
@@ -838,12 +1058,35 @@ fn a_retry_index_keeps_the_stat_data_of_the_entries_the_tree_shares_with_the_rea
         .output()
         .expect("read-tree runs");
     assert!(plain.status.success());
-    assert_eq!(stat_lines(repo.as_path(), without.as_path()).matches("mtime: 0:0").count(), 2, "the control: a plain read-tree holds no stat data");
-    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
+    assert_eq!(
+        stat_lines(repo.as_path(), without.as_path())
+            .matches("mtime: 0:0")
+            .count(),
+        2,
+        "the control: a plain read-tree holds no stat data"
+    );
+    initialize_retry_index(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        &indexes,
+        tree.as_str(),
+    )
+    .expect("retry index");
     let kept: String = stat_lines(repo.as_path(), indexes.commit_index.as_path());
     assert_eq!(kept.matches("mtime: 0:0").count(), 0, "{kept}");
-    assert_eq!(kept.matches("mtime: ").count(), 2, "both entries are in the index: {kept}");
-    assert_eq!(git_text(repo.as_path(), &["ls-tree", "-r", "--name-only", tree.as_str()]), "a.txt\nb.txt");
+    assert_eq!(
+        kept.matches("mtime: ").count(),
+        2,
+        "both entries are in the index: {kept}"
+    );
+    assert_eq!(
+        git_text(
+            repo.as_path(),
+            &["ls-tree", "-r", "--name-only", tree.as_str()]
+        ),
+        "a.txt\nb.txt"
+    );
     remove(root.as_path());
 }
 
@@ -860,7 +1103,14 @@ fn a_retry_index_is_exactly_the_tree_and_a_real_index_that_cannot_seed_it_is_not
     git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
     let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD~1^{tree}"]);
     // The real index holds the second commit's tree; the retry's tree is the first's.
-    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, first.as_str()).expect("retry index");
+    initialize_retry_index(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        &indexes,
+        first.as_str(),
+    )
+    .expect("retry index");
     let written = std::process::Command::new(crate::test_support::REAL_GIT)
         .current_dir(&repo)
         .env("GIT_INDEX_FILE", &indexes.commit_index)
@@ -870,7 +1120,14 @@ fn a_retry_index_is_exactly_the_tree_and_a_real_index_that_cannot_seed_it_is_not
     assert_eq!(String::from_utf8_lossy(&written.stdout).trim(), first);
     // An index that cannot be read is not copied: the retry still holds the tree.
     std::fs::write(repo.join(".git").join("index"), b"not an index").expect("damaged index");
-    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, first.as_str()).expect("retry index from the tree alone");
+    initialize_retry_index(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        &indexes,
+        first.as_str(),
+    )
+    .expect("retry index from the tree alone");
     let again = std::process::Command::new(crate::test_support::REAL_GIT)
         .current_dir(&repo)
         .env("GIT_INDEX_FILE", &indexes.commit_index)
@@ -922,8 +1179,14 @@ fn worktree_the_variables_select(root: &Path) -> (PathBuf, PathBuf, CaptureIndex
 ///  so a control hands it that answer and gives the staging's Git children the variables a shell would.
 fn context_naming_the_worktree(repo: &Path) -> GitContext {
     let mut context: GitContext = git_context();
-    context.overlay.push((OsString::from("GIT_DIR"), repo.join(".git").into_os_string()));
-    context.overlay.push((OsString::from("GIT_WORK_TREE"), repo.as_os_str().to_os_string()));
+    context.overlay.push((
+        OsString::from("GIT_DIR"),
+        repo.join(".git").into_os_string(),
+    ));
+    context.overlay.push((
+        OsString::from("GIT_WORK_TREE"),
+        repo.as_os_str().to_os_string(),
+    ));
     return context;
 }
 
@@ -942,10 +1205,24 @@ fn an_exact_file_of_a_worktree_the_variables_select_is_staged_from_its_top() {
     let (repo, outside, indexes, base) = worktree_the_variables_select(root.as_path());
     let context: GitContext = context_naming_the_worktree(repo.as_path());
     let specs: Vec<OsString> = vec![OsString::from("plain.txt")];
-    let choice: IndexSelection<'_> = selection(TransactionMode::ExplicitPath, specs.as_slice(), base.as_str());
-    initialize_commit_index(&context, outside.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
-        .expect("the exact file of the selected worktree is staged");
-    assert_eq!(changed(repo.as_path(), &indexes, base.as_str()), vec![b"plain.txt".to_vec()]);
+    let choice: IndexSelection<'_> = selection(
+        TransactionMode::ExplicitPath,
+        specs.as_slice(),
+        base.as_str(),
+    );
+    initialize_commit_index(
+        &context,
+        outside.as_path(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        &indexes,
+        &choice,
+    )
+    .expect("the exact file of the selected worktree is staged");
+    assert_eq!(
+        changed(repo.as_path(), &indexes, base.as_str()),
+        vec![b"plain.txt".to_vec()]
+    );
     remove(root.as_path());
 }
 
@@ -961,13 +1238,29 @@ fn an_exact_file_of_a_worktree_the_variables_select_is_staged_from_its_top() {
 fn a_directory_of_a_worktree_the_variables_select_stages_no_untracked_file() {
     let root: PathBuf = fixture("commit-index-variables-select-directory");
     let (repo, outside, indexes, base) = worktree_the_variables_select(root.as_path());
-    std::fs::write(outside.join("build"), "an unrelated same-named file\n").expect("the file that misclassifies the selection");
+    std::fs::write(outside.join("build"), "an unrelated same-named file\n")
+        .expect("the file that misclassifies the selection");
     let context: GitContext = context_naming_the_worktree(repo.as_path());
     let specs: Vec<OsString> = vec![OsString::from("build")];
-    let choice: IndexSelection<'_> = selection(TransactionMode::ExplicitPath, specs.as_slice(), base.as_str());
-    initialize_commit_index(&context, outside.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
-        .expect("the directory of the selected worktree is staged");
-    assert_eq!(changed(repo.as_path(), &indexes, base.as_str()), vec![b"build/keep.txt".to_vec()], "the tracked file it changed and no untracked file");
+    let choice: IndexSelection<'_> = selection(
+        TransactionMode::ExplicitPath,
+        specs.as_slice(),
+        base.as_str(),
+    );
+    initialize_commit_index(
+        &context,
+        outside.as_path(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        &indexes,
+        &choice,
+    )
+    .expect("the directory of the selected worktree is staged");
+    assert_eq!(
+        changed(repo.as_path(), &indexes, base.as_str()),
+        vec![b"build/keep.txt".to_vec()],
+        "the tracked file it changed and no untracked file"
+    );
     remove(root.as_path());
 }
 
@@ -980,14 +1273,37 @@ fn a_pathspec_file_that_is_a_named_pipe_is_not_waited_for() {
     let root: PathBuf = fixture("commit-index-pathspec-named-pipe");
     let pipe: PathBuf = root.join("pathspec.fifo");
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
-    let indexes: CaptureIndexes = CaptureIndexes { captured_index: root.join("captured-index"), commit_index: root.join("commit-index"), object_directory: root.join("objects") };
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: root.join("captured-index"),
+        commit_index: root.join("commit-index"),
+        object_directory: root.join("objects"),
+    };
     let inside: PathBuf = root.clone();
     let asked = crate::test_support::finished_within(move || {
         let pathspecs: [OsString; 0] = [];
-        let choice: IndexSelection = IndexSelection { mode: TransactionMode::ExplicitPath, pathspecs: &pathspecs, pathspec_file: Some(pipe.as_path()), pathspec_file_nul: false, stage_into_index: false, stage_tracked_changes: false, base_revision: "HEAD" };
-        return carry_selected_staged_additions(&git_context(), inside.as_path(), &indexes, &choice).is_ok();
+        let choice: IndexSelection = IndexSelection {
+            mode: TransactionMode::ExplicitPath,
+            pathspecs: &pathspecs,
+            pathspec_file: Some(pipe.as_path()),
+            pathspec_file_nul: false,
+            stage_into_index: false,
+            stage_tracked_changes: false,
+            base_revision: "HEAD",
+        };
+        return carry_selected_staged_additions(
+            &git_context(),
+            inside.as_path(),
+            &indexes,
+            &choice,
+        )
+        .is_ok();
     });
-    let Some(answered) = asked else { panic!("a pathspec file that is a named pipe held the commit") };
-    assert!(answered, "the step answers nothing to carry rather than waiting or failing");
+    let Some(answered) = asked else {
+        panic!("a pathspec file that is a named pipe held the commit")
+    };
+    assert!(
+        answered,
+        "the step answers nothing to carry rather than waiting or failing"
+    );
     remove(root.as_path());
 }

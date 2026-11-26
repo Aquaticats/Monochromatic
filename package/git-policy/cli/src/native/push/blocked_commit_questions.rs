@@ -21,16 +21,34 @@
 //! const history = { git }; const lines = heldBackLines(gitDir, context, cwd);
 //! ```
 
-/// The Git of the queue and the error type its questions answer in.
-use crate::auto_push_single_flight::{PushGit, run_query};
 /// The unchanged ancestry question a reconcile asks the same Git.
-use crate::auto_push_reconcile_basics_and_limits::{argv, is_ancestor};
+use crate::auto_push_reconcile_basics_and_limits::{
+    argv,
+    is_ancestor,
+};
+/// The Git of the queue and the error type its questions answer in.
+use crate::auto_push_single_flight::{
+    PushGit,
+    run_query,
+};
 /// The decision the answers feed,
 /// and the lines a command prints from it.
-use crate::blocked_commit_lines::{held_back_line, unanswered_line};
-use crate::push_held_back_by_a_blocked_commit::{BranchHistory, WhereThePushStops, where_the_push_stops};
+use crate::blocked_commit_lines::{
+    held_back_line,
+    unanswered_line,
+};
+use crate::push_held_back_by_a_blocked_commit::{
+    BranchHistory,
+    WhereThePushStops,
+    where_the_push_stops,
+};
 /// The repository-wide questions a command asks with its own Git context.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// The verdicts the post-commit gates kept.
 use crate::work_item_holding::BlockedVerdict;
 
@@ -52,14 +70,25 @@ pub struct QueueHistory<'a> {
 /// ```ts
 /// revParseQuietly(git, ref) // true when the reference names a commit
 /// ```
-fn queue_names_a_commit(git: &PushGit, reference: &str) -> Option<bool> {
+fn queue_names_a_commit(
+    git: &PushGit,
+    reference: &str,
+) -> Option<bool> {
     let asked: String = format!("{reference}^{{commit}}");
-    let output = run_query(git, &argv(&["rev-parse", "--verify", "--quiet", asked.as_str()])).ok()?;
+    let output = run_query(
+        git,
+        &argv(&["rev-parse", "--verify", "--quiet", asked.as_str()]),
+    )
+    .ok()?;
     return Some(output.code == Some(0));
 }
 
 impl BranchHistory for QueueHistory<'_> {
-    fn holds(&self, of: &str, commit: &str) -> Option<bool> {
+    fn holds(
+        &self,
+        of: &str,
+        commit: &str,
+    ) -> Option<bool> {
         // A Git that could not put the question, or one that read a side as unknown, leaves the answer to the questions below.
         if let Ok(Some(answer)) = is_ancestor(self.git, commit, of) {
             return Some(answer);
@@ -76,17 +105,29 @@ impl BranchHistory for QueueHistory<'_> {
         };
     }
 
-    fn first_parent(&self, commit: &str) -> Option<String> {
+    fn first_parent(
+        &self,
+        commit: &str,
+    ) -> Option<String> {
         let asked: String = format!("{commit}^1");
-        let output = run_query(self.git, &argv(&["rev-parse", "--verify", "--quiet", asked.as_str()])).ok()?;
+        let output = run_query(
+            self.git,
+            &argv(&["rev-parse", "--verify", "--quiet", asked.as_str()]),
+        )
+        .ok()?;
         if output.code != Some(0) {
             return None;
         }
-        let parent: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        let parent: String = String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
         return (!parent.is_empty()).then_some(parent);
     }
 
-    fn merge_base(&self, commits: &[String]) -> Option<String> {
+    fn merge_base(
+        &self,
+        commits: &[String],
+    ) -> Option<String> {
         let mut arguments: Vec<&str> = vec!["merge-base", "--octopus"];
         for commit in commits {
             arguments.push(commit.as_str());
@@ -95,7 +136,9 @@ impl BranchHistory for QueueHistory<'_> {
         if output.code != Some(0) {
             return None;
         }
-        let base: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        let base: String = String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
         return (!base.is_empty()).then_some(base);
     }
 }
@@ -127,16 +170,25 @@ fn status_of(output: GitOutput) -> Option<i32> {
 impl ContextHistory<'_> {
     /// One question asked of the command's own Git,
     /// and what it answered when Git ran at all.
-    fn ask(&self, arguments: &[&str]) -> Option<GitOutput> {
+    fn ask(
+        &self,
+        arguments: &[&str],
+    ) -> Option<GitOutput> {
         let request: GitRequest = GitRequest::new(self.cwd, arguments);
         return run_git(self.context, &request).ok();
     }
 
     /// Whether `reference` names a commit,
     /// and nothing when Git could not be asked.
-    fn names_a_commit(&self, reference: &str) -> Option<bool> {
+    fn names_a_commit(
+        &self,
+        reference: &str,
+    ) -> Option<bool> {
         let asked: String = format!("{reference}^{{commit}}");
-        return match self.ask(&["rev-parse", "--verify", "--quiet", asked.as_str()]).and_then(status_of) {
+        return match self
+            .ask(&["rev-parse", "--verify", "--quiet", asked.as_str()])
+            .and_then(status_of)
+        {
             Some(0) => Some(true),
             Some(_no_commit) => Some(false),
             None => None,
@@ -145,8 +197,15 @@ impl ContextHistory<'_> {
 }
 
 impl BranchHistory for ContextHistory<'_> {
-    fn holds(&self, of: &str, commit: &str) -> Option<bool> {
-        match self.ask(&["merge-base", "--is-ancestor", commit, of]).and_then(status_of) {
+    fn holds(
+        &self,
+        of: &str,
+        commit: &str,
+    ) -> Option<bool> {
+        match self
+            .ask(&["merge-base", "--is-ancestor", commit, of])
+            .and_then(status_of)
+        {
             Some(0) => return Some(true),
             Some(1) => return Some(false),
             _unknown_or_unasked => {}
@@ -163,17 +222,25 @@ impl BranchHistory for ContextHistory<'_> {
         };
     }
 
-    fn first_parent(&self, commit: &str) -> Option<String> {
+    fn first_parent(
+        &self,
+        commit: &str,
+    ) -> Option<String> {
         let asked: String = format!("{commit}^1");
         let output: GitOutput = self.ask(&["rev-parse", "--verify", "--quiet", asked.as_str()])?;
         if output.code != Some(0) {
             return None;
         }
-        let parent: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        let parent: String = String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
         return (!parent.is_empty()).then_some(parent);
     }
 
-    fn merge_base(&self, commits: &[String]) -> Option<String> {
+    fn merge_base(
+        &self,
+        commits: &[String],
+    ) -> Option<String> {
         let mut arguments: Vec<&str> = vec!["merge-base", "--octopus"];
         for commit in commits {
             arguments.push(commit.as_str());
@@ -182,7 +249,9 @@ impl BranchHistory for ContextHistory<'_> {
         if output.code != Some(0) {
             return None;
         }
-        let base: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        let base: String = String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_owned();
         return (!base.is_empty()).then_some(base);
     }
 }
@@ -199,14 +268,24 @@ impl BranchHistory for ContextHistory<'_> {
 /// ```ts
 /// const upstreamOf = (history, branchRef) => history.ask(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${short(branchRef)}@{upstream}`]) || undefined;
 /// ```
-pub fn upstream_of_a_branch(history: &ContextHistory<'_>, branch_ref: &str) -> Option<String> {
+pub fn upstream_of_a_branch(
+    history: &ContextHistory<'_>,
+    branch_ref: &str,
+) -> Option<String> {
     let short: &str = branch_ref.strip_prefix("refs/heads/")?;
     let asked: String = format!("{short}@{{upstream}}");
-    let output: GitOutput = history.ask(&["rev-parse", "--abbrev-ref", "--symbolic-full-name", asked.as_str()])?;
+    let output: GitOutput = history.ask(&[
+        "rev-parse",
+        "--abbrev-ref",
+        "--symbolic-full-name",
+        asked.as_str(),
+    ])?;
     if output.code != Some(0) {
         return None;
     }
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let named: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
     return (!named.is_empty()).then_some(named);
 }
 
@@ -229,8 +308,13 @@ pub fn upstream_of_a_branch(history: &ContextHistory<'_>, branch_ref: &str) -> O
 /// ```ts
 /// heldBackLines(gitDir, process.cwd()) // one line per branch that holds a verdict back
 /// ```
-pub fn held_back_lines(git_dir: &std::path::Path, history: &ContextHistory<'_>) -> Vec<String> {
-    let verdicts: Vec<BlockedVerdict> = crate::work_item_holding::blocked_verdicts(crate::service_work::work_directory(git_dir).as_path());
+pub fn held_back_lines(
+    git_dir: &std::path::Path,
+    history: &ContextHistory<'_>,
+) -> Vec<String> {
+    let verdicts: Vec<BlockedVerdict> = crate::work_item_holding::blocked_verdicts(
+        crate::service_work::work_directory(git_dir).as_path(),
+    );
     if verdicts.is_empty() {
         return Vec::new();
     }
@@ -247,11 +331,21 @@ pub fn held_back_lines(git_dir: &std::path::Path, history: &ContextHistory<'_>) 
         let upstream: Option<String> = upstream_of_a_branch(history, branch_ref.as_str());
         // A commit whose own checks still run is named by the held line of its record, which every command already prints, so
         //  nothing here is said about it: two lines for one wait would have to agree with each other as well as with the record.
-        match where_the_push_stops(history, branch_ref.as_str(), upstream.as_deref(), verdicts.as_slice(), &[]) {
+        match where_the_push_stops(
+            history,
+            branch_ref.as_str(),
+            upstream.as_deref(),
+            verdicts.as_slice(),
+            &[],
+        ) {
             WhereThePushStops::Nothing => {}
-            WhereThePushStops::Before(stopped) => lines.push(held_back_line(branch_ref.as_str(), &stopped)),
+            WhereThePushStops::Before(stopped) => {
+                lines.push(held_back_line(branch_ref.as_str(), &stopped))
+            }
             WhereThePushStops::Undecided(_waiting) => {}
-            WhereThePushStops::Unanswered(stopped) => lines.push(unanswered_line(branch_ref.as_str(), &stopped)),
+            WhereThePushStops::Unanswered(stopped) => {
+                lines.push(unanswered_line(branch_ref.as_str(), &stopped))
+            }
         }
     }
     return lines;

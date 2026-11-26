@@ -58,24 +58,41 @@
 //! // const result = await Promise.race([worker.run(job), rejectWhenQuiet(worker, windowMs)]); // the worker is left running when it is quiet
 //! ```
 
-/// When a long wait prints its notices.
-use crate::wait_progress::{Cadence, Ticker};
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::quiet_ledger;
 /// The thread's own number,
 /// and the clock that says when a thread has been quiet for a window.
-use crate::thread_quiet::{ThreadClock, current_thread_id};
+use crate::thread_quiet::{
+    ThreadClock,
+    current_thread_id,
+};
+/// When a long wait prints its notices.
+use crate::wait_progress::{
+    Cadence,
+    Ticker,
+};
 /// The thread builder the linter's own executable uses for everything that lints.
 use monochromatic_lint::run_workers::lint_thread;
-/// Panic containment and the payload type of a caught panic.
-use std::panic::{AssertUnwindSafe, catch_unwind};
 /// The sink of notices.
 use std::io::Write;
+/// Panic containment and the payload type of a caught panic.
+use std::panic::{
+    AssertUnwindSafe,
+    catch_unwind,
+};
 /// A one-shot channel from the job's thread to the waiting caller.
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+    Sender,
+    channel,
+};
 /// Spans of time and the clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  Why a guarded job produced no result.
@@ -157,7 +174,12 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 /// ```ts
 /// const noticeLine = (waitingFor, waitedMs, windowMs) => `monochromatic-git-policy-cli: still waiting for ${waitingFor} after ...`;
 /// ```
-fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bool) -> String {
+fn notice_line(
+    waiting_for: &str,
+    waited: Duration,
+    window: Duration,
+    repeat: bool,
+) -> String {
     let hint: &str = if repeat {
         ""
     } else {
@@ -214,8 +236,10 @@ fn write_on_a_thread(
     sink: Box<dyn Write + Send>,
     line: String,
 ) -> Option<Receiver<Box<dyn Write + Send>>> {
-    let (finished, written): (Sender<Box<dyn Write + Send>>, Receiver<Box<dyn Write + Send>>) =
-        channel();
+    let (finished, written): (
+        Sender<Box<dyn Write + Send>>,
+        Receiver<Box<dyn Write + Send>>,
+    ) = channel();
     let started = std::thread::Builder::new()
         .name(String::from(NOTICE_THREAD_NAME))
         .spawn(move || {
@@ -353,7 +377,8 @@ fn wait_for<T>(
         // ```ts
         // const answered = receiver.recvTimeout(NOTICE_POLL); collectReturnedSink(writing, notices); if (answered) return answered;
         // ```
-        let answered: Result<Result<T, String>, RecvTimeoutError> = receiver.recv_timeout(NOTICE_POLL);
+        let answered: Result<Result<T, String>, RecvTimeoutError> =
+            receiver.recv_timeout(NOTICE_POLL);
         match answered {
             Ok(value) => {
                 collect_returned_sink(&mut writing, notices);
@@ -408,24 +433,38 @@ pub fn run_guarded<T: Send + 'static>(
 ) -> Result<T, GuardFailure> {
     let (sender, receiver): (Sender<Result<T, String>>, Receiver<Result<T, String>>) = channel();
     let (numbers, thread_numbers): (Sender<i32>, Receiver<i32>) = channel();
-    let spawned = lint_thread().name(String::from("cli-git-markdown-lint")).spawn(move || {
-        // The waiting side judges this thread by its number; a closed channel is a waiter that gave up.
-        if let Some(number) = current_thread_id() {
-            let _told = numbers.send(number);
-        }
-        let outcome: Result<T, String> = match catch_unwind(AssertUnwindSafe(job)) {
-            Ok(value) => Ok(value),
-            Err(payload) => Err(panic_text(payload.as_ref())),
-        };
-        // The caller may have given up on this job; a closed channel is that case, and there is nobody to tell.
-        let _abandoned = sender.send(outcome);
-    });
+    let spawned = lint_thread()
+        .name(String::from("cli-git-markdown-lint"))
+        .spawn(move || {
+            // The waiting side judges this thread by its number; a closed channel is a waiter that gave up.
+            if let Some(number) = current_thread_id() {
+                let _told = numbers.send(number);
+            }
+            let outcome: Result<T, String> = match catch_unwind(AssertUnwindSafe(job)) {
+                Ok(value) => Ok(value),
+                Err(payload) => Err(panic_text(payload.as_ref())),
+            };
+            // The caller may have given up on this job; a closed channel is that case, and there is nobody to tell.
+            let _abandoned = sender.send(outcome);
+        });
     if let Err(error) = spawned {
-        return Err(GuardFailure::Start(crate::scoped_start::refused_thread_sentence("run the markdown check", &error)));
+        return Err(GuardFailure::Start(
+            crate::scoped_start::refused_thread_sentence("run the markdown check", &error),
+        ));
     }
-    let (result, longest): (Result<T, GuardFailure>, Duration) =
-        wait_for(&receiver, &thread_numbers, limits, cadence, waiting_for, notices);
-    quiet_ledger::note("monochromatic-lint", longest, matches!(result, Err(GuardFailure::Quiet(_))));
+    let (result, longest): (Result<T, GuardFailure>, Duration) = wait_for(
+        &receiver,
+        &thread_numbers,
+        limits,
+        cadence,
+        waiting_for,
+        notices,
+    );
+    quiet_ledger::note(
+        "monochromatic-lint",
+        longest,
+        matches!(result, Err(GuardFailure::Quiet(_))),
+    );
     return result;
 }
 

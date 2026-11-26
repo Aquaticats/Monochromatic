@@ -20,13 +20,23 @@
 //! ```
 
 use super::add_capture::Capture;
-use super::add_capture_record::{capture_bound, encode_capture, parse_capture};
+use super::add_capture_record::{
+    capture_bound,
+    encode_capture,
+    parse_capture,
+};
 use crate::private_storage::read_regular_file;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::ffi::OsStr;
 use std::io::Read as _;
-use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt as _,
+    OpenOptionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The suffix of the capture record.
 pub const CAPTURE_SUFFIX: &str = ".capture";
@@ -74,9 +84,18 @@ const RECORD_MODE: u32 = 0o600;
 /// The staging file cannot be made or written,
 /// the link is refused,
 /// or the staging name cannot be removed.
-pub fn publish_capture(home: &std::fs::File, slot: &str, capture: &Capture) -> std::io::Result<()> {
+pub fn publish_capture(
+    home: &std::fs::File,
+    slot: &str,
+    capture: &Capture,
+) -> std::io::Result<()> {
     let bytes: Vec<u8> = encode_capture(capture);
-    return publish_once(home, capture_staging_name(slot).as_str(), capture_name(slot).as_str(), bytes.as_slice());
+    return publish_once(
+        home,
+        capture_staging_name(slot).as_str(),
+        capture_name(slot).as_str(),
+        bytes.as_slice(),
+    );
 }
 
 /// What:
@@ -89,14 +108,25 @@ pub fn publish_capture(home: &std::fs::File, slot: &str, capture: &Capture) -> s
 /// The file is unreadable,
 /// too large for its own count,
 /// or not the grammar's.
-pub fn read_capture(home: &Path, slot: &str) -> Result<Option<Capture>, String> {
+pub fn read_capture(
+    home: &Path,
+    slot: &str,
+) -> Result<Option<Capture>, String> {
     let path: PathBuf = home.join(capture_name(slot));
-    let Some(prefix) = read_prefix(home, capture_name(slot).as_str())? else { return Ok(None) };
+    let Some(prefix) = read_prefix(home, capture_name(slot).as_str())? else {
+        return Ok(None);
+    };
     let count: usize = count_from_prefix(prefix.as_slice())?;
     let limit: u64 = capture_bound(count);
-    let bytes: Vec<u8> = read_regular_file(path.as_path(), limit).map_err(|refusal| return format!("the capture {} cannot be read ({refusal:?})", path.display()))?;
+    let bytes: Vec<u8> = read_regular_file(path.as_path(), limit).map_err(|refusal| {
+        return format!(
+            "the capture {} cannot be read ({refusal:?})",
+            path.display()
+        );
+    })?;
     check_the_records_owner(path.as_path())?;
-    let text: String = String::from_utf8(bytes).map_err(|_not_text| return format!("the capture {} is not text", path.display()))?;
+    let text: String = String::from_utf8(bytes)
+        .map_err(|_not_text| return format!("the capture {} is not text", path.display()))?;
     return parse_capture(text.as_str()).map(Some).map_err(|refusal| return format!("the capture {} is refused: {refusal}. Ways forward: read it and delete it, then run the add again", path.display()));
 }
 
@@ -108,9 +138,18 @@ pub fn read_capture(home: &Path, slot: &str) -> Result<Option<Capture>, String> 
 ///
 /// # Errors
 /// The staging file or the link was refused.
-pub fn publish_marker(home: &std::fs::File, slot: &str, nonce: &RequestNonce) -> std::io::Result<()> {
+pub fn publish_marker(
+    home: &std::fs::File,
+    slot: &str,
+    nonce: &RequestNonce,
+) -> std::io::Result<()> {
     let bytes: Vec<u8> = marker_bytes(nonce);
-    return publish_once(home, marker_staging_name(slot).as_str(), marker_name(slot).as_str(), bytes.as_slice());
+    return publish_once(
+        home,
+        marker_staging_name(slot).as_str(),
+        marker_name(slot).as_str(),
+        bytes.as_slice(),
+    );
 }
 
 /// The marker's whole content.
@@ -131,16 +170,30 @@ fn marker_staging_name(slot: &str) -> String {
 ///
 /// # Errors
 /// The marker is unreadable or its content is not the one line.
-pub fn marker_is_ours(home: &Path, slot: &str, nonce: &RequestNonce) -> Result<bool, String> {
+pub fn marker_is_ours(
+    home: &Path,
+    slot: &str,
+    nonce: &RequestNonce,
+) -> Result<bool, String> {
     let path: PathBuf = home.join(marker_name(slot));
-    let bytes: Vec<u8> = match read_regular_file(path.as_path(), marker_bytes(nonce).len() as u64 + 1) {
-        Ok(found) => found,
-        Err(crate::private_storage::ReadRefusal::Missing) => return Ok(false),
-        Err(refusal) => return Err(format!("the proof marker {} cannot be read ({refusal:?})", path.display())),
-    };
+    let bytes: Vec<u8> =
+        match read_regular_file(path.as_path(), marker_bytes(nonce).len() as u64 + 1) {
+            Ok(found) => found,
+            Err(crate::private_storage::ReadRefusal::Missing) => return Ok(false),
+            Err(refusal) => {
+                return Err(format!(
+                    "the proof marker {} cannot be read ({refusal:?})",
+                    path.display()
+                ));
+            }
+        };
     if bytes != marker_bytes(nonce) {
         let found: String = String::from_utf8_lossy(bytes.as_slice()).trim().to_string();
-        return Err(format!("the proof marker {} says `{found}`, and this add's nonce is {}", path.display(), nonce.as_str()));
+        return Err(format!(
+            "the proof marker {} says `{found}`, and this add's nonce is {}",
+            path.display(),
+            nonce.as_str()
+        ));
     }
     return Ok(true);
 }
@@ -151,7 +204,10 @@ pub fn marker_is_ours(home: &Path, slot: &str, nonce: &RequestNonce) -> Result<b
 /// Why:
 ///  A kill at any removal leaves a state the resume can read, and a leftover
 ///  marker whose capture is gone is refused by the reader rather than trusted.
-pub fn remove_capture(home: &Path, slot: &str) {
+pub fn remove_capture(
+    home: &Path,
+    slot: &str,
+) {
     let _marker: std::io::Result<()> = std::fs::remove_file(home.join(marker_name(slot)));
     let _capture: std::io::Result<()> = std::fs::remove_file(home.join(capture_name(slot)));
 }
@@ -168,30 +224,60 @@ pub fn remove_capture(home: &Path, slot: &str) {
 /// # Errors
 /// The folder cannot be listed,
 /// or a record of another add cannot be removed.
-pub fn clear_other_adds_records(home: &Path, slot: &str, nonce: &RequestNonce) -> Result<(), String> {
-    let names: [String; 4] = [capture_name(slot), marker_name(slot), settle_name(slot), capture_staging_name(slot)];
+pub fn clear_other_adds_records(
+    home: &Path,
+    slot: &str,
+    nonce: &RequestNonce,
+) -> Result<(), String> {
+    let names: [String; 4] = [
+        capture_name(slot),
+        marker_name(slot),
+        settle_name(slot),
+        capture_staging_name(slot),
+    ];
     for name in names {
         let path: PathBuf = home.join(name.as_str());
         let prefix: Vec<u8> = match prefix_of(path.as_path(), 4096) {
             Ok(found) => found,
             Err(refusal) if refusal.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(format!("another add's record {} cannot be read ({error})", path.display())),
+            Err(error) => {
+                return Err(format!(
+                    "another add's record {} cannot be read ({error})",
+                    path.display()
+                ));
+            }
         };
-        let ours: bool = prefix.windows(nonce.as_str().len()).any(|window| return window == nonce.as_str().as_bytes());
+        let ours: bool = prefix
+            .windows(nonce.as_str().len())
+            .any(|window| return window == nonce.as_str().as_bytes());
         if ours {
             continue;
         }
-        std::fs::remove_file(path.as_path()).map_err(|error| return format!("another add's record {} cannot be removed ({error})", path.display()))?;
+        std::fs::remove_file(path.as_path()).map_err(|error| {
+            return format!(
+                "another add's record {} cannot be removed ({error})",
+                path.display()
+            );
+        })?;
     }
     return Ok(());
 }
 
 /// Publish `bytes` under `staging` and then under `name`, replacing nothing.
-fn publish_once(home: &std::fs::File, staging: &str, name: &str, bytes: &[u8]) -> std::io::Result<()> {
+fn publish_once(
+    home: &std::fs::File,
+    staging: &str,
+    name: &str,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     use std::io::Write as _;
     let staging_path: PathBuf = home_path(home, staging)?;
     let _stale: std::io::Result<()> = std::fs::remove_file(staging_path.as_path());
-    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(RECORD_MODE).open(staging_path.as_path())?;
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(RECORD_MODE)
+        .open(staging_path.as_path())?;
     file.write_all(bytes)?;
     file.sync_all()?;
     crate::fs_beneath::link_open_file_at(&file, home, OsStr::new(name))?;
@@ -202,17 +288,28 @@ fn publish_once(home: &std::fs::File, staging: &str, name: &str, bytes: &[u8]) -
 }
 
 /// The path one name below the home has, read back from the held folder.
-fn home_path(home: &std::fs::File, name: &str) -> std::io::Result<PathBuf> {
+fn home_path(
+    home: &std::fs::File,
+    name: &str,
+) -> std::io::Result<PathBuf> {
     return Ok(crate::fs_beneath::handle_path(home).join(name));
 }
 
 /// The first bytes of a capture file, enough for the header and the count.
-fn read_prefix(home: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
+fn read_prefix(
+    home: &Path,
+    name: &str,
+) -> Result<Option<Vec<u8>>, String> {
     let path: PathBuf = home.join(name);
     let file: std::fs::File = match crate::private_storage::open_regular_file(path.as_path()) {
         Ok(opened) => opened,
         Err(crate::private_storage::ReadRefusal::Missing) => return Ok(None),
-        Err(refusal) => return Err(format!("the capture {} cannot be read ({refusal:?})", path.display())),
+        Err(refusal) => {
+            return Err(format!(
+                "the capture {} cannot be read ({refusal:?})",
+                path.display()
+            ));
+        }
     };
     // The prefix is the first bytes of a record whose whole length is not yet known.
     // It is taken from the open file rather than read as a whole.
@@ -221,7 +318,9 @@ fn read_prefix(home: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
     let mut bytes: Vec<u8> = Vec::new();
     file.take(CAPTURE_PREFIX_BYTES)
         .read_to_end(&mut bytes)
-        .map_err(|error| return format!("the capture {} cannot be read ({error})", path.display()))?;
+        .map_err(|error| {
+            return format!("the capture {} cannot be read ({error})", path.display());
+        })?;
     return Ok(Some(bytes));
 }
 
@@ -233,7 +332,10 @@ fn read_prefix(home: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
 const CAPTURE_PREFIX_BYTES: u64 = 8 * 1024;
 
 /// The first `most` bytes of one file, however large the file is.
-fn prefix_of(path: &Path, most: u64) -> std::io::Result<Vec<u8>> {
+fn prefix_of(
+    path: &Path,
+    most: u64,
+) -> std::io::Result<Vec<u8>> {
     let file: std::fs::File = std::fs::File::open(path)?;
     let mut bytes: Vec<u8> = Vec::new();
     file.take(most).read_to_end(&mut bytes)?;
@@ -243,21 +345,35 @@ fn prefix_of(path: &Path, most: u64) -> std::io::Result<Vec<u8>> {
 /// Refuse a record another account owns or one this account's group or others
 /// may write.
 fn check_the_records_owner(path: &Path) -> Result<(), String> {
-    let found: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return format!("the capture {} cannot be examined ({error})", path.display()))?;
+    let found: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        return format!(
+            "the capture {} cannot be examined ({error})",
+            path.display()
+        );
+    })?;
     // SAFETY: `geteuid` has no preconditions and reads this process's own identity.
     let ours: u32 = unsafe { libc::geteuid() };
     if found.uid() != ours {
-        return Err(format!("the capture {} belongs to account {}, and this is account {ours}; Ways forward: read it and delete it as its owner, then run the add again", path.display(), found.uid()));
+        return Err(format!(
+            "the capture {} belongs to account {}, and this is account {ours}; Ways forward: read it and delete it as its owner, then run the add again",
+            path.display(),
+            found.uid()
+        ));
     }
     if found.mode() & 0o077 != 0 {
-        return Err(format!("the capture {} may be written by this account's group or others (mode {:o}); Ways forward: stop the account that could write it and delete the record, then run the add again", path.display(), found.mode() & 0o777));
+        return Err(format!(
+            "the capture {} may be written by this account's group or others (mode {:o}); Ways forward: stop the account that could write it and delete the record, then run the add again",
+            path.display(),
+            found.mode() & 0o777
+        ));
     }
     return Ok(());
 }
 
 /// The `entries=` count of a capture's prefix.
 fn count_from_prefix(prefix: &[u8]) -> Result<usize, String> {
-    let text: &str = std::str::from_utf8(prefix).map_err(|_not_text| return String::from("the capture is not text"))?;
+    let text: &str = std::str::from_utf8(prefix)
+        .map_err(|_not_text| return String::from("the capture is not text"))?;
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("entries=")
             && let Ok(count) = value.parse::<usize>()
@@ -265,7 +381,9 @@ fn count_from_prefix(prefix: &[u8]) -> Result<usize, String> {
             return Ok(count);
         }
     }
-    return Err(String::from("the capture's prefix holds no `entries=` line, so its bound cannot be computed"));
+    return Err(String::from(
+        "the capture's prefix holds no `entries=` line, so its bound cannot be computed",
+    ));
 }
 
 /// Controls stay out of the release executable.

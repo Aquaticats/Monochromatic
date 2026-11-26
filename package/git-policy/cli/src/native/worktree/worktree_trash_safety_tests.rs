@@ -13,25 +13,72 @@ use std::os::unix::ffi::OsStrExt;
 /// taken without the leave-out,
 /// for the controls that
 ///  run the leave-out themselves.
-fn unpruned_snapshot(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_source::SnapshotSource) {
-    git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+fn unpruned_snapshot(
+    root: &Path,
+    repo: &Path,
+) -> (PathBuf, crate::worktree_snapshot_source::SnapshotSource) {
+    git(
+        repo,
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            "../topic",
+        ],
+    );
     let destination: PathBuf = std::fs::canonicalize(repo.join("../topic")).expect("destination");
     let plan = plan_to(destination);
-    let source = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
+    let source = choose_snapshot_source(&git_context(), &main_identity(repo), &plan)
+        .expect("a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
     snapshot_create_at(source.root.as_path(), stage.as_path()).expect("snapshot");
-    std::fs::set_permissions(&stage, std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private stage");
+    std::fs::set_permissions(&stage, std::os::unix::fs::PermissionsExt::from_mode(0o700))
+        .expect("private stage");
     return (stage, source);
 }
 
 /// A main checkout with a registered worktree at `ignored/wt` (an ignored path) in which the index tracks `ignored/wt/keep`.
 fn main_with_tracked_file_in_nested_worktree(root: &Path) -> PathBuf {
     let repo: PathBuf = subvolume_repository(root);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", "ignored/wt"]);
-    tracked(repo.as_path(), "ignored/wt/keep", b"tracked inside a registered worktree\n");
-    let blob: String = String::from_utf8(git(repo.as_path(), &["hash-object", "-w", "--no-filters", "ignored/wt/keep"]).stdout).expect("utf8").trim().to_string();
-    git(repo.as_path(), &["update-index", "--add", "--cacheinfo", format!("100644,{blob},ignored/wt/keep").as_str()]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=track a file inside the nested worktree"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "--detach", "ignored/wt"],
+    );
+    tracked(
+        repo.as_path(),
+        "ignored/wt/keep",
+        b"tracked inside a registered worktree\n",
+    );
+    let blob: String = String::from_utf8(
+        git(
+            repo.as_path(),
+            &["hash-object", "-w", "--no-filters", "ignored/wt/keep"],
+        )
+        .stdout,
+    )
+    .expect("utf8")
+    .trim()
+    .to_string();
+    git(
+        repo.as_path(),
+        &[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            format!("100644,{blob},ignored/wt/keep").as_str(),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--message=track a file inside the nested worktree",
+        ],
+    );
     git(repo.as_path(), &["update-index", "--refresh"]);
     std::fs::write(repo.join(".git/info/exclude"), b".claude/\n").expect("exclude");
     return repo;
@@ -44,16 +91,46 @@ fn main_with_tracked_file_in_nested_worktree(root: &Path) -> PathBuf {
 /// and says which path holds the tracked file.
 #[test]
 fn btrfs_a_registered_nested_worktree_that_holds_a_tracked_file_is_refused() {
-    let Some(root) = btrfs_fixture("trash-nested-tracked") else { return };
+    let Some(root) = btrfs_fixture("trash-nested-tracked") else {
+        return;
+    };
     let repo: PathBuf = main_with_tracked_file_in_nested_worktree(root.as_path());
     let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
-    assert!(source.nested.iter().any(|path: &PathBuf| { return path.ends_with("ignored/wt"); }), "the nested worktree is registered: {:?}", source.nested);
+    assert!(
+        source.nested.iter().any(|path: &PathBuf| {
+            return path.ends_with("ignored/wt");
+        }),
+        "the nested worktree is registered: {:?}",
+        source.nested
+    );
     let outcome: Result<Pruned, String> = prune_snapshot(stage.as_path(), &source);
-    let reason: String = outcome.clone().expect_err(format!("pruning must refuse, but it returned {outcome:?} and ignored/wt/keep is {}", if stage.join("ignored/wt/keep").exists() { "still there" } else { "gone" }).as_str());
-    assert!(reason.contains("ignored/wt") && reason.contains("ignored/wt/keep"), "the reason names the worktree and the tracked file: {reason}");
-    assert!(stage.join("ignored/wt/keep").exists(), "the tracked file is still in the snapshot");
-    assert!(stage.join("ignored/wt/.git").exists(), "no pointer was unlinked before the refusal");
-    assert!(stage.join("node_modules").exists() == repo.join("node_modules").exists(), "nothing else was touched either");
+    let reason: String = outcome.clone().expect_err(
+        format!(
+            "pruning must refuse, but it returned {outcome:?} and ignored/wt/keep is {}",
+            if stage.join("ignored/wt/keep").exists() {
+                "still there"
+            } else {
+                "gone"
+            }
+        )
+        .as_str(),
+    );
+    assert!(
+        reason.contains("ignored/wt") && reason.contains("ignored/wt/keep"),
+        "the reason names the worktree and the tracked file: {reason}"
+    );
+    assert!(
+        stage.join("ignored/wt/keep").exists(),
+        "the tracked file is still in the snapshot"
+    );
+    assert!(
+        stage.join("ignored/wt/.git").exists(),
+        "no pointer was unlinked before the refusal"
+    );
+    assert!(
+        stage.join("node_modules").exists() == repo.join("node_modules").exists(),
+        "nothing else was touched either"
+    );
     remove(root.as_path());
 }
 
@@ -63,17 +140,47 @@ fn btrfs_a_registered_nested_worktree_that_holds_a_tracked_file_is_refused() {
 ///  inside it.
 #[test]
 fn btrfs_a_snapshot_over_a_nested_worktree_with_a_tracked_file_says_why() {
-    let Some(root) = btrfs_fixture("trash-nested-tracked-snapshot") else { return };
+    let Some(root) = btrfs_fixture("trash-nested-tracked-snapshot") else {
+        return;
+    };
     let repo: PathBuf = main_with_tracked_file_in_nested_worktree(root.as_path());
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            "../topic",
+        ],
+    );
     let destination: PathBuf = std::fs::canonicalize(repo.join("../topic")).expect("destination");
     let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
-    let admin: std::fs::File = crate::fs_beneath::open_root(repo.join(".git/worktrees/topic").as_path()).expect("administrative directory");
+    let admin: std::fs::File =
+        crate::fs_beneath::open_root(repo.join(".git/worktrees/topic").as_path())
+            .expect("administrative directory");
     let plan = plan_to(destination);
-    let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a snapshot source");
+    let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan)
+        .expect("a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let failure = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &std::collections::HashSet::new()).expect_err("the rung declines");
-    assert!(failure.reason.contains("ignored/wt/keep") && failure.reason.contains("registered worktree"), "the reason says why: {}", failure.reason);
+    let failure = take_snapshot(
+        &source,
+        &plan,
+        stage.as_path(),
+        &admin,
+        pointer.as_slice(),
+        &crate::fixture_content_decision::content_environment(),
+        &std::collections::HashSet::new(),
+    )
+    .expect_err("the rung declines");
+    assert!(
+        failure.reason.contains("ignored/wt/keep")
+            && failure.reason.contains("registered worktree"),
+        "the reason says why: {}",
+        failure.reason
+    );
     remove(root.as_path());
 }
 
@@ -85,17 +192,38 @@ fn btrfs_a_snapshot_over_a_nested_worktree_with_a_tracked_file_says_why() {
 /// the leave-out still must not rely on that.)
 #[test]
 fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
-    let Some(root) = btrfs_fixture("trash-gitlink") else { return };
+    let Some(root) = btrfs_fixture("trash-gitlink") else {
+        return;
+    };
     let repo: PathBuf = subvolume_repository(root.as_path());
     std::fs::write(repo.join(".git/info/exclude"), b".claude/\n").expect("exclude");
     let (stage, mut source) = unpruned_snapshot(root.as_path(), repo.as_path());
-    let head: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("utf8").trim().to_string();
-    git(repo.as_path(), &["update-index", "--add", "--cacheinfo", format!("160000,{head},vendor/lib").as_str()]);
-    source.clean.index_bytes = std::fs::read(repo.join(".git/index")).expect("index with a gitlink");
-    put(stage.as_path(), "vendor/lib/.git", b"gitdir: ../../.git/modules/lib\n");
+    let head: String = String::from_utf8(git(repo.as_path(), &["rev-parse", "HEAD"]).stdout)
+        .expect("utf8")
+        .trim()
+        .to_string();
+    git(
+        repo.as_path(),
+        &[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            format!("160000,{head},vendor/lib").as_str(),
+        ],
+    );
+    source.clean.index_bytes =
+        std::fs::read(repo.join(".git/index")).expect("index with a gitlink");
+    put(
+        stage.as_path(),
+        "vendor/lib/.git",
+        b"gitdir: ../../.git/modules/lib\n",
+    );
     put(stage.as_path(), "vendor/lib/file", b"submodule content\n");
     prune_snapshot(stage.as_path(), &source).expect("pruned");
-    assert!(stage.join("vendor/lib/file").exists(), "the gitlink directory stays in the new worktree");
+    assert!(
+        stage.join("vendor/lib/file").exists(),
+        "the gitlink directory stays in the new worktree"
+    );
     remove(root.as_path());
 }
 
@@ -123,35 +251,70 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
 /// ```
 #[test]
 fn btrfs_an_earlier_adds_trash_is_emptied_with_this_adds() {
-    let Some(root) = btrfs_fixture("trash-carried") else { return };
+    let Some(root) = btrfs_fixture("trash-carried") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
     let earlier: String = "a".repeat(40);
     let earlier_manifest: TrashManifest = plant_trash(repo.as_path(), earlier.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(repo.as_path(), &earlier_manifest).expect("the earlier trash says what it is");
-    put(repo.as_path(), format!(".claude/{earlier}/keep").as_str(), b"a directory the leave-out never made\n");
+    crate::worktree_trash_own_manifest::write(repo.as_path(), &earlier_manifest)
+        .expect("the earlier trash says what it is");
+    put(
+        repo.as_path(),
+        format!(".claude/{earlier}/keep").as_str(),
+        b"a directory the leave-out never made\n",
+    );
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
     let parent: PathBuf = stage.join(TRASH_PARENT);
-    assert_ne!(manifest.name, earlier, "the trash is not the directory the earlier add left");
-    assert!(!parent.join(&earlier).exists(), "the earlier trash is not carried as itself");
+    assert_ne!(
+        manifest.name, earlier,
+        "the trash is not the directory the earlier add left"
+    );
+    assert!(
+        !parent.join(&earlier).exists(),
+        "the earlier trash is not carried as itself"
+    );
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
-    std::fs::write(stage.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect("pointer");
-    assert_eq!(empty_trash(&item_of(stage.as_path(), git_dir.as_path(), &manifest)), Verdict::Done, "the handler empties what the leave-out recorded");
-    assert!(!parent.exists(), "this add's trash and the one it took over go together");
-    assert!(stage.join(".claude").join(&earlier).join("keep").exists(), "a directory with that name outside the trash parent is untouched");
+    std::fs::write(
+        stage.join(".git"),
+        format!("gitdir: {}\n", git_dir.display()),
+    )
+    .expect("pointer");
+    assert_eq!(
+        empty_trash(&item_of(stage.as_path(), git_dir.as_path(), &manifest)),
+        Verdict::Done,
+        "the handler empties what the leave-out recorded"
+    );
+    assert!(
+        !parent.exists(),
+        "this add's trash and the one it took over go together"
+    );
+    assert!(
+        stage.join(".claude").join(&earlier).join("keep").exists(),
+        "a directory with that name outside the trash parent is untouched"
+    );
     remove(root.as_path());
 }
 
 /// A worktree with a `.git` file and a planted trash of `count` entries,
 /// with the admin directory and the manifest.
-fn worktree_with_planted_trash(label: &str, name: &str, count: usize) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
+fn worktree_with_planted_trash(
+    label: &str,
+    name: &str,
+    count: usize,
+) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
     let root: PathBuf = fixture(label);
     let worktree: PathBuf = root.join("topic");
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
+    std::fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", git_dir.display()),
+    )
+    .expect(".git file");
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name, count);
     return (root, worktree, git_dir, manifest);
 }
@@ -160,11 +323,15 @@ fn worktree_with_planted_trash(label: &str, name: &str, count: usize) -> (PathBu
 /// the worktree holds only a `.git` file and an empty `.claude`,
 ///  and the outside directory holds `cli-git-trash/<name>`;
 /// the manifest still describes it.
-fn worktree_with_trash_moved_out(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf, TrashManifest) {
+fn worktree_with_trash_moved_out(
+    label: &str,
+    name: &str,
+) -> (PathBuf, PathBuf, PathBuf, PathBuf, TrashManifest) {
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash(label, name, 1);
     let outside: PathBuf = root.join("outside");
     std::fs::create_dir_all(&outside).expect("outside");
-    std::fs::rename(worktree.join(TRASH_PARENT), outside.join("cli-git-trash")).expect("move the trash parent out");
+    std::fs::rename(worktree.join(TRASH_PARENT), outside.join("cli-git-trash"))
+        .expect("move the trash parent out");
     return (root, worktree, git_dir, outside, manifest);
 }
 
@@ -173,13 +340,18 @@ fn worktree_with_trash_moved_out(label: &str, name: &str) -> (PathBuf, PathBuf, 
 #[test]
 fn a_trash_directory_that_was_replaced_is_not_emptied() {
     let name: String = "1".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-replaced", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-replaced", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away")).expect("move the real one away");
+    std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away"))
+        .expect("move the real one away");
     // An empty directory under the same name: nothing inside it could stop the removal, only its identity can.
     std::fs::create_dir(&trash).expect("somebody else's directory under the same name");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)), "{verdict:?}");
+    assert!(
+        matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)),
+        "{verdict:?}"
+    );
     assert!(trash.is_dir(), "the replacement is untouched");
     remove(root.as_path());
 }
@@ -192,16 +364,26 @@ fn a_trash_directory_that_was_replaced_is_not_emptied() {
 #[test]
 fn a_trash_entry_that_was_replaced_by_a_link_is_not_followed() {
     let name: String = "2".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-link", name.as_str(), 2);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-entry-link", name.as_str(), 2);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let outside: PathBuf = root.join("outside");
     put(outside.as_path(), "precious", b"keep");
     std::fs::remove_dir_all(trash.join("d0")).expect("remove the first entry");
     std::os::unix::fs::symlink(&outside, trash.join("d0")).expect("link in its place");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(format!("{name}/d0").as_str())), "{verdict:?}");
-    assert!(outside.join("precious").exists(), "what the link points at is untouched");
-    assert!(!trash.join("d1").exists(), "the entry that was still the recorded object is emptied");
+    assert!(
+        matches!(&verdict, Verdict::Failed(reason) if reason.contains(format!("{name}/d0").as_str())),
+        "{verdict:?}"
+    );
+    assert!(
+        outside.join("precious").exists(),
+        "what the link points at is untouched"
+    );
+    assert!(
+        !trash.join("d1").exists(),
+        "the entry that was still the recorded object is emptied"
+    );
     remove(root.as_path());
 }
 
@@ -212,14 +394,29 @@ fn a_trash_entry_that_was_replaced_by_a_link_is_not_followed() {
 #[test]
 fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
     let name: String = "4".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-replaced", name.as_str(), 2);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-entry-replaced", name.as_str(), 2);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    std::fs::rename(trash.join("d0"), worktree.join("moved-away")).expect("move the real entry away");
-    put(trash.as_path(), "d0/precious", b"somebody else's directory under the same name\n");
+    std::fs::rename(trash.join("d0"), worktree.join("moved-away"))
+        .expect("move the real entry away");
+    put(
+        trash.as_path(),
+        "d0/precious",
+        b"somebody else's directory under the same name\n",
+    );
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(format!("{name}/d0").as_str())), "{verdict:?}");
-    assert!(trash.join("d0/precious").exists(), "the replacement is untouched");
-    assert!(!trash.join("d1").exists(), "the entry that was still the recorded object is emptied");
+    assert!(
+        matches!(&verdict, Verdict::Failed(reason) if reason.contains(format!("{name}/d0").as_str())),
+        "{verdict:?}"
+    );
+    assert!(
+        trash.join("d0/precious").exists(),
+        "the replacement is untouched"
+    );
+    assert!(
+        !trash.join("d1").exists(),
+        "the entry that was still the recorded object is emptied"
+    );
     remove(root.as_path());
 }
 
@@ -229,12 +426,19 @@ fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
 #[test]
 fn something_in_the_trash_that_was_not_moved_there_stays() {
     let name: String = "3".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-extra", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-extra", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     put(trash.as_path(), "unrecorded/file", b"not ours\n");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("unrecorded") && reason.contains("did not put there")), "{verdict:?}");
-    assert!(trash.join("unrecorded/file").exists(), "the unrecorded entry is untouched");
+    assert!(
+        matches!(&verdict, Verdict::Failed(reason) if reason.contains("unrecorded") && reason.contains("did not put there")),
+        "{verdict:?}"
+    );
+    assert!(
+        trash.join("unrecorded/file").exists(),
+        "the unrecorded entry is untouched"
+    );
     assert!(!trash.join("d0").exists(), "the recorded entry is emptied");
     remove(root.as_path());
 }
@@ -253,17 +457,38 @@ fn something_in_the_trash_that_was_not_moved_there_stays() {
 #[test]
 fn a_trash_that_could_not_be_emptied_is_named_and_left_alone() {
     let name: String = "9".repeat(40);
-    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-named", name.as_str(), 2);
+    let (root, worktree, git_dir, _manifest) =
+        worktree_with_planted_trash("trash-named", name.as_str(), 2);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(said.contains(trash.to_str().expect("UTF-8")), "the person is told which trash stays: {said}");
-    assert!(trash.join("d0").is_dir() && trash.join("d1").is_dir(), "nothing in it is deleted");
+    assert!(
+        said.contains(trash.to_str().expect("UTF-8")),
+        "the person is told which trash stays: {said}"
+    );
+    assert!(
+        trash.join("d0").is_dir() && trash.join("d1").is_dir(),
+        "nothing in it is deleted"
+    );
     // Said once for the command it is said in, and again by the next one, so a long-lived worktree does not lose it.
     let mut second: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut second, &nothing_woken());
-    assert!(String::from_utf8_lossy(second.as_slice()).contains(trash.to_str().expect("UTF-8")), "the next command says it again: {}", String::from_utf8_lossy(second.as_slice()));
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut second,
+        &nothing_woken(),
+    );
+    assert!(
+        String::from_utf8_lossy(second.as_slice()).contains(trash.to_str().expect("UTF-8")),
+        "the next command says it again: {}",
+        String::from_utf8_lossy(second.as_slice())
+    );
     remove(root.as_path());
 }
 
@@ -278,15 +503,27 @@ fn a_trash_that_could_not_be_emptied_is_named_and_left_alone() {
 #[test]
 fn a_trash_a_record_accounts_for_is_not_named() {
     let name: String = "a".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-recorded", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-recorded", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("record");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(!said.contains(trash.to_str().expect("UTF-8")), "a trash its record accounts for is not named: {said}");
-    assert!(trash.join("d0/file").is_file(), "the trash the record names is not touched");
+    assert!(
+        !said.contains(trash.to_str().expect("UTF-8")),
+        "a trash its record accounts for is not named: {said}"
+    );
+    assert!(
+        trash.join("d0/file").is_file(),
+        "the trash the record names is not touched"
+    );
     remove(root.as_path());
 }
 
@@ -308,18 +545,31 @@ fn a_trash_a_record_accounts_for_is_not_named() {
 #[test]
 fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
     let name: String = "f".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-pending-stale", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-pending-stale", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     let work: PathBuf = work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("record");
-    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let pending: PathBuf =
+        state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
     age_by(&pending, std::time::Duration::from_secs(600));
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(said.contains(trash.to_str().expect("UTF-8")), "a record nothing claimed is named with its trash: {said}");
-    assert!(pending.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    assert!(
+        said.contains(trash.to_str().expect("UTF-8")),
+        "a record nothing claimed is named with its trash: {said}"
+    );
+    assert!(
+        pending.is_file() && trash.join("d0/file").is_file(),
+        "the record and the trash stay"
+    );
     remove(root.as_path());
 }
 
@@ -338,18 +588,34 @@ fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
 #[test]
 fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
     let name: String = "9".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-foreign-manifest", name.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-foreign-manifest", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest)
+        .expect("the trash says what it is");
     let foreign: TrashManifest = TrashManifest {
         name: name.clone(),
-        trash: ObjectId { device: manifest.trash.device, inode: manifest.trash.inode.wrapping_add(1), birth: manifest.trash.birth },
+        trash: ObjectId {
+            device: manifest.trash.device,
+            inode: manifest.trash.inode.wrapping_add(1),
+            birth: manifest.trash.birth,
+        },
         entries: Vec::new(),
     };
-    let file: PathBuf = worktree.join(TRASH_PARENT).join(&name).join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME);
-    std::fs::write(file.as_path(), foreign.encode()).expect("a manifest that names another directory");
+    let file: PathBuf = worktree
+        .join(TRASH_PARENT)
+        .join(&name)
+        .join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME);
+    std::fs::write(file.as_path(), foreign.encode())
+        .expect("a manifest that names another directory");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(file.is_file(), "the file that is not the wrapper's stays; the emptying answered {verdict:?}");
-    assert!(matches!(verdict, Verdict::Failed(_)), "and the trash directory stays with it, got {verdict:?}");
+    assert!(
+        file.is_file(),
+        "the file that is not the wrapper's stays; the emptying answered {verdict:?}"
+    );
+    assert!(
+        matches!(verdict, Verdict::Failed(_)),
+        "and the trash directory stays with it, got {verdict:?}"
+    );
     remove(root.as_path());
 }
 
@@ -368,21 +634,38 @@ fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
 #[test]
 fn a_settled_record_makes_the_notice_name_the_trash_instead_of_promising_a_run() {
     let name: String = "a".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-settled-manifest", name.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-settled-manifest", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest)
+        .expect("the trash says what it is");
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     let work: PathBuf = work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("record");
-    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let pending: PathBuf =
+        state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
     let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
     std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash is named: {said}");
-    assert!(!said.contains("recorded now"), "and nothing promises a record was written: {said}");
-    assert!(failed.is_file() && !pending.exists(), "no pending record is invented from a settled one");
+    assert!(
+        said.contains(trash.to_str().expect("UTF-8")),
+        "the trash is named: {said}"
+    );
+    assert!(
+        !said.contains("recorded now"),
+        "and nothing promises a record was written: {said}"
+    );
+    assert!(
+        failed.is_file() && !pending.exists(),
+        "no pending record is invented from a settled one"
+    );
     remove(root.as_path());
 }
 
@@ -410,13 +693,24 @@ fn nothing_woken() -> crate::held_push_release_wakes_the_service::NothingWoken {
 #[test]
 fn a_recovered_trash_tells_the_service() {
     let name: String = "6".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-recovered-wake", name.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-recovered-wake", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest)
+        .expect("the trash says what it is");
     let woken = Woken::default();
     let mut say: Vec<u8> = Vec::new();
     name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &woken);
-    assert_eq!(woken.named(), vec![git_dir.clone()], "the repository's service is told: {}", String::from_utf8_lossy(say.as_slice()));
-    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::PENDING).join(item_of(worktree.as_path(), git_dir.as_path(), &manifest).id());
+    assert_eq!(
+        woken.named(),
+        vec![git_dir.clone()],
+        "the repository's service is told: {}",
+        String::from_utf8_lossy(say.as_slice())
+    );
+    let pending: PathBuf = state_directory(
+        work_directory(git_dir.as_path()).as_path(),
+        crate::work_item::PENDING,
+    )
+    .join(item_of(worktree.as_path(), git_dir.as_path(), &manifest).id());
     assert!(pending.is_file(), "and the record it empties stands");
     remove(root.as_path());
 }
@@ -430,31 +724,59 @@ impl Woken {
     /// The Git directories the scan has told so far,
     /// in the order it told them.
     fn named(&self) -> Vec<PathBuf> {
-        return self.0.lock().map(|named: std::sync::MutexGuard<'_, Vec<PathBuf>>| return named.clone()).unwrap_or_default();
+        return self
+            .0
+            .lock()
+            .map(|named: std::sync::MutexGuard<'_, Vec<PathBuf>>| return named.clone())
+            .unwrap_or_default();
     }
 }
 
 impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
-    fn wake(&self, git_dir: &Path) {
+    fn wake(
+        &self,
+        git_dir: &Path,
+    ) {
         if let Ok(mut named) = self.0.lock() {
             named.push(git_dir.to_path_buf());
         }
     }
 
-    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+    fn forget_programs(
+        &self,
+        _git_dir: &Path,
+        _records: &[String],
+    ) {
         panic!("the scan settles no push record here, so it forgets no values");
     }
 }
 
 /// Move a file's modification time into the past,
 /// so a control can read a record as one that waited.
-fn age_by(path: &Path, back: std::time::Duration) {
+fn age_by(
+    path: &Path,
+    back: std::time::Duration,
+) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
-    let past: libc::time_t = (std::time::SystemTime::now() - back).duration_since(std::time::SystemTime::UNIX_EPOCH).expect("after the epoch").as_secs() as libc::time_t;
-    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: past, tv_nsec: 0 }, libc::timespec { tv_sec: past, tv_nsec: 0 }];
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let past: libc::time_t = (std::time::SystemTime::now() - back)
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs() as libc::time_t;
+    let times: [libc::timespec; 2] = [
+        libc::timespec {
+            tv_sec: past,
+            tv_nsec: 0,
+        },
+        libc::timespec {
+            tv_sec: past,
+            tv_nsec: 0,
+        },
+    ];
     // SAFETY: `name` is a NUL-terminated string that outlives the call, and `times` holds the two timestamps it reads.
-    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), 0) };
+    let result: libc::c_int =
+        unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), 0) };
     assert_eq!(result, 0, "age {}", path.display());
 }
 
@@ -469,19 +791,32 @@ fn age_by(path: &Path, back: std::time::Duration) {
 #[test]
 fn a_trash_the_service_gave_up_on_is_named_and_left_alone() {
     let name: String = "b".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-given-up", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-given-up", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     let work: PathBuf = work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("record");
-    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let pending: PathBuf =
+        state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
     let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
     std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(said.contains(trash.to_str().expect("UTF-8")), "the trash of a given-up record is named: {said}");
-    assert!(failed.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    assert!(
+        said.contains(trash.to_str().expect("UTF-8")),
+        "the trash of a given-up record is named: {said}"
+    );
+    assert!(
+        failed.is_file() && trash.join("d0/file").is_file(),
+        "the record and the trash stay"
+    );
     remove(root.as_path());
 }
 
@@ -501,23 +836,40 @@ fn a_trash_the_service_gave_up_on_is_named_and_left_alone() {
 #[test]
 fn a_trash_the_service_gave_up_on_is_not_promised_a_new_record() {
     let name: String = "e".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-given-up-again", name.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-given-up-again", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest)
+        .expect("the trash says what it is");
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     let work: PathBuf = work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("record");
-    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let pending: PathBuf =
+        state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
     let failed: PathBuf = state_directory(work.as_path(), crate::work_item::FAILED).join(item.id());
     std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
     for attempt in ["the first command", "the next command"] {
         let mut say: Vec<u8> = Vec::new();
-        name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+        name_unaccounted_trash(
+            git_dir.as_path(),
+            worktree.as_path(),
+            &mut say,
+            &nothing_woken(),
+        );
         let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-        assert!(!said.contains("recorded now"), "{attempt} must not promise a record that was not written: {said}");
-        assert!(said.contains(trash.to_str().expect("UTF-8")), "{attempt} names the trash that stays: {said}");
+        assert!(
+            !said.contains("recorded now"),
+            "{attempt} must not promise a record that was not written: {said}"
+        );
+        assert!(
+            said.contains(trash.to_str().expect("UTF-8")),
+            "{attempt} names the trash that stays: {said}"
+        );
         assert!(!pending.exists(), "nothing wrote a pending record: {said}");
-        assert!(failed.is_file() && trash.join("d0/file").is_file(), "the terminal record and the trash stay");
+        assert!(
+            failed.is_file() && trash.join("d0/file").is_file(),
+            "the terminal record and the trash stay"
+        );
     }
     remove(root.as_path());
 }
@@ -536,21 +888,41 @@ fn a_trash_the_service_gave_up_on_is_not_promised_a_new_record() {
 #[test]
 fn a_trash_whose_record_already_waits_is_not_reported_as_recorded_now() {
     let name: String = "c".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-record-there", name.as_str(), 1);
-    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-record-there", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest)
+        .expect("the trash says what it is");
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     let work: PathBuf = work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("record");
-    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    let pending: PathBuf =
+        state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
     age_by(&pending, std::time::Duration::from_secs(600));
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(!said.contains("recorded now"), "a record the command did not write is not reported as written: {said}");
-    assert!(said.contains("already in the queue"), "the record that waits is named as there: {said}");
-    assert!(said.contains(trash.to_str().expect("UTF-8")), "the line names the trash: {said}");
-    assert!(pending.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    assert!(
+        !said.contains("recorded now"),
+        "a record the command did not write is not reported as written: {said}"
+    );
+    assert!(
+        said.contains("already in the queue"),
+        "the record that waits is named as there: {said}"
+    );
+    assert!(
+        said.contains(trash.to_str().expect("UTF-8")),
+        "the line names the trash: {said}"
+    );
+    assert!(
+        pending.is_file() && trash.join("d0/file").is_file(),
+        "the record and the trash stay"
+    );
     remove(root.as_path());
 }
 
@@ -563,27 +935,46 @@ fn a_trash_whose_record_already_waits_is_not_reported_as_recorded_now() {
 ///  command wait for a writer that never comes.
 #[test]
 fn a_named_pipe_among_the_trash_records_does_not_hold_the_command() {
-    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-pipe", "8".repeat(40).as_str(), 1);
-    let failed: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::FAILED);
+    let (root, worktree, git_dir, _manifest) =
+        worktree_with_planted_trash("trash-pipe", "8".repeat(40).as_str(), 1);
+    let failed: PathBuf = state_directory(
+        work_directory(git_dir.as_path()).as_path(),
+        crate::work_item::FAILED,
+    );
     std::fs::create_dir_all(failed.as_path()).expect("the failed records' directory");
     let pipe: PathBuf = failed.join("pipe-not-a-record");
     let name = std::ffi::CString::new(pipe.as_os_str().as_encoded_bytes()).expect("path text");
     // SAFETY: `name` is NUL-terminated and outlives the call; mode 0600 is this test's own.
-    assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0, "the named pipe");
+    assert_eq!(
+        unsafe { libc::mkfifo(name.as_ptr(), 0o600) },
+        0,
+        "the named pipe"
+    );
     let (sender, receiver) = std::sync::mpsc::channel();
     let (git_dir_for_scan, worktree_for_scan) = (git_dir.clone(), worktree.clone());
     let runner = std::thread::spawn(move || {
         let mut said: Vec<u8> = Vec::new();
-        name_unaccounted_trash(git_dir_for_scan.as_path(), worktree_for_scan.as_path(), &mut said, &nothing_woken());
+        name_unaccounted_trash(
+            git_dir_for_scan.as_path(),
+            worktree_for_scan.as_path(),
+            &mut said,
+            &nothing_woken(),
+        );
         let _sent = sender.send(said);
     });
     let said: Vec<u8> = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
         Ok(said) => said,
-        Err(_still_waiting) => panic!("the trash retry waited on a named pipe instead of skipping it"),
+        Err(_still_waiting) => {
+            panic!("the trash retry waited on a named pipe instead of skipping it")
+        }
     };
     runner.join().expect("the scan ends");
     assert!(pipe.exists(), "the named pipe itself is left alone");
-    assert!(String::from_utf8_lossy(said.as_slice()).contains("holds directories a snapshot left out"), "the trash is still named: {}", String::from_utf8_lossy(said.as_slice()));
+    assert!(
+        String::from_utf8_lossy(said.as_slice()).contains("holds directories a snapshot left out"),
+        "the trash is still named: {}",
+        String::from_utf8_lossy(said.as_slice())
+    );
     remove(root.as_path());
 }
 
@@ -595,14 +986,26 @@ fn a_named_pipe_among_the_trash_records_does_not_hold_the_command() {
 ///  so the sweep only says it is there.
 #[test]
 fn a_trash_no_record_names_is_named_and_left_alone() {
-    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-unrecorded", "7".repeat(40).as_str(), 1);
+    let (root, worktree, git_dir, _manifest) =
+        worktree_with_planted_trash("trash-unrecorded", "7".repeat(40).as_str(), 1);
     let unrecorded: PathBuf = worktree.join(TRASH_PARENT).join("6".repeat(40));
     put(unrecorded.as_path(), "d0/precious", b"copied by hand\n");
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(said.contains(unrecorded.to_str().expect("UTF-8")), "the person is told what sits there: {said}");
-    assert!(unrecorded.join("d0/precious").exists(), "nothing is deleted");
+    assert!(
+        said.contains(unrecorded.to_str().expect("UTF-8")),
+        "the person is told what sits there: {said}"
+    );
+    assert!(
+        unrecorded.join("d0/precious").exists(),
+        "nothing is deleted"
+    );
     remove(root.as_path());
 }
 
@@ -613,12 +1016,20 @@ fn a_trash_no_record_names_is_named_and_left_alone() {
 #[test]
 fn the_handler_does_not_follow_a_link_at_the_claude_directory() {
     let name: String = "d".repeat(40);
-    let (root, worktree, git_dir, outside, manifest) = worktree_with_trash_moved_out("trash-link-claude", name.as_str());
+    let (root, worktree, git_dir, outside, manifest) =
+        worktree_with_trash_moved_out("trash-link-claude", name.as_str());
     std::fs::remove_dir_all(worktree.join(".claude")).expect("the empty .claude");
     std::os::unix::fs::symlink(&outside, worktree.join(".claude")).expect("link");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
     assert!(matches!(verdict, Verdict::Failed(_)), "{verdict:?}");
-    assert!(outside.join("cli-git-trash").join(&name).join("d0/file").exists(), "what the link points at is untouched");
+    assert!(
+        outside
+            .join("cli-git-trash")
+            .join(&name)
+            .join("d0/file")
+            .exists(),
+        "what the link points at is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -628,11 +1039,25 @@ fn the_handler_does_not_follow_a_link_at_the_claude_directory() {
 #[test]
 fn the_emptying_does_not_follow_a_link_at_the_trash_parent() {
     let name: String = "e".repeat(40);
-    let (root, worktree, git_dir, outside, manifest) = worktree_with_trash_moved_out("trash-link-parent", name.as_str());
-    std::os::unix::fs::symlink(outside.join("cli-git-trash"), worktree.join(TRASH_PARENT)).expect("link");
-    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("a trash reached through a link is not emptied");
-    assert!(left.reason.contains("cli-git-trash"), "the reason names the path: {}", left.reason);
-    assert!(outside.join("cli-git-trash").join(&name).join("d0/file").exists(), "what the link points at is untouched");
+    let (root, worktree, git_dir, outside, manifest) =
+        worktree_with_trash_moved_out("trash-link-parent", name.as_str());
+    std::os::unix::fs::symlink(outside.join("cli-git-trash"), worktree.join(TRASH_PARENT))
+        .expect("link");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest)
+        .expect_err("a trash reached through a link is not emptied");
+    assert!(
+        left.reason.contains("cli-git-trash"),
+        "the reason names the path: {}",
+        left.reason
+    );
+    assert!(
+        outside
+            .join("cli-git-trash")
+            .join(&name)
+            .join("d0/file")
+            .exists(),
+        "what the link points at is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -641,11 +1066,21 @@ fn the_emptying_does_not_follow_a_link_at_the_trash_parent() {
 #[test]
 fn the_handler_refuses_a_worktree_that_points_at_another_administrative_directory() {
     let name: String = "f".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-other-admin", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-other-admin", name.as_str(), 1);
     std::fs::write(worktree.join(".git"), b"gitdir: /nowhere/else\n").expect("another pointer");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("/nowhere/else")), "{verdict:?}");
-    assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/file").exists());
+    assert!(
+        matches!(&verdict, Verdict::Failed(reason) if reason.contains("/nowhere/else")),
+        "{verdict:?}"
+    );
+    assert!(
+        worktree
+            .join(TRASH_PARENT)
+            .join(&name)
+            .join("d0/file")
+            .exists()
+    );
     remove(root.as_path());
 }
 
@@ -656,7 +1091,9 @@ fn the_handler_refuses_a_worktree_that_points_at_another_administrative_director
 /// it removes them in place instead.
 #[test]
 fn btrfs_the_leave_out_does_not_make_its_trash_through_a_link_at_the_claude_directory() {
-    let Some(root) = btrfs_fixture("trash-link-stage") else { return };
+    let Some(root) = btrfs_fixture("trash-link-stage") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
     let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
     let outside: PathBuf = root.join("outside");
@@ -664,11 +1101,26 @@ fn btrfs_the_leave_out_does_not_make_its_trash_through_a_link_at_the_claude_dire
     std::fs::remove_dir_all(stage.join(".claude")).expect("the snapshot's .claude");
     std::os::unix::fs::symlink(&outside, stage.join(".claude")).expect("link");
     let pruned: Pruned = prune_snapshot(stage.as_path(), &source).expect("pruned");
-    let found: Vec<String> = std::fs::read_dir(&outside).expect("listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert!(found.is_empty(), "nothing is made or moved through the link: {found:?}");
+    let found: Vec<String> = std::fs::read_dir(&outside)
+        .expect("listing")
+        .flatten()
+        .map(|entry: std::fs::DirEntry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .collect();
+    assert!(
+        found.is_empty(),
+        "nothing is made or moved through the link: {found:?}"
+    );
     assert_eq!(pruned.trash, None, "there is no trash to hand over");
-    assert!(pruned.count > 0, "the caches and the other checkouts are still left out");
-    assert!(std::fs::symlink_metadata(stage.join("node_modules/.cache")).is_err(), "removed in place");
+    assert!(
+        pruned.count > 0,
+        "the caches and the other checkouts are still left out"
+    );
+    assert!(
+        std::fs::symlink_metadata(stage.join("node_modules/.cache")).is_err(),
+        "removed in place"
+    );
     remove(root.as_path());
 }
 
@@ -677,20 +1129,38 @@ fn btrfs_the_leave_out_does_not_make_its_trash_through_a_link_at_the_claude_dire
 /// and the
 ///  walk never acts on the link's target for the directory.
 #[test]
-fn btrfs_a_directory_with_a_non_utf8_name_is_not_taken_for_a_link_named_with_the_replacement_character() {
-    let Some(root) = btrfs_fixture("trash-non-utf8") else { return };
+fn btrfs_a_directory_with_a_non_utf8_name_is_not_taken_for_a_link_named_with_the_replacement_character()
+ {
+    let Some(root) = btrfs_fixture("trash-non-utf8") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
     let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
     let outside: PathBuf = root.join("outside");
     put(outside.as_path(), ".git", b"gitdir: /elsewhere\n");
     put(outside.as_path(), "data", b"precious\n");
-    std::fs::create_dir_all(stage.join(std::ffi::OsStr::from_bytes(b"\xff"))).expect("the non-UTF-8 directory");
+    std::fs::create_dir_all(stage.join(std::ffi::OsStr::from_bytes(b"\xff")))
+        .expect("the non-UTF-8 directory");
     std::os::unix::fs::symlink(&outside, stage.join("\u{fffd}")).expect("link");
     prune_snapshot(stage.as_path(), &source).expect("pruned");
-    assert!(outside.join(".git").exists(), "the pointer outside the snapshot is not unlinked");
-    assert!(outside.join("data").exists(), "the directory outside the snapshot is not moved");
-    assert!(std::fs::symlink_metadata(stage.join("\u{fffd}")).is_ok_and(|found: std::fs::Metadata| { return found.is_symlink(); }), "the link stays");
-    assert!(stage.join(std::ffi::OsStr::from_bytes(b"\xff")).is_dir(), "the directory with the non-UTF-8 name stays");
+    assert!(
+        outside.join(".git").exists(),
+        "the pointer outside the snapshot is not unlinked"
+    );
+    assert!(
+        outside.join("data").exists(),
+        "the directory outside the snapshot is not moved"
+    );
+    assert!(
+        std::fs::symlink_metadata(stage.join("\u{fffd}")).is_ok_and(|found: std::fs::Metadata| {
+            return found.is_symlink();
+        }),
+        "the link stays"
+    );
+    assert!(
+        stage.join(std::ffi::OsStr::from_bytes(b"\xff")).is_dir(),
+        "the directory with the non-UTF-8 name stays"
+    );
     remove(root.as_path());
 }
 
@@ -700,18 +1170,31 @@ fn btrfs_a_directory_with_a_non_utf8_name_is_not_taken_for_a_link_named_with_the
 ///  its bytes are replaced is not one.
 #[test]
 fn btrfs_non_utf8_names_are_judged_by_their_bytes() {
-    let Some(root) = btrfs_fixture("trash-non-utf8-rules") else { return };
+    let Some(root) = btrfs_fixture("trash-non-utf8-rules") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
     let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
     let lookalike: &std::ffi::OsStr = std::ffi::OsStr::from_bytes(b".cache\xff");
     let odd: &std::ffi::OsStr = std::ffi::OsStr::from_bytes(b"\xfe");
-    std::fs::create_dir_all(stage.join("package/b").join(lookalike)).expect("a directory that is not named .cache");
+    std::fs::create_dir_all(stage.join("package/b").join(lookalike))
+        .expect("a directory that is not named .cache");
     std::fs::create_dir_all(stage.join("package/b/.cache")).expect("a cache");
-    std::fs::create_dir_all(stage.join("node_modules").join(odd).join(".cache")).expect("a cache below a non-UTF-8 directory");
+    std::fs::create_dir_all(stage.join("node_modules").join(odd).join(".cache"))
+        .expect("a cache below a non-UTF-8 directory");
     prune_snapshot(stage.as_path(), &source).expect("pruned");
-    assert!(stage.join("package/b").join(lookalike).is_dir(), "a name that is not .cache stays");
-    assert!(std::fs::symlink_metadata(stage.join("package/b/.cache")).is_err(), "a cache is left out");
-    assert!(std::fs::symlink_metadata(stage.join("node_modules").join(odd).join(".cache")).is_err(), "a cache below a directory whose name is not UTF-8 is left out");
+    assert!(
+        stage.join("package/b").join(lookalike).is_dir(),
+        "a name that is not .cache stays"
+    );
+    assert!(
+        std::fs::symlink_metadata(stage.join("package/b/.cache")).is_err(),
+        "a cache is left out"
+    );
+    assert!(
+        std::fs::symlink_metadata(stage.join("node_modules").join(odd).join(".cache")).is_err(),
+        "a cache below a directory whose name is not UTF-8 is left out"
+    );
     remove(root.as_path());
 }
 
@@ -740,14 +1223,30 @@ fn btrfs_non_utf8_names_are_judged_by_their_bytes() {
 /// ```
 #[test]
 fn btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it() {
-    let Some(root) = btrfs_fixture("trash-container-in-other-checkout") else { return };
+    let Some(root) = btrfs_fixture("trash-container-in-other-checkout") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
-    assert!(repo.join("clone/.git").is_dir(), "the other checkout holds a real administrative directory, not a pointer");
-    let inside: String = format!("clone/.claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
-    put(repo.as_path(), format!("{inside}/payload/credentials").as_str(), b"another worktree's token\n");
+    assert!(
+        repo.join("clone/.git").is_dir(),
+        "the other checkout holds a real administrative directory, not a pointer"
+    );
+    let inside: String =
+        format!("clone/.claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(
+        repo.as_path(),
+        format!("{inside}/payload/credentials").as_str(),
+        b"another worktree's token\n",
+    );
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
-    assert!(std::fs::symlink_metadata(stage.join("clone")).is_err(), "the other checkout itself is still set aside whole");
-    assert!(!holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"), "the container beside its .git marker is not in the trash");
+    assert!(
+        std::fs::symlink_metadata(stage.join("clone")).is_err(),
+        "the other checkout itself is still set aside whole"
+    );
+    assert!(
+        !holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"),
+        "the container beside its .git marker is not in the trash"
+    );
     assert!(trash.is_some(), "the leave-out made a trash for the rest");
     remove(root.as_path());
 }
@@ -783,24 +1282,45 @@ fn btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it() {
 /// ```
 #[test]
 fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
-    let Some(root) = btrfs_fixture("trash-unexamined-subtree") else { return };
+    let Some(root) = btrfs_fixture("trash-unexamined-subtree") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
     let earlier: String = "b".repeat(40);
-    let wrapper: String = format!("{TRASH_PARENT}/{earlier}/wrapper/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    let wrapper: String =
+        format!("{TRASH_PARENT}/{earlier}/wrapper/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
     let token: PathBuf = Path::new(wrapper.as_str()).join("payload/credentials");
-    put(repo.as_path(), token.to_str().expect("a path of text"), b"another worktree's token\n");
+    put(
+        repo.as_path(),
+        token.to_str().expect("a path of text"),
+        b"another worktree's token\n",
+    );
     let unsearchable: PathBuf = repo.join(TRASH_PARENT).join(&earlier);
-    std::fs::set_permissions(&unsearchable, std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("a directory that can be listed and renamed but not looked inside");
-    let restore: RestoreMode = RestoreMode { path: unsearchable.clone() };
+    std::fs::set_permissions(
+        &unsearchable,
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .expect("a directory that can be listed and renamed but not looked inside");
+    let restore: RestoreMode = RestoreMode {
+        path: unsearchable.clone(),
+    };
     let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
-    let restore_stage: RestoreMode = RestoreMode { path: stage.join(TRASH_PARENT).join(&earlier) };
+    let restore_stage: RestoreMode = RestoreMode {
+        path: stage.join(TRASH_PARENT).join(&earlier),
+    };
     let outcome: Result<Pruned, String> = prune_snapshot(stage.as_path(), &source);
     let reason: String = outcome.clone().expect_err(format!("pruning must refuse a subtree it cannot examine, but it returned {outcome:?} and the credentials are {}", if stage.join(&token).exists() { "still there" } else { "gone" }).as_str());
-    assert!(reason.contains(format!("{TRASH_PARENT}/{earlier}/wrapper").as_str()), "the reason names the subtree it could not examine: {reason}");
+    assert!(
+        reason.contains(format!("{TRASH_PARENT}/{earlier}/wrapper").as_str()),
+        "the reason names the subtree it could not examine: {reason}"
+    );
     // The mode is put back before anything is looked at inside the subtree: without its search bit no lookup below it succeeds.
     drop(restore_stage);
     drop(restore);
-    assert!(stage.join(&token).exists(), "the subtree keeps its files where it is");
+    assert!(
+        stage.join(&token).exists(),
+        "the subtree keeps its files where it is"
+    );
     assert!(repo.join(&token).exists(), "and the source keeps them too");
     remove(root.as_path());
 }
@@ -819,7 +1339,9 @@ fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
-    if !in_a_fixture_root_taking_any_name("worktree::worktree_trash::tests::safety::a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes") {
+    if !in_a_fixture_root_taking_any_name(
+        "worktree::worktree_trash::tests::safety::a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes",
+    ) {
         return;
     }
     let name: String = "9".repeat(40);
@@ -828,24 +1350,60 @@ fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
+    std::fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", git_dir.display()),
+    )
+    .expect(".git file");
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
-    let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), taken_over: 0, quiet: false };
+    let pending = PendingTrash {
+        destination: worktree.clone(),
+        common_dir: git_dir.clone(),
+        manifest: manifest.clone(),
+        taken_over: 0,
+        quiet: false,
+    };
     let mut notices: Vec<u8> = Vec::new();
-    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no service is in reach");
-    assert!(reason.contains("no commit service can be started from this session") && reason.contains("when it next runs for this repository"), "the reason is the missing service, and the record still empties the trash later: {reason}");
-    let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the record the hand-over wrote for a path that is not text").as_str()).expect("a work item");
-    assert_eq!(item.repository, worktree, "the record names the worktree by the bytes of its path");
-    assert_eq!(empty_trash(&item), Verdict::Done, "so the emptying works by the path's bytes");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "and the trash is emptied all the same");
+    let reason: String =
+        hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach())
+            .expect_err("no service is in reach");
+    assert!(
+        reason.contains("no commit service can be started from this session")
+            && reason.contains("when it next runs for this repository"),
+        "the reason is the missing service, and the record still empties the trash later: {reason}"
+    );
+    let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending")
+        .join(format!("trash-{name}"));
+    let item: WorkItem = WorkItem::decode(
+        std::fs::read_to_string(record.as_path())
+            .expect("the record the hand-over wrote for a path that is not text")
+            .as_str(),
+    )
+    .expect("a work item");
+    assert_eq!(
+        item.repository, worktree,
+        "the record names the worktree by the bytes of its path"
+    );
+    assert_eq!(
+        empty_trash(&item),
+        Verdict::Done,
+        "so the emptying works by the path's bytes"
+    );
+    assert!(
+        !worktree.join(TRASH_PARENT).exists(),
+        "and the trash is emptied all the same"
+    );
     remove(root.as_path());
 }
 
 /// A reach with no service and a provisioner that sets nothing up,
 /// for the controls that never want a service touched.
 fn no_service_reach<'a>() -> Reach<'a> {
-    return Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) };
+    return Reach {
+        router: &|_git: &Path, _directory: &Path| return None,
+        provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()),
+        start_wait: std::time::Duration::from_millis(400),
+    };
 }
 
 /// Restores the mode of a directory when dropped,
@@ -857,7 +1415,10 @@ struct RestoreMode {
 
 impl Drop for RestoreMode {
     fn drop(&mut self) {
-        let _restored: std::io::Result<()> = std::fs::set_permissions(&self.path, std::os::unix::fs::PermissionsExt::from_mode(0o755));
+        let _restored: std::io::Result<()> = std::fs::set_permissions(
+            &self.path,
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        );
     }
 }
 
@@ -879,13 +1440,23 @@ impl Drop for RestoreMode {
 #[test]
 fn a_trash_that_cannot_be_emptied_is_reported_with_its_path_and_reason() {
     let name: String = "7".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-unremovable", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-unremovable", name.as_str(), 1);
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     // A parent nobody may write to: the contents can go, the trash directory itself cannot.
-    std::fs::set_permissions(&parent, std::os::unix::fs::PermissionsExt::from_mode(0o555)).expect("read-only parent");
-    let restore: RestoreMode = RestoreMode { path: parent.clone() };
-    assert!(matches!(&empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest)), Verdict::Failed(reason) if reason.contains(&name)), "the handler reports the trash it could not empty");
-    assert!(parent.join(&name).exists(), "the trash directory could not be removed from a read-only parent");
+    std::fs::set_permissions(&parent, std::os::unix::fs::PermissionsExt::from_mode(0o555))
+        .expect("read-only parent");
+    let restore: RestoreMode = RestoreMode {
+        path: parent.clone(),
+    };
+    assert!(
+        matches!(&empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest)), Verdict::Failed(reason) if reason.contains(&name)),
+        "the handler reports the trash it could not empty"
+    );
+    assert!(
+        parent.join(&name).exists(),
+        "the trash directory could not be removed from a read-only parent"
+    );
     drop(restore);
     remove(root.as_path());
 }
@@ -908,14 +1479,28 @@ fn a_trash_that_cannot_be_emptied_is_reported_with_its_path_and_reason() {
 #[test]
 fn a_trash_that_is_not_the_snapshots_is_left_alone_with_its_reason() {
     let name: String = "8".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-replaced-message", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-replaced-message", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away")).expect("move the real trash away");
+    std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away"))
+        .expect("move the real trash away");
     put(trash.as_path(), "theirs/file", b"somebody else's data\n");
-    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("a trash that is not the snapshot's is left alone");
-    assert!(left.reason.contains(trash.display().to_string().as_str()), "the reason names the path that stays: {}", left.reason);
-    assert!(left.reason.contains("not the directory the snapshot made"), "the reason says why it was left: {}", left.reason);
-    assert!(trash.join("theirs/file").exists(), "what stands there is untouched");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest)
+        .expect_err("a trash that is not the snapshot's is left alone");
+    assert!(
+        left.reason.contains(trash.display().to_string().as_str()),
+        "the reason names the path that stays: {}",
+        left.reason
+    );
+    assert!(
+        left.reason.contains("not the directory the snapshot made"),
+        "the reason says why it was left: {}",
+        left.reason
+    );
+    assert!(
+        trash.join("theirs/file").exists(),
+        "what stands there is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -938,12 +1523,22 @@ fn a_trash_that_is_not_the_snapshots_is_left_alone_with_its_reason() {
 #[test]
 fn a_trash_holding_what_was_not_moved_there_keeps_its_directory() {
     let name: String = "c".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-extra-message", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-extra-message", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     put(trash.as_path(), "unrecorded/file", b"not ours\n");
-    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("a trash holding what the snapshot did not put there is left alone");
-    assert!(left.reason.contains(trash.display().to_string().as_str()) && left.reason.contains("unrecorded"), "the reason names the path and what it kept: {}", left.reason);
-    assert!(trash.join("unrecorded/file").exists(), "the file the emptying kept is untouched");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest)
+        .expect_err("a trash holding what the snapshot did not put there is left alone");
+    assert!(
+        left.reason.contains(trash.display().to_string().as_str())
+            && left.reason.contains("unrecorded"),
+        "the reason names the path and what it kept: {}",
+        left.reason
+    );
+    assert!(
+        trash.join("unrecorded/file").exists(),
+        "the file the emptying kept is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -966,13 +1561,30 @@ fn a_trash_holding_what_was_not_moved_there_keeps_its_directory() {
 #[test]
 fn a_trash_entry_that_was_replaced_is_left_alone_with_its_reason() {
     let name: String = "e".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-message", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-entry-message", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    std::fs::rename(trash.join(entry_name(0).as_str()), worktree.join("moved-away")).expect("move the recorded entry away");
-    put(trash.as_path(), format!("{}/precious", entry_name(0)).as_str(), b"somebody else's directory\n");
-    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("an entry that changed is left where it is");
-    assert!(left.reason.contains(entry_name(0).as_str()), "the reason names the entry it kept: {}", left.reason);
-    assert!(trash.join(entry_name(0).as_str()).join("precious").exists(), "the entry that changed is untouched");
+    std::fs::rename(
+        trash.join(entry_name(0).as_str()),
+        worktree.join("moved-away"),
+    )
+    .expect("move the recorded entry away");
+    put(
+        trash.as_path(),
+        format!("{}/precious", entry_name(0)).as_str(),
+        b"somebody else's directory\n",
+    );
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest)
+        .expect_err("an entry that changed is left where it is");
+    assert!(
+        left.reason.contains(entry_name(0).as_str()),
+        "the reason names the entry it kept: {}",
+        left.reason
+    );
+    assert!(
+        trash.join(entry_name(0).as_str()).join("precious").exists(),
+        "the entry that changed is untouched"
+    );
     remove(root.as_path());
 }
 
@@ -982,12 +1594,19 @@ fn a_trash_entry_that_was_replaced_is_left_alone_with_its_reason() {
 #[test]
 fn the_handler_reports_a_trash_it_cannot_remove() {
     let name: String = "6".repeat(40);
-    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-handler-unremovable", name.as_str(), 1);
+    let (root, worktree, git_dir, manifest) =
+        worktree_with_planted_trash("trash-handler-unremovable", name.as_str(), 1);
     let parent: PathBuf = worktree.join(TRASH_PARENT);
-    std::fs::set_permissions(&parent, std::os::unix::fs::PermissionsExt::from_mode(0o555)).expect("read-only parent");
-    let restore: RestoreMode = RestoreMode { path: parent.clone() };
+    std::fs::set_permissions(&parent, std::os::unix::fs::PermissionsExt::from_mode(0o555))
+        .expect("read-only parent");
+    let restore: RestoreMode = RestoreMode {
+        path: parent.clone(),
+    };
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)), "{verdict:?}");
+    assert!(
+        matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)),
+        "{verdict:?}"
+    );
     drop(restore);
     remove(root.as_path());
 }
@@ -1020,16 +1639,41 @@ fn the_handler_reports_a_trash_it_cannot_remove() {
 /// ```
 #[test]
 fn btrfs_a_personal_directory_below_the_trash_parent_is_carried_into_the_new_worktree() {
-    let Some(root) = btrfs_fixture("trash-personal-below-parent") else { return };
+    let Some(root) = btrfs_fixture("trash-personal-below-parent") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
-    put(repo.as_path(), format!("{TRASH_PARENT}/personal/important-notes.txt").as_str(), b"the person's own notes\n");
+    put(
+        repo.as_path(),
+        format!("{TRASH_PARENT}/personal/important-notes.txt").as_str(),
+        b"the person's own notes\n",
+    );
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
-    assert!(stage.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "the person's directory is carried into the new worktree");
+    assert!(
+        stage
+            .join(TRASH_PARENT)
+            .join("personal/important-notes.txt")
+            .is_file(),
+        "the person's directory is carried into the new worktree"
+    );
     for index in 0..manifest.entries.len() {
-        assert!(!stage.join(TRASH_PARENT).join(&manifest.name).join(entry_name(index)).join("personal").exists(), "and it is no entry of this add's trash, so nothing will empty it");
+        assert!(
+            !stage
+                .join(TRASH_PARENT)
+                .join(&manifest.name)
+                .join(entry_name(index))
+                .join("personal")
+                .exists(),
+            "and it is no entry of this add's trash, so nothing will empty it"
+        );
     }
-    assert!(repo.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "the source keeps it too");
+    assert!(
+        repo.join(TRASH_PARENT)
+            .join("personal/important-notes.txt")
+            .is_file(),
+        "the source keeps it too"
+    );
     remove(root.as_path());
 }
 
@@ -1054,14 +1698,43 @@ fn btrfs_a_personal_directory_below_the_trash_parent_is_carried_into_the_new_wor
 #[test]
 fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
     let name: String = "e".repeat(40);
-    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-personal-named", name.as_str(), 1);
-    put(worktree.join(TRASH_PARENT).as_path(), "personal/important-notes.txt", b"the person's own notes\n");
+    let (root, worktree, git_dir, _manifest) =
+        worktree_with_planted_trash("trash-personal-named", name.as_str(), 1);
+    put(
+        worktree.join(TRASH_PARENT).as_path(),
+        "personal/important-notes.txt",
+        b"the person's own notes\n",
+    );
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &nothing_woken());
+    name_unaccounted_trash(
+        git_dir.as_path(),
+        worktree.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
     let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
-    assert!(said.contains(worktree.join(TRASH_PARENT).join(&name).display().to_string().as_str()), "the trash the wrapper made is named: {said}");
-    assert!(!said.contains(format!("{TRASH_PARENT}/personal").as_str()), "the person's own directory is not called a trash: {said}");
-    assert!(worktree.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "and nothing touches it");
+    assert!(
+        said.contains(
+            worktree
+                .join(TRASH_PARENT)
+                .join(&name)
+                .display()
+                .to_string()
+                .as_str()
+        ),
+        "the trash the wrapper made is named: {said}"
+    );
+    assert!(
+        !said.contains(format!("{TRASH_PARENT}/personal").as_str()),
+        "the person's own directory is not called a trash: {said}"
+    );
+    assert!(
+        worktree
+            .join(TRASH_PARENT)
+            .join("personal/important-notes.txt")
+            .is_file(),
+        "and nothing touches it"
+    );
     remove(root.as_path());
 }
 
@@ -1090,22 +1763,57 @@ fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
 /// ```
 #[test]
 fn btrfs_a_trash_whose_record_a_kill_prevented_is_recorded_and_emptied_by_the_next_pass() {
-    let Some(root) = btrfs_fixture("trash-killed-before-record") else { return };
+    let Some(root) = btrfs_fixture("trash-killed-before-record") else {
+        return;
+    };
     let repo: PathBuf = main_with_state(root.as_path());
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
     let common: PathBuf = root.join("common");
     std::fs::create_dir_all(common.join("worktrees/topic")).expect("admin");
-    std::fs::write(stage.join(".git"), format!("gitdir: {}\n", common.join("worktrees/topic").display())).expect("pointer");
+    std::fs::write(
+        stage.join(".git"),
+        format!("gitdir: {}\n", common.join("worktrees/topic").display()),
+    )
+    .expect("pointer");
     let work: PathBuf = work_directory(common.as_path());
-    assert!(std::fs::read_dir(state_directory(work.as_path(), "pending")).is_err(), "the kill left no record");
+    assert!(
+        std::fs::read_dir(state_directory(work.as_path(), "pending")).is_err(),
+        "the kill left no record"
+    );
     let mut say: Vec<u8> = Vec::new();
-    name_unaccounted_trash(common.as_path(), stage.as_path(), &mut say, &nothing_woken());
-    let record: PathBuf = state_directory(work.as_path(), "pending").join(format!("trash-{}", manifest.name));
-    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the next pass records a trash that says what it is").as_str()).expect("a work item");
-    assert_eq!(item.parent, manifest.encode(), "the record carries the identities the trash itself wrote");
-    assert_eq!(item.repository, stage, "and names the worktree that holds it");
-    assert_eq!(empty_trash(&item), Verdict::Done, "so the handler empties it");
-    assert!(!stage.join(TRASH_PARENT).exists(), "and nothing is left behind: {}", stage.display());
+    name_unaccounted_trash(
+        common.as_path(),
+        stage.as_path(),
+        &mut say,
+        &nothing_woken(),
+    );
+    let record: PathBuf =
+        state_directory(work.as_path(), "pending").join(format!("trash-{}", manifest.name));
+    let item: WorkItem = WorkItem::decode(
+        std::fs::read_to_string(record.as_path())
+            .expect("the next pass records a trash that says what it is")
+            .as_str(),
+    )
+    .expect("a work item");
+    assert_eq!(
+        item.parent,
+        manifest.encode(),
+        "the record carries the identities the trash itself wrote"
+    );
+    assert_eq!(
+        item.repository, stage,
+        "and names the worktree that holds it"
+    );
+    assert_eq!(
+        empty_trash(&item),
+        Verdict::Done,
+        "so the handler empties it"
+    );
+    assert!(
+        !stage.join(TRASH_PARENT).exists(),
+        "and nothing is left behind: {}",
+        stage.display()
+    );
     remove(root.as_path());
 }

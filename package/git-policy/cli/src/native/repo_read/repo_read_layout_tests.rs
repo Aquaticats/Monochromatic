@@ -7,7 +7,14 @@ use super::*;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
 use crate::repo_read_odb::ObjectDatabase;
-use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_output,
+    git_text,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStringExt;
 
@@ -27,7 +34,10 @@ pub(super) fn hermetic_scope(root: &Path) -> ScopeEnvironment {
 }
 
 /// The reader's answer for `directory` in the hermetic environment.
-pub(super) fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
+pub(super) fn read_here(
+    root: &Path,
+    directory: &Path,
+) -> Option<RepoLayout> {
     return read_layout_with(directory, &[], &hermetic_scope(root));
 }
 
@@ -36,13 +46,30 @@ pub(super) fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
 pub(super) fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
     let output = git_output(
         directory,
-        &["rev-parse", "--path-format=absolute", "--is-bare-repository", "--git-dir", "--git-common-dir", "--show-toplevel", "--show-prefix"],
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--is-bare-repository",
+            "--git-dir",
+            "--git-common-dir",
+            "--show-toplevel",
+            "--show-prefix",
+        ],
     );
     if !output.status.success() {
         return None;
     }
-    let body: &[u8] = output.stdout.strip_suffix(b"\n").unwrap_or(output.stdout.as_slice());
-    return Some(body.split(|byte| { return *byte == b'\n'; }).map(<[u8]>::to_vec).collect());
+    let body: &[u8] = output
+        .stdout
+        .strip_suffix(b"\n")
+        .unwrap_or(output.stdout.as_slice());
+    return Some(
+        body.split(|byte| {
+            return *byte == b'\n';
+        })
+        .map(<[u8]>::to_vec)
+        .collect(),
+    );
 }
 
 /// The layout spelled as the five lines.
@@ -58,7 +85,11 @@ pub(super) fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
 
 /// Require the reader to answer for `directory` and to equal Git;
 /// returns the layout.
-pub(super) fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
+pub(super) fn answered_equal(
+    root: &Path,
+    directory: &Path,
+    label: &str,
+) -> RepoLayout {
     let Some(layout) = read_here(root, directory) else {
         panic!("{label}: the reader declined a plain layout");
     };
@@ -67,8 +98,15 @@ pub(super) fn answered_equal(root: &Path, directory: &Path, label: &str) -> Repo
 }
 
 /// Require the reader to decline for `directory`.
-pub(super) fn declined(root: &Path, directory: &Path, label: &str) {
-    assert!(read_here(root, directory).is_none(), "{label}: the reader answered a layout it must leave to Git");
+pub(super) fn declined(
+    root: &Path,
+    directory: &Path,
+    label: &str,
+) {
+    assert!(
+        read_here(root, directory).is_none(),
+        "{label}: the reader answered a layout it must leave to Git"
+    );
 }
 
 /// A main worktree answers at the top level and from nested directories,
@@ -93,11 +131,25 @@ fn a_sha256_repository_reports_its_format() {
     let root = fixture("repo-read-sha256");
     let repo = root.join("repo");
     std::fs::create_dir(&repo).expect("dir");
-    git(repo.as_path(), &["init", "--quiet", "--object-format=sha256", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--object-format=sha256",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let layout = answered_equal(root.as_path(), repo.as_path(), "sha256");
     assert_eq!(layout.object_format, ObjectFormat::Sha256);
-    let named = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "--show-object-format"]).stdout).expect("UTF-8");
+    let named = String::from_utf8(
+        git_output(repo.as_path(), &["rev-parse", "--show-object-format"]).stdout,
+    )
+    .expect("UTF-8");
     assert_eq!(named.trim(), layout.object_format.name());
     remove(root.as_path());
 }
@@ -109,7 +161,18 @@ fn a_linked_worktree_is_read_and_its_git_paths_are_left_to_git() {
     let root = fixture("repo-read-linked");
     let repo = repository(root.as_path(), "repo");
     let linked = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("UTF-8"), "HEAD"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "side",
+            linked.to_str().expect("UTF-8"),
+            "HEAD",
+        ],
+    );
     std::fs::create_dir(linked.join("sub")).expect("sub");
     let layout = answered_equal(root.as_path(), linked.join("sub").as_path(), "linked");
     assert_ne!(layout.git_dir, layout.common_dir);
@@ -124,16 +187,33 @@ fn a_gitfile_repository_is_read() {
     let repo = root.join("repo");
     std::fs::create_dir(&repo).expect("dir");
     let separate = root.join("separate.git");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--separate-git-dir={}", separate.display())]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            &format!("--separate-git-dir={}", separate.display()),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let layout = answered_equal(root.as_path(), repo.as_path(), "gitfile");
-    assert_eq!(layout.git_dir, std::fs::canonicalize(&separate).expect("separate"));
+    assert_eq!(
+        layout.git_dir,
+        std::fs::canonicalize(&separate).expect("separate")
+    );
     remove(root.as_path());
 }
 
 /// The name of a directory that ends in a carriage return,
 /// which Linux allows and Git's path text never includes.
-fn with_carriage_return(parent: &Path, name: &str) -> PathBuf {
+fn with_carriage_return(
+    parent: &Path,
+    name: &str,
+) -> PathBuf {
     let mut bytes: Vec<u8> = name.as_bytes().to_vec();
     bytes.push(b'\r');
     return parent.join(std::ffi::OsString::from_vec(bytes));
@@ -152,12 +232,38 @@ fn a_gitfile_ending_in_crlf_names_the_directory_without_the_carriage_return() {
     std::fs::create_dir(&decoy_repo).expect("dir");
     let admin = root.join("admin");
     let decoy = with_carriage_return(root.as_path(), "admin");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--separate-git-dir={}", admin.display())]);
-    git(decoy_repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--separate-git-dir={}", decoy.display())]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
-    std::fs::write(repo.join(".git"), format!("gitdir: {}\r\n", admin.display())).expect("gitfile with CRLF");
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            &format!("--separate-git-dir={}", admin.display()),
+        ],
+    );
+    git(
+        decoy_repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            &format!("--separate-git-dir={}", decoy.display()),
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
+    std::fs::write(
+        repo.join(".git"),
+        format!("gitdir: {}\r\n", admin.display()),
+    )
+    .expect("gitfile with CRLF");
     let layout = answered_equal(root.as_path(), repo.as_path(), "gitfile with CRLF");
-    assert_eq!(layout.git_dir, std::fs::canonicalize(&admin).expect("admin"));
+    assert_eq!(
+        layout.git_dir,
+        std::fs::canonicalize(&admin).expect("admin")
+    );
     remove(root.as_path());
 }
 
@@ -170,17 +276,44 @@ fn a_commondir_ending_in_crlf_names_the_directory_without_the_carriage_return() 
     let root = fixture("repo-read-commondir-crlf");
     let repo = repository(root.as_path(), "repo");
     let linked = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("UTF-8"), "HEAD"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "side",
+            linked.to_str().expect("UTF-8"),
+            "HEAD",
+        ],
+    );
     let common = root.join("common");
     let decoy = with_carriage_return(root.as_path(), "common");
     for target in [&common, &decoy] {
-        let copied = std::process::Command::new("cp").arg("--recursive").arg(repo.join(".git")).arg(target).status().expect("cp starts");
-        assert!(copied.success(), "the Git directory is copied to {}", target.display());
+        let copied = std::process::Command::new("cp")
+            .arg("--recursive")
+            .arg(repo.join(".git"))
+            .arg(target)
+            .status()
+            .expect("cp starts");
+        assert!(
+            copied.success(),
+            "the Git directory is copied to {}",
+            target.display()
+        );
         std::fs::remove_dir_all(target.join("worktrees")).expect("the copy has no worktrees");
     }
-    std::fs::write(repo.join(".git/worktrees/linked/commondir"), format!("{}\r\n", common.display())).expect("commondir with CRLF");
+    std::fs::write(
+        repo.join(".git/worktrees/linked/commondir"),
+        format!("{}\r\n", common.display()),
+    )
+    .expect("commondir with CRLF");
     let layout = answered_equal(root.as_path(), linked.as_path(), "commondir with CRLF");
-    assert_eq!(layout.common_dir, std::fs::canonicalize(&common).expect("common"));
+    assert_eq!(
+        layout.common_dir,
+        std::fs::canonicalize(&common).expect("common")
+    );
     remove(root.as_path());
 }
 
@@ -188,7 +321,9 @@ fn a_commondir_ending_in_crlf_names_the_directory_without_the_carriage_return() 
 /// a non-UTF-8 name and a very long path answer as Git does.
 #[test]
 fn awkward_paths_are_read_as_git_reads_them() {
-    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_layout::tests::awkward_paths_are_read_as_git_reads_them") {
+    if !in_a_fixture_root_taking_any_name(
+        "repo_read::repo_read_layout::tests::awkward_paths_are_read_as_git_reads_them",
+    ) {
         return;
     }
     let root = fixture("repo-read-paths");
@@ -206,7 +341,10 @@ fn awkward_paths_are_read_as_git_reads_them() {
     answered_equal(root.as_path(), raw.as_path(), "non-UTF-8");
     answered_equal(root.as_path(), long.as_path(), "long");
     let through_link = answered_equal(root.as_path(), link.as_path(), "symlinked start");
-    assert!(through_link.prefix.starts_with(b"r"), "the prefix is the real path below the top level");
+    assert!(
+        through_link.prefix.starts_with(b"r"),
+        "the prefix is the real path below the top level"
+    );
     remove(root.as_path());
 }
 
@@ -225,44 +363,92 @@ fn layouts_that_need_git_are_declined() {
     let root = fixture("repo-read-declined");
     let repo = repository(root.as_path(), "repo");
     let bare = root.join("bare.git");
-    git(root.as_path(), &["init", "--quiet", "--bare", bare.to_str().expect("UTF-8")]);
+    git(
+        root.as_path(),
+        &["init", "--quiet", "--bare", bare.to_str().expect("UTF-8")],
+    );
     declined(root.as_path(), bare.as_path(), "bare");
     declined(root.as_path(), repo.join(".git").as_path(), "inside .git");
-    declined(root.as_path(), repo.join(".git/refs").as_path(), "inside .git/refs");
+    declined(
+        root.as_path(),
+        repo.join(".git/refs").as_path(),
+        "inside .git/refs",
+    );
     let outside = root.join("outside");
     std::fs::create_dir(&outside).expect("outside");
     declined(root.as_path(), outside.as_path(), "outside any repository");
     let reftable = root.join("reftable");
     std::fs::create_dir(&reftable).expect("dir");
-    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable"]);
+    git(
+        reftable.as_path(),
+        &["init", "--quiet", "--ref-format=reftable"],
+    );
     declined(root.as_path(), reftable.as_path(), "reftable");
     let variable = |name: &str, value: &str| -> (std::ffi::OsString, std::ffi::OsString) {
-        return (std::ffi::OsString::from(name), std::ffi::OsString::from(value));
+        return (
+            std::ffi::OsString::from(name),
+            std::ffi::OsString::from(value),
+        );
     };
     let scope = hermetic_scope(root.as_path());
     let moved = [variable("GIT_DIR", "/elsewhere")];
-    assert!(read_layout_with(repo.as_path(), &moved, &scope).is_none(), "GIT_DIR in the environment");
-    let plain = [variable("GIT_AUTHOR_NAME", "x"), variable("PATH", "/usr/bin")];
-    assert!(read_layout_with(repo.as_path(), &plain, &scope).is_some(), "plain names must not decline");
+    assert!(
+        read_layout_with(repo.as_path(), &moved, &scope).is_none(),
+        "GIT_DIR in the environment"
+    );
+    let plain = [
+        variable("GIT_AUTHOR_NAME", "x"),
+        variable("PATH", "/usr/bin"),
+    ];
+    assert!(
+        read_layout_with(repo.as_path(), &plain, &scope).is_some(),
+        "plain names must not decline"
+    );
     // The wrapper injects configuration entries for its children; entries that leave discovery alone are plain.
-    let injected = [variable("GIT_CONFIG_COUNT", "1"), variable("GIT_CONFIG_KEY_0", "core.hooksPath"), variable("GIT_CONFIG_VALUE_0", "/dev/null")];
-    assert!(read_layout_with(repo.as_path(), &injected, &scope).is_some(), "an injected hooks path is plain");
-    let injected_bare = [variable("GIT_CONFIG_COUNT", "1"), variable("GIT_CONFIG_KEY_0", "Core.Bare"), variable("GIT_CONFIG_VALUE_0", "true")];
-    assert!(read_layout_with(repo.as_path(), &injected_bare, &scope).is_none(), "an injected core.bare");
+    let injected = [
+        variable("GIT_CONFIG_COUNT", "1"),
+        variable("GIT_CONFIG_KEY_0", "core.hooksPath"),
+        variable("GIT_CONFIG_VALUE_0", "/dev/null"),
+    ];
+    assert!(
+        read_layout_with(repo.as_path(), &injected, &scope).is_some(),
+        "an injected hooks path is plain"
+    );
+    let injected_bare = [
+        variable("GIT_CONFIG_COUNT", "1"),
+        variable("GIT_CONFIG_KEY_0", "Core.Bare"),
+        variable("GIT_CONFIG_VALUE_0", "true"),
+    ];
+    assert!(
+        read_layout_with(repo.as_path(), &injected_bare, &scope).is_none(),
+        "an injected core.bare"
+    );
     let missing_key = [variable("GIT_CONFIG_COUNT", "1")];
-    assert!(read_layout_with(repo.as_path(), &missing_key, &scope).is_none(), "a count with no key");
+    assert!(
+        read_layout_with(repo.as_path(), &missing_key, &scope).is_none(),
+        "a count with no key"
+    );
     for (label, key, value) in [
         ("core.bare", "core.bare", "true"),
         ("core.worktree", "core.worktree", "/elsewhere"),
     ] {
         let case = repository(root.as_path(), format!("case-{label}").as_str());
-        git(case.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
+        git(
+            case.as_path(),
+            &["config", "--local", "core.repositoryformatversion", "1"],
+        );
         git(case.as_path(), &["config", "--local", key, value]);
         declined(root.as_path(), case.as_path(), label);
     }
     let unknown = repository(root.as_path(), "unknown-extension");
-    git(unknown.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
-    git(unknown.as_path(), &["config", "--local", "extensions.somethingnew", "1"]);
+    git(
+        unknown.as_path(),
+        &["config", "--local", "core.repositoryformatversion", "1"],
+    );
+    git(
+        unknown.as_path(),
+        &["config", "--local", "extensions.somethingnew", "1"],
+    );
     declined(root.as_path(), unknown.as_path(), "unknown extension");
     let linked_dot_git = repository(root.as_path(), "linked-dot-git");
     std::fs::rename(linked_dot_git.join(".git"), root.join("moved.git")).expect("move");
@@ -272,10 +458,21 @@ fn layouts_that_need_git_are_declined() {
 }
 
 /// A reftable repository with one commit.
-fn a_reftable_repository(root: &Path, name: &str) -> PathBuf {
+fn a_reftable_repository(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let repo: PathBuf = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
-    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
     std::fs::write(repo.join("a.txt"), "one\n").expect("a");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
@@ -299,15 +496,44 @@ fn a_ref_store_the_configuration_moves_away_is_left_to_git() {
     // The tables move out of the common directory and the configuration names the new place.
     std::fs::rename(moved.join(".git/reftable"), store.join("reftable")).expect("move the tables");
     let named: String = format!("reftable://{}", store.display());
-    git(moved.as_path(), &["config", "--local", "extensions.refstorage", named.as_str()]);
-    assert_eq!(git_output(moved.as_path(), &["rev-parse", "--show-ref-format"]).stdout, b"reftable\n", "the control: Git reads the moved store");
-    declined(root.as_path(), moved.as_path(), "a reftable store the configuration moves away");
+    git(
+        moved.as_path(),
+        &["config", "--local", "extensions.refstorage", named.as_str()],
+    );
+    assert_eq!(
+        git_output(moved.as_path(), &["rev-parse", "--show-ref-format"]).stdout,
+        b"reftable\n",
+        "the control: Git reads the moved store"
+    );
+    declined(
+        root.as_path(),
+        moved.as_path(),
+        "a reftable store the configuration moves away",
+    );
 
     let linked: PathBuf = root.join("linked");
     let worktree: PathBuf = a_reftable_repository(root.as_path(), "worktree");
-    git(worktree.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("UTF-8"), "--detach"]);
-    assert!(git_output(linked.as_path(), &["rev-parse", "HEAD"]).status.success(), "the control: the linked worktree reads");
-    declined(root.as_path(), linked.as_path(), "a linked worktree of a reftable repository");
+    git(
+        worktree.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            linked.to_str().expect("UTF-8"),
+            "--detach",
+        ],
+    );
+    assert!(
+        git_output(linked.as_path(), &["rev-parse", "HEAD"])
+            .status
+            .success(),
+        "the control: the linked worktree reads"
+    );
+    declined(
+        root.as_path(),
+        linked.as_path(),
+        "a linked worktree of a reftable repository",
+    );
 
     let files: PathBuf = repository(root.as_path(), "files");
     std::fs::write(files.join("b.txt"), "two\n").expect("b");
@@ -321,13 +547,36 @@ fn a_ref_store_the_configuration_moves_away_is_left_to_git() {
     std::fs::rename(files.join(".git/HEAD"), payload.join("HEAD")).expect("move HEAD");
     std::fs::write(files.join(".git/HEAD"), "ref: refs/heads/.invalid\n").expect("HEAD stub");
     std::fs::create_dir_all(files.join(".git/refs")).expect("refs stub");
-    std::fs::write(files.join(".git/refs/heads"), "repository uses alternate refs storage").expect("heads mark");
+    std::fs::write(
+        files.join(".git/refs/heads"),
+        "repository uses alternate refs storage",
+    )
+    .expect("heads mark");
     let files_uri: String = format!("files://{}", payload.display());
-    git(files.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
-    git(files.as_path(), &["config", "--local", "extensions.refstorage", files_uri.as_str()]);
+    git(
+        files.as_path(),
+        &["config", "--local", "core.repositoryformatversion", "1"],
+    );
+    git(
+        files.as_path(),
+        &[
+            "config",
+            "--local",
+            "extensions.refstorage",
+            files_uri.as_str(),
+        ],
+    );
     let read_back = git_output(files.as_path(), &["rev-parse", "HEAD~1"]);
-    assert!(read_back.status.success(), "the control: Git reads the history from the files payload: {}", String::from_utf8_lossy(read_back.stderr.as_slice()));
-    declined(root.as_path(), files.as_path(), "a files store the configuration moves away");
+    assert!(
+        read_back.status.success(),
+        "the control: Git reads the history from the files payload: {}",
+        String::from_utf8_lossy(read_back.stderr.as_slice())
+    );
+    declined(
+        root.as_path(),
+        files.as_path(),
+        "a files store the configuration moves away",
+    );
     remove(root.as_path());
 }
 
@@ -351,16 +600,28 @@ fn a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader() {
         };
         let before: String = parents_git_reads(repo.as_path(), asked);
         if kind == "shallow" {
-            std::fs::write(repo.join(".git/shallow"), format!("{}\n", commits[1])).expect("shallow");
+            std::fs::write(repo.join(".git/shallow"), format!("{}\n", commits[1]))
+                .expect("shallow");
         } else {
             std::fs::create_dir_all(repo.join(".git/info")).expect("info");
-            std::fs::write(repo.join(".git/info/grafts"), format!("{} {}\n", commits[2], commits[0])).expect("grafts");
+            std::fs::write(
+                repo.join(".git/info/grafts"),
+                format!("{} {}\n", commits[2], commits[0]),
+            )
+            .expect("grafts");
         }
         let after: String = parents_git_reads(repo.as_path(), asked);
-        assert_ne!(before, after, "{kind}: the file changes the parents Git reads for {asked}");
+        assert_ne!(
+            before, after,
+            "{kind}: the file changes the parents Git reads for {asked}"
+        );
         answered_equal(root.as_path(), repo.as_path(), kind);
-        let opened: Option<ObjectDatabase> = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1);
-        assert!(opened.is_none(), "{kind}: the reader declines a history Git may show differently");
+        let opened: Option<ObjectDatabase> =
+            ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1);
+        assert!(
+            opened.is_none(),
+            "{kind}: the reader declines a history Git may show differently"
+        );
     }
     remove(root.as_path());
 }
@@ -377,13 +638,23 @@ fn a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader() {
 fn a_store_a_layout_proved_still_declines_a_replacement_object() {
     let root: PathBuf = fixture("repo-read-layout-proved-replacement");
     let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), "repo");
-    git(repo.as_path(), &["replace", commits[0].as_str(), commits[2].as_str()]);
-    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "a files store holding a replace ref");
+    git(
+        repo.as_path(),
+        &["replace", commits[0].as_str(), commits[2].as_str()],
+    );
+    let layout: RepoLayout = answered_equal(
+        root.as_path(),
+        repo.as_path(),
+        "a files store holding a replace ref",
+    );
     assert!(
         ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_none(),
         "the layout proves the ref store, not that no object is replaced"
     );
-    assert!(ObjectDatabase::open(repo.join(".git").as_path(), None, layout.object_format).is_none(), "the unproved open declines it too");
+    assert!(
+        ObjectDatabase::open(repo.join(".git").as_path(), None, layout.object_format).is_none(),
+        "the unproved open declines it too"
+    );
     remove(root.as_path());
 }
 
@@ -391,15 +662,24 @@ fn a_store_a_layout_proved_still_declines_a_replacement_object() {
 /// each adding one line to `a.txt`,
 /// and their names,
 /// the oldest first.
-fn three_commits(parent: &Path, name: &str) -> (PathBuf, Vec<String>) {
+fn three_commits(
+    parent: &Path,
+    name: &str,
+) -> (PathBuf, Vec<String>) {
     let repo: PathBuf = parent.join(name);
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     let mut commits: Vec<String> = Vec::new();
     for text in ["one\n", "two\n", "three\n"] {
         std::fs::write(repo.join("a.txt"), text).expect("a");
         git(repo.as_path(), &["add", "--", "a.txt"]);
-        git(repo.as_path(), &["commit", "--quiet", "--message", text.trim()]);
+        git(
+            repo.as_path(),
+            &["commit", "--quiet", "--message", text.trim()],
+        );
         commits.push(git_text(repo.as_path(), &["rev-parse", "HEAD"]));
     }
     return (repo, commits);
@@ -407,8 +687,15 @@ fn three_commits(parent: &Path, name: &str) -> (PathBuf, Vec<String>) {
 
 /// The line `git rev-list --parents --max-count=1 <asked>` prints:
 /// the commit and the parents Git reads for it.
-fn parents_git_reads(repo: &Path, asked: &str) -> String {
-    return String::from_utf8_lossy(&git_output(repo, &["rev-list", "--parents", "--max-count=1", asked]).stdout).trim().to_string();
+fn parents_git_reads(
+    repo: &Path,
+    asked: &str,
+) -> String {
+    return String::from_utf8_lossy(
+        &git_output(repo, &["rev-list", "--parents", "--max-count=1", asked]).stdout,
+    )
+    .trim()
+    .to_string();
 }
 
 /// The entry limit bounds the walk,
@@ -418,17 +705,39 @@ fn parents_git_reads(repo: &Path, asked: &str) -> String {
 #[test]
 fn plain_entries_at_exactly_the_limit_are_read_and_one_more_declines() {
     let entries = |count: u64| -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
-        let mut variables: Vec<(std::ffi::OsString, std::ffi::OsString)> =
-            vec![(std::ffi::OsString::from("GIT_CONFIG_COUNT"), std::ffi::OsString::from(count.to_string()))];
+        let mut variables: Vec<(std::ffi::OsString, std::ffi::OsString)> = vec![(
+            std::ffi::OsString::from("GIT_CONFIG_COUNT"),
+            std::ffi::OsString::from(count.to_string()),
+        )];
         for index in 0..count {
-            variables.push((std::ffi::OsString::from(format!("GIT_CONFIG_KEY_{index}")), std::ffi::OsString::from("core.hooksPath")));
-            variables.push((std::ffi::OsString::from(format!("GIT_CONFIG_VALUE_{index}")), std::ffi::OsString::from("/dev/null")));
+            variables.push((
+                std::ffi::OsString::from(format!("GIT_CONFIG_KEY_{index}")),
+                std::ffi::OsString::from("core.hooksPath"),
+            ));
+            variables.push((
+                std::ffi::OsString::from(format!("GIT_CONFIG_VALUE_{index}")),
+                std::ffi::OsString::from("/dev/null"),
+            ));
         }
         return variables;
     };
-    let declines_nothing = |_: &str| -> bool { return false; };
-    assert!(env_config_avoids(entries(ENV_CONFIG_ENTRY_LIMIT).as_slice(), &declines_nothing), "the limit itself is read");
-    assert!(!env_config_avoids(entries(ENV_CONFIG_ENTRY_LIMIT + 1).as_slice(), &declines_nothing), "one entry more declines");
+    let declines_nothing = |_: &str| -> bool {
+        return false;
+    };
+    assert!(
+        env_config_avoids(
+            entries(ENV_CONFIG_ENTRY_LIMIT).as_slice(),
+            &declines_nothing
+        ),
+        "the limit itself is read"
+    );
+    assert!(
+        !env_config_avoids(
+            entries(ENV_CONFIG_ENTRY_LIMIT + 1).as_slice(),
+            &declines_nothing
+        ),
+        "one entry more declines"
+    );
 }
 
 /// The package's own parameters (the image tag a developer exports to keep parallel runs apart) are named like Git's
@@ -445,7 +754,10 @@ fn the_packages_own_variables_do_not_move_discovery() {
     let repo = repository(root.as_path(), "repo");
     let scope = hermetic_scope(root.as_path());
     let named = |suffix: &str| -> [(std::ffi::OsString, std::ffi::OsString); 1] {
-        return [(std::ffi::OsString::from(format!("{WRAPPER_ENVIRONMENT_PREFIX}{suffix}")), std::ffi::OsString::from("tag"))];
+        return [(
+            std::ffi::OsString::from(format!("{WRAPPER_ENVIRONMENT_PREFIX}{suffix}")),
+            std::ffi::OsString::from("tag"),
+        )];
     };
     for suffix in ["NATIVE_IMAGE_TAG", "E2E_BASE_TAG"] {
         assert!(
@@ -457,7 +769,10 @@ fn the_packages_own_variables_do_not_move_discovery() {
         std::ffi::OsString::from(WRAPPER_ENVIRONMENT_PREFIX.trim_end_matches('_').to_owned() + "X"),
         std::ffi::OsString::from("tag"),
     )];
-    assert!(read_layout_with(repo.as_path(), &lookalike, &scope).is_none(), "a name outside the namespace can be Git's");
+    assert!(
+        read_layout_with(repo.as_path(), &lookalike, &scope).is_none(),
+        "a name outside the namespace can be Git's"
+    );
     remove(root.as_path());
 }
 
@@ -473,15 +788,29 @@ fn scope_files_that_mention_discovery_keys_are_declined() {
     let mut scope = hermetic_scope(root.as_path());
     scope.home = Some(home.clone());
     scope.global = None;
-    assert!(read_layout_with(repo.as_path(), &[], &scope).is_some(), "an absent global file is an empty file");
-    std::fs::write(home.join(".gitconfig"), "[user]\n\tname = x\n[includeIf \"gitdir:/nowhere/\"]\n\tpath = extra\n").expect("global");
+    assert!(
+        read_layout_with(repo.as_path(), &[], &scope).is_some(),
+        "an absent global file is an empty file"
+    );
+    std::fs::write(
+        home.join(".gitconfig"),
+        "[user]\n\tname = x\n[includeIf \"gitdir:/nowhere/\"]\n\tpath = extra\n",
+    )
+    .expect("global");
     std::fs::write(home.join("extra"), "[core]\n\tbare = false\n").expect("included");
-    assert!(read_layout_with(repo.as_path(), &[], &scope).is_none(), "a conditional include that mentions core.bare");
+    assert!(
+        read_layout_with(repo.as_path(), &[], &scope).is_none(),
+        "a conditional include that mentions core.bare"
+    );
     std::fs::write(home.join("extra"), "[core]\n\teditor = x\n").expect("included");
-    let layout = read_layout_with(repo.as_path(), &[], &scope).expect("an include without the keys is plain");
+    let layout = read_layout_with(repo.as_path(), &[], &scope)
+        .expect("an include without the keys is plain");
     assert_eq!(Some(spelled(&layout)), git_lines(repo.as_path()));
     std::fs::write(home.join(".gitconfig"), "[core\n").expect("broken");
-    assert!(read_layout_with(repo.as_path(), &[], &scope).is_none(), "a file the reader cannot parse");
+    assert!(
+        read_layout_with(repo.as_path(), &[], &scope).is_none(),
+        "a file the reader cannot parse"
+    );
     remove(root.as_path());
 }
 
@@ -491,12 +820,37 @@ fn git_paths_equal_rev_parse() {
     let root = fixture("repo-read-gitpath");
     let repo = repository(root.as_path(), "repo");
     let layout = answered_equal(root.as_path(), repo.as_path(), "main");
-    for name in ["index", "objects", "HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "cli-git-transactions", "packed-refs", "config"] {
-        let output = git_output(repo.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", name]);
-        let expected: String = String::from_utf8(output.stdout).expect("UTF-8").trim_end().to_string();
-        assert_eq!(git_path(&layout, name).map(|path| { return path.display().to_string(); }), Some(expected), "{name}");
+    for name in [
+        "index",
+        "objects",
+        "HEAD",
+        "MERGE_HEAD",
+        "CHERRY_PICK_HEAD",
+        "REVERT_HEAD",
+        "cli-git-transactions",
+        "packed-refs",
+        "config",
+    ] {
+        let output = git_output(
+            repo.as_path(),
+            &["rev-parse", "--path-format=absolute", "--git-path", name],
+        );
+        let expected: String = String::from_utf8(output.stdout)
+            .expect("UTF-8")
+            .trim_end()
+            .to_string();
+        assert_eq!(
+            git_path(&layout, name).map(|path| {
+                return path.display().to_string();
+            }),
+            Some(expected),
+            "{name}"
+        );
     }
-    assert!(git_path(&layout, "hooks").is_none(), "hooks follows core.hooksPath and is left to Git");
+    assert!(
+        git_path(&layout, "hooks").is_none(),
+        "hooks follows core.hooksPath and is left to Git"
+    );
     // Git prints the target of a linked name, so the reader leaves a linked name to Git.
     std::os::unix::fs::symlink("nowhere", repo.join(".git/MERGE_HEAD")).expect("link");
     assert!(git_path(&layout, "MERGE_HEAD").is_none());
@@ -512,16 +866,49 @@ fn git_paths_equal_rev_parse() {
 #[test]
 fn variables_that_cannot_change_a_config_or_attribute_or_layout_answer_are_plain() {
     for name in [
-        "GIT_EDITOR", "GIT_TRACE", "GIT_TRACE2", "GIT_TRACE2_REDACT", "GIT_TRACE_CURL", "GIT_MERGE_VERBOSITY", "GIT_FLUSH",
-        "GIT_PROGRESS_DELAY", "GIT_PRINT_SHA1_ELLIPSIS", "GIT_ADVICE", "GIT_PAGER_IN_USE", "GIT_CURL_VERBOSE", "GIT_HTTP_USER_AGENT",
-        "GIT_HTTP_LOW_SPEED_LIMIT", "GIT_SSL_NO_VERIFY", "GIT_PROXY_COMMAND", "GIT_TCP_KEEPCNT", "GIT_USER_AGENT",
-        "GIT_OVERRIDE_VIRTUAL_HOST", "GIT_PROTOCOL_FROM_USER", "GIT_EXTERNAL_DIFF", "GIT_DIFF_OPTS", "GIT_DIFFTOOL_EXTCMD",
-        "GIT_MERGETOOL_GUI", "GIT_MAN_VIEWER", "GIT_SHELL_PATH", "GIT_REFLOG_ACTION", "GIT_CHERRY_PICK_HELP", "GIT_ALLOC_LIMIT",
-        "GIT_MMAP_LIMIT", "GIT_INDEX_VERSION", "GIT_BASENAME_FACTOR", "GIT_COMMIT_GRAPH_PARANOIA", "GIT_DISABLE_UNTRACKED_CACHE",
-        "GIT_FORCE_UNTRACKED_CACHE", "GIT_AUTO_COMMENT_CHAR_CONFIG_WARNING_GIVEN",
+        "GIT_EDITOR",
+        "GIT_TRACE",
+        "GIT_TRACE2",
+        "GIT_TRACE2_REDACT",
+        "GIT_TRACE_CURL",
+        "GIT_MERGE_VERBOSITY",
+        "GIT_FLUSH",
+        "GIT_PROGRESS_DELAY",
+        "GIT_PRINT_SHA1_ELLIPSIS",
+        "GIT_ADVICE",
+        "GIT_PAGER_IN_USE",
+        "GIT_CURL_VERBOSE",
+        "GIT_HTTP_USER_AGENT",
+        "GIT_HTTP_LOW_SPEED_LIMIT",
+        "GIT_SSL_NO_VERIFY",
+        "GIT_PROXY_COMMAND",
+        "GIT_TCP_KEEPCNT",
+        "GIT_USER_AGENT",
+        "GIT_OVERRIDE_VIRTUAL_HOST",
+        "GIT_PROTOCOL_FROM_USER",
+        "GIT_EXTERNAL_DIFF",
+        "GIT_DIFF_OPTS",
+        "GIT_DIFFTOOL_EXTCMD",
+        "GIT_MERGETOOL_GUI",
+        "GIT_MAN_VIEWER",
+        "GIT_SHELL_PATH",
+        "GIT_REFLOG_ACTION",
+        "GIT_CHERRY_PICK_HELP",
+        "GIT_ALLOC_LIMIT",
+        "GIT_MMAP_LIMIT",
+        "GIT_INDEX_VERSION",
+        "GIT_BASENAME_FACTOR",
+        "GIT_COMMIT_GRAPH_PARANOIA",
+        "GIT_DISABLE_UNTRACKED_CACHE",
+        "GIT_FORCE_UNTRACKED_CACHE",
+        "GIT_AUTO_COMMENT_CHAR_CONFIG_WARNING_GIVEN",
     ] {
-        let variables: Vec<(OsString, OsString)> = vec![(OsString::from(name), OsString::from("1"))];
-        assert!(environment_is_plain(variables.as_slice()), "{name} cannot move an answer");
+        let variables: Vec<(OsString, OsString)> =
+            vec![(OsString::from(name), OsString::from("1"))];
+        assert!(
+            environment_is_plain(variables.as_slice()),
+            "{name} cannot move an answer"
+        );
     }
 }
 
@@ -536,16 +923,48 @@ fn variables_that_cannot_change_a_config_or_attribute_or_layout_answer_are_plain
 #[test]
 fn variables_that_can_change_an_answer_are_not_plain() {
     for name in [
-        "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_NAMESPACE", "GIT_PREFIX", "GIT_IMPLICIT_WORK_TREE",
-        "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_ATTR_SOURCE", "GIT_ATTR_NOSYSTEM", "GIT_ATTR_GLOBAL", "GIT_ATTR_SYSTEM",
-        "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_GRAFT_FILE", "GIT_SHALLOW_FILE", "GIT_QUARANTINE_PATH",
-        "GIT_REFERENCE_BACKEND", "GIT_REF_PARANOIA", "GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS",
-        "GIT_ICASE_PATHSPECS", "GIT_TEMPLATE_DIR", "GIT_TEXTDOMAINDIR", "GIT_NOTES_REF", "GIT_NO_LAZY_FETCH", "GIT_TEST_SPLIT_INDEX",
-        "GIT_DEFAULT_HASH", "GIT_A_VARIABLE_GIT_ADDS_LATER",
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+        "GIT_NAMESPACE",
+        "GIT_PREFIX",
+        "GIT_IMPLICIT_WORK_TREE",
+        "GIT_CONFIG",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_ATTR_SOURCE",
+        "GIT_ATTR_NOSYSTEM",
+        "GIT_ATTR_GLOBAL",
+        "GIT_ATTR_SYSTEM",
+        "GIT_NO_REPLACE_OBJECTS",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_GRAFT_FILE",
+        "GIT_SHALLOW_FILE",
+        "GIT_QUARANTINE_PATH",
+        "GIT_REFERENCE_BACKEND",
+        "GIT_REF_PARANOIA",
+        "GIT_LITERAL_PATHSPECS",
+        "GIT_GLOB_PATHSPECS",
+        "GIT_NOGLOB_PATHSPECS",
+        "GIT_ICASE_PATHSPECS",
+        "GIT_TEMPLATE_DIR",
+        "GIT_TEXTDOMAINDIR",
+        "GIT_NOTES_REF",
+        "GIT_NO_LAZY_FETCH",
+        "GIT_TEST_SPLIT_INDEX",
+        "GIT_DEFAULT_HASH",
+        "GIT_A_VARIABLE_GIT_ADDS_LATER",
     ] {
-        let variables: Vec<(OsString, OsString)> = vec![(OsString::from(name), OsString::from("1"))];
-        assert!(!environment_is_plain(variables.as_slice()), "{name} can move an answer");
+        let variables: Vec<(OsString, OsString)> =
+            vec![(OsString::from(name), OsString::from("1"))];
+        assert!(
+            !environment_is_plain(variables.as_slice()),
+            "{name} can move an answer"
+        );
     }
 }
 
@@ -558,7 +977,9 @@ fn variables_that_can_change_an_answer_are_not_plain() {
 ///  and every read of it started Git.
 #[test]
 fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
-    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_layout::tests::a_gitfile_that_names_a_directory_that_is_not_text_names_it") {
+    if !in_a_fixture_root_taking_any_name(
+        "repo_read::repo_read_layout::tests::a_gitfile_that_names_a_directory_that_is_not_text_names_it",
+    ) {
         return;
     }
     let root: PathBuf = fixture("repo-read-gitfile-not-text");
@@ -573,8 +994,15 @@ fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
         admin.as_os_str().to_os_string(),
     ];
     git(repo.as_path(), arguments.as_slice());
-    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "gitfile naming a directory that is not text");
-    assert_eq!(layout.git_dir, std::fs::canonicalize(admin.as_path()).expect("the Git directory"));
+    let layout: RepoLayout = answered_equal(
+        root.as_path(),
+        repo.as_path(),
+        "gitfile naming a directory that is not text",
+    );
+    assert_eq!(
+        layout.git_dir,
+        std::fs::canonicalize(admin.as_path()).expect("the Git directory")
+    );
     remove(root.as_path());
 }
 
@@ -598,14 +1026,32 @@ fn a_proof_read_before_a_ref_store_migration_declines_after_it() {
         "the proof opens the files repository it was read from"
     );
     // What a forwarded command does while it holds the layout: a replacement ref, then the store moved to the tables.
-    git(repo.as_path(), &["replace", commits[0].as_str(), commits[2].as_str()]);
-    git(repo.as_path(), &["refs", "migrate", "--ref-format=reftable"]);
+    git(
+        repo.as_path(),
+        &["replace", commits[0].as_str(), commits[2].as_str()],
+    );
+    git(
+        repo.as_path(),
+        &["refs", "migrate", "--ref-format=reftable"],
+    );
     assert!(
         git_output(repo.as_path(), &["cat-file", "commit", commits[0].as_str()]).stdout
-            != git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", commits[0].as_str()]).stdout,
+            != git_output(
+                repo.as_path(),
+                &[
+                    "--no-replace-objects",
+                    "cat-file",
+                    "commit",
+                    commits[0].as_str()
+                ]
+            )
+            .stdout,
         "the positive control: Git reads the replacement from the tables"
     );
-    assert!(ObjectDatabase::open(common.as_path(), None, layout.object_format).is_none(), "the unproved open declines the migrated store");
+    assert!(
+        ObjectDatabase::open(common.as_path(), None, layout.object_format).is_none(),
+        "the unproved open declines the migrated store"
+    );
     assert!(
         ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_none(),
         "the proved open asks the reftable folder again, and declines the migrated store"

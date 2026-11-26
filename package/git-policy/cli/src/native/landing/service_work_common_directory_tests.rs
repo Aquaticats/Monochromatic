@@ -9,9 +9,16 @@
 //!  (`crate::plain_file`; issue 6415 for the same shape at the wrapper's own records).
 
 /// The rules under test.
-use super::{common_directory_of, is_bare_common_directory};
+use super::{
+    common_directory_of,
+    is_bare_common_directory,
+};
 /// Fixture folders, their removal and a bound on the wait.
-use crate::test_support::{finished_within, fixture, remove};
+use crate::test_support::{
+    finished_within,
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// A `commondir` that climbs out of the file system root names no directory,
@@ -25,8 +32,13 @@ fn a_commondir_is_resolved_by_its_text() {
     std::fs::write(own.join("commondir"), "../..\n").expect("the pointer");
     assert_eq!(common_directory_of(own.as_path()), Some(common.clone()));
     // More `..` than the fixture path has parts, so the resolution climbs past the root whatever depth the fixture sits at.
-    std::fs::write(own.join("commondir"), format!("{}\n", "../".repeat(64))).expect("a pointer past the root");
-    assert_eq!(common_directory_of(own.as_path()), None, "a path that climbs past the root names nothing");
+    std::fs::write(own.join("commondir"), format!("{}\n", "../".repeat(64)))
+        .expect("a pointer past the root");
+    assert_eq!(
+        common_directory_of(own.as_path()),
+        None,
+        "a path that climbs past the root names nothing"
+    );
     remove(root.as_path());
 }
 
@@ -42,8 +54,12 @@ fn core_bare_decides_whether_a_common_directory_is_bare() {
     assert!(!is_bare_common_directory(root.as_path()));
     std::fs::write(root.join("config"), "[core]\n\tbare = false\n[extensions]\n\tworktreeConfig = true\n[core]\n\trepositoryformatversion = 1\n")
         .expect("the configuration");
-    std::fs::write(root.join("config.worktree"), "[core]\n\tbare = true\n").expect("the worktree's configuration");
-    assert!(is_bare_common_directory(root.as_path()), "the worktree's own file decides when the extension is on");
+    std::fs::write(root.join("config.worktree"), "[core]\n\tbare = true\n")
+        .expect("the worktree's configuration");
+    assert!(
+        is_bare_common_directory(root.as_path()),
+        "the worktree's own file decides when the extension is on"
+    );
     remove(root.as_path());
 }
 
@@ -53,15 +69,21 @@ fn core_bare_decides_whether_a_common_directory_is_bare() {
 #[test]
 fn a_commondir_that_is_a_named_pipe_names_no_directory_at_once() {
     let root: PathBuf = fixture("service-common-dir-named-pipe");
-    crate::subvolume_sync_attrs::make_fifo(root.join("commondir").as_path(), 0o600).expect("a named pipe where a commondir goes");
+    crate::subvolume_sync_attrs::make_fifo(root.join("commondir").as_path(), 0o600)
+        .expect("a named pipe where a commondir goes");
     let inside: PathBuf = root.clone();
     let asked = finished_within(move || return common_directory_of(inside.as_path()));
-    let Some(named) = asked else { panic!("a `commondir` that is a named pipe held the drain") };
+    let Some(named) = asked else {
+        panic!("a `commondir` that is a named pipe held the drain")
+    };
     assert_eq!(named, None, "a pipe names no common directory");
     // The read this module made before, on the same fixture under the same bound, so the bound above is shown to see a wait.
     let pointer: PathBuf = root.join("commondir");
     let waited = finished_within(move || return std::fs::read_to_string(pointer).ok());
-    assert!(waited.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
+    assert!(
+        waited.is_none(),
+        "a plain read of the same name waits, so the bound above can see a wait"
+    );
     remove(root.as_path());
 }
 
@@ -72,14 +94,20 @@ fn a_commondir_that_is_a_named_pipe_names_no_directory_at_once() {
 #[test]
 fn a_config_that_is_a_named_pipe_is_not_bare_at_once() {
     let root: PathBuf = fixture("service-common-dir-config-named-pipe");
-    crate::subvolume_sync_attrs::make_fifo(root.join("config").as_path(), 0o600).expect("a named pipe where a configuration goes");
+    crate::subvolume_sync_attrs::make_fifo(root.join("config").as_path(), 0o600)
+        .expect("a named pipe where a configuration goes");
     let inside: PathBuf = root.clone();
     let asked = finished_within(move || return is_bare_common_directory(inside.as_path()));
-    let Some(bare) = asked else { panic!("a `config` that is a named pipe held the drain") };
+    let Some(bare) = asked else {
+        panic!("a `config` that is a named pipe held the drain")
+    };
     assert!(!bare, "a pipe is no configuration this command reads");
     // The read this module made before, on the same fixture under the same bound, so the bound above is shown to see a wait.
     let configuration: PathBuf = root.join("config");
     let waited = finished_within(move || return std::fs::read(configuration).ok());
-    assert!(waited.is_none(), "a plain read of the same name waits, so the bound above can see a wait");
+    assert!(
+        waited.is_none(),
+        "a plain read of the same name waits, so the bound above can see a wait"
+    );
     remove(root.as_path());
 }

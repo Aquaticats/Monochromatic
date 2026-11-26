@@ -7,28 +7,56 @@
 
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
-use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
-use crate::test_support::{age, git, git_context, remove, repository};
+use crate::fs_btrfs_test_support::{
+    btrfs_fixture,
+    removal_allowed,
+};
+use crate::test_support::{
+    age,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 
 /// The plan for a target typed as its real path.
 fn plan_for(target: &Path) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
+    return RemovePlan {
+        target: target.to_path_buf(),
+        operand: target.as_os_str().to_os_string(),
+        force: false,
+    };
 }
 
 /// The same plan with the force a person passes as `-f`/`--force`.
 fn forced_plan_for(target: &Path) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: true };
+    return RemovePlan {
+        target: target.to_path_buf(),
+        operand: target.as_os_str().to_os_string(),
+        force: true,
+    };
 }
 
 /// Whether the wrapper served the plan:
 /// the removal ran to its end.
-fn served_plan(repo: &Path, plan: &RemovePlan) -> bool {
+fn served_plan(
+    repo: &Path,
+    plan: &RemovePlan,
+) -> bool {
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    return remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan, common_dir: common_dir.as_path(), last_look: None }) == RemoveOutcome::Removed;
+    return remove_subvolume_worktree(&RemoveRequest {
+        context: &git_context(),
+        plan,
+        common_dir: common_dir.as_path(),
+        last_look: None,
+    }) == RemoveOutcome::Removed;
 }
 
 /// Whether the wrapper served the removal of `target` typed as its real path.
-fn served(repo: &Path, target: &Path) -> bool {
+fn served(
+    repo: &Path,
+    target: &Path,
+) -> bool {
     return served_plan(repo, &plan_for(target));
 }
 
@@ -43,7 +71,10 @@ fn clean_subvolume_worktree(root: &Path) -> (PathBuf, PathBuf) {
     git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let worktree: PathBuf = root.join("wt");
     subvolume_create_at(worktree.as_path()).expect("subvolume");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let canonical: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("canonical");
     age(canonical.join("tracked.txt").as_path());
     git(canonical.as_path(), &["update-index", "--refresh"]);
@@ -55,17 +86,28 @@ fn clean_subvolume_worktree(root: &Path) -> (PathBuf, PathBuf) {
 ///  where it does not.
 #[test]
 fn btrfs_a_clean_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
-    let Some(root) = btrfs_fixture("remove-clean") else { return };
+    let Some(root) = btrfs_fixture("remove-clean") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let removed: bool = served(&repo, &worktree);
     assert_eq!(removed, removal_allowed(root.as_path()));
     if removed {
         assert!(!worktree.exists());
-        assert!(!repo.join(".git/worktrees/wt").exists(), "the registration is gone too");
-        let listing: String = String::from_utf8_lossy(&git(repo.as_path(), &["worktree", "list", "--porcelain"]).stdout).into_owned();
+        assert!(
+            !repo.join(".git/worktrees/wt").exists(),
+            "the registration is gone too"
+        );
+        let listing: String = String::from_utf8_lossy(
+            &git(repo.as_path(), &["worktree", "list", "--porcelain"]).stdout,
+        )
+        .into_owned();
         assert!(!listing.contains("wt"), "{listing}");
     } else {
-        assert!(worktree.join("tracked.txt").is_file(), "a refusal changes nothing");
+        assert!(
+            worktree.join("tracked.txt").is_file(),
+            "a refusal changes nothing"
+        );
     }
     remove(root.as_path());
 }
@@ -82,20 +124,37 @@ fn btrfs_a_clean_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
 /// which no stand-in can.
 #[test]
 fn btrfs_a_forced_removal_of_a_changed_subvolume_worktree_is_destroyed_where_the_mount_allows_it() {
-    let Some(root) = btrfs_fixture("remove-forced") else { return };
+    let Some(root) = btrfs_fixture("remove-forced") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let changed: PathBuf = worktree.join("tracked.txt");
     std::fs::write(changed.as_path(), b"unsaved work\n").expect("a change");
     // The unforced form is Git's, exactly as it is without the change.
-    assert!(!served_plan(&repo, &plan_for(worktree.as_path())), "a changed worktree is Git's without the force");
-    assert_eq!(std::fs::read(changed.as_path()).expect("the change is still there"), b"unsaved work\n");
+    assert!(
+        !served_plan(&repo, &plan_for(worktree.as_path())),
+        "a changed worktree is Git's without the force"
+    );
+    assert_eq!(
+        std::fs::read(changed.as_path()).expect("the change is still there"),
+        b"unsaved work\n"
+    );
     let forced: bool = served_plan(&repo, &forced_plan_for(worktree.as_path()));
     assert_eq!(forced, removal_allowed(root.as_path()));
     if forced {
-        assert!(!worktree.exists(), "the forced removal destroyed the worktree and its change with it");
-        assert!(!repo.join(".git/worktrees/wt").exists(), "the registration is gone too");
+        assert!(
+            !worktree.exists(),
+            "the forced removal destroyed the worktree and its change with it"
+        );
+        assert!(
+            !repo.join(".git/worktrees/wt").exists(),
+            "the registration is gone too"
+        );
     } else {
-        assert_eq!(std::fs::read(changed.as_path()).expect("a refusal changes nothing"), b"unsaved work\n");
+        assert_eq!(
+            std::fs::read(changed.as_path()).expect("a refusal changes nothing"),
+            b"unsaved work\n"
+        );
     }
     remove(root.as_path());
 }
@@ -107,7 +166,9 @@ fn btrfs_a_forced_removal_of_a_changed_subvolume_worktree_is_destroyed_where_the
 ///  and a worktree that is an ordinary directory.
 #[test]
 fn btrfs_a_worktree_git_would_refuse_or_that_is_no_subvolume_is_left_alone() {
-    let Some(root) = btrfs_fixture("remove-refused") else { return };
+    let Some(root) = btrfs_fixture("remove-refused") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let plan: RemovePlan = plan_for(&worktree);
     std::fs::write(worktree.join("tracked.txt"), b"TRACKED\n").expect("modify");
@@ -121,10 +182,16 @@ fn btrfs_a_worktree_git_would_refuse_or_that_is_no_subvolume_is_left_alone() {
     git(repo.as_path(), &["worktree", "lock", "../wt"]);
     assert!(!served_plan(&repo, &plan), "a locked worktree");
     git(repo.as_path(), &["worktree", "unlock", "../wt"]);
-    assert!(worktree.join("tracked.txt").is_file(), "nothing was removed");
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "nothing was removed"
+    );
     // The same worktree as an ordinary directory is Git's.
     let ordinary: PathBuf = root.join("plain");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "plain", "../plain"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "plain", "../plain"],
+    );
     let canonical: PathBuf = std::fs::canonicalize(ordinary.as_path()).expect("canonical");
     age(canonical.join("tracked.txt").as_path());
     git(canonical.as_path(), &["update-index", "--refresh"]);
@@ -150,36 +217,85 @@ fn btrfs_a_worktree_git_would_refuse_or_that_is_no_subvolume_is_left_alone() {
 /// and a subvolume of their own is the same to the kernel.
 #[test]
 fn btrfs_a_worktree_holding_a_nested_subvolume_is_removed_around_it() {
-    let Some(root) = btrfs_fixture("remove-nested-volume") else { return };
+    let Some(root) = btrfs_fixture("remove-nested-volume") else {
+        return;
+    };
     let (repo, worktree, inner) = a_worktree_holding_a_nested_worktree(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest {
+        context: &git_context(),
+        plan: &plan,
+        common_dir: common_dir.as_path(),
+        last_look: None,
+    });
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, and a tree holding a volume is never Git's, so it refuses and changes nothing.
-        assert!(matches!(outcome, RemoveOutcome::Refused(_)), "it was {outcome:?}");
-        assert!(worktree.join("tracked.txt").is_file(), "nothing of the worktree went");
+        assert!(
+            matches!(outcome, RemoveOutcome::Refused(_)),
+            "it was {outcome:?}"
+        );
+        assert!(
+            worktree.join("tracked.txt").is_file(),
+            "nothing of the worktree went"
+        );
         return;
     }
-    let RemoveOutcome::RemovedAround(left) = outcome else { panic!("a worktree holding a subvolume is removed around it, but it was {outcome:?}") };
+    let RemoveOutcome::RemovedAround(left) = outcome else {
+        panic!("a worktree holding a subvolume is removed around it, but it was {outcome:?}")
+    };
     assert_eq!(left.len(), 1, "the report names the one volume: {left:?}");
     assert_eq!(left[0].path, inner, "the nested worktree is what was left");
-    let report: String = crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(worktree.as_path(), left.as_slice());
-    assert!(report.contains(inner.to_str().expect("UTF-8")), "the report names the volume: {report}");
-    assert!(report.contains("Git no longer lists it"), "and that the worktree is gone from Git: {report}");
-    assert!(report.contains("free for `git worktree add`"), "and what frees the path: {report}");
-    assert!(inner.join("notes.txt").is_file(), "the worktree inside it keeps the file the person wrote");
-    assert_eq!(std::fs::read(inner.join("tracked.txt")).expect("the change there"), b"not committed yet\n", "and the change the person made");
-    assert!(!worktree.join("tracked.txt").exists(), "every other entry of the worktree is removed");
-    assert!(!repo.join(".git/worktrees/wt").exists(), "the worktree's own registration is gone");
+    let report: String =
+        crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(
+            worktree.as_path(),
+            left.as_slice(),
+        );
+    assert!(
+        report.contains(inner.to_str().expect("UTF-8")),
+        "the report names the volume: {report}"
+    );
+    assert!(
+        report.contains("Git no longer lists it"),
+        "and that the worktree is gone from Git: {report}"
+    );
+    assert!(
+        report.contains("free for `git worktree add`"),
+        "and what frees the path: {report}"
+    );
+    assert!(
+        inner.join("notes.txt").is_file(),
+        "the worktree inside it keeps the file the person wrote"
+    );
+    assert_eq!(
+        std::fs::read(inner.join("tracked.txt")).expect("the change there"),
+        b"not committed yet\n",
+        "and the change the person made"
+    );
+    assert!(
+        !worktree.join("tracked.txt").exists(),
+        "every other entry of the worktree is removed"
+    );
+    assert!(
+        !repo.join(".git/worktrees/wt").exists(),
+        "the worktree's own registration is gone"
+    );
     let mut kept: Vec<String> = Vec::new();
-    for found in std::fs::read_dir(repo.join(".git/worktrees")).expect("the registrations").flatten() {
-        let text: String = std::fs::read_to_string(found.path().join("gitdir")).expect("a registration's back-link");
+    for found in std::fs::read_dir(repo.join(".git/worktrees"))
+        .expect("the registrations")
+        .flatten()
+    {
+        let text: String = std::fs::read_to_string(found.path().join("gitdir"))
+            .expect("a registration's back-link");
         if text.contains(inner.to_str().expect("a UTF-8 fixture path")) {
             kept.push(found.file_name().to_string_lossy().into_owned());
         }
     }
-    assert_eq!(kept.len(), 1, "the nested worktree's own registration stays: {kept:?}");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the nested worktree's own registration stays: {kept:?}"
+    );
     remove(root.as_path());
 }
 
@@ -217,32 +333,74 @@ struct PlantedAtTheHandOver<'a> {
 }
 
 impl RemoveOperations for PlantedAtTheHandOver<'_> {
-    fn is_subvolume_root(&self, path: &Path) -> bool {
+    fn is_subvolume_root(
+        &self,
+        path: &Path,
+    ) -> bool {
         return LinuxOperations.is_subvolume_root(path);
     }
 
-    fn removal_allowed(&self, path: &Path) -> bool {
+    fn removal_allowed(
+        &self,
+        path: &Path,
+    ) -> bool {
         return LinuxOperations.removal_allowed(path);
     }
 
-    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
+    fn check_clean(
+        &self,
+        request: &RemoveRequest<'_>,
+        admin: &Path,
+        common_dir: &Path,
+    ) -> Result<(), String> {
         return LinuxOperations.check_clean(request, admin, common_dir);
     }
 
-    fn destroy(&self, held: &Held) -> Result<(), String> {
+    fn destroy(
+        &self,
+        held: &Held,
+    ) -> Result<(), String> {
         // The real call, so the refusal a nested subvolume causes is the kernel's own.
         return LinuxOperations.destroy(held);
     }
 
-    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path, _registration: &std::ffi::OsStr) -> Result<(), String> {
+    fn hand_over(
+        &self,
+        _context: &GitContext,
+        _common_dir: &Path,
+        _held: &Held,
+        _target: &Path,
+        _registration: &std::ffi::OsStr,
+    ) -> Result<(), String> {
         if !self.planted.replace(true) {
             // The folder above the worktree, and then the subvolume at the name it takes, as a nested worktree stands.
-            std::fs::create_dir_all(self.folder.parent().expect("the folder the planted worktree stands in")).expect("the folder the planted worktree stands in");
+            std::fs::create_dir_all(
+                self.folder
+                    .parent()
+                    .expect("the folder the planted worktree stands in"),
+            )
+            .expect("the folder the planted worktree stands in");
             subvolume_create_at(self.folder).expect("the subvolume of the planted worktree");
-            git(self.repo, &["worktree", "add", "--quiet", "-b", self.branch, self.folder.to_str().expect("a UTF-8 fixture path")]);
-            std::fs::write(self.folder.join("notes.txt"), b"what I was in the middle of\n").expect("a file the person wrote");
+            git(
+                self.repo,
+                &[
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "-b",
+                    self.branch,
+                    self.folder.to_str().expect("a UTF-8 fixture path"),
+                ],
+            );
+            std::fs::write(
+                self.folder.join("notes.txt"),
+                b"what I was in the middle of\n",
+            )
+            .expect("a file the person wrote");
         }
-        return Err(String::from("this stand-in hands nothing to the service, so the subvolume is destroyed here"));
+        return Err(String::from(
+            "this stand-in hands nothing to the service, so the subvolume is destroyed here",
+        ));
     }
 }
 
@@ -261,7 +419,9 @@ impl RemoveOperations for PlantedAtTheHandOver<'_> {
 ///  and the worktree is forgotten while what was not the removal's stays.
 #[test]
 fn btrfs_a_worktree_added_between_the_walk_and_the_destroy_is_left_and_the_rest_is_removed() {
-    let Some(root) = btrfs_fixture("remove-nested-volume-window") else { return };
+    let Some(root) = btrfs_fixture("remove-nested-volume-window") else {
+        return;
+    };
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, so the walk never runs and the removal is Git's, as it always was.
         return;
@@ -275,7 +435,10 @@ fn btrfs_a_worktree_added_between_the_walk_and_the_destroy_is_left_and_the_rest_
     git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let worktree: PathBuf = root.join("wt");
     subvolume_create_at(worktree.as_path()).expect("subvolume");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let outer: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("canonical");
     for name in ["tracked.txt", ".gitignore"] {
         age(outer.join(name).as_path());
@@ -284,14 +447,42 @@ fn btrfs_a_worktree_added_between_the_walk_and_the_destroy_is_left_and_the_rest_
     let planted: PathBuf = outer.join(".claude/worktrees/inner");
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&outer);
-    let operations = PlantedAtTheHandOver { repo: repo.as_path(), folder: planted.as_path(), branch: "inner", planted: std::cell::Cell::new(false) };
-    let outcome: RemoveOutcome = remove_with(&operations, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
-    let RemoveOutcome::RemovedAround(left) = outcome else { panic!("the worktree is removed around the worktree that appeared, but it was {outcome:?}") };
+    let operations = PlantedAtTheHandOver {
+        repo: repo.as_path(),
+        folder: planted.as_path(),
+        branch: "inner",
+        planted: std::cell::Cell::new(false),
+    };
+    let outcome: RemoveOutcome = remove_with(
+        &operations,
+        &RemoveRequest {
+            context: &git_context(),
+            plan: &plan,
+            common_dir: common_dir.as_path(),
+            last_look: None,
+        },
+    );
+    let RemoveOutcome::RemovedAround(left) = outcome else {
+        panic!("the worktree is removed around the worktree that appeared, but it was {outcome:?}")
+    };
     assert_eq!(left.len(), 1, "the report names the one volume: {left:?}");
-    assert_eq!(left[0].path, std::fs::canonicalize(planted.as_path()).expect("canonical"), "the worktree that appeared is what was left");
-    assert_eq!(std::fs::read(planted.join("notes.txt")).expect("the file the person wrote is still there"), b"what I was in the middle of\n");
-    assert!(!outer.join("tracked.txt").exists(), "every other entry of the worktree is removed");
-    assert!(!repo.join(".git/worktrees/wt").exists(), "and its registration is gone");
+    assert_eq!(
+        left[0].path,
+        std::fs::canonicalize(planted.as_path()).expect("canonical"),
+        "the worktree that appeared is what was left"
+    );
+    assert_eq!(
+        std::fs::read(planted.join("notes.txt")).expect("the file the person wrote is still there"),
+        b"what I was in the middle of\n"
+    );
+    assert!(
+        !outer.join("tracked.txt").exists(),
+        "every other entry of the worktree is removed"
+    );
+    assert!(
+        !repo.join(".git/worktrees/wt").exists(),
+        "and its registration is gone"
+    );
     remove(root.as_path());
 }
 
@@ -319,16 +510,36 @@ fn a_worktree_holding_a_nested_worktree(root: &Path) -> (PathBuf, PathBuf, PathB
     git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let worktree: PathBuf = root.join("wt");
     subvolume_create_at(worktree.as_path()).expect("subvolume");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let outer: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("canonical");
     let nested: PathBuf = outer.join(".claude/worktrees/inner");
-    std::fs::create_dir_all(nested.parent().expect("the folder the worktree inside it stands in")).expect("the folder of a nested worktree");
+    std::fs::create_dir_all(
+        nested
+            .parent()
+            .expect("the folder the worktree inside it stands in"),
+    )
+    .expect("the folder of a nested worktree");
     subvolume_create_at(nested.as_path()).expect("the subvolume of the worktree inside it");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "inner", nested.to_str().expect("a UTF-8 fixture path")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "inner",
+            nested.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
     let inner: PathBuf = std::fs::canonicalize(nested.as_path()).expect("canonical");
     // The work that is nobody else's, in both shapes a control can tell from a deletion of the directory.
-    std::fs::write(inner.join("notes.txt"), b"what I was in the middle of\n").expect("a file the person wrote");
-    std::fs::write(inner.join("tracked.txt"), b"not committed yet\n").expect("a change the person made");
+    std::fs::write(inner.join("notes.txt"), b"what I was in the middle of\n")
+        .expect("a file the person wrote");
+    std::fs::write(inner.join("tracked.txt"), b"not committed yet\n")
+        .expect("a change the person made");
     for name in ["tracked.txt", ".gitignore"] {
         age(outer.join(name).as_path());
     }
@@ -375,19 +586,36 @@ fn a_snapshot_ahead(admin: &Path) -> PathBuf {
 ///  A real subvolume is the only object that proves it.
 #[test]
 fn btrfs_a_worktree_whose_git_directory_holds_a_snapshot_ahead_is_removed_with_it() {
-    let Some(root) = btrfs_fixture("remove-snapshot-ahead") else { return };
+    let Some(root) = btrfs_fixture("remove-snapshot-ahead") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/wt");
     let pool: PathBuf = a_snapshot_ahead(admin.as_path());
     let removed: bool = served(&repo, &worktree);
-    assert_eq!(removed, removal_allowed(root.as_path()), "the removal is served exactly where the mount allows the destroy");
+    assert_eq!(
+        removed,
+        removal_allowed(root.as_path()),
+        "the removal is served exactly where the mount allows the destroy"
+    );
     if removed {
         assert!(!worktree.exists(), "the worktree is gone");
         assert!(!admin.exists(), "the registration went with it");
-        assert!(!pool.exists(), "and the snapshot this program made ahead of an add went before the destroy");
-        assert!(!repo.join(".git/monochromatic-git-policy-cli/recorded-destroys").exists(), "nothing of the removal is left for a later command to finish");
+        assert!(
+            !pool.exists(),
+            "and the snapshot this program made ahead of an add went before the destroy"
+        );
+        assert!(
+            !repo
+                .join(".git/monochromatic-git-policy-cli/recorded-destroys")
+                .exists(),
+            "nothing of the removal is left for a later command to finish"
+        );
     } else {
-        assert!(worktree.join("tracked.txt").is_file(), "a mount that cannot destroy takes nothing");
+        assert!(
+            worktree.join("tracked.txt").is_file(),
+            "a mount that cannot destroy takes nothing"
+        );
         assert!(pool.exists(), "and the pool is where it was");
     }
     remove(root.as_path());
@@ -408,26 +636,48 @@ fn btrfs_a_worktree_whose_git_directory_holds_a_snapshot_ahead_is_removed_with_i
 ///  The refusal comes before anything irreversible and names the one thing that stands in the way.
 #[test]
 fn btrfs_a_subvolume_of_the_persons_own_in_the_git_directory_refuses_before_the_destroy() {
-    let Some(root) = btrfs_fixture("remove-git-dir-foreign") else { return };
+    let Some(root) = btrfs_fixture("remove-git-dir-foreign") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/wt");
     let foreign: PathBuf = admin.join("a-volume-of-my-own");
     subvolume_create_at(foreign.as_path()).expect("a subvolume the person made");
-    std::fs::write(foreign.join("notes.txt"), b"what I was in the middle of\n").expect("a file the person wrote");
+    std::fs::write(foreign.join("notes.txt"), b"what I was in the middle of\n")
+        .expect("a file the person wrote");
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest {
+        context: &git_context(),
+        plan: &plan,
+        common_dir: common_dir.as_path(),
+        last_look: None,
+    });
     if !removal_allowed(root.as_path()) {
         // Nothing here can destroy a subvolume, so the removal is Git's and nothing of the wrapper's runs.
         assert_eq!(outcome, RemoveOutcome::LeftToGit);
         return;
     }
-    let RemoveOutcome::Refused(report) = outcome else { panic!("a registration the kernel can never empty is refused, but it was {outcome:?}") };
-    assert!(report.contains(foreign.to_str().expect("UTF-8")), "the report names the subvolume that stands in the way: {report}");
-    assert!(report.contains("Nothing was removed"), "and says nothing changed: {report}");
-    assert!(worktree.join("tracked.txt").is_file(), "the worktree is where it was");
+    let RemoveOutcome::Refused(report) = outcome else {
+        panic!("a registration the kernel can never empty is refused, but it was {outcome:?}")
+    };
+    assert!(
+        report.contains(foreign.to_str().expect("UTF-8")),
+        "the report names the subvolume that stands in the way: {report}"
+    );
+    assert!(
+        report.contains("Nothing was removed"),
+        "and says nothing changed: {report}"
+    );
+    assert!(
+        worktree.join("tracked.txt").is_file(),
+        "the worktree is where it was"
+    );
     assert!(admin.is_dir(), "and so is its registration");
-    assert_eq!(std::fs::read(foreign.join("notes.txt")).expect("the file the person wrote is still there"), b"what I was in the middle of\n");
+    assert_eq!(
+        std::fs::read(foreign.join("notes.txt")).expect("the file the person wrote is still there"),
+        b"what I was in the middle of\n"
+    );
     remove(root.as_path());
 }
 
@@ -450,7 +700,8 @@ fn a_pool_a_killed_clear_left(admin: &Path) -> PathBuf {
     let left: PathBuf = data.join("removing-0f0e0d0c-0b0a-4908-8706-050403020100");
     std::fs::create_dir_all(left.as_path()).expect("the pool a killed clear had renamed");
     let member: PathBuf = left.join(".cli-git-worktree-ahead-0123456789abcdef-000001a1cae683dc-0123456789abcdef0123456789abcdef");
-    subvolume_create_at(member.as_path()).expect("the member a killed clear left under its taken name");
+    subvolume_create_at(member.as_path())
+        .expect("the member a killed clear left under its taken name");
     std::fs::write(member.join("tracked.txt"), b"a copy of the worktree\n").expect("its files");
     return left;
 }
@@ -466,14 +717,23 @@ fn a_pool_a_killed_clear_left(admin: &Path) -> PathBuf {
 ///  ever (the incident of 2026-11-11 named exactly such a member).
 #[test]
 fn btrfs_a_pool_a_killed_clear_left_under_its_taken_name_goes_with_the_removal() {
-    let Some(root) = btrfs_fixture("remove-pool-left-taken") else { return };
+    let Some(root) = btrfs_fixture("remove-pool-left-taken") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/wt");
     let left: PathBuf = a_pool_a_killed_clear_left(admin.as_path());
     let removed: bool = served(&repo, &worktree);
-    assert_eq!(removed, removal_allowed(root.as_path()), "the removal is served exactly where the mount allows the destroy");
+    assert_eq!(
+        removed,
+        removal_allowed(root.as_path()),
+        "the removal is served exactly where the mount allows the destroy"
+    );
     if removed {
-        assert!(!admin.exists(), "the registration went with the leftover of the killed clear");
+        assert!(
+            !admin.exists(),
+            "the registration went with the leftover of the killed clear"
+        );
         assert!(!left.exists(), "and the leftover is gone");
     } else {
         assert!(left.exists(), "a mount that cannot destroy takes nothing");
@@ -493,12 +753,20 @@ fn btrfs_a_pool_a_killed_clear_left_under_its_taken_name_goes_with_the_removal()
 /// ```ts
 /// const left = readdirSync(folder).filter((name) => name.startsWith(prefix)).map((name) => join(folder, name));
 /// ```
-fn entries_with_prefix(folder: &Path, prefix: &str) -> Vec<PathBuf> {
-    let Ok(listing) = std::fs::read_dir(folder) else { return Vec::new() };
+fn entries_with_prefix(
+    folder: &Path,
+    prefix: &str,
+) -> Vec<PathBuf> {
+    let Ok(listing) = std::fs::read_dir(folder) else {
+        return Vec::new();
+    };
     let mut found: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         let name: std::ffi::OsString = entry.file_name();
-        if name.to_str().is_some_and(|text| { return text.starts_with(prefix) }) {
+        if name
+            .to_str()
+            .is_some_and(|text| return text.starts_with(prefix))
+        {
             found.push(entry.path());
         }
     }
@@ -520,28 +788,58 @@ fn entries_with_prefix(folder: &Path, prefix: &str) -> Vec<PathBuf> {
 /// F5).
 #[test]
 fn btrfs_a_snapshot_ahead_is_left_for_the_service_instead_of_destroyed_by_the_removal() {
-    let Some(root) = btrfs_fixture("remove-snapshot-ahead-left") else { return };
+    let Some(root) = btrfs_fixture("remove-snapshot-ahead-left") else {
+        return;
+    };
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/wt");
     let pool: PathBuf = a_snapshot_ahead(admin.as_path());
     let mut members: Vec<PathBuf> = entries_with_prefix(pool.as_path(), ".cli-git-worktree-ahead-");
     let member: PathBuf = members.remove(0);
     let removed: bool = served(&repo, &worktree);
-    assert_eq!(removed, removal_allowed(root.as_path()), "the removal is served exactly where the mount allows the destroy");
+    assert_eq!(
+        removed,
+        removal_allowed(root.as_path()),
+        "the removal is served exactly where the mount allows the destroy"
+    );
     if !removed {
         assert!(member.is_dir(), "a mount that cannot destroy takes nothing");
         remove(root.as_path());
         return;
     }
-    assert!(!pool.exists(), "no fill finds a pool under its own name any more");
-    assert!(!member.exists(), "and the member is not in the registration");
+    assert!(
+        !pool.exists(),
+        "no fill finds a pool under its own name any more"
+    );
+    assert!(
+        !member.exists(),
+        "and the member is not in the registration"
+    );
     let common: PathBuf = repo.join(".git");
-    let left: Vec<PathBuf> = entries_with_prefix(crate::worktree_removal_clears_the_ahead_pool::common_data_folder(common.as_path()).as_path(), "cli-git-deleting-");
-    assert_eq!(left.len(), 1, "the member stands where the service deletes it, and nowhere else: {left:?}");
-    assert_eq!(std::fs::read(left[0].join("tracked.txt")).expect("the member still holds its files"), b"the worktree's own file\n", "nothing of the snapshot was deleted");
+    let left: Vec<PathBuf> = entries_with_prefix(
+        crate::worktree_removal_clears_the_ahead_pool::common_data_folder(common.as_path())
+            .as_path(),
+        "cli-git-deleting-",
+    );
+    assert_eq!(
+        left.len(),
+        1,
+        "the member stands where the service deletes it, and nowhere else: {left:?}"
+    );
+    assert_eq!(
+        std::fs::read(left[0].join("tracked.txt")).expect("the member still holds its files"),
+        b"the worktree's own file\n",
+        "nothing of the snapshot was deleted"
+    );
     let pending: PathBuf = crate::service_work::work_directory(common.as_path()).join("pending");
-    let records: String = entries_with_prefix(pending.as_path(), "subvolume-delete-").iter().filter_map(|path| { return std::fs::read_to_string(path).ok() }).collect();
-    assert!(records.contains(left[0].display().to_string().as_str()), "a record names the place the member stands, so the service deletes it: {records}");
+    let records: String = entries_with_prefix(pending.as_path(), "subvolume-delete-")
+        .iter()
+        .filter_map(|path| return std::fs::read_to_string(path).ok())
+        .collect();
+    assert!(
+        records.contains(left[0].display().to_string().as_str()),
+        "a record names the place the member stands, so the service deletes it: {records}"
+    );
     remove(root.as_path());
 }
 
@@ -560,7 +858,9 @@ fn btrfs_a_snapshot_ahead_is_left_for_the_service_instead_of_destroyed_by_the_re
 ///  2026-11-11T22:30:57-05:00).
 #[test]
 fn btrfs_a_pending_deletion_inside_a_worktree_is_taken_with_the_removal() {
-    let Some(root) = btrfs_fixture("remove-pending-deletion-inside") else { return };
+    let Some(root) = btrfs_fixture("remove-pending-deletion-inside") else {
+        return;
+    };
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
     std::fs::write(repo.join(".gitignore"), b"/.claude/\n").expect("the ignore rule");
@@ -568,29 +868,64 @@ fn btrfs_a_pending_deletion_inside_a_worktree_is_taken_with_the_removal() {
     git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
     let worktree: PathBuf = root.join("wt");
     subvolume_create_at(worktree.as_path()).expect("subvolume");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
     let outer: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("canonical");
     let leftover: PathBuf = outer.join(".claude/worktrees/cli-git-deleting-000000000001f5f7");
-    std::fs::create_dir_all(leftover.parent().expect("the folder the leftover stands in")).expect("the folder a nested worktree stands in");
+    std::fs::create_dir_all(
+        leftover
+            .parent()
+            .expect("the folder the leftover stands in"),
+    )
+    .expect("the folder a nested worktree stands in");
     subvolume_create_at(leftover.as_path()).expect("a subvolume this program left for the service");
-    std::fs::write(leftover.join("tracked.txt"), b"a copy nobody owns any more\n").expect("its files");
+    std::fs::write(
+        leftover.join("tracked.txt"),
+        b"a copy nobody owns any more\n",
+    )
+    .expect("its files");
     for name in ["tracked.txt", ".gitignore"] {
         age(outer.join(name).as_path());
     }
     git(outer.as_path(), &["update-index", "--refresh"]);
     let removed: bool = served(&repo, &outer);
-    assert_eq!(removed, removal_allowed(root.as_path()), "the removal is served exactly where the mount allows the destroy");
+    assert_eq!(
+        removed,
+        removal_allowed(root.as_path()),
+        "the removal is served exactly where the mount allows the destroy"
+    );
     if !removed {
-        assert!(leftover.is_dir(), "a mount that cannot destroy takes nothing");
+        assert!(
+            leftover.is_dir(),
+            "a mount that cannot destroy takes nothing"
+        );
         remove(root.as_path());
         return;
     }
-    assert!(!outer.exists(), "the worktree is gone, so its own subvolume and the leftover both left it");
-    assert!(!leftover.exists(), "the wrapper's own leftover is not below the worktree any more");
+    assert!(
+        !outer.exists(),
+        "the worktree is gone, so its own subvolume and the leftover both left it"
+    );
+    assert!(
+        !leftover.exists(),
+        "the wrapper's own leftover is not below the worktree any more"
+    );
     let left: Vec<PathBuf> = entries_with_prefix(root.as_path(), "cli-git-deleting-");
-    assert_eq!(left.len(), 2, "the worktree's subvolume and its leftover stand beside it, named by their ids: {left:?}");
-    let copies: Vec<Vec<u8>> = left.iter().filter_map(|path| { return std::fs::read(path.join("tracked.txt")).ok() }).collect();
-    assert!(copies.contains(&b"a copy nobody owns any more\n".to_vec()), "and the leftover still holds what it held: {copies:?}");
+    assert_eq!(
+        left.len(),
+        2,
+        "the worktree's subvolume and its leftover stand beside it, named by their ids: {left:?}"
+    );
+    let copies: Vec<Vec<u8>> = left
+        .iter()
+        .filter_map(|path| return std::fs::read(path.join("tracked.txt")).ok())
+        .collect();
+    assert!(
+        copies.contains(&b"a copy nobody owns any more\n".to_vec()),
+        "and the leftover still holds what it held: {copies:?}"
+    );
     remove(root.as_path());
 }
 
@@ -617,18 +952,29 @@ fn btrfs_a_pending_deletion_inside_a_worktree_is_taken_with_the_removal() {
 /// ```
 #[test]
 fn btrfs_a_volume_gone_when_the_pass_ends_leaves_the_around_routes_own_ending() {
-    let Some(root) = btrfs_fixture("remove-around-volume-gone") else { return };
+    let Some(root) = btrfs_fixture("remove-around-volume-gone") else {
+        return;
+    };
     let (repo, worktree, volume) = a_worktree_holding_a_volume_nobody_will_delete(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
     let emptied: PathBuf = volume.clone();
-    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(move |_target: &Path| {
-        // The volume the pass went around is emptied and its root removed, as another command's `btrfs subvolume delete` of an
-        //  emptied one does: the kernel allows `rmdir` of an empty subvolume root.
-        std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
-        std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
+    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(
+        move |_target: &Path| {
+            // The volume the pass went around is emptied and its root removed, as another command's `btrfs subvolume delete` of an
+            //  emptied one does: the kernel allows `rmdir` of an empty subvolume root.
+            std::fs::remove_file(emptied.join("precious.txt"))
+                .expect("the file the person put there");
+            std::fs::remove_dir(emptied.as_path())
+                .expect("an empty subvolume root goes with rmdir");
+        },
+    );
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest {
+        context: &git_context(),
+        plan: &plan,
+        common_dir: common_dir.as_path(),
+        last_look: None,
     });
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
     crate::subvolume_remove_listing_test_support::stop_acting();
     let ended: String = format!("{outcome:?}");
     assert!(
@@ -636,7 +982,10 @@ fn btrfs_a_volume_gone_when_the_pass_ends_leaves_the_around_routes_own_ending() 
         "the removal tells the around route's ending apart from a destroy's: {ended}"
     );
     assert!(!worktree.exists(), "the emptied root is gone");
-    assert!(!repo.join(".git/worktrees/wt").exists(), "and its registration is gone");
+    assert!(
+        !repo.join(".git/worktrees/wt").exists(),
+        "and its registration is gone"
+    );
     remove(root.as_path());
 }
 
@@ -653,16 +1002,28 @@ fn btrfs_a_volume_gone_when_the_pass_ends_leaves_the_around_routes_own_ending() 
 /// ```
 #[test]
 fn btrfs_a_volume_gone_when_the_pass_ends_ends_the_same_way_in_a_plain_directory_worktree() {
-    let Some(root) = btrfs_fixture("remove-around-volume-gone-plain") else { return };
-    let (repo, worktree, volume) = a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(root.as_path());
+    let Some(root) = btrfs_fixture("remove-around-volume-gone-plain") else {
+        return;
+    };
+    let (repo, worktree, volume) =
+        a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
     let emptied: PathBuf = volume.clone();
-    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(move |_target: &Path| {
-        std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
-        std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
+    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(
+        move |_target: &Path| {
+            std::fs::remove_file(emptied.join("precious.txt"))
+                .expect("the file the person put there");
+            std::fs::remove_dir(emptied.as_path())
+                .expect("an empty subvolume root goes with rmdir");
+        },
+    );
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest {
+        context: &git_context(),
+        plan: &plan,
+        common_dir: common_dir.as_path(),
+        last_look: None,
     });
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
     crate::subvolume_remove_listing_test_support::stop_acting();
     let ended: String = format!("{outcome:?}");
     assert!(
@@ -670,7 +1031,10 @@ fn btrfs_a_volume_gone_when_the_pass_ends_ends_the_same_way_in_a_plain_directory
         "a worktree that is no subvolume ends the same way: {ended}"
     );
     assert!(!worktree.exists(), "the emptied root is gone");
-    assert!(!repo.join(".git/worktrees/plain").exists(), "and its registration is gone");
+    assert!(
+        !repo.join(".git/worktrees/plain").exists(),
+        "and its registration is gone"
+    );
     remove(root.as_path());
 }
 
@@ -692,7 +1056,9 @@ fn a_worktree_holding_a_volume_nobody_will_delete(root: &Path) -> (PathBuf, Path
 
 /// The same for a worktree Git makes as an ordinary directory,
 /// which is no subvolume at all.
-fn a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+fn a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(
+    root: &Path
+) -> (PathBuf, PathBuf, PathBuf) {
     return a_worktree_with_a_volume(root, "plain", "plain", false);
 }
 
@@ -708,7 +1074,12 @@ fn a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(root: &Pa
 /// ```ts
 /// const { repo, worktree, volume } = aWorktreeWithAVolume(root, 'wt', 'topic', asSubvolume);
 /// ```
-fn a_worktree_with_a_volume(root: &Path, name: &str, branch: &str, as_subvolume: bool) -> (PathBuf, PathBuf, PathBuf) {
+fn a_worktree_with_a_volume(
+    root: &Path,
+    name: &str,
+    branch: &str,
+    as_subvolume: bool,
+) -> (PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
     // The volume stands under an ignored name, because a volume Git lists as untracked keeps an unforced removal from happening.
@@ -719,11 +1090,22 @@ fn a_worktree_with_a_volume(root: &Path, name: &str, branch: &str, as_subvolume:
     if as_subvolume {
         subvolume_create_at(worktree.as_path()).expect("subvolume");
     }
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", branch, format!("../{name}").as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            branch,
+            format!("../{name}").as_str(),
+        ],
+    );
     let outer: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("canonical");
     let volume: PathBuf = outer.join("snap");
     subvolume_create_at(volume.as_path()).expect("a subvolume the removal did not make");
-    std::fs::write(volume.join("precious.txt"), b"what I put there\n").expect("a file the person put there");
+    std::fs::write(volume.join("precious.txt"), b"what I put there\n")
+        .expect("a file the person put there");
     for tracked in ["tracked.txt", ".gitignore"] {
         age(outer.join(tracked).as_path());
     }
@@ -744,24 +1126,47 @@ fn a_worktree_with_a_volume(root: &Path, name: &str, branch: &str, as_subvolume:
 struct HandOverRefused;
 
 impl RemoveOperations for HandOverRefused {
-    fn is_subvolume_root(&self, path: &Path) -> bool {
+    fn is_subvolume_root(
+        &self,
+        path: &Path,
+    ) -> bool {
         return LinuxOperations.is_subvolume_root(path);
     }
 
-    fn removal_allowed(&self, path: &Path) -> bool {
+    fn removal_allowed(
+        &self,
+        path: &Path,
+    ) -> bool {
         return LinuxOperations.removal_allowed(path);
     }
 
-    fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
+    fn check_clean(
+        &self,
+        request: &RemoveRequest<'_>,
+        admin: &Path,
+        common_dir: &Path,
+    ) -> Result<(), String> {
         return LinuxOperations.check_clean(request, admin, common_dir);
     }
 
-    fn destroy(&self, held: &Held) -> Result<(), String> {
+    fn destroy(
+        &self,
+        held: &Held,
+    ) -> Result<(), String> {
         return LinuxOperations.destroy(held);
     }
 
-    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path, _registration: &std::ffi::OsStr) -> Result<(), String> {
-        return Err(String::from("another command took the subvolume this one proved clean, so it is destroyed here"));
+    fn hand_over(
+        &self,
+        _context: &GitContext,
+        _common_dir: &Path,
+        _held: &Held,
+        _target: &Path,
+        _registration: &std::ffi::OsStr,
+    ) -> Result<(), String> {
+        return Err(String::from(
+            "another command took the subvolume this one proved clean, so it is destroyed here",
+        ));
     }
 }
 
@@ -782,7 +1187,9 @@ impl RemoveOperations for HandOverRefused {
 /// ```
 #[test]
 fn btrfs_a_destroy_here_after_a_refused_hand_over_ends_as_its_own_ending() {
-    let Some(root) = btrfs_fixture("remove-destroy-here") else { return };
+    let Some(root) = btrfs_fixture("remove-destroy-here") else {
+        return;
+    };
     if !removal_allowed(root.as_path()) {
         // Without the mount option no destroy runs at all, so the hand-over is the only route and this state is unreachable.
         return;
@@ -790,11 +1197,28 @@ fn btrfs_a_destroy_here_after_a_refused_hand_over_ends_as_its_own_ending() {
     let (repo, worktree) = clean_subvolume_worktree(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
-    let outcome: RemoveOutcome = remove_with(&HandOverRefused, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_with(
+        &HandOverRefused,
+        &RemoveRequest {
+            context: &git_context(),
+            plan: &plan,
+            common_dir: common_dir.as_path(),
+            last_look: None,
+        },
+    );
     let ended: String = format!("{outcome:?}");
-    assert!(ended.starts_with("DestroyedInPlace"), "the removal tells a destroy here apart from a hand-over: {ended}");
-    assert!(!worktree.exists(), "the files are gone when the command returns");
-    assert!(!repo.join(".git/worktrees/wt").exists(), "and the registration is gone");
+    assert!(
+        ended.starts_with("DestroyedInPlace"),
+        "the removal tells a destroy here apart from a hand-over: {ended}"
+    );
+    assert!(
+        !worktree.exists(),
+        "the files are gone when the command returns"
+    );
+    assert!(
+        !repo.join(".git/worktrees/wt").exists(),
+        "and the registration is gone"
+    );
     remove(root.as_path());
 }
 
@@ -814,27 +1238,57 @@ fn btrfs_a_destroy_here_after_a_refused_hand_over_ends_as_its_own_ending() {
 /// ```
 #[test]
 fn btrfs_a_resume_writes_no_warning_that_its_pass_is_not_recorded() {
-    let Some(root) = btrfs_fixture("remove-resume-quiet") else { return };
+    let Some(root) = btrfs_fixture("remove-resume-quiet") else {
+        return;
+    };
     let (repo, worktree, _volume) = a_worktree_holding_a_volume_nobody_will_delete(root.as_path());
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&worktree);
     // The state a command killed inside the pass leaves: the record of that pass, and the entries it removed.
-    let id: std::ffi::OsString = std::fs::read_dir(common_dir.join("worktrees")).expect("the registrations").flatten().next().expect("one registration").file_name();
-    let admin_identity = crate::fs_beneath::identity_of(&crate::fs_beneath::open_root(common_dir.join("worktrees").join(id.as_os_str()).as_path()).expect("the registration")).expect("its identity");
-    let worktree_identity = crate::fs_beneath::identity_of(&crate::fs_beneath::open_root(worktree.as_path()).expect("the worktree")).expect("its identity");
+    let id: std::ffi::OsString = std::fs::read_dir(common_dir.join("worktrees"))
+        .expect("the registrations")
+        .flatten()
+        .next()
+        .expect("one registration")
+        .file_name();
+    let admin_identity = crate::fs_beneath::identity_of(
+        &crate::fs_beneath::open_root(common_dir.join("worktrees").join(id.as_os_str()).as_path())
+            .expect("the registration"),
+    )
+    .expect("its identity");
+    let worktree_identity = crate::fs_beneath::identity_of(
+        &crate::fs_beneath::open_root(worktree.as_path()).expect("the worktree"),
+    )
+    .expect("its identity");
     crate::worktree_removal_around_begun::record_around_begun(
         common_dir.as_path(),
-        crate::worktree_removal_around_begun::WhichRemoval { id: id.as_os_str(), admin: admin_identity, worktree: worktree_identity, target: worktree.as_path() },
+        crate::worktree_removal_around_begun::WhichRemoval {
+            id: id.as_os_str(),
+            admin: admin_identity,
+            worktree: worktree_identity,
+            target: worktree.as_path(),
+        },
     )
     .expect("the record a killed pass leaves");
     for tracked in ["tracked.txt", ".gitignore"] {
         std::fs::remove_file(worktree.join(tracked)).expect("an entry the pass removed");
     }
     let _ = crate::diagnostic_log::take_lines_written();
-    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest {
+        context: &git_context(),
+        plan: &plan,
+        common_dir: common_dir.as_path(),
+        last_look: None,
+    });
     let written: String = crate::diagnostic_log::take_lines_written().join("\n");
-    assert!(matches!(outcome, RemoveOutcome::RemovedAround(_)), "the resume finishes the removal: {outcome:?}");
-    assert!(!written.contains("is not recorded"), "and says nothing about a pass that is not recorded, because the record stands: {written}");
+    assert!(
+        matches!(outcome, RemoveOutcome::RemovedAround(_)),
+        "the resume finishes the removal: {outcome:?}"
+    );
+    assert!(
+        !written.contains("is not recorded"),
+        "and says nothing about a pass that is not recorded, because the record stands: {written}"
+    );
     remove(root.as_path());
 }
 
@@ -854,20 +1308,49 @@ fn btrfs_a_resume_writes_no_warning_that_its_pass_is_not_recorded() {
 /// ```
 #[test]
 fn the_four_destroy_lines_say_where_the_files_went() {
-    for (force, handed_over, ending) in [(false, true, "handed-over, unforced"), (true, true, "handed-over, forced"), (false, false, "here, unforced"), (true, false, "here, forced")] {
+    for (force, handed_over, ending) in [
+        (false, true, "handed-over, unforced"),
+        (true, true, "handed-over, forced"),
+        (false, false, "here, unforced"),
+        (true, false, "here, forced"),
+    ] {
         let notice: &str = destroy_notice(force, handed_over);
-        assert!(notice.contains("in one step"), "the line says the destroy is one step ({ending}): {notice}");
-        assert!(notice.contains("cannot be undone"), "and that it cannot be undone ({ending}): {notice}");
+        assert!(
+            notice.contains("in one step"),
+            "the line says the destroy is one step ({ending}): {notice}"
+        );
+        assert!(
+            notice.contains("cannot be undone"),
+            "and that it cannot be undone ({ending}): {notice}"
+        );
         if handed_over {
-            assert!(notice.contains("the commit service deletes the files after this command returns"), "a hand-over says the service deletes them later ({ending}): {notice}");
-            assert!(!notice.contains("gone now"), "and never that they are gone now ({ending}): {notice}");
+            assert!(
+                notice.contains("the commit service deletes the files after this command returns"),
+                "a hand-over says the service deletes them later ({ending}): {notice}"
+            );
+            assert!(
+                !notice.contains("gone now"),
+                "and never that they are gone now ({ending}): {notice}"
+            );
         } else {
-            assert!(notice.contains("every file of it is gone now"), "a destroy made here says the files are gone now ({ending}): {notice}");
-            assert!(notice.contains("the commit service has nothing left to delete for it"), "and that nothing waits for the service ({ending}): {notice}");
-            assert!(!notice.contains("deletes the files after this command returns"), "and never that a delete waits ({ending}): {notice}");
+            assert!(
+                notice.contains("every file of it is gone now"),
+                "a destroy made here says the files are gone now ({ending}): {notice}"
+            );
+            assert!(
+                notice.contains("the commit service has nothing left to delete for it"),
+                "and that nothing waits for the service ({ending}): {notice}"
+            );
+            assert!(
+                !notice.contains("deletes the files after this command returns"),
+                "and never that a delete waits ({ending}): {notice}"
+            );
         }
         if force {
-            assert!(notice.contains("without checking it for changes first"), "a forced removal says nothing was checked ({ending}): {notice}");
+            assert!(
+                notice.contains("without checking it for changes first"),
+                "a forced removal says nothing was checked ({ending}): {notice}"
+            );
         }
     }
 }

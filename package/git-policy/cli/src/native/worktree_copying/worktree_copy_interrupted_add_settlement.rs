@@ -19,10 +19,16 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_add_binding::{Recorded, decode_record};
+use crate::worktree_add_binding::{
+    Recorded,
+    decode_record,
+};
 use crate::worktree_copy_stage_claim::COMPLETE_SUFFIX;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Duration` is the age a record that names no Git is kept for.
 use std::time::Duration;
 
@@ -40,7 +46,10 @@ pub struct Settlement {
 #[path = "worktree_copy_stage_claim_pointer_presence.rs"]
 mod pointer_presence_of_the_destination;
 
-use pointer_presence_of_the_destination::{PointerPresence, pointer_presence};
+use pointer_presence_of_the_destination::{
+    PointerPresence,
+    pointer_presence,
+};
 
 /// The name of the lock Git takes to write an index,
 /// in the administrative directory of a worktree.
@@ -81,8 +90,6 @@ const INDEX_MAGIC: [u8; 4] = *b"DIRC";
 
 /// Where the entry count sits in the index header.
 const INDEX_COUNT_AT: usize = 8;
-
-
 
 /// What:
 ///  How many entries an index file holds,
@@ -156,7 +163,10 @@ pub(crate) const UNNAMED_CHILD_GRACE: Duration = Duration::from_secs(60);
 /// ```
 fn unnamed_child_settlement(record: &Path) -> Settlement {
     let aged: Option<Duration> = modified_at(record).and_then(age_since);
-    return Settlement { notice: None, keep: matches!(aged, Some(age) if age < UNNAMED_CHILD_GRACE) };
+    return Settlement {
+        notice: None,
+        keep: matches!(aged, Some(age) if age < UNNAMED_CHILD_GRACE),
+    };
 }
 
 /// The time the watch of `record` last changed,
@@ -212,9 +222,15 @@ fn destination_is_gone(destination: &Path) -> bool {
 /// ```ts
 /// const snapshotIsInPlace = (record, destination) => theMadeObjectStandsAt(claimOf(record), destination) && registrationDirectory(destination) !== undefined;
 /// ```
-fn the_snapshot_is_in_place(record: &Path, destination: &Path) -> bool {
+fn the_snapshot_is_in_place(
+    record: &Path,
+    destination: &Path,
+) -> bool {
     let claim: PathBuf = record.with_extension("stage");
-    if !crate::worktree_copy_stage_made_object::the_made_object_stands_at(claim.as_path(), destination) {
+    if !crate::worktree_copy_stage_made_object::the_made_object_stands_at(
+        claim.as_path(),
+        destination,
+    ) {
         return false;
     }
     return registration_directory(destination).is_some();
@@ -240,7 +256,10 @@ fn the_snapshot_is_in_place(record: &Path, destination: &Path) -> bool {
 /// ```ts
 /// `an interrupted \`git worktree add\` left ${shown} registered and its ignored-state copy never finished; ...`
 /// ```
-fn unfinished_copy_notice(shown: &str, owed: bool) -> String {
+fn unfinished_copy_notice(
+    shown: &str,
+    owed: bool,
+) -> String {
     if owed {
         // The record names the source and the selection, so a command run in that worktree can still make the copy.
         return format!(
@@ -290,7 +309,10 @@ fn unfinished_copy_notice(shown: &str, owed: bool) -> String {
 /// ```ts
 /// !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && (entryCount(index) === 0 || entries(destination).length > 1))
 /// ```
-pub(crate) fn add_is_finished(destination: &Path, admin: &Path) -> bool {
+pub(crate) fn add_is_finished(
+    destination: &Path,
+    admin: &Path,
+) -> bool {
     // `match` on the lookup: a destination that is gone is nothing to finish, while one that cannot be examined is kept.
     match std::fs::symlink_metadata(destination) {
         Ok(_present) => {}
@@ -341,8 +363,13 @@ pub(crate) fn add_is_finished(destination: &Path, admin: &Path) -> bool {
 pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
     // Git's own reader, on bytes (`worktree_add_binding::pointer_target`): the rest of the file after the prefix, with only
     //  its trailing newlines removed, so a path holding a newline is whole and the remedy never names another repository.
-    let pointer: Vec<u8> = crate::plain_file::read_plain_file(destination.join(POINTER).as_path(), crate::worktree_convert_inspection::GIT_FILE_LIMIT).ok()?;
-    let resolved: PathBuf = crate::worktree_add_binding::pointer_target(destination, pointer.as_slice()).ok()?;
+    let pointer: Vec<u8> = crate::plain_file::read_plain_file(
+        destination.join(POINTER).as_path(),
+        crate::worktree_convert_inspection::GIT_FILE_LIMIT,
+    )
+    .ok()?;
+    let resolved: PathBuf =
+        crate::worktree_add_binding::pointer_target(destination, pointer.as_slice()).ok()?;
     return resolved.is_dir().then_some(resolved);
 }
 
@@ -391,7 +418,10 @@ pub(crate) fn clear_the_waiting_index(admin: &Path) {
 /// const lock = join(admin, 'index.lock')
 /// return exists(lock) ? lockedSentence(lock, finish) : finish
 /// ```
-pub(crate) fn finish_instructions(destination: &Path, admin: &Path) -> String {
+pub(crate) fn finish_instructions(
+    destination: &Path,
+    admin: &Path,
+) -> String {
     // Both paths are read by the person's shell, so they are quoted the way a shell reads a word back, not the way JSON
     //  spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs `rm`.
     let lock: PathBuf = admin.join(INDEX_LOCK);
@@ -402,7 +432,9 @@ pub(crate) fn finish_instructions(destination: &Path, admin: &Path) -> String {
         return finish;
     }
     let lock_shown: String = crate::shell_quote::shell_quote(lock.as_os_str().as_bytes());
-    return format!("Its Git directory holds the lock {lock_shown} that a Git killed inside the index install left, and every Git write to the worktree fails while it stands: once no Git command is running there, `rm {lock_shown}` removes it, and then {finish}");
+    return format!(
+        "Its Git directory holds the lock {lock_shown} that a Git killed inside the index install left, and every Git write to the worktree fails while it stands: once no Git command is running there, `rm {lock_shown}` removes it, and then {finish}"
+    );
 }
 
 /// What:
@@ -454,11 +486,12 @@ pub(crate) fn the_add_finished(claim: &Path) -> bool {
 /// const { notice, keep } = await reportInterruptedAdd(record);
 /// ```
 pub fn settle_interrupted_add(record: &Path) -> Settlement {
-    let marker: std::io::Result<bool> = match std::fs::symlink_metadata(record.with_extension(&COMPLETE_SUFFIX[1..])) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
-    };
+    let marker: std::io::Result<bool> =
+        match std::fs::symlink_metadata(record.with_extension(&COMPLETE_SUFFIX[1..])) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        };
     // The record is read only when the marker is absent, as the lazy read of `settle_from` did.
     if let Some(settled) = settle_marker(record, marker) {
         return settled;
@@ -478,13 +511,21 @@ pub fn settle_interrupted_add(record: &Path) -> Settlement {
 /// ```ts
 /// if (marker === true) return { keep: false }; if (marker instanceof Error) return { keep: true, notice }; return undefined;
 /// ```
-pub fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Settlement> {
+pub fn settle_marker(
+    record: &Path,
+    marker: std::io::Result<bool>,
+) -> Option<Settlement> {
     let shown_record: String = quote(record.to_string_lossy().as_ref());
     return match marker {
-        Ok(true) => Some(Settlement { notice: None, keep: false }),
+        Ok(true) => Some(Settlement {
+            notice: None,
+            keep: false,
+        }),
         Ok(false) => None,
         Err(error) => Some(Settlement {
-            notice: Some(format!("monochromatic-git-policy-cli: whether the `git worktree add` of {shown_record} completed cannot be checked ({error}); nothing was changed and the record stays.")),
+            notice: Some(format!(
+                "monochromatic-git-policy-cli: whether the `git worktree add` of {shown_record} completed cannot be checked ({error}); nothing was changed and the record stays."
+            )),
             keep: true,
         }),
     };
@@ -503,21 +544,33 @@ pub fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Set
 /// ```ts
 /// const settlement = settleText(record, await readFile(record).catch((error) => error));
 /// ```
-pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
+pub fn settle_text(
+    record: &Path,
+    read: std::io::Result<String>,
+) -> Settlement {
     let shown_record: String = quote(record.to_string_lossy().as_ref());
     let text: String = match read {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Settlement { notice: None, keep: false },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Settlement {
+                notice: None,
+                keep: false,
+            };
+        }
         Err(error) => {
             return Settlement {
-                notice: Some(format!("monochromatic-git-policy-cli: the record {shown_record} of an interrupted `git worktree add` cannot be read ({error}); nothing was changed and the record stays.")),
+                notice: Some(format!(
+                    "monochromatic-git-policy-cli: the record {shown_record} of an interrupted `git worktree add` cannot be read ({error}); nothing was changed and the record stays."
+                )),
                 keep: true,
             };
         }
     };
     return match decode_record(text.as_str()) {
         None => Settlement {
-            notice: Some(format!("monochromatic-git-policy-cli: the record {shown_record} of an interrupted `git worktree add` is unreadable; nothing was changed.")),
+            notice: Some(format!(
+                "monochromatic-git-policy-cli: the record {shown_record} of an interrupted `git worktree add` is unreadable; nothing was changed."
+            )),
             keep: false,
         },
         Some(Recorded::Planned(destination)) => {
@@ -532,17 +585,26 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             match pointer_presence(destination.as_path()) {
                 PointerPresence::Unknown(why) => {
                     return Settlement {
-                        notice: Some(format!("monochromatic-git-policy-cli: whether an interrupted `git worktree add` left {shown} cannot be examined ({why}); nothing was changed and the record stays.")),
+                        notice: Some(format!(
+                            "monochromatic-git-policy-cli: whether an interrupted `git worktree add` left {shown} cannot be examined ({why}); nothing was changed and the record stays."
+                        )),
                         keep: true,
                     };
                 }
                 PointerPresence::Absent => {
-                    let Some(child) = crate::worktree_add_binding::running_child_of(text.as_str()) else {
+                    let Some(child) = crate::worktree_add_binding::running_child_of(text.as_str())
+                    else {
                         return unnamed_child_settlement(record);
                     };
                     return match child.is_alive(record) {
-                        Ok(true) => Settlement { notice: None, keep: true },
-                        Ok(false) => Settlement { notice: None, keep: false },
+                        Ok(true) => Settlement {
+                            notice: None,
+                            keep: true,
+                        },
+                        Ok(false) => Settlement {
+                            notice: None,
+                            keep: false,
+                        },
                         Err(_unproven) => unnamed_child_settlement(record),
                     };
                 }
@@ -551,13 +613,19 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             // A snapshot that was swapped in is the whole worktree: its ignored state arrived with it, so nothing is owed and
             // nothing is missing, and the records settle without a word (the kill point right after the exchange).
             if the_snapshot_is_in_place(record, destination.as_path()) {
-                return Settlement { notice: None, keep: false };
+                return Settlement {
+                    notice: None,
+                    keep: false,
+                };
             }
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
             let registered: Option<PathBuf> = registration_directory(destination.as_path());
             if destination_is_gone(destination.as_path()) {
-                return Settlement { notice: None, keep: false };
+                return Settlement {
+                    notice: None,
+                    keep: false,
+                };
             }
             // The rung's waiting index is the add's own bookkeeping, so it goes whether the checkout is proven whole or
             //  not: the finish command the notice prints writes the worktree's own `index` and nothing takes these names
@@ -565,44 +633,64 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             if let Some(admin) = registered.as_ref() {
                 clear_the_waiting_index(admin.as_path());
             }
-            let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
+            let owes_a_copy: bool =
+                crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
             if let Some(admin) = registered.as_ref()
                 && add_is_finished(destination.as_path(), admin.as_path())
             {
                 // A record that names the copy still owed is what a command run in that worktree reads to make it, so
                 // it stays whole until the copy is made or the worktree is gone; a record that names no copy can never
                 // be finished by any command, and it is said once.
-                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str(), owes_a_copy)), keep: owes_a_copy };
+                return Settlement {
+                    notice: Some(unfinished_copy_notice(shown.as_str(), owes_a_copy)),
+                    keep: owes_a_copy,
+                };
             }
             let notice: String = match registered.as_ref() {
                 Some(admin) => format!(
                     "monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. {}",
                     finish_instructions(destination.as_path(), admin)
                 ),
-                None => format!("monochromatic-git-policy-cli: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."),
+                None => format!(
+                    "monochromatic-git-policy-cli: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."
+                ),
             };
             // The record stays while something stands at the recorded path that is not proven whole, so every later command
             //  that runs the recovery says the same instead of leaving the obligation in one command's output.
-            Settlement { notice: Some(notice), keep: true }
+            Settlement {
+                notice: Some(notice),
+                keep: true,
+            }
         }
         Some(Recorded::Registered(binding)) => {
-            let shown: String = crate::shell_quote::shell_quote(binding.destination.as_os_str().as_bytes());
+            let shown: String =
+                crate::shell_quote::shell_quote(binding.destination.as_os_str().as_bytes());
             // A destination that is gone holds nothing to finish, and one whose Git checkout is whole is named for the copy
             //  that recorded no completion; everything else keeps its record so the next command says the same again,
             //  because nothing else names the worktree, the stage or what finishes them.
             if destination_is_gone(binding.destination.as_path()) {
-                return Settlement { notice: None, keep: false };
+                return Settlement {
+                    notice: None,
+                    keep: false,
+                };
             }
             // The same proof as above, on a record that was bound before the command died.
             if the_snapshot_is_in_place(record, binding.destination.as_path()) {
-                return Settlement { notice: None, keep: false };
+                return Settlement {
+                    notice: None,
+                    keep: false,
+                };
             }
             // As above: the rung's waiting index names nothing a person needs once the add is reported.
             clear_the_waiting_index(binding.admin.as_path());
-            let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
+            let owes_a_copy: bool =
+                crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
             if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
                 // As above: a record that names the copy still owed stays, because a command in that worktree can make it.
-                return Settlement { notice: Some(unfinished_copy_notice(shown.as_str(), owes_a_copy)), keep: owes_a_copy };
+                return Settlement {
+                    notice: Some(unfinished_copy_notice(shown.as_str(), owes_a_copy)),
+                    keep: owes_a_copy,
+                };
             }
             Settlement {
                 notice: Some(format!(

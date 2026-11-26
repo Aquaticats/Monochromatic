@@ -15,14 +15,31 @@
 //! ```
 
 use crate::command_options::{
-    OptionError, OptionErrorKind, OptionSpec, ParseMode, ParsedOptions, WrapperOccurrence,
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    ParseMode,
+    ParsedOptions,
+    WrapperOccurrence,
     parse_options,
 };
-use crate::command_options_query::{WrapperFlags, split_wrapper_flags};
+use crate::command_options_query::{
+    WrapperFlags,
+    split_wrapper_flags,
+};
 use crate::command_stash_table::{
-    STASH_APPLY_TABLE, STASH_DROP_TABLE, STASH_EMPTY_TABLE, STASH_EXPORT_TABLE,
-    STASH_KEEP_UNKNOWN_MODE, STASH_PLAIN_MODE, STASH_POP_TABLE, STASH_PUSH_TABLE, STASH_SAVE_TABLE,
-    STASH_SHOW_TABLE, STASH_STOP_MODE, STASH_STORE_TABLE,
+    STASH_APPLY_TABLE,
+    STASH_DROP_TABLE,
+    STASH_EMPTY_TABLE,
+    STASH_EXPORT_TABLE,
+    STASH_KEEP_UNKNOWN_MODE,
+    STASH_PLAIN_MODE,
+    STASH_POP_TABLE,
+    STASH_PUSH_TABLE,
+    STASH_SAVE_TABLE,
+    STASH_SHOW_TABLE,
+    STASH_STOP_MODE,
+    STASH_STORE_TABLE,
 };
 /// What:
 ///  Bring the shared hatch spelling,
@@ -202,7 +219,10 @@ fn grammar_of(subcommand: StashSubcommand) -> (&'static [OptionSpec], ParseMode)
 /// ```ts
 /// function checkTopLevelToken(token: string, index: number): void; // throws OptionError
 /// ```
-fn check_top_level_token(token: &[u8], index: usize) -> Result<(), OptionError> {
+fn check_top_level_token(
+    token: &[u8],
+    index: usize,
+) -> Result<(), OptionError> {
     // Git checks clusters of at least three letters: one dash, then three or more bytes.
     if token.len() < 4 || token[0] != b'-' || token[1] == b'-' {
         return Ok(());
@@ -258,7 +278,10 @@ pub fn parse_stash_region(
         if flag == flags.len() {
             break;
         }
-        wrapper.push(WrapperOccurrence { flag, token: first });
+        wrapper.push(WrapperOccurrence {
+            flag,
+            token: first,
+        });
         first += 1;
     }
     let mut subcommand: StashSubcommand = StashSubcommand::AssumedPush;

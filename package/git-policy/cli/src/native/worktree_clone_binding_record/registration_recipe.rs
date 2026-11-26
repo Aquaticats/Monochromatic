@@ -19,8 +19,16 @@
 //! for (const step of REMOVAL_STEPS) await remove(step); // ENOENT is done
 //! ```
 
-use super::registration_removals::{done_if_missing, remove_the_other_entries, remove_the_ref_store, remove_the_slot_pointer};
-use crate::fs_beneath::{open_directory_at, remove_at};
+use super::registration_removals::{
+    done_if_missing,
+    remove_the_other_entries,
+    remove_the_ref_store,
+    remove_the_slot_pointer,
+};
+use crate::fs_beneath::{
+    open_directory_at,
+    remove_at,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use std::ffi::OsStr;
 use std::io::Write as _;
@@ -160,13 +168,19 @@ impl RecipeRefusal {
     /// The sentence a person reads.
     pub fn message(&self) -> String {
         return match self {
-            RecipeRefusal::PointerNamesAnother { found } => format!(
+            RecipeRefusal::PointerNamesAnother {
+                found,
+            } => format!(
                 "the slot's `.git` holds `{found}` and not this add's registration, so nothing was removed. Ways forward: inspect the registration it names and remove the entry by hand if it is not a worktree."
             ),
-            RecipeRefusal::EntryLeft { name } => format!(
+            RecipeRefusal::EntryLeft {
+                name,
+            } => format!(
                 "the registration still holds `{name}` after the recipe removed the names it knew, so it was not removed. Nothing else was changed. Ways forward: inspect the entry, remove what it is once you know, and run the command again."
             ),
-            RecipeRefusal::Io(error) => format!("a removal was refused ({error}), so the recipe stopped at that name and changed nothing else. Ways forward: fix the refusal and run the command again."),
+            RecipeRefusal::Io(error) => format!(
+                "a removal was refused ({error}), so the recipe stopped at that name and changed nothing else. Ways forward: fix the refusal and run the command again."
+            ),
         };
     }
 }
@@ -186,7 +200,10 @@ impl RecipeRefusal {
 /// ```ts
 /// await clearRegistration(to, seams);
 /// ```
-pub fn clear_registration(to: &ToClear, seams: &mut dyn RecipeSeams) -> Result<(), RecipeRefusal> {
+pub fn clear_registration(
+    to: &ToClear,
+    seams: &mut dyn RecipeSeams,
+) -> Result<(), RecipeRefusal> {
     seams.before_first_removal().map_err(RecipeRefusal::Io)?;
     for step in REMOVAL_STEPS {
         match step {
@@ -197,30 +214,39 @@ pub fn clear_registration(to: &ToClear, seams: &mut dyn RecipeSeams) -> Result<(
                     RemovalStep::Commondir => "commondir",
                     _ => "HEAD",
                 };
-                let registration: std::fs::File = match open_directory_at(to.worktrees_parent, to.registration_name) {
-                    Ok(opened) => opened,
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-                    Err(error) => return Err(RecipeRefusal::Io(error)),
-                };
-                done_if_missing(remove_at(&registration, OsStr::new(name), false)).map_err(RecipeRefusal::Io)?;
+                let registration: std::fs::File =
+                    match open_directory_at(to.worktrees_parent, to.registration_name) {
+                        Ok(opened) => opened,
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                        Err(error) => return Err(RecipeRefusal::Io(error)),
+                    };
+                done_if_missing(remove_at(&registration, OsStr::new(name), false))
+                    .map_err(RecipeRefusal::Io)?;
             }
             RemovalStep::RefsAndLogs | RemovalStep::OtherEntries | RemovalStep::Lock => {
-                let registration: std::fs::File = match open_directory_at(to.worktrees_parent, to.registration_name) {
-                    Ok(opened) => opened,
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-                    Err(error) => return Err(RecipeRefusal::Io(error)),
-                };
+                let registration: std::fs::File =
+                    match open_directory_at(to.worktrees_parent, to.registration_name) {
+                        Ok(opened) => opened,
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                        Err(error) => return Err(RecipeRefusal::Io(error)),
+                    };
                 match step {
-                    RemovalStep::RefsAndLogs => remove_the_ref_store(&registration).map_err(RecipeRefusal::Io)?,
-                    RemovalStep::OtherEntries => remove_the_other_entries(&registration).map_err(RecipeRefusal::Io)?,
+                    RemovalStep::RefsAndLogs => {
+                        remove_the_ref_store(&registration).map_err(RecipeRefusal::Io)?
+                    }
+                    RemovalStep::OtherEntries => {
+                        remove_the_other_entries(&registration).map_err(RecipeRefusal::Io)?
+                    }
                     _ => {
                         seams.before_the_lock().map_err(RecipeRefusal::Io)?;
-                        done_if_missing(remove_at(&registration, OsStr::new("locked"), false)).map_err(RecipeRefusal::Io)?;
+                        done_if_missing(remove_at(&registration, OsStr::new("locked"), false))
+                            .map_err(RecipeRefusal::Io)?;
                     }
                 }
             }
             RemovalStep::Directory => {
-                done_if_missing(remove_at(to.worktrees_parent, to.registration_name, true)).map_err(RecipeRefusal::Io)?;
+                done_if_missing(remove_at(to.worktrees_parent, to.registration_name, true))
+                    .map_err(RecipeRefusal::Io)?;
             }
         }
     }
@@ -236,9 +262,15 @@ pub fn clear_registration(to: &ToClear, seams: &mut dyn RecipeSeams) -> Result<(
 ///
 /// # Errors
 /// The lock cannot be opened or written.
-pub fn complete_a_cut_short_lock(registration: &Path, nonce: &RequestNonce) -> std::io::Result<()> {
+pub fn complete_a_cut_short_lock(
+    registration: &Path,
+    nonce: &RequestNonce,
+) -> std::io::Result<()> {
     let path: std::path::PathBuf = registration.join("locked");
-    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).truncate(true).open(path)?;
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(path)?;
     file.write_all(super::lock_words::lock_file_bytes(nonce).as_slice())?;
     return file.sync_all();
 }

@@ -13,18 +13,36 @@
 //! const stamps = await copyManifestEntries(sourceRoot, stageRoot, entries); // one stamp per cloned file
 //! ```
 
-use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::parallel_budget::{
+    HostResources,
+    sliced_workers,
+};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_ceiling::CopyCeiling;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
-use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
 use crate::worktree_copy_error::failure_with_cause;
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    FileStamp,
+    WorktreeCopyEntry,
+    stamp_of,
+};
 use crate::worktree_copy_selection::filesystem_path;
 use crate::worktree_copy_symlink_target::target_for_the_new_place;
 use crate::worktree_copy_vanished_entry::lstat_or_absent;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
-use std::path::{Path, PathBuf};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// What:
 ///  Creates one private directory with mode `0700`,
@@ -75,9 +93,13 @@ pub fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
 /// copyFile(source, destination, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE)
 /// ```
 #[cfg(target_os = "linux")]
-pub fn try_clone(source: &std::fs::File, destination: &std::fs::File) -> bool {
+pub fn try_clone(
+    source: &std::fs::File,
+    destination: &std::fs::File,
+) -> bool {
     // The one `FICLONE` call lives with the other Linux filesystem primitives, which the cheap-worktree ladder shares.
-    return crate::fs_clone_exchange::clone_file(source, destination, std::path::Path::new("")).is_ok();
+    return crate::fs_clone_exchange::clone_file(source, destination, std::path::Path::new(""))
+        .is_ok();
 }
 
 /// What:
@@ -93,7 +115,10 @@ pub fn try_clone(source: &std::fs::File, destination: &std::fs::File) -> bool {
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
-pub fn try_clone(_source: &std::fs::File, _destination: &std::fs::File) -> bool {
+pub fn try_clone(
+    _source: &std::fs::File,
+    _destination: &std::fs::File,
+) -> bool {
     return false;
 }
 
@@ -111,7 +136,10 @@ pub fn try_clone(_source: &std::fs::File, _destination: &std::fs::File) -> bool 
 /// ```ts
 /// await copyFile(sourcePath, stagePath, COPYFILE_EXCL | COPYFILE_FICLONE);
 /// ```
-pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), std::io::Error> {
+pub fn copy_file_exclusive(
+    source: &Path,
+    destination: &Path,
+) -> Result<(), std::io::Error> {
     return copy_file_exclusive_with(source, destination, try_clone).map(drop);
 }
 
@@ -156,7 +184,9 @@ fn clock_nanos() -> Option<i128> {
     if let Some(pinned) = PINNED_CLOCK_NANOS.with(std::cell::Cell::get) {
         return Some(pinned);
     }
-    let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?;
+    let now: std::time::Duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?;
     return Some(i128::from(now.as_secs()) * 1_000_000_000 + i128::from(now.subsec_nanos()));
 }
 
@@ -175,7 +205,9 @@ thread_local! {
 ///  for a clock to move and never fails because the host was slow.
 #[cfg(test)]
 pub(crate) fn clock_reads(nanos: i128) -> ClockPin {
-    PINNED_CLOCK_NANOS.with(|slot| { slot.set(Some(nanos)); });
+    PINNED_CLOCK_NANOS.with(|slot| {
+        slot.set(Some(nanos));
+    });
     return ClockPin;
 }
 
@@ -186,7 +218,9 @@ pub(crate) struct ClockPin;
 #[cfg(test)]
 impl Drop for ClockPin {
     fn drop(&mut self) {
-        PINNED_CLOCK_NANOS.with(|slot| { slot.set(None); });
+        PINNED_CLOCK_NANOS.with(|slot| {
+            slot.set(None);
+        });
     }
 }
 
@@ -249,7 +283,9 @@ pub fn copy_file_exclusive_with(
     }
     let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     return Ok(match (before, after) {
-        (Some(first), Some(second)) if first == second && stamp_is_settled(second.changed) => Some(second),
+        (Some(first), Some(second)) if first == second && stamp_is_settled(second.changed) => {
+            Some(second)
+        }
         _ => None,
     });
 }
@@ -349,7 +385,10 @@ pub fn copy_worker_count(entries: usize) -> usize {
 
 /// `copy_worker_count` with the host's resources chosen by the caller,
 /// so a control states a host of any size.
-pub fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
+pub fn copy_worker_count_on(
+    host: &HostResources,
+    entries: usize,
+) -> usize {
     if entries < PARALLEL_COPY_MIN_ENTRIES {
         return 1;
     }
@@ -386,9 +425,14 @@ fn copy_leaves(
     let mut stamps: Vec<Option<FileStamp>> = Vec::with_capacity(positions.len());
     let mut gone: Vec<Vec<u8>> = Vec::new();
     for at in positions {
-        let Some(entry) = entries.get(*at) else { continue };
+        let Some(entry) = entries.get(*at) else {
+            continue;
+        };
         if failed.load(Ordering::Relaxed) {
-            return Ok(SliceCopy { stamps, gone });
+            return Ok(SliceCopy {
+                stamps,
+                gone,
+            });
         }
         // A command that finishes a copy it did not start stops at its ceiling, entry by entry, so no checkout's
         //  size decides how long it waits.
@@ -414,7 +458,10 @@ fn copy_leaves(
             }
         }
     }
-    return Ok(SliceCopy { stamps, gone });
+    return Ok(SliceCopy {
+        stamps,
+        gone,
+    });
 }
 
 /// What:
@@ -457,24 +504,43 @@ pub enum CopiedLeaf {
 /// ```ts
 /// function copyOneLeaf(sourceRoot, stagePath, entry): CopiedLeaf { try { return { kind: 'staged', stamp: copyFileExclusiveWith(...) }; } catch (e) { if (e.code === 'ENOENT' || stillHoldsTheListedKind(sourcePath, entry.kind) === false) return { kind: 'gone' }; throw `${sourcePath} cannot be copied (${e})`; } }
 /// ```
-pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopyEntry, clone: fn(&std::fs::File, &std::fs::File) -> bool) -> Result<CopiedLeaf, WorktreeCopyError> {
+pub fn copy_one_leaf(
+    source_root: &Path,
+    stage_path: &Path,
+    entry: &WorktreeCopyEntry,
+    clone: fn(&std::fs::File, &std::fs::File) -> bool,
+) -> Result<CopiedLeaf, WorktreeCopyError> {
     let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_slice())?;
     return match entry.kind {
         EntryKind::Directory => Ok(CopiedLeaf::Staged(None)),
-        EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone) {
+        EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone)
+        {
             Ok(stamp) => Ok(CopiedLeaf::Staged(stamp)),
-            Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::File) => Ok(CopiedLeaf::Gone),
-            Err(error) => Err(named_source_failure(&source_path, "cannot be copied", &error)),
+            Err(_no_longer_the_listed_entry)
+                if !still_holds_the_listed_kind(&source_path, EntryKind::File) =>
+            {
+                Ok(CopiedLeaf::Gone)
+            }
+            Err(error) => Err(named_source_failure(
+                &source_path,
+                "cannot be copied",
+                &error,
+            )),
         },
         EntryKind::Symlink => match std::fs::read_link(source_path.as_path()) {
             Ok(target) => {
                 // The text is written for the place the link will occupy, never for the stage: a relative text counts levels
                 //  from the directory the link sits in, and the stage stands elsewhere.
-                let written: PathBuf = target_for_the_new_place(target.as_path(), source_path.as_path(), source_root);
+                let written: PathBuf =
+                    target_for_the_new_place(target.as_path(), source_path.as_path(), source_root);
                 symlink_at(written.as_path(), stage_path)?;
                 Ok(CopiedLeaf::Staged(None))
             }
-            Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::Symlink) => Ok(CopiedLeaf::Gone),
+            Err(_no_longer_the_listed_entry)
+                if !still_holds_the_listed_kind(&source_path, EntryKind::Symlink) =>
+            {
+                Ok(CopiedLeaf::Gone)
+            }
             Err(error) => Err(named_source_failure(&source_path, "cannot be read", &error)),
         },
     };
@@ -499,8 +565,13 @@ pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopy
 /// ```ts
 /// const stillHoldsTheListedKind = (path, kind) => { try { const found = lstatSync(path); return kind === 'directory' ? found.isDirectory() : kind === 'file' ? found.isFile() : found.isSymbolicLink(); } catch { return false; } };
 /// ```
-fn still_holds_the_listed_kind(source_path: &Path, kind: EntryKind) -> bool {
-    let Ok(Some(metadata)) = lstat_or_absent(source_path) else { return false };
+fn still_holds_the_listed_kind(
+    source_path: &Path,
+    kind: EntryKind,
+) -> bool {
+    let Ok(Some(metadata)) = lstat_or_absent(source_path) else {
+        return false;
+    };
     return match kind {
         EntryKind::Directory => metadata.is_dir(),
         EntryKind::File => metadata.is_file(),
@@ -602,7 +673,15 @@ pub struct CopiedManifest {
 /// ```ts
 /// type ASliceToCopy = [entries: readonly WorktreeCopyEntry[], source: string, stage: string, positions: number[], failed: boolean, clone: CloneRequest];
 /// ```
-type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc<AtomicBool>, fn(&std::fs::File, &std::fs::File) -> bool, Arc<CopyCeiling>);
+type ASliceToCopy = (
+    Arc<[WorktreeCopyEntry]>,
+    PathBuf,
+    PathBuf,
+    Vec<usize>,
+    Arc<AtomicBool>,
+    fn(&std::fs::File, &std::fs::File) -> bool,
+    Arc<CopyCeiling>,
+);
 
 /// What:
 ///  Copy one slice of leaf entries on a worker,
@@ -618,9 +697,17 @@ type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc
 /// function copySliceAndFlagFailure([entries, sourceRoot, stageRoot, positions, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
 /// ```
 fn copy_slice_and_flag_failure(
-    (entries, source_root, stage_root, positions, failed, clone, ceiling): ASliceToCopy,
+    (entries, source_root, stage_root, positions, failed, clone, ceiling): ASliceToCopy
 ) -> Result<SliceCopy, WorktreeCopyError> {
-    let outcome: Result<SliceCopy, WorktreeCopyError> = copy_leaves(source_root.as_path(), stage_root.as_path(), entries.as_ref(), positions.as_slice(), failed.as_ref(), clone, ceiling.as_ref());
+    let outcome: Result<SliceCopy, WorktreeCopyError> = copy_leaves(
+        source_root.as_path(),
+        stage_root.as_path(),
+        entries.as_ref(),
+        positions.as_slice(),
+        failed.as_ref(),
+        clone,
+        ceiling.as_ref(),
+    );
     if outcome.is_err() {
         failed.store(true, Ordering::Relaxed);
     }
@@ -655,7 +742,13 @@ pub fn copy_manifest_entries(
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
 ) -> Result<CopiedManifest, WorktreeCopyError> {
-    return copy_manifest_entries_with(source_root, stage_root, entries, try_clone, &CopyCeiling::unbounded());
+    return copy_manifest_entries_with(
+        source_root,
+        stage_root,
+        entries,
+        try_clone,
+        &CopyCeiling::unbounded(),
+    );
 }
 
 /// What:
@@ -678,10 +771,18 @@ pub fn copy_manifest_entries_with(
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
     ceiling: &CopyCeiling,
 ) -> Result<CopiedManifest, WorktreeCopyError> {
-    return match crate::lazy_runtime::run_on_runtime(copy_manifest_entries_awaiting(source_root, stage_root, Arc::from(entries), clone, Arc::new(*ceiling))) {
+    return match crate::lazy_runtime::run_on_runtime(copy_manifest_entries_awaiting(
+        source_root,
+        stage_root,
+        Arc::from(entries),
+        clone,
+        Arc::new(*ceiling),
+    )) {
         Ok(copied) => copied,
         // Nothing was copied, and the reason the runtime could not run the workers is why.
-        Err(refusal) => Err(raw_failure(&std::io::Error::other(format!("the staged copy could not be made ({refusal})")))),
+        Err(refusal) => Err(raw_failure(&std::io::Error::other(format!(
+            "the staged copy could not be made ({refusal})"
+        )))),
     };
 }
 
@@ -722,7 +823,15 @@ async fn copy_manifest_entries_awaiting(
     let mut at: usize = 0;
     for chunk in entries.chunks(slice_length) {
         let range: std::ops::Range<usize> = at..at + chunk.len();
-        states.push((Arc::clone(&entries), source_root.to_path_buf(), stage_root.to_path_buf(), range.clone().collect(), Arc::clone(&failed), clone, Arc::clone(&ceiling)));
+        states.push((
+            Arc::clone(&entries),
+            source_root.to_path_buf(),
+            stage_root.to_path_buf(),
+            range.clone().collect(),
+            Arc::clone(&failed),
+            clone,
+            Arc::clone(&ceiling),
+        ));
         slices.push(range);
         at += chunk.len();
     }
@@ -730,8 +839,12 @@ async fn copy_manifest_entries_awaiting(
     for answer in run_all_side_by_side_on_the_runtime(states, copy_slice_and_flag_failure).await {
         outcomes.push(match answer {
             Ok(outcome) => outcome,
-            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
-            Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a copy worker did not run ({refused})")))),
+            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(
+                &std::io::Error::other("a copy worker panicked"),
+            )),
+            Err(refused) => Err(raw_failure(&std::io::Error::other(format!(
+                "a copy worker did not run ({refused})"
+            )))),
         });
     }
     let mut gone: Vec<Vec<u8>> = Vec::new();
@@ -743,7 +856,10 @@ async fn copy_manifest_entries_awaiting(
         }
         gone.extend(copied.gone);
     }
-    return Ok(CopiedManifest { stamps, gone });
+    return Ok(CopiedManifest {
+        stamps,
+        gone,
+    });
 }
 
 /// What:
@@ -775,7 +891,10 @@ fn parent_of(path: &Path) -> PathBuf {
 /// await symlink(target, stagePath);
 /// ```
 #[cfg(unix)]
-fn symlink_at(target: &Path, link: &Path) -> Result<(), WorktreeCopyError> {
+fn symlink_at(
+    target: &Path,
+    link: &Path,
+) -> Result<(), WorktreeCopyError> {
     return std::os::unix::fs::symlink(target, link).map_err(raw_failure_of);
 }
 
@@ -791,7 +910,10 @@ fn symlink_at(target: &Path, link: &Path) -> Result<(), WorktreeCopyError> {
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-fn symlink_at(_target: &Path, _link: &Path) -> Result<(), WorktreeCopyError> {
+fn symlink_at(
+    _target: &Path,
+    _link: &Path,
+) -> Result<(), WorktreeCopyError> {
     return Err(raw_failure(&std::io::Error::other(
         "symbolic links are not staged on this platform",
     )));

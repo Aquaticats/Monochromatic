@@ -19,10 +19,16 @@
 //! const pointer = readTheSlotPointer(slot); // the slot's `.git`
 //! ```
 
-use super::reading_a_bounded_file::{Reading, read_a_bounded_file};
+use super::reading_a_bounded_file::{
+    Reading,
+    read_a_bounded_file,
+};
 use crate::worktree_clone_binding_record::lock_words::LOCK_WORDS_MAXIMUM_BYTES;
 use crate::worktree_clone_mount::clone_slot_git_pointer::POINTER_BOUND;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Git's name for a registration's lock file,
 /// which is the whole of Git's lock state (`F1` of the design's facts).
@@ -57,7 +63,10 @@ pub fn slot_pointer_path(slot: &Path) -> PathBuf {
 /// const reading = readABoundedFile(join(registration, 'locked'), LOCK_WORDS_MAXIMUM_BYTES);
 /// ```
 pub fn read_the_lock(registration: &Path) -> Reading {
-    return read_a_bounded_file(lock_file_path(registration).as_path(), LOCK_WORDS_MAXIMUM_BYTES);
+    return read_a_bounded_file(
+        lock_file_path(registration).as_path(),
+        LOCK_WORDS_MAXIMUM_BYTES,
+    );
 }
 
 /// What:
@@ -73,7 +82,10 @@ pub fn read_the_lock(registration: &Path) -> Reading {
 /// const reading = readABoundedFile(join(slot, '.git'), SLOT_POINTER_MAXIMUM_BYTES);
 /// ```
 pub fn read_the_slot_pointer(slot: &Path) -> Reading {
-    return read_a_bounded_file(slot_pointer_path(slot).as_path(), SLOT_POINTER_MAXIMUM_BYTES);
+    return read_a_bounded_file(
+        slot_pointer_path(slot).as_path(),
+        SLOT_POINTER_MAXIMUM_BYTES,
+    );
 }
 
 /// Controls stay out of the release executable.

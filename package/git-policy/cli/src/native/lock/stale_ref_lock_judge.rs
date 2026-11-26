@@ -30,16 +30,39 @@
 //! ```
 
 use crate::fs_mount_options::read_mount_facts;
-use crate::stale_ref_lock_judge_environment::{PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time};
-use crate::process_start::{ProcessStart, linux_start, now_ms};
-use crate::process_use::{ProcessUser, UseScan, UseTarget, processes_using_through};
 use crate::git_command_name::names_git_command;
+use crate::process_start::{
+    ProcessStart,
+    linux_start,
+    now_ms,
+};
+use crate::process_use::{
+    ProcessUser,
+    UseScan,
+    UseTarget,
+    processes_using_through,
+};
 use crate::stale_ref_lock_found::PidFile;
-use crate::stopped_git_locks::pid_named_by;
+pub use crate::stale_ref_lock_identity::{
+    Identity,
+    identity_of,
+};
+use crate::stale_ref_lock_judge_environment::{
+    PROC_MOUNT_POINT,
+    boot_time,
+    nanoseconds_to_time,
+    newest_time,
+};
 use crate::stale_ref_lock_walk::pid_file_beside;
-pub use crate::stale_ref_lock_identity::{Identity, identity_of};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use crate::stopped_git_locks::pid_named_by;
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The longest step of a landing that updates a reference,
 /// in a live service:
@@ -91,14 +114,18 @@ pub const MARGIN_MULTIPLE: u64 = 2;
 ///  which is a few seconds of a failing update,
 /// against a live lock removed (`doc/planning/cli-git-shipped-limits-audit.md`,
 ///  "Margins for removing left-behind locks").
-pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_millis() as u64 * MARGIN_MULTIPLE).div_ceil(1000));
+pub const MARGIN: Duration = Duration::from_secs(
+    (LONGEST_LIVE_REF_STEP.as_millis() as u64 * MARGIN_MULTIPLE).div_ceil(1000),
+);
 
 /// The file system types a lock may sit on:
 /// disks and memory of this machine.
 /// A network or user-space file system can be
 ///  written by a Git on another machine,
 /// whose process numbers mean nothing here.
-pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
+pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = [
+    "btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs",
+];
 
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -191,7 +218,11 @@ pub struct Examined {
 /// ```ts
 /// pidFileStanding(lockBorn, pidBorn, pid) // later ? Names : earlier ? Older : Unproven
 /// ```
-pub(crate) fn pid_file_standing(lock_born: Option<SystemTime>, pid_born: Option<SystemTime>, pid: i64) -> PidFile {
+pub(crate) fn pid_file_standing(
+    lock_born: Option<SystemTime>,
+    pid_born: Option<SystemTime>,
+    pid: i64,
+) -> PidFile {
     return match (lock_born, pid_born) {
         (Some(lock_at), Some(pid_at)) if pid_at > lock_at => PidFile::Names(pid),
         (Some(lock_at), Some(pid_at)) if pid_at < lock_at => PidFile::Older(pid),
@@ -224,9 +255,16 @@ impl Judge {
     /// which a descriptor of any process carries whatever mount it was reached through.
     /// A reason about a process outside the scope is dropped with the process it names:
     /// what the scan could not read of another program cannot be a holder this judgement is about.
-    fn users_of(&self, identity: &Identity) -> UseScan {
-        let target: UseTarget = UseTarget::File { device: identity.device, inode: identity.inode };
-        let mut scan: UseScan = processes_using_through(self.proc_root.as_path(), &target, std::process::id());
+    fn users_of(
+        &self,
+        identity: &Identity,
+    ) -> UseScan {
+        let target: UseTarget = UseTarget::File {
+            device: identity.device,
+            inode: identity.inode,
+        };
+        let mut scan: UseScan =
+            processes_using_through(self.proc_root.as_path(), &target, std::process::id());
         let Some(scope) = self.scan_scope.as_ref() else {
             return scan;
         };
@@ -262,35 +300,55 @@ impl Judge {
 
     /// Whether the file system holding `path` is on the local list;
     /// the reason when it is not or cannot be told.
-    fn local_check(&self, path: &Path) -> Result<(), String> {
+    fn local_check(
+        &self,
+        path: &Path,
+    ) -> Result<(), String> {
         let facts = read_mount_facts(path)?;
         let Some(mount) = facts else {
-            return Err(String::from("the file system that holds it is not in the mount table"));
+            return Err(String::from(
+                "the file system that holds it is not in the mount table",
+            ));
         };
         if self.local_file_systems.contains(&mount.filesystem_type) {
             return Ok(());
         }
-        return Err(format!("it sits on a `{}` file system, which a Git on another machine may share", mount.filesystem_type));
+        return Err(format!(
+            "it sits on a `{}` file system, which a Git on another machine may share",
+            mount.filesystem_type
+        ));
     }
 
     /// The pid file beside `lock`,
     /// as evidence about this lock's holder.
-    pub(crate) fn pid_file_state(lock: &Path, lock_born: Option<SystemTime>) -> PidFile {
+    pub(crate) fn pid_file_state(
+        lock: &Path,
+        lock_born: Option<SystemTime>,
+    ) -> PidFile {
         let pid_path: PathBuf = pid_file_beside(lock);
         let Some(pid) = pid_named_by(pid_path.as_path()) else {
             return PidFile::Absent;
         };
-        return pid_file_standing(lock_born, crate::lock_birth_times::birth_time_of(pid_path.as_path()), i64::from(pid));
+        return pid_file_standing(
+            lock_born,
+            crate::lock_birth_times::birth_time_of(pid_path.as_path()),
+            i64::from(pid),
+        );
     }
 
     /// What the pid file's number is now,
     /// in words:
     /// the notice says it and nothing decides on it.
-    fn process_state_words(&self, pid: i64) -> String {
+    fn process_state_words(
+        &self,
+        pid: i64,
+    ) -> String {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
             ProcessStart::Missing => String::from("has ended"),
             ProcessStart::Unknown(reason) => format!("could not be looked at ({reason})"),
-            ProcessStart::Running { .. } => String::from("is running"),
+            ProcessStart::Running {
+                ..
+            } => String::from("is running"),
         };
     }
 
@@ -299,7 +357,11 @@ impl Judge {
     /// a forward correction of the clock
     ///  during the boot makes a lock that a live Git holds look older than the boot,
     /// so no lock is removed on it.
-    fn looks_older_than_boot(&self, born: Option<SystemTime>, identity: &Identity) -> bool {
+    fn looks_older_than_boot(
+        &self,
+        born: Option<SystemTime>,
+        identity: &Identity,
+    ) -> bool {
         let Some(boot) = self.boot else {
             return false;
         };
@@ -317,12 +379,16 @@ impl Judge {
     /// cannot hold a Git lock.
     /// The reason text of the
     ///  scan starts `PID <number>`.
-    fn unreadable_git(&self, scan: &UseScan) -> Option<String> {
+    fn unreadable_git(
+        &self,
+        scan: &UseScan,
+    ) -> Option<String> {
         for reason in &scan.unreadable {
             let Some(pid) = pid_of_reason(reason.as_str()) else {
                 return Some(reason.clone());
             };
-            let command: Option<String> = std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")).ok();
+            let command: Option<String> =
+                std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")).ok();
             match command {
                 None => {}
                 Some(name) if !names_git_command(name.trim()) => {}
@@ -339,7 +405,10 @@ impl Judge {
     /// and
     ///  open in no process.
     /// The caller has checked that the lock is absent.
-    pub fn examine_staging(&self, staging: &Path) -> Option<Examined> {
+    pub fn examine_staging(
+        &self,
+        staging: &Path,
+    ) -> Option<Examined> {
         let identity: Identity = identity_of(staging)?;
         let born: Option<SystemTime> = std::fs::symlink_metadata(staging).ok()?.created().ok();
         let newest: SystemTime = newest_time(born, &identity);
@@ -351,10 +420,24 @@ impl Judge {
         }
         let scan: UseScan = self.users_of(&identity);
         if let Some(reason) = scan.unavailable.as_ref() {
-            return verdict_with(Verdict::Unproven(format!("the process table could not be listed: {reason}")), PidFile::Absent, identity, born);
+            return verdict_with(
+                Verdict::Unproven(format!("the process table could not be listed: {reason}")),
+                PidFile::Absent,
+                identity,
+                born,
+            );
         }
         if let Some(user) = scan.users.first() {
-            return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), PidFile::Absent, identity, born);
+            return verdict_with(
+                Verdict::Held(format!(
+                    "process {} ({}) has the file open",
+                    user.pid,
+                    user.command.clone().unwrap_or_default()
+                )),
+                PidFile::Absent,
+                identity,
+                born,
+            );
         }
         if let Some(reason) = scan.unresolved.first() {
             return verdict_with(
@@ -366,12 +449,20 @@ impl Judge {
                 born,
             );
         }
-        return verdict_with(Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, identity, born);
+        return verdict_with(
+            Verdict::Stale(Proof::OrphanStaging),
+            PidFile::Absent,
+            identity,
+            born,
+        );
     }
 
     /// Judge the lock at `lock`;
     /// nothing when it is not a regular file any more.
-    pub fn examine(&self, lock: &Path) -> Option<Examined> {
+    pub fn examine(
+        &self,
+        lock: &Path,
+    ) -> Option<Examined> {
         let identity: Identity = identity_of(lock)?;
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(lock).ok()?;
         let born: Option<SystemTime> = crate::lock_birth_times::birth_time_of(lock);
@@ -389,13 +480,34 @@ impl Judge {
         }
         let scan: UseScan = self.users_of(&identity);
         if let Some(reason) = scan.unavailable {
-            return verdict_with(Verdict::Unproven(format!("the process table could not be listed: {reason}")), pid_file.clone(), identity, born);
+            return verdict_with(
+                Verdict::Unproven(format!("the process table could not be listed: {reason}")),
+                pid_file.clone(),
+                identity,
+                born,
+            );
         }
         if let Some(user) = scan.users.first() {
-            return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), pid_file.clone(), identity, born);
+            return verdict_with(
+                Verdict::Held(format!(
+                    "process {} ({}) has the file open",
+                    user.pid,
+                    user.command.clone().unwrap_or_default()
+                )),
+                pid_file.clone(),
+                identity,
+                born,
+            );
         }
         if let Some(reason) = self.unreadable_git(&scan) {
-            return verdict_with(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")), pid_file.clone(), identity, born);
+            return verdict_with(
+                Verdict::Unproven(format!(
+                    "a Git process of this account could not be looked into ({reason}), so it may hold the lock"
+                )),
+                pid_file.clone(),
+                identity,
+                born,
+            );
         }
         if let Some(reason) = scan.unresolved.first() {
             return verdict_with(
@@ -423,7 +535,9 @@ impl Judge {
                 "a pid file beside it names process {pid}, which {}, and nothing proves it was written for this lock: its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them",
                 self.process_state_words(pid)
             ),
-            PidFile::Absent => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
+            PidFile::Absent => String::from(
+                "no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open",
+            ),
         };
         if self.looks_older_than_boot(born, &identity) {
             why.push_str("; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing");
@@ -441,8 +555,18 @@ fn pid_of_reason(reason: &str) -> Option<i64> {
 
 /// The result of judging one file:
 /// the verdict with the facts gathered on the way.
-fn verdict_with(verdict: Verdict, pid_file: PidFile, identity: Identity, born: Option<SystemTime>) -> Option<Examined> {
-    return Some(Examined { verdict, pid_file, identity, born });
+fn verdict_with(
+    verdict: Verdict,
+    pid_file: PidFile,
+    identity: Identity,
+    born: Option<SystemTime>,
+) -> Option<Examined> {
+    return Some(Examined {
+        verdict,
+        pid_file,
+        identity,
+        born,
+    });
 }
 
 /// Controls on the margins stay out of the release executable.

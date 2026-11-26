@@ -6,7 +6,11 @@
 use super::*;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll, Waker};
+use std::task::{
+    Context,
+    Poll,
+    Waker,
+};
 
 /// A future that is pending once and ready the second time it is polled,
 /// so a test chooses where a task stops between two polls.
@@ -18,7 +22,10 @@ struct StopsOnce {
 impl Future for StopsOnce {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<()> {
+    fn poll(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<()> {
         if self.stopped {
             return Poll::Ready(());
         }
@@ -51,7 +58,11 @@ fn a_scope_inside_a_scope_shadows_it_and_leaves_it_as_it_was() {
             assert_eq!(steps_now(), 0, "the inner scope starts with nothing");
             set_steps(22);
         });
-        assert_eq!(steps_now(), 11, "the inner scope's write never reached the outer one");
+        assert_eq!(
+            steps_now(),
+            11,
+            "the inner scope's write never reached the outer one"
+        );
     });
 }
 
@@ -59,44 +70,69 @@ fn a_scope_inside_a_scope_shadows_it_and_leaves_it_as_it_was() {
 /// a thread-local would give the second task's write to the first.
 #[test]
 fn two_tasks_interleaved_on_one_thread_keep_their_own_state() {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     let (first, second) = runtime.block_on(async {
         let first = in_a_landing_task(async {
             set_steps(1);
-            StopsOnce { stopped: false }.await;
+            StopsOnce {
+                stopped: false,
+            }
+            .await;
             return steps_now();
         });
         let second = in_a_landing_task(async {
             set_steps(2);
-            StopsOnce { stopped: false }.await;
+            StopsOnce {
+                stopped: false,
+            }
+            .await;
             return steps_now();
         });
         return tokio::join!(first, second);
     });
-    assert_eq!((first, second), (1, 2), "each task read back what it wrote, not what the other wrote between");
+    assert_eq!(
+        (first, second),
+        (1, 2),
+        "each task read back what it wrote, not what the other wrote between"
+    );
 }
 
 /// A task that is polled on one thread and finished on another (what a work-stealing runtime does at an `.await`) reads
 /// its own state on the second thread.
 #[test]
 fn a_task_moved_to_another_thread_between_two_polls_keeps_its_state() {
-    let mut task: Pin<Box<dyn Future<Output = usize> + Send>> = Box::pin(in_a_landing_task(async {
-        set_steps(33);
-        StopsOnce { stopped: false }.await;
-        return steps_now();
-    }));
+    let mut task: Pin<Box<dyn Future<Output = usize> + Send>> =
+        Box::pin(in_a_landing_task(async {
+            set_steps(33);
+            StopsOnce {
+                stopped: false,
+            }
+            .await;
+            return steps_now();
+        }));
     let mut context = Context::from_waker(Waker::noop());
     let first_poll = task.as_mut().poll(&mut context);
-    assert!(first_poll.is_pending(), "the task stops after writing its state");
+    assert!(
+        first_poll.is_pending(),
+        "the task stops after writing its state"
+    );
     let first_thread = std::thread::current().id();
     let finished_on = std::thread::spawn(move || {
         let mut second_context = Context::from_waker(Waker::noop());
-        let Poll::Ready(read_back) = task.as_mut().poll(&mut second_context) else { panic!("the second poll finishes the task") };
+        let Poll::Ready(read_back) = task.as_mut().poll(&mut second_context) else {
+            panic!("the second poll finishes the task")
+        };
         return (std::thread::current().id(), read_back);
     })
     .join()
     .expect("the second thread");
-    assert_ne!(finished_on.0, first_thread, "the control: the task finished on a thread other than the one it began on");
+    assert_ne!(
+        finished_on.0, first_thread,
+        "the control: the task finished on a thread other than the one it began on"
+    );
     assert_eq!(finished_on.1, 33, "the state moved with the task");
 }
 
@@ -107,8 +143,14 @@ fn a_thread_started_inside_a_scope_is_not_inside_a_landing() {
     in_a_landing(|| {
         set_steps(44);
         assert!(inside_a_landing(), "the scope's own thread is inside it");
-        let seen = std::thread::spawn(|| return (inside_a_landing(), steps_now())).join().expect("the thread");
-        assert_eq!(seen, (false, 0), "the started thread has no landing and no state");
+        let seen = std::thread::spawn(|| return (inside_a_landing(), steps_now()))
+            .join()
+            .expect("the thread");
+        assert_eq!(
+            seen,
+            (false, 0),
+            "the started thread has no landing and no state"
+        );
     });
 }
 
@@ -119,8 +161,14 @@ fn outside_any_scope_a_write_is_not_kept() {
     set_steps(55);
     assert_eq!(steps_now(), 0, "nothing was remembered");
     with_the_landing_state(|state| {
-        assert!(state.index_hardened.get(), "the index is hardened by default");
-        assert!(!state.deferring_syncs.get(), "syncs are made where they are asked for by default");
+        assert!(
+            state.index_hardened.get(),
+            "the index is hardened by default"
+        );
+        assert!(
+            !state.deferring_syncs.get(),
+            "syncs are made where they are asked for by default"
+        );
     });
 }
 

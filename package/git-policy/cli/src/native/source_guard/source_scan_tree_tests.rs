@@ -13,7 +13,10 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use super::declaration::{Declaration, declarations};
+use super::declaration::{
+    Declaration,
+    declarations,
+};
 use super::walk::discover;
 
 /// What:
@@ -74,7 +77,10 @@ pub(crate) struct SourceFile {
 /// ```ts
 /// function joinNames(directory: string, part: string): string  // throws Error
 /// ```
-fn join_names(directory: &str, part: &str) -> Result<String, String> {
+fn join_names(
+    directory: &str,
+    part: &str,
+) -> Result<String, String> {
     let mut names: Vec<&str> = Vec::new();
     for piece in directory.split('/').chain(part.split('/')) {
         if piece.is_empty() || piece == "." {
@@ -102,7 +108,9 @@ fn join_names(directory: &str, part: &str) -> Result<String, String> {
 /// function parentOf(file: string): string
 /// ```
 fn parent_of(file: &str) -> &str {
-    return file.rsplit_once('/').map_or("", |(parent, _)| return parent);
+    return file
+        .rsplit_once('/')
+        .map_or("", |(parent, _)| return parent);
 }
 
 /// What:
@@ -137,12 +145,19 @@ fn stem_of(file: &str) -> &str {
 /// ```ts
 /// function locate(root: string, file: string, ownsDirectory: boolean, d: Declaration): { path: string; ownsDirectory: boolean }
 /// ```
-fn locate(root: &Path, file: &str, owns_directory: bool, declaration: &Declaration) -> Result<(String, bool), String> {
+fn locate(
+    root: &Path,
+    file: &str,
+    owns_directory: bool,
+    declaration: &Declaration,
+) -> Result<(String, bool), String> {
     let directory: &str = parent_of(file);
     if let Some(written) = &declaration.path_attribute {
         let target: String = join_names(directory, written.as_str())?;
         if !root.join(target.as_str()).is_file() {
-            return Err(format!("{file}: `#[path = \"{written}\"]` names {target}, which is not a file"));
+            return Err(format!(
+                "{file}: `#[path = \"{written}\"]` names {target}, which is not a file"
+            ));
         }
         return Ok((target, true));
     }
@@ -151,12 +166,21 @@ fn locate(root: &Path, file: &str, owns_directory: bool, declaration: &Declarati
     } else {
         join_names(directory, stem_of(file))?
     };
-    let plain: String = join_names(module_directory.as_str(), format!("{}.rs", declaration.name).as_str())?;
-    let nested: String = join_names(module_directory.as_str(), format!("{}/mod.rs", declaration.name).as_str())?;
+    let plain: String = join_names(
+        module_directory.as_str(),
+        format!("{}.rs", declaration.name).as_str(),
+    )?;
+    let nested: String = join_names(
+        module_directory.as_str(),
+        format!("{}/mod.rs", declaration.name).as_str(),
+    )?;
     let plain_exists: bool = root.join(plain.as_str()).is_file();
     let nested_exists: bool = root.join(nested.as_str()).is_file();
     if plain_exists && nested_exists {
-        return Err(format!("{file}: `mod {};` matches both {plain} and {nested}", declaration.name));
+        return Err(format!(
+            "{file}: `mod {};` matches both {plain} and {nested}",
+            declaration.name
+        ));
     }
     if plain_exists {
         return Ok((plain, false));
@@ -164,7 +188,10 @@ fn locate(root: &Path, file: &str, owns_directory: bool, declaration: &Declarati
     if nested_exists {
         return Ok((nested, true));
     }
-    return Err(format!("{file}: `mod {};` has neither {plain} nor {nested}", declaration.name));
+    return Err(format!(
+        "{file}: `mod {};` has neither {plain} nor {nested}",
+        declaration.name
+    ));
 }
 
 /// What:
@@ -182,7 +209,10 @@ fn locate(root: &Path, file: &str, owns_directory: bool, declaration: &Declarati
 /// ```ts
 /// export function moduleTree(root: string, roots: CrateRoot[]): SourceFile[]  // throws Error
 /// ```
-pub(crate) fn module_tree(root: &Path, roots: &[CrateRoot]) -> Result<Vec<SourceFile>, String> {
+pub(crate) fn module_tree(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<SourceFile>, String> {
     // `BTreeMap<String, bool>` is a sorted map (TS: `Map`, but iterated in key order) from file to "test-only".
     let mut known: BTreeMap<String, bool> = BTreeMap::new();
     // The work list holds (file, test-only, owns-directory) for files still to read.
@@ -192,21 +222,29 @@ pub(crate) fn module_tree(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Source
     }
     while let Some((file, test_only, owns_directory)) = pending.pop() {
         // Read a file again only when it was first reached as test-only and is now reached as release.
-        if known.get(file.as_str()).is_some_and(|earlier| return !*earlier || test_only) {
+        if known
+            .get(file.as_str())
+            .is_some_and(|earlier| return !*earlier || test_only)
+        {
             continue;
         }
         known.insert(file.clone(), test_only);
         let text: String = std::fs::read_to_string(root.join(file.as_str()))
             .map_err(|error| return format!("cannot read {file}: {error}"))?;
-        let found: Vec<Declaration> = declarations(text.as_str()).map_err(|error| return format!("{file}: {error}"))?;
+        let found: Vec<Declaration> =
+            declarations(text.as_str()).map_err(|error| return format!("{file}: {error}"))?;
         for declaration in found {
-            let (child, child_owns): (String, bool) = locate(root, file.as_str(), owns_directory, &declaration)?;
+            let (child, child_owns): (String, bool) =
+                locate(root, file.as_str(), owns_directory, &declaration)?;
             pending.push((child, test_only || declaration.test_only, child_owns));
         }
     }
     let mut tree: Vec<SourceFile> = Vec::new();
     for (path, test_only) in known {
-        tree.push(SourceFile { path, test_only });
+        tree.push(SourceFile {
+            path,
+            test_only,
+        });
     }
     return Ok(tree);
 }
@@ -226,7 +264,10 @@ pub(crate) fn module_tree(root: &Path, roots: &[CrateRoot]) -> Result<Vec<Source
 /// ```ts
 /// export function classifiedSources(root: string, roots: CrateRoot[]): SourceFile[]  // throws Error
 /// ```
-pub(crate) fn classified_sources(root: &Path, roots: &[CrateRoot]) -> Result<Vec<SourceFile>, String> {
+pub(crate) fn classified_sources(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<SourceFile>, String> {
     let walked: Vec<String> = discover(root)?;
     let tree: Vec<SourceFile> = module_tree(root, roots)?;
     let mut unreached: Vec<String> = Vec::new();
@@ -236,7 +277,10 @@ pub(crate) fn classified_sources(root: &Path, roots: &[CrateRoot]) -> Result<Vec
         }
     }
     if !unreached.is_empty() {
-        return Err(format!("no `mod` declaration reaches: {}", unreached.join(", ")));
+        return Err(format!(
+            "no `mod` declaration reaches: {}",
+            unreached.join(", ")
+        ));
     }
     return Ok(tree);
 }
@@ -258,7 +302,10 @@ pub(crate) fn classified_sources(root: &Path, roots: &[CrateRoot]) -> Result<Vec
 /// ```ts
 /// export function manifestRoots(manifest: string, srcPrefix: string): CrateRoot[]  // throws Error
 /// ```
-pub(crate) fn manifest_roots(manifest: &str, src_prefix: &str) -> Result<Vec<CrateRoot>, String> {
+pub(crate) fn manifest_roots(
+    manifest: &str,
+    src_prefix: &str,
+) -> Result<Vec<CrateRoot>, String> {
     let mut roots: Vec<CrateRoot> = Vec::new();
     let mut section: &str = "";
     for line in manifest.lines() {
@@ -267,23 +314,33 @@ pub(crate) fn manifest_roots(manifest: &str, src_prefix: &str) -> Result<Vec<Cra
             section = trimmed;
             continue;
         }
-        let Some(value) = trimmed.strip_prefix("path = \"").and_then(|rest| return rest.strip_suffix('"')) else {
+        let Some(value) = trimmed
+            .strip_prefix("path = \"")
+            .and_then(|rest| return rest.strip_suffix('"'))
+        else {
             continue;
         };
         let test_only: bool = matches!(section, "[[test]]" | "[[bench]]" | "[[example]]");
         let release: bool = matches!(section, "[lib]" | "[[bin]]");
         let Some(relative) = value.strip_prefix(src_prefix) else {
             if test_only || release {
-                return Err(format!("{section} path `{value}` is not under {src_prefix}"));
+                return Err(format!(
+                    "{section} path `{value}` is not under {src_prefix}"
+                ));
             }
             continue;
         };
         if test_only || release {
-            roots.push(CrateRoot { path: relative.to_owned(), test_only });
+            roots.push(CrateRoot {
+                path: relative.to_owned(),
+                test_only,
+            });
         }
     }
     if roots.is_empty() {
-        return Err(String::from("the manifest names no target under the source prefix"));
+        return Err(String::from(
+            "the manifest names no target under the source prefix",
+        ));
     }
     return Ok(roots);
 }

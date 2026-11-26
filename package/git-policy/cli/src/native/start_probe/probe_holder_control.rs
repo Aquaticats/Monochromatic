@@ -20,13 +20,37 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_STATUS_DESCRIPTOR, close_from, move_descriptor};
-use super::probe_pipe_lines::{ReadSome, read_available, set_nonblocking, write_all};
-use super::probe_processes::{Exit, fork, kill_process, pipe_pair, raw, reap_now, set_process_group};
+use super::probe_child_prelude::{
+    CHILD_CONTROL_DESCRIPTOR,
+    CHILD_STATUS_DESCRIPTOR,
+    close_from,
+    move_descriptor,
+};
+use super::probe_pipe_lines::{
+    ReadSome,
+    read_available,
+    set_nonblocking,
+    write_all,
+};
+use super::probe_processes::{
+    Exit,
+    fork,
+    kill_process,
+    pipe_pair,
+    raw,
+    reap_now,
+    set_process_group,
+};
 use super::probe_record_files::RecordPlace;
 use super::probe_report::ProbeReport;
-use super::probe_status_line::{LineFeed, StepAnswer};
-use std::os::fd::{OwnedFd, RawFd};
+use super::probe_status_line::{
+    LineFeed,
+    StepAnswer,
+};
+use std::os::fd::{
+    OwnedFd,
+    RawFd,
+};
 
 /// What:
 ///  One holder the mode owns.
@@ -85,7 +109,10 @@ impl Holder {
     /// Why:
     ///  A pipe that cannot be made starts nothing,
     ///  which the worker's request then answers as a failed holder arm.
-    pub fn start(place: &RecordPlace, source: &str) -> Option<Holder> {
+    pub fn start(
+        place: &RecordPlace,
+        source: &str,
+    ) -> Option<Holder> {
         let control = pipe_pair().ok()?;
         let reports = pipe_pair().ok()?;
         let holder_path = place.holder();
@@ -94,24 +121,40 @@ impl Holder {
                 let _ = move_descriptor(raw(&control.read), CHILD_CONTROL_DESCRIPTOR);
                 let _ = move_descriptor(raw(&reports.write), CHILD_STATUS_DESCRIPTOR);
                 let _ = close_from(5);
-                super::probe_holder::run(CHILD_CONTROL_DESCRIPTOR, CHILD_STATUS_DESCRIPTOR, source, holder_path.as_path());
+                super::probe_holder::run(
+                    CHILD_CONTROL_DESCRIPTOR,
+                    CHILD_STATUS_DESCRIPTOR,
+                    source,
+                    holder_path.as_path(),
+                );
             }
             Some(pid) => {
                 let _ = set_process_group(pid);
                 drop(control.read);
                 drop(reports.write);
                 let _ = set_nonblocking(raw(&reports.read));
-                return Some(Holder { pid, control: control.write, reports: reports.read, attach: None, stopped: false });
+                return Some(Holder {
+                    pid,
+                    control: control.write,
+                    reports: reports.read,
+                    attach: None,
+                    stopped: false,
+                });
             }
         }
     }
 
     /// Read what the holder wrote and keep its lines.
-    pub fn drain(&mut self, feed: &mut LineFeed, report: &mut ProbeReport) -> Arrival {
+    pub fn drain(
+        &mut self,
+        feed: &mut LineFeed,
+        report: &mut ProbeReport,
+    ) -> Arrival {
         let mut arrival: Arrival = Arrival::Nothing;
         loop {
             let mut buffer: [u8; 512] = [0; 512];
-            let read: ReadSome = read_available(raw(&self.reports), buffer.as_mut_slice()).unwrap_or(ReadSome::NothingYet);
+            let read: ReadSome = read_available(raw(&self.reports), buffer.as_mut_slice())
+                .unwrap_or(ReadSome::NothingYet);
             let count: usize = match read {
                 ReadSome::Bytes(count) => count,
                 ReadSome::NothingYet => break,
@@ -128,11 +171,17 @@ impl Holder {
                         if step_line.step == ProbeStep::HolderAttach {
                             let passed: bool = matches!(step_line.answer, StepAnswer::Passed);
                             self.attach = Some(passed);
-                            arrival = Arrival::Attach { passed };
+                            arrival = Arrival::Attach {
+                                passed,
+                            };
                         }
                         report.record(step_line);
                     }
-                    Err(refusal) => report.finish_with(super::probe_report::ChildEnding::UnparsedLine { text: refusal.message() }),
+                    Err(refusal) => {
+                        report.finish_with(super::probe_report::ChildEnding::UnparsedLine {
+                            text: refusal.message(),
+                        })
+                    }
                 }
             }
         }
@@ -156,7 +205,9 @@ impl Holder {
     /// The holder's mount-namespace identity,
     /// read while it lives.
     pub fn namespace(&self) -> Option<String> {
-        return std::fs::read_link(format!("/proc/{}/ns/mnt", self.pid)).ok().map(|path| return path.to_string_lossy().into_owned());
+        return std::fs::read_link(format!("/proc/{}/ns/mnt", self.pid))
+            .ok()
+            .map(|path| return path.to_string_lossy().into_owned());
     }
 
     /// End the holder,

@@ -16,8 +16,8 @@
 //! const outcome = await unmountThroughDescriptor(plan); // Retained names both paths when it fails
 //! ```
 
-use super::attached_mount_identity::MountIdentity;
 use super::attach_post_check::MisplacedAttach;
+use super::attached_mount_identity::MountIdentity;
 use crate::fs_beneath_mount_facts::observed_path;
 use std::path::PathBuf;
 
@@ -85,11 +85,16 @@ impl RollbackRefusal {
     /// naming the numbers and every way forward.
     pub fn message(&self) -> String {
         return match self {
-            RollbackRefusal::NoVerifiedMount { attached_mount_id, parent_mount_id } => format!(
+            RollbackRefusal::NoVerifiedMount {
+                attached_mount_id,
+                parent_mount_id,
+            } => format!(
                 "no rollback is planned: the recorded mount {attached_mount_id} is the mount {parent_mount_id} the slot's folders were already on, so no attach is proved. Nothing is unmounted on an identity that proves no mount of this command. Ways forward: leave the folders as they are and have an administrator read `{}` for the slot's mount before anything else runs.",
                 crate::fs_mount_options::MOUNTINFO_PATH
             ),
-            RollbackRefusal::NoPlaceRecorded { attached_mount_id } => format!(
+            RollbackRefusal::NoPlaceRecorded {
+                attached_mount_id,
+            } => format!(
                 "no rollback is planned for mount {attached_mount_id}: the held target's descriptor names no path a report can carry, so a report and an administrator would both be sent nowhere. Ways forward: an administrator reads the mount's point from `{}` and takes the clone's mount down through the descriptor route.",
                 crate::fs_mount_options::MOUNTINFO_PATH
             ),
@@ -137,14 +142,21 @@ impl RollbackOutcome {
     /// both paths and every way forward.
     pub fn report(&self) -> String {
         return match self {
-            RollbackOutcome::RolledBack { plan, mount } => format!(
+            RollbackOutcome::RolledBack {
+                plan,
+                mount,
+            } => format!(
                 "the mount {} that landed at {} instead of the slot {} left the kernel through the descriptor the attach acted on ({}); nothing of the clone is attached and the slot holds no mount.",
                 plan.attached_mount_id,
                 plan.mounted_at.display(),
                 plan.canonical_slot.display(),
                 mount.describe(),
             ),
-            RollbackOutcome::Retained { plan, mount, reason } => format!(
+            RollbackOutcome::Retained {
+                plan,
+                mount,
+                reason,
+            } => format!(
                 "the mount {} is still attached at {} and not at the slot {}; the rollback failed: {reason}. Nothing else was tried, because a second move against an unverified mount is not issued. It stays exactly as the attach left it: {}. Ways forward: an administrator takes this exact mount down through the descriptor unmount route (a fresh process reopens the recorded parent, verifies mount {} and the clone's source, and unmounts without force or lazy detach), then checks the slot with the design's mount facts and runs the command again.",
                 plan.attached_mount_id,
                 plan.mounted_at.display(),
@@ -170,8 +182,17 @@ impl RollbackOutcome {
 /// # Errors
 /// The recorded mount is the parent folder's own mount,
 /// or the held target's descriptor names no absolute path a report can carry.
-pub fn plan_rollback(misplaced: &MisplacedAttach, target: std::fs::File, parent_mount_id: u64) -> Result<RollbackPlan, RollbackRefusal> {
-    return plan_rollback_of(misplaced.attached_mount_id, misplaced.canonical_slot.clone(), target, parent_mount_id);
+pub fn plan_rollback(
+    misplaced: &MisplacedAttach,
+    target: std::fs::File,
+    parent_mount_id: u64,
+) -> Result<RollbackPlan, RollbackRefusal> {
+    return plan_rollback_of(
+        misplaced.attached_mount_id,
+        misplaced.canonical_slot.clone(),
+        target,
+        parent_mount_id,
+    );
 }
 
 /// What:
@@ -194,15 +215,34 @@ pub fn plan_rollback(misplaced: &MisplacedAttach, target: std::fs::File, parent_
 /// # Errors
 /// The recorded mount is the parent folder's own mount,
 /// or the held target's descriptor names no absolute path a report can carry.
-pub fn plan_rollback_of(attached_mount_id: u64, canonical_slot: PathBuf, target: std::fs::File, parent_mount_id: u64) -> Result<RollbackPlan, RollbackRefusal> {
+pub fn plan_rollback_of(
+    attached_mount_id: u64,
+    canonical_slot: PathBuf,
+    target: std::fs::File,
+    parent_mount_id: u64,
+) -> Result<RollbackPlan, RollbackRefusal> {
     if attached_mount_id == parent_mount_id {
-        return Err(RollbackRefusal::NoVerifiedMount { attached_mount_id, parent_mount_id });
+        return Err(RollbackRefusal::NoVerifiedMount {
+            attached_mount_id,
+            parent_mount_id,
+        });
     }
-    let mounted_at: PathBuf = observed_path(&target).map_err(|_error| return RollbackRefusal::NoPlaceRecorded { attached_mount_id })?;
+    let mounted_at: PathBuf = observed_path(&target).map_err(|_error| {
+        return RollbackRefusal::NoPlaceRecorded {
+            attached_mount_id,
+        };
+    })?;
     if mounted_at.as_os_str().is_empty() || !mounted_at.is_absolute() {
-        return Err(RollbackRefusal::NoPlaceRecorded { attached_mount_id });
+        return Err(RollbackRefusal::NoPlaceRecorded {
+            attached_mount_id,
+        });
     }
-    return Ok(RollbackPlan { attached_mount_id, mounted_at, canonical_slot, target });
+    return Ok(RollbackPlan {
+        attached_mount_id,
+        mounted_at,
+        canonical_slot,
+        target,
+    });
 }
 
 /// Controls stay out of the release executable.

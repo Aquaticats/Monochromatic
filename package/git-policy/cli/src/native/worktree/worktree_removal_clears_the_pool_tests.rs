@@ -5,7 +5,12 @@
 //!  theirs.
 
 use super::*;
-use crate::test_support::{fixture, git, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::time::Duration;
 
 /// A repository,
@@ -26,22 +31,37 @@ struct Fixture {
 fn fixture_with_a_pooled_worktree(name: &str) -> Fixture {
     let root: PathBuf = fixture(name);
     let main: PathBuf = repository(root.as_path(), "main");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
-    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("canonical common directory");
-    let admin: PathBuf = std::fs::canonicalize(common.join("worktrees/wt")).expect("the administrative directory");
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
+    let common: PathBuf =
+        std::fs::canonicalize(main.join(".git")).expect("canonical common directory");
+    let admin: PathBuf =
+        std::fs::canonicalize(common.join("worktrees/wt")).expect("the administrative directory");
     let pool: PathBuf = crate::shadow_pool::pool_root_for(common.as_path(), admin.as_path());
     let member: PathBuf = pool.join("member-finished-ahead");
     std::fs::create_dir_all(member.as_path()).expect("a finished member");
-    return Fixture { root, common, admin, pool, member };
+    return Fixture {
+        root,
+        common,
+        admin,
+        pool,
+        member,
+    };
 }
 
 /// The pool of a worktree whose Git directory is gone is removed with the links of every member.
 #[test]
 fn the_pool_of_a_worktree_that_is_gone_is_removed() {
     let fixture: Fixture = fixture_with_a_pooled_worktree("removal-pool-gone");
-    std::fs::remove_dir_all(fixture.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    std::fs::remove_dir_all(fixture.admin.as_path())
+        .expect("the administrative directory goes as Git's removal takes it");
     clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
-    assert!(!fixture.member.exists(), "no finished member is left behind");
+    assert!(
+        !fixture.member.exists(),
+        "no finished member is left behind"
+    );
     assert!(!fixture.pool.exists(), "and no pool folder either");
     remove(fixture.root.as_path());
 }
@@ -56,16 +76,25 @@ fn the_pool_of_a_worktree_that_is_gone_is_removed() {
 #[test]
 fn a_pool_folder_that_is_a_link_is_not_removed_through() {
     let fixture: Fixture = fixture_with_a_pooled_worktree("removal-pool-linked-folder");
-    let folder: PathBuf = fixture.pool.parent().expect("the pool folder").to_path_buf();
+    let folder: PathBuf = fixture
+        .pool
+        .parent()
+        .expect("the pool folder")
+        .to_path_buf();
     std::fs::remove_dir_all(folder.as_path()).expect("the pool folder goes first");
     // A tree a process that is not the wrapper made, at the name the removal looks for.
     let elsewhere: PathBuf = fixture.root.join("elsewhere");
     let outside: PathBuf = elsewhere.join(fixture.pool.file_name().expect("the pool's own name"));
     std::fs::create_dir_all(outside.join("kept").as_path()).expect("a tree that is not a pool");
-    std::os::unix::fs::symlink(elsewhere.as_path(), folder.as_path()).expect("the pool folder is a link");
-    std::fs::remove_dir_all(fixture.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    std::os::unix::fs::symlink(elsewhere.as_path(), folder.as_path())
+        .expect("the pool folder is a link");
+    std::fs::remove_dir_all(fixture.admin.as_path())
+        .expect("the administrative directory goes as Git's removal takes it");
     clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
-    assert!(outside.join("kept").is_dir(), "the removal takes nothing of the tree the link names");
+    assert!(
+        outside.join("kept").is_dir(),
+        "the removal takes nothing of the tree the link names"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -79,17 +108,29 @@ fn a_pool_folder_that_is_a_link_is_not_removed_through() {
 #[test]
 fn a_removal_takes_the_drawn_shadows_nothing_renewed_and_leaves_the_one_a_commit_holds() {
     let fixture: Fixture = fixture_with_a_pooled_worktree("removal-drawn-shadows");
-    let drawn_root: PathBuf = crate::shadow_drawn::drawn_root_for(fixture.common.as_path(), fixture.admin.as_path());
+    let drawn_root: PathBuf =
+        crate::shadow_drawn::drawn_root_for(fixture.common.as_path(), fixture.admin.as_path());
     let held: PathBuf = drawn_root.join("drawn-a-tree-a-commit-holds");
     let stopped: PathBuf = drawn_root.join("drawn-a-tree-a-command-that-stopped");
     std::fs::create_dir_all(held.as_path()).expect("a tree a commit holds");
     std::fs::create_dir_all(stopped.as_path()).expect("a tree nothing renews");
-    let abandoned: Duration = crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60);
-    std::fs::File::open(stopped.as_path()).expect("the stopped tree").set_modified(std::time::SystemTime::now() - abandoned).expect("an age");
-    std::fs::remove_dir_all(fixture.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    let abandoned: Duration =
+        crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60);
+    std::fs::File::open(stopped.as_path())
+        .expect("the stopped tree")
+        .set_modified(std::time::SystemTime::now() - abandoned)
+        .expect("an age");
+    std::fs::remove_dir_all(fixture.admin.as_path())
+        .expect("the administrative directory goes as Git's removal takes it");
     clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
-    assert!(!stopped.exists(), "the tree nothing renewed goes with the worktree");
-    assert!(held.exists(), "the tree a commit is running in stays for that commit's own Git");
+    assert!(
+        !stopped.exists(),
+        "the tree nothing renewed goes with the worktree"
+    );
+    assert!(
+        held.exists(),
+        "the tree a commit is running in stays for that commit's own Git"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -99,7 +140,10 @@ fn a_removal_takes_the_drawn_shadows_nothing_renewed_and_leaves_the_one_a_commit
 fn the_pool_of_a_worktree_that_is_still_there_stays() {
     let fixture: Fixture = fixture_with_a_pooled_worktree("removal-pool-present");
     clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
-    assert!(fixture.member.is_dir(), "the finished member stays for the worktree that can claim it");
+    assert!(
+        fixture.member.is_dir(),
+        "the finished member stays for the worktree that can claim it"
+    );
     remove(fixture.root.as_path());
 }
 
@@ -110,12 +154,16 @@ fn the_pool_of_a_worktree_that_is_still_there_stays() {
 fn the_pool_of_the_main_checkout_is_never_taken() {
     let root: PathBuf = fixture("removal-pool-main");
     let main: PathBuf = repository(root.as_path(), "main");
-    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("canonical common directory");
+    let common: PathBuf =
+        std::fs::canonicalize(main.join(".git")).expect("canonical common directory");
     let pool: PathBuf = crate::shadow_pool::pool_root_for(common.as_path(), common.as_path());
     let member: PathBuf = pool.join("member-finished-ahead");
     std::fs::create_dir_all(member.as_path()).expect("a finished member");
     clear_the_pool_of_a_removed_worktree(common.as_path(), common.as_path());
-    assert!(member.is_dir(), "the main checkout keeps the pool its commits claim from");
+    assert!(
+        member.is_dir(),
+        "the main checkout keeps the pool its commits claim from"
+    );
     remove(root.as_path());
 }
 
@@ -125,7 +173,8 @@ fn the_pool_of_the_main_checkout_is_never_taken() {
 fn a_pool_that_is_already_gone_is_done() {
     let fixture: Fixture = fixture_with_a_pooled_worktree("removal-pool-absent");
     std::fs::remove_dir_all(fixture.pool.as_path()).expect("the pool goes first");
-    std::fs::remove_dir_all(fixture.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    std::fs::remove_dir_all(fixture.admin.as_path())
+        .expect("the administrative directory goes as Git's removal takes it");
     clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
     assert!(!fixture.pool.exists(), "nothing is made again in its place");
     remove(fixture.root.as_path());
@@ -150,23 +199,36 @@ fn a_member_a_commit_claims_is_never_taken_with_the_pool() {
         if std::fs::rename(from, shadow).is_err() {
             return false;
         }
-        std::fs::create_dir_all(shadow.join("refs/heads")).expect("the ref store a commit writes after its claim");
-        std::fs::write(shadow.join("refs/heads/main"), b"0123456789abcdef0123456789abcdef01234567\n").expect("the ref of the commit it wrote");
+        std::fs::create_dir_all(shadow.join("refs/heads"))
+            .expect("the ref store a commit writes after its claim");
+        std::fs::write(
+            shadow.join("refs/heads/main"),
+            b"0123456789abcdef0123456789abcdef01234567\n",
+        )
+        .expect("the ref of the commit it wrote");
         return true;
     };
     // The positive control: a claim made before the removal is served, and the removal takes nothing it claimed.
     let before: Fixture = fixture_with_a_pooled_worktree("removal-pool-claim-before");
-    std::fs::remove_dir_all(before.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    std::fs::remove_dir_all(before.admin.as_path())
+        .expect("the administrative directory goes as Git's removal takes it");
     let claimed_before: PathBuf = before.root.join("commit-shadow");
-    assert!(claim(before.member.as_path(), claimed_before.as_path()), "the fixture's member is one a commit can claim");
+    assert!(
+        claim(before.member.as_path(), claimed_before.as_path()),
+        "the fixture's member is one a commit can claim"
+    );
     clear_the_pool_of_a_removed_worktree(before.common.as_path(), before.admin.as_path());
-    assert!(claimed_before.join("refs/heads/main").is_file(), "the removal of the pool takes nothing of the shadow a commit claimed before it");
+    assert!(
+        claimed_before.join("refs/heads/main").is_file(),
+        "the removal of the pool takes nothing of the shadow a commit claimed before it"
+    );
     assert!(!before.pool.exists(), "and the pool is gone");
     remove(before.root.as_path());
 
     // The claim that lands exactly when the deletion of the pool starts.
     let raced: Fixture = fixture_with_a_pooled_worktree("removal-pool-claim-during");
-    std::fs::remove_dir_all(raced.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    std::fs::remove_dir_all(raced.admin.as_path())
+        .expect("the administrative directory goes as Git's removal takes it");
     let claimed_during: PathBuf = raced.root.join("commit-shadow");
     let member: PathBuf = raced.member.clone();
     let shadow: PathBuf = claimed_during.clone();
@@ -175,8 +237,15 @@ fn a_member_a_commit_claims_is_never_taken_with_the_pool() {
         claimed.set(claim(member.as_path(), shadow.as_path()));
         return remove_tree(taken);
     };
-    clear_the_pool_of_a_removed_worktree_with(raced.common.as_path(), raced.admin.as_path(), &remove_while_claiming);
-    assert!(!claimed.get(), "no commit claims a member from the pool at the moment the pool is deleted: the pool's name is free before anything in it is removed");
+    clear_the_pool_of_a_removed_worktree_with(
+        raced.common.as_path(),
+        raced.admin.as_path(),
+        &remove_while_claiming,
+    );
+    assert!(
+        !claimed.get(),
+        "no commit claims a member from the pool at the moment the pool is deleted: the pool's name is free before anything in it is removed"
+    );
     assert!(!raced.pool.exists(), "and the pool is gone");
     remove(raced.root.as_path());
 }

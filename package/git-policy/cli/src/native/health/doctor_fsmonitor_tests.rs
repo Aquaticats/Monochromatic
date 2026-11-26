@@ -11,25 +11,48 @@
 use super::*;
 use crate::action::Action;
 use crate::doctor::doctor_action;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// The fsmonitor section for `cwd`,
 /// read by a task of the runtime,
 /// because reading it asks Git.
-fn fsmonitor_of(context: &GitContext, cwd: &Path) -> String {
-    return crate::lazy_runtime::run_on_runtime(fsmonitor_report(context, cwd)).expect("the runtime");
+fn fsmonitor_of(
+    context: &GitContext,
+    cwd: &Path,
+) -> String {
+    return crate::lazy_runtime::run_on_runtime(fsmonitor_report(context, cwd))
+        .expect("the runtime");
 }
 
 /// A listing record as `git config --list --show-origin --show-scope -z` prints it.
-fn record(scope: &str, origin: &str, key_and_value: &str) -> Vec<u8> {
+fn record(
+    scope: &str,
+    origin: &str,
+    key_and_value: &str,
+) -> Vec<u8> {
     return format!("{scope}\0{origin}\0{key_and_value}\0").into_bytes();
 }
 
 /// Standard error of a doctor run that must exit with `code`.
-fn doctor_stderr(context: &GitContext, repo: &Path, code: i32) -> String {
-    let Action::Exit { code: actual, stderr, .. } = doctor_action(context, repo) else {
+fn doctor_stderr(
+    context: &GitContext,
+    repo: &Path,
+    code: i32,
+) -> String {
+    let Action::Exit {
+        code: actual,
+        stderr,
+        ..
+    } = doctor_action(context, repo)
+    else {
         panic!("doctor must end in an exit action");
     };
     assert_eq!(actual, code, "{stderr}");
@@ -39,8 +62,13 @@ fn doctor_stderr(context: &GitContext, repo: &Path, code: i32) -> String {
 /// A context whose global configuration file is `file`.
 fn context_with_global(file: &Path) -> GitContext {
     let mut context: GitContext = git_context();
-    context.overlay.retain(|(name, _)| { return name != "GIT_CONFIG_GLOBAL"; });
-    context.overlay.push((OsString::from("GIT_CONFIG_GLOBAL"), file.as_os_str().to_os_string()));
+    context.overlay.retain(|(name, _)| {
+        return name != "GIT_CONFIG_GLOBAL";
+    });
+    context.overlay.push((
+        OsString::from("GIT_CONFIG_GLOBAL"),
+        file.as_os_str().to_os_string(),
+    ));
     return context;
 }
 
@@ -52,7 +80,10 @@ fn off_line(state: &str) -> String {
 }
 
 /// The finding doctor prints when a scope turns the setting on.
-fn on_finding(setting: &str, remedy: &str) -> String {
+fn on_finding(
+    setting: &str,
+    remedy: &str,
+) -> String {
     return format!(
         "git monochromatic-git-policy-cli doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}. {remedy}\n"
     );
@@ -68,20 +99,48 @@ fn on_finding(setting: &str, remedy: &str) -> String {
 fn the_listing_keeps_the_fsmonitor_entries_with_scope_origin_and_value() {
     let mut listing: Vec<u8> = Vec::new();
     listing.extend(record("system", "file:/etc/gitconfig", "core.bare\nfalse"));
-    listing.extend(record("global", "file:/home/a/.gitconfig", "core.fsmonitor\ntrue"));
+    listing.extend(record(
+        "global",
+        "file:/home/a/.gitconfig",
+        "core.fsmonitor\ntrue",
+    ));
     listing.extend(record("local", "file:.git/config", "core.fsmonitor"));
-    listing.extend(record("command", "command line:", "core.fsmonitor\n/hook\nwith newline"));
-    let entries: Vec<FsmonitorEntry> = parse_fsmonitor_entries(listing.as_slice()).expect("a well-formed listing");
+    listing.extend(record(
+        "command",
+        "command line:",
+        "core.fsmonitor\n/hook\nwith newline",
+    ));
+    let entries: Vec<FsmonitorEntry> =
+        parse_fsmonitor_entries(listing.as_slice()).expect("a well-formed listing");
     assert_eq!(
         entries,
         vec![
-            FsmonitorEntry { scope: "global".into(), origin: "file:/home/a/.gitconfig".into(), value: Some(b"true".to_vec()) },
-            FsmonitorEntry { scope: "local".into(), origin: "file:.git/config".into(), value: None },
-            FsmonitorEntry { scope: "command".into(), origin: "command line:".into(), value: Some(b"/hook\nwith newline".to_vec()) },
+            FsmonitorEntry {
+                scope: "global".into(),
+                origin: "file:/home/a/.gitconfig".into(),
+                value: Some(b"true".to_vec())
+            },
+            FsmonitorEntry {
+                scope: "local".into(),
+                origin: "file:.git/config".into(),
+                value: None
+            },
+            FsmonitorEntry {
+                scope: "command".into(),
+                origin: "command line:".into(),
+                value: Some(b"/hook\nwith newline".to_vec())
+            },
         ]
     );
-    assert_eq!(parse_fsmonitor_entries(b"").expect("an empty listing"), Vec::new());
-    assert_eq!(parse_fsmonitor_entries(b"global\0file:/x"), None, "a listing in another shape is refused whole");
+    assert_eq!(
+        parse_fsmonitor_entries(b"").expect("an empty listing"),
+        Vec::new()
+    );
+    assert_eq!(
+        parse_fsmonitor_entries(b"global\0file:/x"),
+        None,
+        "a listing in another shape is refused whole"
+    );
 }
 
 /// No entry:
@@ -98,18 +157,32 @@ fn an_unset_key_is_off_and_says_not_set() {
 #[test]
 fn the_last_entry_decides_and_false_is_off() {
     let entries: Vec<FsmonitorEntry> = vec![
-        FsmonitorEntry { scope: "global".into(), origin: "file:/home/a/.gitconfig".into(), value: Some(b"true".to_vec()) },
-        FsmonitorEntry { scope: "local".into(), origin: "file:.git/config".into(), value: Some(b"false".to_vec()) },
+        FsmonitorEntry {
+            scope: "global".into(),
+            origin: "file:/home/a/.gitconfig".into(),
+            value: Some(b"true".to_vec()),
+        },
+        FsmonitorEntry {
+            scope: "local".into(),
+            origin: "file:.git/config".into(),
+            value: Some(b"false".to_vec()),
+        },
     ];
-    assert_eq!(render_fsmonitor(entries.as_slice()), off_line("core.fsmonitor is false in file:.git/config, local scope"));
+    assert_eq!(
+        render_fsmonitor(entries.as_slice()),
+        off_line("core.fsmonitor is false in file:.git/config, local scope")
+    );
 }
 
 /// `true` in the global file is a finding that names the file,
 /// the scope and the command for that scope.
 #[test]
 fn true_in_the_global_file_names_the_file_the_scope_and_the_command() {
-    let entries: Vec<FsmonitorEntry> =
-        vec![FsmonitorEntry { scope: "global".into(), origin: "file:/home/a/.gitconfig".into(), value: Some(b"true".to_vec()) }];
+    let entries: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+        scope: "global".into(),
+        origin: "file:/home/a/.gitconfig".into(),
+        value: Some(b"true".to_vec()),
+    }];
     assert_eq!(
         render_fsmonitor(entries.as_slice()),
         on_finding(
@@ -123,8 +196,11 @@ fn true_in_the_global_file_names_the_file_the_scope_and_the_command() {
 /// and each scope has its own command flag.
 #[test]
 fn a_hook_path_or_a_valueless_key_is_on_and_each_scope_has_its_command() {
-    let hook: Vec<FsmonitorEntry> =
-        vec![FsmonitorEntry { scope: "system".into(), origin: "file:/etc/gitconfig".into(), value: Some(b"/opt/hook".to_vec()) }];
+    let hook: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+        scope: "system".into(),
+        origin: "file:/etc/gitconfig".into(),
+        value: Some(b"/opt/hook".to_vec()),
+    }];
     assert_eq!(
         render_fsmonitor(hook.as_slice()),
         on_finding(
@@ -132,8 +208,11 @@ fn a_hook_path_or_a_valueless_key_is_on_and_each_scope_has_its_command() {
             "Turn it off with: git config --system core.fsmonitor false"
         )
     );
-    let bare: Vec<FsmonitorEntry> =
-        vec![FsmonitorEntry { scope: "worktree".into(), origin: "file:/r/.git/config.worktree".into(), value: None }];
+    let bare: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+        scope: "worktree".into(),
+        origin: "file:/r/.git/config.worktree".into(),
+        value: None,
+    }];
     assert_eq!(
         render_fsmonitor(bare.as_slice()),
         on_finding(
@@ -147,8 +226,11 @@ fn a_hook_path_or_a_valueless_key_is_on_and_each_scope_has_its_command() {
 /// so the finding says where to remove it instead.
 #[test]
 fn a_command_scope_value_names_no_config_command() {
-    let entries: Vec<FsmonitorEntry> =
-        vec![FsmonitorEntry { scope: "command".into(), origin: "command line:".into(), value: Some(b"true".to_vec()) }];
+    let entries: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+        scope: "command".into(),
+        origin: "command line:".into(),
+        value: Some(b"true".to_vec()),
+    }];
     assert_eq!(
         render_fsmonitor(entries.as_slice()),
         on_finding(
@@ -163,7 +245,10 @@ fn a_command_scope_value_names_no_config_command() {
 fn doctor_says_fsmonitor_is_off_for_a_repository_that_does_not_set_it() {
     let root: PathBuf = fixture("doctor-fsmonitor-unset");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    assert_eq!(doctor_stderr(&git_context(), repo.as_path(), 0), off_line("core.fsmonitor is not set"));
+    assert_eq!(
+        doctor_stderr(&git_context(), repo.as_path(), 0),
+        off_line("core.fsmonitor is not set")
+    );
     remove(root.as_path());
 }
 
@@ -214,7 +299,11 @@ fn doctor_names_the_global_file_that_turns_fsmonitor_on_and_never_edits_it() {
     assert_eq!(
         stderr,
         on_finding(
-            format!("core.fsmonitor is true in file:{}, global scope", global.display()).as_str(),
+            format!(
+                "core.fsmonitor is true in file:{}, global scope",
+                global.display()
+            )
+            .as_str(),
             "Turn it off with: git config --global core.fsmonitor false"
         )
     );
@@ -232,7 +321,13 @@ fn doctor_names_the_global_file_that_holds_false() {
     std::fs::write(&global, "[core]\n\tfsmonitor = false\n").expect("global file");
     assert_eq!(
         doctor_stderr(&context_with_global(global.as_path()), repo.as_path(), 0),
-        off_line(format!("core.fsmonitor is false in file:{}, global scope", global.display()).as_str())
+        off_line(
+            format!(
+                "core.fsmonitor is false in file:{}, global scope",
+                global.display()
+            )
+            .as_str()
+        )
     );
     remove(root.as_path());
 }
@@ -242,12 +337,22 @@ fn doctor_names_the_global_file_that_holds_false() {
 /// and the line names the value as written and says how Git reads it.
 #[test]
 fn a_false_spelling_other_than_false_is_named_as_written() {
-    for (written, shown) in [("0", "0 (Git reads it as false)"), ("off", "off (Git reads it as false)"), ("", "empty (Git reads it as false)")] {
-        let entries: Vec<FsmonitorEntry> =
-            vec![FsmonitorEntry { scope: "global".into(), origin: "file:/home/a/.gitconfig".into(), value: Some(written.as_bytes().to_vec()) }];
+    for (written, shown) in [
+        ("0", "0 (Git reads it as false)"),
+        ("off", "off (Git reads it as false)"),
+        ("", "empty (Git reads it as false)"),
+    ] {
+        let entries: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+            scope: "global".into(),
+            origin: "file:/home/a/.gitconfig".into(),
+            value: Some(written.as_bytes().to_vec()),
+        }];
         assert_eq!(
             render_fsmonitor(entries.as_slice()),
-            off_line(format!("core.fsmonitor is {shown} in file:/home/a/.gitconfig, global scope").as_str())
+            off_line(
+                format!("core.fsmonitor is {shown} in file:/home/a/.gitconfig, global scope")
+                    .as_str()
+            )
         );
     }
 }
@@ -288,8 +393,11 @@ fn a_listing_that_cannot_be_read_is_said_plainly() {
 #[test]
 fn a_false_spelled_as_a_number_is_off() {
     for written in ["00", "0x0", "-0", "+0", "0k"] {
-        let entries: Vec<FsmonitorEntry> =
-            vec![FsmonitorEntry { scope: "local".into(), origin: "file:.git/config".into(), value: Some(written.as_bytes().to_vec()) }];
+        let entries: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+            scope: "local".into(),
+            origin: "file:.git/config".into(),
+            value: Some(written.as_bytes().to_vec()),
+        }];
         assert_eq!(
             render_fsmonitor(entries.as_slice()),
             off_line(format!("core.fsmonitor is {written} (Git reads it as false) in file:.git/config, local scope").as_str()),
@@ -302,10 +410,14 @@ fn a_false_spelled_as_a_number_is_off() {
 /// the integer reader refuses it and Git starts it.
 #[test]
 fn a_value_the_integer_reader_refuses_is_still_a_hook() {
-    let entries: Vec<FsmonitorEntry> =
-        vec![FsmonitorEntry { scope: "local".into(), origin: "file:.git/config".into(), value: Some(b"08".to_vec()) }];
+    let entries: Vec<FsmonitorEntry> = vec![FsmonitorEntry {
+        scope: "local".into(),
+        origin: "file:.git/config".into(),
+        value: Some(b"08".to_vec()),
+    }];
     assert!(
-        render_fsmonitor(entries.as_slice()).contains("core.fsmonitor names the hook 08 in file:.git/config, local scope"),
+        render_fsmonitor(entries.as_slice())
+            .contains("core.fsmonitor names the hook 08 in file:.git/config, local scope"),
         "{}",
         render_fsmonitor(entries.as_slice())
     );

@@ -21,12 +21,29 @@
 //! ```
 
 /// The fixtures and bounded process helpers every binary-level control shares.
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    remove,
+    repository,
+    wrapped,
+};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The variable that sets the age limit,
 /// in whole seconds.
@@ -83,35 +100,82 @@ impl World {
 fn world(name: &str) -> World {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    return World { fixture, repo };
+    return World {
+        fixture,
+        repo,
+    };
 }
 
 /// A commit that no branch names,
 /// made from the tree `HEAD` holds with a message of its own.
-fn a_commit_no_branch_names(world: &World, message: &str) -> String {
-    let tree: String = String::from_utf8_lossy(&git(&world.fixture, world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]).stdout).trim().to_owned();
-    let made: Output = git(&world.fixture, world.repo.as_path(), &["commit-tree", tree.as_str(), "-m", message]);
-    return String::from_utf8_lossy(made.stdout.as_slice()).trim().to_owned();
+fn a_commit_no_branch_names(
+    world: &World,
+    message: &str,
+) -> String {
+    let tree: String = String::from_utf8_lossy(
+        &git(
+            &world.fixture,
+            world.repo.as_path(),
+            &["rev-parse", "HEAD^{tree}"],
+        )
+        .stdout,
+    )
+    .trim()
+    .to_owned();
+    let made: Output = git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["commit-tree", tree.as_str(), "-m", message],
+    );
+    return String::from_utf8_lossy(made.stdout.as_slice())
+        .trim()
+        .to_owned();
 }
 
 /// Write one reference of the repository with real Git,
 /// as a keeper of the wrapper does.
-fn reference(world: &World, name: &str, commit: &str) {
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "--no-deref", name, commit]);
+fn reference(
+    world: &World,
+    name: &str,
+    commit: &str,
+) {
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["update-ref", "--no-deref", name, commit],
+    );
 }
 
 /// Every reference the repository holds under `refs/cli-git/`.
 fn references(world: &World) -> Vec<String> {
-    let listed: Output = git(&world.fixture, world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]);
-    return String::from_utf8_lossy(listed.stdout.as_slice()).lines().map(String::from).collect();
+    let listed: Output = git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["for-each-ref", "--format=%(refname)", "refs/cli-git/"],
+    );
+    return String::from_utf8_lossy(listed.stdout.as_slice())
+        .lines()
+        .map(String::from)
+        .collect();
 }
 
 /// What one commit a reference names,
 /// or nothing when the reference is gone.
-fn names(world: &World, name: &str) -> Option<String> {
-    let output: Output = super::support::native_git(&world.fixture, world.repo.as_path(), &["rev-parse", "--verify", "--quiet", name]);
+fn names(
+    world: &World,
+    name: &str,
+) -> Option<String> {
+    let output: Output = super::support::native_git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["rev-parse", "--verify", "--quiet", name],
+    );
     if output.status.success() {
-        return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+        return Some(
+            String::from_utf8_lossy(output.stdout.as_slice())
+                .trim()
+                .to_owned(),
+        );
     }
     return None;
 }
@@ -127,9 +191,16 @@ fn names(world: &World, name: &str) -> Option<String> {
 /// ```ts
 /// run(world, ['monochromatic-git-policy-cli', 'kept-references', '--prune'], { MAX_AGE: '1' })
 /// ```
-fn management(world: &World, arguments: &[&str], environment: &[(&str, &str)]) -> Observed {
+fn management(
+    world: &World,
+    arguments: &[&str],
+    environment: &[(&str, &str)],
+) -> Observed {
     let mut command: Command = wrapped(&world.fixture);
-    command.current_dir(world.repo.as_path()).args([COMMAND]).args(arguments);
+    command
+        .current_dir(world.repo.as_path())
+        .args([COMMAND])
+        .args(arguments);
     for (name, value) in environment {
         command.env(name, value);
     }
@@ -137,16 +208,32 @@ fn management(world: &World, arguments: &[&str], environment: &[(&str, &str)]) -
 }
 
 /// The listing of the repository's kept references.
-fn listing(world: &World, environment: &[(&str, &str)]) -> String {
+fn listing(
+    world: &World,
+    environment: &[(&str, &str)],
+) -> String {
     let observed: Observed = management(world, &["kept-references"], environment);
-    assert_eq!(observed.code, Some(0), "the listing answers: {}", String::from_utf8_lossy(observed.stderr.as_slice()));
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the listing answers: {}",
+        String::from_utf8_lossy(observed.stderr.as_slice())
+    );
     return String::from_utf8_lossy(observed.stdout.as_slice()).into_owned();
 }
 
 /// One pruning of the repository's kept references.
-fn pruning(world: &World, environment: &[(&str, &str)]) -> String {
+fn pruning(
+    world: &World,
+    environment: &[(&str, &str)],
+) -> String {
     let observed: Observed = management(world, &["kept-references", "--prune"], environment);
-    assert_eq!(observed.code, Some(0), "the pass answers: {}", String::from_utf8_lossy(observed.stderr.as_slice()));
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the pass answers: {}",
+        String::from_utf8_lossy(observed.stderr.as_slice())
+    );
     return String::from_utf8_lossy(observed.stdout.as_slice()).into_owned();
 }
 
@@ -184,18 +271,28 @@ fn names_the_report_prunes(text: &str) -> Vec<String> {
 /// The lines of the repository's log of pruned kept references,
 /// or none when the log was never written.
 fn log_lines(world: &World) -> Vec<String> {
-    return std::fs::read_to_string(world.common_dir().join("monochromatic-git-policy-cli-kept-references.jsonl"))
-        .unwrap_or_default()
-        .lines()
-        .filter(|line| { return !line.trim().is_empty(); })
-        .map(String::from)
-        .collect();
+    return std::fs::read_to_string(
+        world
+            .common_dir()
+            .join("monochromatic-git-policy-cli-kept-references.jsonl"),
+    )
+    .unwrap_or_default()
+    .lines()
+    .filter(|line| {
+        return !line.trim().is_empty();
+    })
+    .map(String::from)
+    .collect();
 }
 
 /// The reference one line of the log is about.
 fn name_of_log_line(line: &str) -> String {
     let parsed: serde_json::Value = serde_json::from_str(line).expect("one JSON line");
-    return String::from(parsed["reference"].as_str().expect("the line names the reference"));
+    return String::from(
+        parsed["reference"]
+            .as_str()
+            .expect("the line names the reference"),
+    );
 }
 
 /// A pass over the repository that has listed its references and removed none yet.
@@ -207,21 +304,30 @@ struct Paused {
 }
 
 /// Start a pruning that stops between its listing and its removals.
-fn paused_pass(world: &World, environment: &[(&str, &str)]) -> Paused {
+fn paused_pass(
+    world: &World,
+    environment: &[(&str, &str)],
+) -> Paused {
     let markers: PathBuf = world.fixture.root.join("markers-kept-references");
     std::fs::create_dir(&markers).expect("marker directory");
     let mut command: Command = wrapped(&world.fixture);
     command
         .current_dir(world.repo.as_path())
         .args([COMMAND, "kept-references", "--prune"])
-        .env(PHASE_SIGNAL_VARIABLE, format!("kept-references-listed:pause:{}", markers.display()))
+        .env(
+            PHASE_SIGNAL_VARIABLE,
+            format!("kept-references-listed:pause:{}", markers.display()),
+        )
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     for (name, value) in environment {
         command.env(name, value);
     }
     let child: Child = command.spawn().expect("the pass starts");
-    let paused: Paused = Paused { child, markers };
+    let paused: Paused = Paused {
+        child,
+        markers,
+    };
     paused.wait_for_the_listing();
     return paused;
 }
@@ -233,14 +339,19 @@ impl Paused {
         let marker: PathBuf = self.markers.join("kept-references-listed.reached");
         let began: Instant = Instant::now();
         while !marker.exists() {
-            assert!(began.elapsed() < MARKER_PATIENCE, "the pass did not list within {} seconds", MARKER_PATIENCE.as_secs());
+            assert!(
+                began.elapsed() < MARKER_PATIENCE,
+                "the pass did not list within {} seconds",
+                MARKER_PATIENCE.as_secs()
+            );
             std::thread::sleep(MARKER_POLL);
         }
     }
 
     /// Let the pass go on and read everything it said.
     fn released(self) -> Output {
-        std::fs::write(self.markers.join("kept-references-listed.release"), b"").expect("the release file");
+        std::fs::write(self.markers.join("kept-references-listed.release"), b"")
+            .expect("the release file");
         return self.child.wait_with_output().expect("the pass ends");
     }
 }
@@ -257,22 +368,54 @@ fn the_upkeep_prunes_with_no_command_asking_for_a_pass() {
         .service_environment
         .lock()
         .expect("the fixture's service environment")
-        .push((std::ffi::OsString::from(MAX_AGE_VARIABLE), std::ffi::OsString::from("1")));
+        .push((
+            std::ffi::OsString::from(MAX_AGE_VARIABLE),
+            std::ffi::OsString::from("1"),
+        ));
     let commit: String = a_commit_no_branch_names(&world, "a commit the upkeep prunes");
-    reference(&world, "refs/cli-git/kept/1794071191963960", commit.as_str());
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963960",
+        commit.as_str(),
+    );
     // A command of the wrapper dates the reference at that moment; the service's own limit then finds it past the age.
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     std::thread::sleep(A_MOMENT);
     // A person's commit is what brings the service to its upkeep, and the upkeep is where the pass runs by itself.
-    let landed: Observed = super::commit::run_commit(&world.fixture, world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message", "a commit that wakes the upkeep"]);
-    assert_eq!(landed.code, Some(0), "the commit landed: {}", String::from_utf8_lossy(landed.stderr.as_slice()));
+    let landed: Observed = super::commit::run_commit(
+        &world.fixture,
+        world.repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message",
+            "a commit that wakes the upkeep",
+        ],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "the commit landed: {}",
+        String::from_utf8_lossy(landed.stderr.as_slice())
+    );
     let began: Instant = Instant::now();
     while names(&world, "refs/cli-git/kept/1794071191963960").is_some() {
-        assert!(began.elapsed() < UPKEEP_PATIENCE, "the upkeep pruned the reference within {} seconds", UPKEEP_PATIENCE.as_secs());
+        assert!(
+            began.elapsed() < UPKEEP_PATIENCE,
+            "the upkeep pruned the reference within {} seconds",
+            UPKEEP_PATIENCE.as_secs()
+        );
         std::thread::sleep(UPKEEP_POLL);
     }
     let lines: Vec<String> = log_lines(&world);
-    assert_eq!(lines.len(), 1, "the upkeep wrote the line about what it pruned: {lines:?}");
+    assert_eq!(
+        lines.len(),
+        1,
+        "the upkeep wrote the line about what it pruned: {lines:?}"
+    );
     assert!(lines[0].contains("too-old"), "{lines:?}");
     remove(&world.fixture);
 }
@@ -285,17 +428,45 @@ fn the_upkeep_prunes_with_no_command_asking_for_a_pass() {
 fn a_kept_commit_a_branch_reaches_is_pruned() {
     let world: World = world("kept-references-reached");
     let commit: String = a_commit_no_branch_names(&world, "a commit a branch will reach");
-    reference(&world, "refs/cli-git/kept/1794071191963902", commit.as_str());
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963902",
+        commit.as_str(),
+    );
     // The branch moves onto the kept commit, so the reference holds nothing any more.
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", commit.as_str()]);
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", commit.as_str()],
+    );
     let report: String = pruning(&world, &[]);
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963902"), None, "the reference went: {report}");
-    assert_eq!(names_the_report_prunes(report.as_str()), vec![String::from("refs/cli-git/kept/1794071191963902")], "{report}");
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963902"),
+        None,
+        "the reference went: {report}"
+    );
+    assert_eq!(
+        names_the_report_prunes(report.as_str()),
+        vec![String::from("refs/cli-git/kept/1794071191963902")],
+        "{report}"
+    );
     let lines: Vec<String> = log_lines(&world);
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(lines[0].contains(commit.as_str()), "the line names the commit: {}", lines[0]);
-    assert!(lines[0].contains("reached-a-branch"), "the line names the rule: {}", lines[0]);
-    assert!(lines[0].contains("so nothing was lost"), "the line says nothing was lost: {}", lines[0]);
+    assert!(
+        lines[0].contains(commit.as_str()),
+        "the line names the commit: {}",
+        lines[0]
+    );
+    assert!(
+        lines[0].contains("reached-a-branch"),
+        "the line names the rule: {}",
+        lines[0]
+    );
+    assert!(
+        lines[0].contains("so nothing was lost"),
+        "the line says nothing was lost: {}",
+        lines[0]
+    );
     remove(&world.fixture);
 }
 
@@ -307,11 +478,23 @@ fn a_kept_commit_a_branch_reaches_is_pruned() {
 fn a_kept_commit_younger_than_the_age_stays() {
     let world: World = world("kept-references-young");
     let commit: String = a_commit_no_branch_names(&world, "a commit kept a moment ago");
-    reference(&world, "refs/cli-git/kept/1794071191963903", commit.as_str());
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963903",
+        commit.as_str(),
+    );
     let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]);
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963903"), Some(commit), "the reference stays: {report}");
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963903"),
+        Some(commit),
+        "the reference stays: {report}"
+    );
     assert!(report.contains("No kept reference was pruned"), "{report}");
-    assert!(log_lines(&world).is_empty(), "nothing was pruned, so nothing is logged: {:?}", log_lines(&world));
+    assert!(
+        log_lines(&world).is_empty(),
+        "nothing was pruned, so nothing is logged: {:?}",
+        log_lines(&world)
+    );
     remove(&world.fixture);
 }
 
@@ -323,16 +506,36 @@ fn a_kept_commit_younger_than_the_age_stays() {
 fn a_kept_commit_older_than_the_age_goes_and_the_log_says_so() {
     let world: World = world("kept-references-old");
     let commit: String = a_commit_no_branch_names(&world, "a commit nothing reaches");
-    reference(&world, "refs/cli-git/kept/1794071191963904", commit.as_str());
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963904",
+        commit.as_str(),
+    );
     // The first pass records when it first saw the reference, as it does for one an earlier release wrote.
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     std::thread::sleep(A_MOMENT);
     let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "1")]);
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963904"), None, "the reference went: {report}");
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963904"),
+        None,
+        "the reference went: {report}"
+    );
     let lines: Vec<String> = log_lines(&world);
     assert_eq!(lines.len(), 1, "{lines:?}");
-    for expected in ["refs/cli-git/kept/1794071191963904", commit.as_str(), "\"age_seconds\":1", "too-old", "reached no branch"] {
-        assert!(lines[0].contains(expected), "the line names {expected}: {}", lines[0]);
+    for expected in [
+        "refs/cli-git/kept/1794071191963904",
+        commit.as_str(),
+        "\"age_seconds\":1",
+        "too-old",
+        "reached no branch",
+    ] {
+        assert!(
+            lines[0].contains(expected),
+            "the line names {expected}: {}",
+            lines[0]
+        );
     }
     remove(&world.fixture);
 }
@@ -347,23 +550,72 @@ fn over_the_size_the_oldest_go_first_and_a_young_one_stays() {
     let middle: String = a_commit_no_branch_names(&world, "the middle kept commit");
     let youngest: String = a_commit_no_branch_names(&world, "the youngest kept commit");
     // Two references are kept more than the two-second floor apart, and one after them, so the floor lets two go.
-    reference(&world, "refs/cli-git/kept/1794071191963910", oldest.as_str());
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963910",
+        oldest.as_str(),
+    );
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     std::thread::sleep(2 * A_MOMENT);
-    reference(&world, "refs/cli-git/kept/1794071191963911", middle.as_str());
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963911",
+        middle.as_str(),
+    );
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     std::thread::sleep(2 * A_MOMENT);
-    reference(&world, "refs/cli-git/kept/1794071191963912", youngest.as_str());
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963912",
+        youngest.as_str(),
+    );
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     // One byte of limit: the rule fires. Two seconds of floor: the two oldest may go, the youngest may not.
-    let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "3600"), (MAX_BYTES_VARIABLE, "1"), (FLOOR_VARIABLE, "2")]);
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963910"), None, "the oldest went: {report}");
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963911"), None, "the middle went: {report}");
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963912"), Some(youngest), "the youngest is under the floor: {report}");
-    assert_eq!(names_the_report_prunes(report.as_str()), vec![String::from("refs/cli-git/kept/1794071191963910"), String::from("refs/cli-git/kept/1794071191963911")], "{report}");
+    let report: String = pruning(
+        &world,
+        &[
+            (MAX_AGE_VARIABLE, "3600"),
+            (MAX_BYTES_VARIABLE, "1"),
+            (FLOOR_VARIABLE, "2"),
+        ],
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963910"),
+        None,
+        "the oldest went: {report}"
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963911"),
+        None,
+        "the middle went: {report}"
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963912"),
+        Some(youngest),
+        "the youngest is under the floor: {report}"
+    );
+    assert_eq!(
+        names_the_report_prunes(report.as_str()),
+        vec![
+            String::from("refs/cli-git/kept/1794071191963910"),
+            String::from("refs/cli-git/kept/1794071191963911")
+        ],
+        "{report}"
+    );
     let lines: Vec<String> = log_lines(&world);
     assert_eq!(lines.len(), 2, "{lines:?}");
-    assert!(lines.iter().all(|line| { return line.contains("too-much-kept"); }), "{lines:?}");
+    assert!(
+        lines.iter().all(|line| {
+            return line.contains("too-much-kept");
+        }),
+        "{lines:?}"
+    );
     remove(&world.fixture);
 }
 
@@ -376,14 +628,32 @@ fn a_reference_that_is_no_kept_commit_is_never_touched() {
     let fetched: String = a_commit_no_branch_names(&world, "a commit a private fetch names");
     let kept: String = a_commit_no_branch_names(&world, "a commit the wrapper keeps");
     reference(&world, "refs/cli-git/carried/7", carried.as_str());
-    reference(&world, "refs/cli-git/auto-push/fetch-4242", fetched.as_str());
+    reference(
+        &world,
+        "refs/cli-git/auto-push/fetch-4242",
+        fetched.as_str(),
+    );
     reference(&world, "refs/cli-git/kept/1794071191963920", kept.as_str());
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     std::thread::sleep(A_MOMENT);
     let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "1")]);
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963920"), None, "the kept reference went: {report}");
-    assert_eq!(names(&world, "refs/cli-git/carried/7"), Some(carried), "the carried work stays: {report}");
-    assert_eq!(names(&world, "refs/cli-git/auto-push/fetch-4242"), Some(fetched), "the private fetch stays: {report}");
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963920"),
+        None,
+        "the kept reference went: {report}"
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/carried/7"),
+        Some(carried),
+        "the carried work stays: {report}"
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/auto-push/fetch-4242"),
+        Some(fetched),
+        "the private fetch stays: {report}"
+    );
     remove(&world.fixture);
 }
 
@@ -394,12 +664,38 @@ fn a_reference_that_is_no_kept_commit_is_never_touched() {
 fn a_commit_a_holder_in_flight_reaches_is_kept() {
     let world: World = world("kept-references-in-flight");
     let commit: String = a_commit_no_branch_names(&world, "a commit a landing still holds");
-    reference(&world, "refs/cli-git/kept/1794071191963980", commit.as_str());
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963980",
+        commit.as_str(),
+    );
     // The two holders of a landing and of an isolated merge name the same commit while they are in flight.
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "--no-deref", "refs/worktree/cli-git-service/1794071191963980", commit.as_str()]);
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "--no-deref", "refs/cli-git/carried/7", commit.as_str()]);
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            "refs/worktree/cli-git-service/1794071191963980",
+            commit.as_str(),
+        ],
+    );
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            "refs/cli-git/carried/7",
+            commit.as_str(),
+        ],
+    );
     let report: String = pruning(&world, &[]);
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963980"), Some(commit), "the kept reference stays: {report}");
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963980"),
+        Some(commit),
+        "the kept reference stays: {report}"
+    );
     assert!(report.contains("No kept reference was pruned"), "{report}");
     remove(&world.fixture);
 }
@@ -411,16 +707,40 @@ fn a_branch_that_moves_off_the_commit_between_the_listing_and_the_removal_leaves
     let world: World = world("kept-references-moved-off");
     let commit: String = a_commit_no_branch_names(&world, "a commit a branch reaches for a moment");
     let before: String = names(&world, "refs/heads/main").expect("the branch's commit");
-    reference(&world, "refs/cli-git/kept/1794071191963981", commit.as_str());
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", commit.as_str()]);
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963981",
+        commit.as_str(),
+    );
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", commit.as_str()],
+    );
     let paused: Paused = paused_pass(&world, &[]);
     // The pass listed the repository with the branch on the commit and has removed nothing yet.
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", before.as_str()]);
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", before.as_str()],
+    );
     let output: Output = paused.released();
-    assert_eq!(output.status.code(), Some(0), "the pass ends well: {}", String::from_utf8_lossy(output.stderr.as_slice()));
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963981"), Some(commit), "the reference the branch left behind stays");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the pass ends well: {}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963981"),
+        Some(commit),
+        "the reference the branch left behind stays"
+    );
     let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(text.contains("No kept reference was pruned"), "the pass says it removed nothing: {text}");
+    assert!(
+        text.contains("No kept reference was pruned"),
+        "the pass says it removed nothing: {text}"
+    );
     remove(&world.fixture);
 }
 
@@ -433,16 +753,31 @@ fn a_reference_written_during_a_pass_survives_it() {
     let moved: String = a_commit_no_branch_names(&world, "a commit another command writes");
     let later: String = a_commit_no_branch_names(&world, "a commit written while the pass pauses");
     reference(&world, "refs/cli-git/kept/1794071191963930", old.as_str());
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     std::thread::sleep(A_MOMENT);
     let paused: Paused = paused_pass(&world, &[(MAX_AGE_VARIABLE, "1")]);
     // The pass has listed the references and removed none. Both writes below happen inside that window.
     reference(&world, "refs/cli-git/kept/1794071191963931", later.as_str());
     reference(&world, "refs/cli-git/kept/1794071191963930", moved.as_str());
     let output: Output = paused.released();
-    assert_eq!(output.status.code(), Some(0), "the pass ends well: {}", String::from_utf8_lossy(output.stderr.as_slice()));
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963931"), Some(later), "the reference written during the pass stays");
-    assert_eq!(names(&world, "refs/cli-git/kept/1794071191963930"), Some(moved), "the listed name keeps the commit another command put there");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the pass ends well: {}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963931"),
+        Some(later),
+        "the reference written during the pass stays"
+    );
+    assert_eq!(
+        names(&world, "refs/cli-git/kept/1794071191963930"),
+        Some(moved),
+        "the listed name keeps the commit another command put there"
+    );
     remove(&world.fixture);
 }
 
@@ -455,32 +790,74 @@ fn two_passes_at_once_end_where_one_would() {
     let two: World = world("kept-references-two-pass");
     let one: World = world("kept-references-one-pass");
     for world in [&two, &one] {
-        for (at, message) in ["the first kept commit", "the second kept commit"].iter().enumerate() {
+        for (at, message) in ["the first kept commit", "the second kept commit"]
+            .iter()
+            .enumerate()
+        {
             let name: String = format!("refs/cli-git/kept/17940711919639{}", 40 + at);
             let commit: String = a_commit_no_branch_names(world, message);
             reference(world, name.as_str(), commit.as_str());
         }
-        assert!(pruning(world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+        assert!(
+            pruning(world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+        );
     }
     std::thread::sleep(A_MOMENT);
     let paused: Paused = paused_pass(&two, &[(MAX_AGE_VARIABLE, "1")]);
     // The second pass runs while the first waits between its listing and its removals.
     assert!(pruning(&two, &[(MAX_AGE_VARIABLE, "1")]).contains("pruned "));
     let first: Output = paused.released();
-    assert_eq!(first.status.code(), Some(0), "the paused pass ends well: {}", String::from_utf8_lossy(first.stderr.as_slice()));
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "the paused pass ends well: {}",
+        String::from_utf8_lossy(first.stderr.as_slice())
+    );
     assert!(pruning(&one, &[(MAX_AGE_VARIABLE, "1")]).contains("pruned "));
-    assert_eq!(references(&two), references(&one), "two passes leave what one leaves");
-    assert!(references(&two).is_empty(), "both kept references went: {:?}", references(&two));
+    assert_eq!(
+        references(&two),
+        references(&one),
+        "two passes leave what one leaves"
+    );
+    assert!(
+        references(&two).is_empty(),
+        "both kept references went: {:?}",
+        references(&two)
+    );
     // Two passes met the same references, so one of them logged a line before each removal and then the refusal of a
     //  reference the other had already taken: the line about a removal goes before the removal, because the reference is
     //  the only handle on the commit.
     let lines: Vec<String> = log_lines(&two);
-    let went: Vec<String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"pruned\""); }).map(|line| { return name_of_log_line(line); }).collect();
+    let went: Vec<String> = lines
+        .iter()
+        .filter(|line| {
+            return line.contains("\"outcome\":\"pruned\"");
+        })
+        .map(|line| {
+            return name_of_log_line(line);
+        })
+        .collect();
     let mut sorted: Vec<String> = went.clone();
     sorted.sort();
     sorted.dedup();
-    assert_eq!(sorted, vec![String::from("refs/cli-git/kept/1794071191963940"), String::from("refs/cli-git/kept/1794071191963941")], "each reference that went was logged: {lines:?}");
-    assert_eq!(lines.iter().filter(|line| { return line.contains("\"outcome\":\"refused\""); }).count(), 2, "the pass whose removals were refused said so: {lines:?}");
+    assert_eq!(
+        sorted,
+        vec![
+            String::from("refs/cli-git/kept/1794071191963940"),
+            String::from("refs/cli-git/kept/1794071191963941")
+        ],
+        "each reference that went was logged: {lines:?}"
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| {
+                return line.contains("\"outcome\":\"refused\"");
+            })
+            .count(),
+        2,
+        "the pass whose removals were refused said so: {lines:?}"
+    );
     remove(&two.fixture);
     remove(&one.fixture);
 }
@@ -493,21 +870,55 @@ fn the_listing_says_what_the_next_pass_does() {
     let reached: String = a_commit_no_branch_names(&world, "a commit a branch reaches");
     let old: String = a_commit_no_branch_names(&world, "a commit no branch reaches");
     let young: String = a_commit_no_branch_names(&world, "a commit kept a moment ago");
-    reference(&world, "refs/cli-git/kept/1794071191963950", reached.as_str());
+    reference(
+        &world,
+        "refs/cli-git/kept/1794071191963950",
+        reached.as_str(),
+    );
     reference(&world, "refs/cli-git/kept/1794071191963951", old.as_str());
     // The pass records the references it meets for the first time, as it does for those an earlier release wrote.
-    assert!(pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned"));
+    assert!(
+        pruning(&world, &[(MAX_AGE_VARIABLE, "3600")]).contains("No kept reference was pruned")
+    );
     // The branch moves onto one of them, so that reference holds nothing, and the other is left older than the age limit.
-    git(&world.fixture, world.repo.as_path(), &["update-ref", "refs/heads/main", reached.as_str()]);
+    git(
+        &world.fixture,
+        world.repo.as_path(),
+        &["update-ref", "refs/heads/main", reached.as_str()],
+    );
     std::thread::sleep(A_MOMENT);
     reference(&world, "refs/cli-git/kept/1794071191963952", young.as_str());
-    let text: String = listing(&world, &[(MAX_AGE_VARIABLE, "1"), (MAX_BYTES_VARIABLE, "1000000")]);
+    let text: String = listing(
+        &world,
+        &[(MAX_AGE_VARIABLE, "1"), (MAX_BYTES_VARIABLE, "1000000")],
+    );
     let said: Vec<String> = names_the_listing_prunes(text.as_str());
-    assert_eq!(said, vec![String::from("refs/cli-git/kept/1794071191963950"), String::from("refs/cli-git/kept/1794071191963951")], "the listing says what goes: {text}");
+    assert_eq!(
+        said,
+        vec![
+            String::from("refs/cli-git/kept/1794071191963950"),
+            String::from("refs/cli-git/kept/1794071191963951")
+        ],
+        "the listing says what goes: {text}"
+    );
     assert!(text.contains("The next pass prunes 2 of them"), "{text}");
-    assert!(text.contains("refs/cli-git/kept/1794071191963952\n"), "the young reference is listed: {text}");
-    let report: String = pruning(&world, &[(MAX_AGE_VARIABLE, "1"), (MAX_BYTES_VARIABLE, "1000000")]);
-    assert_eq!(names_the_report_prunes(report.as_str()), said, "the pass removes what the listing said: {report}");
-    assert_eq!(references(&world), vec![String::from("refs/cli-git/kept/1794071191963952")], "the young reference stays: {report}");
+    assert!(
+        text.contains("refs/cli-git/kept/1794071191963952\n"),
+        "the young reference is listed: {text}"
+    );
+    let report: String = pruning(
+        &world,
+        &[(MAX_AGE_VARIABLE, "1"), (MAX_BYTES_VARIABLE, "1000000")],
+    );
+    assert_eq!(
+        names_the_report_prunes(report.as_str()),
+        said,
+        "the pass removes what the listing said: {report}"
+    );
+    assert_eq!(
+        references(&world),
+        vec![String::from("refs/cli-git/kept/1794071191963952")],
+        "the young reference stays: {report}"
+    );
     remove(&world.fixture);
 }

@@ -22,7 +22,11 @@
 //! const watch = watchForAStop(); try { await submit() } finally { watch.release() }
 //! ```
 
-use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicI32,
+    AtomicU64,
+    Ordering,
+};
 
 /// What:
 ///  The stop the wait answers,
@@ -63,7 +67,8 @@ static READING: AtomicI32 = AtomicI32::new(-1);
 ///  A `SIGKILL` cannot be caught at all;
 ///  its request is dropped by the service when the connection closes
 ///  (`service_server_land_group.rs`).
-const WATCHED: [std::os::raw::c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
+const WATCHED: [std::os::raw::c_int; 4] =
+    [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
 ///  The watched signals whose caller's own `SIG_IGN` the wait leaves in place:
@@ -102,7 +107,11 @@ const KEPT_IGNORED: [std::os::raw::c_int; 2] = [libc::SIGHUP, libc::SIGQUIT];
 /// ```ts
 /// process.on(signal, () => { if (alreadyAsked) { signal(SIG_DFL); raise(signal) } else { asked = signal } });
 /// ```
-extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginfo_t, _context: *mut std::ffi::c_void) {
+extern "C" fn note_the_stop(
+    signal: std::os::raw::c_int,
+    info: *mut libc::siginfo_t,
+    _context: *mut std::ffi::c_void,
+) {
     // What: The signal and the process the kernel named as its sender go in as one word, written once.
     // Why:  The record states which stop ended the commit and who sent it, and a handler that wrote the two apart would let
     //       a reader take half of one stop beside half of another; `si_pid` is on the list of what a handler may read, and a
@@ -112,7 +121,11 @@ extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginf
     // ```ts
     // if (stop.swap(pack(signal, senderOf(info))) === 0) { wake(); return }
     // ```
-    if STOP.swap(crate::stop_word::packed(signal, crate::signal_report::sender_in_report(info)), Ordering::SeqCst) == 0 {
+    if STOP.swap(
+        crate::stop_word::packed(signal, crate::signal_report::sender_in_report(info)),
+        Ordering::SeqCst,
+    ) == 0
+    {
         // The read the wait is inside is woken here, because the kernel may deliver this signal to any thread of the process,
         //  and a thread that is not the waiting one only writes the flag the waiter reads after its own read gives up.
         let reading: i32 = READING.load(Ordering::SeqCst);
@@ -245,7 +258,8 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
     for signal in WATCHED {
         // SAFETY: a null new action only reads what is in place, into this local.
         let mut before: libc::sigaction = unsafe { std::mem::zeroed() };
-        let read: std::os::raw::c_int = unsafe { libc::sigaction(signal, std::ptr::null(), &mut before) };
+        let read: std::os::raw::c_int =
+            unsafe { libc::sigaction(signal, std::ptr::null(), &mut before) };
         // What: A hang-up or a quit the caller ignores is the caller's own choice, and the wait leaves it alone.
         // Why:  `nohup` shields a commit that way, and a shielded commit lands: answering the signal here would withdraw a
         //       request the caller asked to be shielded from. Nothing is unblocked either, so the process's own signal mask
@@ -270,10 +284,13 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
             let mut unblocked: libc::sigset_t = std::mem::zeroed();
             libc::sigemptyset(&mut unblocked);
             libc::sigaddset(&mut unblocked, signal);
-            let _unblocked = libc::pthread_sigmask(libc::SIG_UNBLOCK, &unblocked, std::ptr::null_mut());
+            let _unblocked =
+                libc::pthread_sigmask(libc::SIG_UNBLOCK, &unblocked, std::ptr::null_mut());
         }
     }
-    return StopWatch { previous };
+    return StopWatch {
+        previous,
+    };
 }
 
 impl Drop for StopWatch {
@@ -301,7 +318,10 @@ impl Drop for StopWatch {
 /// stopRequestedForTest(2, sender)
 /// ```
 #[cfg(test)]
-pub(crate) fn stop_requested_for_test(signal: i32, sender: Option<i32>) {
+pub(crate) fn stop_requested_for_test(
+    signal: i32,
+    sender: Option<i32>,
+) {
     // One word, as the handler writes it: the seam stands for a delivery and never for half of one.
     STOP.store(crate::stop_word::packed(signal, sender), Ordering::SeqCst);
 }

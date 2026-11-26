@@ -46,7 +46,10 @@ use std::io::Write;
 /// ```ts
 /// type Location = { file: string; line: number; column: number };
 /// ```
-use std::panic::{Location, PanicHookInfo};
+use std::panic::{
+    Location,
+    PanicHookInfo,
+};
 
 /// What:
 ///  The line the hook writes,
@@ -157,9 +160,13 @@ pub fn panics_are_expected_here() -> bool {
 /// ```ts
 /// try { return Ok(call()); } catch (error) { return Err(error); } // with no uncaughtException message printed
 /// ```
-pub fn while_panics_are_expected<S, R>(state: S, call: fn(S) -> R) -> std::thread::Result<R> {
+pub fn while_panics_are_expected<S, R>(
+    state: S,
+    call: fn(S) -> R,
+) -> std::thread::Result<R> {
     EXPECTED_PANIC_CALLS.with(enter_expected_call);
-    let outcome: std::thread::Result<R> = crate::call_catching_panics::call_catching_panics(state, call);
+    let outcome: std::thread::Result<R> =
+        crate::call_catching_panics::call_catching_panics(state, call);
     EXPECTED_PANIC_CALLS.with(leave_expected_call);
     return outcome;
 }

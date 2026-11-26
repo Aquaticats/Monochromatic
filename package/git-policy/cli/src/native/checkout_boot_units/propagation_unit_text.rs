@@ -31,12 +31,24 @@
 //! write('/etc/systemd/system/home-user-Monochromatic.mount.d/10-upholds-propagation.conf', propagationMountDropIn(facts));
 //! ```
 
-use crate::checkout_boot_units::boot_unit_facts::{CheckoutBootFacts, UnitTextRefusal, check_path};
-use crate::checkout_boot_units::unit_file_text::{file_text, path_comment};
-use std::path::PathBuf;
-use crate::checkout_boot_units::boot_unit_names::{
-    BOOT_GATE_UNIT_NAME, EXECUTABLE_SYSTEMCTL, PROPAGATION_MOUNT_DROP_IN_NAME, PROPAGATION_SERVICE_NAME, drop_in_path, mount_unit_name,
+use crate::checkout_boot_units::boot_unit_facts::{
+    CheckoutBootFacts,
+    UnitTextRefusal,
+    check_path,
 };
+use crate::checkout_boot_units::boot_unit_names::{
+    BOOT_GATE_UNIT_NAME,
+    EXECUTABLE_SYSTEMCTL,
+    PROPAGATION_MOUNT_DROP_IN_NAME,
+    PROPAGATION_SERVICE_NAME,
+    drop_in_path,
+    mount_unit_name,
+};
+use crate::checkout_boot_units::unit_file_text::{
+    file_text,
+    path_comment,
+};
+use std::path::PathBuf;
 
 /// What:
 ///  The service that asks the gate to re-verify the checkout's private
@@ -59,12 +71,17 @@ use crate::checkout_boot_units::boot_unit_names::{
 pub fn propagation_service(facts: &CheckoutBootFacts) -> Result<String, UnitTextRefusal> {
     check_path("the checkout path", facts.checkout.as_path())?;
     let mount_unit: String = mount_unit_name(facts.checkout.as_path());
-    let request: String = format!("{EXECUTABLE_SYSTEMCTL} --no-block --no-ask-password reload-or-restart {BOOT_GATE_UNIT_NAME}");
-    let path: PathBuf = crate::checkout_boot_units::boot_unit_names::unit_path(PROPAGATION_SERVICE_NAME);
+    let request: String = format!(
+        "{EXECUTABLE_SYSTEMCTL} --no-block --no-ask-password reload-or-restart {BOOT_GATE_UNIT_NAME}"
+    );
+    let path: PathBuf =
+        crate::checkout_boot_units::boot_unit_names::unit_path(PROPAGATION_SERVICE_NAME);
     return Ok(file_text(vec![
         path_comment(path.as_path()),
         String::from("[Unit]"),
-        String::from("Description=Ask the boot unit to re-verify the checkout's private propagation"),
+        String::from(
+            "Description=Ask the boot unit to re-verify the checkout's private propagation",
+        ),
         format!("BindsTo={mount_unit}"),
         format!("After={mount_unit}"),
         String::new(),
@@ -95,7 +112,11 @@ pub fn propagation_mount_drop_in(facts: &CheckoutBootFacts) -> Result<String, Un
     check_path("the checkout path", facts.checkout.as_path())?;
     let mount_unit: String = mount_unit_name(facts.checkout.as_path());
     let path: PathBuf = drop_in_path(mount_unit.as_str(), PROPAGATION_MOUNT_DROP_IN_NAME);
-    return Ok(file_text(vec![path_comment(path.as_path()), String::from("[Unit]"), format!("Upholds={PROPAGATION_SERVICE_NAME}")]));
+    return Ok(file_text(vec![
+        path_comment(path.as_path()),
+        String::from("[Unit]"),
+        format!("Upholds={PROPAGATION_SERVICE_NAME}"),
+    ]));
 }
 
 /// Controls stay out of the release executable.

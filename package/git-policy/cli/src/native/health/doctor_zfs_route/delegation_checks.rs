@@ -60,8 +60,23 @@
 //! const outcome = checkDelegation(facts); // pass | finding('permission'|'grant'|'scope') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
-use super::delegation_reply::{DelegationFacts, Grant, HeldSet, Inheritance, Who, grants_the_account, held_sets, names_a_set, set_memberships};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
+use super::delegation_reply::{
+    DelegationFacts,
+    Grant,
+    HeldSet,
+    Inheritance,
+    Who,
+    grants_the_account,
+    held_sets,
+    names_a_set,
+    set_memberships,
+};
 
 //region The permission names the design fixes
 
@@ -79,15 +94,42 @@ use super::delegation_reply::{DelegationFacts, Grant, HeldSet, Inheritance, Who,
 /// const REQUIRED = [{ place: 'checkout', permission: 'snapshot' }, ...];
 /// ```
 pub const REQUIRED_GRANTS: [RequiredGrant; 9] = [
-    RequiredGrant { place: GrantPlace::Checkout, permission: "snapshot" },
-    RequiredGrant { place: GrantPlace::CheckoutDescendants, permission: "clone" },
-    RequiredGrant { place: GrantPlace::CheckoutDescendants, permission: "mount" },
-    RequiredGrant { place: GrantPlace::CheckoutDescendants, permission: "destroy" },
-    RequiredGrant { place: GrantPlace::Container, permission: "create" },
-    RequiredGrant { place: GrantPlace::Container, permission: "mount" },
-    RequiredGrant { place: GrantPlace::ContainerDescendants, permission: "mount" },
-    RequiredGrant { place: GrantPlace::ContainerDescendants, permission: "userprop" },
-    RequiredGrant { place: GrantPlace::ContainerDescendants, permission: "destroy" },
+    RequiredGrant {
+        place: GrantPlace::Checkout,
+        permission: "snapshot",
+    },
+    RequiredGrant {
+        place: GrantPlace::CheckoutDescendants,
+        permission: "clone",
+    },
+    RequiredGrant {
+        place: GrantPlace::CheckoutDescendants,
+        permission: "mount",
+    },
+    RequiredGrant {
+        place: GrantPlace::CheckoutDescendants,
+        permission: "destroy",
+    },
+    RequiredGrant {
+        place: GrantPlace::Container,
+        permission: "create",
+    },
+    RequiredGrant {
+        place: GrantPlace::Container,
+        permission: "mount",
+    },
+    RequiredGrant {
+        place: GrantPlace::ContainerDescendants,
+        permission: "mount",
+    },
+    RequiredGrant {
+        place: GrantPlace::ContainerDescendants,
+        permission: "userprop",
+    },
+    RequiredGrant {
+        place: GrantPlace::ContainerDescendants,
+        permission: "destroy",
+    },
 ];
 
 /// The permissions whose presence would let the account change the lineage the
@@ -111,7 +153,17 @@ pub const REQUIRED_GRANTS: [RequiredGrant; 9] = [
 /// ```ts
 /// const FORBIDDEN = ['mountpoint', 'canmount', 'setuid', 'devices', 'rename', 'promote', 'receive', 'receive:append', 'allow'];
 /// ```
-pub const FORBIDDEN_PERMISSIONS: [&str; 9] = ["mountpoint", "canmount", "setuid", "devices", "rename", "promote", "receive", "receive:append", "allow"];
+pub const FORBIDDEN_PERMISSIONS: [&str; 9] = [
+    "mountpoint",
+    "canmount",
+    "setuid",
+    "devices",
+    "rename",
+    "promote",
+    "receive",
+    "receive:append",
+    "allow",
+];
 
 //endregion
 
@@ -161,7 +213,10 @@ pub struct RequiredGrant {
 //region The comparison
 
 /// Whether `ancestor` is a dataset above `dataset`.
-fn is_ancestor_of(ancestor: &str, dataset: &str) -> bool {
+fn is_ancestor_of(
+    ancestor: &str,
+    dataset: &str,
+) -> bool {
     let Some(rest) = dataset.strip_prefix(ancestor) else {
         return false;
     };
@@ -169,10 +224,15 @@ fn is_ancestor_of(ancestor: &str, dataset: &str) -> bool {
 }
 
 /// The dataset a place names.
-pub fn place_dataset(place: GrantPlace, facts: &DelegationFacts) -> &str {
+pub fn place_dataset(
+    place: GrantPlace,
+    facts: &DelegationFacts,
+) -> &str {
     return match place {
         GrantPlace::Checkout | GrantPlace::CheckoutDescendants => facts.checkout_dataset.as_str(),
-        GrantPlace::Container | GrantPlace::ContainerDescendants => facts.container_dataset.as_str(),
+        GrantPlace::Container | GrantPlace::ContainerDescendants => {
+            facts.container_dataset.as_str()
+        }
     };
 }
 
@@ -180,7 +240,9 @@ pub fn place_dataset(place: GrantPlace, facts: &DelegationFacts) -> &str {
 fn place_inheritance(place: GrantPlace) -> Inheritance {
     return match place {
         GrantPlace::Checkout | GrantPlace::Container => Inheritance::Local,
-        GrantPlace::CheckoutDescendants | GrantPlace::ContainerDescendants => Inheritance::Descendants,
+        GrantPlace::CheckoutDescendants | GrantPlace::ContainerDescendants => {
+            Inheritance::Descendants
+        }
     };
 }
 
@@ -196,7 +258,10 @@ fn place_inheritance(place: GrantPlace) -> Inheritance {
 /// ```ts
 /// type Satisfaction = 'exact' | { broad: Grant } | 'missing';
 /// ```
-fn satisfaction<'a>(required: &RequiredGrant, facts: &'a DelegationFacts) -> Satisfaction<'a> {
+fn satisfaction<'a>(
+    required: &RequiredGrant,
+    facts: &'a DelegationFacts,
+) -> Satisfaction<'a> {
     let target: &str = place_dataset(required.place, facts);
     let want: Inheritance = place_inheritance(required.place);
     let mut broad: Option<&Grant> = None;
@@ -207,7 +272,9 @@ fn satisfaction<'a>(required: &RequiredGrant, facts: &'a DelegationFacts) -> Sat
         if grant.carried_by == target && grant.inheritance == want {
             return Satisfaction::Exact;
         }
-        if grant.inheritance == Inheritance::Descendants && is_ancestor_of(&grant.carried_by, target) {
+        if grant.inheritance == Inheritance::Descendants
+            && is_ancestor_of(&grant.carried_by, target)
+        {
             broad = Some(grant);
         }
     }
@@ -229,13 +296,21 @@ enum Satisfaction<'a> {
 
 /// The `zfs allow` command that gives one required permission in the decided
 /// shape.
-pub fn allow_command(required: &RequiredGrant, facts: &DelegationFacts) -> String {
+pub fn allow_command(
+    required: &RequiredGrant,
+    facts: &DelegationFacts,
+) -> String {
     let scope: &str = match place_inheritance(required.place) {
         Inheritance::Local => "-l",
         Inheritance::Descendants => "-d",
         Inheritance::NotApplicable => "-l",
     };
-    return format!("zfs allow {scope} -u {} {} {}", facts.account, required.permission, place_dataset(required.place, facts));
+    return format!(
+        "zfs allow {scope} -u {} {} {}",
+        facts.account,
+        required.permission,
+        place_dataset(required.place, facts)
+    );
 }
 
 /// The `-l` or `-d` a `zfs unallow` of one grant carries.
@@ -258,14 +333,41 @@ fn scope_flag(inheritance: Inheritance) -> &'static str {
 ///  (OpenZFS `zfs-2.4.4`,
 ///  `man/man8/zfs-allow.8`,
 ///  "zfs unallow").
-fn unallow_command(grant: &Grant, facts: &DelegationFacts) -> String {
+fn unallow_command(
+    grant: &Grant,
+    facts: &DelegationFacts,
+) -> String {
     return match &grant.who {
         Who::Create => format!("zfs unallow -c {} {}", grant.permission, grant.carried_by),
-        Who::NamedSet(name) => format!("zfs unallow -s {name} {} {}", grant.permission, grant.carried_by),
-        Who::User(id) => format!("zfs unallow {} -u {id} {} {}", scope_flag(grant.inheritance), grant.permission, grant.carried_by),
-        Who::Group(id) => format!("zfs unallow {} -g {id} {} {}", scope_flag(grant.inheritance), grant.permission, grant.carried_by),
-        Who::Everyone => format!("zfs unallow {} -e {} {}", scope_flag(grant.inheritance), grant.permission, grant.carried_by),
-        Who::Unknown(_) => format!("zfs unallow {} -u {} {} {}", scope_flag(grant.inheritance), facts.account, grant.permission, grant.carried_by),
+        Who::NamedSet(name) => format!(
+            "zfs unallow -s {name} {} {}",
+            grant.permission, grant.carried_by
+        ),
+        Who::User(id) => format!(
+            "zfs unallow {} -u {id} {} {}",
+            scope_flag(grant.inheritance),
+            grant.permission,
+            grant.carried_by
+        ),
+        Who::Group(id) => format!(
+            "zfs unallow {} -g {id} {} {}",
+            scope_flag(grant.inheritance),
+            grant.permission,
+            grant.carried_by
+        ),
+        Who::Everyone => format!(
+            "zfs unallow {} -e {} {}",
+            scope_flag(grant.inheritance),
+            grant.permission,
+            grant.carried_by
+        ),
+        Who::Unknown(_) => format!(
+            "zfs unallow {} -u {} {} {}",
+            scope_flag(grant.inheritance),
+            facts.account,
+            grant.permission,
+            grant.carried_by
+        ),
     };
 }
 
@@ -295,7 +397,10 @@ fn narrowings<'a>(facts: &'a DelegationFacts) -> Vec<Narrowing<'a>> {
     let mut found: Vec<Narrowing<'a>> = Vec::new();
     for required in &REQUIRED_GRANTS {
         if let Satisfaction::Broad(wide) = satisfaction(required, facts) {
-            found.push(Narrowing { required, wide });
+            found.push(Narrowing {
+                required,
+                wide,
+            });
         }
     }
     return found;
@@ -329,12 +434,20 @@ fn each_line_once(lines: &[String]) -> Vec<String> {
 ///  or the account is without the permission between the two commands.
 ///  One wider grant can serve more than one permission,
 ///  so the removal follows every grant that replaces it and prints once.
-fn scope_detail(narrowings: &[Narrowing<'_>], facts: &DelegationFacts) -> String {
+fn scope_detail(
+    narrowings: &[Narrowing<'_>],
+    facts: &DelegationFacts,
+) -> String {
     let mut entries: Vec<String> = Vec::new();
     let mut allows: Vec<String> = Vec::new();
     let mut unallows: Vec<String> = Vec::new();
     for narrowing in narrowings {
-        entries.push(format!("`{}` reaches `{}` only through `{}`'s descendant grant", narrowing.required.permission, place_dataset(narrowing.required.place, facts), narrowing.wide.carried_by));
+        entries.push(format!(
+            "`{}` reaches `{}` only through `{}`'s descendant grant",
+            narrowing.required.permission,
+            place_dataset(narrowing.required.place, facts),
+            narrowing.wide.carried_by
+        ));
         allows.push(allow_command(narrowing.required, facts));
         unallows.push(unallow_command(narrowing.wide, facts));
     }
@@ -354,7 +467,9 @@ fn is_route_permission(permission: &str) -> bool {
     if FORBIDDEN_PERMISSIONS.contains(&permission) {
         return true;
     }
-    return REQUIRED_GRANTS.iter().any(|required| return required.permission == permission);
+    return REQUIRED_GRANTS
+        .iter()
+        .any(|required| return required.permission == permission);
 }
 
 /// The create-time grants of a forbidden permission,
@@ -364,8 +479,20 @@ fn creation_time_forbidden(facts: &DelegationFacts) -> Vec<String> {
     return facts
         .grants
         .iter()
-        .filter(|grant| return matches!(grant.who, Who::Create) && !names_a_set(&grant.permission) && FORBIDDEN_PERMISSIONS.contains(&grant.permission.as_str()))
-        .map(|grant| return format!("`{}` on `{}` to {} ({})", grant.permission, grant.carried_by, grant.who.describe(), unallow_command(grant, facts)))
+        .filter(|grant| {
+            return matches!(grant.who, Who::Create)
+                && !names_a_set(&grant.permission)
+                && FORBIDDEN_PERMISSIONS.contains(&grant.permission.as_str());
+        })
+        .map(|grant| {
+            return format!(
+                "`{}` on `{}` to {} ({})",
+                grant.permission,
+                grant.carried_by,
+                grant.who.describe(),
+                unallow_command(grant, facts)
+            );
+        })
         .collect();
 }
 
@@ -380,7 +507,9 @@ fn creation_time_forbidden(facts: &DelegationFacts) -> Vec<String> {
 fn held_set_forbidden(facts: &DelegationFacts) -> Vec<String> {
     return set_memberships(facts)
         .into_iter()
-        .filter(|membership| return FORBIDDEN_PERMISSIONS.contains(&membership.member.permission.as_str()))
+        .filter(|membership| {
+            return FORBIDDEN_PERMISSIONS.contains(&membership.member.permission.as_str());
+        })
         .map(|membership| {
             return format!(
                 "`{}` on `{}` in {}, held by {} ({})",
@@ -419,11 +548,23 @@ fn unproved_named_sets(facts: &DelegationFacts) -> Vec<String> {
             Some(set) => format!(", which {} holds", set.held_by()),
             None => String::from(", which no holder in this reply grants the account"),
         };
-        entries.push(format!("`{}` in {} on `{}`{holder} ({})", definition.permission, definition.who.describe(), definition.carried_by, unallow_command(definition, facts)));
+        entries.push(format!(
+            "`{}` in {} on `{}`{holder} ({})",
+            definition.permission,
+            definition.who.describe(),
+            definition.carried_by,
+            unallow_command(definition, facts)
+        ));
     }
     for set in &held {
-        if !facts.grants.iter().any(|entry| return matches!(&entry.who, Who::NamedSet(name) if name.as_str() == set.name)) {
-            entries.push(format!("named set {} which {} holds, and this reply defines no member of it", set.name, set.held_by()));
+        if !facts.grants.iter().any(
+            |entry| return matches!(&entry.who, Who::NamedSet(name) if name.as_str() == set.name),
+        ) {
+            entries.push(format!(
+                "named set {} which {} holds, and this reply defines no member of it",
+                set.name,
+                set.held_by()
+            ));
         }
     }
     return each_line_once(&entries);
@@ -453,41 +594,91 @@ pub fn check_delegation(facts: &DelegationFacts) -> CheckOutcome {
     let mut forbidden: Vec<String> = facts
         .grants
         .iter()
-        .filter(|grant| return FORBIDDEN_PERMISSIONS.contains(&grant.permission.as_str()) && (grants_the_account(grant, facts) || matches!(grant.who, Who::Everyone)))
-        .map(|grant| return format!("`{}` on `{}` to {} ({})", grant.permission, grant.carried_by, grant.who.describe(), unallow_command(grant, facts)))
+        .filter(|grant| {
+            return FORBIDDEN_PERMISSIONS.contains(&grant.permission.as_str())
+                && (grants_the_account(grant, facts) || matches!(grant.who, Who::Everyone));
+        })
+        .map(|grant| {
+            return format!(
+                "`{}` on `{}` to {} ({})",
+                grant.permission,
+                grant.carried_by,
+                grant.who.describe(),
+                unallow_command(grant, facts)
+            );
+        })
         .collect();
     forbidden.extend(creation_time_forbidden(facts));
     forbidden.extend(held_set_forbidden(facts));
     forbidden = each_line_once(&forbidden);
     if !forbidden.is_empty() {
-        return finding("permission", format!("the account holds or will come to hold {} lineage-changing grant(s) the route must not have: {}", forbidden.len(), forbidden.join("; ")));
+        return finding(
+            "permission",
+            format!(
+                "the account holds or will come to hold {} lineage-changing grant(s) the route must not have: {}",
+                forbidden.len(),
+                forbidden.join("; ")
+            ),
+        );
     }
     let everyone: Vec<String> = facts
         .grants
         .iter()
-        .filter(|grant| return matches!(grant.who, Who::Everyone) && is_route_permission(&grant.permission) && !names_a_set(&grant.permission))
+        .filter(|grant| {
+            return matches!(grant.who, Who::Everyone)
+                && is_route_permission(&grant.permission)
+                && !names_a_set(&grant.permission);
+        })
         .map(|grant| return format!("`{}` on `{}`", grant.permission, grant.carried_by))
         .collect();
     if !everyone.is_empty() {
-        return finding("everyone", format!("{} route permission(s) are granted to everyone, which reaches every account on this machine: {}", everyone.len(), everyone.join("; ")));
+        return finding(
+            "everyone",
+            format!(
+                "{} route permission(s) are granted to everyone, which reaches every account on this machine: {}",
+                everyone.len(),
+                everyone.join("; ")
+            ),
+        );
     }
     let named_sets: Vec<String> = unproved_named_sets(facts);
     if !named_sets.is_empty() {
-        return unknown(format!("{} route permission(s) stand in named sets rather than in the direct grants the design names, so the effective delegation is unproved: {}", named_sets.len(), named_sets.join("; ")));
+        return unknown(format!(
+            "{} route permission(s) stand in named sets rather than in the direct grants the design names, so the effective delegation is unproved: {}",
+            named_sets.len(),
+            named_sets.join("; ")
+        ));
     }
     let missing: Vec<String> = REQUIRED_GRANTS
         .iter()
         .filter(|required| return matches!(satisfaction(required, facts), Satisfaction::Missing))
-        .map(|required| return format!("`{}` on `{}` ({})", required.permission, place_dataset(required.place, facts), allow_command(required, facts)))
+        .map(|required| {
+            return format!(
+                "`{}` on `{}` ({})",
+                required.permission,
+                place_dataset(required.place, facts),
+                allow_command(required, facts)
+            );
+        })
         .collect();
     if !missing.is_empty() {
-        return finding("grant", format!("{} decided permission(s) are not granted to the account: {}", missing.len(), missing.join("; ")));
+        return finding(
+            "grant",
+            format!(
+                "{} decided permission(s) are not granted to the account: {}",
+                missing.len(),
+                missing.join("; ")
+            ),
+        );
     }
     let narrowings: Vec<Narrowing<'_>> = narrowings(facts);
     if !narrowings.is_empty() {
         return finding("scope", scope_detail(&narrowings, facts));
     }
-    return pass(format!("{} decided permission(s) are granted where the design puts them and no lineage-changing grant reaches the account", REQUIRED_GRANTS.len()));
+    return pass(format!(
+        "{} decided permission(s) are granted where the design puts them and no lineage-changing grant reaches the account",
+        REQUIRED_GRANTS.len()
+    ));
 }
 
 /// What:
@@ -505,7 +696,11 @@ pub fn check_delegation(facts: &DelegationFacts) -> CheckOutcome {
 /// const missing = missingPermissions(facts); // RequiredGrant[]
 /// ```
 pub fn missing_grants(facts: &DelegationFacts) -> Vec<RequiredGrant> {
-    return REQUIRED_GRANTS.iter().copied().filter(|required| return matches!(satisfaction(required, facts), Satisfaction::Missing)).collect();
+    return REQUIRED_GRANTS
+        .iter()
+        .copied()
+        .filter(|required| return matches!(satisfaction(required, facts), Satisfaction::Missing))
+        .collect();
 }
 
 //endregion

@@ -37,8 +37,6 @@ pub(crate) fn option_for_short_letter(letter: u8) -> Option<&'static AddOption> 
     return None;
 }
 
-
-
 /// How an option of `git worktree add` takes its value,
 /// as `parse-options.c` of Git 2.56.0 does (`do_get_value`,
 /// line 136).
@@ -79,21 +77,67 @@ pub(crate) struct AddOption {
 /// and a control compares the two,
 /// so the table cannot drift from Git unnoticed.
 pub(crate) const ADD_OPTIONS: &[AddOption] = &[
-    AddOption { short: Some(b'f'), long: Some("force"), takes: Takes::Nothing },
-    AddOption { short: Some(b'b'), long: None, takes: Takes::Required },
-    AddOption { short: Some(b'B'), long: None, takes: Takes::Required },
-    AddOption { short: None, long: Some("orphan"), takes: Takes::Nothing },
-    AddOption { short: Some(b'd'), long: Some("detach"), takes: Takes::Nothing },
-    AddOption { short: None, long: Some("checkout"), takes: Takes::Nothing },
-    AddOption { short: None, long: Some("lock"), takes: Takes::Nothing },
-    AddOption { short: None, long: Some("reason"), takes: Takes::Required },
-    AddOption { short: Some(b'q'), long: Some("quiet"), takes: Takes::Nothing },
-    AddOption { short: None, long: Some("track"), takes: Takes::Nothing },
-    AddOption { short: None, long: Some("guess-remote"), takes: Takes::Nothing },
-    AddOption { short: None, long: Some("relative-paths"), takes: Takes::Nothing },
+    AddOption {
+        short: Some(b'f'),
+        long: Some("force"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: Some(b'b'),
+        long: None,
+        takes: Takes::Required,
+    },
+    AddOption {
+        short: Some(b'B'),
+        long: None,
+        takes: Takes::Required,
+    },
+    AddOption {
+        short: None,
+        long: Some("orphan"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: Some(b'd'),
+        long: Some("detach"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: None,
+        long: Some("checkout"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: None,
+        long: Some("lock"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: None,
+        long: Some("reason"),
+        takes: Takes::Required,
+    },
+    AddOption {
+        short: Some(b'q'),
+        long: Some("quiet"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: None,
+        long: Some("track"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: None,
+        long: Some("guess-remote"),
+        takes: Takes::Nothing,
+    },
+    AddOption {
+        short: None,
+        long: Some("relative-paths"),
+        takes: Takes::Nothing,
+    },
 ];
-
-
 
 /// The option a long argument names and how,
 /// resolved exactly as `parse_long_opt` of Git 2.56.0 does (`parse-options.c`,
@@ -148,7 +192,10 @@ pub(crate) fn resolve_long(arg: &str) -> Option<LongOption<'_>> {
 /// ```ts
 /// function resolveIn(options: AddOption[], arg: string): { option; unset; attached? } | undefined;
 /// ```
-pub(crate) fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Option<LongOption<'a>> {
+pub(crate) fn resolve_in<'a>(
+    table: &'static [AddOption],
+    arg: &'a str,
+) -> Option<LongOption<'a>> {
     let arg_end: usize = arg.find('=').unwrap_or(arg.len());
     // `--no-x` is the negation of `x`; `--no-no-x` is accepted by no option whose name has no `no-` (line 535 to 543).
     let (arg_start, unset, double_negation): (&str, bool, bool) = match arg.strip_prefix("no-") {
@@ -170,10 +217,18 @@ pub(crate) fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Optio
         if let Some(rest) = arg_start.strip_prefix(name) {
             // An exact name returns at once, even after prefixes were seen.
             if let Some(value) = rest.strip_prefix('=') {
-                return Some(LongOption { option, unset, attached: Some(value) });
+                return Some(LongOption {
+                    option,
+                    unset,
+                    attached: Some(value),
+                });
             }
             if rest.is_empty() {
-                return Some(LongOption { option, unset, attached: None });
+                return Some(LongOption {
+                    option,
+                    unset,
+                    attached: None,
+                });
             }
             continue;
         }
@@ -186,8 +241,16 @@ pub(crate) fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Optio
         return None;
     }
     let (matched, matched_unset) = abbreviated?;
-    let attached: Option<&str> = if arg_end < arg.len() { Some(&arg[arg_end + 1..]) } else { None };
-    return Some(LongOption { option: matched, unset: matched_unset, attached });
+    let attached: Option<&str> = if arg_end < arg.len() {
+        Some(&arg[arg_end + 1..])
+    } else {
+        None
+    };
+    return Some(LongOption {
+        option: matched,
+        unset: matched_unset,
+        attached,
+    });
 }
 
 /// What:
@@ -204,7 +267,12 @@ pub(crate) fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Optio
 /// ```ts
 /// function takeValue(option, unset, attached, tokens): boolean;
 /// ```
-pub(crate) fn take_value<'a>(option: &AddOption, unset: bool, attached: Option<&str>, tokens: &mut impl Iterator<Item = &'a OsString>) -> Option<()> {
+pub(crate) fn take_value<'a>(
+    option: &AddOption,
+    unset: bool,
+    attached: Option<&str>,
+    tokens: &mut impl Iterator<Item = &'a OsString>,
+) -> Option<()> {
     if unset && attached.is_some() {
         return None;
     }
@@ -218,7 +286,6 @@ pub(crate) fn take_value<'a>(option: &AddOption, unset: bool, attached: Option<&
         }
     }
 }
-
 
 /// Option-table controls stay out of the release executable.
 #[cfg(test)]

@@ -18,9 +18,18 @@
 //! remember(gitDir, id, reason); const reason = recall(gitDir, id); forget(gitDir, id);
 //! ```
 
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_text_at};
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
-use std::path::{Path, PathBuf};
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_text_at,
+};
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file_unsynced,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Directory under the worktree's own Git directory that holds one reason per relink record.
 pub const FAILURE_DIRECTORY: &str = "monochromatic-git-policy-cli/relink-failures";
@@ -35,7 +44,10 @@ pub const FAILURE_DIRECTORY: &str = "monochromatic-git-policy-cli/relink-failure
 /// ```ts
 /// const path = (gitDir, id) => join(gitDir, 'monochromatic-git-policy-cli/relink-failures', id);
 /// ```
-fn path_of(git_dir: &Path, id: &str) -> PathBuf {
+fn path_of(
+    git_dir: &Path,
+    id: &str,
+) -> PathBuf {
     return git_dir.join(FAILURE_DIRECTORY).join(id);
 }
 
@@ -53,13 +65,28 @@ fn path_of(git_dir: &Path, id: &str) -> PathBuf {
 /// ```ts
 /// mkdir(join(gitDir, DIR)); replaceFile(pathOf(gitDir, id), `${reason}\n`);
 /// ```
-pub fn remember(git_dir: &Path, id: &str, reason: &str) -> Result<(), String> {
+pub fn remember(
+    git_dir: &Path,
+    id: &str,
+    reason: &str,
+) -> Result<(), String> {
     let directory: PathBuf = git_dir.join(FAILURE_DIRECTORY);
-    create_private_directory_all(directory.as_path()).map_err(|error| format!("the directory {} could not be made ({error})", directory.display()))?;
+    create_private_directory_all(directory.as_path()).map_err(|error| {
+        return format!(
+            "the directory {} could not be made ({error})",
+            directory.display()
+        );
+    })?;
     let path: PathBuf = path_of(git_dir, id);
     // A record's second try replaces the reason its first try left, and a name that holds a record already is not a
     //  reason to keep the older one: the person is owed the answer the last try gave.
-    return replace_private_file_unsynced(path.as_path(), format!("{reason}\n").as_bytes()).map_err(|error| format!("the reason could not be written to {} ({error})", path.display()));
+    return replace_private_file_unsynced(path.as_path(), format!("{reason}\n").as_bytes())
+        .map_err(|error| {
+            return format!(
+                "the reason could not be written to {} ({error})",
+                path.display()
+            );
+        });
 }
 
 /// What:
@@ -78,7 +105,10 @@ pub fn remember(git_dir: &Path, id: &str, reason: &str) -> Result<(), String> {
 /// ```ts
 /// const reason = readPlainTextAt(pathOf(gitDir, id), SMALL_FILE_LIMIT).trim() ?? undefined;
 /// ```
-pub fn recall(git_dir: &Path, id: &str) -> Option<String> {
+pub fn recall(
+    git_dir: &Path,
+    id: &str,
+) -> Option<String> {
     let text: String = read_plain_text_at(path_of(git_dir, id).as_path(), SMALL_FILE_LIMIT).ok()?;
     let reason: String = text.trim_end_matches('\n').to_owned();
     // A file that holds nothing says nothing, and the notice then words the account as one with no answer to quote.
@@ -99,7 +129,10 @@ pub fn recall(git_dir: &Path, id: &str) -> Option<String> {
 /// ```ts
 /// unlink(pathOf(gitDir, id)) // ignore ENOENT
 /// ```
-pub fn forget(git_dir: &Path, id: &str) {
+pub fn forget(
+    git_dir: &Path,
+    id: &str,
+) {
     let path: PathBuf = path_of(git_dir, id);
     let _removed = std::fs::remove_file(path.as_path());
 }

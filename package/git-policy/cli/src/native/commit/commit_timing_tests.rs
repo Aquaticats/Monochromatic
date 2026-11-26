@@ -17,17 +17,36 @@
 //! ```
 
 /// The record and its writer.
-use super::{Accounting, CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+use super::{
+    Accounting,
+    CommitTiming,
+    ReachTrace,
+    SubmitTrace,
+    TIMING_FILE,
+    TIMING_SCHEMA_VERSION,
+    UNANNOUNCED,
+    whole_milliseconds,
+};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
+use crate::commit_prepare_part_durations::PreparePart;
 /// The reason one commit did not land,
 /// which the controls state and read back.
 use crate::commit_stop_reason::CommitStopReason;
-use crate::commit_prepare_part_durations::PreparePart;
-use crate::time_spent_outside_the_phases::OutsideThePhases;
-use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
 use crate::service_instance::instance_of;
-use crate::service_protocol::{LandingFigures, LandingSync, RELEASE};
-use std::path::{Path, PathBuf};
+use crate::service_protocol::{
+    LandingFigures,
+    LandingSync,
+    RELEASE,
+};
+use crate::time_spent_outside_the_phases::OutsideThePhases;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// Milliseconds each phase is given in the controls;
@@ -94,10 +113,21 @@ fn landing_figures() -> LandingFigures {
         lock_hold_ms: LANDING_HOLD_MS,
         queued_behind: LANDING_QUEUED_BEHIND,
         reads_ms: LANDING_READS_MS,
-        reads: vec![(String::from("branch"), LANDING_READ_BRANCH_MS), (String::from("witness"), LANDING_READ_WITNESS_MS)],
+        reads: vec![
+            (String::from("branch"), LANDING_READ_BRANCH_MS),
+            (String::from("witness"), LANDING_READ_WITNESS_MS),
+        ],
         syncs: vec![
-            LandingSync { what: String::from("built-index"), waited: true, ms: LANDING_SYNC_INDEX_MS },
-            LandingSync { what: String::from("intent-file"), waited: false, ms: 0 },
+            LandingSync {
+                what: String::from("built-index"),
+                waited: true,
+                ms: LANDING_SYNC_INDEX_MS,
+            },
+            LandingSync {
+                what: String::from("intent-file"),
+                waited: false,
+                ms: 0,
+            },
         ],
     };
 }
@@ -139,15 +169,39 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.handoff = Duration::from_millis(HANDOFF_MS);
     timing.closing = Duration::from_millis(CLOSING_MS);
     timing.prepare_parts = vec![
-        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS), children: Duration::from_millis(LAYOUT_CHILDREN_MS) },
-        PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS), children: Duration::ZERO },
-        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS), children: Duration::from_millis(LAYOUT_CHILDREN_MS) },
+        PreparePart {
+            name: String::from("layout"),
+            took: Duration::from_millis(LAYOUT_MS),
+            children: Duration::from_millis(LAYOUT_CHILDREN_MS),
+        },
+        PreparePart {
+            name: String::from("capture"),
+            took: Duration::from_millis(CAPTURE_MS),
+            children: Duration::ZERO,
+        },
+        PreparePart {
+            name: String::from("layout"),
+            took: Duration::from_millis(LAYOUT_MS),
+            children: Duration::from_millis(LAYOUT_CHILDREN_MS),
+        },
     ];
     timing.prepare_parts_dropped = PREPARE_PARTS_DROPPED;
     timing.build_parts = vec![
-        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS), children: Duration::ZERO },
-        PreparePart { name: String::from("shadow links"), took: Duration::from_millis(SHADOW_LINKS_MS), children: Duration::from_millis(SHADOW_LINKS_CHILDREN_MS) },
-        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS), children: Duration::ZERO },
+        PreparePart {
+            name: String::from("branch"),
+            took: Duration::from_millis(BRANCH_MS),
+            children: Duration::ZERO,
+        },
+        PreparePart {
+            name: String::from("shadow links"),
+            took: Duration::from_millis(SHADOW_LINKS_MS),
+            children: Duration::from_millis(SHADOW_LINKS_CHILDREN_MS),
+        },
+        PreparePart {
+            name: String::from("branch"),
+            took: Duration::from_millis(BRANCH_MS),
+            children: Duration::ZERO,
+        },
     ];
     timing.build_parts_dropped = BUILD_PARTS_DROPPED;
     timing.outside = OutsideThePhases {
@@ -155,7 +209,15 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
         removals_that_did_not_finish: REMOVALS_THAT_DID_NOT_FINISH,
         standard_error: Duration::from_millis(STANDARD_ERROR_MS),
     };
-    let covered: Duration = timing.route + timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff + timing.closing;
+    let covered: Duration = timing.route
+        + timing.prepare
+        + timing.build
+        + timing.provision
+        + timing.submit.total
+        + timing.after_landing
+        + timing.gate
+        + timing.handoff
+        + timing.closing;
     return (timing, covered);
 }
 
@@ -177,11 +239,17 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["pid"], std::process::id());
     assert_eq!(value["release"], RELEASE);
     assert_eq!(value["instance"], instance_of(root.join(".git").as_path()));
-    assert_eq!(value["gitDir"], root.join(".git").to_string_lossy().to_string());
+    assert_eq!(
+        value["gitDir"],
+        root.join(".git").to_string_lossy().to_string()
+    );
     assert_eq!(value["branch"], "refs/heads/main");
     assert_eq!(value["outcome"], "landed");
     assert_eq!(value["exitCode"], 3);
-    assert_eq!(value["totalMs"], u64::try_from(total.as_millis()).expect("fits"));
+    assert_eq!(
+        value["totalMs"],
+        u64::try_from(total.as_millis()).expect("fits")
+    );
     assert_eq!(value["routeMs"], ROUTE_MS);
     assert_eq!(value["prepareMs"], PREPARE_MS);
     assert_eq!(value["attempts"], 2);
@@ -194,7 +262,10 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["refusedConnects"], 3);
     assert_eq!(value["startWaitMs"], START_WAIT_MS);
     assert_eq!(value["updateRounds"], 1);
-    assert_eq!(value["releasesSeen"], serde_json::Value::from(vec!["0.5.7", RELEASE]));
+    assert_eq!(
+        value["releasesSeen"],
+        serde_json::Value::from(vec!["0.5.7", RELEASE])
+    );
     assert_eq!(value["answeredByRelease"], RELEASE);
     assert_eq!(value["answerWaitMs"], ANSWER_WAIT_MS);
     assert_eq!(value["positions"], serde_json::Value::from(vec![2_u64, 1]));
@@ -205,7 +276,12 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["gateMs"], GATE_MS);
     assert_eq!(value["handoffMs"], HANDOFF_MS);
     assert_eq!(value["closingMs"], CLOSING_MS);
-    assert!(value["startMillis"].as_u64().is_some_and(|stamp| { return stamp > 0; }), "{value}");
+    assert!(
+        value["startMillis"].as_u64().is_some_and(|stamp| {
+            return stamp > 0;
+        }),
+        "{value}"
+    );
     remove(root.as_path());
 }
 
@@ -219,11 +295,17 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     let value: serde_json::Value = parsed(timing.line(total, 0).as_str());
     assert_eq!(value["otherMs"], UNCOVERED_MS);
     assert_eq!(value["scratchRemovalMs"], SCRATCH_REMOVAL_MS);
-    assert_eq!(value["removalsThatDidNotFinish"], REMOVALS_THAT_DID_NOT_FINISH);
+    assert_eq!(
+        value["removalsThatDidNotFinish"],
+        REMOVALS_THAT_DID_NOT_FINISH
+    );
     assert_eq!(value["stderrMs"], STANDARD_ERROR_MS);
     assert_eq!(value["prepareParts"]["layout"]["ms"], LAYOUT_MS * 2);
     assert_eq!(value["prepareParts"]["layout"]["calls"], 2);
-    assert_eq!(value["prepareParts"]["layout"]["childrenMs"], LAYOUT_CHILDREN_MS * 2);
+    assert_eq!(
+        value["prepareParts"]["layout"]["childrenMs"],
+        LAYOUT_CHILDREN_MS * 2
+    );
     assert_eq!(value["prepareParts"]["capture"]["ms"], CAPTURE_MS);
     assert_eq!(value["prepareParts"]["capture"]["calls"], 1);
     assert_eq!(value["prepareParts"]["capture"]["childrenMs"], 0);
@@ -234,17 +316,41 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     assert_eq!(value["buildParts"]["branch"]["childrenMs"], 0);
     assert_eq!(value["buildParts"]["shadow links"]["ms"], SHADOW_LINKS_MS);
     assert_eq!(value["buildParts"]["shadow links"]["calls"], 1);
-    assert_eq!(value["buildParts"]["shadow links"]["childrenMs"], SHADOW_LINKS_CHILDREN_MS);
+    assert_eq!(
+        value["buildParts"]["shadow links"]["childrenMs"],
+        SHADOW_LINKS_CHILDREN_MS
+    );
     assert_eq!(value["buildPartsDropped"], BUILD_PARTS_DROPPED);
-    let phases: u64 = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "closingMs", "otherMs"]
-        .iter()
-        .map(|name| { return value[*name].as_u64().expect("a number"); })
-        .sum();
+    let phases: u64 = [
+        "routeMs",
+        "prepareMs",
+        "buildMs",
+        "provisionMs",
+        "submitMs",
+        "afterLandingMs",
+        "gateMs",
+        "handoffMs",
+        "closingMs",
+        "otherMs",
+    ]
+    .iter()
+    .map(|name| {
+        return value[*name].as_u64().expect("a number");
+    })
+    .sum();
     assert_eq!(phases, value["totalMs"].as_u64().expect("a number"));
     // The inner stretches lie inside their phase, so they never exceed it.
-    assert!(value["reachMs"].as_u64().expect("number") + value["answerWaitMs"].as_u64().expect("number") <= value["submitMs"].as_u64().expect("number"));
+    assert!(
+        value["reachMs"].as_u64().expect("number")
+            + value["answerWaitMs"].as_u64().expect("number")
+            <= value["submitMs"].as_u64().expect("number")
+    );
     // A total shorter than the phases (a clock read between two edges) never goes negative.
-    let short: serde_json::Value = parsed(timing.line(covered.saturating_sub(Duration::from_millis(1)), 0).as_str());
+    let short: serde_json::Value = parsed(
+        timing
+            .line(covered.saturating_sub(Duration::from_millis(1)), 0)
+            .as_str(),
+    );
     assert_eq!(short["otherMs"], 0);
     remove(root.as_path());
 }
@@ -278,18 +384,34 @@ fn an_unnamed_wait_passes_no_tolerance() {
     let account: Accounting = timing.accounting(spelled);
     assert_eq!(account.named, covered);
     assert_eq!(account.unnamed, Duration::from_millis(UNCOVERED_MS));
-    assert!(account.within(tolerance), "the controls' own remainder passes a tolerance that covers it: {account:?}");
-    assert!(!account.within(Duration::from_millis(UNCOVERED_MS - 1)), "a tolerance narrower than the remainder fails it");
+    assert!(
+        account.within(tolerance),
+        "the controls' own remainder passes a tolerance that covers it: {account:?}"
+    );
+    assert!(
+        !account.within(Duration::from_millis(UNCOVERED_MS - 1)),
+        "a tolerance narrower than the remainder fails it"
+    );
     // Eight seconds that no phase names: the record cannot say where they went, and the control says so.
     let slow: Duration = spelled + Duration::from_secs(8);
     let hidden: Accounting = timing.accounting(slow);
-    assert_eq!(hidden.unnamed, Duration::from_millis(UNCOVERED_MS) + Duration::from_secs(8));
-    assert!(!hidden.within(tolerance), "a wait of seconds with no phase to hold it fails the tolerance: {hidden:?}");
+    assert_eq!(
+        hidden.unnamed,
+        Duration::from_millis(UNCOVERED_MS) + Duration::from_secs(8)
+    );
+    assert!(
+        !hidden.within(tolerance),
+        "a wait of seconds with no phase to hold it fails the tolerance: {hidden:?}"
+    );
     // The same eight seconds inside a named phase are accounted for.
     let mut named: CommitTiming = timing.clone();
     named.closing += Duration::from_secs(8);
     let accounted: Accounting = named.accounting(slow);
-    assert_eq!(accounted.unnamed, Duration::from_millis(UNCOVERED_MS), "the wait the closing phase holds is named: {accounted:?}");
+    assert_eq!(
+        accounted.unnamed,
+        Duration::from_millis(UNCOVERED_MS),
+        "the wait the closing phase holds is named: {accounted:?}"
+    );
     assert!(accounted.within(tolerance), "{accounted:?}");
     remove(root.as_path());
 }
@@ -303,10 +425,17 @@ fn the_closing_stretch_is_a_named_phase() {
     timing.begin_closing();
     std::thread::sleep(Duration::from_millis(CLOSING_SLEEP_MS));
     timing.close_the_closing();
-    assert!(timing.closing >= Duration::from_millis(CLOSING_SLEEP_MS), "the stretch is measured: {:?}", timing.closing);
+    assert!(
+        timing.closing >= Duration::from_millis(CLOSING_SLEEP_MS),
+        "the stretch is measured: {:?}",
+        timing.closing
+    );
     let once: Duration = timing.closing;
     timing.close_the_closing();
-    assert_eq!(timing.closing, once, "the clock is taken by the first close, so a second states nothing more");
+    assert_eq!(
+        timing.closing, once,
+        "the clock is taken by the first close, so a second states nothing more"
+    );
 }
 
 /// A branch name with a quote,
@@ -334,9 +463,15 @@ fn a_branch_name_with_delimiters_stays_one_line() {
 fn a_commit_that_did_not_land_states_what_stopped_it() {
     let root: PathBuf = fixture("timing-stop");
     let (mut timing, covered) = filled(root.as_path());
-    assert!(parsed(timing.line(covered, 0).as_str())["stop"].is_null(), "a commit that landed names no stop");
+    assert!(
+        parsed(timing.line(covered, 0).as_str())["stop"].is_null(),
+        "a commit that landed names no stop"
+    );
     timing.outcome = "stopped";
-    timing.stop = Some(CommitStopReason::git_step("git add", Some(FAILED_STEP_STATUS)));
+    timing.stop = Some(CommitStopReason::git_step(
+        "git add",
+        Some(FAILED_STEP_STATUS),
+    ));
     let stopped: serde_json::Value = parsed(timing.line(covered, 2).as_str());
     assert_eq!(stopped["stop"]["kind"], "git-step", "{stopped}");
     assert_eq!(stopped["stop"]["step"], "git add", "{stopped}");
@@ -359,8 +494,14 @@ fn a_commit_without_a_place_or_a_reach_says_null() {
     assert_eq!(value["gitDir"], serde_json::Value::Null);
     assert_eq!(value["branch"], serde_json::Value::Null);
     assert_eq!(value["answeredByRelease"], serde_json::Value::Null);
-    assert_eq!(value["positions"], serde_json::Value::from(Vec::<u64>::new()));
-    assert_eq!(value["releasesSeen"], serde_json::Value::from(Vec::<u64>::new()));
+    assert_eq!(
+        value["positions"],
+        serde_json::Value::from(Vec::<u64>::new())
+    );
+    assert_eq!(
+        value["releasesSeen"],
+        serde_json::Value::from(Vec::<u64>::new())
+    );
     assert_eq!(value["outcome"], "stopped");
 }
 
@@ -373,12 +514,19 @@ fn records_append_in_order_beside_the_audit_file_and_never_create_a_directory() 
     timing.finish(0);
     timing.outcome = "ended";
     timing.finish(1);
-    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let text: String =
+        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
     let lines: Vec<&str> = text.lines().collect();
     assert_eq!(lines.len(), 2);
-    assert_eq!(parsed(format!("{}\n", lines[0]).as_str())["outcome"], "landed");
+    assert_eq!(
+        parsed(format!("{}\n", lines[0]).as_str())["outcome"],
+        "landed"
+    );
     assert_eq!(parsed(format!("{}\n", lines[1]).as_str())["exitCode"], 1);
-    assert_ne!(TIMING_FILE, AUDIT_FILE, "the audit file keeps its own lines");
+    assert_ne!(
+        TIMING_FILE, AUDIT_FILE,
+        "the audit file keeps its own lines"
+    );
     let missing: PathBuf = root.join("absent");
     let mut stray: CommitTiming = CommitTiming::start();
     stray.place_at(missing.join(".git").as_path());
@@ -400,7 +548,8 @@ fn a_linked_worktrees_record_goes_to_the_common_directory() {
     let mut timing: CommitTiming = CommitTiming::start();
     timing.place_at(own.as_path());
     timing.finish(0);
-    let text: String = std::fs::read_to_string(common.join(TIMING_FILE)).expect("timing file in the common directory");
+    let text: String = std::fs::read_to_string(common.join(TIMING_FILE))
+        .expect("timing file in the common directory");
     let value: serde_json::Value = parsed(text.as_str());
     assert_eq!(value["instance"], instance_of(own.as_path()));
     assert!(!own.join(TIMING_FILE).exists());
@@ -417,13 +566,23 @@ fn releases_are_listed_once_in_the_order_seen() {
     trace.saw_release(None);
     trace.saw_release(Some("0.5.7"));
     trace.saw_release(Some(RELEASE));
-    assert_eq!(trace.releases_seen, vec![String::from("0.5.7"), String::from(UNANNOUNCED), String::from(RELEASE)]);
+    assert_eq!(
+        trace.releases_seen,
+        vec![
+            String::from("0.5.7"),
+            String::from(UNANNOUNCED),
+            String::from(RELEASE)
+        ]
+    );
 }
 
 /// The system clock in whole milliseconds since the Unix epoch,
 /// read on its own.
 fn epoch_milliseconds() -> u128 {
-    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("a clock after 1970").as_millis();
+    return std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after 1970")
+        .as_millis();
 }
 
 /// The stamp is the wall clock at the start of the command,
@@ -436,9 +595,16 @@ fn the_stamp_is_the_wall_clock_at_the_start() {
     let before: u128 = epoch_milliseconds();
     let timing: CommitTiming = CommitTiming::start();
     let after: u128 = epoch_milliseconds();
-    assert!(before <= timing.start_millis && timing.start_millis <= after, "{before} <= {} <= {after}", timing.start_millis);
+    assert!(
+        before <= timing.start_millis && timing.start_millis <= after,
+        "{before} <= {} <= {after}",
+        timing.start_millis
+    );
     let value: serde_json::Value = parsed(timing.line(Duration::ZERO, 0).as_str());
-    assert_eq!(value["startMillis"].as_u64().map(u128::from), Some(timing.start_millis));
+    assert_eq!(
+        value["startMillis"].as_u64().map(u128::from),
+        Some(timing.start_millis)
+    );
 }
 
 /// A duration is counted in whole milliseconds:
@@ -448,7 +614,10 @@ fn the_stamp_is_the_wall_clock_at_the_start() {
 fn whole_milliseconds_drop_the_part_of_a_millisecond() {
     let kept: u64 = SUBMIT_MS;
     let part: Duration = Duration::from_micros(999);
-    assert_eq!(whole_milliseconds(Duration::from_millis(kept) + part), u128::from(kept));
+    assert_eq!(
+        whole_milliseconds(Duration::from_millis(kept) + part),
+        u128::from(kept)
+    );
     assert_eq!(whole_milliseconds(part), 0);
 }
 
@@ -460,15 +629,39 @@ fn the_holder_kind_follows_what_the_notice_says() {
     use super::holder_kind_of;
     use crate::service_index_attempts::COMMIT_WITHDRAWN;
     use crate::wait_ceilings::LANDING_LOCK_CEILING;
-    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd { within: LANDING_LOCK_CEILING, ending: COMMIT_WITHDRAWN };
-    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"), end);
+    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd {
+        within: LANDING_LOCK_CEILING,
+        ending: COMMIT_WITHDRAWN,
+    };
+    let proven: String = crate::index_lock_evidence::proven_holder_line(
+        42,
+        true,
+        Some("git"),
+        Path::new("/r/.git/index.lock"),
+        end,
+    );
     assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end).as_str()),
+        holder_kind_of(
+            crate::index_lock_evidence::unproven_wait_line(
+                Path::new("/r/.git/index.lock"),
+                None,
+                end
+            )
+            .as_str()
+        ),
         "unproven"
     );
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made", crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT).as_str()),
+        holder_kind_of(
+            crate::index_lock_evidence::dead_owner_diagnostic(
+                Path::new("/r/.git/index.lock"),
+                9,
+                "this commit was not made",
+                crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT
+            )
+            .as_str()
+        ),
         "unproven",
         "the diagnostic that ends a wait is not a holder proven alive"
     );
@@ -528,12 +721,22 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
     timing.quiet = vec![
         (String::from("git add"), Duration::from_millis(250)),
         (String::from("git rev-parse"), Duration::from_millis(40)),
-        (format!("git reset{}", crate::quiet_ledger::ENDED_SUFFIX), Duration::from_millis(9000)),
+        (
+            format!("git reset{}", crate::quiet_ledger::ENDED_SUFFIX),
+            Duration::from_millis(9000),
+        ),
     ];
     let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
-    assert_eq!(value["longestQuietMs"].as_f64(), Some(250.0), "only steps that ended by themselves count: {value}");
+    assert_eq!(
+        value["longestQuietMs"].as_f64(),
+        Some(250.0),
+        "only steps that ended by themselves count: {value}"
+    );
     assert_eq!(value["quietMs"]["git rev-parse"].as_f64(), Some(40.0));
-    assert_eq!(value["quietMs"]["git reset [ended for being quiet]"].as_f64(), Some(9000.0));
+    assert_eq!(
+        value["quietMs"]["git reset [ended for being quiet]"].as_f64(),
+        Some(9000.0)
+    );
     let empty: serde_json::Value = parsed(filled(root.as_path()).0.line(covered, 0).as_str());
     assert_eq!(empty["quietMs"], serde_json::json!({}));
     assert_eq!(empty["longestQuietMs"].as_f64(), Some(0.0));
@@ -546,16 +749,26 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
 /// and both are in the record without verbose mode.
 #[test]
 fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
-    use crate::commit_index_builds::{IndexBuildKind, note_index_build};
+    use crate::commit_index_builds::{
+        IndexBuildKind,
+        note_index_build,
+    };
     let root: PathBuf = fixture("timing-index-builds");
     let (timing, _covered) = filled(root.as_path());
     note_index_build(IndexBuildKind::First, true);
     note_index_build(IndexBuildKind::Retry, false);
     timing.finish(0);
-    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let text: String =
+        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
     let value: serde_json::Value = parsed(text.as_str());
-    let expected: serde_json::Value = serde_json::from_str(r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#).expect("the list of two builds");
-    assert_eq!(value["indexBuilds"], expected, "every build of the private index is stated in the order built: {value}");
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#,
+    )
+    .expect("the list of two builds");
+    assert_eq!(
+        value["indexBuilds"], expected,
+        "every build of the private index is stated in the order built: {value}"
+    );
     remove(root.as_path());
 }
 
@@ -566,13 +779,32 @@ fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
     use super::holder_kind_after;
     use crate::service_index_attempts::COMMIT_WITHDRAWN;
     use crate::wait_ceilings::LANDING_LOCK_CEILING;
-    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd { within: LANDING_LOCK_CEILING, ending: COMMIT_WITHDRAWN };
-    let proven: String = crate::index_lock_evidence::proven_holder_line(7, true, None, Path::new("/r/.git/index.lock"), end);
-    let unproven: String = crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end);
+    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd {
+        within: LANDING_LOCK_CEILING,
+        ending: COMMIT_WITHDRAWN,
+    };
+    let proven: String = crate::index_lock_evidence::proven_holder_line(
+        7,
+        true,
+        None,
+        Path::new("/r/.git/index.lock"),
+        end,
+    );
+    let unproven: String =
+        crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end);
     assert_eq!(holder_kind_after(None, proven.as_str()), "proven-alive");
-    assert_eq!(holder_kind_after(Some("proven-alive"), unproven.as_str()), "proven-alive");
-    assert_eq!(holder_kind_after(Some("unproven"), proven.as_str()), "proven-alive");
-    assert_eq!(holder_kind_after(Some("unproven"), unproven.as_str()), "unproven");
+    assert_eq!(
+        holder_kind_after(Some("proven-alive"), unproven.as_str()),
+        "proven-alive"
+    );
+    assert_eq!(
+        holder_kind_after(Some("unproven"), proven.as_str()),
+        "proven-alive"
+    );
+    assert_eq!(
+        holder_kind_after(Some("unproven"), unproven.as_str()),
+        "unproven"
+    );
     assert_eq!(holder_kind_after(None, unproven.as_str()), "unproven");
 }
 
@@ -588,21 +820,41 @@ fn the_record_states_the_preparations_own_work_by_name() {
     let (timing, _covered) = filled(root.as_path());
     note_span("index copy", Duration::from_millis(12));
     note_span("index copy", Duration::from_millis(30));
-    note_span("policy security/forbidden-strings at pre-forward", Duration::from_millis(7));
+    note_span(
+        "policy security/forbidden-strings at pre-forward",
+        Duration::from_millis(7),
+    );
     timing.finish(0);
-    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let text: String =
+        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
     let value: serde_json::Value = parsed(text.as_str());
     let expected: serde_json::Value = serde_json::from_str(
         r#"[{"name":"index copy","calls":2,"totalMs":42,"longestMs":30},{"name":"policy security/forbidden-strings at pre-forward","calls":1,"totalMs":7,"longestMs":7}]"#,
     )
     .expect("the split of two names");
-    assert_eq!(value["prepareSpans"], expected, "every named step of the preparation is stated with its count and its time: {value}");
+    assert_eq!(
+        value["prepareSpans"], expected,
+        "every named step of the preparation is stated with its count and its time: {value}"
+    );
     // A commit that recorded nothing states an empty list, so a reader never tells a missing field from a commit that ran nothing.
     let (quiet, _) = filled(root.as_path());
     quiet.finish(0);
-    let lines: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
-    let last: serde_json::Value = parsed(lines.lines().last().map(|line| { return format!("{line}\n"); }).expect("a line").as_str());
-    assert_eq!(last["prepareSpans"], serde_json::Value::from(Vec::<u64>::new()));
+    let lines: String =
+        std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let last: serde_json::Value = parsed(
+        lines
+            .lines()
+            .last()
+            .map(|line| {
+                return format!("{line}\n");
+            })
+            .expect("a line")
+            .as_str(),
+    );
+    assert_eq!(
+        last["prepareSpans"],
+        serde_json::Value::from(Vec::<u64>::new())
+    );
     remove(root.as_path());
 }
 
@@ -626,8 +878,14 @@ fn the_record_states_what_the_landing_spent_and_held() {
     assert_eq!(landing["lockHoldMs"], LANDING_HOLD_MS, "{record}");
     assert_eq!(landing["queuedBehind"], LANDING_QUEUED_BEHIND, "{record}");
     assert_eq!(landing["readsMs"], LANDING_READS_MS, "{record}");
-    assert_eq!(landing["reads"]["branch"], LANDING_READ_BRANCH_MS, "{record}");
-    assert_eq!(landing["reads"]["witness"], LANDING_READ_WITNESS_MS, "{record}");
+    assert_eq!(
+        landing["reads"]["branch"], LANDING_READ_BRANCH_MS,
+        "{record}"
+    );
+    assert_eq!(
+        landing["reads"]["witness"], LANDING_READ_WITNESS_MS,
+        "{record}"
+    );
     let syncs: &Vec<serde_json::Value> = landing["syncs"].as_array().expect("the syncs");
     assert_eq!(syncs.len(), 2, "{record}");
     assert_eq!(syncs[0]["what"], "built-index");

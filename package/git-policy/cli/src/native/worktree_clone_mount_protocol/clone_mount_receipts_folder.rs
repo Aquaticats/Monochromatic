@@ -26,20 +26,51 @@
 //! const folder = ReceiptsFolder.live(); folder.publish(guid, receipt); folder.read(guid);
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, MAXIMUM_RECEIPT_BYTES};
+use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
+    CloneMountReceipt,
+    MAXIMUM_RECEIPT_BYTES,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_receipt_parse::parse_receipt;
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{
-    c_string_of, create_at, open_receipt_at, rename_at, sync_directory, unlink_at,
+    c_string_of,
+    create_at,
+    open_receipt_at,
+    rename_at,
+    sync_directory,
+    unlink_at,
 };
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsRefusal};
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{
+    DIRECTORY_MODE,
+    RECEIPT_MODE,
+    RESULTS_DIRECTORY,
+    ReceiptsRefusal,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_mount_protocol::root_owned_directory::{RootDirectoryRefusal, make_and_prove};
+use crate::worktree_clone_mount_protocol::root_owned_directory::{
+    RootDirectoryRefusal,
+    make_and_prove,
+};
 use std::ffi::CString;
-use std::io::{Read, Write};
-use std::os::fd::{FromRawFd, OwnedFd};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::io::{
+    Read,
+    Write,
+};
+use std::os::fd::{
+    FromRawFd,
+    OwnedFd,
+};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// The suffix of the sibling a receipt is staged under before its rename.
 /// It is never a receipt and never read as one.
@@ -71,13 +102,22 @@ pub struct ReceiptsFolder {
 impl ReceiptsFolder {
     /// The folder the root handler files in.
     pub fn live() -> Self {
-        return ReceiptsFolder { directory: PathBuf::from(RESULTS_DIRECTORY), owner: 0 };
+        return ReceiptsFolder {
+            directory: PathBuf::from(RESULTS_DIRECTORY),
+            owner: 0,
+        };
     }
 
     /// A folder at a fixture directory,
     /// owned by the account the control expects.
-    pub fn at(directory: PathBuf, owner: u32) -> Self {
-        return ReceiptsFolder { directory, owner };
+    pub fn at(
+        directory: PathBuf,
+        owner: u32,
+    ) -> Self {
+        return ReceiptsFolder {
+            directory,
+            owner,
+        };
     }
 
     /// The directory.
@@ -88,7 +128,10 @@ impl ReceiptsFolder {
     /// The file one dataset's receipt is filed under:
     /// its canonical numeric GUID,
     /// and nothing else.
-    pub fn entry_name(&self, dataset: DatasetGuid) -> String {
+    pub fn entry_name(
+        &self,
+        dataset: DatasetGuid,
+    ) -> String {
         return dataset.file_name();
     }
 
@@ -107,9 +150,16 @@ impl ReceiptsFolder {
     /// ```ts
     /// const staging = `${guid}.staging.${process.pid}.${nextAttempt()}`;
     /// ```
-    pub fn staging_name(&self, dataset: DatasetGuid) -> String {
+    pub fn staging_name(
+        &self,
+        dataset: DatasetGuid,
+    ) -> String {
         let attempt: u64 = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
-        return format!("{}{STAGING_SUFFIX}.{}.{attempt}", dataset.file_name(), std::process::id());
+        return format!(
+            "{}{STAGING_SUFFIX}.{}.{attempt}",
+            dataset.file_name(),
+            std::process::id()
+        );
     }
 
     /// What:
@@ -146,32 +196,67 @@ impl ReceiptsFolder {
     /// the text is not one this route's reader accepts,
     /// or the staging write,
     /// its sync or the rename answered an error.
-    pub fn publish(&self, receipt: &CloneMountReceipt) -> Result<(), ReceiptsRefusal> {
+    pub fn publish(
+        &self,
+        receipt: &CloneMountReceipt,
+    ) -> Result<(), ReceiptsRefusal> {
         let directory: std::fs::File = self.prepare_directory()?;
         let name: String = self.entry_name(receipt.dataset);
         let text: String = receipt.text();
         match parse_receipt(text.as_str()) {
             Ok(parsed) if parsed == *receipt => {}
-            Ok(_) => return Err(ReceiptsRefusal::NotWhatWasWritten { name }),
-            Err(refusal) => return Err(ReceiptsRefusal::NotAReceipt { name, refusal }),
+            Ok(_) => {
+                return Err(ReceiptsRefusal::NotWhatWasWritten {
+                    name,
+                });
+            }
+            Err(refusal) => {
+                return Err(ReceiptsRefusal::NotAReceipt {
+                    name,
+                    refusal,
+                });
+            }
         }
         let staging: String = self.staging_name(receipt.dataset);
         let staged: Result<(), ReceiptsRefusal> = (|| {
             let mut file: std::fs::File = create_at(&directory, staging.as_str(), RECEIPT_MODE)
-                .map_err(|error| return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() })?;
-            file.set_permissions(std::fs::Permissions::from_mode(RECEIPT_MODE)).map_err(|error| {
-                return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
-            })?;
+                .map_err(|error| {
+                    return ReceiptsRefusal::Staging {
+                        name: staging.clone(),
+                        reason: error.to_string(),
+                    };
+                })?;
+            file.set_permissions(std::fs::Permissions::from_mode(RECEIPT_MODE))
+                .map_err(|error| {
+                    return ReceiptsRefusal::Staging {
+                        name: staging.clone(),
+                        reason: error.to_string(),
+                    };
+                })?;
             file.write_all(text.as_bytes()).map_err(|error| {
-                return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
+                return ReceiptsRefusal::Staging {
+                    name: staging.clone(),
+                    reason: error.to_string(),
+                };
             })?;
             file.sync_all().map_err(|error| {
-                return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
+                return ReceiptsRefusal::Staging {
+                    name: staging.clone(),
+                    reason: error.to_string(),
+                };
             })?;
             rename_at(&directory, staging.as_str(), name.as_str()).map_err(|error| {
-                return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
+                return ReceiptsRefusal::Staging {
+                    name: staging.clone(),
+                    reason: error.to_string(),
+                };
             })?;
-            return sync_directory(&directory).map_err(|error| return ReceiptsRefusal::Staging { name: name.clone(), reason: error.to_string() });
+            return sync_directory(&directory).map_err(|error| {
+                return ReceiptsRefusal::Staging {
+                    name: name.clone(),
+                    reason: error.to_string(),
+                };
+            });
         })();
         if staged.is_err() {
             // A rename may have completed before a failed directory sync, and then there is no sibling to remove; a
@@ -185,10 +270,30 @@ impl ReceiptsFolder {
     /// handing back the descriptor every later call is relative to.
     fn prepare_directory(&self) -> Result<std::fs::File, ReceiptsRefusal> {
         let path: &Path = self.directory.as_path();
-        return make_and_prove(path, self.owner, DIRECTORY_MODE).map_err(|refusal| return match refusal {
-            RootDirectoryRefusal::Open { reason } => ReceiptsRefusal::Directory { path: path.to_path_buf(), reason },
-            RootDirectoryRefusal::Owner { found, wanted } => ReceiptsRefusal::DirectoryOwner { path: path.to_path_buf(), found, wanted },
-            RootDirectoryRefusal::Mode { found, wanted: _wanted } => ReceiptsRefusal::DirectoryMode { path: path.to_path_buf(), found },
+        return make_and_prove(path, self.owner, DIRECTORY_MODE).map_err(|refusal| {
+            return match refusal {
+                RootDirectoryRefusal::Open {
+                    reason,
+                } => ReceiptsRefusal::Directory {
+                    path: path.to_path_buf(),
+                    reason,
+                },
+                RootDirectoryRefusal::Owner {
+                    found,
+                    wanted,
+                } => ReceiptsRefusal::DirectoryOwner {
+                    path: path.to_path_buf(),
+                    found,
+                    wanted,
+                },
+                RootDirectoryRefusal::Mode {
+                    found,
+                    wanted: _wanted,
+                } => ReceiptsRefusal::DirectoryMode {
+                    path: path.to_path_buf(),
+                    found,
+                },
+            };
         });
     }
 
@@ -203,43 +308,84 @@ impl ReceiptsFolder {
     /// # Errors
     /// The directory is not the designed root-owned `0755` folder,
     /// or the file is not a root-owned `0644` regular receipt.
-    pub fn read(&self, dataset: DatasetGuid) -> Result<Option<CloneMountReceipt>, ReceiptsRefusal> {
+    pub fn read(
+        &self,
+        dataset: DatasetGuid,
+    ) -> Result<Option<CloneMountReceipt>, ReceiptsRefusal> {
         let directory: std::fs::File = self.open_directory()?;
         let name: String = self.entry_name(dataset);
-        let Some(file) = open_receipt_at(&directory, name.as_str())
-            .map_err(|error| return ReceiptsRefusal::File { name: name.clone(), reason: error.to_string() })?
+        let Some(file) = open_receipt_at(&directory, name.as_str()).map_err(|error| {
+            return ReceiptsRefusal::File {
+                name: name.clone(),
+                reason: error.to_string(),
+            };
+        })?
         else {
             return Ok(None);
         };
-        let facts: std::fs::Metadata = file.metadata().map_err(|error| return ReceiptsRefusal::File { name: name.clone(), reason: error.to_string() })?;
+        let facts: std::fs::Metadata = file.metadata().map_err(|error| {
+            return ReceiptsRefusal::File {
+                name: name.clone(),
+                reason: error.to_string(),
+            };
+        })?;
         if !facts.is_file() {
-            return Err(ReceiptsRefusal::NotRegular { name });
+            return Err(ReceiptsRefusal::NotRegular {
+                name,
+            });
         }
         if facts.uid() != self.owner {
-            return Err(ReceiptsRefusal::FileOwner { name, found: facts.uid(), wanted: self.owner });
+            return Err(ReceiptsRefusal::FileOwner {
+                name,
+                found: facts.uid(),
+                wanted: self.owner,
+            });
         }
         let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != RECEIPT_MODE {
-            return Err(ReceiptsRefusal::FileMode { name, found: permission_bits });
+            return Err(ReceiptsRefusal::FileMode {
+                name,
+                found: permission_bits,
+            });
         }
         if facts.len() > MAXIMUM_RECEIPT_BYTES as u64 {
-            return Err(ReceiptsRefusal::TooLarge { name, bytes: facts.len() });
+            return Err(ReceiptsRefusal::TooLarge {
+                name,
+                bytes: facts.len(),
+            });
         }
         let mut bytes: Vec<u8> = Vec::with_capacity(facts.len() as usize);
         let mut bounded: std::fs::File = file;
-        Read::by_ref(&mut bounded).take(MAXIMUM_RECEIPT_BYTES as u64 + 1).read_to_end(&mut bytes).map_err(|error| {
-            return ReceiptsRefusal::File { name: name.clone(), reason: error.to_string() };
-        })?;
+        Read::by_ref(&mut bounded)
+            .take(MAXIMUM_RECEIPT_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|error| {
+                return ReceiptsRefusal::File {
+                    name: name.clone(),
+                    reason: error.to_string(),
+                };
+            })?;
         if bytes.len() > MAXIMUM_RECEIPT_BYTES {
-            return Err(ReceiptsRefusal::TooLarge { name, bytes: bytes.len() as u64 });
+            return Err(ReceiptsRefusal::TooLarge {
+                name,
+                bytes: bytes.len() as u64,
+            });
         }
         let Ok(text) = String::from_utf8(bytes) else {
-            return Err(ReceiptsRefusal::NotText { name });
+            return Err(ReceiptsRefusal::NotText {
+                name,
+            });
         };
         return match parse_receipt(text.as_str()) {
             Ok(receipt) if receipt.dataset == dataset => Ok(Some(receipt)),
-            Ok(receipt) => Err(ReceiptsRefusal::WrongDataset { name, found: receipt.dataset.file_name() }),
-            Err(refusal) => Err(ReceiptsRefusal::NotAReceipt { name, refusal }),
+            Ok(receipt) => Err(ReceiptsRefusal::WrongDataset {
+                name,
+                found: receipt.dataset.file_name(),
+            }),
+            Err(refusal) => Err(ReceiptsRefusal::NotAReceipt {
+                name,
+                refusal,
+            }),
         };
     }
 
@@ -255,27 +401,53 @@ impl ReceiptsFolder {
     /// ```
     fn open_directory(&self) -> Result<std::fs::File, ReceiptsRefusal> {
         let path: &Path = self.directory.as_path();
-        let text: CString = c_string_of(&self.directory).map_err(|reason| return ReceiptsRefusal::Directory { path: path.to_path_buf(), reason })?;
+        let text: CString = c_string_of(&self.directory).map_err(|reason| {
+            return ReceiptsRefusal::Directory {
+                path: path.to_path_buf(),
+                reason,
+            };
+        })?;
         // SAFETY: `text` is a NUL-terminated string that outlives the call.
-        let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
+        let descriptor: libc::c_int = unsafe {
+            libc::open(
+                text.as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        };
         if descriptor < 0 {
             let error: std::io::Error = std::io::Error::last_os_error();
             if error.kind() == std::io::ErrorKind::NotFound {
-                return Err(ReceiptsRefusal::DirectoryAbsent { path: path.to_path_buf() });
+                return Err(ReceiptsRefusal::DirectoryAbsent {
+                    path: path.to_path_buf(),
+                });
             }
-            return Err(ReceiptsRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
+            return Err(ReceiptsRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            });
         }
         // SAFETY: `open` returned a new descriptor that nothing else owns.
-        let directory: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
-        let facts: std::fs::Metadata = directory
-            .metadata()
-            .map_err(|error| return ReceiptsRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
+        let directory: std::fs::File =
+            std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
+        let facts: std::fs::Metadata = directory.metadata().map_err(|error| {
+            return ReceiptsRefusal::Directory {
+                path: path.to_path_buf(),
+                reason: error.to_string(),
+            };
+        })?;
         if facts.uid() != self.owner {
-            return Err(ReceiptsRefusal::DirectoryOwner { path: path.to_path_buf(), found: facts.uid(), wanted: self.owner });
+            return Err(ReceiptsRefusal::DirectoryOwner {
+                path: path.to_path_buf(),
+                found: facts.uid(),
+                wanted: self.owner,
+            });
         }
         let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != DIRECTORY_MODE {
-            return Err(ReceiptsRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
+            return Err(ReceiptsRefusal::DirectoryMode {
+                path: path.to_path_buf(),
+                found: permission_bits,
+            });
         }
         return Ok(directory);
     }

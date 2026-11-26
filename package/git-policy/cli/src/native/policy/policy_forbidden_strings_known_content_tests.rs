@@ -19,17 +19,34 @@
 //! ```
 
 use super::{
-    CandidateRequest, LifecycleContent, PolicyFinding, PolicyOutcome, ScannerSettings,
-    add, check, content_match, git, needle, repository, run_isolated, settings,
+    CandidateRequest,
+    LifecycleContent,
+    PolicyFinding,
+    PolicyOutcome,
+    ScannerSettings,
+    add,
+    check,
+    content_match,
+    git,
+    needle,
+    repository,
+    run_isolated,
+    settings,
 };
-use crate::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 use crate::candidate_prediction::PushedScope;
 use crate::event_path::EventPath;
 use crate::policy_forbidden_strings::FORBIDDEN_STRING_CODE;
 use crate::scanner_test_support::rules_file;
 use crate::test_support::git_text;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The outcome that reports nothing.
 fn clean() -> PolicyOutcome {
@@ -37,25 +54,40 @@ fn clean() -> PolicyOutcome {
 }
 
 /// Stage everything and commit it through the fixture Git.
-fn commit_all(repo: &Path, message: &str) {
+fn commit_all(
+    repo: &Path,
+    message: &str,
+) {
     git(repo, &["add", "--all"]);
     git(repo, &["commit", "--quiet", "--message", message]);
 }
 
 /// The object name `revision` resolves to in `repo`.
-fn oid(repo: &Path, revision: &str) -> ObjectId {
+fn oid(
+    repo: &Path,
+    revision: &str,
+) -> ObjectId {
     let text: String = git_text(repo, &["rev-parse", revision]);
     return parse_object_id(text.as_bytes()).expect("an object name");
 }
 
 /// The candidates of one landed commit.
-fn landed(repo: &Path, revision: &str) -> LifecycleContent {
+fn landed(
+    repo: &Path,
+    revision: &str,
+) -> LifecycleContent {
     return LifecycleContent::Requested(CandidateRequest::Landed(oid(repo, revision)));
 }
 
 /// The candidates of a push of these commits and tip trees.
-fn pushed(commits: Vec<ObjectId>, trees: Vec<ObjectId>) -> LifecycleContent {
-    return LifecycleContent::Requested(CandidateRequest::Pushed(PushedScope { commits, trees }));
+fn pushed(
+    commits: Vec<ObjectId>,
+    trees: Vec<ObjectId>,
+) -> LifecycleContent {
+    return LifecycleContent::Requested(CandidateRequest::Pushed(PushedScope {
+        commits,
+        trees,
+    }));
 }
 
 /// A repository whose `HEAD` holds `a.txt` with the needle on line 2,
@@ -66,11 +98,7 @@ fn repository_with_known_file(work: &Path) -> (PathBuf, ScannerSettings, String)
     let body: String = format!("first\n{}\n", needle());
     std::fs::write(repo.join("a.txt"), body.as_bytes()).expect("known file");
     commit_all(repo.as_path(), "known");
-    return (
-        repo,
-        settings(None, Some(rules.as_os_str()), false),
-        body,
-    );
+    return (repo, settings(None, Some(rules.as_os_str()), false), body);
 }
 
 /// A rename of an unchanged file and a copy of an existing blob are allowed;
@@ -197,7 +225,10 @@ fn known_root(work: &Path) {
     let chosen: ScannerSettings = settings(None, Some(rules.as_os_str()), false);
     let repo: PathBuf = work.join("unborn");
     std::fs::create_dir(&repo).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     std::fs::write(
         repo.join("a.txt"),
         format!("first\n{}\n", needle()).as_bytes(),
@@ -243,11 +274,17 @@ fn known_merge(work: &Path) {
     commit_all(repo.as_path(), "left");
     // The branch moves when the merge lands on it, so the commit that introduced the file is kept by name.
     let introducing: ObjectId = oid(repo.as_path(), "HEAD");
-    git(repo.as_path(), &["switch", "--quiet", "--create", "right", "main"]);
+    git(
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "right", "main"],
+    );
     std::fs::write(repo.join("other.txt"), b"clean\n").expect("other");
     commit_all(repo.as_path(), "right");
     git(repo.as_path(), &["switch", "--quiet", "left"]);
-    git(repo.as_path(), &["merge", "--quiet", "--no-ff", "--no-edit", "right"]);
+    git(
+        repo.as_path(),
+        &["merge", "--quiet", "--no-ff", "--no-edit", "right"],
+    );
     // The file is new against `right` and known to `left`.
     assert_eq!(
         check(repo.as_path(), &landed(repo.as_path(), "HEAD"), &chosen),
@@ -296,7 +333,16 @@ fn known_merge(work: &Path) {
         a_match
     );
     // A merge commit that brings new content of its own: only that content is reported.
-    git(repo.as_path(), &["switch", "--quiet", "--create", "evil", introducing.as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "switch",
+            "--quiet",
+            "--create",
+            "evil",
+            introducing.as_str(),
+        ],
+    );
     git(
         repo.as_path(),
         &["merge", "--quiet", "--no-ff", "--no-commit", "right"],

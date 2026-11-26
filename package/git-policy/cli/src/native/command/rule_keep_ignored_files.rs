@@ -30,9 +30,20 @@
 /// ```ts
 /// import { checkoutDiscard, switchDiscard } from './command_discard.ts';
 /// ```
-use crate::command_discard::{Discard, checkout_discard, switch_discard};
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use crate::rule_argument_rewrite::{ArgumentRewrite, insert_tokens};
+use crate::command_discard::{
+    Discard,
+    checkout_discard,
+    switch_discard,
+};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
+use crate::rule_argument_rewrite::{
+    ArgumentRewrite,
+    insert_tokens,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -83,7 +94,10 @@ fn answers_ignored_files(region: &[OsString]) -> bool {
 /// ```ts
 /// function reading(word: Buffer, region: string[]): Discard | undefined;
 /// ```
-fn reading(word: &[u8], region: &[OsString]) -> Option<Discard> {
+fn reading(
+    word: &[u8],
+    region: &[OsString],
+) -> Option<Discard> {
     let parsed: Result<Discard, crate::command_options::OptionError> = if word == b"checkout" {
         checkout_discard(region)
     } else if word == b"switch" {

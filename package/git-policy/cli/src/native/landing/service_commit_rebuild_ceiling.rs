@@ -32,7 +32,10 @@ fn seconds_in(text: String) -> Option<u64> {
 /// `REBUILD_CEILING_VARIABLE` when it names a positive number of seconds,
 /// else `MOVED_BRANCH_REBUILD_CEILING`.
 pub(crate) fn rebuild_ceiling() -> std::time::Duration {
-    return match std::env::var(REBUILD_CEILING_VARIABLE).ok().and_then(seconds_in) {
+    return match std::env::var(REBUILD_CEILING_VARIABLE)
+        .ok()
+        .and_then(seconds_in)
+    {
         Some(seconds) if seconds > 0 => std::time::Duration::from_secs(seconds),
         _ => MOVED_BRANCH_REBUILD_CEILING,
     };
@@ -51,7 +54,10 @@ pub(crate) fn rebuild_ceiling() -> std::time::Duration {
 /// ```ts
 /// waited < ceiling
 /// ```
-pub fn rebuild_may_continue(waited: std::time::Duration, ceiling: std::time::Duration) -> bool {
+pub fn rebuild_may_continue(
+    waited: std::time::Duration,
+    ceiling: std::time::Duration,
+) -> bool {
     return waited < ceiling;
 }
 
@@ -59,19 +65,31 @@ pub fn rebuild_may_continue(waited: std::time::Duration, ceiling: std::time::Dur
 /// how many builds were made,
 /// how long it has been,
 /// and when the rebuilding stops.
-fn say_rebuilding(branch: &str, builds: usize, waited: std::time::Duration) {
+fn say_rebuilding(
+    branch: &str,
+    builds: usize,
+    waited: std::time::Duration,
+) {
     // What: The line goes to the thread that writes standard error.
     // Why:  A closed terminal is not a reason to stop the commit, and neither is a reader that
     //       stopped draining (`standard_error_off_the_calling_thread.rs`).
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new();
-    let _written = std::io::Write::write_all(&mut notes, rebuild_notice(branch, builds, waited, rebuild_ceiling()).as_bytes());
+    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+        StandardErrorOffTheCallingThread::new();
+    let _written = std::io::Write::write_all(
+        &mut notes,
+        rebuild_notice(branch, builds, waited, rebuild_ceiling()).as_bytes(),
+    );
     let _flushed = std::io::Write::flush(&mut notes);
 }
 
 /// Whether a commit whose branch moved is built again now:
 /// when the ceiling allows it,
 /// the person is told and the answer is yes.
-pub(crate) fn may_rebuild(branch: &str, builds: usize, first_build_began: std::time::Instant) -> bool {
+pub(crate) fn may_rebuild(
+    branch: &str,
+    builds: usize,
+    first_build_began: std::time::Instant,
+) -> bool {
     let waited: std::time::Duration = first_build_began.elapsed();
     if !rebuild_may_continue(waited, rebuild_ceiling()) {
         return false;
@@ -126,10 +144,15 @@ pub(crate) fn after_a_prepare_again(
     }
     let branch: String = ready.reference.short().spoken();
     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-        let failure: crate::service_messages::ClientFailure = crate::service_messages::ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 };
+        let failure: crate::service_messages::ClientFailure =
+            crate::service_messages::ClientFailure::BranchKeepsChanging {
+                branch,
+                times: attempt + 1,
+            };
         return AfterAPrepareAgain::Stopped(crate::commit_transaction::client_stop(failure));
     }
-    return match crate::service_replay::retry_of(invocation.context, invocation.cwd, ready, landed) {
+    return match crate::service_replay::retry_of(invocation.context, invocation.cwd, ready, landed)
+    {
         Ok(next) => AfterAPrepareAgain::Retry(next),
         Err(stop) => AfterAPrepareAgain::Stopped(stop),
     };

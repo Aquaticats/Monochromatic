@@ -15,7 +15,10 @@ use super::*;
 use crate::add_timing;
 use crate::wait_ceilings::ADD_STANDING_NOTICE_AFTER;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::{
+    Receiver,
+    channel,
+};
 use std::time::Duration;
 
 /// What:
@@ -30,10 +33,16 @@ use std::time::Duration;
 /// ```ts
 /// const read = (lines: mpsc.Receiver<string>, wanted: number, bound: Duration) => { const said = []; while (said.length < wanted && !timedOut) said.push(lines.recvTimeout(bound)); return said; }
 /// ```
-fn read_lines(lines: &Receiver<String>, wanted: usize, bound: Duration) -> Vec<String> {
+fn read_lines(
+    lines: &Receiver<String>,
+    wanted: usize,
+    bound: Duration,
+) -> Vec<String> {
     let mut said: Vec<String> = Vec::new();
     while said.len() < wanted {
-        let Ok(line) = lines.recv_timeout(bound) else { break };
+        let Ok(line) = lines.recv_timeout(bound) else {
+            break;
+        };
         said.push(line);
     }
     return said;
@@ -66,14 +75,36 @@ fn the_add_s_own_steps_are_what_the_notice_names() {
     let root: PathBuf = crate::test_support::fixture("add-standing-published");
     add_timing::begin(root.join("common"), false);
     the_add_ended();
-    assert_eq!(published(), None, "no step is published before one is entered");
+    assert_eq!(
+        published(),
+        None,
+        "no step is published before one is entered"
+    );
     let outer: bool = add_timing::begin_step("copyIgnored");
     let inner: bool = add_timing::begin_step("git ls-files");
-    assert_eq!(published().map(|(step, _began, _plain)| { return step; }), Some(Some(String::from("git ls-files"))), "the innermost step is the one named");
+    assert_eq!(
+        published().map(|(step, _began, _plain)| {
+            return step;
+        }),
+        Some(Some(String::from("git ls-files"))),
+        "the innermost step is the one named"
+    );
     add_timing::end_step(inner);
-    assert_eq!(published().map(|(step, _began, _plain)| { return step; }), Some(Some(String::from("copyIgnored"))), "leaving a step names the one that encloses it");
+    assert_eq!(
+        published().map(|(step, _began, _plain)| {
+            return step;
+        }),
+        Some(Some(String::from("copyIgnored"))),
+        "leaving a step names the one that encloses it"
+    );
     add_timing::end_step(outer);
-    assert_eq!(published().map(|(step, _began, _plain)| { return step; }), Some(None), "between two steps nothing is named");
+    assert_eq!(
+        published().map(|(step, _began, _plain)| {
+            return step;
+        }),
+        Some(None),
+        "between two steps nothing is named"
+    );
     add_timing::finish(0);
     assert_eq!(published(), None, "an add that answered publishes no step");
     crate::test_support::remove(root.as_path());
@@ -99,8 +130,18 @@ fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {
     );
     let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
     assert_eq!(said.len(), 1, "one line arrives once the wait is over");
-    assert!(said[0].starts_with("monochromatic-git-policy-cli: `git worktree add` is still running after "), "{}", said[0]);
-    assert!(said[0].contains("it is in the `git worktree add` this command started"), "the line names what the add is doing: {}", said[0]);
+    assert!(
+        said[0].starts_with(
+            "monochromatic-git-policy-cli: `git worktree add` is still running after "
+        ),
+        "{}",
+        said[0]
+    );
+    assert!(
+        said[0].contains("it is in the `git worktree add` this command started"),
+        "the line names what the add is doing: {}",
+        said[0]
+    );
     drop(notice);
     add_timing::end_step(standing);
     add_timing::finish(0);
@@ -112,23 +153,65 @@ fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {
 #[test]
 fn the_line_counts_the_seconds_and_says_the_step_in_words() {
     let line: String = notice_line(Some("snapshotIoctl"), Duration::from_secs(7));
-    assert!(line.starts_with("monochromatic-git-policy-cli: `git worktree add` is still running after 7 seconds; "), "{line}");
-    assert!(line.contains("it is taking the snapshot of the main checkout"), "the step is said in the person's words: {line}");
-    assert!(!line.contains("snapshotIoctl"), "the timing record's name for the step is not the person's: {line}");
-    assert!(line.contains("Nothing here waits for another command to finish"), "the line says what the wait is not: {line}");
-    assert!(notice_line(None, Duration::from_secs(9)).contains("it is between two of its steps"), "a step that has just ended is named as such");
-    assert_eq!(step_sentence(Some("a step of a later release")), "the add is working in a step its timing record names", "a step this release does not know is still named as work");
-    assert_eq!(step_sentence(Some("git read-tree")), "it is in Git's own `git read-tree`", "a Git run is named by the subcommand the record holds");
+    assert!(
+        line.starts_with(
+            "monochromatic-git-policy-cli: `git worktree add` is still running after 7 seconds; "
+        ),
+        "{line}"
+    );
+    assert!(
+        line.contains("it is taking the snapshot of the main checkout"),
+        "the step is said in the person's words: {line}"
+    );
+    assert!(
+        !line.contains("snapshotIoctl"),
+        "the timing record's name for the step is not the person's: {line}"
+    );
+    assert!(
+        line.contains("Nothing here waits for another command to finish"),
+        "the line says what the wait is not: {line}"
+    );
+    assert!(
+        notice_line(None, Duration::from_secs(9)).contains("it is between two of its steps"),
+        "a step that has just ended is named as such"
+    );
+    assert_eq!(
+        step_sentence(Some("a step of a later release")),
+        "the add is working in a step its timing record names",
+        "a step this release does not know is still named as work"
+    );
+    assert_eq!(
+        step_sentence(Some("git read-tree")),
+        "it is in Git's own `git read-tree`",
+        "a Git run is named by the subcommand the record holds"
+    );
 }
 
 /// The wait a control sets is the shipped one unless a positive number of seconds is set.
 #[test]
 fn the_notice_takes_a_positive_setting_and_the_shipped_wait_otherwise() {
-    assert_eq!(crate::wait_ceilings::notice_after_from(Some("30"), ADD_STANDING_NOTICE_AFTER), Duration::from_secs(30));
-    for meaningless in [None, Some(""), Some("abc"), Some("0"), Some("-5"), Some("1.5")] {
-        assert_eq!(crate::wait_ceilings::notice_after_from(meaningless, ADD_STANDING_NOTICE_AFTER), ADD_STANDING_NOTICE_AFTER, "{meaningless:?}");
+    assert_eq!(
+        crate::wait_ceilings::notice_after_from(Some("30"), ADD_STANDING_NOTICE_AFTER),
+        Duration::from_secs(30)
+    );
+    for meaningless in [
+        None,
+        Some(""),
+        Some("abc"),
+        Some("0"),
+        Some("-5"),
+        Some("1.5"),
+    ] {
+        assert_eq!(
+            crate::wait_ceilings::notice_after_from(meaningless, ADD_STANDING_NOTICE_AFTER),
+            ADD_STANDING_NOTICE_AFTER,
+            "{meaningless:?}"
+        );
     }
-    assert_eq!(crate::wait_ceilings::ADD_STANDING_NOTICE_VARIABLE, "CLI_GIT_ADD_NOTICE_SECONDS");
+    assert_eq!(
+        crate::wait_ceilings::ADD_STANDING_NOTICE_VARIABLE,
+        "CLI_GIT_ADD_NOTICE_SECONDS"
+    );
 }
 
 /// An add whose person asked for `--quiet` keeps the notice and prints nothing,
@@ -149,7 +232,11 @@ fn a_quiet_add_prints_no_line_and_a_loud_one_does() {
         }),
         Duration::from_millis(1),
     );
-    assert_eq!(read_lines(&quiet_heard, 1, Duration::from_millis(500)), Vec::<String>::new(), "a quiet add prints no line");
+    assert_eq!(
+        read_lines(&quiet_heard, 1, Duration::from_millis(500)),
+        Vec::<String>::new(),
+        "a quiet add prints no line"
+    );
     drop(quiet);
     let (loud_lines, loud_heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
     let loud: StandingNotice = begin_quiet_after(
@@ -160,7 +247,11 @@ fn a_quiet_add_prints_no_line_and_a_loud_one_does() {
         Duration::from_millis(1),
     );
     let said: Vec<String> = read_lines(&loud_heard, 1, Duration::from_secs(10));
-    assert_eq!(said.len(), 1, "the same add without `--quiet` prints the line: {said:?}");
+    assert_eq!(
+        said.len(),
+        1,
+        "the same add without `--quiet` prints the line: {said:?}"
+    );
     drop(loud);
     add_timing::end_step(standing);
     add_timing::finish(0);
@@ -226,25 +317,44 @@ fn descriptor_flags(descriptor: std::os::fd::RawFd) -> libc::c_int {
 }
 
 /// Whether a write to the descriptor waits for room.
-fn wait_for_room(descriptor: std::os::fd::RawFd, waiting: bool) {
+fn wait_for_room(
+    descriptor: std::os::fd::RawFd,
+    waiting: bool,
+) {
     let flags: libc::c_int = descriptor_flags(descriptor);
-    let wanted: libc::c_int = if waiting { flags & !libc::O_NONBLOCK } else { flags | libc::O_NONBLOCK };
+    let wanted: libc::c_int = if waiting {
+        flags & !libc::O_NONBLOCK
+    } else {
+        flags | libc::O_NONBLOCK
+    };
     // SAFETY: `F_SETFL` sets the flags of an open descriptor of this process.
-    assert_eq!(unsafe { libc::fcntl(descriptor, libc::F_SETFL, wanted) }, 0, "the descriptor's flags");
+    assert_eq!(
+        unsafe { libc::fcntl(descriptor, libc::F_SETFL, wanted) },
+        0,
+        "the descriptor's flags"
+    );
 }
 
 /// How many bytes one write took,
 /// or nothing when it was refused for want of room.
-fn one_write(descriptor: std::os::fd::RawFd, bytes: &[u8]) -> usize {
+fn one_write(
+    descriptor: std::os::fd::RawFd,
+    bytes: &[u8],
+) -> usize {
     // SAFETY: `bytes` is read for its own length, and the descriptor is open.
-    let written: libc::ssize_t = unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
+    let written: libc::ssize_t =
+        unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
     return usize::try_from(written).unwrap_or_default();
 }
 
 /// How many bytes one read took.
-fn one_read(descriptor: std::os::fd::RawFd, into: &mut [u8]) -> usize {
+fn one_read(
+    descriptor: std::os::fd::RawFd,
+    into: &mut [u8],
+) -> usize {
     // SAFETY: `into` is written for its own length, and the descriptor is open.
-    let read: libc::ssize_t = unsafe { libc::read(descriptor, into.as_mut_ptr().cast(), into.len()) };
+    let read: libc::ssize_t =
+        unsafe { libc::read(descriptor, into.as_mut_ptr().cast(), into.len()) };
     return usize::try_from(read).unwrap_or_default();
 }
 
@@ -262,14 +372,26 @@ fn one_read(descriptor: std::os::fd::RawFd, into: &mut [u8]) -> usize {
 /// const fullPipeButFor = (room) => { const pipe = os.pipe(); fill(pipe.write, capacity); read(pipe.read, 4096); write(pipe.write, bufferOf(4096 - room)); };
 /// ```
 fn standard_error_with_room(room: usize) -> (StandardErrorWithRoom, RestoredStandardError) {
-    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::os::fd::{
+        AsRawFd,
+        FromRawFd,
+        OwnedFd,
+    };
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `ends` has room for the two descriptors `pipe` writes, and nothing else touches it.
-    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0, "a pipe to stand in for standard error");
+    assert_eq!(
+        unsafe { libc::pipe(ends.as_mut_ptr()) },
+        0,
+        "a pipe to stand in for standard error"
+    );
     // SAFETY: both descriptors are the ones `pipe2` just made, and neither number is used again.
-    let (read_end, write_end): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+    let (read_end, write_end): (OwnedFd, OwnedFd) =
+        unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
     let capacity: usize = pipe_capacity(write_end.as_raw_fd());
-    assert!(room < capacity, "the room {room} must be less than the pipe's {capacity}");
+    assert!(
+        room < capacity,
+        "the room {room} must be less than the pipe's {capacity}"
+    );
     wait_for_room(write_end.as_raw_fd(), false);
     // A whole buffer at a time until the pipe refuses one: it is then as full as it can be.
     let block: [u8; 4096] = [b'p'; 4096];
@@ -277,10 +399,18 @@ fn standard_error_with_room(room: usize) -> (StandardErrorWithRoom, RestoredStan
     // One whole buffer out of the head, then all but `room` of it back into the tail, so the free room
     // is one page a shorter write merges into and a longer write is refused rather than partly written.
     let mut taken: [u8; 4096] = [0; 4096];
-    assert_eq!(one_read(read_end.as_raw_fd(), taken.as_mut_slice()), taken.len(), "one whole buffer leaves the pipe");
+    assert_eq!(
+        one_read(read_end.as_raw_fd(), taken.as_mut_slice()),
+        taken.len(),
+        "one whole buffer leaves the pipe"
+    );
     let refill: usize = taken.len() - room;
     if refill > 0 {
-        assert_eq!(one_write(write_end.as_raw_fd(), &block[..refill]), refill, "the room left in the pipe");
+        assert_eq!(
+            one_write(write_end.as_raw_fd(), &block[..refill]),
+            refill,
+            "the room left in the pipe"
+        );
     }
     wait_for_room(write_end.as_raw_fd(), true);
     // SAFETY: duplicating descriptor 2 has no preconditions, and the guard puts it back.
@@ -288,8 +418,17 @@ fn standard_error_with_room(room: usize) -> (StandardErrorWithRoom, RestoredStan
     assert!(saved >= 0, "descriptor 2 is open");
     let restored: RestoredStandardError = RestoredStandardError(saved);
     // SAFETY: both descriptors are open, and the guard restores descriptor 2 whichever way this ends.
-    assert_eq!(unsafe { libc::dup2(write_end.as_raw_fd(), 2) }, 2, "descriptor 2 is the pipe");
-    return (StandardErrorWithRoom { _read_end: read_end }, restored);
+    assert_eq!(
+        unsafe { libc::dup2(write_end.as_raw_fd(), 2) },
+        2,
+        "descriptor 2 is the pipe"
+    );
+    return (
+        StandardErrorWithRoom {
+            _read_end: read_end,
+        },
+        restored,
+    );
 }
 
 /// How long one write of a line longer than the room a pipe has left takes to be refused.
@@ -330,7 +469,8 @@ fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
     let shipped: String = notice_line(Some("gitAdd"), ADD_STANDING_NOTICE_AFTER);
     // One byte less than the notice's own line, so not one piece of its write fits and a shorter one does.
     let room: usize = shipped.len() - 1;
-    let (pipe, restored): (StandardErrorWithRoom, RestoredStandardError) = standard_error_with_room(room);
+    let (pipe, restored): (StandardErrorWithRoom, RestoredStandardError) =
+        standard_error_with_room(room);
     a_step_began(Some("gitAdd"), Instant::now());
     let (began, beginning): (Sender<()>, Receiver<()>) = channel();
     let sink = Box::new(move |notice: String| {
@@ -340,12 +480,18 @@ fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
         write_to_standard_error(notice);
     });
     let notice: StandingNotice = begin_quiet_after(false, sink, Duration::from_millis(1));
-    assert!(beginning.recv_timeout(Duration::from_secs(10)).is_ok(), "the notice began its own write");
+    assert!(
+        beginning.recv_timeout(Duration::from_secs(10)).is_ok(),
+        "the notice began its own write"
+    );
     // One write of a line longer than the room cannot return, so by this sleep the notice's thread is
     // inside its write rather than about to make it.
     std::thread::sleep(TIME_FOR_ONE_REFUSED_WRITE);
     // The add's own report, written after the notice is inside a write the pipe refuses.
-    let (reported, wrote): (Sender<std::io::Result<usize>>, Receiver<std::io::Result<usize>>) = channel();
+    let (reported, wrote): (
+        Sender<std::io::Result<usize>>,
+        Receiver<std::io::Result<usize>>,
+    ) = channel();
     let add: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let _sent = reported.send(std::io::Write::write(&mut std::io::stderr(), b"x"));
     });
@@ -358,7 +504,13 @@ fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
     // Descriptor 2 is the test harness's again before the control answers, so its own words reach the
     // reader that would otherwise be the pipe this control filled.
     drop(restored);
-    assert_eq!(answer.map(|written| { return written.ok(); }), Some(Some(b"x".len())), "the add's own byte is written while the notice's line waits in the pipe");
+    assert_eq!(
+        answer.map(|written| {
+            return written.ok();
+        }),
+        Some(Some(b"x".len())),
+        "the add's own byte is written while the notice's line waits in the pipe"
+    );
 }
 
 /// Every step name one source text enters, in the order the text enters it.
@@ -404,28 +556,50 @@ fn step_names(text: &str) -> Vec<String> {
 #[test]
 fn every_step_an_add_enters_has_its_own_sentence() {
     let root: PathBuf = crate::source_guard::source_scan_tests::source_root();
-    let roots: Vec<crate::source_guard::source_scan_tests::CrateRoot> = crate::source_guard::source_scan_tests::real_roots();
+    let roots: Vec<crate::source_guard::source_scan_tests::CrateRoot> =
+        crate::source_guard::source_scan_tests::real_roots();
     let sources: Vec<crate::source_guard::source_scan_tests::SourceFile> =
-        crate::source_guard::source_scan_tests::classified_sources(root.as_path(), roots.as_slice()).expect("the crate's own sources");
+        crate::source_guard::source_scan_tests::classified_sources(
+            root.as_path(),
+            roots.as_slice(),
+        )
+        .expect("the crate's own sources");
     let mut entered: Vec<String> = Vec::new();
-    for file in sources.iter().filter(|file| { return !file.test_only; }) {
-        let text: String = std::fs::read_to_string(root.join(file.path.as_str())).expect("a source file of this crate");
+    for file in sources.iter().filter(|file| {
+        return !file.test_only;
+    }) {
+        let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
+            .expect("a source file of this crate");
         entered.extend(step_names(text.as_str()));
     }
     assert!(!entered.is_empty(), "the scan read the steps an add enters");
     let mut missing: Vec<&str> = Vec::new();
     for name in &entered {
-        if !STEP_SENTENCES.iter().any(|(step, _sentence)| { return step == name; }) {
+        if !STEP_SENTENCES.iter().any(|(step, _sentence)| {
+            return step == name;
+        }) {
             missing.push(name.as_str());
         }
     }
-    assert!(missing.is_empty(), "a step an add enters has no sentence of its own: {missing:?}");
+    assert!(
+        missing.is_empty(),
+        "a step an add enters has no sentence of its own: {missing:?}"
+    );
     let stale: Vec<&str> = STEP_SENTENCES
         .iter()
-        .map(|(step, _sentence)| { return *step; })
-        .filter(|step| { return !entered.iter().any(|name| { return name == step; }); })
+        .map(|(step, _sentence)| {
+            return *step;
+        })
+        .filter(|step| {
+            return !entered.iter().any(|name| {
+                return name == step;
+            });
+        })
         .collect();
-    assert!(stale.is_empty(), "a sentence names a step no add enters any more: {stale:?}");
+    assert!(
+        stale.is_empty(),
+        "a sentence names a step no add enters any more: {stale:?}"
+    );
 }
 
 /// What:
@@ -460,21 +634,43 @@ fn a_plain_add_s_line_names_git_s_own_add_and_the_missing_folder() {
         Duration::from_millis(1),
     );
     let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
-    assert_eq!(said.len(), 1, "the plainly run add says it is still running: {said:?}");
-    assert!(said[0].contains("it is in the `git worktree add` this command started"), "the line names the step: {}", said[0]);
+    assert_eq!(
+        said.len(),
+        1,
+        "the plainly run add says it is still running: {said:?}"
+    );
+    assert!(
+        said[0].contains("it is in the `git worktree add` this command started"),
+        "the line names the step: {}",
+        said[0]
+    );
     assert!(
         said[0].contains("and this add runs as plain Git because the folder it goes in"),
         "the line names the route and the fact that caused it: {}",
         said[0]
     );
-    assert!(said[0].contains("does not exist yet"), "the missing folder is named: {}", said[0]);
+    assert!(
+        said[0].contains("does not exist yet"),
+        "the missing folder is named: {}",
+        said[0]
+    );
     drop(notice);
     // The route outlives the step it was published with: the ladder's own steps are entered by the add
     // that runs plainly too, and every line while it waits says it is plain.
     a_step_began(Some("recordDestination"), Instant::now());
-    let later: String = notice_line_on_route(Some("recordDestination"), ADD_STANDING_NOTICE_AFTER, Some(clause.as_str()));
-    assert!(later.contains("it is recording where the new worktree goes"), "the line names the step the add is in: {later}");
-    assert!(later.contains("and this add runs as plain Git because the folder it goes in"), "and still says why it is plain: {later}");
+    let later: String = notice_line_on_route(
+        Some("recordDestination"),
+        ADD_STANDING_NOTICE_AFTER,
+        Some(clause.as_str()),
+    );
+    assert!(
+        later.contains("it is recording where the new worktree goes"),
+        "the line names the step the add is in: {later}"
+    );
+    assert!(
+        later.contains("and this add runs as plain Git because the folder it goes in"),
+        "and still says why it is plain: {later}"
+    );
     the_add_ended();
     crate::test_support::remove(root.as_path());
 }

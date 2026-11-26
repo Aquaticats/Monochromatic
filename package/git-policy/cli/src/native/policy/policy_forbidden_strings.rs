@@ -29,36 +29,67 @@ use crate::candidate_known_content::KnownContent;
 /// Import the immutable version type.
 use crate::candidate_version::CandidateVersion;
 /// Import the validated options of this policy.
-use crate::config_schema::{ForbiddenStringsOptions, PolicyConfig};
+use crate::config_schema::{
+    ForbiddenStringsOptions,
+    PolicyConfig,
+};
 /// Import the debug and warning diagnostics on standard error.
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 /// Import the engine-failure codes.
 use crate::diagnostics::EngineFailureCode;
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the lifecycle's candidates.
-use crate::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{
+    ContentState,
+    LifecycleContent,
+};
 /// Import the finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// Import the facts interface for the repository's top level.
 use crate::repository_facts::RepositoryFacts;
 /// Import the repository location answer.
 use crate::repository_location::RepositoryLocation;
 /// Import the scanner adapter and its failure.
 use crate::scanner_adapter::{
-    CandidateScanner, RulesSource, ScannerError, ScannerFailure, compiled_rules_artifact_exists,
+    CandidateScanner,
+    RulesSource,
+    ScannerError,
+    ScannerFailure,
+    compiled_rules_artifact_exists,
 };
 /// Import the code of each scanner and scan failure.
 use crate::scanner_failure_code::{
-    finding_failure_code, scan_run_failure_code, scanner_failure_code,
+    finding_failure_code,
+    scan_run_failure_code,
+    scanner_failure_code,
 };
 /// Import the rules-file precedence and which candidates are scanned.
-use crate::scanner_selection::{RULES_VARIABLE, is_scannable, rules_candidate_paths, rules_source};
+use crate::scanner_selection::{
+    RULES_VARIABLE,
+    is_scannable,
+    rules_candidate_paths,
+    rules_source,
+};
 /// Import the worktree's top level from Git's answer.
-use crate::worktree_identity::{git_directory, worktree_root};
+use crate::worktree_identity::{
+    git_directory,
+    worktree_root,
+};
 /// The scanner library's per-candidate result and per-match finding,
 ///  and what a load may write into the shared compiled-rules cache.
-use forbidden_strings::{CacheAccess, CandidateScan, RulesListError, ScanFinding};
+use forbidden_strings::{
+    CacheAccess,
+    CandidateScan,
+    RulesListError,
+    ScanFinding,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -71,7 +102,10 @@ use forbidden_strings::{CacheAccess, CandidateScan, RulesListError, ScanFinding}
 /// ```
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
@@ -185,7 +219,10 @@ pub enum CachePublisher<'a> {
 /// ```ts
 /// cacheAccess(cached, publishedElsewhere) // cached || !publishedElsewhere ? readWrite : readOnly
 /// ```
-pub fn cache_access(cached: bool, published_elsewhere: bool) -> CacheAccess {
+pub fn cache_access(
+    cached: bool,
+    published_elsewhere: bool,
+) -> CacheAccess {
     if cached || !published_elsewhere {
         return CacheAccess::ReadWrite;
     }
@@ -205,8 +242,15 @@ pub fn cache_access(cached: bool, published_elsewhere: bool) -> CacheAccess {
 /// ```
 impl CachePublisher<'_> {
     /// The access a load of `rules` takes.
-    fn access(&self, rules: &RulesSource) -> CacheAccess {
-        let Self::Service { git_dir, repository } = self else {
+    fn access(
+        &self,
+        rules: &RulesSource,
+    ) -> CacheAccess {
+        let Self::Service {
+            git_dir,
+            repository,
+        } = self
+        else {
             return CacheAccess::ReadWrite;
         };
         if compiled_rules_artifact_exists(rules) {
@@ -230,7 +274,9 @@ impl CachePublisher<'_> {
 /// ```
 pub fn unloaded_scanner() -> ScannerState {
     // `None` is the "absent" variant: nothing has been loaded.
-    return ScannerState { loaded: None };
+    return ScannerState {
+        loaded: None,
+    };
 }
 
 /// What:
@@ -243,7 +289,10 @@ pub fn unloaded_scanner() -> ScannerState {
 /// ```ts
 /// const failed = (code, message): PolicyOutcome => ({ kind: 'failed', code, message });
 /// ```
-fn failed(code: EngineFailureCode, message: &str) -> PolicyOutcome {
+fn failed(
+    code: EngineFailureCode,
+    message: &str,
+) -> PolicyOutcome {
     return PolicyOutcome::Failed {
         code,
         message: String::from(message),
@@ -295,12 +344,21 @@ fn incomplete_scan(scan: &CandidateScan) -> Option<PolicyOutcome> {
 /// ```ts
 /// const toFinding = (hit, displayPath): PolicyFinding => ({ code: 'forbidden-string', message, path: displayPath });
 /// ```
-fn match_finding(finding: &ScanFinding, display_path: &str) -> Option<PolicyFinding> {
+fn match_finding(
+    finding: &ScanFinding,
+    display_path: &str,
+) -> Option<PolicyFinding> {
     let message: String = match finding {
-        ScanFinding::Content { line, rule } => {
+        ScanFinding::Content {
+            line,
+            rule,
+        } => {
             format!("Forbidden string matched at line {line} (rule {rule}).")
         }
-        ScanFinding::Name { component, rule } => {
+        ScanFinding::Name {
+            component,
+            rule,
+        } => {
             format!("Forbidden string matched in pathname segment {component} (rule {rule}).")
         }
         ScanFinding::EngineError | ScanFinding::PathnameLineBreak => return None,
@@ -347,13 +405,21 @@ impl ScannerState {
         access: CacheAccess,
     ) -> Result<&CandidateScanner, PolicyOutcome> {
         if self.loaded.is_none() {
-            self.loaded = Some(CandidateScanner::load_writing_cache(rules, builtin_rules, access));
+            self.loaded = Some(CandidateScanner::load_writing_cache(
+                rules,
+                builtin_rules,
+                access,
+            ));
             // An absent optional file is routine on a fresh clone, so it is logged for diagnosis, not warned.
             if let Some(Ok(scanner)) = &self.loaded {
                 for skipped in scanner.skipped_optional_rules() {
                     debug(
                         "checkForbiddenStrings",
-                        format!("optional rules file is absent; skipped: {}", skipped.display()).as_str(),
+                        format!(
+                            "optional rules file is absent; skipped: {}",
+                            skipped.display()
+                        )
+                        .as_str(),
                     );
                 }
             }
@@ -433,7 +499,11 @@ fn service_reads_the_same_rules(
     repository_root: &Path,
     selected: &RulesSource,
 ) -> bool {
-    let configured: Result<RulesSource, RulesListError> = rules_source(settings.options.rules_files.as_deref(), None, repository_root);
+    let configured: Result<RulesSource, RulesListError> = rules_source(
+        settings.options.rules_files.as_deref(),
+        None,
+        repository_root,
+    );
     let Ok(without_variable) = configured else {
         return false;
     };
@@ -519,7 +589,10 @@ fn known_content_or_none(
 /// ```ts
 /// function logKnownContent(scans: CandidateScan[], known: KnownContent): void;
 /// ```
-fn log_known_content(scans: &[CandidateScan], known: &KnownContent) {
+fn log_known_content(
+    scans: &[CandidateScan],
+    known: &KnownContent,
+) {
     for scan in scans {
         if let Some(entry) = known.entry(scan.identity) {
             debug(
@@ -609,15 +682,22 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
     // const publisher = serviceReadsTheSameRules(settings, root, rules) ? servicePublisher(gitDir, root) : thisProcess;
     // ```
     let service_git_dir: Option<PathBuf> = service_git_directory(facts);
-    let publisher: CachePublisher<'_> = match (service_reads_the_same_rules(settings, root.as_path(), &rules), service_git_dir.as_deref()) {
-        (true, Some(git_dir)) => CachePublisher::Service { git_dir, repository: root.as_path() },
+    let publisher: CachePublisher<'_> = match (
+        service_reads_the_same_rules(settings, root.as_path(), &rules),
+        service_git_dir.as_deref(),
+    ) {
+        (true, Some(git_dir)) => CachePublisher::Service {
+            git_dir,
+            repository: root.as_path(),
+        },
         _ => CachePublisher::ThisProcess,
     };
     let access: CacheAccess = publisher.access(&rules);
-    let loaded: &CandidateScanner = match scanner.load(&rules, settings.options.builtin_rules, access) {
-        Ok(found) => found,
-        Err(outcome) => return outcome,
-    };
+    let loaded: &CandidateScanner =
+        match scanner.load(&rules, settings.options.builtin_rules, access) {
+            Ok(found) => found,
+            Err(outcome) => return outcome,
+        };
     let known: KnownContent = known_content_or_none(content, lifecycle, rules_paths.as_slice());
     let scans: Vec<CandidateScan> =
         match content.scan_skipping(loaded, rules_paths.as_slice(), &known) {

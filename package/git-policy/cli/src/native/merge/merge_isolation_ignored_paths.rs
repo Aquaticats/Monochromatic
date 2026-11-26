@@ -30,7 +30,11 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry_reads::path_argument;
 /// Real Git,
 /// and the bytes of one of its starts waited for.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 /// `OsString` spells a path Git reads as bytes that need not be text.
 use std::ffi::OsString;
@@ -61,10 +65,16 @@ const PATH_TEXT_PER_CALL: usize = 32 * 1024;
 /// ```ts
 /// const ignored = await ignoredUntrackedAmongAwaiting(context, root, written);
 /// ```
-pub(crate) fn ignored_untracked_among(context: &GitContext, root: &Path, written: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+pub(crate) fn ignored_untracked_among(
+    context: &GitContext,
+    root: &Path,
+    written: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, String> {
     return match run_on_runtime(ignored_untracked_among_awaiting(context, root, written)) {
         Ok(found) => found,
-        Err(error) => Err(format!("the read of the ignored untracked files could not run: {error}")),
+        Err(error) => Err(format!(
+            "the read of the ignored untracked files could not run: {error}"
+        )),
     };
 }
 
@@ -79,7 +89,11 @@ pub(crate) fn ignored_untracked_among(context: &GitContext, root: &Path, written
 /// ```ts
 /// async function ignoredUntrackedAmongAwaiting(context, root, written): Promise<Uint8Array[]>;
 /// ```
-pub(crate) async fn ignored_untracked_among_awaiting(context: &GitContext, root: &Path, written: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+pub(crate) async fn ignored_untracked_among_awaiting(
+    context: &GitContext,
+    root: &Path,
+    written: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, String> {
     if written.is_empty() {
         return Ok(Vec::new());
     }
@@ -124,7 +138,11 @@ fn git_start_failure(error: std::io::Error) -> String {
 /// ```ts
 /// const listed = await git({ cwd: root, withoutPrefix: true, ownPathspecs: true }, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--full-name', '--', ...batch]);
 /// ```
-async fn listed_awaiting(context: &GitContext, root: &Path, batch: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+async fn listed_awaiting(
+    context: &GitContext,
+    root: &Path,
+    batch: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, String> {
     let mut words: Vec<OsString> = vec![
         OsString::from("ls-files"),
         OsString::from("--others"),
@@ -140,7 +158,9 @@ async fn listed_awaiting(context: &GitContext, root: &Path, batch: &[Vec<u8>]) -
     let mut request: GitRequest = GitRequest::new::<&str>(root, &[]).own_pathspecs();
     request.without_prefix = true;
     request.arguments = words;
-    let started: GitOutput = run_git_awaiting(context, &request).await.map_err(git_start_failure)?;
+    let started: GitOutput = run_git_awaiting(context, &request)
+        .await
+        .map_err(git_start_failure)?;
     if !started.succeeded() {
         return Err(format!("git ls-files failed: {}", started.error_text()));
     }

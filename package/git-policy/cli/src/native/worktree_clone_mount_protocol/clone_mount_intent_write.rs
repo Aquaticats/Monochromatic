@@ -23,13 +23,26 @@
 //! const writer = CloneIntentWriter.open(gate, clone); writer.request(intent); writer.nudge(nonce);
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, intent_text};
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{DESIRED_STATE_PROPERTY, SWEEP_NONCE_PROPERTY};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    intent_text,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{
+    DESIRED_STATE_PROPERTY,
+    SWEEP_NONCE_PROPERTY,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_sweep_nonce::sweep_nonce_text;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::zfs_compatibility_gate::gate_verdict::{BeforeRequests, Verdict};
+use crate::zfs_compatibility_gate::gate_verdict::{
+    BeforeRequests,
+    Verdict,
+};
 use crate::zfs_compatibility_gate::gate_words::verdict_line;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList, ZfsDevice};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    NvList,
+    ZfsDevice,
+};
 
 /// What:
 ///  Why the wrapper could not write the clone's intent or nudge.
@@ -68,9 +81,15 @@ impl IntentWriteRefusal {
     /// naming what refused and the way forward.
     pub fn message(&self) -> String {
         let reason: String = match self {
-            IntentWriteRefusal::Gate { line } => format!("{line}\nthe compatibility gate refused, so no request was made"),
-            IntentWriteRefusal::Device { reason } => format!("the ZFS device could not be opened ({reason}), so no request was made"),
-            IntentWriteRefusal::Write { reason } => format!(
+            IntentWriteRefusal::Gate {
+                line,
+            } => format!("{line}\nthe compatibility gate refused, so no request was made"),
+            IntentWriteRefusal::Device {
+                reason,
+            } => format!("the ZFS device could not be opened ({reason}), so no request was made"),
+            IntentWriteRefusal::Write {
+                reason,
+            } => format!(
                 "the property request was refused or its outcome is unknown ({reason}), so this build does not report it as filed"
             ),
         };
@@ -95,7 +114,10 @@ impl IntentWriteRefusal {
 /// ```
 pub fn intent_property(intent: &MountIntent) -> NvList {
     let mut properties: NvList = NvList::new();
-    properties.add_str(DESIRED_STATE_PROPERTY, intent_text(intent.operation, &intent.nonce));
+    properties.add_str(
+        DESIRED_STATE_PROPERTY,
+        intent_text(intent.operation, &intent.nonce),
+    );
     return properties;
 }
 
@@ -143,20 +165,31 @@ impl CloneIntentWriter {
     /// # Errors
     /// The gate refused,
     /// or the device could not be opened.
-    pub fn open(gate: &dyn BeforeRequests, clone: &str) -> Result<Self, IntentWriteRefusal> {
+    pub fn open(
+        gate: &dyn BeforeRequests,
+        clone: &str,
+    ) -> Result<Self, IntentWriteRefusal> {
         let verdict: Verdict = gate.verdict();
         if let Verdict::Refused(_) = verdict {
-            return Err(IntentWriteRefusal::Gate { line: verdict_line(&verdict) });
+            return Err(IntentWriteRefusal::Gate {
+                line: verdict_line(&verdict),
+            });
         }
         let device: ZfsDevice = ZfsDevice::open().map_err(device_refusal)?;
-        return Ok(CloneIntentWriter { device, clone: String::from(clone) });
+        return Ok(CloneIntentWriter {
+            device,
+            clone: String::from(clone),
+        });
     }
 
     /// Write the durable intent on the clone.
     ///
     /// # Errors
     /// The kernel refused the write or its outcome is unknown.
-    pub fn request(&self, intent: &MountIntent) -> Result<(), IntentWriteRefusal> {
+    pub fn request(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<(), IntentWriteRefusal> {
         return self.write(&intent_property(intent));
     }
 
@@ -164,13 +197,22 @@ impl CloneIntentWriter {
     ///
     /// # Errors
     /// The kernel refused the write or its outcome is unknown.
-    pub fn nudge(&self, nonce: &RequestNonce) -> Result<(), IntentWriteRefusal> {
+    pub fn nudge(
+        &self,
+        nonce: &RequestNonce,
+    ) -> Result<(), IntentWriteRefusal> {
         return self.write(&nudge_property(nonce));
     }
 
     /// Send one property list to the clone.
-    fn write(&self, properties: &NvList) -> Result<(), IntentWriteRefusal> {
-        let answer = self.device.set_prop(self.clone.as_str(), properties).map_err(write_refusal)?;
+    fn write(
+        &self,
+        properties: &NvList,
+    ) -> Result<(), IntentWriteRefusal> {
+        let answer = self
+            .device
+            .set_prop(self.clone.as_str(), properties)
+            .map_err(write_refusal)?;
         drop(answer);
         return Ok(());
     }
@@ -178,12 +220,16 @@ impl CloneIntentWriter {
 
 /// Describe a device that could not be opened.
 fn device_refusal(error: DeviceError) -> IntentWriteRefusal {
-    return IntentWriteRefusal::Device { reason: error.to_string() };
+    return IntentWriteRefusal::Device {
+        reason: error.to_string(),
+    };
 }
 
 /// Describe a write the kernel refused or answered unclearly.
 fn write_refusal(error: DeviceError) -> IntentWriteRefusal {
-    return IntentWriteRefusal::Write { reason: error.to_string() };
+    return IntentWriteRefusal::Write {
+        reason: error.to_string(),
+    };
 }
 
 /// Controls stay out of the release executable.

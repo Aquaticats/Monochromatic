@@ -15,13 +15,24 @@ fn capture() -> Capture {
         paths: vec![
             CapturedPath {
                 path: b"dir/a b.txt".to_vec(),
-                worktree: Some(CapturedFile { mode: String::from("100755"), raw: String::from("d".repeat(40)), blob: String::from("e".repeat(40)), permissions: Some(0o755) }),
-                index: Some(CapturedIndex { mode: String::from("100644"), oid: String::from("f".repeat(40)) }),
+                worktree: Some(CapturedFile {
+                    mode: String::from("100755"),
+                    raw: String::from("d".repeat(40)),
+                    blob: String::from("e".repeat(40)),
+                    permissions: Some(0o755),
+                }),
+                index: Some(CapturedIndex {
+                    mode: String::from("100644"),
+                    oid: String::from("f".repeat(40)),
+                }),
             },
             CapturedPath {
                 path: b"not text \xff".to_vec(),
                 worktree: None,
-                index: Some(CapturedIndex { mode: String::from("100644"), oid: String::from("a".repeat(40)) }),
+                index: Some(CapturedIndex {
+                    mode: String::from("100644"),
+                    oid: String::from("a".repeat(40)),
+                }),
             },
         ],
     };
@@ -33,7 +44,8 @@ fn capture() -> Capture {
 fn a_capture_round_trips() {
     let original: Capture = capture();
     let text: String = encode(&original);
-    let value: serde_json::Value = serde_json::from_str(text.as_str()).expect("the capture is JSON");
+    let value: serde_json::Value =
+        serde_json::from_str(text.as_str()).expect("the capture is JSON");
     assert_eq!(decode(&value), Some(original));
 }
 
@@ -49,10 +61,25 @@ fn a_capture_round_trips() {
 fn every_object_a_capture_names_is_one_slot() {
     let mut value: Capture = capture();
     // The same bytes in both layers is one object, and one slot.
-    value.paths[0].index = Some(CapturedIndex { mode: String::from("100755"), oid: "d".repeat(40) });
+    value.paths[0].index = Some(CapturedIndex {
+        mode: String::from("100755"),
+        oid: "d".repeat(40),
+    });
     let found: Vec<Slot> = slots(value.paths.as_slice());
-    let oids: Vec<&str> = found.iter().map(|slot| { return slot.oid.as_str(); }).collect();
-    assert_eq!(oids, ["d".repeat(40).as_str(), "e".repeat(40).as_str(), "a".repeat(40).as_str()]);
+    let oids: Vec<&str> = found
+        .iter()
+        .map(|slot| {
+            return slot.oid.as_str();
+        })
+        .collect();
+    assert_eq!(
+        oids,
+        [
+            "d".repeat(40).as_str(),
+            "e".repeat(40).as_str(),
+            "a".repeat(40).as_str()
+        ]
+    );
     assert_eq!(found[0].name, "s0");
     assert_eq!(found[2].name, "s2");
 }
@@ -75,7 +102,10 @@ fn a_damaged_capture_is_refused() {
         text.replace("\"raw\"", "\"other\""),
         text.replace("6469722f6120622e747874", "zz"),
         text.replace("\"paths\":[", "\"paths\":{"),
-        text.replace("\"pathHex\":\"6e6f74207465787420ff\"", "\"pathHex\":\"6e6\""),
+        text.replace(
+            "\"pathHex\":\"6e6f74207465787420ff\"",
+            "\"pathHex\":\"6e6\"",
+        ),
         text.replace(enc, ""),
     ] {
         let value: Option<serde_json::Value> = serde_json::from_str(broken.as_str()).ok();

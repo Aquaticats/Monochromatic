@@ -27,8 +27,14 @@
 //! await rm(path, { recursive: true, force: true }); // after chmod u+rwx on every directory, never into a nested subvolume
 //! ```
 
-use crate::fs_beneath::{open_directory_widening, remove_at};
-use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::fs_beneath::{
+    open_directory_widening,
+    remove_at,
+};
+use crate::subvolume_remove_walk::{
+    empty_directory,
+    verify_below,
+};
 use std::path::Path;
 
 /// What:
@@ -53,7 +59,10 @@ pub fn remove_tree(path: &Path) -> std::io::Result<()> {
         return std::fs::remove_file(path);
     }
     let Some(name) = path.file_name() else {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} has no last component to remove", path.display())));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{} has no last component to remove", path.display()),
+        ));
     };
     let parent_path: &Path = match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent,
@@ -65,7 +74,11 @@ pub fn remove_tree(path: &Path) -> std::io::Result<()> {
         Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::CrossesDevices,
-                format!("{} is a mount point, so its content is not part of any tree to remove; unmount it first (`umount {}`)", path.display(), path.display()),
+                format!(
+                    "{} is a mount point, so its content is not part of any tree to remove; unmount it first (`umount {}`)",
+                    path.display(),
+                    path.display()
+                ),
             ));
         }
         Err(error) => return Err(error),

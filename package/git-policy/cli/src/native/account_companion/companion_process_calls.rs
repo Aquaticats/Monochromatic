@@ -27,7 +27,11 @@
 //! ```
 
 use super::companion_calls::CompanionCall;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 use std::time::Duration;
 
 /// How a child ended,
@@ -98,7 +102,11 @@ pub fn fork() -> Result<Option<libc::pid_t>, std::io::Error> {
 /// The call refused.
 pub fn set_process_group(pid: libc::pid_t) -> Result<(), std::io::Error> {
     // SAFETY: `setpgid` reads two process identifiers and touches no memory of ours.
-    return if unsafe { libc::setpgid(pid, pid) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+    return if unsafe { libc::setpgid(pid, pid) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    };
 }
 
 /// What:
@@ -127,9 +135,17 @@ pub fn pid_descriptor(pid: libc::pid_t) -> Result<OwnedFd, std::io::Error> {
 ///
 /// # Errors
 /// The call refused.
-pub fn ready_within(descriptor: &OwnedFd, within: Duration) -> Result<bool, std::io::Error> {
-    let milliseconds: libc::c_int = libc::c_int::try_from(within.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
-    let mut watched: libc::pollfd = libc::pollfd { fd: descriptor.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+pub fn ready_within(
+    descriptor: &OwnedFd,
+    within: Duration,
+) -> Result<bool, std::io::Error> {
+    let milliseconds: libc::c_int =
+        libc::c_int::try_from(within.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
+    let mut watched: libc::pollfd = libc::pollfd {
+        fd: descriptor.as_raw_fd(),
+        events: libc::POLLIN,
+        revents: 0,
+    };
     // SAFETY: `watched` is one live entry, which is what the count says.
     let ready: libc::c_int = unsafe { libc::poll(&raw mut watched, 1, milliseconds) };
     if ready < 0 {
@@ -145,7 +161,8 @@ pub fn ready_within(descriptor: &OwnedFd, within: Duration) -> Result<bool, std:
 ///  A refused fork is answered by pausing and asking again,
 ///  and a pause is a sleep rather than a spin.
 pub fn pause(within: Duration) {
-    let milliseconds: libc::c_int = libc::c_int::try_from(within.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
+    let milliseconds: libc::c_int =
+        libc::c_int::try_from(within.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
     let mut watched: [libc::pollfd; 0] = [];
     // SAFETY: a poll of no descriptor with a timeout sleeps and reads nothing of ours.
     let _slept: libc::c_int = unsafe { libc::poll(watched.as_mut_ptr(), 0, milliseconds) };
@@ -161,9 +178,18 @@ pub fn pause(within: Duration) {
 ///
 /// # Errors
 /// The read refused.
-pub fn read_available(descriptor: &OwnedFd, into: &mut [u8]) -> Result<usize, std::io::Error> {
+pub fn read_available(
+    descriptor: &OwnedFd,
+    into: &mut [u8],
+) -> Result<usize, std::io::Error> {
     // SAFETY: the buffer holds the room the call is given.
-    let read: libc::ssize_t = unsafe { libc::read(descriptor.as_raw_fd(), into.as_mut_ptr().cast::<libc::c_void>(), into.len()) };
+    let read: libc::ssize_t = unsafe {
+        libc::read(
+            descriptor.as_raw_fd(),
+            into.as_mut_ptr().cast::<libc::c_void>(),
+            into.len(),
+        )
+    };
     if read < 0 {
         return Err(std::io::Error::last_os_error());
     }
@@ -191,9 +217,13 @@ pub fn reap_now(pid: libc::pid_t) -> Result<Exit, std::io::Error> {
 /// The ending one wait status holds.
 fn exit_from(status: libc::c_int) -> Exit {
     if libc::WIFSIGNALED(status) {
-        return Exit::Signaled { signal: libc::WTERMSIG(status) };
+        return Exit::Signaled {
+            signal: libc::WTERMSIG(status),
+        };
     }
-    return Exit::Exited { status: libc::WEXITSTATUS(status) };
+    return Exit::Exited {
+        status: libc::WEXITSTATUS(status),
+    };
 }
 
 /// What:
@@ -204,7 +234,11 @@ fn exit_from(status: libc::c_int) -> Exit {
 /// The call refused.
 pub fn kill_group(pid: libc::pid_t) -> Result<(), std::io::Error> {
     // SAFETY: `kill` reads two numbers and touches no memory of ours, and the group is this child's own.
-    return if unsafe { libc::kill(-pid, libc::SIGKILL) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+    return if unsafe { libc::kill(-pid, libc::SIGKILL) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    };
 }
 
 /// What:

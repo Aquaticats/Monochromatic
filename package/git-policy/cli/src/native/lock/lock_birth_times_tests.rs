@@ -18,13 +18,25 @@
 //! withBirthTimes({ kind: 'coarse', tickMs: 2000 }, () => expect(birthTimeOf(path)).toEqual(floored));
 //! ```
 
-use crate::lock_birth_times::{BirthTimes, birth_time_of, birth_times_of, with_birth_times};
+use crate::lock_birth_times::{
+    BirthTimes,
+    birth_time_of,
+    birth_times_of,
+    with_birth_times,
+};
 use crate::stale_ref_lock_found::PidFile;
 use crate::stale_ref_lock_judge::pid_file_standing;
-use crate::test_support::{fixture, remove};
-use std::path::PathBuf;
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::Path;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// A time a whole number of seconds after the epoch,
 /// so two of them differ by exactly what a control means.
@@ -46,7 +58,11 @@ fn at(seconds: u64) -> SystemTime {
 #[test]
 fn an_equal_birth_time_proves_no_order() {
     let standing: PidFile = pid_file_standing(Some(at(10)), Some(at(10)), 7);
-    assert_eq!(standing, PidFile::Unproven(7), "equal times prove neither order");
+    assert_eq!(
+        standing,
+        PidFile::Unproven(7),
+        "equal times prove neither order"
+    );
 }
 
 /// What:
@@ -61,9 +77,21 @@ fn an_equal_birth_time_proves_no_order() {
 /// ```
 #[test]
 fn a_missing_birth_time_proves_no_order() {
-    assert_eq!(pid_file_standing(None, None, 7), PidFile::Unproven(7), "no times prove no order");
-    assert_eq!(pid_file_standing(Some(at(10)), None, 7), PidFile::Unproven(7), "a PID file without a time proves no order");
-    assert_eq!(pid_file_standing(None, Some(at(10)), 7), PidFile::Unproven(7), "a lock without a time proves no order");
+    assert_eq!(
+        pid_file_standing(None, None, 7),
+        PidFile::Unproven(7),
+        "no times prove no order"
+    );
+    assert_eq!(
+        pid_file_standing(Some(at(10)), None, 7),
+        PidFile::Unproven(7),
+        "a PID file without a time proves no order"
+    );
+    assert_eq!(
+        pid_file_standing(None, Some(at(10)), 7),
+        PidFile::Unproven(7),
+        "a lock without a time proves no order"
+    );
 }
 
 /// What:
@@ -80,8 +108,16 @@ fn a_missing_birth_time_proves_no_order() {
 /// ```
 #[test]
 fn a_proven_order_names_the_holder_or_an_earlier_one() {
-    assert_eq!(pid_file_standing(Some(at(10)), Some(at(11)), 7), PidFile::Names(7), "a later PID file is this lock's");
-    assert_eq!(pid_file_standing(Some(at(10)), Some(at(9)), 7), PidFile::Older(7), "an earlier PID file is an earlier holder's");
+    assert_eq!(
+        pid_file_standing(Some(at(10)), Some(at(11)), 7),
+        PidFile::Names(7),
+        "a later PID file is this lock's"
+    );
+    assert_eq!(
+        pid_file_standing(Some(at(10)), Some(at(9)), 7),
+        PidFile::Older(7),
+        "an earlier PID file is an earlier holder's"
+    );
 }
 
 /// What:
@@ -98,7 +134,10 @@ fn a_proven_order_names_the_holder_or_an_earlier_one() {
 #[test]
 fn a_setting_names_the_arm_or_nothing() {
     assert_eq!(birth_times_of("none"), Some(BirthTimes::Hidden));
-    assert_eq!(birth_times_of(" 2000 "), Some(BirthTimes::Coarse(Duration::from_millis(2000))));
+    assert_eq!(
+        birth_times_of(" 2000 "),
+        Some(BirthTimes::Coarse(Duration::from_millis(2000)))
+    );
     assert_eq!(birth_times_of("0"), None, "a tick of zero is not a tick");
     assert_eq!(birth_times_of("nonsense"), None);
     assert_eq!(birth_times_of(""), None);
@@ -121,18 +160,38 @@ fn the_hidden_and_coarse_arms_report_what_other_file_systems_do() {
     let root: PathBuf = fixture("birth-time-arm");
     let first: PathBuf = root.join("first");
     std::fs::write(first.as_path(), b"one\n").expect("a file");
-    assert!(birth_time_of(first.as_path()).is_some(), "this file system records a birth time, so the recorded arm has one");
-    let hidden: Option<SystemTime> = with_birth_times(BirthTimes::Hidden, || { return birth_time_of(first.as_path()); });
+    assert!(
+        birth_time_of(first.as_path()).is_some(),
+        "this file system records a birth time, so the recorded arm has one"
+    );
+    let hidden: Option<SystemTime> = with_birth_times(BirthTimes::Hidden, || {
+        return birth_time_of(first.as_path());
+    });
     assert_eq!(hidden, None, "the hidden arm reports no birth time at all");
-    let coarse: Option<SystemTime> = with_birth_times(BirthTimes::Coarse(Duration::from_secs(3600)), || { return birth_time_of(first.as_path()); });
-    let floored: u64 = coarse.expect("the coarse arm still reports a time").duration_since(UNIX_EPOCH).expect("after the epoch").as_secs();
-    assert_eq!(floored % 3600, 0, "the coarse arm floors the time to its tick");
+    let coarse: Option<SystemTime> =
+        with_birth_times(BirthTimes::Coarse(Duration::from_secs(3600)), || {
+            return birth_time_of(first.as_path());
+        });
+    let floored: u64 = coarse
+        .expect("the coarse arm still reports a time")
+        .duration_since(UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs();
+    assert_eq!(
+        floored % 3600,
+        0,
+        "the coarse arm floors the time to its tick"
+    );
     // A second file written in the same tick as the first carries the same time, which is what the coarse file system gives.
     let second: PathBuf = root.join("second");
     std::fs::write(second.as_path(), b"two\n").expect("a second file");
-    let both: (Option<SystemTime>, Option<SystemTime>) = with_birth_times(BirthTimes::Coarse(Duration::from_secs(3600)), || {
-        return (birth_time_of(first.as_path()), birth_time_of(second.as_path()));
-    });
+    let both: (Option<SystemTime>, Option<SystemTime>) =
+        with_birth_times(BirthTimes::Coarse(Duration::from_secs(3600)), || {
+            return (
+                birth_time_of(first.as_path()),
+                birth_time_of(second.as_path()),
+            );
+        });
     assert_eq!(both.0, both.1, "two files in one tick carry one time");
     remove(root.as_path());
 }
@@ -155,7 +214,10 @@ fn the_hidden_and_coarse_arms_report_what_other_file_systems_do() {
 /// ```ts
 /// writePidFileProvablyLater(lock, 'pid 42\n') // throws when the file system cannot show the order
 /// ```
-pub(crate) fn write_after_the_lock(lock: &Path, content: &str) {
+pub(crate) fn write_after_the_lock(
+    lock: &Path,
+    content: &str,
+) {
     let pid_file: std::path::PathBuf = crate::stale_ref_lock_walk::pid_file_beside(lock);
     let began: std::time::Instant = std::time::Instant::now();
     loop {

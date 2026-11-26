@@ -18,15 +18,27 @@
 //! const cleared = clearTheOwnStage(container, destination); // false when the container is not the copy's own
 //! ```
 
-use crate::worktree_add_binding::{Binding, bind_registration};
+use crate::worktree_add_binding::{
+    Binding,
+    bind_registration,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_copy_interrupted_add_settlement::{add_is_finished, registration_directory};
-use crate::worktree_copy_journal::{Role, assert_private_path};
+use crate::worktree_copy_interrupted_add_settlement::{
+    add_is_finished,
+    registration_directory,
+};
+use crate::worktree_copy_journal::{
+    Role,
+    assert_private_path,
+};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::remove_stage;
 use crate::worktree_copy_stage_binding::stage_binding;
 use crate::worktree_copy_stage_claim_reaping::SCRATCH_SUFFIX;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The registration of a destination,
@@ -43,7 +55,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const binding = wholeRegistration(commonDir, destination); // undefined when nothing may be filled
 /// ```
-pub(crate) fn whole_registration(common_dir: &Path, destination: &Path) -> Option<Binding> {
+pub(crate) fn whole_registration(
+    common_dir: &Path,
+    destination: &Path,
+) -> Option<Binding> {
     let bound: Binding = bind_registration(common_dir, destination).ok()?.binding;
     // `match` on the pointer: the registration it names now is the one whose index the proof reads, and a destination whose
     // pointer cannot be read is proven against the registration this command bound.
@@ -68,7 +83,10 @@ pub(crate) fn whole_registration(common_dir: &Path, destination: &Path) -> Optio
 /// ```ts
 /// const registered = roots.some((root) => canonical(root) === canonical(source));
 /// ```
-pub(crate) fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
+pub(crate) fn source_is_registered(
+    roots: &[PathBuf],
+    source: &Path,
+) -> bool {
     let wanted: PathBuf = match std::fs::canonicalize(source) {
         Ok(canonical) => canonical,
         Err(_gone) => return false,
@@ -76,7 +94,9 @@ pub(crate) fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
     // Git writes the roots as it sees them, so both sides are compared in their canonical form: a symbolic link above a
     // worktree must not hide a source the repository still registers.
     for root in roots {
-        let Ok(found) = std::fs::canonicalize(root) else { continue };
+        let Ok(found) = std::fs::canonicalize(root) else {
+            continue;
+        };
         if found.as_path() == wanted.as_path() {
             return true;
         }
@@ -98,7 +118,10 @@ pub(crate) fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
 /// ```ts
 /// clearTheOwnStage(container, destination); // false when the container is not the copy's own
 /// ```
-pub(crate) fn clear_the_own_stage(container: &Path, destination: &Path) -> Result<bool, WorktreeCopyError> {
+pub(crate) fn clear_the_own_stage(
+    container: &Path,
+    destination: &Path,
+) -> Result<bool, WorktreeCopyError> {
     let present: bool = match std::fs::symlink_metadata(container) {
         Ok(_) => true,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(true),
@@ -152,7 +175,9 @@ pub(crate) fn clear_the_own_stage(container: &Path, destination: &Path) -> Resul
 /// const bare = named.every((name) => namesTheBindingWrite(name));
 /// ```
 fn holds_nothing_a_copy_wrote(container: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(container) else { return false };
+    let Ok(entries) = std::fs::read_dir(container) else {
+        return false;
+    };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if !names_the_binding_write(name.as_str()) {
@@ -179,11 +204,14 @@ fn names_the_binding_write(name: &str) -> bool {
     // The file a write is made in is hidden by a leading dot (`private_storage::staging_beside`), the temporary it is
     // published as is not.
     let bare: &str = name.strip_prefix('.').unwrap_or(name);
-    let Some(rest): Option<&str> = bare.strip_prefix(crate::worktree_copy_stage_binding::STAGE_BINDING_NAME) else {
+    let Some(rest): Option<&str> =
+        bare.strip_prefix(crate::worktree_copy_stage_binding::STAGE_BINDING_NAME)
+    else {
         return false;
     };
     if rest.is_empty() {
         return true;
     }
-    return rest.starts_with('.') && (rest.ends_with(TEMPORARY_SUFFIX) || rest.ends_with(SCRATCH_SUFFIX));
+    return rest.starts_with('.')
+        && (rest.ends_with(TEMPORARY_SUFFIX) || rest.ends_with(SCRATCH_SUFFIX));
 }

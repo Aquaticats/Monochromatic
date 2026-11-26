@@ -17,8 +17,15 @@
 //! expect(readFileOnlyRootMayWrite(own)).toBe('{}'); expect(() => readFileOnlyRootMayWrite(link)).toThrow('link');
 //! ```
 
-use super::{FileControlRefusal, read_file_only_root_may_write, read_file_only_root_may_write_owned_by};
-use crate::test_support::{fixture, remove};
+use super::{
+    FileControlRefusal,
+    read_file_only_root_may_write,
+    read_file_only_root_may_write_owned_by,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use rustix::process::geteuid;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -31,11 +38,16 @@ fn this_account() -> u32 {
 
 /// One fixture file holding `text` at `mode`,
 /// owned by this control's account.
-fn file_at(name: &str, text: &str, mode: u32) -> PathBuf {
+fn file_at(
+    name: &str,
+    text: &str,
+    mode: u32,
+) -> PathBuf {
     let root: PathBuf = fixture(name);
     let path: PathBuf = root.join("git-worktree-clone-mounts.jsonc");
     std::fs::write(&path, text).expect("the fixture file is written");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).expect("the fixture mode is set");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+        .expect("the fixture mode is set");
     return path;
 }
 
@@ -45,9 +57,16 @@ fn file_at(name: &str, text: &str, mode: u32) -> PathBuf {
 #[test]
 fn a_file_this_account_alone_may_write_is_read() {
     let path: PathBuf = file_at("root-write-plain", "{\"cloneMounts\":{}}", 0o644);
-    assert_eq!(read_file_only_root_may_write(path.as_path()), Ok(Some(String::from("{\"cloneMounts\":{}}"))));
+    assert_eq!(
+        read_file_only_root_may_write(path.as_path()),
+        Ok(Some(String::from("{\"cloneMounts\":{}}")))
+    );
     let private: PathBuf = file_at("root-write-owner-only", "", 0o600);
-    assert_eq!(read_file_only_root_may_write(private.as_path()), Ok(Some(String::new())), "an empty file is text, and the caller refuses it as empty");
+    assert_eq!(
+        read_file_only_root_may_write(private.as_path()),
+        Ok(Some(String::new())),
+        "an empty file is text, and the caller refuses it as empty"
+    );
     remove(path.parent().unwrap_or(path.as_path()));
     remove(private.parent().unwrap_or(private.as_path()));
 }
@@ -58,7 +77,10 @@ fn a_file_this_account_alone_may_write_is_read() {
 #[test]
 fn an_absent_file_is_no_text_and_no_refusal() {
     let root: PathBuf = fixture("root-write-absent");
-    assert_eq!(read_file_only_root_may_write(root.join("nothing-here.jsonc").as_path()), Ok(None));
+    assert_eq!(
+        read_file_only_root_may_write(root.join("nothing-here.jsonc").as_path()),
+        Ok(None)
+    );
     remove(root.as_path());
 }
 
@@ -71,9 +93,24 @@ fn a_link_at_the_path_is_refused_and_its_target_is_not_read() {
     let root: PathBuf = target.parent().expect("the fixture folder").to_path_buf();
     let link: PathBuf = root.join("git-worktree-clone-mounts-link.jsonc");
     std::os::unix::fs::symlink(&target, &link).expect("the fixture link is made");
-    assert_eq!(read_file_only_root_may_write(target.as_path()), Ok(Some(String::from("{\"cloneMounts\":{}}"))), "the target reads, so the link's refusal is the rule");
-    assert_eq!(read_file_only_root_may_write(link.as_path()), Err(FileControlRefusal::Link { path: link.clone() }));
-    assert!(read_file_only_root_may_write(link.as_path()).expect_err("a link is refused").reason().contains("link"), "the refusal names the link");
+    assert_eq!(
+        read_file_only_root_may_write(target.as_path()),
+        Ok(Some(String::from("{\"cloneMounts\":{}}"))),
+        "the target reads, so the link's refusal is the rule"
+    );
+    assert_eq!(
+        read_file_only_root_may_write(link.as_path()),
+        Err(FileControlRefusal::Link {
+            path: link.clone()
+        })
+    );
+    assert!(
+        read_file_only_root_may_write(link.as_path())
+            .expect_err("a link is refused")
+            .reason()
+            .contains("link"),
+        "the refusal names the link"
+    );
     remove(root.as_path());
 }
 
@@ -84,9 +121,20 @@ fn a_link_at_the_path_is_refused_and_its_target_is_not_read() {
 fn a_write_bit_for_another_account_is_refused() {
     for mode in [0o664, 0o646, 0o666, 0o647] {
         let path: PathBuf = file_at("root-write-bits", "{}", mode);
-        let refusal: FileControlRefusal = read_file_only_root_may_write(path.as_path()).expect_err("another account could write it");
-        assert_eq!(refusal, FileControlRefusal::WritableByOthers { path: path.clone(), mode });
-        assert!(refusal.reason().contains(&format!("{mode:04o}")), "the refusal names the mode it found: {}", refusal.reason());
+        let refusal: FileControlRefusal = read_file_only_root_may_write(path.as_path())
+            .expect_err("another account could write it");
+        assert_eq!(
+            refusal,
+            FileControlRefusal::WritableByOthers {
+                path: path.clone(),
+                mode
+            }
+        );
+        assert!(
+            refusal.reason().contains(&format!("{mode:04o}")),
+            "the refusal names the mode it found: {}",
+            refusal.reason()
+        );
         remove(path.parent().unwrap_or(path.as_path()));
     }
 }
@@ -99,12 +147,31 @@ fn a_write_bit_for_another_account_is_refused() {
 fn a_file_another_account_owns_is_refused() {
     let path: PathBuf = file_at("root-write-other-owner", "{}", 0o644);
     let another: u32 = this_account().wrapping_add(1);
-    let refusal: FileControlRefusal = read_file_only_root_may_write_owned_by(path.as_path(), another).expect_err("another account owns it");
-    assert_eq!(refusal, FileControlRefusal::Owner { path: path.clone(), found: this_account(), wanted: another });
+    let refusal: FileControlRefusal =
+        read_file_only_root_may_write_owned_by(path.as_path(), another)
+            .expect_err("another account owns it");
+    assert_eq!(
+        refusal,
+        FileControlRefusal::Owner {
+            path: path.clone(),
+            found: this_account(),
+            wanted: another
+        }
+    );
     let reason: String = refusal.reason();
-    assert!(reason.contains(&format!("user {}", this_account())), "{reason}");
-    assert!(reason.contains(&format!("runs as user {another}")), "{reason}");
-    assert_eq!(read_file_only_root_may_write_owned_by(path.as_path(), this_account()), Ok(Some(String::from("{}"))), "the same file answers its own owner");
+    assert!(
+        reason.contains(&format!("user {}", this_account())),
+        "{reason}"
+    );
+    assert!(
+        reason.contains(&format!("runs as user {another}")),
+        "{reason}"
+    );
+    assert_eq!(
+        read_file_only_root_may_write_owned_by(path.as_path(), this_account()),
+        Ok(Some(String::from("{}"))),
+        "the same file answers its own owner"
+    );
     remove(path.parent().unwrap_or(path.as_path()));
 }
 
@@ -114,7 +181,11 @@ fn a_file_another_account_owns_is_refused() {
 #[test]
 fn a_folder_at_the_path_is_refused() {
     let root: PathBuf = fixture("root-write-folder");
-    let refusal: FileControlRefusal = read_file_only_root_may_write(root.as_path()).expect_err("a folder is not a file");
-    assert!(matches!(refusal, FileControlRefusal::Open { .. }), "{refusal:?}");
+    let refusal: FileControlRefusal =
+        read_file_only_root_may_write(root.as_path()).expect_err("a folder is not a file");
+    assert!(
+        matches!(refusal, FileControlRefusal::Open { .. }),
+        "{refusal:?}"
+    );
     remove(root.as_path());
 }

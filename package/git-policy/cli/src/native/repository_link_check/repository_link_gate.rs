@@ -8,13 +8,31 @@
 //! const gate = repositoryLinkGate({ home, paths });
 //! ```
 
-use crate::repository_link_check_walk::{DEFAULT_DEADLINE, check_repository_link_within};
-use crate::repository_link_identity::{IdentityRead, LinkIdentity, LinkPhase, read_identity};
-use crate::repository_link_paths::{named_paths, touches_repository};
-use crate::repository_link_probe::{EntryKind, LinkProbe, RealLinkProbe};
+use crate::repository_link_check_walk::{
+    DEFAULT_DEADLINE,
+    check_repository_link_within,
+};
+use crate::repository_link_identity::{
+    IdentityRead,
+    LinkIdentity,
+    LinkPhase,
+    read_identity,
+};
+use crate::repository_link_paths::{
+    named_paths,
+    touches_repository,
+};
+use crate::repository_link_probe::{
+    EntryKind,
+    LinkProbe,
+    RealLinkProbe,
+};
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 
 /// What:
@@ -75,7 +93,12 @@ impl Default for ReadyMemory {
 /// ```ts
 /// gateRemembering({ probe, identity, paths, memory })
 /// ```
-pub(crate) fn gate_remembering(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf], memory: &ReadyMemory) -> LinkGate {
+pub(crate) fn gate_remembering(
+    probe: Arc<dyn LinkProbe + Send + Sync>,
+    identity: &LinkIdentity,
+    paths: &[PathBuf],
+    memory: &ReadyMemory,
+) -> LinkGate {
     if let Ok(held) = memory.0.lock()
         && held.as_ref() == Some(identity)
     {
@@ -125,7 +148,11 @@ enum Decision {
 /// ```ts
 /// gateForIdentity({ probe, identity, paths })
 /// ```
-fn decide(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf]) -> Decision {
+fn decide(
+    probe: Arc<dyn LinkProbe + Send + Sync>,
+    identity: &LinkIdentity,
+    paths: &[PathBuf],
+) -> Decision {
     let mut touched: bool = false;
     for path in paths {
         if touches_repository(identity, path.as_path()) {
@@ -136,7 +163,9 @@ fn decide(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, path
     if !touched {
         return Decision::Passed;
     }
-    if identity.phase == LinkPhase::Before && probe.lstat(Path::new(identity.link_path.as_str())) == EntryKind::Directory {
+    if identity.phase == LinkPhase::Before
+        && probe.lstat(Path::new(identity.link_path.as_str())) == EntryKind::Directory
+    {
         return Decision::Passed;
     }
     let answer = check_repository_link_within(identity, probe, DEFAULT_DEADLINE);
@@ -148,7 +177,11 @@ fn decide(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, path
 
 /// `decide` as the plain gate answer,
 /// with no memory.
-fn gate_for_identity(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf]) -> LinkGate {
+fn gate_for_identity(
+    probe: Arc<dyn LinkProbe + Send + Sync>,
+    identity: &LinkIdentity,
+    paths: &[PathBuf],
+) -> LinkGate {
     return match decide(probe, identity, paths) {
         Decision::Refused(text) => LinkGate::Stop(text),
         Decision::Passed | Decision::Ready => LinkGate::Clear,
@@ -210,7 +243,11 @@ fn recorded_identity(home: Option<&Path>) -> Option<LinkIdentity> {
 /// ```ts
 /// gateWithProbe({ probe, home, paths })
 /// ```
-pub fn link_gate_with_probe(probe: Arc<dyn LinkProbe + Send + Sync>, home: Option<&Path>, paths: &[PathBuf]) -> LinkGate {
+pub fn link_gate_with_probe(
+    probe: Arc<dyn LinkProbe + Send + Sync>,
+    home: Option<&Path>,
+    paths: &[PathBuf],
+) -> LinkGate {
     let Some(identity) = recorded_identity(home) else {
         return LinkGate::Clear;
     };
@@ -228,11 +265,19 @@ pub fn link_gate_with_probe(probe: Arc<dyn LinkProbe + Send + Sync>, home: Optio
 /// ```ts
 /// repositoryLinkGate({ home, paths })
 /// ```
-pub fn link_gate(home: Option<&Path>, paths: &[PathBuf]) -> LinkGate {
+pub fn link_gate(
+    home: Option<&Path>,
+    paths: &[PathBuf],
+) -> LinkGate {
     let Some(identity) = recorded_identity(home) else {
         return LinkGate::Clear;
     };
-    return gate_remembering(Arc::new(RealLinkProbe::default()), &identity, paths, &PROCESS_MEMORY);
+    return gate_remembering(
+        Arc::new(RealLinkProbe::default()),
+        &identity,
+        paths,
+        &PROCESS_MEMORY,
+    );
 }
 
 /// What:
@@ -250,12 +295,22 @@ pub fn link_gate(home: Option<&Path>, paths: &[PathBuf]) -> LinkGate {
 /// ```ts
 /// invocationLinkGate({ home, cwd, globalPrefix, environment })
 /// ```
-pub fn invocation_link_gate(home: Option<&Path>, cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> LinkGate {
+pub fn invocation_link_gate(
+    home: Option<&Path>,
+    cwd: &Path,
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> LinkGate {
     let Some(identity) = recorded_identity(home) else {
         return LinkGate::Clear;
     };
     let paths: Vec<PathBuf> = named_paths(cwd, global_prefix, environment);
-    return gate_remembering(Arc::new(RealLinkProbe::default()), &identity, paths.as_slice(), &PROCESS_MEMORY);
+    return gate_remembering(
+        Arc::new(RealLinkProbe::default()),
+        &identity,
+        paths.as_slice(),
+        &PROCESS_MEMORY,
+    );
 }
 
 /// Gate controls stay out of the release executable.

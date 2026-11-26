@@ -41,13 +41,20 @@ pub(crate) const ALLOWED_IN_CONTAINERS_VARIABLE: &str = "CLI_GIT_STATMOUNT_ALLOW
 ///   return false; // the caller returns
 /// }
 /// ```
-pub(crate) fn the_call_must_answer(name: &str, why: &str) -> bool {
+pub(crate) fn the_call_must_answer(
+    name: &str,
+    why: &str,
+) -> bool {
     // What: the run's statement, read as present and non-empty; an absent or empty variable states nothing.
-    let allowed: bool = std::env::var_os(ALLOWED_IN_CONTAINERS_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+    let allowed: bool = std::env::var_os(ALLOWED_IN_CONTAINERS_VARIABLE).is_some_and(|value| {
+        return !value.is_empty();
+    });
     if allowed {
         return true;
     }
-    eprintln!("STATMOUNT CONTROL NOT RUN: {name} (this run does not state that its containers allow statmount(2), and the call answered nothing: {why})");
+    eprintln!(
+        "STATMOUNT CONTROL NOT RUN: {name} (this run does not state that its containers allow statmount(2), and the call answered nothing: {why})"
+    );
     return false;
 }
 
@@ -80,25 +87,65 @@ pub(crate) fn refuse_the_calls(numbers: &[libc::c_long]) {
     let mut program: Vec<libc::sock_filter> = Vec::with_capacity(numbers.len() * 2 + 1);
     // What: `BPF_LD | BPF_W | BPF_ABS` with `k` zero loads the 32-bit word at offset zero of the kernel's `seccomp_data`,
     // which is the call number.
-    program.push(libc::sock_filter { code: (libc::BPF_LD | libc::BPF_W | libc::BPF_ABS) as u16, jt: 0, jf: 0, k: 0 });
+    program.push(libc::sock_filter {
+        code: (libc::BPF_LD | libc::BPF_W | libc::BPF_ABS) as u16,
+        jt: 0,
+        jf: 0,
+        k: 0,
+    });
     for number in numbers {
         // What: `BPF_JMP | BPF_JEQ | BPF_K` jumps zero steps when the call number equals `k`, so the next instruction runs,
         // and one step, skipping it, when the number is another one.
-        program.push(libc::sock_filter { code: (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16, jt: 0, jf: 1, k: *number as u32 });
+        program.push(libc::sock_filter {
+            code: (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16,
+            jt: 0,
+            jf: 1,
+            k: *number as u32,
+        });
         // What: `BPF_RET | BPF_K` ends the filter with the errno the kernel reports for this call.
-        program.push(libc::sock_filter { code: (libc::BPF_RET | libc::BPF_K) as u16, jt: 0, jf: 0, k: libc::SECCOMP_RET_ERRNO | NOT_IMPLEMENTED });
+        program.push(libc::sock_filter {
+            code: (libc::BPF_RET | libc::BPF_K) as u16,
+            jt: 0,
+            jf: 0,
+            k: libc::SECCOMP_RET_ERRNO | NOT_IMPLEMENTED,
+        });
     }
     // What: the same return, allowing every call this filter did not match.
-    program.push(libc::sock_filter { code: (libc::BPF_RET | libc::BPF_K) as u16, jt: 0, jf: 0, k: libc::SECCOMP_RET_ALLOW });
+    program.push(libc::sock_filter {
+        code: (libc::BPF_RET | libc::BPF_K) as u16,
+        jt: 0,
+        jf: 0,
+        k: libc::SECCOMP_RET_ALLOW,
+    });
     // What: the filter as the kernel takes it, being its length and a pointer to its instructions.
-    let mut filter: libc::sock_fprog = libc::sock_fprog { len: program.len() as u16, filter: program.as_mut_ptr() };
+    let mut filter: libc::sock_fprog = libc::sock_fprog {
+        len: program.len() as u16,
+        filter: program.as_mut_ptr(),
+    };
     // SAFETY: `PR_SET_NO_NEW_PRIVS` takes four integers, and this call passes the one it reads and three zeroes; it needs no
     // pointer and changes nothing this control reads.
-    let no_new_privileges: libc::c_int = unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) };
-    assert_eq!(no_new_privileges, 0, "the thread may install a filter: {}", std::io::Error::last_os_error());
+    let no_new_privileges: libc::c_int =
+        unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) };
+    assert_eq!(
+        no_new_privileges,
+        0,
+        "the thread may install a filter: {}",
+        std::io::Error::last_os_error()
+    );
     // SAFETY: the kernel copies the instructions before this call returns, so `program` may end with this function; `filter`
     // is a live structure whose only pointer is into `program`, and the mode names an installed filter as the third
     // argument.
-    let installed: libc::c_int = unsafe { libc::prctl(libc::PR_SET_SECCOMP, libc::SECCOMP_MODE_FILTER, &mut filter as *mut libc::sock_fprog) };
-    assert_eq!(installed, 0, "the filter is installed: {}", std::io::Error::last_os_error());
+    let installed: libc::c_int = unsafe {
+        libc::prctl(
+            libc::PR_SET_SECCOMP,
+            libc::SECCOMP_MODE_FILTER,
+            &mut filter as *mut libc::sock_fprog,
+        )
+    };
+    assert_eq!(
+        installed,
+        0,
+        "the filter is installed: {}",
+        std::io::Error::last_os_error()
+    );
 }

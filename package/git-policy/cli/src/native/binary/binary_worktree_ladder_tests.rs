@@ -21,42 +21,83 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, on_btrfs_or_acknowledged, remove, repository, run_direct, run_wrapped, stderr_of};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    on_btrfs_or_acknowledged,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped,
+    stderr_of,
+};
 use git_policy_cli::fs_btrfs_ioctl::subvolume_create_at;
 use git_policy_cli::fs_kind::is_subvolume_root;
 use git_policy_cli::fs_mount_options::read_mount_facts;
 use git_policy_cli::worktree_remove::DESTROY_NOTICE;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Whether the mount holding `path` has the option that lets a regular user destroy a subvolume.
 fn removal_allowed(path: &Path) -> bool {
-    return read_mount_facts(path).ok().flatten().is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); });
+    return read_mount_facts(path).ok().flatten().is_some_and(|facts| {
+        return facts.has_option("user_subvol_rm_allowed");
+    });
 }
 
 /// A repository with tracked files,
 /// an ignored directory and a committed `.gitignore`;
 /// the main checkout is a subvolume
 ///  when `as_subvolume` is set.
-fn populated_repository(fixture: &Fixture, as_subvolume: bool) -> PathBuf {
+fn populated_repository(
+    fixture: &Fixture,
+    as_subvolume: bool,
+) -> PathBuf {
     if as_subvolume {
         subvolume_create_at(fixture.root.join("repo").as_path()).expect("repository subvolume");
-        git(fixture, fixture.root.join("repo").as_path(), &["init", "--quiet", "--initial-branch=main"]);
-        git(fixture, fixture.root.join("repo").as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+        git(
+            fixture,
+            fixture.root.join("repo").as_path(),
+            &["init", "--quiet", "--initial-branch=main"],
+        );
+        git(
+            fixture,
+            fixture.root.join("repo").as_path(),
+            &["commit", "--quiet", "--allow-empty", "--message=initial"],
+        );
     }
-    let repo: PathBuf = if as_subvolume { fixture.root.join("repo") } else { repository(fixture, OsStr::new("repo")) };
+    let repo: PathBuf = if as_subvolume {
+        fixture.root.join("repo")
+    } else {
+        repository(fixture, OsStr::new("repo"))
+    };
     std::fs::create_dir_all(repo.join("src/deep")).expect("directories");
     std::fs::write(repo.join("README.md"), b"readme\n").expect("readme");
     std::fs::write(repo.join("src/deep/leaf.txt"), vec![b'x'; 5_000]).expect("leaf");
     std::fs::write(repo.join(".gitignore"), b"ignored/\n").expect("gitignore");
     git(fixture, repo.as_path(), &["add", "--all"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=files"],
+    );
     return repo;
 }
 
 /// The porcelain `worktree list` of a repository as text.
-fn listing(fixture: &Fixture, repo: &Path) -> String {
-    return String::from_utf8_lossy(&git(fixture, repo, &["worktree", "list", "--porcelain"]).stdout).into_owned();
+fn listing(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
+    return String::from_utf8_lossy(
+        &git(fixture, repo, &["worktree", "list", "--porcelain"]).stdout,
+    )
+    .into_owned();
 }
 
 /// A worktree added from the main checkout is a subvolume with its files,
@@ -71,23 +112,60 @@ fn a_worktree_added_from_the_main_checkout_is_a_subvolume() {
         return;
     }
     let repo: PathBuf = populated_repository(&fixture, false);
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "-b", "topic", "../topic"],
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "-b", "control", "../control"]);
+    let control: Observed = run_direct(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "-b", "control", "../control"],
+    );
     // Git's own words, then the one summary line of the ignored-state copy: this main checkout is no subvolume, so no snapshot
     //  served it and the copy ran.
     let wrapped: String = stderr_of(&created).replace("topic", "NAME");
     let git_words: String = stderr_of(&control).replace("control", "NAME");
-    assert!(wrapped.starts_with(git_words.as_str()), "the caller sees Git's own words first: {wrapped}");
+    assert!(
+        wrapped.starts_with(git_words.as_str()),
+        "the caller sees Git's own words first: {wrapped}"
+    );
     // Then the line that says why this was not a snapshot (the main checkout here is no subvolume), then the copy summary.
     let after_git: Vec<&str> = wrapped[git_words.len()..].lines().collect();
-    assert!(after_git.first().is_some_and(|line: &&str| { return line.starts_with("monochromatic-git-policy-cli: this worktree was not made as a snapshot"); }), "{wrapped}");
-    assert!(after_git.get(1).is_some_and(|line: &&str| { return line.starts_with("monochromatic-git-policy-cli: copied "); }), "{wrapped}");
+    assert!(
+        after_git.first().is_some_and(|line: &&str| {
+            return line.starts_with(
+                "monochromatic-git-policy-cli: this worktree was not made as a snapshot",
+            );
+        }),
+        "{wrapped}"
+    );
+    assert!(
+        after_git.get(1).is_some_and(|line: &&str| {
+            return line.starts_with("monochromatic-git-policy-cli: copied ");
+        }),
+        "{wrapped}"
+    );
     let topic: PathBuf = fixture.root.join("topic");
-    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the new worktree is a subvolume");
-    assert!(!is_subvolume_root(fixture.root.join("control").as_path()).expect("probe"), "real Git makes an ordinary directory");
-    assert_eq!(std::fs::read(topic.join("src/deep/leaf.txt")).expect("checked out").len(), 5_000);
-    assert!(listing(&fixture, repo.as_path()).contains(format!("worktree {}\n", topic.display()).as_str()));
+    assert!(
+        is_subvolume_root(topic.as_path()).expect("probe"),
+        "the new worktree is a subvolume"
+    );
+    assert!(
+        !is_subvolume_root(fixture.root.join("control").as_path()).expect("probe"),
+        "real Git makes an ordinary directory"
+    );
+    assert_eq!(
+        std::fs::read(topic.join("src/deep/leaf.txt"))
+            .expect("checked out")
+            .len(),
+        5_000
+    );
+    assert!(
+        listing(&fixture, repo.as_path())
+            .contains(format!("worktree {}\n", topic.display()).as_str())
+    );
     remove(&fixture);
 }
 
@@ -101,17 +179,35 @@ fn a_worktree_added_from_a_linked_worktree_is_a_subvolume_with_the_ignored_state
         return;
     }
     let repo: PathBuf = populated_repository(&fixture, false);
-    let first: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "first", "../first"]);
+    let first: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "first", "../first"],
+    );
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let first_root: PathBuf = fixture.root.join("first");
     std::fs::create_dir_all(first_root.join("ignored/pkg")).expect("ignored directory");
-    std::fs::write(first_root.join("ignored/pkg/index.js"), b"module.exports = 1;\n").expect("ignored file");
-    let second: Observed = run_wrapped(&fixture, first_root.as_path(), &["worktree", "add", "--quiet", "-b", "second", "../second"]);
+    std::fs::write(
+        first_root.join("ignored/pkg/index.js"),
+        b"module.exports = 1;\n",
+    )
+    .expect("ignored file");
+    let second: Observed = run_wrapped(
+        &fixture,
+        first_root.as_path(),
+        &["worktree", "add", "--quiet", "-b", "second", "../second"],
+    );
     assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
     let second_root: PathBuf = fixture.root.join("second");
     assert!(is_subvolume_root(second_root.as_path()).expect("probe"));
-    assert_eq!(std::fs::read(second_root.join("ignored/pkg/index.js")).expect("ignored state"), b"module.exports = 1;\n");
-    assert_eq!(std::fs::read(second_root.join("README.md")).expect("tracked"), b"readme\n");
+    assert_eq!(
+        std::fs::read(second_root.join("ignored/pkg/index.js")).expect("ignored state"),
+        b"module.exports = 1;\n"
+    );
+    assert_eq!(
+        std::fs::read(second_root.join("README.md")).expect("tracked"),
+        b"readme\n"
+    );
     remove(&fixture);
 }
 
@@ -126,20 +222,67 @@ fn the_opt_out_and_unknown_forms_keep_git_s_ordinary_directory() {
     }
     let repo: PathBuf = populated_repository(&fixture, false);
     for (name, arguments) in [
-        ("optout", vec!["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "optout", "../optout"]),
-        ("forced", vec!["worktree", "add", "--force", "--quiet", "-b", "forced", "../forced"]),
-        ("nocheckout", vec!["worktree", "add", "--no-checkout", "--quiet", "-b", "nocheckout", "../nocheckout"]),
+        (
+            "optout",
+            vec![
+                "worktree",
+                "add",
+                "--no-worktree-copy",
+                "--quiet",
+                "-b",
+                "optout",
+                "../optout",
+            ],
+        ),
+        (
+            "forced",
+            vec![
+                "worktree",
+                "add",
+                "--force",
+                "--quiet",
+                "-b",
+                "forced",
+                "../forced",
+            ],
+        ),
+        (
+            "nocheckout",
+            vec![
+                "worktree",
+                "add",
+                "--no-checkout",
+                "--quiet",
+                "-b",
+                "nocheckout",
+                "../nocheckout",
+            ],
+        ),
     ] {
         let created: Observed = run_wrapped(&fixture, repo.as_path(), &arguments);
         assert_eq!(created.code, Some(0), "{name}: {}", stderr_of(&created));
-        assert!(!is_subvolume_root(fixture.root.join(name).as_path()).expect("probe"), "{name}");
+        assert!(
+            !is_subvolume_root(fixture.root.join(name).as_path()).expect("probe"),
+            "{name}"
+        );
     }
     git(&fixture, repo.as_path(), &["branch", "taken"]);
-    let failed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "taken", "../failed"]);
-    let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "-b", "taken", "../failed-control"]);
+    let failed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "-b", "taken", "../failed"],
+    );
+    let control: Observed = run_direct(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "-b", "taken", "../failed-control"],
+    );
     assert_eq!(failed.code, control.code);
     assert_ne!(failed.code, Some(0));
-    assert!(!fixture.root.join("failed").exists(), "the failed add leaves nothing");
+    assert!(
+        !fixture.root.join("failed").exists(),
+        "the failed add leaves nothing"
+    );
     remove(&fixture);
 }
 
@@ -155,20 +298,47 @@ fn a_subvolume_worktree_is_removed_and_a_dirty_one_is_refused() {
     }
     let repo: PathBuf = populated_repository(&fixture, false);
     for name in ["clean", "dirty"] {
-        let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", name, format!("../{name}").as_str()]);
+        let created: Observed = run_wrapped(
+            &fixture,
+            repo.as_path(),
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                name,
+                format!("../{name}").as_str(),
+            ],
+        );
         assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     }
     std::fs::write(fixture.root.join("dirty/README.md"), b"changed\n").expect("modify");
-    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../dirty"]);
+    let refused: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "../dirty"],
+    );
     assert_eq!(refused.code, Some(128), "{}", stderr_of(&refused));
-    assert!(stderr_of(&refused).contains("contains modified or untracked files, use --force to delete it"), "{}", stderr_of(&refused));
+    assert!(
+        stderr_of(&refused)
+            .contains("contains modified or untracked files, use --force to delete it"),
+        "{}",
+        stderr_of(&refused)
+    );
     assert!(fixture.root.join("dirty/README.md").is_file());
     // Real Git's refusal of the same state, as the control of the wording.
-    let settled: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../clean"]);
+    let settled: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "../clean"],
+    );
     assert_eq!(settled.code, Some(0), "{}", stderr_of(&settled));
     assert!(!fixture.root.join("clean").exists());
     assert!(!listing(&fixture, repo.as_path()).contains("/clean\n"));
-    eprintln!("the mount allows the one-call destroy: {}", removal_allowed(fixture.root.as_path()));
+    eprintln!(
+        "the mount allows the one-call destroy: {}",
+        removal_allowed(fixture.root.as_path())
+    );
     remove(&fixture);
 }
 
@@ -187,20 +357,33 @@ fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {
         return;
     }
     let repo: PathBuf = populated_repository(&fixture, false);
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../topic"],
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let topic: PathBuf = fixture.root.join("topic");
-    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the add made a subvolume");
+    assert!(
+        is_subvolume_root(topic.as_path()).expect("probe"),
+        "the add made a subvolume"
+    );
     age_tracked_files(&fixture, topic.as_path());
     let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "topic"]);
     assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
     assert!(!topic.exists(), "the worktree is gone");
-    assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
+    assert!(
+        !listing(&fixture, repo.as_path()).contains("/topic\n"),
+        "the registration is gone"
+    );
     let said: String = stderr_of(&removed);
     if removal_allowed(fixture.root.as_path()) {
         // The sentence is the one the removal owns, so a rewording of what it says the commit service then deletes does
         //  not read as a rung that went missing.
-        assert!(said.contains(DESTROY_NOTICE), "the one-call destroy is stated: {said}");
+        assert!(
+            said.contains(DESTROY_NOTICE),
+            "the one-call destroy is stated: {said}"
+        );
     }
     remove(&fixture);
 }
@@ -221,20 +404,46 @@ fn a_name_that_differs_only_by_case_is_left_to_git() {
     }
     let repo: PathBuf = populated_repository(&fixture, false);
     // Git's comparison folds case only when this setting says so, and this is the case-sensitive filesystem's default.
-    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "false"]);
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "core.ignorecase", "false"],
+    );
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../topic"],
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let topic: PathBuf = fixture.root.join("topic");
-    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the add made a subvolume");
+    assert!(
+        is_subvolume_root(topic.as_path()).expect("probe"),
+        "the add made a subvolume"
+    );
     std::fs::create_dir_all(topic.join("ignored")).expect("ignored directory");
     std::fs::write(topic.join("ignored/only-copy.txt"), b"the only copy\n").expect("ignored file");
     age_tracked_files(&fixture, topic.as_path());
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "TOPIC"]);
-    assert_ne!(refused.code, Some(0), "Git refuses a name that is not this worktree's: {}", stderr_of(&refused));
-    assert!(stderr_of(&refused).contains("is not a working tree"), "Git's own refusal: {}", stderr_of(&refused));
-    assert_eq!(std::fs::read(topic.join("ignored/only-copy.txt")).expect("the ignored only copy is kept"), b"the only copy\n");
+    assert_ne!(
+        refused.code,
+        Some(0),
+        "Git refuses a name that is not this worktree's: {}",
+        stderr_of(&refused)
+    );
+    assert!(
+        stderr_of(&refused).contains("is not a working tree"),
+        "Git's own refusal: {}",
+        stderr_of(&refused)
+    );
+    assert_eq!(
+        std::fs::read(topic.join("ignored/only-copy.txt")).expect("the ignored only copy is kept"),
+        b"the only copy\n"
+    );
     assert!(topic.join("README.md").is_file(), "the worktree is kept");
-    assert!(listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is kept");
+    assert!(
+        listing(&fixture, repo.as_path()).contains("/topic\n"),
+        "the registration is kept"
+    );
     remove(&fixture);
 }
 
@@ -255,27 +464,59 @@ fn a_name_two_registrations_match_is_left_to_git() {
         return;
     }
     let repo: PathBuf = populated_repository(&fixture, false);
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../topic"],
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
-    let upper: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"]);
+    let upper: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"],
+    );
     assert_eq!(upper.code, Some(0), "{}", stderr_of(&upper));
     let topic: PathBuf = fixture.root.join("topic");
-    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the add made a subvolume");
+    assert!(
+        is_subvolume_root(topic.as_path()).expect("probe"),
+        "the add made a subvolume"
+    );
     // Git's suffix match folds ASCII case when this setting says so, and then it finds both registrations; Git's own add
     // refuses a case variant under it, so the setting comes after both worktrees exist.
-    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "true"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "core.ignorecase", "true"],
+    );
     // The second worktree moves and a link is left at its old name, so both registrations name the topic directory.
-    std::fs::rename(fixture.root.join("TOPIC"), fixture.root.join("upper-kept")).expect("move the second worktree");
-    std::os::unix::fs::symlink(topic.as_path(), fixture.root.join("TOPIC")).expect("leave a link at the old name");
+    std::fs::rename(fixture.root.join("TOPIC"), fixture.root.join("upper-kept"))
+        .expect("move the second worktree");
+    std::os::unix::fs::symlink(topic.as_path(), fixture.root.join("TOPIC"))
+        .expect("leave a link at the old name");
     std::fs::create_dir_all(topic.join("ignored")).expect("ignored directory");
     std::fs::write(topic.join("ignored/only-copy.txt"), b"the only copy\n").expect("ignored file");
     age_tracked_files(&fixture, topic.as_path());
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "topic"]);
-    assert_ne!(refused.code, Some(0), "Git refuses a name two registrations match: {}", stderr_of(&refused));
-    assert!(stderr_of(&refused).contains("is not a working tree"), "Git's own refusal: {}", stderr_of(&refused));
-    assert_eq!(std::fs::read(topic.join("ignored/only-copy.txt")).expect("the ignored only copy is kept"), b"the only copy\n");
+    assert_ne!(
+        refused.code,
+        Some(0),
+        "Git refuses a name two registrations match: {}",
+        stderr_of(&refused)
+    );
+    assert!(
+        stderr_of(&refused).contains("is not a working tree"),
+        "Git's own refusal: {}",
+        stderr_of(&refused)
+    );
+    assert_eq!(
+        std::fs::read(topic.join("ignored/only-copy.txt")).expect("the ignored only copy is kept"),
+        b"the only copy\n"
+    );
     assert!(topic.join("README.md").is_file(), "the worktree is kept");
-    assert!(listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is kept");
+    assert!(
+        listing(&fixture, repo.as_path()).contains("/topic\n"),
+        "the registration is kept"
+    );
     remove(&fixture);
 }
 
@@ -284,10 +525,19 @@ fn a_name_two_registrations_match_is_left_to_git() {
 ///  index,
 /// so the tracked files are aged and the index refreshed,
 /// as a checkout that has been there a while is.
-fn age_tracked_files(fixture: &Fixture, worktree: &Path) {
+fn age_tracked_files(
+    fixture: &Fixture,
+    worktree: &Path,
+) {
     for name in ["README.md", ".gitignore", "src/deep/leaf.txt"] {
-        let Ok(file) = std::fs::OpenOptions::new().write(true).open(worktree.join(name)) else { continue };
-        file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(120)).expect("age the tracked file");
+        let Ok(file) = std::fs::OpenOptions::new()
+            .write(true)
+            .open(worktree.join(name))
+        else {
+            continue;
+        };
+        file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(120))
+            .expect("age the tracked file");
     }
     git(fixture, worktree, &["update-index", "--refresh"]);
 }
@@ -309,22 +559,55 @@ fn a_worktree_of_another_repository_and_an_empty_name_are_not_removed() {
     let other: PathBuf = repository(&fixture, OsStr::new("other"));
     std::fs::write(other.join("README.md"), b"readme\n").expect("readme");
     git(&fixture, other.as_path(), &["add", "README.md"]);
-    git(&fixture, other.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(
+        &fixture,
+        other.as_path(),
+        &["commit", "--quiet", "--message=files"],
+    );
     for (repository_root, branch) in [(other.as_path(), "foreign"), (repo.as_path(), "own")] {
-        let created: Observed = run_wrapped(&fixture, repository_root, &["worktree", "add", "--quiet", "-b", branch, format!("../{branch}").as_str()]);
+        let created: Observed = run_wrapped(
+            &fixture,
+            repository_root,
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                branch,
+                format!("../{branch}").as_str(),
+            ],
+        );
         assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     }
     age_tracked_files(&fixture, fixture.root.join("own").as_path());
     age_tracked_files(&fixture, fixture.root.join("foreign").as_path());
-    let foreign: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../foreign"]);
+    let foreign: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "../foreign"],
+    );
     assert_eq!(foreign.code, Some(128), "{}", stderr_of(&foreign));
-    assert!(stderr_of(&foreign).contains("is not a working tree"), "{}", stderr_of(&foreign));
-    assert!(fixture.root.join("foreign/.git").is_file(), "the other repository's worktree is untouched");
+    assert!(
+        stderr_of(&foreign).contains("is not a working tree"),
+        "{}",
+        stderr_of(&foreign)
+    );
+    assert!(
+        fixture.root.join("foreign/.git").is_file(),
+        "the other repository's worktree is untouched"
+    );
     let own_root: PathBuf = fixture.root.join("own");
     let empty: Observed = run_wrapped(&fixture, own_root.as_path(), &["worktree", "remove", ""]);
     assert_eq!(empty.code, Some(128), "{}", stderr_of(&empty));
-    assert!(stderr_of(&empty).contains("is not a working tree"), "{}", stderr_of(&empty));
-    assert!(own_root.join("README.md").is_file(), "an empty name does not name the current worktree");
+    assert!(
+        stderr_of(&empty).contains("is not a working tree"),
+        "{}",
+        stderr_of(&empty)
+    );
+    assert!(
+        own_root.join("README.md").is_file(),
+        "an empty name does not name the current worktree"
+    );
     remove(&fixture);
 }
 
@@ -342,27 +625,52 @@ fn a_registration_left_after_the_destroy_fails_the_command_with_the_repair_steps
         return;
     }
     if !removal_allowed(fixture.root.as_path()) {
-        eprintln!("CONTROL NOT RUN: ladder-remove-incomplete (the mount of {} lacks user_subvol_rm_allowed)", fixture.root.display());
+        eprintln!(
+            "CONTROL NOT RUN: ladder-remove-incomplete (the mount of {} lacks user_subvol_rm_allowed)",
+            fixture.root.display()
+        );
         remove(&fixture);
         return;
     }
     let repo: PathBuf = populated_repository(&fixture, false);
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "clean", "../clean"]);
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "clean", "../clean"],
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     age_tracked_files(&fixture, fixture.root.join("clean").as_path());
     let worktrees: PathBuf = repo.join(".git/worktrees");
-    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555)).expect("read-only registrations");
-    let failed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../clean"]);
-    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restore");
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555))
+        .expect("read-only registrations");
+    let failed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "../clean"],
+    );
+    std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("restore");
     assert_ne!(failed.code, Some(0), "{}", stderr_of(&failed));
-    assert!(!fixture.root.join("clean").exists(), "the files were destroyed");
+    assert!(
+        !fixture.root.join("clean").exists(),
+        "the files were destroyed"
+    );
     let report: String = stderr_of(&failed);
-    assert!(report.contains(worktrees.join("clean").to_str().expect("UTF-8")), "the report names the leftover directory: {report}");
-    assert!(report.contains(format!("git -C {} worktree prune", repo.display()).as_str()), "and the command that finishes the removal: {report}");
+    assert!(
+        report.contains(worktrees.join("clean").to_str().expect("UTF-8")),
+        "the report names the leftover directory: {report}"
+    );
+    assert!(
+        report.contains(format!("git -C {} worktree prune", repo.display()).as_str()),
+        "and the command that finishes the removal: {report}"
+    );
     let finished: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "prune"]);
     assert_eq!(finished.code, Some(0), "{}", stderr_of(&finished));
     assert!(!listing(&fixture, repo.as_path()).contains("/clean\n"));
-    assert!(!worktrees.join("clean").exists(), "the prune removed the leftover registration");
+    assert!(
+        !worktrees.join("clean").exists(),
+        "the prune removed the leftover registration"
+    );
     remove(&fixture);
 }
 
@@ -376,17 +684,32 @@ fn the_destroy_of_a_subvolume_worktree_says_it_cannot_be_undone() {
         return;
     }
     if !removal_allowed(fixture.root.as_path()) {
-        eprintln!("CONTROL NOT RUN: ladder-remove-notice (the mount of {} lacks user_subvol_rm_allowed)", fixture.root.display());
+        eprintln!(
+            "CONTROL NOT RUN: ladder-remove-notice (the mount of {} lacks user_subvol_rm_allowed)",
+            fixture.root.display()
+        );
         remove(&fixture);
         return;
     }
     let repo: PathBuf = populated_repository(&fixture, false);
-    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "notice", "../notice"]);
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "notice", "../notice"],
+    );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     age_tracked_files(&fixture, fixture.root.join("notice").as_path());
-    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../notice"]);
+    let removed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "remove", "../notice"],
+    );
     assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
     assert!(!fixture.root.join("notice").exists());
-    assert!(stderr_of(&removed).contains("this cannot be undone"), "{}", stderr_of(&removed));
+    assert!(
+        stderr_of(&removed).contains("this cannot be undone"),
+        "{}",
+        stderr_of(&removed)
+    );
     remove(&fixture);
 }

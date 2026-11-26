@@ -25,16 +25,35 @@
 
 /// The push's own arguments,
 /// and what they say the upload is.
-use crate::command_push::{PushShape, parse_push_region, push_shape};
+use crate::command_push::{
+    PushShape,
+    parse_push_region,
+    push_shape,
+};
 /// The switch and the skip variable that stop an upload.
-use crate::lfs_pre_push::{hook_switched_off, skip_requested};
+use crate::lfs_pre_push::{
+    hook_switched_off,
+    skip_requested,
+};
 /// The plan itself,
 /// and the decisions a destination is made of.
-use crate::lfs_upload_plan::{UploadPlan, configured_remotes, has_push_rewrite, lfs_destination};
+use crate::lfs_upload_plan::{
+    UploadPlan,
+    configured_remotes,
+    has_push_rewrite,
+    lfs_destination,
+};
 /// The configuration the plan reads.
-use crate::lfs_upload_settings::{default_remote, setting, values};
+use crate::lfs_upload_settings::{
+    default_remote,
+    setting,
+    values,
+};
 /// Owned OS text for arguments.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// Locations.
 use std::path::Path;
 
@@ -51,7 +70,11 @@ use std::path::Path;
 /// ```ts
 /// function uploadsNothing(prefix, env, region): Shape | undefined;
 /// ```
-pub(crate) fn uploads_nothing(global_prefix: &[OsString], environment: &[(OsString, OsString)], region: &[OsString]) -> Option<PushShape> {
+pub(crate) fn uploads_nothing(
+    global_prefix: &[OsString],
+    environment: &[(OsString, OsString)],
+    region: &[OsString],
+) -> Option<PushShape> {
     // What:     `hook_switched_off(...) || skip_requested(...)` reads the two ways a person stops the upload.
     // Why:      A push the person meant to skip must send nothing, and no destination is asked.
     //
@@ -77,7 +100,9 @@ pub(crate) fn uploads_nothing(global_prefix: &[OsString], environment: &[(OsStri
     // ```ts
     // const [regionFacts, shape] = pair; if (!pair) return undefined;
     // ```
-    let (region_facts, shape) = parse_push_region(region, &[]).ok().zip(push_shape(region))?;
+    let (region_facts, shape) = parse_push_region(region, &[])
+        .ok()
+        .zip(push_shape(region))?;
     // What:     `region_facts.no_verify`, `region_facts.dry_run` and `shape.deletes` are the three pushes that send no object.
     // Why:      Asking a destination about a push that sends nothing would cost a connection for no answer.
     //
@@ -154,7 +179,11 @@ pub(crate) fn a_branch_is_needed(shape: &PushShape) -> bool {
 /// ```ts
 /// const remoteNameOf = (shape, branch, all) => shape.repository ?? defaultRemote(branch, all);
 /// ```
-pub(crate) fn remote_name_of(shape: &PushShape, branch: Option<&str>, all: &[(String, String)]) -> OsString {
+pub(crate) fn remote_name_of(
+    shape: &PushShape,
+    branch: Option<&str>,
+    all: &[(String, String)],
+) -> OsString {
     // What:     `match shape.repository.clone()` reads the repository the caller typed, if any.
     // Why:      A named repository is the destination Git would use, and only a bare push falls back to the configuration.
     //
@@ -187,7 +216,10 @@ pub(crate) fn remote_name_of(shape: &PushShape, branch: Option<&str>, all: &[(St
 /// ```ts
 /// const aBarePush = (shape, everything) => shape.refspecs.length === 0 && !shape.branches && !shape.tags && !everything;
 /// ```
-pub(crate) fn a_bare_push(shape: &PushShape, everything: bool) -> bool {
+pub(crate) fn a_bare_push(
+    shape: &PushShape,
+    everything: bool,
+) -> bool {
     return shape.refspecs.is_empty() && !shape.branches && !shape.tags && !everything;
 }
 
@@ -342,7 +374,11 @@ impl Destinations<'_> {
     /// Where the objects go:
     /// the push URLs when the remote has any, and its fetch URLs otherwise.
     pub(crate) fn places(&self) -> &[&str] {
-        return if self.push_urls.is_empty() { self.urls.as_slice() } else { self.push_urls.as_slice() };
+        return if self.push_urls.is_empty() {
+            self.urls.as_slice()
+        } else {
+            self.push_urls.as_slice()
+        };
     }
 }
 
@@ -358,7 +394,12 @@ impl Destinations<'_> {
 /// ```ts
 /// const destinationsOf = (remoteName, remoteText, directory, all): Destinations => { ... };
 /// ```
-pub(crate) fn destinations_of<'a>(remote_name: &OsString, remote_text: &str, directory: &Path, all: &'a [(String, String)]) -> Destinations<'a> {
+pub(crate) fn destinations_of<'a>(
+    remote_name: &OsString,
+    remote_text: &str,
+    directory: &Path,
+    all: &'a [(String, String)],
+) -> Destinations<'a> {
     // What:     `configured_remotes(all).contains(...)` says whether the settings define this remote at all.
     // Why:      A destination the configuration does not define is a URL or a path, and its own place.
     //
@@ -375,9 +416,22 @@ pub(crate) fn destinations_of<'a>(remote_name: &OsString, remote_text: &str, dir
     // const pushUrls = configured ? values(all, `remote.${remoteText}.pushurl`) : [];
     // const urls = configured ? values(all, `remote.${remoteText}.url`) : [];
     // ```
-    let push_urls: Vec<&'a str> = if configured { values(all, &format!("remote.{remote_text}.pushurl")) } else { Vec::new() };
-    let urls: Vec<&'a str> = if configured { values(all, &format!("remote.{remote_text}.url")) } else { Vec::new() };
-    let mut destinations: Destinations<'a> = Destinations { configured, push_urls, urls, remotes: Vec::new() };
+    let push_urls: Vec<&'a str> = if configured {
+        values(all, &format!("remote.{remote_text}.pushurl"))
+    } else {
+        Vec::new()
+    };
+    let urls: Vec<&'a str> = if configured {
+        values(all, &format!("remote.{remote_text}.url"))
+    } else {
+        Vec::new()
+    };
+    let mut destinations: Destinations<'a> = Destinations {
+        configured,
+        push_urls,
+        urls,
+        remotes: Vec::new(),
+    };
     // What:     `destinations.places()` is every URL the objects go to, and it may hold several.
     // Why:      Each of several URLs is a destination of its own, because each may keep its objects in its own place.
     //
@@ -400,7 +454,11 @@ pub(crate) fn destinations_of<'a>(remote_name: &OsString, remote_text: &str, dir
         }
         each
     } else {
-        vec![lfs_destination(remote_name.as_os_str(), directory, configured)]
+        vec![lfs_destination(
+            remote_name.as_os_str(),
+            directory,
+            configured,
+        )]
     };
     // What:     `destinations` is the remote's places, with the names the upload is run for.
     // Why:      Both the confirmation question and the plan read this one value.
@@ -425,8 +483,16 @@ pub(crate) fn destinations_of<'a>(remote_name: &OsString, remote_text: &str, dir
 /// ```ts
 /// const samePlace = (destinations, everything, all) => !everything && destinations.configured && destinations.pushUrls.length === 0 && destinations.urls.length === 1 && !hasPushRewrite(all);
 /// ```
-pub(crate) fn same_place(destinations: &Destinations<'_>, everything: bool, all: &[(String, String)]) -> bool {
-    return !everything && destinations.configured && destinations.push_urls.is_empty() && destinations.urls.len() == 1 && !has_push_rewrite(all);
+pub(crate) fn same_place(
+    destinations: &Destinations<'_>,
+    everything: bool,
+    all: &[(String, String)],
+) -> bool {
+    return !everything
+        && destinations.configured
+        && destinations.push_urls.is_empty()
+        && destinations.urls.len() == 1
+        && !has_push_rewrite(all);
 }
 
 /// What:

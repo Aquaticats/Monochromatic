@@ -29,9 +29,6 @@
 
 /// Import the conversion of Git's pathname bytes to a path.
 use crate::git_metadata::path_from_git_bytes;
-/// The line a pattern is compiled as,
-///  so a literal brace stays literal (`monochromatic_lint::gitignore_pattern`).
-use monochromatic_lint::gitignore_pattern::for_matcher;
 /// What:
 ///  `Gitignore` is a compiled pattern list;
 ///  `GitignoreBuilder` compiles one.
@@ -42,7 +39,13 @@ use monochromatic_lint::gitignore_pattern::for_matcher;
 /// ```ts
 /// import ignore from 'ignore';
 /// ```
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use ignore::gitignore::{
+    Gitignore,
+    GitignoreBuilder,
+};
+/// The line a pattern is compiled as,
+///  so a literal brace stays literal (`monochromatic_lint::gitignore_pattern`).
+use monochromatic_lint::gitignore_pattern::for_matcher;
 
 /// What:
 ///  The compiled patterns.
@@ -95,7 +98,11 @@ pub fn compile_exclude(patterns: &[String]) -> Result<ExcludeMatcher, String> {
         }
     }
     match builder.build() {
-        Ok(matcher) => return Ok(ExcludeMatcher { matcher }),
+        Ok(matcher) => {
+            return Ok(ExcludeMatcher {
+                matcher,
+            });
+        }
         Err(error) => {
             return Err(format!(
                 "monochromatic-git-policy-cli could not compile the markdown/autofix exclude patterns: {error}"
@@ -131,7 +138,10 @@ impl ExcludeMatcher {
     /// ```ts
     /// excludes(path: Uint8Array): boolean
     /// ```
-    pub fn excludes(&self, path: &[u8]) -> bool {
+    pub fn excludes(
+        &self,
+        path: &[u8],
+    ) -> bool {
         let segments: Vec<&[u8]> = path.split(is_slash).collect();
         let mut prefix: Vec<u8> = Vec::new();
         for (index, segment) in segments.iter().enumerate() {

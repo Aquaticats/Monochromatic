@@ -16,25 +16,53 @@
 
 /// The pass under test,
 ///  the engine types it returns and the scripted facts.
-use super::{PassResult, policies_of_kind, run_policy_pass};
+use super::{
+    PassResult,
+    policies_of_kind,
+    run_policy_pass,
+};
 use crate::candidate_prediction::CandidateRequest;
-/// The tool-cache exemption entry these checks are built with.
-use crate::effective_target::ToolCacheDirectory;
 use crate::command_test_support::os_arguments;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
-use crate::policy_checks::{ShippedChecks, shipped_checks};
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
 use crate::policy_content::LifecycleContent;
-use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
-use crate::policy_events::{FindingEvent, PolicyEvent};
-use crate::policy_registry::{PolicyId, Severity};
-use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts, with_severity};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    pass_exit_code,
+};
+use crate::policy_events::{
+    FindingEvent,
+    PolicyEvent,
+};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    main_worktree,
+    scripted_facts,
+    with_severity,
+};
 use crate::policy_trigger::Trigger;
 use crate::rule_commit_only_message::ALL_FLAG_MESSAGE;
-use crate::wrapper_controls::{Controls, no_controls};
+use crate::wrapper_controls::{
+    Controls,
+    no_controls,
+};
 
 /// A request for `trigger` with default severities and the given controls.
-fn request(trigger: Trigger, controls: Controls) -> StageRequest {
+fn request(
+    trigger: Trigger,
+    controls: Controls,
+) -> StageRequest {
     return StageRequest {
         trigger,
         config: PolicyConfig::defaults(),
@@ -402,7 +430,12 @@ fn a_direct_check_applies_no_transform() {
 fn an_alias_is_transformed_as_the_command_it_expands_to() {
     let stage: StageRequest = request(Trigger::PreForward, no_controls());
     // `status` always gets the hints turned off; the alias must get it too, because that is the command Git runs.
-    let (by_name, _asked) = pass(&stage, &["status"], scripted_facts(), LifecycleContent::None);
+    let (by_name, _asked) = pass(
+        &stage,
+        &["status"],
+        scripted_facts(),
+        LifecycleContent::None,
+    );
     assert_eq!(
         by_name.arguments,
         os_arguments(&["-c", "advice.statusHints=false", "status"])
@@ -416,7 +449,13 @@ fn an_alias_is_transformed_as_the_command_it_expands_to() {
     // The wrapper forwards the expansion, global options included, which is the argument list the guard decided on.
     assert_eq!(
         through_alias.arguments,
-        os_arguments(&["-c", "alias.short=status", "-c", "advice.statusHints=false", "status"])
+        os_arguments(&[
+            "-c",
+            "alias.short=status",
+            "-c",
+            "advice.statusHints=false",
+            "status"
+        ])
     );
     assert_eq!(through_alias.arguments[4..], by_name.arguments[2..]);
     assert_eq!(alias_asked, vec![String::from("location")]);

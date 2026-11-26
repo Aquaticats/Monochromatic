@@ -32,13 +32,41 @@
 //! ```
 
 use crate::iso_time::format_iso_milliseconds;
-use crate::standards_review_client::{Gateway, Reply, SCRIPT_QUIET_WINDOW, post_decision};
-use crate::standards_review_append::{deliver, names_commit};
-use crate::standards_review_entry::{ReviewEntry, render_review, render_skipped};
-use crate::standards_review_input::{ChangedPath, LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
-use crate::standards_review_request::{ENDPOINT, Judged, read_answer, request_body};
+use crate::standards_review_append::{
+    deliver,
+    names_commit,
+};
+use crate::standards_review_client::{
+    Gateway,
+    Reply,
+    SCRIPT_QUIET_WINDOW,
+    post_decision,
+};
+use crate::standards_review_entry::{
+    ReviewEntry,
+    render_review,
+    render_skipped,
+};
+use crate::standards_review_input::{
+    ChangedPath,
+    LandedCommit,
+    Plan,
+    ReviewInput,
+    build_input,
+    plan_for,
+    shared_log_path,
+};
+use crate::standards_review_request::{
+    ENDPOINT,
+    Judged,
+    read_answer,
+    request_body,
+};
 use crate::standards_review_text::seconds_with_tenth;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::mpsc;
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -58,7 +86,8 @@ pub const ALLOW_VARIABLE: &str = "SHADOW_REVIEW_ALLOW";
 pub const KEY_VARIABLES: [&str; 2] = crate::service_review_key::KEY_VARIABLES;
 
 /// The failure line written when no credential is set.
-pub const NO_KEY_MESSAGE: &str = "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_REMINDER_LLMGATEWAY_API_KEY in the environment";
+pub const NO_KEY_MESSAGE: &str =
+    "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_REMINDER_LLMGATEWAY_API_KEY in the environment";
 
 /// What:
 ///  What the run was told:
@@ -110,7 +139,10 @@ pub struct ReviewOptions {
 pub trait EnvironmentVariables {
     /// The value the name has,
     /// or nothing.
-    fn variable(&self, name: &str) -> Option<String>;
+    fn variable(
+        &self,
+        name: &str,
+    ) -> Option<String>;
 }
 
 /// What:
@@ -129,7 +161,10 @@ pub trait EnvironmentVariables {
 /// ```
 pub trait LandedCommitReader {
     /// Read the commit as far as `files` (its code files) are concerned.
-    fn read(&self, files: &[ChangedPath]) -> Result<LandedCommit, String>;
+    fn read(
+        &self,
+        files: &[ChangedPath],
+    ) -> Result<LandedCommit, String>;
 }
 
 /// What:
@@ -146,7 +181,10 @@ pub trait LandedCommitReader {
 /// ```ts
 /// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/monochromatic-git-policy-cli/standards-review-shadow.md`;
 /// ```
-pub fn options_from_environment(common_dir: &Path, variable: &dyn EnvironmentVariables) -> ReviewOptions {
+pub fn options_from_environment(
+    common_dir: &Path,
+    variable: &dyn EnvironmentVariables,
+) -> ReviewOptions {
     let log_path: PathBuf = match variable.variable(LOG_VARIABLE) {
         Some(configured) => PathBuf::from(configured),
         None => shared_log_path(common_dir),
@@ -156,7 +194,14 @@ pub fn options_from_environment(common_dir: &Path, variable: &dyn EnvironmentVar
         Some(key) => Some(key),
         None => variable.variable(KEY_VARIABLES[1]),
     };
-    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING, trusted_pem: None };
+    return ReviewOptions {
+        log_path,
+        api_key,
+        endpoint: String::from(ENDPOINT),
+        quiet_window: SCRIPT_QUIET_WINDOW,
+        call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING,
+        trusted_pem: None,
+    };
 }
 
 /// What:
@@ -222,7 +267,10 @@ pub enum ReviewOutcome {
 /// const lunaFailed = (message: string) => ({ top: '', outcome: `Luna failed: ${message}` });
 /// ```
 fn luna_failed(message: String) -> Judged {
-    return Judged { top: String::new(), outcome: format!("Luna failed: {message}") };
+    return Judged {
+        top: String::new(),
+        outcome: format!("Luna failed: {message}"),
+    };
 }
 
 /// What:
@@ -238,13 +286,23 @@ fn luna_failed(message: String) -> Judged {
 /// ```ts
 /// try { ...fetch... } catch (error) { lunaOutcome = 'Luna failed: ' + message }
 /// ```
-fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
+fn ask_gateway(
+    input: &ReviewInput,
+    options: &ReviewOptions,
+) -> Judged {
     let key: &str = options.api_key.as_deref().unwrap_or("");
     if key.is_empty() {
         return luna_failed(String::from(NO_KEY_MESSAGE));
     }
-    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, ceiling: options.call_ceiling, trusted_pem: options.trusted_pem.as_deref() };
-    let reply: Result<Reply, String> = post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
+    let gateway: Gateway = Gateway {
+        url: options.endpoint.as_str(),
+        api_key: key,
+        quiet_window: options.quiet_window,
+        ceiling: options.call_ceiling,
+        trusted_pem: options.trusted_pem.as_deref(),
+    };
+    let reply: Result<Reply, String> =
+        post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
     let read: Result<Judged, String> = match reply {
         Ok(answer) => read_answer(answer.status, answer.body.as_str()),
         Err(message) => Err(message),
@@ -280,7 +338,11 @@ pub fn review_landed(
     let code_files: Vec<ChangedPath> = match plan_for(names) {
         Plan::Silent => return ReviewOutcome::NoEntry,
         Plan::NoCode => {
-            return match deliver(options.log_path.as_path(), sha, render_skipped(sha, subject).as_str()) {
+            return match deliver(
+                options.log_path.as_path(),
+                sha,
+                render_skipped(sha, subject).as_str(),
+            ) {
                 Ok(_) => ReviewOutcome::Skipped,
                 Err(message) => ReviewOutcome::Unwritable(message),
             };
@@ -310,7 +372,11 @@ pub fn review_landed(
         top: judged.top.clone(),
         outcome: judged.outcome.clone(),
     };
-    return match deliver(options.log_path.as_path(), sha, render_review(&entry).as_str()) {
+    return match deliver(
+        options.log_path.as_path(),
+        sha,
+        render_review(&entry).as_str(),
+    ) {
         Ok(_) => ReviewOutcome::Reviewed(judged),
         Err(message) => ReviewOutcome::Unwritable(message),
     };
@@ -432,7 +498,9 @@ impl Containment {
     /// How many jobs the caller stopped waiting for are still running:
     /// zero or one.
     pub fn outstanding(&self) -> usize {
-        return usize::from(self.state.load(std::sync::atomic::Ordering::SeqCst) & STATUS == ABANDONED);
+        return usize::from(
+            self.state.load(std::sync::atomic::Ordering::SeqCst) & STATUS == ABANDONED,
+        );
     }
 
     /// Admit a job when there is none:
@@ -445,7 +513,12 @@ impl Containment {
             return None;
         }
         let generation: u64 = (seen >> 2) + 1;
-        return match self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst) {
+        return match self.state.compare_exchange(
+            seen,
+            (generation << 2) | RUNNING,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
             Ok(_) => Some(generation),
             Err(_) => None,
         };
@@ -453,9 +526,22 @@ impl Containment {
 
     /// Move job `generation` from `from` to `to`;
     /// false when the state is not that job's in that status any more.
-    fn change(&self, generation: u64, from: u64, to: u64) -> bool {
+    fn change(
+        &self,
+        generation: u64,
+        from: u64,
+        to: u64,
+    ) -> bool {
         use std::sync::atomic::Ordering;
-        return self.state.compare_exchange((generation << 2) | from, (generation << 2) | to, Ordering::SeqCst, Ordering::SeqCst).is_ok();
+        return self
+            .state
+            .compare_exchange(
+                (generation << 2) | from,
+                (generation << 2) | to,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_ok();
     }
 }
 
@@ -477,7 +563,8 @@ struct Release<'a> {
 impl Drop for Release<'_> {
     fn drop(&mut self) {
         // Whatever status the job has (waited for or abandoned), it ends idle; a state that is another job's is left alone.
-        let _released: bool = self.runner.change(self.generation, RUNNING, IDLE) || self.runner.change(self.generation, ABANDONED, IDLE);
+        let _released: bool = self.runner.change(self.generation, RUNNING, IDLE)
+            || self.runner.change(self.generation, ABANDONED, IDLE);
     }
 }
 
@@ -507,31 +594,46 @@ impl Drop for Release<'_> {
 /// ```ts
 /// await Promise.race([job().catch(() => PANICKED), after(ceilingMs).then(() => CEILING)])
 /// ```
-pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+pub fn run_contained<T: Send + 'static>(
+    job: impl FnOnce() -> T + Send + 'static,
+    ceiling: Duration,
+) -> Contained<T> {
     return run_contained_in(&RUNNER, job, ceiling);
 }
 
 /// `run_contained` on a runner of the caller's own.
-pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+pub fn run_contained_in<T: Send + 'static>(
+    runner: &'static Containment,
+    job: impl FnOnce() -> T + Send + 'static,
+    ceiling: Duration,
+) -> Contained<T> {
     // One atomic step admits the job: a review the caller stopped waiting for may still hold the log, and a second one would queue
     // behind it and be abandoned in its turn (sol-2, B); two callers at once cannot both pass.
     let Some(generation) = runner.admit() else {
         return Contained::Busy;
     };
     let (sender, receiver) = mpsc::channel::<T>();
-    let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
-        // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
-        // unwinding, so a job that panics after the caller gave up does not keep the runner closed.
-        let release: Release<'static> = Release { runner, generation };
-        let value: T = job();
-        drop(release);
-        #[cfg(test)]
-        drop(runner.handoff_gate.lock());
-        let _ = sender.send(value);
-    });
+    let worker = std::thread::Builder::new()
+        .name(String::from("standards-review"))
+        .spawn(move || {
+            // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
+            // unwinding, so a job that panics after the caller gave up does not keep the runner closed.
+            let release: Release<'static> = Release {
+                runner,
+                generation,
+            };
+            let value: T = job();
+            drop(release);
+            #[cfg(test)]
+            drop(runner.handoff_gate.lock());
+            let _ = sender.send(value);
+        });
     if let Err(error) = worker {
         let _released: bool = runner.change(generation, RUNNING, IDLE);
-        return Contained::NoThread(crate::scoped_start::refused_thread_sentence("run the review of a commit", &error));
+        return Contained::NoThread(crate::scoped_start::refused_thread_sentence(
+            "run the review of a commit",
+            &error,
+        ));
     }
     return match receiver.recv_timeout(ceiling) {
         Ok(value) => Contained::Finished(value),
@@ -550,7 +652,7 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
                 }
             }
         }
-    }
+    };
 }
 
 /// What:
@@ -569,42 +671,55 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
 /// ```ts
 /// let waited = await timeout(ceiling, value); if (timed out) { if (markAbandoned(generation)) return CEILING; waited = await timeout(handoffWait, value) } return answer(waited)
 /// ```
-pub async fn run_contained_in_awaiting<T: Send + 'static>(runner: &'static Containment, job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+pub async fn run_contained_in_awaiting<T: Send + 'static>(
+    runner: &'static Containment,
+    job: impl FnOnce() -> T + Send + 'static,
+    ceiling: Duration,
+) -> Contained<T> {
     // The one atomic admission is the synchronous face's, and for the same reason: a job the caller stopped waiting for may still hold
     //  what the next one needs.
     let Some(generation) = runner.admit() else {
         return Contained::Busy;
     };
     let (sender, mut receiver) = oneshot::channel::<T>();
-    let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
-        // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
-        //  unwinding, so a job that panics after the caller gave up does not keep the runner closed.
-        let release: Release<'static> = Release { runner, generation };
-        let value: T = job();
-        drop(release);
-        #[cfg(test)]
-        drop(runner.handoff_gate.lock());
-        // A caller that stopped waiting has no receiver: the value is dropped.
-        let _ = sender.send(value);
-    });
+    let worker = std::thread::Builder::new()
+        .name(String::from("standards-review"))
+        .spawn(move || {
+            // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
+            //  unwinding, so a job that panics after the caller gave up does not keep the runner closed.
+            let release: Release<'static> = Release {
+                runner,
+                generation,
+            };
+            let value: T = job();
+            drop(release);
+            #[cfg(test)]
+            drop(runner.handoff_gate.lock());
+            // A caller that stopped waiting has no receiver: the value is dropped.
+            let _ = sender.send(value);
+        });
     if let Err(error) = worker {
         let _released: bool = runner.change(generation, RUNNING, IDLE);
-        return Contained::NoThread(crate::scoped_start::refused_thread_sentence("run the review of a commit", &error));
+        return Contained::NoThread(crate::scoped_start::refused_thread_sentence(
+            "run the review of a commit",
+            &error,
+        ));
     }
-    let waited: Result<T, oneshot::error::RecvError> = match tokio::time::timeout(ceiling, &mut receiver).await {
-        Ok(answer) => answer,
-        Err(_elapsed) => {
-            if runner.change(generation, RUNNING, ABANDONED) {
-                return Contained::CeilingReached(ceiling);
+    let waited: Result<T, oneshot::error::RecvError> =
+        match tokio::time::timeout(ceiling, &mut receiver).await {
+            Ok(answer) => answer,
+            Err(_elapsed) => {
+                if runner.change(generation, RUNNING, ABANDONED) {
+                    return Contained::CeilingReached(ceiling);
+                }
+                // The job released the runner between the ceiling and now. Its value is on its way or it panicked, so the wait is bounded
+                //  again and a value that does not come is a ceiling.
+                match tokio::time::timeout(runner.handoff_wait, &mut receiver).await {
+                    Ok(answer) => answer,
+                    Err(_late) => return Contained::CeilingReached(ceiling),
+                }
             }
-            // The job released the runner between the ceiling and now. Its value is on its way or it panicked, so the wait is bounded
-            //  again and a value that does not come is a ceiling.
-            match tokio::time::timeout(runner.handoff_wait, &mut receiver).await {
-                Ok(answer) => answer,
-                Err(_late) => return Contained::CeilingReached(ceiling),
-            }
-        }
-    };
+        };
     return match waited {
         Ok(value) => Contained::Finished(value),
         // The thread ended without a value: it panicked, and its guard released the runner.

@@ -74,7 +74,10 @@ impl UntrackedDir {
     /// A directory `lookup_untracked` makes:
     /// unknown,
     /// so neither valid nor written.
-    fn created(name: &[u8], hash_length: usize) -> UntrackedDir {
+    fn created(
+        name: &[u8],
+        hash_length: usize,
+    ) -> UntrackedDir {
         return UntrackedDir {
             name: name.to_vec(),
             recurse: false,
@@ -96,7 +99,10 @@ impl UntrackedDir {
     /// The position of the subdirectory `name`,
     /// or the position to insert it at,
     /// by the same halving as `lookup_untracked`.
-    fn position_of(&self, name: &[u8]) -> Result<usize, usize> {
+    fn position_of(
+        &self,
+        name: &[u8],
+    ) -> Result<usize, usize> {
         let (mut first, mut last): (usize, usize) = (0, self.dirs.len());
         while last > first {
             let next: usize = first + ((last - first) >> 1);
@@ -111,7 +117,12 @@ impl UntrackedDir {
 
     /// Invalidate along `path`;
     /// whether the parent directory must be invalidated too (`invalidate_one_component`).
-    fn invalidate_component(&mut self, path: &[u8], show_other: bool, hash_length: usize) -> bool {
+    fn invalidate_component(
+        &mut self,
+        path: &[u8],
+        show_other: bool,
+        hash_length: usize,
+    ) -> bool {
         let Some(slash) = first_index_of_byte(path, b'/') else {
             self.invalidate_one();
             return show_other;
@@ -119,11 +130,13 @@ impl UntrackedDir {
         let at: usize = match self.position_of(&path[..slash]) {
             Ok(found) => found,
             Err(insert) => {
-                self.dirs.insert(insert, UntrackedDir::created(&path[..slash], hash_length));
+                self.dirs
+                    .insert(insert, UntrackedDir::created(&path[..slash], hash_length));
                 insert
             }
         };
-        let below: bool = self.dirs[at].invalidate_component(&path[slash + 1..], show_other, hash_length);
+        let below: bool =
+            self.dirs[at].invalidate_component(&path[slash + 1..], show_other, hash_length);
         if below {
             self.invalidate_one();
         }
@@ -133,7 +146,10 @@ impl UntrackedDir {
 
 impl Untracked {
     /// Clear the cached listings a change of the index entry at `path` makes stale (`untracked_cache_invalidate_path`).
-    pub fn invalidate_path(&mut self, path: &[u8]) {
+    pub fn invalidate_path(
+        &mut self,
+        path: &[u8],
+    ) {
         let show_other: bool = self.dir_flags & SHOW_OTHER_DIRECTORIES != 0;
         let hash_length: usize = self.info_exclude.1.len();
         if let Some(root) = self.root.as_mut() {

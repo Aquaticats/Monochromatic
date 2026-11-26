@@ -17,7 +17,8 @@
 pub const SHA1_EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 /// The empty tree under SHA-256.
-pub const SHA256_EMPTY_TREE: &str = "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321";
+pub const SHA256_EMPTY_TREE: &str =
+    "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321";
 
 /// What:
 ///  The empty tree's object name for an object format as `git rev-parse --show-object-format` spells it,

@@ -20,8 +20,14 @@
 //! const answer = theAnswerWaitsWhereAControlSays(found); // found, after the control's own pause
 //! ```
 
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Environment variable naming where a control holds the answer:
 /// the request leaves `<path>.answered` there and goes on once `<path>.release` is there,
@@ -45,9 +51,18 @@ const CONTROL_PARK_CEILING: Duration = Duration::from_secs(60);
 const RELEASE_POLL: Duration = Duration::from_millis(2);
 
 /// The file a control leaves or waits for, beside the path it named.
-fn marker(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
+fn marker(
+    where_the_control_holds_it: &Path,
+    what: &str,
+) -> PathBuf {
     let mut path: PathBuf = where_the_control_holds_it.to_path_buf();
-    let name: String = format!("{}.{what}", where_the_control_holds_it.file_name().unwrap_or_default().to_string_lossy());
+    let name: String = format!(
+        "{}.{what}",
+        where_the_control_holds_it
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+    );
     path.set_file_name(name);
     return path;
 }
@@ -67,11 +82,16 @@ fn marker(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
 /// ```
 pub(crate) fn the_answer_waits_where_a_control_says(found: bool) -> bool {
     // Where a control holds the answer, which a release build never reads.
-    let Some(named) = crate::test_only_switches::value(PARK_VARIABLE) else { return found };
+    let Some(named) = crate::test_only_switches::value(PARK_VARIABLE) else {
+        return found;
+    };
     let where_the_control_holds_it: PathBuf = PathBuf::from(named);
     let answered: PathBuf = marker(where_the_control_holds_it.as_path(), "answered");
     if let Err(error) = std::fs::write(answered.as_path(), b"") {
-        crate::service_warn!("cannot leave the control's answered file {}: {error}", answered.display());
+        crate::service_warn!(
+            "cannot leave the control's answered file {}: {error}",
+            answered.display()
+        );
         return found;
     }
     let release: PathBuf = marker(where_the_control_holds_it.as_path(), "release");

@@ -34,7 +34,11 @@ use crate::fs_beneath::open_file_at;
 use std::ffi::OsStr;
 use std::io::Read;
 use std::os::unix::fs::FileTypeExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// The pointer file's name inside a registered worktree slot.
 pub const GIT_POINTER_NAME: &str = ".git";
@@ -117,12 +121,38 @@ impl GitPointerRefusal {
     /// the pointer and the way forward.
     pub fn message(&self) -> String {
         let cause: String = match self {
-            GitPointerRefusal::Absent { slot } => format!("the slot `{slot}` holds no `.git`, so no Git registration says it is a worktree of this checkout"),
-            GitPointerRefusal::Unreadable { slot, reason } => format!("the slot `{slot}` holds a `.git` that could not be read ({reason})"),
-            GitPointerRefusal::NotARegularFile { slot, found } => format!("the slot `{slot}` holds a `.git` that is {found} rather than one regular file, and this route reads only a regular pointer file"),
-            GitPointerRefusal::TooLong { slot, bound } => format!("the slot `{slot}` holds a `.git` longer than the {bound} bytes this route reads"),
-            GitPointerRefusal::NotAPointer { slot, said } => format!("the slot `{slot}` holds a `.git` that is no Git worktree pointer: {said}"),
-            GitPointerRefusal::AnotherRegistration { slot, points_at, wanted } => format!(
+            GitPointerRefusal::Absent {
+                slot,
+            } => format!(
+                "the slot `{slot}` holds no `.git`, so no Git registration says it is a worktree of this checkout"
+            ),
+            GitPointerRefusal::Unreadable {
+                slot,
+                reason,
+            } => format!("the slot `{slot}` holds a `.git` that could not be read ({reason})"),
+            GitPointerRefusal::NotARegularFile {
+                slot,
+                found,
+            } => format!(
+                "the slot `{slot}` holds a `.git` that is {found} rather than one regular file, and this route reads only a regular pointer file"
+            ),
+            GitPointerRefusal::TooLong {
+                slot,
+                bound,
+            } => format!(
+                "the slot `{slot}` holds a `.git` longer than the {bound} bytes this route reads"
+            ),
+            GitPointerRefusal::NotAPointer {
+                slot,
+                said,
+            } => {
+                format!("the slot `{slot}` holds a `.git` that is no Git worktree pointer: {said}")
+            }
+            GitPointerRefusal::AnotherRegistration {
+                slot,
+                points_at,
+                wanted,
+            } => format!(
                 "the slot `{slot}` holds a `.git` naming `{}`, and this checkout registers the slot at `{}`",
                 points_at.display(),
                 wanted.display()
@@ -145,8 +175,14 @@ impl GitPointerRefusal {
 /// ```ts
 /// const wanted = `${checkout}/.git/worktrees/${slot}`;
 /// ```
-pub fn the_registration_of(checkout: &Path, slot: &str) -> PathBuf {
-    return checkout.join(GIT_POINTER_NAME).join(WORKTREES_COMPONENT).join(slot);
+pub fn the_registration_of(
+    checkout: &Path,
+    slot: &str,
+) -> PathBuf {
+    return checkout
+        .join(GIT_POINTER_NAME)
+        .join(WORKTREES_COMPONENT)
+        .join(slot);
 }
 
 /// What:
@@ -169,7 +205,10 @@ fn pointer_path_refusal(points_at: &Path) -> Option<String> {
     for component in points_at.components() {
         let plain: bool = matches!(component, Component::RootDir | Component::Normal(_));
         if !plain {
-            return Some(format!("its path holds `{}`, which this route does not resolve", component.as_os_str().to_string_lossy()));
+            return Some(format!(
+                "its path holds `{}`, which this route does not resolve",
+                component.as_os_str().to_string_lossy()
+            ));
         }
     }
     return None;
@@ -197,7 +236,9 @@ fn parse_pointer(text: &str) -> Result<PathBuf, String> {
         return Err(String::from("it holds more than one line"));
     }
     let Some(named) = line.strip_prefix(GITDIR_PREFIX) else {
-        return Err(format!("its first line does not begin with `{GITDIR_PREFIX}`"));
+        return Err(format!(
+            "its first line does not begin with `{GITDIR_PREFIX}`"
+        ));
     };
     if named.is_empty() {
         return Err(String::from("it names no path"));
@@ -228,32 +269,84 @@ fn parse_pointer(text: &str) -> Result<PathBuf, String> {
 /// is longer than the bound,
 /// is not one `gitdir:` line,
 /// or names a registration other than this checkout's slot.
-pub fn read_the_slot_git_pointer(slot_folder: &std::fs::File, checkout: &Path, slot: &str) -> Result<PathBuf, GitPointerRefusal> {
+pub fn read_the_slot_git_pointer(
+    slot_folder: &std::fs::File,
+    checkout: &Path,
+    slot: &str,
+) -> Result<PathBuf, GitPointerRefusal> {
     let name: &OsStr = OsStr::new(GIT_POINTER_NAME);
     let mut file: std::fs::File = match open_file_at(slot_folder, name) {
         Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(GitPointerRefusal::Absent { slot: String::from(slot) }),
-        Err(error) => return Err(GitPointerRefusal::Unreadable { slot: String::from(slot), reason: error.to_string() }),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(GitPointerRefusal::Absent {
+                slot: String::from(slot),
+            });
+        }
+        Err(error) => {
+            return Err(GitPointerRefusal::Unreadable {
+                slot: String::from(slot),
+                reason: error.to_string(),
+            });
+        }
     };
-    let metadata: std::fs::Metadata = file.metadata().map_err(|error| return GitPointerRefusal::Unreadable { slot: String::from(slot), reason: error.to_string() })?;
+    let metadata: std::fs::Metadata = file.metadata().map_err(|error| {
+        return GitPointerRefusal::Unreadable {
+            slot: String::from(slot),
+            reason: error.to_string(),
+        };
+    })?;
     let kind: std::fs::FileType = metadata.file_type();
     if !kind.is_file() {
-        let found: &'static str = if kind.is_dir() { "a folder" } else if kind.is_symlink() { "a link" } else if kind.is_fifo() { "a named pipe" } else { "no regular file" };
-        return Err(GitPointerRefusal::NotARegularFile { slot: String::from(slot), found });
+        let found: &'static str = if kind.is_dir() {
+            "a folder"
+        } else if kind.is_symlink() {
+            "a link"
+        } else if kind.is_fifo() {
+            "a named pipe"
+        } else {
+            "no regular file"
+        };
+        return Err(GitPointerRefusal::NotARegularFile {
+            slot: String::from(slot),
+            found,
+        });
     }
     let mut bytes: Vec<u8> = Vec::new();
-    let read: usize = file.by_ref().take((POINTER_BOUND + 1) as u64).read_to_end(&mut bytes).map_err(|error| return GitPointerRefusal::Unreadable {
-        slot: String::from(slot),
-        reason: error.to_string(),
-    })?;
+    let read: usize = file
+        .by_ref()
+        .take((POINTER_BOUND + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            return GitPointerRefusal::Unreadable {
+                slot: String::from(slot),
+                reason: error.to_string(),
+            };
+        })?;
     if read > POINTER_BOUND {
-        return Err(GitPointerRefusal::TooLong { slot: String::from(slot), bound: POINTER_BOUND });
+        return Err(GitPointerRefusal::TooLong {
+            slot: String::from(slot),
+            bound: POINTER_BOUND,
+        });
     }
-    let text: String = String::from_utf8(bytes).map_err(|_error| return GitPointerRefusal::NotAPointer { slot: String::from(slot), said: String::from("it is not UTF-8 text") })?;
-    let points_at: PathBuf = parse_pointer(text.as_str()).map_err(|said| return GitPointerRefusal::NotAPointer { slot: String::from(slot), said })?;
+    let text: String = String::from_utf8(bytes).map_err(|_error| {
+        return GitPointerRefusal::NotAPointer {
+            slot: String::from(slot),
+            said: String::from("it is not UTF-8 text"),
+        };
+    })?;
+    let points_at: PathBuf = parse_pointer(text.as_str()).map_err(|said| {
+        return GitPointerRefusal::NotAPointer {
+            slot: String::from(slot),
+            said,
+        };
+    })?;
     let wanted: PathBuf = the_registration_of(checkout, slot);
     if points_at != wanted {
-        return Err(GitPointerRefusal::AnotherRegistration { slot: String::from(slot), points_at, wanted });
+        return Err(GitPointerRefusal::AnotherRegistration {
+            slot: String::from(slot),
+            points_at,
+            wanted,
+        });
     }
     return Ok(points_at);
 }

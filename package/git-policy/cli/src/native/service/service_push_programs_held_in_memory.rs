@@ -30,8 +30,14 @@
 //! programs = held(gitDir, pushRecordId); forget(gitDir, pushRecordId); // once the record can no longer run
 //! ```
 
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
 
 /// What:
@@ -47,7 +53,13 @@ use std::sync::Mutex;
 /// the service's pushes carry the never-prompt pair by the owner's decision
 /// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
 /// so `GIT_ASKPASS` and `SSH_ASKPASS` would be overwritten anyway and are left out rather than pretending to travel.
-pub const CARRIED: [&str; 5] = ["PATH", "GIT_EXEC_PATH", "GIT_SSH", "GIT_SSH_COMMAND", "GIT_PROXY_COMMAND"];
+pub const CARRIED: [&str; 5] = [
+    "PATH",
+    "GIT_EXEC_PATH",
+    "GIT_SSH",
+    "GIT_SSH_COMMAND",
+    "GIT_PROXY_COMMAND",
+];
 
 /// What:
 ///  The carried variables that name the transport a push speaks through.
@@ -142,9 +154,22 @@ pub struct PushPrograms {
 impl std::fmt::Debug for PushPrograms {
     /// Writes the names,
     /// and a placeholder for each value.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let names: Vec<&str> = self.variables.iter().map(|(name, _value)| { return name.as_str(); }).collect();
-        return write!(formatter, "PushPrograms {{ variables: {names:?}, not_text: {:?}, transport: {} }}", self.not_text, self.transport);
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        let names: Vec<&str> = self
+            .variables
+            .iter()
+            .map(|(name, _value)| {
+                return name.as_str();
+            })
+            .collect();
+        return write!(
+            formatter,
+            "PushPrograms {{ variables: {names:?}, not_text: {:?}, transport: {} }}",
+            self.not_text, self.transport
+        );
     }
 }
 
@@ -160,7 +185,9 @@ impl std::fmt::Debug for PushPrograms {
 /// const programsOfThisProcess = () => programsOf(process.env);
 /// ```
 pub fn of_this_process() -> PushPrograms {
-    return of(std::env::vars_os().collect::<Vec<(OsString, OsString)>>().as_slice());
+    return of(std::env::vars_os()
+        .collect::<Vec<(OsString, OsString)>>()
+        .as_slice());
 }
 
 /// What:
@@ -202,7 +229,11 @@ pub fn of(environment: &[(OsString, OsString)]) -> PushPrograms {
     for name in TRANSPORT {
         transport = transport || last_value(environment, name).is_some();
     }
-    return PushPrograms { variables, not_text, transport };
+    return PushPrograms {
+        variables,
+        not_text,
+        transport,
+    };
 }
 
 /// What:
@@ -215,7 +246,10 @@ pub fn of(environment: &[(OsString, OsString)]) -> PushPrograms {
 /// ```ts
 /// const lastValue = (env, name) => env.findLast(([held]) => held === name)?.[1];
 /// ```
-fn last_value(environment: &[(OsString, OsString)], name: &str) -> Option<OsString> {
+fn last_value(
+    environment: &[(OsString, OsString)],
+    name: &str,
+) -> Option<OsString> {
     for (held, value) in environment.iter().rev() {
         if held == OsStr::new(name) {
             return Some(value.clone());
@@ -236,8 +270,13 @@ impl PushPrograms {
     /// ```ts
     /// const has = (name) => this.variables.some(([held]) => held === name);
     /// ```
-    pub fn holds(&self, name: &str) -> bool {
-        return self.variables.iter().any(|(held, _value)| { return held == name; });
+    pub fn holds(
+        &self,
+        name: &str,
+    ) -> bool {
+        return self.variables.iter().any(|(held, _value)| {
+            return held == name;
+        });
     }
 
     /// What:
@@ -251,7 +290,13 @@ impl PushPrograms {
     /// this.variables.map(([name, value]) => [name, value]);
     /// ```
     pub fn as_pairs(&self) -> Vec<(OsString, OsString)> {
-        return self.variables.iter().map(|(name, value)| { return (OsString::from(name), OsString::from(value)); }).collect();
+        return self
+            .variables
+            .iter()
+            .map(|(name, value)| {
+                return (OsString::from(name), OsString::from(value));
+            })
+            .collect();
     }
 }
 
@@ -300,10 +345,21 @@ static HELD: Mutex<Vec<Held>> = Mutex::new(Vec::new());
 /// ```ts
 /// remember(gitDir, item, programs); // void
 /// ```
-pub fn remember(git_dir: &Path, item: &str, programs: PushPrograms) {
-    let mut held: std::sync::MutexGuard<'_, Vec<Held>> = HELD.lock().expect("the programs of the pushes in flight");
-    let entry: Held = Held { git_dir: git_dir.to_path_buf(), item: String::from(item), programs };
-    match held.iter_mut().find(|existing| { return existing.git_dir == entry.git_dir && existing.item == entry.item; }) {
+pub fn remember(
+    git_dir: &Path,
+    item: &str,
+    programs: PushPrograms,
+) {
+    let mut held: std::sync::MutexGuard<'_, Vec<Held>> =
+        HELD.lock().expect("the programs of the pushes in flight");
+    let entry: Held = Held {
+        git_dir: git_dir.to_path_buf(),
+        item: String::from(item),
+        programs,
+    };
+    match held.iter_mut().find(|existing| {
+        return existing.git_dir == entry.git_dir && existing.item == entry.item;
+    }) {
         Some(existing) => *existing = entry,
         None => held.push(entry),
     }
@@ -322,12 +378,20 @@ pub fn remember(git_dir: &Path, item: &str, programs: PushPrograms) {
 /// ```ts
 /// held(gitDir, item); // PushPrograms | undefined
 /// ```
-pub fn held(git_dir: &Path, item: &str) -> Option<PushPrograms> {
-    let held: std::sync::MutexGuard<'_, Vec<Held>> = HELD.lock().expect("the programs of the pushes in flight");
+pub fn held(
+    git_dir: &Path,
+    item: &str,
+) -> Option<PushPrograms> {
+    let held: std::sync::MutexGuard<'_, Vec<Held>> =
+        HELD.lock().expect("the programs of the pushes in flight");
     return held
         .iter()
-        .find(|existing| { return existing.git_dir == git_dir && existing.item == item; })
-        .map(|found| { return found.programs.clone(); });
+        .find(|existing| {
+            return existing.git_dir == git_dir && existing.item == item;
+        })
+        .map(|found| {
+            return found.programs.clone();
+        });
 }
 
 /// What:
@@ -345,9 +409,15 @@ pub fn held(git_dir: &Path, item: &str) -> Option<PushPrograms> {
 /// ```ts
 /// forget(gitDir, item); // void
 /// ```
-pub fn forget(git_dir: &Path, item: &str) {
-    let mut held: std::sync::MutexGuard<'_, Vec<Held>> = HELD.lock().expect("the programs of the pushes in flight");
-    held.retain(|existing| { return !(existing.git_dir == git_dir && existing.item == item); });
+pub fn forget(
+    git_dir: &Path,
+    item: &str,
+) {
+    let mut held: std::sync::MutexGuard<'_, Vec<Held>> =
+        HELD.lock().expect("the programs of the pushes in flight");
+    held.retain(|existing| {
+        return !(existing.git_dir == git_dir && existing.item == item);
+    });
 }
 
 /// What:
@@ -361,8 +431,11 @@ pub fn forget(git_dir: &Path, item: &str) {
 /// forgetEvery(gitDir); // void
 /// ```
 pub fn forget_every(git_dir: &Path) {
-    let mut held: std::sync::MutexGuard<'_, Vec<Held>> = HELD.lock().expect("the programs of the pushes in flight");
-    held.retain(|existing| { return existing.git_dir != git_dir; });
+    let mut held: std::sync::MutexGuard<'_, Vec<Held>> =
+        HELD.lock().expect("the programs of the pushes in flight");
+    held.retain(|existing| {
+        return existing.git_dir != git_dir;
+    });
 }
 
 /// The controls of the list and of its memory are in the sidecar.

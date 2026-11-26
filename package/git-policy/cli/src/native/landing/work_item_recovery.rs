@@ -19,11 +19,27 @@ use crate::claim_time::ClaimTime;
 use crate::private_storage::create_private_directory_all;
 use crate::service_timing::log;
 use crate::work_item::{
-    CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, claim_file_name, entries_oldest_first, id_of_entry, is_valid_id,
-    new_generation, parse_claim_name, state_directory,
+    CLAIMED,
+    FAILED,
+    PENDING,
+    RECOVERING,
+    WorkItem,
+    claim_file_name,
+    entries_oldest_first,
+    id_of_entry,
+    is_valid_id,
+    new_generation,
+    parse_claim_name,
+    state_directory,
 };
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// The most a stray temporary file of a recovery may age before a recovery removes it.
 /// Measured:
@@ -54,7 +70,12 @@ pub const TEMPORARY_SUFFIX: &str = ".retry";
 /// ```ts
 /// for (const stale of claimed.filter((c) => now.elapsedSince(c.stamp) > lease)) requeue(stale)
 /// ```
-pub fn requeue_expired(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> usize {
+pub fn requeue_expired(
+    work_dir: &Path,
+    now: &ClaimTime,
+    lease: Duration,
+    max_tries: u32,
+) -> usize {
     return requeue_expired_reporting(work_dir, now, lease, max_tries).moved;
 }
 
@@ -96,7 +117,10 @@ pub struct Recovered {
 /// ```
 pub(crate) trait ClaimExpiry {
     /// Whether the claim stamped `stamp` has expired.
-    fn has_expired(&self, stamp: &ClaimTime) -> bool;
+    fn has_expired(
+        &self,
+        stamp: &ClaimTime,
+    ) -> bool;
 }
 
 /// A claim has expired when it is of an earlier boot,
@@ -109,14 +133,30 @@ struct LeaseRanOut<'a> {
 }
 
 impl ClaimExpiry for LeaseRanOut<'_> {
-    fn has_expired(&self, stamp: &ClaimTime) -> bool {
+    fn has_expired(
+        &self,
+        stamp: &ClaimTime,
+    ) -> bool {
         return self.now.is_past_the_boot_of(stamp) || self.now.elapsed_since(stamp) > self.lease;
     }
 }
 
 /// `requeue_expired` that also gives the items it moved to `failed` for want of tries.
-pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> Recovered {
-    return requeue_with(work_dir, now, max_tries, &LeaseRanOut { now, lease });
+pub fn requeue_expired_reporting(
+    work_dir: &Path,
+    now: &ClaimTime,
+    lease: Duration,
+    max_tries: u32,
+) -> Recovered {
+    return requeue_with(
+        work_dir,
+        now,
+        max_tries,
+        &LeaseRanOut {
+            now,
+            lease,
+        },
+    );
 }
 
 /// What:
@@ -134,8 +174,23 @@ pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Durati
 /// ```ts
 /// requeueExpiredTelling(workDir, now, lease, maxTries, (item) => recordPushSkip(item))
 /// ```
-pub(crate) fn requeue_expired_reporting_telling(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32, tell: &dyn GivenUpNotice) -> Recovered {
-    return requeue_with_telling(work_dir, now, max_tries, &LeaseRanOut { now, lease }, tell);
+pub(crate) fn requeue_expired_reporting_telling(
+    work_dir: &Path,
+    now: &ClaimTime,
+    lease: Duration,
+    max_tries: u32,
+    tell: &dyn GivenUpNotice,
+) -> Recovered {
+    return requeue_with_telling(
+        work_dir,
+        now,
+        max_tries,
+        &LeaseRanOut {
+            now,
+            lease,
+        },
+        tell,
+    );
 }
 
 /// What:
@@ -152,7 +207,11 @@ pub(crate) fn requeue_expired_reporting_telling(work_dir: &Path, now: &ClaimTime
 /// ```ts
 /// Math.min(...claimed.map((c) => lease - now.elapsedSince(c.stamp)))
 /// ```
-pub fn next_claim_expiry(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub fn next_claim_expiry(
+    work_dir: &Path,
+    now: &ClaimTime,
+    lease: Duration,
+) -> Option<Duration> {
     // The least of what every held claim has left; the temporary files of a recovery are not claims.
     let mut least: Option<Duration> = None;
     for state in [CLAIMED, RECOVERING] {
@@ -173,7 +232,11 @@ pub fn next_claim_expiry(work_dir: &Path, now: &ClaimTime, lease: Duration) -> O
 /// How much of `lease` a claim stamped `stamp` has left at `now`:
 /// none for a claim of an earlier boot,
 /// whose holder is dead.
-fn lease_left(now: &ClaimTime, stamp: &ClaimTime, lease: Duration) -> Duration {
+fn lease_left(
+    now: &ClaimTime,
+    stamp: &ClaimTime,
+    lease: Duration,
+) -> Duration {
     if now.is_past_the_boot_of(stamp) {
         return Duration::ZERO;
     }
@@ -182,7 +245,10 @@ fn lease_left(now: &ClaimTime, stamp: &ClaimTime, lease: Duration) -> Duration {
 
 /// The reading in a claim's file name,
 /// or for a claim by an earlier release the wall-clock time of its last stamp.
-fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
+fn stamp_of_entry(
+    name: &str,
+    modified: SystemTime,
+) -> ClaimTime {
     return match parse_claim_name(name) {
         Some((_token, stamp)) => stamp,
         None => ClaimTime::from_wall(modified),
@@ -219,7 +285,12 @@ fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
 /// ```ts
 /// for (const seen of claimed.filter(expired)) { if (await tryRename(seen.name, owned)) { await rewrite(owned); await rename(owned, pending) } }
 /// ```
-pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry) -> Recovered {
+pub(crate) fn requeue_with(
+    work_dir: &Path,
+    now: &ClaimTime,
+    max_tries: u32,
+    expired: &dyn ClaimExpiry,
+) -> Recovered {
     return requeue_with_telling(work_dir, now, max_tries, expired, &NoNotice);
 }
 
@@ -248,12 +319,19 @@ pub(crate) trait GivenUpNotice {
     /// Tell the person about `given_up`,
     /// before the record moves to `failed`,
     /// and answer whether the words are where a command will show them.
-    fn tell(&self, given_up: &WorkItem) -> bool;
+    fn tell(
+        &self,
+        given_up: &WorkItem,
+    ) -> bool;
 
     /// Take back whatever was kept only for that telling,
     /// after `given_up` reached `failed` and no later pass will tell again.
     ///  Most notices keep nothing, so the nothing here is the whole answer for them.
-    fn settled(&self, _given_up: &WorkItem) {}
+    fn settled(
+        &self,
+        _given_up: &WorkItem,
+    ) {
+    }
 }
 
 /// The step of a recovery that tells nobody about the items it gives up,
@@ -261,7 +339,10 @@ pub(crate) trait GivenUpNotice {
 struct NoNotice;
 
 impl GivenUpNotice for NoNotice {
-    fn tell(&self, _given_up: &WorkItem) -> bool {
+    fn tell(
+        &self,
+        _given_up: &WorkItem,
+    ) -> bool {
         return true;
     }
 }
@@ -278,7 +359,13 @@ thread_local! {
 
 /// `requeue_with` with the step told about each item it gives up,
 /// before the item moves to `failed`.
-pub(crate) fn requeue_with_telling(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn ClaimExpiry, tell: &dyn GivenUpNotice) -> Recovered {
+pub(crate) fn requeue_with_telling(
+    work_dir: &Path,
+    now: &ClaimTime,
+    max_tries: u32,
+    expired: &dyn ClaimExpiry,
+    tell: &dyn GivenUpNotice,
+) -> Recovered {
     let mut recovered: Recovered = Recovered::default();
     for state in [CLAIMED, RECOVERING] {
         for (name, modified) in entries_oldest_first(work_dir, state) {
@@ -300,7 +387,13 @@ pub(crate) fn requeue_with_telling(work_dir: &Path, now: &ClaimTime, max_tries: 
 
 /// Removes a recovery's temporary file that a killed recovery left,
 /// once it is old enough that nobody can still be using it.
-fn remove_stray_temporary(work_dir: &Path, state: &str, name: &str, modified: SystemTime, now: &ClaimTime) {
+fn remove_stray_temporary(
+    work_dir: &Path,
+    state: &str,
+    name: &str,
+    modified: SystemTime,
+    now: &ClaimTime,
+) {
     if now.elapsed_since(&ClaimTime::from_wall(modified)) > STRAY_TEMPORARY_AGE {
         let _removed = std::fs::remove_file(state_directory(work_dir, state).join(name));
     }
@@ -310,15 +403,27 @@ fn remove_stray_temporary(work_dir: &Path, state: &str, name: &str, modified: Sy
 /// nothing when another instance moved it first,
 /// otherwise
 /// the item when it was given up on (moved to `failed` for want of tries).
-fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32, tell: &dyn GivenUpNotice) -> Option<Option<WorkItem>> {
+fn recover(
+    work_dir: &Path,
+    state: &str,
+    name: &str,
+    now: &ClaimTime,
+    max_tries: u32,
+    tell: &dyn GivenUpNotice,
+) -> Option<Option<WorkItem>> {
     let id: &str = id_of_entry(name);
     // A claim by an earlier release was not checked when it was queued;
     // an id whose names would not fit goes to `failed` by its
     //  own name,
     // since the longer name of this release's claim or of its temporary file could not be made.
     if !is_valid_id(id) {
-        let moved: bool = create_private_directory_all(state_directory(work_dir, FAILED).as_path()).is_ok()
-            && std::fs::rename(state_directory(work_dir, state).join(name), state_directory(work_dir, FAILED).join(id)).is_ok();
+        let moved: bool = create_private_directory_all(state_directory(work_dir, FAILED).as_path())
+            .is_ok()
+            && std::fs::rename(
+                state_directory(work_dir, state).join(name),
+                state_directory(work_dir, FAILED).join(id),
+            )
+            .is_ok();
         log(format!(
             "the claim {name:?} is not of a kind and a suffix of at most {} characters, so it was {}",
             crate::work_item_ids_and_names::MAX_ID_SUFFIX_LENGTH,
@@ -348,14 +453,22 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
     let Ok(text) = crate::plain_file::read_plain_text(owned.as_path()) else {
         // The folder is made first, as the queue's own writer makes it, so a queue whose `failed` folder was removed still
         //  settles the record instead of taking it again every pass.
-        return (create_private_directory_all(failed_folder.as_path()).is_ok() && std::fs::rename(owned.as_path(), failed_folder.join(id)).is_ok()).then_some(None);
+        return (create_private_directory_all(failed_folder.as_path()).is_ok()
+            && std::fs::rename(owned.as_path(), failed_folder.join(id)).is_ok())
+        .then_some(None);
     };
     let (target, given_up): (&str, Option<WorkItem>) = match WorkItem::decode(text.as_str()) {
         Ok(mut item) if item.id() == id || item.id_before_the_branch() == id => {
             item.tries += 1;
             let rewritten: PathBuf = recovering.join(format!("{owned_name}{TEMPORARY_SUFFIX}"));
-            let destination: &str = if item.tries >= max_tries { FAILED } else { PENDING };
-            if std::fs::write(rewritten.as_path(), item.encode()).is_err() || std::fs::rename(rewritten.as_path(), owned.as_path()).is_err() {
+            let destination: &str = if item.tries >= max_tries {
+                FAILED
+            } else {
+                PENDING
+            };
+            if std::fs::write(rewritten.as_path(), item.encode()).is_err()
+                || std::fs::rename(rewritten.as_path(), owned.as_path()).is_err()
+            {
                 return None;
             }
             // The word about a push given up on comes before the move: nothing scans `failed`, so a kill in between would
@@ -379,7 +492,8 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
         // which a handler would run and settle under the wrong id.
         _ => (FAILED, None),
     };
-    let moved: bool = std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok();
+    let moved: bool =
+        std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok();
     // The record is where nothing reads it again, so whatever a notice kept for a later telling is owed no longer. A kill
     //  between the move and this line leaves one small file that nothing reads, which is what a kill at any instruction costs.
     if moved && let Some(given_up_item) = given_up.as_ref() {

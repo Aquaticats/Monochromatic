@@ -36,18 +36,57 @@
 //! for (const n of spread(await countCalls('write', flow))) { await runWithFault({ call: 'write', nth: n, effect: 'ENOSPC' }, flow); await expectRecovered(); }
 //! ```
 
-use git_policy_cli::fs_kind::may_clone;
-use super::commit::{git_text, remove_settled};
-use super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository, verify_recovery_with};
+use super::commit::{
+    git_text,
+    remove_settled,
+};
+use super::fault::{
+    COMMIT_ARGUMENTS,
+    Effect,
+    Injection,
+    When,
+    staged_repository,
+    verify_recovery_with,
+};
 use super::fault_limits::check_limited_run;
-use super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper, with_manager};
-use super::strace::{strace_available_or_acknowledged, strace_program};
-use super::support::{ABSENT_ACKNOWLEDGED_VARIABLE, Fixture, ServiceLaunch, fixture, fixture_root, hermetic, service_runtime, wrapper_first_path};
+use super::fault_run::{
+    end_the_pressure,
+    in_batches,
+    run_unsettled,
+    run_watched,
+    spawn_watched,
+    unbounded_wrapper,
+    with_manager,
+};
+use super::strace::{
+    strace_available_or_acknowledged,
+    strace_program,
+};
+use super::support::{
+    ABSENT_ACKNOWLEDGED_VARIABLE,
+    Fixture,
+    ServiceLaunch,
+    fixture,
+    fixture_root,
+    hermetic,
+    service_runtime,
+    wrapper_first_path,
+};
+use git_policy_cli::fs_kind::may_clone;
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// How many runs one sweep makes at most:
 /// the positions are spread over the calls the flow makes,
@@ -99,7 +138,19 @@ const STORAGE_CALLS: [&str; 5] = ["write", "pwrite64", "fsync", "rename", "renam
 /// the service makes none of them itself in this flow,
 ///  so a kill at each tested nothing while the list said the service was killed there.
 const KILL_CALLS: [&str; 13] = [
-    "write", "pwrite64", "ftruncate", "copy_file_range", "openat", "rename", "renameat2", "unlink", "unlinkat", "mkdir", "chmod", "utimensat", "clone3",
+    "write",
+    "pwrite64",
+    "ftruncate",
+    "copy_file_range",
+    "openat",
+    "rename",
+    "renameat2",
+    "unlink",
+    "unlinkat",
+    "mkdir",
+    "chmod",
+    "utimensat",
+    "clone3",
 ];
 
 /// The `strace` words that run a program under a tracer,
@@ -112,8 +163,17 @@ const KILL_CALLS: [&str; 13] = [
 /// One `--quiet` suppresses only the attach and personality messages;
 /// the `+++ exited with N +++` lines stay,
 /// and `busiest_count` reads a line only when it begins with a process ID and a traced call.
-fn tracer(trace: &Path, syscall: &str, fault: Option<&Injection>, follow: bool) -> Vec<OsString> {
-    let mut words: Vec<OsString> = vec![strace_program().expect("strace is installed").into_os_string()];
+fn tracer(
+    trace: &Path,
+    syscall: &str,
+    fault: Option<&Injection>,
+    follow: bool,
+) -> Vec<OsString> {
+    let mut words: Vec<OsString> = vec![
+        strace_program()
+            .expect("strace is installed")
+            .into_os_string(),
+    ];
     if follow {
         words.push(OsString::from("--follow-forks"));
     }
@@ -121,7 +181,10 @@ fn tracer(trace: &Path, syscall: &str, fault: Option<&Injection>, follow: bool) 
     words.push(OsString::from(format!("--output={}", trace.display())));
     words.push(OsString::from(format!("--trace={syscall}")));
     if let Some(injection) = fault {
-        words.push(OsString::from(format!("--inject={}", injection.specification())));
+        words.push(OsString::from(format!(
+            "--inject={}",
+            injection.specification()
+        )));
     }
     return words;
 }
@@ -130,12 +193,21 @@ fn tracer(trace: &Path, syscall: &str, fault: Option<&Injection>, follow: bool) 
 /// the trace of a followed tree has the process ID first on
 ///  each line,
 /// and a trace of one process has none.
-fn busiest_count(trace: &str, syscall: &str) -> usize {
+fn busiest_count(
+    trace: &str,
+    syscall: &str,
+) -> usize {
     let mut per_process: HashMap<&str, usize> = HashMap::new();
     for line in trace.lines() {
         let (process, call): (&str, &str) = match line.split_once(' ') {
             // Some builds of `strace` pad the process ID with spaces, so the call starts after any number of them.
-            Some((first, rest)) if first.bytes().all(|byte| { return byte.is_ascii_digit(); }) && !first.is_empty() => (first, rest.trim_start()),
+            Some((first, rest))
+                if first.bytes().all(|byte| {
+                    return byte.is_ascii_digit();
+                }) && !first.is_empty() =>
+            {
+                (first, rest.trim_start())
+            }
             _ => ("", line),
         };
         if call.starts_with(syscall) && call[syscall.len()..].starts_with('(') {
@@ -148,11 +220,18 @@ fn busiest_count(trace: &str, syscall: &str) -> usize {
 /// Up to `budget` positions in `1..=count`,
 /// evenly spread,
 /// the first and the last included.
-fn positions(count: usize, budget: usize) -> Vec<usize> {
+fn positions(
+    count: usize,
+    budget: usize,
+) -> Vec<usize> {
     if count <= budget {
         return (1..=count).collect();
     }
-    let mut spread: Vec<usize> = (0..budget).map(|step| { return 1 + (count - 1) * step / (budget - 1); }).collect();
+    let mut spread: Vec<usize> = (0..budget)
+        .map(|step| {
+            return 1 + (count - 1) * step / (budget - 1);
+        })
+        .collect();
     spread.dedup();
     return spread;
 }
@@ -160,8 +239,19 @@ fn positions(count: usize, budget: usize) -> Vec<usize> {
 /// Fails when a sweep's list names a call its flow never makes:
 /// nothing would be faulted at that name,
 /// so the list would claim a coverage it never had.
-fn require_every_listed_call_is_made(label: &str, counts: &[(&'static str, usize)]) {
-    let absent: Vec<&'static str> = counts.iter().filter(|(_, count)| { return *count == 0; }).map(|(syscall, _)| { return *syscall; }).collect();
+fn require_every_listed_call_is_made(
+    label: &str,
+    counts: &[(&'static str, usize)],
+) {
+    let absent: Vec<&'static str> = counts
+        .iter()
+        .filter(|(_, count)| {
+            return *count == 0;
+        })
+        .map(|(syscall, _)| {
+            return *syscall;
+        })
+        .collect();
     assert!(
         absent.is_empty(),
         "{label} lists calls its flow never makes, so faulting them would test nothing: {absent:?} (measured {counts:?})"
@@ -172,15 +262,25 @@ fn require_every_listed_call_is_made(label: &str, counts: &[(&'static str, usize
 /// the budget shared in proportion to how often each call is made,
 /// each
 ///  call that is made at all getting at least its first and last.
-fn sweep_points(counts: &[(&'static str, usize)], budget: usize) -> Vec<(&'static str, usize)> {
-    let total: usize = counts.iter().map(|(_, count)| { return *count; }).sum();
+fn sweep_points(
+    counts: &[(&'static str, usize)],
+    budget: usize,
+) -> Vec<(&'static str, usize)> {
+    let total: usize = counts
+        .iter()
+        .map(|(_, count)| {
+            return *count;
+        })
+        .sum();
     let mut points: Vec<(&'static str, usize)> = Vec::new();
     for (syscall, count) in counts {
         if *count == 0 {
             continue;
         }
         let share: usize = (budget * *count / total.max(1)).max(2);
-        points.extend(positions(*count, share).into_iter().map(|position| { return (*syscall, position); }));
+        points.extend(positions(*count, share).into_iter().map(|position| {
+            return (*syscall, position);
+        }));
     }
     return points;
 }
@@ -193,7 +293,12 @@ type Recovery = fn(&Fixture, &Path, &str, &str) -> Result<(), String>;
 /// Recovery as the first commands a person runs after a full or failing disk:
 /// stage another file,
 /// commit it.
-fn recovers_any_way(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
+fn recovers_any_way(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+    said: &str,
+) -> Result<(), String> {
     return verify_recovery_with(fixture, repo, label, said, run_unsettled);
 }
 
@@ -207,22 +312,43 @@ fn recovers_any_way(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> 
 /// so the first command after the
 ///  kill is the commit,
 /// and the staging of another file follows it.
-fn recovers_after_service_death(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
+fn recovers_after_service_death(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+    said: &str,
+) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain"]);
     if status.code != Some(0) {
-        return Err(format!("{label}: the next command must succeed, exit {:?}: {}\nfirst run said: {said}", status.code, String::from_utf8_lossy(status.stderr.as_slice())));
+        return Err(format!(
+            "{label}: the next command must succeed, exit {:?}: {}\nfirst run said: {said}",
+            status.code,
+            String::from_utf8_lossy(status.stderr.as_slice())
+        ));
     }
     let commits: String = git_text(fixture, repo, &["rev-list", "--count", "HEAD"]);
     let shown: String = String::from_utf8_lossy(status.stdout.as_slice()).into_owned();
     match commits.trim() {
         "1" if shown == "A  a.txt\n" => {
-            let landed = run_unsettled(fixture, repo, &["commit", "--quiet", "--message=x", "--", "a.txt"]);
+            let landed = run_unsettled(
+                fixture,
+                repo,
+                &["commit", "--quiet", "--message=x", "--", "a.txt"],
+            );
             if landed.code != Some(0) {
-                return Err(format!("{label}: the commit after the kill must land, exit {:?}: {}\nfirst run said: {said}", landed.code, String::from_utf8_lossy(landed.stderr.as_slice())));
+                return Err(format!(
+                    "{label}: the commit after the kill must land, exit {:?}: {}\nfirst run said: {said}",
+                    landed.code,
+                    String::from_utf8_lossy(landed.stderr.as_slice())
+                ));
             }
         }
         "2" if shown.is_empty() => {}
-        other => return Err(format!("{label}: {other} commits with status {shown:?}; first run said: {said}")),
+        other => {
+            return Err(format!(
+                "{label}: {other} commits with status {shown:?}; first run said: {said}"
+            ));
+        }
     }
     return verify_recovery_with(fixture, repo, label, said, run_unsettled);
 }
@@ -239,7 +365,9 @@ struct Found {
 
 /// Whether the trace shows the fault took effect.
 fn took_effect(trace: &str) -> bool {
-    return trace.contains("(INJECTED)") || trace.contains("(DELAYED)") || trace.contains("+++ killed by SIGKILL +++");
+    return trace.contains("(INJECTED)")
+        || trace.contains("(DELAYED)")
+        || trace.contains("+++ killed by SIGKILL +++");
 }
 
 /// What:
@@ -275,16 +403,40 @@ fn wait_for_the_fault(trace: &Path) -> String {
 /// the next one
 ///  runs as in production),
 /// and the repository must recover.
-fn service_case(label: &str, fault: &Injection, found: &Found, recover: Recovery) -> Result<(), String> {
+fn service_case(
+    label: &str,
+    fault: &Injection,
+    found: &Found,
+    recover: Recovery,
+) -> Result<(), String> {
     let fixture: Fixture = fixture(label);
     let trace: PathBuf = fixture.root.join("service-trace.txt");
-    *fixture.service_launch.lock().expect("the service launch") =
-        ServiceLaunch { prefix: tracer(trace.as_path(), fault.syscall, Some(fault), fault.follow_forks), may_fail_to_start: true, ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: tracer(
+            trace.as_path(),
+            fault.syscall,
+            Some(fault),
+            fault.follow_forks,
+        ),
+        may_fail_to_start: true,
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
     // A service that is killed is started again by the user manager at the client's next connection; a failing disk does not end it.
-    let run = || { return run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS)); };
-    let output: Output = if matches!(fault.effect, Effect::Kill) { with_manager(&fixture, run) } else { run() };
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let run = || {
+        return run_watched(
+            &fixture,
+            &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+        );
+    };
+    let output: Output = if matches!(fault.effect, Effect::Kill) {
+        with_manager(&fixture, run)
+    } else {
+        run()
+    };
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     end_the_pressure(&fixture);
     let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
     if took_effect(traced.as_str()) {
@@ -293,28 +445,44 @@ fn service_case(label: &str, fault: &Injection, found: &Found, recover: Recovery
     if output.status.code() == Some(0) {
         found.landed.fetch_add(1, Ordering::SeqCst);
     }
-    let verdict: Result<(), String> = check_limited_run(label, &output, false)
-        .and_then(|()| { return recover(&fixture, repo.as_path(), label, said.as_str()); });
+    let verdict: Result<(), String> = check_limited_run(label, &output, false).and_then(|()| {
+        return recover(&fixture, repo.as_path(), label, said.as_str());
+    });
     remove_settled(&fixture);
     return verdict;
 }
 
 /// The busiest process's number of calls of `syscall` in one commit through a traced service.
-fn service_call_count(syscall: &'static str, follow: bool) -> usize {
+fn service_call_count(
+    syscall: &'static str,
+    follow: bool,
+) -> usize {
     let fixture: Fixture = fixture("count-service");
     let trace: PathBuf = fixture.root.join("service-trace.txt");
-    *fixture.service_launch.lock().expect("the service launch") =
-        ServiceLaunch { prefix: tracer(trace.as_path(), syscall, None, follow), ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: tracer(trace.as_path(), syscall, None, follow),
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
-    assert_eq!(output.status.code(), Some(0), "the counting commit lands: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    let output: Output = run_watched(
+        &fixture,
+        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the counting commit lands: {}",
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
     end_the_pressure(&fixture);
     let traced: Result<String, std::io::Error> = std::fs::read_to_string(&trace);
     let count: usize = busiest_count(traced.as_deref().unwrap_or_default(), syscall);
     assert!(
         count > 0 || syscall != "write",
         "the counting commit's trace holds no write at all: {:?}",
-        traced.as_ref().map(|text| { return text.chars().take(400).collect::<String>(); })
+        traced.as_ref().map(|text| {
+            return text.chars().take(400).collect::<String>();
+        })
     );
     remove_settled(&fixture);
     return count;
@@ -322,21 +490,61 @@ fn service_call_count(syscall: &'static str, follow: bool) -> usize {
 
 /// Sweeps one fault over the service's calls:
 /// `effect` at each position of each call in `calls`.
-fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(usize) -> When, follow: bool, recover: Recovery) {
+fn sweep_service(
+    label: &str,
+    calls: &[&'static str],
+    effect: Effect,
+    when: fn(usize) -> When,
+    follow: bool,
+    recover: Recovery,
+) {
     if !strace_available_or_acknowledged(label) {
         return;
     }
-    let counts: Vec<(&'static str, usize)> = calls.iter().map(|syscall| { return (*syscall, service_call_count(syscall, follow)); }).collect();
+    let counts: Vec<(&'static str, usize)> = calls
+        .iter()
+        .map(|syscall| {
+            return (*syscall, service_call_count(syscall, follow));
+        })
+        .collect();
     require_every_listed_call_is_made(label, counts.as_slice());
     let points: Vec<(&'static str, usize)> = sweep_points(counts.as_slice(), POSITIONS_PER_SWEEP);
-    assert!(!points.is_empty(), "the commit made none of the calls {calls:?}: {counts:?}");
-    let found: Found = Found { reached: AtomicUsize::new(0), landed: AtomicUsize::new(0) };
-    let failures: Vec<String> = in_batches(points.as_slice(), &|(syscall, position): &(&'static str, usize)| {
-        let fault: Injection = Injection { syscall, effect, when: when(*position), follow_forks: follow };
-        return service_case(format!("{label}-{syscall}-{position}").as_str(), &fault, &found, recover);
+    assert!(
+        !points.is_empty(),
+        "the commit made none of the calls {calls:?}: {counts:?}"
+    );
+    let found: Found = Found {
+        reached: AtomicUsize::new(0),
+        landed: AtomicUsize::new(0),
+    };
+    let failures: Vec<String> = in_batches(points.as_slice(), &|(syscall, position): &(
+        &'static str,
+        usize,
+    )| {
+        let fault: Injection = Injection {
+            syscall,
+            effect,
+            when: when(*position),
+            follow_forks: follow,
+        };
+        return service_case(
+            format!("{label}-{syscall}-{position}").as_str(),
+            &fault,
+            &found,
+            recover,
+        );
     });
-    assert!(failures.is_empty(), "{} of {} faults left the repository unrecovered (call counts {counts:?}):\n{}", failures.len(), points.len(), failures.join("\n"));
-    assert!(found.reached.load(Ordering::SeqCst) > 0, "no run reached its fault, so the sweep tested nothing (call counts {counts:?})");
+    assert!(
+        failures.is_empty(),
+        "{} of {} faults left the repository unrecovered (call counts {counts:?}):\n{}",
+        failures.len(),
+        points.len(),
+        failures.join("\n")
+    );
+    assert!(
+        found.reached.load(Ordering::SeqCst) > 0,
+        "no run reached its fault, so the sweep tested nothing (call counts {counts:?})"
+    );
     // The manager starts a killed service again, so the client's resend must land at least some of the commits it interrupted.
     assert!(
         !matches!(effect, Effect::Kill) || found.landed.load(Ordering::SeqCst) > 0,
@@ -350,21 +558,53 @@ fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(u
 /// The resend after a kill is covered on its own by
 /// `binary_service_tests.rs` (`a_client_that_disappears_after_sending_still_lands_once`),
 /// so this control does not require one of its own kills to land a commit.
-fn sweep_service_call(label: &str, syscall: &'static str, recover: Recovery) {
+fn sweep_service_call(
+    label: &str,
+    syscall: &'static str,
+    recover: Recovery,
+) {
     if !strace_available_or_acknowledged(label) {
         return;
     }
-    assert!(KILL_CALLS.contains(&syscall), "{label} has no kill control for {syscall}, so a control here would test what its list does not name");
+    assert!(
+        KILL_CALLS.contains(&syscall),
+        "{label} has no kill control for {syscall}, so a control here would test what its list does not name"
+    );
     let count: usize = service_call_count(syscall, false);
     require_every_listed_call_is_made(label, &[(syscall, count)]);
     let points: Vec<(&'static str, usize)> = sweep_points(&[(syscall, count)], POSITIONS_PER_CALL);
-    let found: Found = Found { reached: AtomicUsize::new(0), landed: AtomicUsize::new(0) };
-    let failures: Vec<String> = in_batches(points.as_slice(), &|(_, position): &(&'static str, usize)| {
-        let fault: Injection = Injection { syscall, effect: Effect::Kill, when: When::Nth(*position), follow_forks: false };
-        return service_case(format!("{label}-{syscall}-{position}").as_str(), &fault, &found, recover);
+    let found: Found = Found {
+        reached: AtomicUsize::new(0),
+        landed: AtomicUsize::new(0),
+    };
+    let failures: Vec<String> = in_batches(points.as_slice(), &|(_, position): &(
+        &'static str,
+        usize,
+    )| {
+        let fault: Injection = Injection {
+            syscall,
+            effect: Effect::Kill,
+            when: When::Nth(*position),
+            follow_forks: false,
+        };
+        return service_case(
+            format!("{label}-{syscall}-{position}").as_str(),
+            &fault,
+            &found,
+            recover,
+        );
     });
-    assert!(failures.is_empty(), "{} of {} kills left the repository unrecovered ({syscall} count {count}):\n{}", failures.len(), points.len(), failures.join("\n"));
-    assert!(found.reached.load(Ordering::SeqCst) > 0, "no run was killed, so the sweep tested nothing ({syscall} count {count})");
+    assert!(
+        failures.is_empty(),
+        "{} of {} kills left the repository unrecovered ({syscall} count {count}):\n{}",
+        failures.len(),
+        points.len(),
+        failures.join("\n")
+    );
+    assert!(
+        found.reached.load(Ordering::SeqCst) > 0,
+        "no run was killed, so the sweep tested nothing ({syscall} count {count})"
+    );
 }
 
 /// Requires that every call the service kill list names is one the commit makes.
@@ -372,7 +612,12 @@ fn require_the_service_kill_list_is_made() {
     if !strace_available_or_acknowledged("the service kill list") {
         return;
     }
-    let counts: Vec<(&'static str, usize)> = KILL_CALLS.iter().map(|syscall| { return (*syscall, service_call_count(syscall, false)); }).collect();
+    let counts: Vec<(&'static str, usize)> = KILL_CALLS
+        .iter()
+        .map(|syscall| {
+            return (*syscall, service_call_count(syscall, false));
+        })
+        .collect();
     require_every_listed_call_is_made("the service kill list", counts.as_slice());
 }
 
@@ -382,14 +627,28 @@ fn require_the_service_kill_list_is_made() {
 /// fails with no space left.
 #[test]
 fn a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository() {
-    sweep_service("full-disk", &STORAGE_CALLS, Effect::Fail("ENOSPC"), When::FromNth, true, recovers_any_way);
+    sweep_service(
+        "full-disk",
+        &STORAGE_CALLS,
+        Effect::Fail("ENOSPC"),
+        When::FromNth,
+        true,
+        recovers_any_way,
+    );
 }
 
 /// The storage fails with an input/output error from the `n`th call on,
 /// in the service and in each Git it starts.
 #[test]
 fn storage_that_fails_during_a_commit_leaves_a_recoverable_repository() {
-    sweep_service("io-error", &STORAGE_CALLS, Effect::Fail("EIO"), When::FromNth, true, recovers_any_way);
+    sweep_service(
+        "io-error",
+        &STORAGE_CALLS,
+        Effect::Fail("EIO"),
+        When::FromNth,
+        true,
+        recovers_any_way,
+    );
 }
 
 /// Every call the service kill list names is one the commit makes.
@@ -431,7 +690,11 @@ fn a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository() {
 /// and no commit is lost or doubled.
 #[test]
 fn a_service_killed_at_each_copy_file_range_leaves_a_recoverable_repository() {
-    sweep_service_call("service-kill", "copy_file_range", recovers_after_service_death);
+    sweep_service_call(
+        "service-kill",
+        "copy_file_range",
+        recovers_after_service_death,
+    );
 }
 
 /// The service is killed at each `openat` it makes in a commit:
@@ -527,17 +790,45 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     }
     let fixture: Fixture = fixture("slow-flush");
     let trace: PathBuf = fixture.root.join("service-trace.txt");
-    let fault: Injection = Injection { syscall: "fsync,fdatasync", effect: Effect::SlowReturn(SLOW_FLUSH_MICROSECONDS), when: When::FromNth(1), follow_forks: true };
-    *fixture.service_launch.lock().expect("the service launch") =
-        ServiceLaunch { prefix: tracer(trace.as_path(), fault.syscall, Some(&fault), true), ..ServiceLaunch::default() };
+    let fault: Injection = Injection {
+        syscall: "fsync,fdatasync",
+        effect: Effect::SlowReturn(SLOW_FLUSH_MICROSECONDS),
+        when: When::FromNth(1),
+        follow_forks: true,
+    };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: tracer(trace.as_path(), fault.syscall, Some(&fault), true),
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
-    assert_eq!(output.status.code(), Some(0), "a slow flush only delays the commit: {said}");
+    let output: Output = run_watched(
+        &fixture,
+        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+    );
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a slow flush only delays the commit: {said}"
+    );
     end_the_pressure(&fixture);
     let traced: String = wait_for_the_fault(trace.as_path());
-    assert!(took_effect(traced.as_str()), "no flush was delayed, so nothing was tested: {traced}");
-    assert_eq!(verify_recovery_with(&fixture, repo.as_path(), "slow-flush", said.as_str(), run_unsettled), Ok(()));
+    assert!(
+        took_effect(traced.as_str()),
+        "no flush was delayed, so nothing was tested: {traced}"
+    );
+    assert_eq!(
+        verify_recovery_with(
+            &fixture,
+            repo.as_path(),
+            "slow-flush",
+            said.as_str(),
+            run_unsettled
+        ),
+        Ok(())
+    );
     remove_settled(&fixture);
 }
 
@@ -549,18 +840,33 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
 /// and must
 ///  land too ("what Git completes,
 /// we complete").
-fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
+fn commit_lands_while_calls_are_refused(
+    label: &str,
+    calls: &'static str,
+) {
     if !strace_available_or_acknowledged(label) {
         return;
     }
-    let fault: Injection = Injection { syscall: calls, effect: Effect::Fail("EOPNOTSUPP"), when: When::FromNth(1), follow_forks: true };
+    let fault: Injection = Injection {
+        syscall: calls,
+        effect: Effect::Fail("EOPNOTSUPP"),
+        when: When::FromNth(1),
+        follow_forks: true,
+    };
     let native: Fixture = fixture(format!("{label}-native").as_str());
     let native_trace: PathBuf = native.root.join("native-trace.txt");
     let native_repo: PathBuf = staged_repository(&native, "repo");
     let words: Vec<OsString> = tracer(native_trace.as_path(), fault.syscall, Some(&fault), true);
     let mut control: Command = Command::new(&words[0]);
-    control.args(&words[1..]).arg("/usr/bin/git").args(COMMIT_ARGUMENTS);
-    hermetic(&mut control, &native, OsString::from("/usr/bin:/bin").as_os_str());
+    control
+        .args(&words[1..])
+        .arg("/usr/bin/git")
+        .args(COMMIT_ARGUMENTS);
+    hermetic(
+        &mut control,
+        &native,
+        OsString::from("/usr/bin:/bin").as_os_str(),
+    );
     control.current_dir(native_repo.as_path());
     let native_output: Output = run_watched(&native, &mut control);
     assert_eq!(
@@ -572,16 +878,39 @@ fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
     remove_settled(&native);
     let fixture: Fixture = fixture(label);
     let trace: PathBuf = fixture.root.join("service-trace.txt");
-    *fixture.service_launch.lock().expect("the service launch") =
-        ServiceLaunch { prefix: tracer(trace.as_path(), fault.syscall, Some(&fault), true), ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: tracer(trace.as_path(), fault.syscall, Some(&fault), true),
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let output: Output = run_watched(
+        &fixture,
+        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+    );
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     end_the_pressure(&fixture);
     let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
-    assert!(took_effect(traced.as_str()), "no link was refused, so nothing was tested: {traced}");
-    assert_eq!(output.status.code(), Some(0), "the commit lands although links are refused: {said}");
-    assert_eq!(verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled), Ok(()));
+    assert!(
+        took_effect(traced.as_str()),
+        "no link was refused, so nothing was tested: {traced}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the commit lands although links are refused: {said}"
+    );
+    assert_eq!(
+        verify_recovery_with(
+            &fixture,
+            repo.as_path(),
+            label,
+            said.as_str(),
+            run_unsettled
+        ),
+        Ok(())
+    );
     remove_settled(&fixture);
 }
 
@@ -611,11 +940,25 @@ mod lock_without_links;
 
 /// The wrapper under a tracer that injects `fault`,
 /// for the flow in `repo`.
-fn traced_wrapper(fixture: &Fixture, directory: &Path, arguments: &[&str], trace: &Path, syscall: &str, fault: Option<&Injection>) -> Command {
+fn traced_wrapper(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+    trace: &Path,
+    syscall: &str,
+    fault: Option<&Injection>,
+) -> Command {
     let words: Vec<OsString> = tracer(trace, syscall, fault, false);
     let mut command: Command = Command::new(&words[0]);
-    command.args(&words[1..]).arg(fixture.root.join("bin/git")).args(arguments);
-    hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
+    command
+        .args(&words[1..])
+        .arg(fixture.root.join("bin/git"))
+        .args(arguments);
+    hermetic(
+        &mut command,
+        fixture,
+        wrapper_first_path(fixture).as_os_str(),
+    );
     if let Some(runtime) = service_runtime(fixture) {
         command.env("XDG_RUNTIME_DIR", runtime);
     }
@@ -652,26 +995,67 @@ struct Flow {
 }
 
 /// How many calls of `syscall` the wrapper makes in a flow with no fault.
-fn flow_call_count(flow: &Flow, syscall: &'static str) -> usize {
+fn flow_call_count(
+    flow: &Flow,
+    syscall: &'static str,
+) -> usize {
     let fixture: Fixture = fixture(format!("count-{}", flow.name).as_str());
     let repo: PathBuf = (flow.setup)(&fixture);
     let trace: PathBuf = fixture.root.join("wrapper-trace.txt");
-    let output: Output = run_watched(&fixture, &mut traced_wrapper(&fixture, repo.as_path(), flow.arguments, trace.as_path(), syscall, None));
-    assert_eq!(output.status.code(), Some(0), "the counting run of {} ends well: {}", flow.name, String::from_utf8_lossy(output.stderr.as_slice()));
-    let count: usize = busiest_count(std::fs::read_to_string(&trace).unwrap_or_default().as_str(), syscall);
+    let output: Output = run_watched(
+        &fixture,
+        &mut traced_wrapper(
+            &fixture,
+            repo.as_path(),
+            flow.arguments,
+            trace.as_path(),
+            syscall,
+            None,
+        ),
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the counting run of {} ends well: {}",
+        flow.name,
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    let count: usize = busiest_count(
+        std::fs::read_to_string(&trace).unwrap_or_default().as_str(),
+        syscall,
+    );
     remove_settled(&fixture);
     return count;
 }
 
 /// Whether a fixture root on `root`'s file system has `flow` make `call`:
 /// every call but the ones a file-system fact decides, which that fact answers.
-fn flow_makes(flow: &Flow, call: &str, root: &Path) -> bool {
-    return flow.decided_by_the_file_system.iter().all(|(decided, holds)| { return *decided != call || holds(root); });
+fn flow_makes(
+    flow: &Flow,
+    call: &str,
+    root: &Path,
+) -> bool {
+    return flow
+        .decided_by_the_file_system
+        .iter()
+        .all(|(decided, holds)| {
+            return *decided != call || holds(root);
+        });
 }
 
 /// The calls of `flow`'s kill list for a fixture root on `root`'s file system.
-fn kill_calls(flow: &Flow, root: &Path) -> Vec<&'static str> {
-    return flow.killed_at.iter().copied().filter(|call| { return flow_makes(flow, call, root); }).collect();
+fn kill_calls(
+    flow: &Flow,
+    root: &Path,
+) -> Vec<&'static str> {
+    return flow
+        .killed_at
+        .iter()
+        .copied()
+        .filter(|call| {
+            return flow_makes(flow, call, root);
+        })
+        .collect();
 }
 
 /// The wrapper is killed at the `n`th call of `syscall` in `flow`;
@@ -680,7 +1064,10 @@ fn kill_calls(flow: &Flow, root: &Path) -> Vec<&'static str> {
 ///  recover the repository.
 /// One control covers one call,
 /// so each call's positions stay inside the per-test limit.
-fn sweep_wrapper_kill(flow: &Flow, syscall: &'static str) {
+fn sweep_wrapper_kill(
+    flow: &Flow,
+    syscall: &'static str,
+) {
     if !strace_available_or_acknowledged(flow.name) {
         return;
     }
@@ -693,23 +1080,50 @@ fn sweep_wrapper_kill(flow: &Flow, syscall: &'static str) {
     require_every_listed_call_is_made(flow.name, &[(syscall, count)]);
     let points: Vec<(&'static str, usize)> = sweep_points(&[(syscall, count)], POSITIONS_PER_CALL);
     let killed: AtomicUsize = AtomicUsize::new(0);
-    let failures: Vec<String> = in_batches(points.as_slice(), &|(_, position): &(&'static str, usize)| {
+    let failures: Vec<String> = in_batches(points.as_slice(), &|(_, position): &(
+        &'static str,
+        usize,
+    )| {
         let label: String = format!("kill-{}-{syscall}-{position}", flow.name);
         let fixture: Fixture = fixture(label.as_str());
         let repo: PathBuf = (flow.setup)(&fixture);
         let trace: PathBuf = fixture.root.join("wrapper-trace.txt");
-        let fault: Injection = Injection { syscall, effect: Effect::Kill, when: When::Nth(*position), follow_forks: false };
-        let mut command: Command = traced_wrapper(&fixture, repo.as_path(), flow.arguments, trace.as_path(), syscall, Some(&fault));
+        let fault: Injection = Injection {
+            syscall,
+            effect: Effect::Kill,
+            when: When::Nth(*position),
+            follow_forks: false,
+        };
+        let mut command: Command = traced_wrapper(
+            &fixture,
+            repo.as_path(),
+            flow.arguments,
+            trace.as_path(),
+            syscall,
+            Some(&fault),
+        );
         let output: Output = spawn_watched(&fixture, &mut command).finish_after_stragglers();
         if took_effect(std::fs::read_to_string(&trace).unwrap_or_default().as_str()) {
             killed.fetch_add(1, Ordering::SeqCst);
         }
-        let verdict: Result<(), String> = (flow.recovered)(&fixture, repo.as_path(), &output).map_err(|message| { return format!("{label}: {message}"); });
+        let verdict: Result<(), String> = (flow.recovered)(&fixture, repo.as_path(), &output)
+            .map_err(|message| {
+                return format!("{label}: {message}");
+            });
         remove_settled(&fixture);
         return verdict;
     });
-    assert!(failures.is_empty(), "{} of {} kills left the repository unrecovered ({syscall} count {count}):\n{}", failures.len(), points.len(), failures.join("\n"));
-    assert!(killed.load(Ordering::SeqCst) > 0, "no run was killed, so the sweep tested nothing ({syscall} count {count})");
+    assert!(
+        failures.is_empty(),
+        "{} of {} kills left the repository unrecovered ({syscall} count {count}):\n{}",
+        failures.len(),
+        points.len(),
+        failures.join("\n")
+    );
+    assert!(
+        killed.load(Ordering::SeqCst) > 0,
+        "no run was killed, so the sweep tested nothing ({syscall} count {count})"
+    );
 }
 
 /// Requires that every call a flow's kill controls cover is one the flow makes,
@@ -719,7 +1133,12 @@ fn require_the_kill_list_is_made(flow: &Flow) {
         return;
     }
     let root: PathBuf = fixture_root();
-    let counts: Vec<(&'static str, usize)> = kill_calls(flow, root.as_path()).into_iter().map(|syscall| { return (syscall, flow_call_count(flow, syscall)); }).collect();
+    let counts: Vec<(&'static str, usize)> = kill_calls(flow, root.as_path())
+        .into_iter()
+        .map(|syscall| {
+            return (syscall, flow_call_count(flow, syscall));
+        })
+        .collect();
     require_every_listed_call_is_made(flow.name, counts.as_slice());
 }
 
@@ -738,33 +1157,60 @@ fn merge_setup(fixture: &Fixture) -> PathBuf {
 ///  staged work is intact;
 /// nothing is left;
 /// the merge can be asked for again.
-fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
+fn merge_recovered(
+    fixture: &Fixture,
+    repo: &Path,
+    killed: &Output,
+) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
-        return Err(format!("the next command must succeed, exit {:?}: {} (the killed run: {:?})", status.code, String::from_utf8_lossy(status.stderr.as_slice()), killed.status));
+        return Err(format!(
+            "the next command must succeed, exit {:?}: {} (the killed run: {:?})",
+            status.code,
+            String::from_utf8_lossy(status.stderr.as_slice()),
+            killed.status
+        ));
     }
-    let merges: String = super::commit::git_text(fixture, repo, &["rev-list", "--count", "--merges", "HEAD"]);
+    let merges: String =
+        super::commit::git_text(fixture, repo, &["rev-list", "--count", "--merges", "HEAD"]);
     let shown: String = String::from_utf8_lossy(status.stdout.as_slice()).into_owned();
     let staged_lines: Vec<&str> = shown.lines().collect();
     let other_work_intact: bool = staged_lines.len() == 3
-        && staged_lines.iter().any(|line| { return line.starts_with("M  u.txt"); })
-        && staged_lines.iter().any(|line| { return line.starts_with("A  new.txt"); })
-        && staged_lines.iter().any(|line| { return line.starts_with("D  v.txt"); });
+        && staged_lines.iter().any(|line| {
+            return line.starts_with("M  u.txt");
+        })
+        && staged_lines.iter().any(|line| {
+            return line.starts_with("A  new.txt");
+        })
+        && staged_lines.iter().any(|line| {
+            return line.starts_with("D  v.txt");
+        });
     if merges.trim() == "1" && !other_work_intact {
-        return Err(format!("the merge landed but the other session's staged work is not what it was: {shown:?}"));
+        return Err(format!(
+            "the merge landed but the other session's staged work is not what it was: {shown:?}"
+        ));
     }
     if merges.trim() == "0" && shown.lines().count() < 3 {
-        return Err(format!("no merge landed but staged work is missing: {shown:?}"));
+        return Err(format!(
+            "no merge landed but staged work is missing: {shown:?}"
+        ));
     }
     if repo.join(".git/index.lock").exists() {
         return Err(String::from("the index lock stays"));
     }
     // A record being written is a dot-file that is renamed into place; one left by a kill is no record, no reader takes it, and
     //  a later merge does not trip on it.
-    let records: Vec<PathBuf> = super::merge_isolation::records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path())
-        .into_iter()
-        .filter(|path| { return path.extension().is_none_or(|extension| { return extension != "partial"; }); })
-        .collect();
+    let records: Vec<PathBuf> = super::merge_isolation::records_in(
+        repo.join(".git/monochromatic-git-policy-cli-merges")
+            .as_path(),
+    )
+    .into_iter()
+    .filter(|path| {
+        return path.extension().is_none_or(|extension| {
+            return extension != "partial";
+        });
+    })
+    .collect();
     if !records.is_empty() {
         return Err(format!("the merge's records stay: {records:?}"));
     }
@@ -777,11 +1223,18 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
         .output()
         .expect("git fsck starts");
     if !checked.status.success() || !checked.stderr.is_empty() {
-        return Err(format!("git fsck: {}", String::from_utf8_lossy(&checked.stderr)));
+        return Err(format!(
+            "git fsck: {}",
+            String::from_utf8_lossy(&checked.stderr)
+        ));
     }
     let again = run_unsettled(fixture, repo, &["merge", "--no-edit", "feature"]);
     if again.code != Some(0) {
-        return Err(format!("the merge asked for again must end well, exit {:?}: {}", again.code, String::from_utf8_lossy(again.stderr.as_slice())));
+        return Err(format!(
+            "the merge asked for again must end well, exit {:?}: {}",
+            again.code,
+            String::from_utf8_lossy(again.stderr.as_slice())
+        ));
     }
     return Ok(());
 }
@@ -796,7 +1249,18 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
 /// `openat`,
 /// `ftruncate` and `mkdir` are every other state-changing call the flow makes,
 /// and `openat` counts reads too because `strace --inject` names a call and an ordinal over all of them.
-const MERGE_KILL_CALLS: [&str; 10] = ["write", "pwrite64", "fsync", "ftruncate", "openat", "rename", "renameat2", "unlink", "mkdir", "clone3"];
+const MERGE_KILL_CALLS: [&str; 10] = [
+    "write",
+    "pwrite64",
+    "fsync",
+    "ftruncate",
+    "openat",
+    "rename",
+    "renameat2",
+    "unlink",
+    "mkdir",
+    "clone3",
+];
 
 /// The merge flow's shape,
 /// shared by each of its kill controls.
@@ -896,13 +1360,25 @@ fn copy_setup(fixture: &Fixture) -> PathBuf {
 /// The names a directory holds,
 /// or none when it does not exist.
 fn names_in(directory: &Path) -> Vec<String> {
-    return std::fs::read_dir(directory).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
+    return std::fs::read_dir(directory)
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        })
+        .unwrap_or_default();
 }
 
 /// Real Git's answer to `git -C directory arguments`,
 /// with no system or global configuration,
 /// which is what a walk of a checkout's ignored entries needs.
-fn real_git_text(directory: &Path, arguments: &[&str]) -> Vec<u8> {
+fn real_git_text(
+    directory: &Path,
+    arguments: &[&str],
+) -> Vec<u8> {
     let output: Output = Command::new("/usr/bin/git")
         .current_dir(directory)
         .args(arguments)
@@ -911,7 +1387,12 @@ fn real_git_text(directory: &Path, arguments: &[&str]) -> Vec<u8> {
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .output()
         .expect("real Git starts");
-    assert!(output.status.success(), "git {arguments:?} in {}: {}", directory.display(), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(
+        output.status.success(),
+        "git {arguments:?} in {}: {}",
+        directory.display(),
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
     return output.stdout;
 }
 
@@ -929,12 +1410,26 @@ fn ignored_state(where_: &Path) -> std::collections::BTreeMap<Vec<u8>, String> {
     if !where_.join(".git").exists() {
         return state;
     }
-    let listed: Vec<u8> = real_git_text(where_, &["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
-    for name in listed.split(|byte| { return *byte == 0_u8; }) {
+    let listed: Vec<u8> = real_git_text(
+        where_,
+        &[
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "-z",
+        ],
+    );
+    for name in listed.split(|byte| {
+        return *byte == 0_u8;
+    }) {
         if name.is_empty() {
             continue;
         }
-        let text: &Path = Path::new(std::ffi::OsStr::from_bytes(name.strip_suffix(b"/").unwrap_or(name)));
+        let text: &Path = Path::new(std::ffi::OsStr::from_bytes(
+            name.strip_suffix(b"/").unwrap_or(name),
+        ));
         visit_ignored(where_, text, &mut state);
     }
     return state;
@@ -945,25 +1440,50 @@ fn ignored_state(where_: &Path) -> std::collections::BTreeMap<Vec<u8>, String> {
 /// Why:
 ///   A comparison of two checkouts must see the files a copy installs,
 /// not the directory a listing collapses them into.
-fn visit_ignored(where_: &Path, relative: &Path, state: &mut std::collections::BTreeMap<Vec<u8>, String>) {
+fn visit_ignored(
+    where_: &Path,
+    relative: &Path,
+    state: &mut std::collections::BTreeMap<Vec<u8>, String>,
+) {
     use std::os::unix::ffi::OsStrExt as _;
     use std::os::unix::fs::MetadataExt as _;
     let path: PathBuf = where_.join(relative);
-    let Ok(held) = std::fs::symlink_metadata(path.as_path()) else { return };
+    let Ok(held) = std::fs::symlink_metadata(path.as_path()) else {
+        return;
+    };
     let name: Vec<u8> = relative.as_os_str().as_bytes().to_vec();
     if held.file_type().is_symlink() {
-        state.insert(name, format!("link:{}", std::fs::read_link(path.as_path()).expect("target").to_string_lossy()));
+        state.insert(
+            name,
+            format!(
+                "link:{}",
+                std::fs::read_link(path.as_path())
+                    .expect("target")
+                    .to_string_lossy()
+            ),
+        );
         return;
     }
     if held.is_dir() {
         state.insert(name, format!("dir:{:o}", held.mode() & 0o7777));
-        for entry in std::fs::read_dir(path.as_path()).expect("directory").flatten() {
+        for entry in std::fs::read_dir(path.as_path())
+            .expect("directory")
+            .flatten()
+        {
             visit_ignored(where_, relative.join(entry.file_name()).as_path(), state);
         }
         return;
     }
     let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
-    state.insert(name, format!("file:{:o}:{}:{}", held.mode() & 0o7777, bytes.len(), git_policy_cli::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes.as_slice())));
+    state.insert(
+        name,
+        format!(
+            "file:{:o}:{}:{}",
+            held.mode() & 0o7777,
+            bytes.len(),
+            git_policy_cli::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes.as_slice())
+        ),
+    );
 }
 
 /// After a worktree add killed anywhere:
@@ -979,10 +1499,19 @@ fn visit_ignored(where_: &Path, relative: &Path, state: &mut std::collections::B
 /// A kill before Git made the destination leaves a record the recovery keeps until the window in which that Git may
 /// still be creating it has passed,
 /// and the same command works again.
-fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
+fn copy_recovered(
+    fixture: &Fixture,
+    repo: &Path,
+    killed: &Output,
+) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
-        return Err(format!("the next command must succeed, exit {:?}: {} (the killed run: {:?})", status.code, String::from_utf8_lossy(status.stderr.as_slice()), killed.status));
+        return Err(format!(
+            "the next command must succeed, exit {:?}: {} (the killed run: {:?})",
+            status.code,
+            String::from_utf8_lossy(status.stderr.as_slice()),
+            killed.status
+        ));
     }
     let worktree: PathBuf = fixture.root.join("one");
     // Whether Git made the worktree at all: a kill before its Git ran leaves a record whose Git process was never named,
@@ -992,36 +1521,87 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
     // which worktree it filled or left unfilled, and a linked worktree runs such a pass before it forwards too.
     let mut told: String = String::from_utf8_lossy(status.stderr.as_slice()).into_owned();
     if made_by_git {
-        let inside = run_unsettled(fixture, worktree.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+        let inside = run_unsettled(
+            fixture,
+            worktree.as_path(),
+            &["rev-parse", "--is-inside-work-tree"],
+        );
         if inside.code != Some(0) {
-            return Err(format!("the worktree Git made must answer, exit {:?}: {}", inside.code, String::from_utf8_lossy(inside.stderr.as_slice())));
+            return Err(format!(
+                "the worktree Git made must answer, exit {:?}: {}",
+                inside.code,
+                String::from_utf8_lossy(inside.stderr.as_slice())
+            ));
         }
         told.push_str(String::from_utf8_lossy(inside.stderr.as_slice()).as_ref());
     } else {
         // Git had not made it (or its half-made directory was removed by Git's own cleanup): the same command works again.
         let _pruned = run_unsettled(fixture, repo, &["worktree", "prune"]);
         let _removed = std::fs::remove_dir_all(&worktree);
-        let again = run_unsettled(fixture, repo, &["worktree", "add", "--quiet", "-b", "one-again", "../one"]);
+        let again = run_unsettled(
+            fixture,
+            repo,
+            &["worktree", "add", "--quiet", "-b", "one-again", "../one"],
+        );
         told.push_str(String::from_utf8_lossy(again.stderr.as_slice()).as_ref());
         if again.code != Some(0) {
             // The branch name of the killed run may exist: that is Git's answer, not a wrapper defect, when it says so.
             let words: String = String::from_utf8_lossy(again.stderr.as_slice()).into_owned();
             if !words.contains("already exists") {
-                return Err(format!("the worktree add asked for again must end well, exit {:?}: {words}", again.code));
+                return Err(format!(
+                    "the worktree add asked for again must end well, exit {:?}: {words}",
+                    again.code
+                ));
             }
         }
     }
     let made: bool = worktree.join(".git").exists();
     if !made {
-        return Err(format!("the next commands made no worktree at {}: {told:?}", worktree.display()));
+        return Err(format!(
+            "the next commands made no worktree at {}: {told:?}",
+            worktree.display()
+        ));
     }
     let source_state: std::collections::BTreeMap<Vec<u8>, String> = ignored_state(repo);
-    let worktree_state: std::collections::BTreeMap<Vec<u8>, String> = ignored_state(worktree.as_path());
+    let worktree_state: std::collections::BTreeMap<Vec<u8>, String> =
+        ignored_state(worktree.as_path());
     if source_state != worktree_state {
-        let missing: Vec<String> = source_state.keys().filter(|name| { return !worktree_state.contains_key(*name); }).map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
-        let differing: Vec<String> = source_state.iter().filter(|(name, value)| { return worktree_state.get(*name).is_some_and(|found| { return found != *value; }); }).map(|(name, value)| { return format!("{}: {} is not {value}", String::from_utf8_lossy(name), worktree_state.get(name).cloned().unwrap_or_default()); }).collect();
-        let extra: Vec<String> = worktree_state.keys().filter(|name| { return !source_state.contains_key(*name); }).map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
-        return Err(format!("the worktree does not hold the ignored state of its source: missing {missing:?}, differing {differing:?}, extra {extra:?}; the next commands said {told:?}"));
+        let missing: Vec<String> = source_state
+            .keys()
+            .filter(|name| {
+                return !worktree_state.contains_key(*name);
+            })
+            .map(|name| {
+                return String::from_utf8_lossy(name).into_owned();
+            })
+            .collect();
+        let differing: Vec<String> = source_state
+            .iter()
+            .filter(|(name, value)| {
+                return worktree_state.get(*name).is_some_and(|found| {
+                    return found != *value;
+                });
+            })
+            .map(|(name, value)| {
+                return format!(
+                    "{}: {} is not {value}",
+                    String::from_utf8_lossy(name),
+                    worktree_state.get(name).cloned().unwrap_or_default()
+                );
+            })
+            .collect();
+        let extra: Vec<String> = worktree_state
+            .keys()
+            .filter(|name| {
+                return !source_state.contains_key(*name);
+            })
+            .map(|name| {
+                return String::from_utf8_lossy(name).into_owned();
+            })
+            .collect();
+        return Err(format!(
+            "the worktree does not hold the ignored state of its source: missing {missing:?}, differing {differing:?}, extra {extra:?}; the next commands said {told:?}"
+        ));
     }
     // A record of an add whose Git never made its destination may stay: the recovery keeps a record that names no Git until
     // the window in which that Git may still be creating the destination has passed, and settles it then, saying nothing
@@ -1032,11 +1612,20 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
     let journal_root: PathBuf = repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1");
     let left: Vec<String> = names_in(journal_root.as_path());
     if !left.is_empty() {
-        return Err(format!("records of the copy stay after the next commands: {left:?}"));
+        return Err(format!(
+            "records of the copy stay after the next commands: {left:?}"
+        ));
     }
-    let staging: Vec<String> = names_in(fixture.root.as_path()).into_iter().filter(|name| { return name.starts_with(".cli-git-worktree-copy-"); }).collect();
+    let staging: Vec<String> = names_in(fixture.root.as_path())
+        .into_iter()
+        .filter(|name| {
+            return name.starts_with(".cli-git-worktree-copy-");
+        })
+        .collect();
     if !staging.is_empty() {
-        return Err(format!("a stage of the copy stays beside the worktree: {staging:?}; the next commands said {told:?}"));
+        return Err(format!(
+            "a stage of the copy stays beside the worktree: {staging:?}; the next commands said {told:?}"
+        ));
     }
     return Ok(());
 }
@@ -1061,7 +1650,20 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
 /// `openat` counts reads too,
 /// because `strace --inject` names a call and an ordinal over all of them.
 const COPY_KILL_CALLS: [&str; 14] = [
-    "write", "pwrite64", "fsync", "ftruncate", "openat", "openat2", "rename", "renameat2", "unlink", "rmdir", "mkdir", "chmod", "ioctl", "clone3",
+    "write",
+    "pwrite64",
+    "fsync",
+    "ftruncate",
+    "openat",
+    "openat2",
+    "rename",
+    "renameat2",
+    "unlink",
+    "rmdir",
+    "mkdir",
+    "chmod",
+    "ioctl",
+    "clone3",
 ];
 
 /// The worktree-copy flow's shape,
@@ -1188,7 +1790,10 @@ fn a_worktree_copy_killed_at_each_chmod_leaves_a_recoverable_repository() {
 fn a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository() {
     let root: PathBuf = fixture_root();
     if !flow_makes(&copy_flow(), "ioctl", root.as_path()) {
-        let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+        let acknowledged: bool =
+            std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| {
+                return !value.is_empty();
+            });
         assert!(
             acknowledged,
             "the control needs a fixture root on a file system that shares data blocks between files, so the copy flow \
@@ -1196,7 +1801,10 @@ fn a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository() {
              or set {ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
             root.display()
         );
-        eprintln!("skipped: the fixture root {} is on a file system that shares no data blocks between files, so the copy flow clones nothing and makes no ioctl", root.display());
+        eprintln!(
+            "skipped: the fixture root {} is on a file system that shares no data blocks between files, so the copy flow clones nothing and makes no ioctl",
+            root.display()
+        );
         return;
     }
     sweep_wrapper_kill(&copy_flow(), "ioctl");

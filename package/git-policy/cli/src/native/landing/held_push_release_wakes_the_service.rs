@@ -30,12 +30,26 @@
 //! wakeTheService(gitDir); // route from the environment, provision, wake; a failure is not the command's
 //! ```
 
-use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
+use crate::service_client::{
+    Activation,
+    ClientConfig,
+    manager_watch_for,
+    wake,
+};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
-use crate::service_route::{Route, route_from_environment};
+use crate::service_route::{
+    Route,
+    route_from_environment,
+};
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::{
+    ANSWER_CEILING,
+    HAND_OVER_GREETING_WAIT,
+    SHORT_EXTRA_WAIT,
+    WITHDRAW_CEILING,
+    waiting_notice_after,
+};
 use std::path::Path;
 
 /// What:
@@ -52,7 +66,10 @@ use std::path::Path;
 /// ```
 pub trait WakeTheService {
     /// Says that a repository has a runnable record now.
-    fn wake(&self, git_dir: &Path);
+    fn wake(
+        &self,
+        git_dir: &Path,
+    );
 
     /// What:
     ///  Says that the push records `records` can no longer run,
@@ -63,7 +80,11 @@ pub trait WakeTheService {
     ///  was given live in the service's memory alone (`service_push_programs_held_in_memory`).
     /// Best effort,
     /// as the wake is.
-    fn forget_programs(&self, git_dir: &Path, records: &[String]);
+    fn forget_programs(
+        &self,
+        git_dir: &Path,
+        records: &[String],
+    );
 }
 
 /// What:
@@ -127,7 +148,11 @@ fn client_config(route: &Route) -> ClientConfig {
 /// ```ts
 /// forgetProgramsThrough(route, gitDir, recordIds); // ask the manager, then tell only a running service
 /// ```
-fn forget_programs_through(route: &Route, git_dir: &Path, records: &[String]) {
+fn forget_programs_through(
+    route: &Route,
+    git_dir: &Path,
+    records: &[String],
+) {
     if records.is_empty() {
         return;
     }
@@ -136,11 +161,15 @@ fn forget_programs_through(route: &Route, git_dir: &Path, records: &[String]) {
         return;
     }
     // The service asked above is the one told, so nothing here waits for a start or reports one.
-    let _forgotten: Result<(), crate::service_messages::ClientFailure> = crate::service_client_wake::forget_programs(&config, git_dir, records);
+    let _forgotten: Result<(), crate::service_messages::ClientFailure> =
+        crate::service_client_wake::forget_programs(&config, git_dir, records);
 }
 
 impl WakeTheService for AskTheService<'_> {
-    fn wake(&self, git_dir: &Path) {
+    fn wake(
+        &self,
+        git_dir: &Path,
+    ) {
         let Some(route) = route_from_environment(self.context.real_git.as_path(), git_dir) else {
             return;
         };
@@ -152,10 +181,15 @@ impl WakeTheService for AskTheService<'_> {
         let config: ClientConfig = client_config(&route);
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.
         let mut silent: std::io::Sink = std::io::sink();
-        let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &[], &mut silent);
+        let _woken: Result<(), crate::service_messages::ClientFailure> =
+            wake(&config, git_dir, None, &[], &mut silent);
     }
 
-    fn forget_programs(&self, git_dir: &Path, records: &[String]) {
+    fn forget_programs(
+        &self,
+        git_dir: &Path,
+        records: &[String],
+    ) {
         // Nothing to forget costs no connection, and most commands that look at a repository settle no record at all.
         if records.is_empty() {
             return;
@@ -182,9 +216,18 @@ impl WakeTheService for AskTheService<'_> {
 pub struct NothingWoken;
 
 impl WakeTheService for NothingWoken {
-    fn wake(&self, _git_dir: &Path) {}
+    fn wake(
+        &self,
+        _git_dir: &Path,
+    ) {
+    }
 
-    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {}
+    fn forget_programs(
+        &self,
+        _git_dir: &Path,
+        _records: &[String],
+    ) {
+    }
 }
 
 /// Controls of the wake stay out of the release executable.

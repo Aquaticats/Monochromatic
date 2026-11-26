@@ -35,17 +35,37 @@ use super::add_git_words::person_lock_word;
 use super::add_plan_stop::refuse_while_a_plan_stands;
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
-use super::add_zfs::{ObjectIdentity, OpenedDevice};
-use crate::doctor_zfs_route::{CheckOutcome, DatasetFacts, DatasetRole, Reading, check_dataset};
+use super::add_zfs::{
+    ObjectIdentity,
+    OpenedDevice,
+};
+use crate::doctor_zfs_route::{
+    CheckOutcome,
+    DatasetFacts,
+    DatasetRole,
+    Reading,
+    check_dataset,
+};
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::CloneObjectFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpectation, ReadinessRecord};
-use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
+use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
+    ReadinessExpectation,
+    ReadinessRecord,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{
+    AdmissionRefusal,
+    admit_attach,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_snapshot_source::{Refusal as SourceRefusal, SnapshotSource, snapshot_blocker, source_or_dirty};
+use crate::worktree_snapshot_source::{
+    Refusal as SourceRefusal,
+    SnapshotSource,
+    snapshot_blocker,
+    source_or_dirty,
+};
 use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
@@ -85,8 +105,17 @@ pub(super) struct Preflight {
 /// # Errors
 /// The sentence each refusal prints,
 /// which names the check and the way forward.
-pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Option<Preflight>, StepRefusal> {
-    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
+pub(super) fn preflight_the_add(
+    route: &RouteFacts,
+    plan: &AddPlan,
+    context: &GitContext,
+    arguments: &[OsString],
+) -> Result<Option<Preflight>, StepRefusal> {
+    let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: route.common_dir.clone(),
+        git_dir: route.git_dir.clone(),
+        worktree_root: route.source_root.clone(),
+    };
     // What:
     //  A checkout with uncommitted edits is a source too.
     // Why:
@@ -96,9 +125,17 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     //  "The restore").
     //  This replaces the interim of 2026-11-19 (issue 6452), which sent such an add
     //  to rung 3 until this step landed.
-    let source: SnapshotSource = source_or_dirty(context, &identity).map_err(|refusal: SourceRefusal| return StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason)))?;
+    let source: SnapshotSource =
+        source_or_dirty(context, &identity).map_err(|refusal: SourceRefusal| {
+            return StepRefusal::refused(format!(
+                "the main checkout cannot be the source of a clone: {}",
+                refusal.reason
+            ));
+        })?;
     if let Some(reason) = snapshot_blocker(&source) {
-        return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {reason}")));
+        return Err(StepRefusal::refused(format!(
+            "the main checkout cannot be the source of a clone: {reason}"
+        )));
     }
     if !source.trash_ignored {
         return Err(StepRefusal::refused(String::from(
@@ -122,14 +159,20 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     //  The checks above come first so every refusal a person can act on keeps its
     //  sentence;
     //  the device is opened after this, so a declined add asks it nothing.
-    match super::add_source_the_restore_cannot_prove::reasons_the_restore_cannot_prove((context, &source)) {
+    match super::add_source_the_restore_cannot_prove::reasons_the_restore_cannot_prove((
+        context, &source,
+    )) {
         Ok(reasons) if reasons.is_empty() => {}
         Ok(reasons) => {
             crate::diagnostic_log::debug("addPreflight", format!("the route declines a source its own restore cannot prove ({} reasons, the first {:?})", reasons.len(), reasons.first()).as_str());
             return Ok(None);
         }
         Err(reason) => {
-            crate::diagnostic_log::debug("addPreflight", format!("the route declines a source whose shapes it could not read ({reason})").as_str());
+            crate::diagnostic_log::debug(
+                "addPreflight",
+                format!("the route declines a source whose shapes it could not read ({reason})")
+                    .as_str(),
+            );
             return Ok(None);
         }
     }
@@ -154,8 +197,12 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
         )));
     }
     let device: OpenedDevice = OpenedDevice::open().map_err(StepRefusal::refused)?;
-    let checkout: ObjectIdentity = device.identity_of(route.checkout_dataset.as_str()).map_err(StepRefusal::refused)?;
-    let pool: ObjectIdentity = device.identity_of(route.pool.as_str()).map_err(StepRefusal::refused)?;
+    let checkout: ObjectIdentity = device
+        .identity_of(route.checkout_dataset.as_str())
+        .map_err(StepRefusal::refused)?;
+    let pool: ObjectIdentity = device
+        .identity_of(route.pool.as_str())
+        .map_err(StepRefusal::refused)?;
     let container_facts: CloneObjectFacts = device.facts_of(route.container_dataset.as_str()).map_err(|reason| {
         return StepRefusal::refused(format!(
             "{reason}; the clone container {} the design places beside the checkout does not answer, so the route's layout is half-made. Ways forward: mount the container's dataset as setup does, then run the add again",
@@ -174,7 +221,11 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     //  that still names this clone is about the work this add would collide
     //  with, and both reads sit before the first write.
     refuse_while_a_plan_stands(route, &device)?;
-    let container: DatasetFacts = DatasetFacts { role: DatasetRole::Container, name: String::from(route.container_dataset.as_str()), reading: Reading::Read(container_facts) };
+    let container: DatasetFacts = DatasetFacts {
+        role: DatasetRole::Container,
+        name: String::from(route.container_dataset.as_str()),
+        reading: Reading::Read(container_facts),
+    };
     // What:
     //  The container's own properties are judged here, before any write.
     // Why:
@@ -186,10 +237,17 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     //  snapshot or a clone is written
     //  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
     refuse_a_container_that_cannot_serve_clones(&container)?;
-    let warnings: Vec<String> = super::add_grants::refuse_without_the_decided_grants(&device, route)?;
+    let warnings: Vec<String> =
+        super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;
-    return Ok(Some(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid, warnings }));
+    return Ok(Some(Preflight {
+        source,
+        device,
+        checkout_guid: checkout.guid,
+        pool_guid: pool.guid,
+        warnings,
+    }));
 }
 
 /// What:
@@ -212,11 +270,18 @@ fn refuse_a_container_that_cannot_serve_clones(facts: &DatasetFacts) -> Result<(
     let container: &str = facts.name.as_str();
     let answer: CheckOutcome = check_dataset(facts);
     return match answer {
-        CheckOutcome::Pass { .. } => Ok(()),
-        CheckOutcome::Finding { detail, .. } => Err(StepRefusal::refused(format!(
+        CheckOutcome::Pass {
+            ..
+        } => Ok(()),
+        CheckOutcome::Finding {
+            detail,
+            ..
+        } => Err(StepRefusal::refused(format!(
             "the clone container cannot serve this add: {detail}. No claim, slot, Git registration, snapshot or clone was written. Ways forward: as root, set that property of `{container}` to the value the sentence names, then run the add again"
         ))),
-        CheckOutcome::Unknown { reason } => Err(StepRefusal::refused(format!(
+        CheckOutcome::Unknown {
+            reason,
+        } => Err(StepRefusal::refused(format!(
             "the clone container `{container}` cannot be judged from this account: {reason}. No claim, slot, Git registration, snapshot or clone was written. Ways forward: as root, read the container's properties (`zfs get mountpoint,canmount,setuid,devices {container}`), then run the add again"
         ))),
     };
@@ -224,19 +289,32 @@ fn refuse_a_container_that_cannot_serve_clones(facts: &DatasetFacts) -> Result<(
 
 /// Verify the folder the slot goes in,
 /// when it stands.
-fn verify_the_slot_parent(route: &RouteFacts) -> Result<(), StepRefusal> {    let parent: PathBuf = route.worktrees_parent();
+fn verify_the_slot_parent(route: &RouteFacts) -> Result<(), StepRefusal> {
+    let parent: PathBuf = route.worktrees_parent();
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(parent.as_path()) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(StepRefusal::refused(format!("the worktrees folder {} cannot be examined ({error})", parent.display()))),
+        Err(error) => {
+            return Err(StepRefusal::refused(format!(
+                "the worktrees folder {} cannot be examined ({error})",
+                parent.display()
+            )));
+        }
     };
     if !metadata.is_dir() {
-        return Err(StepRefusal::refused(format!("the worktrees folder {} is no folder", parent.display())));
+        return Err(StepRefusal::refused(format!(
+            "the worktrees folder {} is no folder",
+            parent.display()
+        )));
     }
     // SAFETY: `geteuid` reads this process's own identity and has no preconditions.
     let ours: u32 = unsafe { libc::geteuid() };
     if metadata.uid() != ours {
-        return Err(StepRefusal::refused(format!("the worktrees folder {} belongs to account {}, and this is account {ours}", parent.display(), metadata.uid())));
+        return Err(StepRefusal::refused(format!(
+            "the worktrees folder {} belongs to account {}, and this is account {ours}",
+            parent.display(),
+            metadata.uid()
+        )));
     }
     return Ok(());
 }
@@ -245,7 +323,9 @@ fn verify_the_slot_parent(route: &RouteFacts) -> Result<(), StepRefusal> {    le
 /// pool and checkout.
 fn admit_the_handler(route: &RouteFacts) -> Result<(), StepRefusal> {
     let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").map_err(|error| return StepRefusal::refused(format!("this boot's identifier cannot be read ({error}), so the handler's readiness cannot be judged")))?;
-    let answer: Option<ReadinessRecord> = ReadinessFile::live().read().map_err(|refusal| return StepRefusal::refused(refusal.message()))?;
+    let answer: Option<ReadinessRecord> = ReadinessFile::live()
+        .read()
+        .map_err(|refusal| return StepRefusal::refused(refusal.message()))?;
     let Some(record) = answer else {
         return Err(StepRefusal::refused(format!(
             "no handler readiness report stands for this boot, so no attach is admitted ({}). Ways forward: start the boot unit's `boot-reconcile` and run the add again",
@@ -253,8 +333,13 @@ fn admit_the_handler(route: &RouteFacts) -> Result<(), StepRefusal> {
         )));
     };
     let checkout: String = route.source_root.display().to_string();
-    let expectation: ReadinessExpectation<'_> = ReadinessExpectation { boot: boot.trim(), pool: route.pool.as_str(), checkout: checkout.as_str() };
-    return admit_attach(&record, &expectation).map_err(|refusal: AdmissionRefusal| return StepRefusal::refused(refusal.message()));
+    let expectation: ReadinessExpectation<'_> = ReadinessExpectation {
+        boot: boot.trim(),
+        pool: route.pool.as_str(),
+        checkout: checkout.as_str(),
+    };
+    return admit_attach(&record, &expectation)
+        .map_err(|refusal: AdmissionRefusal| return StepRefusal::refused(refusal.message()));
 }
 
 /// Controls stay out of the release executable.

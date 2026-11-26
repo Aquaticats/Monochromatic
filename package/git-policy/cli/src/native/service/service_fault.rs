@@ -176,7 +176,11 @@ pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DI
 /// const fileNameCharacter = (c: string) => /[A-Za-z0-9]/.test(c) ? c : '_';
 /// ```
 fn file_name_character(character: char) -> char {
-    return if character.is_ascii_alphanumeric() { character } else { '_' };
+    return if character.is_ascii_alphanumeric() {
+        character
+    } else {
+        '_'
+    };
 }
 
 /// What:
@@ -198,11 +202,16 @@ fn file_name_character(character: char) -> char {
 /// ```
 pub fn queued(id: &str) {
     // The directory a control reads the queue from, which a release build never reads.
-    let Some(directory) = crate::test_only_switches::value(QUEUED_DIRECTORY_VARIABLE) else { return };
+    let Some(directory) = crate::test_only_switches::value(QUEUED_DIRECTORY_VARIABLE) else {
+        return;
+    };
     let name: String = id.chars().map(file_name_character).collect();
     let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
     if let Err(error) = std::fs::write(&path, b"") {
-        crate::service_warn!("cannot leave the queued-request file {}: {error}", path.display());
+        crate::service_warn!(
+            "cannot leave the queued-request file {}: {error}",
+            path.display()
+        );
     }
 }
 

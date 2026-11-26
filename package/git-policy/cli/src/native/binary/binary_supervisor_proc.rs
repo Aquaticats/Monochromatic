@@ -59,7 +59,9 @@ pub struct Stat {
 pub fn parse_stat(text: &str) -> Option<Stat> {
     let after: &str = text.get(text.rfind(')')? + 1..)?;
     let fields: Vec<&str> = after.split_whitespace().collect();
-    let number = |index: usize| -> Option<u64> { return fields.get(index)?.parse::<u64>().ok(); };
+    let number = |index: usize| -> Option<u64> {
+        return fields.get(index)?.parse::<u64>().ok();
+    };
     // After the name:
     // state,
     // ppid,
@@ -81,7 +83,10 @@ pub fn parse_stat(text: &str) -> Option<Stat> {
     // threads,
     // itrealvalue,
     // starttime.
-    let cpu_ticks: u64 = number(11)?.saturating_add(number(12)?).saturating_add(number(13)?).saturating_add(number(14)?);
+    let cpu_ticks: u64 = number(11)?
+        .saturating_add(number(12)?)
+        .saturating_add(number(13)?)
+        .saturating_add(number(14)?);
     let child_faults: u64 = number(8)?.saturating_add(number(10)?);
     return Some(Stat {
         state: fields.first()?.chars().next()?,
@@ -104,16 +109,28 @@ pub fn parse_stat(text: &str) -> Option<Stat> {
 pub fn parse_io(text: &str) -> u64 {
     return text
         .lines()
-        .filter_map(|line| { return line.split_once(": "); })
-        .filter(|(name, _)| { return matches!(*name, "rchar" | "wchar" | "read_bytes" | "write_bytes"); })
-        .filter_map(|(_, value)| { return value.trim().parse::<u64>().ok(); })
-        .fold(0u64, |total, value| { return total.saturating_add(value); });
+        .filter_map(|line| {
+            return line.split_once(": ");
+        })
+        .filter(|(name, _)| {
+            return matches!(*name, "rchar" | "wchar" | "read_bytes" | "write_bytes");
+        })
+        .filter_map(|(_, value)| {
+            return value.trim().parse::<u64>().ok();
+        })
+        .fold(0u64, |total, value| {
+            return total.saturating_add(value);
+        });
 }
 
 /// The `stat` of a process now;
 /// nothing when it is gone.
 pub fn stat_of(pid: i32) -> Option<Stat> {
-    return std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|text| { return parse_stat(text.as_str()); });
+    return std::fs::read_to_string(format!("/proc/{pid}/stat"))
+        .ok()
+        .and_then(|text| {
+            return parse_stat(text.as_str());
+        });
 }
 
 /// The state letters of every task of a process,
@@ -131,8 +148,15 @@ pub fn task_states(pid: i32) -> Vec<char> {
             return Some((id, parse_stat(text.as_str())?.state));
         })
         .collect();
-    found.sort_unstable_by_key(|(id, _)| { return *id != pid; });
-    return found.into_iter().map(|(_, state)| { return state; }).collect();
+    found.sort_unstable_by_key(|(id, _)| {
+        return *id != pid;
+    });
+    return found
+        .into_iter()
+        .map(|(_, state)| {
+            return state;
+        })
+        .collect();
 }
 
 /// The children of a process,
@@ -147,8 +171,11 @@ fn children_of(pid: i32) -> Option<Vec<i32>> {
     };
     for task in tasks.flatten() {
         match std::fs::read_to_string(task.path().join("children")) {
-            Ok(text) => found.extend(text.split_whitespace().filter_map(|word| { return word.parse::<i32>().ok(); })),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound && !task.path().exists() => {}
+            Ok(text) => found.extend(text.split_whitespace().filter_map(|word| {
+                return word.parse::<i32>().ok();
+            })),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && !task.path().exists() => {
+            }
             Err(_) => return None,
         }
     }
@@ -163,14 +190,22 @@ fn children_by_scan(pid: i32) -> Vec<i32> {
     };
     return entries
         .flatten()
-        .filter_map(|entry| { return entry.file_name().to_str()?.parse::<i32>().ok(); })
-        .filter(|candidate| { return stat_of(*candidate).is_some_and(|stat| { return stat.parent == pid; }); })
+        .filter_map(|entry| {
+            return entry.file_name().to_str()?.parse::<i32>().ok();
+        })
+        .filter(|candidate| {
+            return stat_of(*candidate).is_some_and(|stat| {
+                return stat.parent == pid;
+            });
+        })
         .collect();
 }
 
 /// The children of a process.
 pub fn children(pid: i32) -> Vec<i32> {
-    return children_of(pid).unwrap_or_else(|| { return children_by_scan(pid); });
+    return children_of(pid).unwrap_or_else(|| {
+        return children_by_scan(pid);
+    });
 }
 
 /// A process of a tree,
@@ -193,18 +228,26 @@ pub fn tree_of(root: i32) -> Vec<Member> {
     let Some(first) = stat_of(root) else {
         return Vec::new();
     };
-    let mut found: Vec<Member> = vec![Member { pid: root, started: first.started }];
+    let mut found: Vec<Member> = vec![Member {
+        pid: root,
+        started: first.started,
+    }];
     let mut index: usize = 0;
     while index < found.len() {
         let parent: i32 = found[index].pid;
         for child in children(parent) {
-            if found.iter().any(|member| { return member.pid == child; }) {
+            if found.iter().any(|member| {
+                return member.pid == child;
+            }) {
                 continue;
             }
             if let Some(stat) = stat_of(child)
                 && stat.parent == parent
             {
-                found.push(Member { pid: child, started: stat.started });
+                found.push(Member {
+                    pid: child,
+                    started: stat.started,
+                });
             }
         }
         index += 1;
@@ -261,7 +304,10 @@ pub struct Sample {
 }
 
 /// Fold the states of the tasks of one process into a sample.
-pub fn note_states(sample: &mut Sample, states: &[char]) {
+pub fn note_states(
+    sample: &mut Sample,
+    states: &[char],
+) {
     for state in states {
         sample.runnable |= *state == 'R';
         sample.disk_wait |= *state == 'D';
@@ -285,7 +331,10 @@ pub enum Look {
 
 /// Look at the tree below `root`,
 /// which started at `started`.
-pub fn look_at(root: i32, started: u64) -> Look {
+pub fn look_at(
+    root: i32,
+    started: u64,
+) -> Look {
     match stat_of(root) {
         None => return Look::Gone,
         Some(stat) if stat.started != started => return Look::Gone,
@@ -294,7 +343,9 @@ pub fn look_at(root: i32, started: u64) -> Look {
     }
     let mut sample: Sample = Sample::default();
     for member in tree_of(root) {
-        let Some(stat) = stat_of(member.pid).filter(|stat| { return stat.started == member.started; }) else {
+        let Some(stat) = stat_of(member.pid).filter(|stat| {
+            return stat.started == member.started;
+        }) else {
             continue;
         };
         sample.cpu_ticks = sample.cpu_ticks.saturating_add(stat.cpu_ticks);
@@ -304,7 +355,11 @@ pub fn look_at(root: i32, started: u64) -> Look {
         }
         note_states(&mut sample, task_states(member.pid).as_slice());
         sample.answer_wait |= waits_for_an_answer(member.pid);
-        sample.activity = sample.activity.saturating_add(std::fs::read_to_string(format!("/proc/{}/io", member.pid)).map_or(0, |text| { return parse_io(text.as_str()); }));
+        sample.activity = sample.activity.saturating_add(
+            std::fs::read_to_string(format!("/proc/{}/io", member.pid)).map_or(0, |text| {
+                return parse_io(text.as_str());
+            }),
+        );
         sample.processes.push((member.pid, member.started));
     }
     sample.processes.sort_unstable();
@@ -318,7 +373,14 @@ const ANSWER_WAIT_CHANNELS: [&str; 2] = ["unix_stream_read_generic", "unix_strea
 /// The kernel function a process sleeps in,
 /// or `?` when the kernel does not say.
 pub fn wait_channel(pid: i32) -> String {
-    return std::fs::read_to_string(format!("/proc/{pid}/wchan")).map_or_else(|_| { return String::from("?"); }, |text| { return text.trim().to_string(); });
+    return std::fs::read_to_string(format!("/proc/{pid}/wchan")).map_or_else(
+        |_| {
+            return String::from("?");
+        },
+        |text| {
+            return text.trim().to_string();
+        },
+    );
 }
 
 /// Whether a process sleeps in the read of a Unix socket.
@@ -337,15 +399,36 @@ pub fn describe(root: i32) -> String {
     let mut lines: Vec<String> = Vec::new();
     for member in tree_of(root) {
         let pid: i32 = member.pid;
-        let name: String = std::fs::read_to_string(format!("/proc/{pid}/comm")).map_or_else(|_| { return String::from("?"); }, |text| { return text.trim().to_string(); });
+        let name: String = std::fs::read_to_string(format!("/proc/{pid}/comm")).map_or_else(
+            |_| {
+                return String::from("?");
+            },
+            |text| {
+                return text.trim().to_string();
+            },
+        );
         let states: Vec<char> = task_states(pid);
-        let state: String = states.first().map_or_else(|| { return String::from("gone"); }, ToString::to_string);
-        let tasks: String = if states.len() > 1 { format!(" (tasks {})", states.iter().collect::<String>()) } else { String::new() };
+        let state: String = states.first().map_or_else(
+            || {
+                return String::from("gone");
+            },
+            ToString::to_string,
+        );
+        let tasks: String = if states.len() > 1 {
+            format!(" (tasks {})", states.iter().collect::<String>())
+        } else {
+            String::new()
+        };
         let waiting: String = wait_channel(pid);
         let command_line: String = std::fs::read(format!("/proc/{pid}/cmdline"))
-            .map(|bytes| { return String::from_utf8_lossy(bytes.as_slice()).replace('\0', " "); })
+            .map(|bytes| {
+                return String::from_utf8_lossy(bytes.as_slice()).replace('\0', " ");
+            })
             .unwrap_or_default();
-        lines.push(format!("  pid {pid} ({name}) state {state}{tasks} waiting in {waiting}: {}", command_line.trim().chars().take(160).collect::<String>()));
+        lines.push(format!(
+            "  pid {pid} ({name}) state {state}{tasks} waiting in {waiting}: {}",
+            command_line.trim().chars().take(160).collect::<String>()
+        ));
     }
     return lines.join("\n");
 }
@@ -353,11 +436,30 @@ pub fn describe(root: i32) -> String {
 /// The command line of a process as words.
 pub fn command_line_of(pid: i32) -> Vec<String> {
     return std::fs::read(format!("/proc/{pid}/cmdline"))
-        .map(|bytes| { return bytes.split(|byte| { return *byte == 0; }).filter(|word| { return !word.is_empty(); }).map(|word| { return String::from_utf8_lossy(word).into_owned(); }).collect(); })
+        .map(|bytes| {
+            return bytes
+                .split(|byte| {
+                    return *byte == 0;
+                })
+                .filter(|word| {
+                    return !word.is_empty();
+                })
+                .map(|word| {
+                    return String::from_utf8_lossy(word).into_owned();
+                })
+                .collect();
+        })
         .unwrap_or_default();
 }
 
 /// The working directory of a process.
 pub fn directory_of(pid: i32) -> String {
-    return std::fs::read_link(format!("/proc/{pid}/cwd")).map_or_else(|_| { return String::from("?"); }, |path| { return path.display().to_string(); });
+    return std::fs::read_link(format!("/proc/{pid}/cwd")).map_or_else(
+        |_| {
+            return String::from("?");
+        },
+        |path| {
+            return path.display().to_string();
+        },
+    );
 }

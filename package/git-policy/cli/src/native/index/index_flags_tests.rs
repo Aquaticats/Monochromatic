@@ -4,14 +4,27 @@
 
 use super::*;
 use crate::path_bytes::os_from_path_bytes;
-use crate::test_support::{fixture, git, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_text,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Names of every length from one character up,
 /// so every padding of an entry is read.
 fn names_of_every_length() -> Vec<String> {
-    return (1..=18).map(|length| { return "n".repeat(length); }).collect();
+    return (1..=18)
+        .map(|length| {
+            return "n".repeat(length);
+        })
+        .collect();
 }
 
 /// A repository with the files committed,
@@ -40,14 +53,27 @@ fn read(repo: &Path) -> IndexFlags {
 fn git_says_marked(repo: &Path) -> bool {
     let listing: String = git_text(repo, &["ls-files", "-v"]);
     return listing.lines().any(|line| {
-        return line.chars().next().is_some_and(|tag| { return tag.is_ascii_lowercase() || tag == 'S'; });
+        return line.chars().next().is_some_and(|tag| {
+            return tag.is_ascii_lowercase() || tag == 'S';
+        });
     });
 }
 
 /// The reader and Git agree on the expected answer for the repository's index.
-fn assert_agrees(repo: &Path, expected_marked: bool) {
-    assert_eq!(git_says_marked(repo), expected_marked, "the scenario sets what it says it sets");
-    let expected: IndexFlags = if expected_marked { IndexFlags::Marked } else { IndexFlags::Plain };
+fn assert_agrees(
+    repo: &Path,
+    expected_marked: bool,
+) {
+    assert_eq!(
+        git_says_marked(repo),
+        expected_marked,
+        "the scenario sets what it says it sets"
+    );
+    let expected: IndexFlags = if expected_marked {
+        IndexFlags::Marked
+    } else {
+        IndexFlags::Plain
+    };
     assert_eq!(read(repo), expected);
 }
 
@@ -60,7 +86,10 @@ fn an_unmarked_index_is_plain_in_every_version() {
     let repo: PathBuf = populated_repository(root.as_path());
     assert_agrees(repo.as_path(), false);
     for version in ["3", "4", "2"] {
-        git(repo.as_path(), &["update-index", "--index-version", version]);
+        git(
+            repo.as_path(),
+            &["update-index", "--index-version", version],
+        );
         assert_agrees(repo.as_path(), false);
     }
     remove(root.as_path());
@@ -76,13 +105,26 @@ fn an_assume_unchanged_entry_marks_the_index() {
     let root: PathBuf = fixture("index-flags-assume");
     let repo: PathBuf = populated_repository(root.as_path());
     let names: Vec<String> = names_of_every_length();
-    let candidates: [&str; 3] = [names[0].as_str(), names[names.len() / 2].as_str(), names[names.len() - 1].as_str()];
+    let candidates: [&str; 3] = [
+        names[0].as_str(),
+        names[names.len() / 2].as_str(),
+        names[names.len() - 1].as_str(),
+    ];
     for version in ["2", "4"] {
-        git(repo.as_path(), &["update-index", "--index-version", version]);
+        git(
+            repo.as_path(),
+            &["update-index", "--index-version", version],
+        );
         for name in candidates {
-            git(repo.as_path(), &["update-index", "--assume-unchanged", "--", name]);
+            git(
+                repo.as_path(),
+                &["update-index", "--assume-unchanged", "--", name],
+            );
             assert_agrees(repo.as_path(), true);
-            git(repo.as_path(), &["update-index", "--no-assume-unchanged", "--", name]);
+            git(
+                repo.as_path(),
+                &["update-index", "--no-assume-unchanged", "--", name],
+            );
             assert_agrees(repo.as_path(), false);
         }
     }
@@ -93,7 +135,11 @@ fn an_assume_unchanged_entry_marks_the_index() {
 /// `git status --porcelain` prints it as ` A` (index unchanged,
 /// work tree added).
 fn git_says_intent_to_add(repo: &Path) -> bool {
-    return git_text(repo, &["status", "--porcelain"]).lines().any(|line| { return line.starts_with(" A "); });
+    return git_text(repo, &["status", "--porcelain"])
+        .lines()
+        .any(|line| {
+            return line.starts_with(" A ");
+        });
 }
 
 /// The paths three intent-to-add entries name:
@@ -109,10 +155,26 @@ fn odd_names(repo: &Path) -> Vec<Vec<u8>> {
     std::fs::write(repo.join("added.txt"), "new\n").expect("new file");
     std::fs::write(repo.join(&latin), "new\n").expect("a name that is not UTF-8");
     std::fs::write(repo.join(odd), "new\n").expect("a name with the characters Git quotes");
-    for name in [std::ffi::OsString::from("added.txt"), latin.clone(), std::ffi::OsString::from(odd)] {
-        git(repo, &[std::ffi::OsString::from("add"), std::ffi::OsString::from("--intent-to-add"), std::ffi::OsString::from("--"), name]);
+    for name in [
+        std::ffi::OsString::from("added.txt"),
+        latin.clone(),
+        std::ffi::OsString::from(odd),
+    ] {
+        git(
+            repo,
+            &[
+                std::ffi::OsString::from("add"),
+                std::ffi::OsString::from("--intent-to-add"),
+                std::ffi::OsString::from("--"),
+                name,
+            ],
+        );
     }
-    return vec![b"added.txt".to_vec(), latin.into_vec(), odd.as_bytes().to_vec()];
+    return vec![
+        b"added.txt".to_vec(),
+        latin.into_vec(),
+        odd.as_bytes().to_vec(),
+    ];
 }
 
 /// An intent-to-add entry names its path,
@@ -120,19 +182,38 @@ fn odd_names(repo: &Path) -> Vec<Vec<u8>> {
 /// and clearing it makes the index plain again.
 #[test]
 fn an_intent_to_add_entry_marks_the_index_with_its_paths() {
-    if !in_a_fixture_root_taking_any_name("index::index_flags::tests::an_intent_to_add_entry_marks_the_index_with_its_paths") {
+    if !in_a_fixture_root_taking_any_name(
+        "index::index_flags::tests::an_intent_to_add_entry_marks_the_index_with_its_paths",
+    ) {
         return;
     }
     let root: PathBuf = fixture("index-flags-intent");
     let repo: PathBuf = populated_repository(root.as_path());
     let paths: Vec<Vec<u8>> = odd_names(repo.as_path());
-    assert!(git_says_intent_to_add(repo.as_path()), "the scenario sets what it says it sets");
+    assert!(
+        git_says_intent_to_add(repo.as_path()),
+        "the scenario sets what it says it sets"
+    );
     for version in ["3", "4"] {
-        git(repo.as_path(), &["update-index", "--index-version", version]);
-        assert_eq!(read(repo.as_path()), IndexFlags::IntentToAdd(paths.clone()), "version {version}");
+        git(
+            repo.as_path(),
+            &["update-index", "--index-version", version],
+        );
+        assert_eq!(
+            read(repo.as_path()),
+            IndexFlags::IntentToAdd(paths.clone()),
+            "version {version}"
+        );
     }
     for path in &paths {
-        git(repo.as_path(), &[std::ffi::OsString::from("add"), std::ffi::OsString::from("--"), os_from_path_bytes(path.as_slice())]);
+        git(
+            repo.as_path(),
+            &[
+                std::ffi::OsString::from("add"),
+                std::ffi::OsString::from("--"),
+                os_from_path_bytes(path.as_slice()),
+            ],
+        );
     }
     assert!(!git_says_intent_to_add(repo.as_path()));
     assert_eq!(read(repo.as_path()), IndexFlags::Plain);
@@ -143,16 +224,27 @@ fn an_intent_to_add_entry_marks_the_index_with_its_paths() {
 /// so it answers that the index is marked even where an intent-to-add entry is there too.
 #[test]
 fn a_hidden_entry_wins_over_an_intent_to_add_one() {
-    if !in_a_fixture_root_taking_any_name("index::index_flags::tests::a_hidden_entry_wins_over_an_intent_to_add_one") {
+    if !in_a_fixture_root_taking_any_name(
+        "index::index_flags::tests::a_hidden_entry_wins_over_an_intent_to_add_one",
+    ) {
         return;
     }
     let root: PathBuf = fixture("index-flags-intent-hidden");
     let repo: PathBuf = populated_repository(root.as_path());
     odd_names(repo.as_path());
-    git(repo.as_path(), &["update-index", "--skip-worktree", "--", "n"]);
+    git(
+        repo.as_path(),
+        &["update-index", "--skip-worktree", "--", "n"],
+    );
     assert_agrees(repo.as_path(), true);
-    git(repo.as_path(), &["update-index", "--no-skip-worktree", "--", "n"]);
-    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "n"]);
+    git(
+        repo.as_path(),
+        &["update-index", "--no-skip-worktree", "--", "n"],
+    );
+    git(
+        repo.as_path(),
+        &["update-index", "--assume-unchanged", "--", "n"],
+    );
     assert_agrees(repo.as_path(), true);
     remove(root.as_path());
 }
@@ -163,10 +255,19 @@ fn a_skip_worktree_entry_marks_the_index() {
     let root: PathBuf = fixture("index-flags-skip");
     let repo: PathBuf = populated_repository(root.as_path());
     for version in ["3", "4"] {
-        git(repo.as_path(), &["update-index", "--index-version", version]);
-        git(repo.as_path(), &["update-index", "--skip-worktree", "--", "n"]);
+        git(
+            repo.as_path(),
+            &["update-index", "--index-version", version],
+        );
+        git(
+            repo.as_path(),
+            &["update-index", "--skip-worktree", "--", "n"],
+        );
         assert_agrees(repo.as_path(), true);
-        git(repo.as_path(), &["update-index", "--no-skip-worktree", "--", "n"]);
+        git(
+            repo.as_path(),
+            &["update-index", "--no-skip-worktree", "--", "n"],
+        );
         assert_agrees(repo.as_path(), false);
     }
     remove(root.as_path());
@@ -179,13 +280,19 @@ fn a_sha256_index_is_read_with_its_longer_object_names() {
     let root: PathBuf = fixture("index-flags-sha256");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repo directory");
-    git(repo.as_path(), &["init", "--quiet", "--object-format=sha256"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--object-format=sha256"],
+    );
     for name in names_of_every_length() {
         std::fs::write(repo.join(&name), format!("{name}\n")).expect("file");
     }
     git(repo.as_path(), &["add", "--all"]);
     assert_agrees(repo.as_path(), false);
-    git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "nn"]);
+    git(
+        repo.as_path(),
+        &["update-index", "--assume-unchanged", "--", "nn"],
+    );
     assert_agrees(repo.as_path(), true);
     remove(root.as_path());
 }
@@ -212,12 +319,22 @@ fn an_empty_index_is_plain_and_damaged_bytes_are_unreadable() {
     git(repo.as_path(), &["read-tree", "--empty"]);
     assert_eq!(read(repo.as_path()), IndexFlags::Plain);
     assert_eq!(read_index_flags(&[]), IndexFlags::Unreadable);
-    assert_eq!(read_index_flags(b"not an index at all, just text"), IndexFlags::Unreadable);
+    assert_eq!(
+        read_index_flags(b"not an index at all, just text"),
+        IndexFlags::Unreadable
+    );
     for cut in [whole.len() - 1, whole.len() / 2, HEADER_LENGTH] {
-        assert_eq!(read_index_flags(&whole[..cut]), IndexFlags::Unreadable, "cut at {cut}");
+        assert_eq!(
+            read_index_flags(&whole[..cut]),
+            IndexFlags::Unreadable,
+            "cut at {cut}"
+        );
     }
     let mut wrong_version: Vec<u8> = whole.clone();
     wrong_version[7] = 9;
-    assert_eq!(read_index_flags(wrong_version.as_slice()), IndexFlags::Unreadable);
+    assert_eq!(
+        read_index_flags(wrong_version.as_slice()),
+        IndexFlags::Unreadable
+    );
     remove(root.as_path());
 }

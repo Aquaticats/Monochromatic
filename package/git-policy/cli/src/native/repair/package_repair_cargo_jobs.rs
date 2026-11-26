@@ -14,11 +14,22 @@
 //! export class ReadWorkspaceJob { ... }
 //! ```
 
+use super::{
+    Done,
+    PROGRAM,
+    repair_workspace_awaiting,
+    timed_read_workspace_awaiting,
+};
+use crate::add_timing::{
+    begin_work,
+    end_work,
+};
 use crate::package_repair_cargo_concurrent::ConcurrentAwaitingWork;
 use crate::package_repair_cargo_workspaces::Workspace;
-use crate::package_repair_command::{ToolLimits, find_program};
-use crate::add_timing::{begin_work, end_work};
-use super::{Done, PROGRAM, repair_workspace_awaiting, timed_read_workspace_awaiting};
+use crate::package_repair_command::{
+    ToolLimits,
+    find_program,
+};
 use std::ffi::OsString;
 use std::future::Future;
 use std::path::PathBuf;
@@ -67,9 +78,17 @@ pub(super) struct ReadWorkspaceJob {
 }
 
 impl ConcurrentAwaitingWork<PathBuf, Result<Workspace, String>> for ReadWorkspaceJob {
-    fn run<'a>(&'a self, directory: &'a PathBuf) -> Pin<Box<dyn Future<Output = Result<Workspace, String>> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        directory: &'a PathBuf,
+    ) -> Pin<Box<dyn Future<Output = Result<Workspace, String>> + Send + 'a>> {
         return Box::pin(async move {
-            return timed_read_workspace_awaiting("cargoMetadataWorktree", &self.tool, directory.as_path()).await;
+            return timed_read_workspace_awaiting(
+                "cargoMetadataWorktree",
+                &self.tool,
+                directory.as_path(),
+            )
+            .await;
         });
     }
 }
@@ -100,7 +119,10 @@ pub(super) struct RepairWorkspaceJob {
 }
 
 impl ConcurrentAwaitingWork<Workspace, Done> for RepairWorkspaceJob {
-    fn run<'a>(&'a self, workspace: &'a Workspace) -> Pin<Box<dyn Future<Output = Done> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        workspace: &'a Workspace,
+    ) -> Pin<Box<dyn Future<Output = Done> + Send + 'a>> {
         return Box::pin(async move {
             let began: Instant = begin_work();
             let done: Done = repair_workspace_awaiting(
@@ -128,7 +150,11 @@ impl ConcurrentAwaitingWork<Workspace, Done> for RepairWorkspaceJob {
 /// ```ts
 /// type ThePreparation = [string | undefined, string, StartDirectory];
 /// ```
-type ThePreparation = (Option<OsString>, PathBuf, crate::start_directory::StartDirectory);
+type ThePreparation = (
+    Option<OsString>,
+    PathBuf,
+    crate::start_directory::StartDirectory,
+);
 
 /// What:
 ///  The Cargo program the search path resolves,
@@ -143,7 +169,7 @@ type ThePreparation = (Option<OsString>, PathBuf, crate::start_directory::StartD
 /// const lookForTheProgram = ([searchPath, destination, start]) => [findProgram('cargo', searchPath, start), canonicalize(destination)];
 /// ```
 pub(super) fn look_for_the_program(
-    (search_path, destination, start): ThePreparation,
+    (search_path, destination, start): ThePreparation
 ) -> (Option<PathBuf>, Result<PathBuf, std::io::Error>) {
     return (
         find_program(PROGRAM, search_path.as_deref(), &start),

@@ -26,9 +26,12 @@
 //! // dropping it gives the slot back
 //! ```
 
-use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{RemovalClaim, take_the_removals_claim};
-use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
+use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{
+    RemovalClaim,
+    take_the_removals_claim,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::path::Path;
 
 /// What:
@@ -72,7 +75,10 @@ pub trait TheRemovalClaim {
     /// # Errors
     /// A live command holding the slot,
     /// or a claim whose folder or file could not be used.
-    fn take(&self, slot: &str) -> Result<HeldClaim, CancelRefusal>;
+    fn take(
+        &self,
+        slot: &str,
+    ) -> Result<HeldClaim, CancelRefusal>;
 }
 
 /// What:
@@ -92,8 +98,12 @@ pub struct LiveTheRemovalClaim<'a> {
 }
 
 impl TheRemovalClaim for LiveTheRemovalClaim<'_> {
-    fn take(&self, slot: &str) -> Result<HeldClaim, CancelRefusal> {
-        let claim: RemovalClaim = take_the_removals_claim(self.common_dir, slot).map_err(|stop| return of_a_claim_stop(&stop))?;
+    fn take(
+        &self,
+        slot: &str,
+    ) -> Result<HeldClaim, CancelRefusal> {
+        let claim: RemovalClaim = take_the_removals_claim(self.common_dir, slot)
+            .map_err(|stop| return of_a_claim_stop(&stop))?;
         return Ok(HeldClaim::Live(claim));
     }
 }
@@ -102,8 +112,16 @@ impl TheRemovalClaim for LiveTheRemovalClaim<'_> {
 /// naming the owner and the file a person has to look at.
 fn of_a_claim_stop(stop: &RemovalStop) -> CancelRefusal {
     return match stop {
-        RemovalStop::TheSlotIsClaimed { pid, path, .. } => CancelRefusal::ALiveRemoval { owner: format!("pid {pid} (its claim is {})", path.display()) },
-        other => CancelRefusal::TheClaimCouldNotBeTaken { said: other.message() },
+        RemovalStop::TheSlotIsClaimed {
+            pid,
+            path,
+            ..
+        } => CancelRefusal::ALiveRemoval {
+            owner: format!("pid {pid} (its claim is {})", path.display()),
+        },
+        other => CancelRefusal::TheClaimCouldNotBeTaken {
+            said: other.message(),
+        },
     };
 }
 

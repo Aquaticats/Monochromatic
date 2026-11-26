@@ -17,8 +17,14 @@
 
 /// Import the reader under test and the values it produces.
 use super::read_batch_reply;
-use crate::candidate_error::{CandidateError, CandidateFailure};
-use std::io::{BufRead, Read};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use std::io::{
+    BufRead,
+    Read,
+};
 
 /// A complete SHA-1 object name used as the request.
 const NAME: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -40,7 +46,10 @@ struct ResumingStream {
 ///  then one end,
 ///  then the second part.
 impl Read for ResumingStream {
-    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+    fn read(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> std::io::Result<usize> {
         let available: &[u8] = self.fill_buf()?;
         let count: usize = available.len().min(buffer.len());
         buffer[..count].copy_from_slice(&available[..count]);
@@ -64,7 +73,10 @@ impl BufRead for ResumingStream {
         return Ok(&self.second[self.position..]);
     }
 
-    fn consume(&mut self, amount: usize) {
+    fn consume(
+        &mut self,
+        amount: usize,
+    ) {
         self.position += amount;
     }
 }

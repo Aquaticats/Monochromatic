@@ -15,7 +15,10 @@ fn splitting_keeps_newlines_and_the_unterminated_tail() {
         split_keeping_newlines(b"a\nb"),
         vec![b"a\n".to_vec(), b"b".to_vec()]
     );
-    assert_eq!(split_keeping_newlines(b"\n\n"), vec![b"\n".to_vec(), b"\n".to_vec()]);
+    assert_eq!(
+        split_keeping_newlines(b"\n\n"),
+        vec![b"\n".to_vec(), b"\n".to_vec()]
+    );
 }
 
 /// Digits only:
@@ -53,9 +56,18 @@ fn one_hunk_reads_its_body_and_stops() {
     assert_eq!(
         hunk.lines,
         vec![
-            PatchLine { op: b'-', text: b"a\n".to_vec() },
-            PatchLine { op: b'+', text: b"b\n".to_vec() },
-            PatchLine { op: b' ', text: b"c\n".to_vec() },
+            PatchLine {
+                op: b'-',
+                text: b"a\n".to_vec()
+            },
+            PatchLine {
+                op: b'+',
+                text: b"b\n".to_vec()
+            },
+            PatchLine {
+                op: b' ',
+                text: b"c\n".to_vec()
+            },
         ]
     );
 }
@@ -66,7 +78,13 @@ fn one_hunk_reads_its_body_and_stops() {
 fn a_bare_newline_is_an_empty_context_line() {
     let lines: Vec<Vec<u8>> = split_keeping_newlines(b"@@ -1,1 +1,1 @@\n\n");
     let (hunk, _next): (PatchHunk, usize) = parse_hunk(&lines, 0).expect("hunk");
-    assert_eq!(hunk.lines, vec![PatchLine { op: b' ', text: b"\n".to_vec() }]);
+    assert_eq!(
+        hunk.lines,
+        vec![PatchLine {
+            op: b' ',
+            text: b"\n".to_vec()
+        }]
+    );
 }
 
 /// The marker after an incomplete last line drops that line's newline,
@@ -74,15 +92,35 @@ fn a_bare_newline_is_an_empty_context_line() {
 /// mid-hunk or at the end.
 #[test]
 fn incomplete_lines_lose_their_newline() {
-    let mid: Vec<Vec<u8>> = split_keeping_newlines(b"@@ -1,2 +1,2 @@\n-a\n\\ No newline at end of file\n+b\n c\n");
+    let mid: Vec<Vec<u8>> =
+        split_keeping_newlines(b"@@ -1,2 +1,2 @@\n-a\n\\ No newline at end of file\n+b\n c\n");
     let (hunk, next): (PatchHunk, usize) = parse_hunk(&mid, 0).expect("hunk");
-    assert_eq!(hunk.lines[0], PatchLine { op: b'-', text: b"a".to_vec() });
-    assert_eq!(hunk.lines[1], PatchLine { op: b'+', text: b"b\n".to_vec() });
+    assert_eq!(
+        hunk.lines[0],
+        PatchLine {
+            op: b'-',
+            text: b"a".to_vec()
+        }
+    );
+    assert_eq!(
+        hunk.lines[1],
+        PatchLine {
+            op: b'+',
+            text: b"b\n".to_vec()
+        }
+    );
     assert_eq!(next, 5);
 
-    let at_end: Vec<Vec<u8>> = split_keeping_newlines(b"@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file\n");
+    let at_end: Vec<Vec<u8>> =
+        split_keeping_newlines(b"@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file\n");
     let (tail, after): (PatchHunk, usize) = parse_hunk(&at_end, 0).expect("hunk");
-    assert_eq!(tail.lines[1], PatchLine { op: b'+', text: b"b".to_vec() });
+    assert_eq!(
+        tail.lines[1],
+        PatchLine {
+            op: b'+',
+            text: b"b".to_vec()
+        }
+    );
     // The cursor steps over the marker line, so the next parse starts after it.
     assert_eq!(after, 4);
 }
@@ -106,7 +144,11 @@ fn malformed_hunks_fail() {
         &b"@@ -1 +1 @@\nx\n"[..],
     ] {
         let lines: Vec<Vec<u8>> = split_keeping_newlines(text);
-        assert!(parse_hunk(&lines, 0).is_err(), "{}", String::from_utf8_lossy(text));
+        assert!(
+            parse_hunk(&lines, 0).is_err(),
+            "{}",
+            String::from_utf8_lossy(text)
+        );
     }
 }
 
@@ -165,7 +207,8 @@ fn a_removal_after_an_addition_still_counts_the_old_side() {
 /// so a caller that prints it names the malformed part.
 #[test]
 fn the_format_error_displays_its_message() {
-    let error: ReplayPatchFormatError = ReplayPatchFormatError(String::from("malformed hunk range -x"));
+    let error: ReplayPatchFormatError =
+        ReplayPatchFormatError(String::from("malformed hunk range -x"));
     assert_eq!(error.to_string(), "malformed hunk range -x");
 }
 

@@ -20,7 +20,15 @@
 
 use std::path::Path;
 
-use crate::source_scan_tests::{CrateRoot, SourceFile, classified_sources, real_roots, release_root, source_root, write_tree};
+use crate::source_scan_tests::{
+    CrateRoot,
+    SourceFile,
+    classified_sources,
+    real_roots,
+    release_root,
+    source_root,
+    write_tree,
+};
 
 /// The prefix every test-only switch of this crate carries,
 /// which a declaration of one names and no other release line may sit beside a read of the environment.
@@ -59,9 +67,13 @@ fn declared_switch_names(text: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for line in text.lines() {
         // Everything after the `const` keyword on this line, which is the name and what follows it.
-        let Some((_before, declared)) = line.split_once("const ") else { continue };
+        let Some((_before, declared)) = line.split_once("const ") else {
+            continue;
+        };
         // The name and the rest of the declaration: a name is everything before the first colon.
-        let Some((name, rest)) = declared.split_once(':') else { continue };
+        let Some((name, rest)) = declared.split_once(':') else {
+            continue;
+        };
         if !rest.contains(TEST_ONLY_PREFIX) {
             continue;
         }
@@ -82,15 +94,21 @@ fn declared_switch_names(text: &str) -> Vec<String> {
 /// ```ts
 /// function readingsOfSwitches(text: string, names: string[]): number[] { return lines(text).flatMap((l, i) => environmentRead(l) && namesASwitch(l, names) ? [i + 1] : []) }
 /// ```
-fn readings_of_switches(text: &str, names: &[String]) -> Vec<usize> {
+fn readings_of_switches(
+    text: &str,
+    names: &[String],
+) -> Vec<usize> {
     let mut found: Vec<usize> = Vec::new();
     for (index, line) in text.lines().enumerate() {
-        let reads: bool = ENVIRONMENT_READS.iter().any(|needle| return line.contains(needle));
+        let reads: bool = ENVIRONMENT_READS
+            .iter()
+            .any(|needle| return line.contains(needle));
         if !reads {
             continue;
         }
         // Whether this line names a switch: the prefix itself, or an identifier some release file declares as one.
-        let names_one: bool = line.contains(TEST_ONLY_PREFIX) || names.iter().any(|name| return line.contains(name.as_str()));
+        let names_one: bool = line.contains(TEST_ONLY_PREFIX)
+            || names.iter().any(|name| return line.contains(name.as_str()));
         if names_one {
             found.push(index + 1);
         }
@@ -101,12 +119,18 @@ fn readings_of_switches(text: &str, names: &[String]) -> Vec<usize> {
 /// The sources the scan reads:
 /// every file the module tree reaches,
 /// so a file this walk missed is a file the ban does not cover.
-fn sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<SourceFile>, String> {
+fn sources_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<SourceFile>, String> {
     return classified_sources(root, roots);
 }
 
 /// Every `file:line` of the crate's release sources that reads a test-only switch itself.
-fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> {
+fn findings_in(
+    root: &Path,
+    roots: &[CrateRoot],
+) -> Result<Vec<String>, String> {
     let sources: Vec<SourceFile> = sources_in(root, roots)?;
     // The names every release file declares as a test-only switch, gathered first: a read may pass one declared in
     // another file, as the journal's socket switch is.
@@ -115,15 +139,21 @@ fn findings_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> 
         if file.test_only {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(file.path.as_str())).map_err(|error| return format!("cannot read {}: {error}", file.path))?;
+        let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
+            .map_err(|error| return format!("cannot read {}: {error}", file.path))?;
         names.extend(declared_switch_names(text.as_str()));
     }
     let mut found: Vec<String> = Vec::new();
     for file in &sources {
-        if file.test_only || GATED_ELSEWHERE.iter().any(|(named, _)| return *named == file.path) {
+        if file.test_only
+            || GATED_ELSEWHERE
+                .iter()
+                .any(|(named, _)| return *named == file.path)
+        {
             continue;
         }
-        let text: String = std::fs::read_to_string(root.join(file.path.as_str())).map_err(|error| return format!("cannot read {}: {error}", file.path))?;
+        let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
+            .map_err(|error| return format!("cannot read {}: {error}", file.path))?;
         for number in readings_of_switches(text.as_str(), names.as_slice()) {
             found.push(format!("{}:{number}", file.path));
         }
@@ -153,38 +183,52 @@ fn no_release_source_reads_a_test_only_switch() {
 /// so the list shrinks when a file moves rather than excusing nothing.
 #[test]
 fn every_excused_file_is_a_source_of_this_crate() {
-    let sources: Vec<SourceFile> = sources_in(&source_root(), &real_roots()).expect("the crate's sources");
+    let sources: Vec<SourceFile> =
+        sources_in(&source_root(), &real_roots()).expect("the crate's sources");
     let stale: Vec<String> = GATED_ELSEWHERE
         .iter()
         .filter(|(named, _)| return !sources.iter().any(|file| return file.path == *named))
         .map(|(named, why)| return format!("{named}: {why}"))
         .collect();
-    assert!(stale.is_empty(), "these entries name no source of this crate, so remove them:\n{}", stale.join("\n"));
+    assert!(
+        stale.is_empty(),
+        "these entries name no source of this crate, so remove them:\n{}",
+        stale.join("\n")
+    );
 }
 
 /// Every entry of the excused list is still a file that really reads a switch beside the environment,
 /// so an entry that stopped doing so is removed rather than hiding a file that could read one again.
 #[test]
 fn every_excused_entry_still_reads_a_switch() {
-    let sources: Vec<SourceFile> = sources_in(&source_root(), &real_roots()).expect("the crate's sources");
+    let sources: Vec<SourceFile> =
+        sources_in(&source_root(), &real_roots()).expect("the crate's sources");
     let mut names: Vec<String> = Vec::new();
     let mut texts: Vec<(String, String)> = Vec::new();
     for file in &sources {
         if file.test_only {
             continue;
         }
-        let text: String = std::fs::read_to_string(source_root().join(file.path.as_str())).expect("a source of this crate");
+        let text: String = std::fs::read_to_string(source_root().join(file.path.as_str()))
+            .expect("a source of this crate");
         names.extend(declared_switch_names(text.as_str()));
         texts.push((file.path.clone(), text));
     }
     let quiet: Vec<String> = GATED_ELSEWHERE
         .iter()
         .filter(|(named, _)| {
-            return !texts.iter().any(|(path, text)| return path == named && !readings_of_switches(text.as_str(), names.as_slice()).is_empty());
+            return !texts.iter().any(|(path, text)| {
+                return path == named
+                    && !readings_of_switches(text.as_str(), names.as_slice()).is_empty();
+            });
         })
         .map(|(named, why)| return format!("{named}: {why}"))
         .collect();
-    assert!(quiet.is_empty(), "these entries excuse a file that reads no switch, so remove them:\n{}", quiet.join("\n"));
+    assert!(
+        quiet.is_empty(),
+        "these entries excuse a file that reads no switch, so remove them:\n{}",
+        quiet.join("\n")
+    );
 }
 
 /// The scan fires on a read it exists for,
@@ -213,7 +257,8 @@ fn the_scan_finds_a_planted_read() {
             ),
         ],
     );
-    let found: Vec<String> = findings_in(root.as_path(), &[release_root("lib.rs")]).expect("the fixture sources");
+    let found: Vec<String> =
+        findings_in(root.as_path(), &[release_root("lib.rs")]).expect("the fixture sources");
     assert_eq!(
         found,
         vec![String::from("switches.rs:3"), String::from("switches.rs:7")],

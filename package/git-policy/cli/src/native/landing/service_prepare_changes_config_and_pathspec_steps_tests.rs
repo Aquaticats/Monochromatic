@@ -13,10 +13,19 @@
 
 use super::the_pathspec_file;
 use crate::command_commit::parse_commit_region;
-use crate::path_bytes::{argument_bytes, os_from_path_bytes};
-use crate::test_support::{fixture, remove};
+use crate::path_bytes::{
+    argument_bytes,
+    os_from_path_bytes,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The file a `--pathspec-from-file` value names,
@@ -31,7 +40,9 @@ use std::path::{Path, PathBuf};
 /// ```
 #[test]
 fn a_pathspec_file_whose_name_is_not_text_is_read_where_the_person_named_it() {
-    if !in_a_fixture_root_taking_any_name("landing::service_prepare_changes_config_and_pathspec_steps::tests::a_pathspec_file_whose_name_is_not_text_is_read_where_the_person_named_it") {
+    if !in_a_fixture_root_taking_any_name(
+        "landing::service_prepare_changes_config_and_pathspec_steps::tests::a_pathspec_file_whose_name_is_not_text_is_read_where_the_person_named_it",
+    ) {
         return;
     }
     let root: PathBuf = fixture("pathspec-file-name-bytes");
@@ -44,9 +55,18 @@ fn a_pathspec_file_whose_name_is_not_text_is_read_where_the_person_named_it() {
     option.push(name.as_os_str());
     let arguments: Vec<std::ffi::OsString> = vec![option];
     let region = parse_commit_region(arguments.as_slice(), &[]).expect("a region Git accepts");
-    let read: PathBuf = the_pathspec_file(&region, arguments.as_slice(), scratch.as_path(), cwd, None).expect("the file the option names").expect("a named file");
-    assert_eq!(argument_bytes(read.as_os_str()), argument_bytes(root.join(name.as_os_str()).as_os_str()));
-    assert_eq!(std::fs::read(read.as_path()).expect("the file the person named"), b"a.txt\n");
+    let read: PathBuf =
+        the_pathspec_file(&region, arguments.as_slice(), scratch.as_path(), cwd, None)
+            .expect("the file the option names")
+            .expect("a named file");
+    assert_eq!(
+        argument_bytes(read.as_os_str()),
+        argument_bytes(root.join(name.as_os_str()).as_os_str())
+    );
+    assert_eq!(
+        std::fs::read(read.as_path()).expect("the file the person named"),
+        b"a.txt\n"
+    );
     remove(root.as_path());
 }
 
@@ -66,12 +86,22 @@ fn standard_input_becomes_a_file_in_the_scratch_directory() {
     let root: PathBuf = fixture("pathspec-file-standard-input");
     let scratch: PathBuf = root.join("scratch");
     std::fs::create_dir(scratch.as_path()).expect("fixture scratch");
-    let arguments: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("--pathspec-from-file=-")];
+    let arguments: Vec<std::ffi::OsString> =
+        vec![std::ffi::OsString::from("--pathspec-from-file=-")];
     let region = parse_commit_region(arguments.as_slice(), &[]).expect("a region Git accepts");
-    let read: PathBuf = the_pathspec_file(&region, arguments.as_slice(), scratch.as_path(), root.as_path(), Some(b"a.txt\n"))
-        .expect("the file the option names")
-        .expect("a named file");
-    assert_eq!(std::fs::read(read.as_path()).expect("the copy of the standard input"), b"a.txt\n");
+    let read: PathBuf = the_pathspec_file(
+        &region,
+        arguments.as_slice(),
+        scratch.as_path(),
+        root.as_path(),
+        Some(b"a.txt\n"),
+    )
+    .expect("the file the option names")
+    .expect("a named file");
+    assert_eq!(
+        std::fs::read(read.as_path()).expect("the copy of the standard input"),
+        b"a.txt\n"
+    );
     remove(root.as_path());
 }
 
@@ -88,8 +118,21 @@ fn standard_input_becomes_a_file_in_the_scratch_directory() {
 #[test]
 fn a_line_without_the_option_names_no_file() {
     let root: PathBuf = fixture("pathspec-file-absent");
-    let arguments: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("--"), std::ffi::OsString::from("a.txt")];
+    let arguments: Vec<std::ffi::OsString> = vec![
+        std::ffi::OsString::from("--"),
+        std::ffi::OsString::from("a.txt"),
+    ];
     let region = parse_commit_region(arguments.as_slice(), &[]).expect("a region Git accepts");
-    assert!(the_pathspec_file(&region, arguments.as_slice(), root.as_path(), root.as_path(), None).expect("no file to read").is_none());
+    assert!(
+        the_pathspec_file(
+            &region,
+            arguments.as_slice(),
+            root.as_path(),
+            root.as_path(),
+            None
+        )
+        .expect("no file to read")
+        .is_none()
+    );
     remove(root.as_path());
 }

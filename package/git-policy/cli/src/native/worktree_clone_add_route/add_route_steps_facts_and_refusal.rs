@@ -17,11 +17,14 @@
 //! type Steps = { route; names; source; plan; context; home; device; arguments; realGit; overlay; quiet; stops; out };
 //! ```
 
-use crate::worktree_clone_add_route::add_route_plan::{AddNames, Stops};
-use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::subvolume_command::REFUSED_EXIT_CODE;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
+use crate::worktree_clone_add_route::add_route_plan::{
+    AddNames,
+    Stops,
+};
+use crate::worktree_clone_add_route::add_zfs::OpenedDevice;
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::record_publication::write_binding;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
@@ -86,13 +89,19 @@ pub struct StepRefusal {
 impl StepRefusal {
     /// A refusal of the add's own.
     pub fn refused(message: String) -> StepRefusal {
-        return StepRefusal { message, code: REFUSED_EXIT_CODE };
+        return StepRefusal {
+            message,
+            code: REFUSED_EXIT_CODE,
+        };
     }
 
     /// A Git run that ended unsuccessfully,
     /// keeping Git's own status.
     pub fn git(code: i32) -> StepRefusal {
-        return StepRefusal { message: String::new(), code };
+        return StepRefusal {
+            message: String::new(),
+            code,
+        };
     }
 }
 
@@ -101,7 +110,10 @@ impl StepRefusal {
 /// Why:
 ///  Every write of this record is flushed, because a later command must not have
 ///  to rediscover a fact the pool already committed.
-pub fn write_the_record(steps: &Steps<'_>, record: &BindingRecord) -> Result<(), StepRefusal> {
+pub fn write_the_record(
+    steps: &Steps<'_>,
+    record: &BindingRecord,
+) -> Result<(), StepRefusal> {
     write_binding(steps.home, &steps.route.slot, record).map_err(|error| return StepRefusal::refused(format!("the add's record cannot be written ({error}); the claim, the slot and the registration stand, and running the add again resumes them")))?;
     return Ok(());
 }

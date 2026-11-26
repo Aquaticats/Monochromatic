@@ -11,7 +11,10 @@
 //! const ignoreAnnouncements = { announce: (_note: Announce) => {}, clientIsGone: (_place: number) => false };
 //! ```
 
-use crate::service_index_lock::{Announce, Announcer};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
 
 /// What became of one request of a batch.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,7 +60,11 @@ pub enum Outcome {
 pub(crate) struct IgnoreAnnouncements;
 
 impl Announcer for IgnoreAnnouncements {
-    fn announce(&self, _note: Announce) {}
+    fn announce(
+        &self,
+        _note: Announce,
+    ) {
+    }
 }
 
 /// What:

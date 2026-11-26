@@ -24,15 +24,40 @@
 //! ```
 
 use super::binding_record_fields::{
-    CLONE_DATASET_KEY, CLONE_GUID_KEY, Fields, NONCE_KEY, REGISTRATION_IDENTITY_KEY, REGISTRATION_KEY, RecordedFactsRefusal, SLOT_IDENTITY_KEY, SLOT_KEY, fields_of, identity_field, path_field, required,
+    CLONE_DATASET_KEY,
+    CLONE_GUID_KEY,
+    Fields,
+    NONCE_KEY,
+    REGISTRATION_IDENTITY_KEY,
+    REGISTRATION_KEY,
+    RecordedFactsRefusal,
+    SLOT_IDENTITY_KEY,
+    SLOT_KEY,
+    fields_of,
+    identity_field,
+    path_field,
+    required,
 };
-use super::reading_a_bounded_file::{ARefusedReading, Reading, read_a_bounded_file};
+use super::reading_a_bounded_file::{
+    ARefusedReading,
+    Reading,
+    read_a_bounded_file,
+};
 use crate::earlier_service_process_look::effective_user;
 use crate::worktree_clone_binding_record::binding_bound::BINDING_MAXIMUM_BYTES;
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder};
-use crate::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+};
+use crate::worktree_clone_mount_protocol::{
+    DatasetGuid,
+    RequestNonce,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The clone one record names:
@@ -91,7 +116,6 @@ pub struct RecordedLockFacts {
     pub clone: RecordedClone,
 }
 
-
 /// What:
 ///  Read one slot's binding record for the facts the lock's proof needs,
 ///  checked for the account and the mode a record owes.
@@ -109,7 +133,10 @@ pub struct RecordedLockFacts {
 /// ```ts
 /// const facts = readTheRecordedFacts(commonDir, slot); // RecordedLockFacts or a refusal
 /// ```
-pub fn read_the_recorded_facts(common_dir: &Path, slot: &str) -> Result<RecordedLockFacts, RecordedFactsRefusal> {
+pub fn read_the_recorded_facts(
+    common_dir: &Path,
+    slot: &str,
+) -> Result<RecordedLockFacts, RecordedFactsRefusal> {
     use std::os::unix::fs::MetadataExt as _;
     let home: PathBuf = home_folder(common_dir);
     let path: PathBuf = home.join(binding_name(slot));
@@ -118,31 +145,53 @@ pub fn read_the_recorded_facts(common_dir: &Path, slot: &str) -> Result<Recorded
         Reading::Refused(cause) => return Err(RecordedFactsRefusal::Refused(cause)),
         Reading::Bytes(found) => found,
     };
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path.as_path()).map_err(|error| return RecordedFactsRefusal::Refused(ARefusedReading::Unreadable { reason: error.to_string() }))?;
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(path.as_path()).map_err(|error| {
+            return RecordedFactsRefusal::Refused(ARefusedReading::Unreadable {
+                reason: error.to_string(),
+            });
+        })?;
     let reader: u32 = effective_user();
     if metadata.uid() != reader {
-        return Err(RecordedFactsRefusal::AnotherAccount { owner: metadata.uid(), reader });
+        return Err(RecordedFactsRefusal::AnotherAccount {
+            owner: metadata.uid(),
+            reader,
+        });
     }
     let mode: u32 = metadata.mode() & 0o7777;
     if mode & 0o022 != 0 {
-        return Err(RecordedFactsRefusal::WritableByOthers { mode });
+        return Err(RecordedFactsRefusal::WritableByOthers {
+            mode,
+        });
     }
     let text: &str = std::str::from_utf8(bytes.as_slice()).map_err(|_utf8| {
-        return RecordedFactsRefusal::NotThisGrammar { line: 1, found: String::from("bytes that are not UTF-8") };
+        return RecordedFactsRefusal::NotThisGrammar {
+            line: 1,
+            found: String::from("bytes that are not UTF-8"),
+        };
     })?;
     let fields: Fields = fields_of(text)?;
     let nonce_text: &String = required(fields.nonce.as_ref(), NONCE_KEY)?;
     let nonce: RequestNonce = RequestNonce::parse(nonce_text.as_str()).map_err(|_refusal| {
-        return RecordedFactsRefusal::Malformed { key: NONCE_KEY, found: nonce_text.clone() };
+        return RecordedFactsRefusal::Malformed {
+            key: NONCE_KEY,
+            found: nonce_text.clone(),
+        };
     })?;
-    let slot_path: PathBuf = path_field(fields.slot.as_ref(), SLOT_KEY)?.ok_or(RecordedFactsRefusal::MissingField { key: SLOT_KEY })?;
+    let slot_path: PathBuf =
+        path_field(fields.slot.as_ref(), SLOT_KEY)?.ok_or(RecordedFactsRefusal::MissingField {
+            key: SLOT_KEY,
+        })?;
     let clone_text: &String = required(fields.clone_dataset.as_ref(), CLONE_DATASET_KEY)?;
     let clone: RecordedClone = RecordedClone {
         dataset: clone_text.clone(),
         guid: match fields.clone_guid.as_ref() {
             None => None,
             Some(guid) => Some(DatasetGuid::parse(guid.as_str()).map_err(|_refusal| {
-                return RecordedFactsRefusal::Malformed { key: CLONE_GUID_KEY, found: guid.clone() };
+                return RecordedFactsRefusal::Malformed {
+                    key: CLONE_GUID_KEY,
+                    found: guid.clone(),
+                };
             })?),
         },
     };
@@ -151,7 +200,10 @@ pub fn read_the_recorded_facts(common_dir: &Path, slot: &str) -> Result<Recorded
         slot: slot_path,
         slot_identity: identity_field(fields.slot_identity.as_ref(), SLOT_IDENTITY_KEY)?,
         registration: path_field(fields.registration.as_ref(), REGISTRATION_KEY)?,
-        registration_identity: identity_field(fields.registration_identity.as_ref(), REGISTRATION_IDENTITY_KEY)?,
+        registration_identity: identity_field(
+            fields.registration_identity.as_ref(),
+            REGISTRATION_IDENTITY_KEY,
+        )?,
         clone,
     });
 }

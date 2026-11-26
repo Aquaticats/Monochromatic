@@ -9,8 +9,17 @@ use super::*;
 /// The list,
 /// its sources and the refusal that names them,
 /// which the sibling file holds.
-use crate::lfs_program_search::{PUSH_FROM_SERVICE, PUSH_FROM_THE_REQUEST, ProgramSearch, missing_program_message};
-use crate::test_support::{executable, fixture, remove};
+use crate::lfs_program_search::{
+    PUSH_FROM_SERVICE,
+    PUSH_FROM_THE_REQUEST,
+    ProgramSearch,
+    missing_program_message,
+};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// A snapshot of `git config --list -z --show-scope` built from `(scope, key, value)` triples.
@@ -30,21 +39,56 @@ fn snapshot(entries: &[(&str, &str, &str)]) -> ConfigSnapshot {
 /// The keys the filter's first run and a server URL write mark a repository as using LFS in its own scopes.
 #[test]
 fn lfs_keys_of_the_repository_mark_it_as_using_lfs() {
-    assert!(uses_lfs(&snapshot(&[("local", "lfs.repositoryformatversion", "0")])));
-    assert!(uses_lfs(&snapshot(&[("local", "lfs.https://example.invalid/x.git/info/lfs.access", "basic")])));
-    assert!(uses_lfs(&snapshot(&[("local", "filter.lfs.process", "git-lfs filter-process")])));
-    assert!(uses_lfs(&snapshot(&[("worktree", "lfs.url", "http://127.0.0.1:1")])));
-    assert!(uses_lfs(&snapshot(&[("command", "lfs.url", "http://127.0.0.1:1")])));
-    assert!(uses_lfs(&snapshot(&[("system", "core.autocrlf", "false"), ("local", "lfs.url", "x")])));
+    assert!(uses_lfs(&snapshot(&[(
+        "local",
+        "lfs.repositoryformatversion",
+        "0"
+    )])));
+    assert!(uses_lfs(&snapshot(&[(
+        "local",
+        "lfs.https://example.invalid/x.git/info/lfs.access",
+        "basic"
+    )])));
+    assert!(uses_lfs(&snapshot(&[(
+        "local",
+        "filter.lfs.process",
+        "git-lfs filter-process"
+    )])));
+    assert!(uses_lfs(&snapshot(&[(
+        "worktree",
+        "lfs.url",
+        "http://127.0.0.1:1"
+    )])));
+    assert!(uses_lfs(&snapshot(&[(
+        "command",
+        "lfs.url",
+        "http://127.0.0.1:1"
+    )])));
+    assert!(uses_lfs(&snapshot(&[
+        ("system", "core.autocrlf", "false"),
+        ("local", "lfs.url", "x")
+    ])));
 }
 
 /// `git lfs install` in an account writes the filter to the global file,
 /// which says nothing about one repository.
 #[test]
 fn lfs_keys_of_the_machine_or_account_do_not_mark_a_repository_as_using_lfs() {
-    assert!(!uses_lfs(&snapshot(&[("global", "filter.lfs.process", "git-lfs filter-process")])));
-    assert!(!uses_lfs(&snapshot(&[("global", "lfs.customtransfer.xet.path", "git-xet")])));
-    assert!(!uses_lfs(&snapshot(&[("system", "filter.lfs.clean", "git-lfs clean")])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "global",
+        "filter.lfs.process",
+        "git-lfs filter-process"
+    )])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "global",
+        "lfs.customtransfer.xet.path",
+        "git-xet"
+    )])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "system",
+        "filter.lfs.clean",
+        "git-lfs clean"
+    )])));
     assert!(!uses_lfs(&snapshot(&[
         ("global", "filter.lfs.smudge", "git-lfs smudge"),
         ("local", "core.bare", "false"),
@@ -57,34 +101,92 @@ fn lfs_keys_of_the_machine_or_account_do_not_mark_a_repository_as_using_lfs() {
 #[test]
 fn other_configuration_does_not_mark_the_repository_as_using_lfs() {
     assert!(!uses_lfs(&snapshot(&[])));
-    assert!(!uses_lfs(&snapshot(&[("local", "core.hookspath", "hooks")])));
-    assert!(!uses_lfs(&snapshot(&[("local", "hook.lfs.event", "pre-push")])));
-    assert!(!uses_lfs(&snapshot(&[("local", "filter.lfsx.process", "x")])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "local",
+        "core.hookspath",
+        "hooks"
+    )])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "local",
+        "hook.lfs.event",
+        "pre-push"
+    )])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "local",
+        "filter.lfsx.process",
+        "x"
+    )])));
     assert!(!uses_lfs(&snapshot(&[("local", "lfsextra.url", "x")])));
-    assert!(!uses_lfs(&snapshot(&[("local", "filter.other.clean", "x")])));
+    assert!(!uses_lfs(&snapshot(&[(
+        "local",
+        "filter.other.clean",
+        "x"
+    )])));
 }
 
 /// The last `-c` that sets the hook's `enabled` decides,
 /// in the spellings Git reads as false.
 #[test]
 fn the_callers_switch_off_is_read_from_the_last_setting() {
-    let prefix = |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false"]), &[]));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=no"]), &[]));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=0"]), &[]));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=off"]), &[]));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled="]), &[]));
-    assert!(!hook_switched_off(&prefix(&[
-        "-c",
-        "hook.cli-git-lfs-pre-push.enabled=false",
-        "-c",
-        "hook.cli-git-lfs-pre-push.enabled=true"
-    ]), &[]));
-    assert!(!hook_switched_off(&prefix(&["-c", "hook.other.enabled=false"]), &[]));
-    assert!(hook_switched_off(&prefix(&["-c", "HOOK.cli-git-lfs-pre-push.ENABLED=false"]), &[]), "section and variable ignore case");
-    assert!(!hook_switched_off(&prefix(&["-c", "hook.CLI-GIT-LFS-PRE-PUSH.enabled=false"]), &[]), "the subsection is exact");
+    let prefix =
+        |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
+    assert!(hook_switched_off(
+        &prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false"]),
+        &[]
+    ));
+    assert!(hook_switched_off(
+        &prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=no"]),
+        &[]
+    ));
+    assert!(hook_switched_off(
+        &prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=0"]),
+        &[]
+    ));
+    assert!(hook_switched_off(
+        &prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=off"]),
+        &[]
+    ));
+    assert!(hook_switched_off(
+        &prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled="]),
+        &[]
+    ));
+    assert!(!hook_switched_off(
+        &prefix(&[
+            "-c",
+            "hook.cli-git-lfs-pre-push.enabled=false",
+            "-c",
+            "hook.cli-git-lfs-pre-push.enabled=true"
+        ]),
+        &[]
+    ));
+    assert!(!hook_switched_off(
+        &prefix(&["-c", "hook.other.enabled=false"]),
+        &[]
+    ));
     assert!(
-        !hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false", "-c", "hook.cli-git-lfs-pre-push.enabled"]), &[]),
+        hook_switched_off(
+            &prefix(&["-c", "HOOK.cli-git-lfs-pre-push.ENABLED=false"]),
+            &[]
+        ),
+        "section and variable ignore case"
+    );
+    assert!(
+        !hook_switched_off(
+            &prefix(&["-c", "hook.CLI-GIT-LFS-PRE-PUSH.enabled=false"]),
+            &[]
+        ),
+        "the subsection is exact"
+    );
+    assert!(
+        !hook_switched_off(
+            &prefix(&[
+                "-c",
+                "hook.cli-git-lfs-pre-push.enabled=false",
+                "-c",
+                "hook.cli-git-lfs-pre-push.enabled"
+            ]),
+            &[]
+        ),
         "a later name without a value is the boolean true"
     );
     assert!(!hook_switched_off(&prefix(&["-C", "dir"]), &[]));
@@ -103,16 +205,23 @@ fn the_callers_switch_off_is_read_from_the_last_setting() {
 /// and a successful one sent the objects the caller had switched off.
 #[test]
 fn the_switch_the_environment_names_is_read_as_the_callers_own() {
-    let prefix = |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
+    let prefix =
+        |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
     let environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("DISABLE_UPLOAD"), OsString::from("false")),
         (OsString::from("ENABLE_UPLOAD"), OsString::from("true")),
     ];
     for words in [
         vec!["--config-env=hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD"],
-        vec!["--config-env", "hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD"],
+        vec![
+            "--config-env",
+            "hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD",
+        ],
     ] {
-        assert!(hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()), "{words:?}");
+        assert!(
+            hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()),
+            "{words:?}"
+        );
     }
     assert!(
         !hook_switched_off(
@@ -150,13 +259,22 @@ fn the_switch_the_environment_names_is_read_as_the_callers_own() {
         vec!["--config-env=hook.cli-git-lfs-pre-push.enabled=MISSING"],
         vec!["--config-env=hook.cli-git-lfs-pre-push.enabled"],
     ] {
-        assert!(!hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()), "{words:?}");
+        assert!(
+            !hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()),
+            "{words:?}"
+        );
     }
     // A switch the numbered pairs set still stands: the refused command line ends the push before anything is uploaded.
     let numbered: Vec<(OsString, OsString)> = vec![
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
-        (OsString::from("GIT_CONFIG_KEY_0"), OsString::from("hook.cli-git-lfs-pre-push.enabled")),
-        (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("false")),
+        (
+            OsString::from("GIT_CONFIG_KEY_0"),
+            OsString::from("hook.cli-git-lfs-pre-push.enabled"),
+        ),
+        (
+            OsString::from("GIT_CONFIG_VALUE_0"),
+            OsString::from("false"),
+        ),
     ];
     assert!(
         hook_switched_off(
@@ -181,12 +299,19 @@ fn the_lookup_finds_only_an_executable_file_in_a_path_directory() {
     }
     executable(with_program.join("git-lfs").as_path(), b"#!/bin/sh\n");
     std::fs::write(plain.join("git-lfs"), b"text").expect("plain file");
-    std::fs::create_dir(directory_named_so.join("git-lfs")).expect("directory with the program's name");
+    std::fs::create_dir(directory_named_so.join("git-lfs"))
+        .expect("directory with the program's name");
     let joined = |directories: &[&PathBuf]| {
         return std::env::join_paths(directories).expect("joined");
     };
-    assert!(program_on_path(joined(&[&without, &with_program]).as_os_str(), std::path::Path::new("/")));
-    assert!(!program_on_path(joined(&[&without, &plain, &directory_named_so]).as_os_str(), std::path::Path::new("/")));
+    assert!(program_on_path(
+        joined(&[&without, &with_program]).as_os_str(),
+        std::path::Path::new("/")
+    ));
+    assert!(!program_on_path(
+        joined(&[&without, &plain, &directory_named_so]).as_os_str(),
+        std::path::Path::new("/")
+    ));
     assert!(!program_on_path(OsStr::new(""), std::path::Path::new("/")));
     remove(root.as_path());
 }
@@ -194,7 +319,10 @@ fn the_lookup_finds_only_an_executable_file_in_a_path_directory() {
 /// The missing-program refusal names the cause and each way forward.
 #[test]
 fn the_missing_program_message_names_the_cause_and_every_way_forward() {
-    let search: ProgramSearch = ProgramSearch::of(&[(OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin"))]);
+    let search: ProgramSearch = ProgramSearch::of(&[(
+        OsString::from("PATH"),
+        OsString::from("/opt/lfs/bin:/usr/bin"),
+    )]);
     let message: String = missing_program_message(&search);
     for needle in [
         "stopped before it sent anything",
@@ -222,23 +350,50 @@ fn the_missing_program_message_names_the_cause_and_every_way_forward() {
 #[test]
 fn the_missing_program_message_names_the_service_list_and_the_shell_it_offers() {
     let from_the_service: ProgramSearch = ProgramSearch::of(&[
-        (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin")),
+        (
+            OsString::from("PATH"),
+            OsString::from("/usr/local/bin:/usr/bin"),
+        ),
         (OsString::from(PUSH_FROM_SERVICE), OsString::from("1")),
     ]);
     let without_a_list: String = missing_program_message(&from_the_service);
-    assert!(without_a_list.contains("the folders this push searches: /usr/local/bin, /usr/bin"), "{without_a_list}");
-    assert!(without_a_list.contains("No list of the shell that made the commit came with this push"), "{without_a_list}");
-    assert!(without_a_list.contains("the commit service's own `PATH`, which the manager that started the service fixed"), "{without_a_list}");
+    assert!(
+        without_a_list.contains("the folders this push searches: /usr/local/bin, /usr/bin"),
+        "{without_a_list}"
+    );
+    assert!(
+        without_a_list.contains("No list of the shell that made the commit came with this push"),
+        "{without_a_list}"
+    );
+    assert!(
+        without_a_list.contains(
+            "the commit service's own `PATH`, which the manager that started the service fixed"
+        ),
+        "{without_a_list}"
+    );
     assert!(
         without_a_list.contains("on the `PATH` of a shell and push by hand once from that shell (`git push`), which searches that shell's own `PATH`"),
         "{without_a_list}"
     );
-    assert!(!without_a_list.contains("records that list"), "a typed push records nothing: {without_a_list}");
-    assert!(!without_a_list.contains("make the commit again"), "nothing of the committing shell travels with the service's push: {without_a_list}");
-    let from_this_command: ProgramSearch = ProgramSearch::of(&[(OsString::from("PATH"), OsString::from("/opt/lfs/bin"))]);
+    assert!(
+        !without_a_list.contains("records that list"),
+        "a typed push records nothing: {without_a_list}"
+    );
+    assert!(
+        !without_a_list.contains("make the commit again"),
+        "nothing of the committing shell travels with the service's push: {without_a_list}"
+    );
+    let from_this_command: ProgramSearch =
+        ProgramSearch::of(&[(OsString::from("PATH"), OsString::from("/opt/lfs/bin"))]);
     let typed: String = missing_program_message(&from_this_command);
-    assert!(typed.contains("The list is this command's own `PATH`"), "{typed}");
-    assert!(typed.contains("on this command's `PATH` and push again"), "{typed}");
+    assert!(
+        typed.contains("The list is this command's own `PATH`"),
+        "{typed}"
+    );
+    assert!(
+        typed.contains("on this command's `PATH` and push again"),
+        "{typed}"
+    );
 }
 
 /// What:
@@ -255,17 +410,39 @@ fn the_missing_program_message_names_the_service_list_and_the_shell_it_offers() 
 #[test]
 fn the_missing_program_message_names_the_list_the_command_that_asked_gave() {
     let from_the_request: ProgramSearch = ProgramSearch::of(&[
-        (OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin")),
+        (
+            OsString::from("PATH"),
+            OsString::from("/opt/lfs/bin:/usr/bin"),
+        ),
         (OsString::from(PUSH_FROM_SERVICE), OsString::from("1")),
         (OsString::from(PUSH_FROM_THE_REQUEST), OsString::from("1")),
     ]);
-    assert_eq!(from_the_request.source, crate::lfs_program_search::ProgramSearchSource::TheCommandThatAsked, "the request's list is the one named");
+    assert_eq!(
+        from_the_request.source,
+        crate::lfs_program_search::ProgramSearchSource::TheCommandThatAsked,
+        "the request's list is the one named"
+    );
     let message: String = missing_program_message(&from_the_request);
-    assert!(message.contains("the folders this push searches: /opt/lfs/bin, /usr/bin"), "{message}");
-    assert!(message.contains("The list is the `PATH` of the shell that asked for this push"), "{message}");
-    assert!(message.contains("on the `PATH` of the shell that commits, then make the commit again"), "{message}");
-    assert!(!message.contains("the commit service's own `PATH`"), "the manager's list was not the one searched: {message}");
-    assert!(!message.contains("records that list"), "no remedy promises a record: {message}");
+    assert!(
+        message.contains("the folders this push searches: /opt/lfs/bin, /usr/bin"),
+        "{message}"
+    );
+    assert!(
+        message.contains("The list is the `PATH` of the shell that asked for this push"),
+        "{message}"
+    );
+    assert!(
+        message.contains("on the `PATH` of the shell that commits, then make the commit again"),
+        "{message}"
+    );
+    assert!(
+        !message.contains("the commit service's own `PATH`"),
+        "the manager's list was not the one searched: {message}"
+    );
+    assert!(
+        !message.contains("records that list"),
+        "no remedy promises a record: {message}"
+    );
 }
 
 /// The failure explanation says nothing was published and names each way forward.
@@ -331,8 +508,7 @@ Host key verification failed.\n";
 /// The words for a host this machine does not know while the account asks for strict checking:
 /// the refusal is still an unknown key,
 /// and every way out the wrapper prints still applies.
-const AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING: &str =
-    "No ED25519 host key is known for [127.0.0.1]:41783 and you have requested strict checking.\nHost key verification failed.\n";
+const AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING: &str = "No ED25519 host key is known for [127.0.0.1]:41783 and you have requested strict checking.\nHost key verification failed.\n";
 
 /// The words for a host whose key this machine's `known_hosts` marks `@revoked`,
 /// measured the same way as the two above:
@@ -365,7 +541,10 @@ Host key verification failed.\n";
 ///  so both get the sentence that names the two ways to add the key.
 #[test]
 fn a_host_key_this_machine_does_not_know_is_read() {
-    for text in [AN_UNKNOWN_HOST_KEY, AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING] {
+    for text in [
+        AN_UNKNOWN_HOST_KEY,
+        AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING,
+    ] {
         assert!(reads_as_unknown_host_key(text), "{text}");
     }
 }
@@ -434,24 +613,24 @@ Host key verification failed.\n";
 
 /// The line that ends OpenSSH's warning about a changed key,
 /// alone with the same last line.
-const A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE: &str =
-    "Host key for [127.0.0.1]:41783 has changed and you have requested strict checking.\nHost key verification failed.\n";
+const A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE: &str = "Host key for [127.0.0.1]:41783 has changed and you have requested strict checking.\nHost key verification failed.\n";
 
 /// The banner OpenSSH prints for the key of a refused host that it will not trust,
 /// alone with the same last line:
 /// its capitals are what the reading folds.
-const A_REVOKED_HOST_KEYS_BANNER_ALONE: &str = "@       WARNING: REVOKED HOST KEY DETECTED!               @\nHost key verification failed.\n";
+const A_REVOKED_HOST_KEYS_BANNER_ALONE: &str =
+    "@       WARNING: REVOKED HOST KEY DETECTED!               @\nHost key verification failed.\n";
 
 /// The sentence that says the key is marked as revoked,
 /// alone with the same last line.
-const A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE: &str =
-    "The ED25519 host key for [127.0.0.1]:43055 is marked as revoked.\nHost key verification failed.\n";
+const A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE: &str = "The ED25519 host key for [127.0.0.1]:43055 is marked as revoked.\nHost key verification failed.\n";
 
 /// The line with which OpenSSH refuses a certificate that does not fit the host
 /// (`sshkey_cert_check_host`,
 /// `sshkey.c` at `V_10_6_P2` lines 2480 to 2484),
 /// alone with the same last line.
-const A_CERTIFICATE_THAT_DOES_NOT_FIT: &str = "Certificate invalid: name is not a listed principal\nHost key verification failed.\n";
+const A_CERTIFICATE_THAT_DOES_NOT_FIT: &str =
+    "Certificate invalid: name is not a listed principal\nHost key verification failed.\n";
 
 /// The words for a host key that differs from the one this machine knows for the host's IP address,
 /// while the account asks for strict checking,
@@ -473,7 +652,8 @@ Host key verification failed.\n";
 /// the askpass program gets the question,
 /// and standard error holds the last line alone,
 /// which is an unknown key's transcript exactly.
-const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_ASK: &str = "Host key verification failed.\n";
+const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_ASK: &str =
+    "Host key verification failed.\n";
 
 /// OpenSSH's own words for a host key this machine does not know while the account asks for debug output
 /// (`LogLevel=DEBUG`),
@@ -537,7 +717,9 @@ fn each_other_refusals_sentence_alone_is_no_unknown_key() {
 ///  so a connection that listed the host as known says nothing about an unknown key.
 #[test]
 fn a_transcript_without_the_last_line_is_no_unknown_key() {
-    assert!(!reads_as_unknown_host_key(A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION));
+    assert!(!reads_as_unknown_host_key(
+        A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION
+    ));
 }
 
 /// What:
@@ -557,7 +739,9 @@ fn a_host_key_that_differs_for_the_ip_address_is_read_by_whether_its_warning_was
         "under ask the warning goes to the askpass program, so the transcript is an unknown key's"
     );
     assert!(
-        !reads_as_unknown_host_key(A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_STRICT_CHECKING),
+        !reads_as_unknown_host_key(
+            A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_STRICT_CHECKING
+        ),
         "under strict checking OpenSSH prints the warning, so the refusal is told by its own words"
     );
 }
@@ -592,7 +776,10 @@ fn a_push_refused_for_an_unknown_host_key_reads_while_the_remote_url_names_a_cer
         A_PUSH_REFUSED_FOR_AN_UNKNOWN_KEY_WHOSE_REMOTE_NAMES_A_CERTIFICATE,
         THE_SAME_PUSH_IN_THE_SPELLING_A_GERMAN_GIT_PRINTS,
     ] {
-        assert!(reads_as_unknown_host_key(text), "the word belongs to the remote's name: {text}");
+        assert!(
+            reads_as_unknown_host_key(text),
+            "the word belongs to the remote's name: {text}"
+        );
     }
 }
 
@@ -607,7 +794,8 @@ fn a_relative_path_entry_is_found_as_an_absolute_file() {
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir(&bin).expect("bin directory");
     executable(bin.join("git-lfs").as_path(), b"#!/bin/sh\n");
-    let found: PathBuf = find_program(OsStr::new("bin"), root.as_path()).expect("found through the relative entry");
+    let found: PathBuf =
+        find_program(OsStr::new("bin"), root.as_path()).expect("found through the relative entry");
     assert!(found.is_absolute(), "{found:?}");
     assert_eq!(found, root.join("bin/git-lfs"));
     assert!(program_on_path(OsStr::new("bin"), root.as_path()));

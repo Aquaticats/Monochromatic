@@ -19,7 +19,10 @@
 //! pipe.write(encodeRecord({ step: 'walk', answer: 'passed' })); // 8 bytes
 //! ```
 
-use super::companion_calls::{CompanionCall, Failure};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+};
 use super::companion_steps::CompanionStep;
 use std::os::fd::RawFd;
 
@@ -50,13 +53,22 @@ pub struct StepRecord {
 impl StepRecord {
     /// One passing step.
     pub fn passed(step: CompanionStep) -> StepRecord {
-        return StepRecord { step, failure: None };
+        return StepRecord {
+            step,
+            failure: None,
+        };
     }
 
     /// One failed step,
     /// with the call that refused and the number it answered.
-    pub fn failed(step: CompanionStep, failure: Failure) -> StepRecord {
-        return StepRecord { step, failure: Some(failure) };
+    pub fn failed(
+        step: CompanionStep,
+        failure: Failure,
+    ) -> StepRecord {
+        return StepRecord {
+            step,
+            failure: Some(failure),
+        };
     }
 
     /// The eight bytes this record is.
@@ -90,7 +102,13 @@ impl StepRecord {
         }
         let call: CompanionCall = CompanionCall::from_number(bytes[2])?;
         let errno: i32 = i32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
-        return Some(StepRecord::failed(step, Failure { call, errno }));
+        return Some(StepRecord::failed(
+            step,
+            Failure {
+                call,
+                errno,
+            },
+        ));
     }
 }
 
@@ -99,9 +117,16 @@ impl StepRecord {
 /// Why:
 ///  A record that cannot be written is the child's own last word,
 ///  so the write is best-effort and the child ends either way.
-pub fn send(status: RawFd, record: StepRecord) {
+pub fn send(
+    status: RawFd,
+    record: StepRecord,
+) {
     let bytes: [u8; RECORD_BYTES] = record.encode();
-    let _written = super::companion_file_calls::write_all(status, bytes.as_slice(), CompanionCall::WriteRecord);
+    let _written = super::companion_file_calls::write_all(
+        status,
+        bytes.as_slice(),
+        CompanionCall::WriteRecord,
+    );
 }
 
 /// What:
@@ -140,7 +165,10 @@ pub fn decode_all(bytes: &[u8]) -> Decoded {
     if at != bytes.len() {
         unreadable = true;
     }
-    return Decoded { records, unreadable };
+    return Decoded {
+        records,
+        unreadable,
+    };
 }
 
 /// Controls stay out of the release executable.

@@ -6,8 +6,16 @@
 
 use super::*;
 use crate::forwarded_command::Route;
-use crate::testing::fixture_zfs_binding_record::{common_directory_in, publish_under, record_naming};
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
+use crate::testing::fixture_zfs_binding_record::{
+    common_directory_in,
+    publish_under,
+    record_naming,
+};
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use std::ffi::OsString;
 
@@ -29,17 +37,38 @@ fn slot(name: &str) -> Slot {
     let repository: PathBuf = root.join("repository");
     std::fs::create_dir(repository.as_path()).expect("repository");
     git(repository.as_path(), &["init", "--quiet"]);
-    git(repository.as_path(), &["commit", "--quiet", "--allow-empty", "--message", "base"]);
+    git(
+        repository.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message", "base"],
+    );
     let slot_path: PathBuf = root.join("one");
-    git(repository.as_path(), &["worktree", "add", "--quiet", "--no-checkout", slot_path.to_str().expect("utf-8"), "HEAD"]);
+    git(
+        repository.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            slot_path.to_str().expect("utf-8"),
+            "HEAD",
+        ],
+    );
     let common: PathBuf = repository.join(".git");
     let pointer: Vec<u8> = std::fs::read(slot_path.join(".git")).expect("pointer reads");
-    return Slot { root, common, slot: slot_path, pointer };
+    return Slot {
+        root,
+        common,
+        slot: slot_path,
+        pointer,
+    };
 }
 
 /// One command line as the wrapper resolved it.
 fn command_of(values: &[&str]) -> ResolvedCommand {
-    let arguments: Vec<OsString> = values.iter().map(|value| return OsString::from(value)).collect();
+    let arguments: Vec<OsString> = values
+        .iter()
+        .map(|value| return OsString::from(value))
+        .collect();
     return ResolvedCommand {
         arguments,
         subcommand_index: 0,
@@ -61,12 +90,32 @@ fn command_of(values: &[&str]) -> ResolvedCommand {
 #[test]
 fn a_move_of_a_bound_slot_is_refused_at_the_command() {
     let bound: Slot = slot("command-move");
-    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), bound.common.join("worktrees").join("one").as_path(), Some(bound.pointer.clone())), "one");
-    let ending: Option<Action> = move_refusal_of(&command_of(&["worktree", "move", "one", "../moved"]), Some(bound.common.as_path()), Some(std::path::Path::new("/")));
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.common.join("worktrees").join("one").as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let ending: Option<Action> = move_refusal_of(
+        &command_of(&["worktree", "move", "one", "../moved"]),
+        Some(bound.common.as_path()),
+        Some(std::path::Path::new("/")),
+    );
     match ending {
-        Some(Action::Exit { code, stderr: refusal, .. }) => {
+        Some(Action::Exit {
+            code,
+            stderr: refusal,
+            ..
+        }) => {
             assert_eq!(code, REFUSAL_STATUS);
-            assert!(refusal.contains("`git worktree move` is refused"), "{refusal}");
+            assert!(
+                refusal.contains("`git worktree move` is refused"),
+                "{refusal}"
+            );
             assert!(refusal.contains("the slot `one` is fixed"), "{refusal}");
         }
         other => panic!("a bound slot refuses: {other:?}"),
@@ -74,7 +123,14 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
     assert!(bound.slot.is_dir(), "nothing was moved");
     // A slot no record names is Git's, and the wrapper says nothing about it.
     let other: Slot = slot("command-move-unbound");
-    assert!(move_refusal_of(&command_of(&["worktree", "move", "one", "../moved"]), Some(other.common.as_path()), Some(std::path::Path::new("/"))).is_none());
+    assert!(
+        move_refusal_of(
+            &command_of(&["worktree", "move", "one", "../moved"]),
+            Some(other.common.as_path()),
+            Some(std::path::Path::new("/"))
+        )
+        .is_none()
+    );
     remove(bound.root.as_path());
     remove(other.root.as_path());
 }
@@ -92,28 +148,69 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
 fn the_prune_pass_restores_or_refuses() {
     let bound: Slot = slot("command-prune");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
-    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
     std::fs::remove_file(bound.slot.join(".git")).expect("pointer removed");
     let mut stderr: String = String::new();
-    assert!(before_a_prune(&command_of(&["worktree", "prune"]), Some(bound.common.as_path()), &mut stderr).is_none());
+    assert!(
+        before_a_prune(
+            &command_of(&["worktree", "prune"]),
+            Some(bound.common.as_path()),
+            &mut stderr
+        )
+        .is_none()
+    );
     assert!(stderr.contains("restored the pointer"), "{stderr}");
-    assert_eq!(std::fs::read(bound.slot.join(".git")).expect("pointer reads"), bound.pointer);
+    assert_eq!(
+        std::fs::read(bound.slot.join(".git")).expect("pointer reads"),
+        bound.pointer
+    );
     // A link planted at the pointer is never written through, so the prune stops before Git drops the registration.
     std::fs::remove_file(bound.slot.join(".git")).expect("pointer removed again");
-    std::os::unix::fs::symlink(bound.root.join("elsewhere"), bound.slot.join(".git")).expect("planted link");
+    std::os::unix::fs::symlink(bound.root.join("elsewhere"), bound.slot.join(".git"))
+        .expect("planted link");
     let mut refusal: String = String::new();
-    match before_a_prune(&command_of(&["worktree", "prune", "--verbose"]), Some(bound.common.as_path()), &mut refusal) {
-        Some(Action::Exit { code, stderr: refused_prune, .. }) => {
+    match before_a_prune(
+        &command_of(&["worktree", "prune", "--verbose"]),
+        Some(bound.common.as_path()),
+        &mut refusal,
+    ) {
+        Some(Action::Exit {
+            code,
+            stderr: refused_prune,
+            ..
+        }) => {
             assert_eq!(code, REFUSAL_STATUS);
-            assert!(refused_prune.contains("nothing was pruned"), "{refused_prune}");
-            assert!(refused_prune.contains("link: cannot be proved"), "{refused_prune}");
+            assert!(
+                refused_prune.contains("nothing was pruned"),
+                "{refused_prune}"
+            );
+            assert!(
+                refused_prune.contains("link: cannot be proved"),
+                "{refused_prune}"
+            );
         }
         other => panic!("a slot nothing restores refuses: {other:?}"),
     }
     std::fs::remove_file(bound.slot.join(".git")).expect("the planted link goes");
     // A dry run removes nothing, so the pass writes nothing.
     let mut dry: String = String::new();
-    assert!(before_a_prune(&command_of(&["worktree", "prune", "-n"]), Some(bound.common.as_path()), &mut dry).is_none());
+    assert!(
+        before_a_prune(
+            &command_of(&["worktree", "prune", "-n"]),
+            Some(bound.common.as_path()),
+            &mut dry
+        )
+        .is_none()
+    );
     assert!(dry.is_empty(), "{dry}");
     assert!(!bound.slot.join(".git").exists(), "a dry run wrote nothing");
     remove(bound.root.as_path());
@@ -131,17 +228,47 @@ fn the_prune_pass_restores_or_refuses() {
 fn a_repair_prints_the_report_before_git() {
     let bound: Slot = slot("command-repair");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
-    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
     std::fs::remove_file(bound.slot.join(".git")).expect("pointer removed");
     let mut stderr: String = String::new();
-    before_a_repair(&command_of(&["worktree", "repair", "one"]), Some(bound.common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
-    assert!(stderr.contains("link: damaged, and the registration stands"), "{stderr}");
-    assert!(stderr.contains("next safe command: `git worktree repair"), "{stderr}");
+    before_a_repair(
+        &command_of(&["worktree", "repair", "one"]),
+        Some(bound.common.as_path()),
+        &mut stderr,
+        Some(std::path::Path::new("/")),
+    );
+    assert!(
+        stderr.contains("link: damaged, and the registration stands"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("next safe command: `git worktree repair"),
+        "{stderr}"
+    );
     let mut quiet: String = String::new();
-    before_a_repair(&command_of(&["worktree", "list"]), Some(bound.common.as_path()), &mut quiet, Some(std::path::Path::new("/")));
+    before_a_repair(
+        &command_of(&["worktree", "list"]),
+        Some(bound.common.as_path()),
+        &mut quiet,
+        Some(std::path::Path::new("/")),
+    );
     assert!(quiet.is_empty(), "{quiet}");
     let mut absent: String = String::new();
-    before_a_repair(&command_of(&["worktree", "repair", "absent"]), Some(bound.common.as_path()), &mut absent, Some(std::path::Path::new("/")));
+    before_a_repair(
+        &command_of(&["worktree", "repair", "absent"]),
+        Some(bound.common.as_path()),
+        &mut absent,
+        Some(std::path::Path::new("/")),
+    );
     assert!(absent.is_empty(), "{absent}");
     remove(bound.root.as_path());
 }
@@ -156,9 +283,28 @@ fn a_repository_without_records_gets_nothing() {
     let root: PathBuf = fixture("command-no-records");
     let common: PathBuf = common_directory_in(root.as_path());
     let mut stderr: String = String::new();
-    assert!(move_refusal_of(&command_of(&["worktree", "move", "one", "two"]), Some(common.as_path()), Some(std::path::Path::new("/"))).is_none());
-    assert!(before_a_prune(&command_of(&["worktree", "prune"]), Some(common.as_path()), &mut stderr).is_none());
-    before_a_repair(&command_of(&["worktree", "repair"]), Some(common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
+    assert!(
+        move_refusal_of(
+            &command_of(&["worktree", "move", "one", "two"]),
+            Some(common.as_path()),
+            Some(std::path::Path::new("/"))
+        )
+        .is_none()
+    );
+    assert!(
+        before_a_prune(
+            &command_of(&["worktree", "prune"]),
+            Some(common.as_path()),
+            &mut stderr
+        )
+        .is_none()
+    );
+    before_a_repair(
+        &command_of(&["worktree", "repair"]),
+        Some(common.as_path()),
+        &mut stderr,
+        Some(std::path::Path::new("/")),
+    );
     assert!(stderr.is_empty(), "{stderr}");
     remove(root.as_path());
 }
@@ -175,13 +321,40 @@ fn a_repository_without_records_gets_nothing() {
 fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
     let bound: Slot = slot("command-same-leaf");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
-    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
     let other: PathBuf = bound.root.join("elsewhere").join("one");
     std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
-    git(bound.root.join("repository").as_path(), &["worktree", "add", "--quiet", "--no-checkout", other.to_str().expect("utf-8"), "HEAD"]);
+    git(
+        bound.root.join("repository").as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            other.to_str().expect("utf-8"),
+            "HEAD",
+        ],
+    );
     let mut stderr: String = String::new();
-    before_a_repair(&command_of(&["worktree", "repair", other.to_str().expect("utf-8")]), Some(bound.common.as_path()), &mut stderr, Some(std::path::Path::new("/")));
-    assert!(stderr.is_empty(), "a plain worktree's repair printed the other slot's report: {stderr}");
+    before_a_repair(
+        &command_of(&["worktree", "repair", other.to_str().expect("utf-8")]),
+        Some(bound.common.as_path()),
+        &mut stderr,
+        Some(std::path::Path::new("/")),
+    );
+    assert!(
+        stderr.is_empty(),
+        "a plain worktree's repair printed the other slot's report: {stderr}"
+    );
     remove(bound.root.as_path());
 }
 
@@ -201,22 +374,57 @@ fn a_plain_same_leaf_worktree_gets_no_managed_slot_report() {
 fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
     let bound: Slot = slot("command-same-leaf-move");
     let registration: PathBuf = bound.common.join("worktrees").join("one");
-    publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
     let other: PathBuf = bound.root.join("elsewhere").join("one");
     std::fs::create_dir_all(bound.root.join("elsewhere")).expect("elsewhere");
-    git(bound.root.join("repository").as_path(), &["worktree", "add", "--quiet", "--no-checkout", other.to_str().expect("utf-8"), "HEAD"]);
+    git(
+        bound.root.join("repository").as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            other.to_str().expect("utf-8"),
+            "HEAD",
+        ],
+    );
     let plain: Option<Action> = move_refusal_of(
-        &command_of(&["worktree", "move", other.to_str().expect("utf-8"), "../moved"]),
+        &command_of(&[
+            "worktree",
+            "move",
+            other.to_str().expect("utf-8"),
+            "../moved",
+        ]),
         Some(bound.common.as_path()),
         Some(std::path::Path::new("/")),
     );
-    assert!(plain.is_none(), "a plain worktree with the bound slot's last name was refused: {plain:?}");
+    assert!(
+        plain.is_none(),
+        "a plain worktree with the bound slot's last name was refused: {plain:?}"
+    );
     let the_slot: Option<Action> = move_refusal_of(
-        &command_of(&["worktree", "move", bound.slot.to_str().expect("utf-8"), "../moved"]),
+        &command_of(&[
+            "worktree",
+            "move",
+            bound.slot.to_str().expect("utf-8"),
+            "../moved",
+        ]),
         Some(bound.common.as_path()),
         Some(std::path::Path::new("/")),
     );
-    assert!(the_slot.is_some(), "the bound slot's own move must stay refused");
+    assert!(
+        the_slot.is_some(),
+        "the bound slot's own move must stay refused"
+    );
     remove(bound.root.as_path());
 }
 
@@ -225,7 +433,10 @@ fn leave_the_pointer_gone(pointer: &Path) {
     if pointer.exists() {
         std::fs::remove_file(pointer).expect("the pointer goes");
     }
-    assert!(!pointer.exists(), "the control starts with no pointer at the slot");
+    assert!(
+        !pointer.exists(),
+        "the control starts with no pointer at the slot"
+    );
 }
 
 /// What:
@@ -250,20 +461,65 @@ fn a_prune_git_reads_as_a_dry_run_writes_nothing() {
         &["worktree", "prune", "--d"][..],
         &["worktree", "prune", "--dry-ru"][..],
     ] {
-        publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+        publish_under(
+            bound.common.as_path(),
+            &record_naming(
+                Phase::Filled,
+                bound.slot.as_path(),
+                registration.as_path(),
+                Some(bound.pointer.clone()),
+            ),
+            "one",
+        );
         leave_the_pointer_gone(pointer.as_path());
         let mut stderr: String = String::new();
-        assert!(before_a_prune(&command_of(words), Some(bound.common.as_path()), &mut stderr).is_none(), "{words:?}");
-        assert!(!pointer.exists(), "a dry run wrote the pointer back for {words:?}: {stderr}");
+        assert!(
+            before_a_prune(
+                &command_of(words),
+                Some(bound.common.as_path()),
+                &mut stderr
+            )
+            .is_none(),
+            "{words:?}"
+        );
+        assert!(
+            !pointer.exists(),
+            "a dry run wrote the pointer back for {words:?}: {stderr}"
+        );
         assert!(stderr.is_empty(), "{words:?}: {stderr}");
     }
     // The last dry-run word wins, and Git reads `--no-dry-run` and its abbreviations as a real prune.
-    for words in [&["worktree", "prune", "--dry-run", "--no-dry-run"][..], &["worktree", "prune", "-n", "--no-dry"][..], &["worktree", "prune", "-n", "--no-d"][..]] {
-        publish_under(bound.common.as_path(), &record_naming(Phase::Filled, bound.slot.as_path(), registration.as_path(), Some(bound.pointer.clone())), "one");
+    for words in [
+        &["worktree", "prune", "--dry-run", "--no-dry-run"][..],
+        &["worktree", "prune", "-n", "--no-dry"][..],
+        &["worktree", "prune", "-n", "--no-d"][..],
+    ] {
+        publish_under(
+            bound.common.as_path(),
+            &record_naming(
+                Phase::Filled,
+                bound.slot.as_path(),
+                registration.as_path(),
+                Some(bound.pointer.clone()),
+            ),
+            "one",
+        );
         leave_the_pointer_gone(pointer.as_path());
         let mut stderr: String = String::new();
-        assert!(before_a_prune(&command_of(words), Some(bound.common.as_path()), &mut stderr).is_none(), "{words:?}");
-        assert_eq!(std::fs::read(pointer.as_path()).expect("the pointer the pass wrote back"), bound.pointer, "a real prune has its pointer put back for {words:?}: {stderr}");
+        assert!(
+            before_a_prune(
+                &command_of(words),
+                Some(bound.common.as_path()),
+                &mut stderr
+            )
+            .is_none(),
+            "{words:?}"
+        );
+        assert_eq!(
+            std::fs::read(pointer.as_path()).expect("the pointer the pass wrote back"),
+            bound.pointer,
+            "a real prune has its pointer put back for {words:?}: {stderr}"
+        );
     }
     remove(bound.root.as_path());
 }

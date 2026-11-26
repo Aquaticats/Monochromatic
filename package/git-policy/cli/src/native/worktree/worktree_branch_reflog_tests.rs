@@ -12,7 +12,11 @@
 //! const commonDir = aCommonDirWithReflog('refs/heads/main', lines); expect(branchMovedOnto(commonDir, 'refs/heads/main', tip)).toBe(true);
 //! ```
 
-use super::{MergeMove, branch_made_at, branch_moved_onto};
+use super::{
+    MergeMove,
+    branch_made_at,
+    branch_moved_onto,
+};
 use crate::test_support::fixture;
 use std::path::PathBuf;
 
@@ -47,7 +51,8 @@ const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 /// which blocks whoever opens it for reading until a writer comes.
 fn make_pipe(path: &std::path::Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(result, 0, "mkfifo {}", path.display());
@@ -63,11 +68,16 @@ fn make_pipe(path: &std::path::Path) {
 /// ```ts
 /// const commonDir = aCommonDirWithReflog('branch-reflog-moved', ['0000... T1 ...', 'T1 T2 ...']);
 /// ```
-fn a_common_dir_with_reflog(name: &str, reference: &str, lines: &[String]) -> PathBuf {
+fn a_common_dir_with_reflog(
+    name: &str,
+    reference: &str,
+    lines: &[String],
+) -> PathBuf {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join(".git");
     let reflog: PathBuf = common.join("logs").join(reference);
-    std::fs::create_dir_all(reflog.parent().expect("the directory of the reflog")).expect("the reflog's directory");
+    std::fs::create_dir_all(reflog.parent().expect("the directory of the reflog"))
+        .expect("the reflog's directory");
     let text: String = lines.join("\n") + "\n";
     std::fs::write(reflog.as_path(), text.as_bytes()).expect("the reflog");
     return common;
@@ -82,9 +92,19 @@ fn a_common_dir_with_reflog(name: &str, reference: &str, lines: &[String]) -> Pa
 ///  or every worktree a person just branched from would stay.
 #[test]
 fn a_branch_created_at_a_commit_made_no_commit_of_its_own() {
-    let lines: Vec<String> = vec![format!("{NO_COMMIT} {FIRST} {WHO}\tbranch: Created from HEAD")];
-    let common: PathBuf = a_common_dir_with_reflog("branch-reflog-created", "refs/heads/task-z", lines.as_slice());
-    assert_eq!(branch_made_at(common.as_path(), "refs/heads/task-z").as_deref(), Some(FIRST), "the oldest line names the commit it was made at");
+    let lines: Vec<String> = vec![format!(
+        "{NO_COMMIT} {FIRST} {WHO}\tbranch: Created from HEAD"
+    )];
+    let common: PathBuf = a_common_dir_with_reflog(
+        "branch-reflog-created",
+        "refs/heads/task-z",
+        lines.as_slice(),
+    );
+    assert_eq!(
+        branch_made_at(common.as_path(), "refs/heads/task-z").as_deref(),
+        Some(FIRST),
+        "the oldest line names the commit it was made at"
+    );
     assert!(
         !branch_moved_onto(common.as_path(), "refs/heads/task-z", FIRST, None),
         "a branch created at a commit moved onto nothing"
@@ -105,8 +125,13 @@ fn a_branch_moved_onto_a_commit_made_no_commit_there() {
         format!("{NO_COMMIT} {FIRST} {WHO}\tbranch: Created from HEAD"),
         format!("{FIRST} {SECOND} {WHO}\treset: moving to main"),
     ];
-    let common: PathBuf = a_common_dir_with_reflog("branch-reflog-moved", "refs/heads/task-z", lines.as_slice());
-    assert_eq!(branch_made_at(common.as_path(), "refs/heads/task-z").as_deref(), Some(FIRST), "the branch was made at the first commit");
+    let common: PathBuf =
+        a_common_dir_with_reflog("branch-reflog-moved", "refs/heads/task-z", lines.as_slice());
+    assert_eq!(
+        branch_made_at(common.as_path(), "refs/heads/task-z").as_deref(),
+        Some(FIRST),
+        "the branch was made at the first commit"
+    );
     assert!(
         branch_moved_onto(common.as_path(), "refs/heads/task-z", SECOND, None),
         "the branch moved onto the second commit from another one"
@@ -128,7 +153,11 @@ fn a_line_that_moves_nowhere_says_nothing() {
         format!("{NO_COMMIT} {FIRST} {WHO}\tbranch: Created from HEAD"),
         format!("{SECOND} {SECOND} {WHO}\treset: moving to HEAD"),
     ];
-    let common: PathBuf = a_common_dir_with_reflog("branch-reflog-in-place", "refs/heads/task-z", lines.as_slice());
+    let common: PathBuf = a_common_dir_with_reflog(
+        "branch-reflog-in-place",
+        "refs/heads/task-z",
+        lines.as_slice(),
+    );
     assert!(
         !branch_moved_onto(common.as_path(), "refs/heads/task-z", SECOND, None),
         "a line that stayed on its commit proves nothing"
@@ -146,8 +175,15 @@ fn a_line_that_moves_nowhere_says_nothing() {
 fn a_branch_with_no_reflog_answers_nothing() {
     let root: PathBuf = fixture("branch-reflog-absent");
     let common: PathBuf = root.join(".git");
-    assert_eq!(branch_made_at(common.as_path(), "refs/heads/task-z"), None, "no reflog names no commit");
-    assert!(!branch_moved_onto(common.as_path(), "refs/heads/task-z", FIRST, None), "no reflog records a move onto any commit");
+    assert_eq!(
+        branch_made_at(common.as_path(), "refs/heads/task-z"),
+        None,
+        "no reflog names no commit"
+    );
+    assert!(
+        !branch_moved_onto(common.as_path(), "refs/heads/task-z", FIRST, None),
+        "no reflog records a move onto any commit"
+    );
 }
 
 /// What:
@@ -164,8 +200,14 @@ fn a_branch_with_no_reflog_answers_nothing() {
 ///  round 208).
 #[test]
 fn a_branch_created_in_a_sha256_repository_moved_onto_nothing() {
-    let lines: Vec<String> = vec![format!("{SHA256_NO_COMMIT} {SHA256_FIRST} {WHO}\tbranch: Created from HEAD")];
-    let common: PathBuf = a_common_dir_with_reflog("branch-reflog-sha256-created", "refs/heads/task-z", lines.as_slice());
+    let lines: Vec<String> = vec![format!(
+        "{SHA256_NO_COMMIT} {SHA256_FIRST} {WHO}\tbranch: Created from HEAD"
+    )];
+    let common: PathBuf = a_common_dir_with_reflog(
+        "branch-reflog-sha256-created",
+        "refs/heads/task-z",
+        lines.as_slice(),
+    );
     assert_eq!(
         branch_made_at(common.as_path(), "refs/heads/task-z").as_deref(),
         Some(SHA256_FIRST),
@@ -192,7 +234,8 @@ fn a_reflog_that_is_a_named_pipe_answers_at_once() {
     let root: PathBuf = fixture("branch-reflog-fifo");
     let common: PathBuf = root.join(".git");
     let reflog: PathBuf = common.join("logs").join("refs/heads/task-z");
-    std::fs::create_dir_all(reflog.parent().expect("the directory of the reflog")).expect("the reflog's directory");
+    std::fs::create_dir_all(reflog.parent().expect("the directory of the reflog"))
+        .expect("the reflog's directory");
     make_pipe(reflog.as_path());
     let (told, answers) = std::sync::mpsc::channel();
     let asked: PathBuf = common.clone();
@@ -201,7 +244,9 @@ fn a_reflog_that_is_a_named_pipe_answers_at_once() {
         let moved: bool = branch_moved_onto(asked.as_path(), "refs/heads/task-z", FIRST, None);
         let _sent = told.send((made, moved));
     });
-    let (made, moved) = answers.recv_timeout(PATIENCE).expect("a reflog that is a named pipe answers without waiting for a writer");
+    let (made, moved) = answers
+        .recv_timeout(PATIENCE)
+        .expect("a reflog that is a named pipe answers without waiting for a writer");
     assert_eq!(made, None, "a named pipe names no commit");
     assert!(!moved, "a named pipe records no move onto any commit");
 }
@@ -220,8 +265,10 @@ fn a_reflog_reached_through_a_link_answers_nothing() {
     let root: PathBuf = fixture("branch-reflog-link");
     let common: PathBuf = root.join(".git");
     let reflog: PathBuf = common.join("logs").join("refs/heads/task-z");
-    std::fs::create_dir_all(reflog.parent().expect("the directory of the reflog")).expect("the reflog's directory");
-    std::os::unix::fs::symlink("/dev/zero", reflog.as_path()).expect("a link where the reflog goes");
+    std::fs::create_dir_all(reflog.parent().expect("the directory of the reflog"))
+        .expect("the reflog's directory");
+    std::os::unix::fs::symlink("/dev/zero", reflog.as_path())
+        .expect("a link where the reflog goes");
     let (told, answers) = std::sync::mpsc::channel();
     let asked: PathBuf = common.clone();
     std::thread::spawn(move || {
@@ -229,7 +276,9 @@ fn a_reflog_reached_through_a_link_answers_nothing() {
         let moved: bool = branch_moved_onto(asked.as_path(), "refs/heads/task-z", FIRST, None);
         let _sent = told.send((made, moved));
     });
-    let (made, moved) = answers.recv_timeout(PATIENCE).expect("a reflog a link names answers without reading through it");
+    let (made, moved) = answers
+        .recv_timeout(PATIENCE)
+        .expect("a reflog a link names answers without reading through it");
     assert_eq!(made, None, "a link names no commit");
     assert!(!moved, "a link records no move onto any commit");
 }
@@ -250,14 +299,29 @@ fn the_move_a_merge_made_in_its_own_branch_is_no_witness_and_an_earlier_one_is()
         format!("{NO_COMMIT} {FIRST} {WHO}\tbranch: Created from HEAD"),
         format!("{FIRST} {SECOND} {WHO}\tcommit: the branch's own work"),
     ];
-    let common: PathBuf = a_common_dir_with_reflog("branch-reflog-merge-move", "refs/heads/main", lines.as_slice());
-    let merge: MergeMove<'_> = MergeMove { from: FIRST, to: SECOND };
+    let common: PathBuf = a_common_dir_with_reflog(
+        "branch-reflog-merge-move",
+        "refs/heads/main",
+        lines.as_slice(),
+    );
+    let merge: MergeMove<'_> = MergeMove {
+        from: FIRST,
+        to: SECOND,
+    };
     assert!(
         !branch_moved_onto(common.as_path(), "refs/heads/main", SECOND, Some(merge)),
         "the move the merge itself made is no witness"
     );
     assert!(
-        branch_moved_onto(common.as_path(), "refs/heads/main", SECOND, Some(MergeMove { from: SECOND, to: FIRST })),
+        branch_moved_onto(
+            common.as_path(),
+            "refs/heads/main",
+            SECOND,
+            Some(MergeMove {
+                from: SECOND,
+                to: FIRST
+            })
+        ),
         "a move the merge did not make is still a witness"
     );
 }

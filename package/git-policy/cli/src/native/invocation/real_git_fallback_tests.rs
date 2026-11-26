@@ -21,14 +21,31 @@
 
 /// The resolver under test and the pieces its results are made of.
 use super::{
-    Platform, RealGitNotFound, RecordedGit, ResolutionInputs, ResolvedGit, SearchedCandidate, process_resolution_inputs,
+    Platform,
+    RealGitNotFound,
+    RecordedGit,
+    ResolutionInputs,
+    ResolvedGit,
+    SearchedCandidate,
+    process_resolution_inputs,
     resolve_real_git,
 };
 use crate::real_git_candidate::CandidateKind;
-use crate::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, unit_texts};
-use crate::test_support::{executable, fixture, remove};
+use crate::service_provision::{
+    ProvisionHost,
+    SERVICE_UNIT_NAME,
+    unit_texts,
+};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Inputs for a `PATH` that holds only this wrapper,
@@ -58,7 +75,10 @@ fn only_the_wrapper(root: &Path) -> ResolutionInputs {
 
 /// Write the unit file `root/unit` the way the wrapper renders it,
 /// naming `git`.
-fn write_unit(root: &Path, git: &Path) {
+fn write_unit(
+    root: &Path,
+    git: &Path,
+) {
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: root.to_path_buf(),
         user_unit_dir: None,
@@ -93,7 +113,12 @@ fn a_recorded_real_git_is_used_with_a_one_line_notice_when_path_has_only_the_wra
     let notice: String = resolved.notice.expect("a fallback is announced");
     assert_eq!(notice.matches('\n').count(), 1, "{notice}");
     assert!(notice.ends_with('\n'), "{notice}");
-    assert!(notice.starts_with("monochromatic-git-policy-cli: no real Git follows this wrapper on PATH ("), "{notice}");
+    assert!(
+        notice.starts_with(
+            "monochromatic-git-policy-cli: no real Git follows this wrapper on PATH ("
+        ),
+        "{notice}"
+    );
     for named in [
         root.join("wrapper").display().to_string(),
         root.join("recorded/git").display().to_string(),
@@ -115,7 +140,10 @@ fn the_notice_names_an_empty_path_in_words() {
     std::fs::create_dir(root.join("recorded")).expect("directory");
     executable(root.join("recorded/git").as_path(), b"\x7fELF real");
     write_unit(root.as_path(), root.join("recorded/git").as_path());
-    let notice: String = resolve_real_git(&resolution).expect("usable").notice.expect("announced");
+    let notice: String = resolve_real_git(&resolution)
+        .expect("usable")
+        .notice
+        .expect("announced");
     assert!(notice.contains("PATH (empty or unset);"), "{notice}");
     remove(root.as_path());
 }
@@ -131,9 +159,19 @@ fn a_real_git_on_path_wins_and_gives_no_notice() {
     std::fs::create_dir(root.join("recorded")).expect("directory");
     executable(root.join("recorded/git").as_path(), b"\x7fELF other");
     write_unit(root.as_path(), root.join("recorded/git").as_path());
-    resolution.path = OsString::from(format!("{}:{}", root.join("wrapper").display(), root.join("real").display()));
+    resolution.path = OsString::from(format!(
+        "{}:{}",
+        root.join("wrapper").display(),
+        root.join("real").display()
+    ));
     let resolved: ResolvedGit = resolve_real_git(&resolution).expect("PATH has a real Git");
-    assert_eq!(resolved, ResolvedGit { path: root.join("real/git"), notice: None });
+    assert_eq!(
+        resolved,
+        ResolvedGit {
+            path: root.join("real/git"),
+            notice: None
+        }
+    );
     remove(root.as_path());
 }
 
@@ -151,10 +189,20 @@ fn no_record_keeps_the_stop_and_names_no_record() {
     resolution.service_unit = Some(root.join("unit"));
     let missing_file: RealGitNotFound = resolve_real_git(&resolution).expect_err("no unit file");
     assert_eq!(missing_file.recorded, None);
-    std::fs::write(root.join("unit"), b"[Service]\nExecStart=/bin/service --instance x\n").expect("unit without Git");
-    let names_nothing: RealGitNotFound = resolve_real_git(&resolution).expect_err("no Git in the unit");
+    std::fs::write(
+        root.join("unit"),
+        b"[Service]\nExecStart=/bin/service --instance x\n",
+    )
+    .expect("unit without Git");
+    let names_nothing: RealGitNotFound =
+        resolve_real_git(&resolution).expect_err("no Git in the unit");
     assert_eq!(names_nothing.recorded, None);
-    assert!(!names_nothing.to_string().contains("recorded by the commit service unit"), "{names_nothing}");
+    assert!(
+        !names_nothing
+            .to_string()
+            .contains("recorded by the commit service unit"),
+        "{names_nothing}"
+    );
     remove(root.as_path());
 }
 
@@ -169,26 +217,48 @@ fn a_record_naming_the_wrapper_a_link_to_it_or_its_launcher_is_refused() {
     std::fs::create_dir(root.join("linked")).expect("directory");
     std::os::unix::fs::symlink(root.join("wrapper/git"), root.join("linked/git")).expect("link");
     std::fs::create_dir(root.join("launchers")).expect("directory");
-    executable(root.join("launchers/monochromatic-git-policy-cli").as_path(), b"\x7fELF launcher");
+    executable(
+        root.join("launchers/monochromatic-git-policy-cli")
+            .as_path(),
+        b"\x7fELF launcher",
+    );
     std::fs::write(
         root.join("launchers/monochromatic-git-policy-cli.launch"),
         b"{\"toolId\":\"cargo:monochromatic-git-policy-cli\",\"lockFile\":\"/l\",\"real\":\"/r\"}",
     )
     .expect("launch record");
-    for named in [root.join("wrapper/git"), root.join("linked/git"), root.join("launchers/monochromatic-git-policy-cli")] {
+    for named in [
+        root.join("wrapper/git"),
+        root.join("linked/git"),
+        root.join("launchers/monochromatic-git-policy-cli"),
+    ] {
         write_unit(root.as_path(), named.as_path());
-        let failure: RealGitNotFound = resolve_real_git(&resolution).expect_err("the record is refused");
+        let failure: RealGitNotFound =
+            resolve_real_git(&resolution).expect_err("the record is refused");
         assert_eq!(
             failure.recorded,
             Some(RecordedGit {
                 unit_file: root.join("unit"),
-                candidate: SearchedCandidate { path: named.clone(), kind: CandidateKind::Wrapper },
+                candidate: SearchedCandidate {
+                    path: named.clone(),
+                    kind: CandidateKind::Wrapper
+                },
             }),
             "{}",
             named.display()
         );
         let said: String = failure.to_string();
-        assert!(said.contains(format!("{}: recorded by the commit service unit {}", named.display(), root.join("unit").display()).as_str()), "{said}");
+        assert!(
+            said.contains(
+                format!(
+                    "{}: recorded by the commit service unit {}",
+                    named.display(),
+                    root.join("unit").display()
+                )
+                .as_str()
+            ),
+            "{said}"
+        );
     }
     remove(root.as_path());
 }
@@ -203,15 +273,34 @@ fn a_record_naming_a_missing_or_non_executable_file_is_refused_and_a_relative_on
     let resolution: ResolutionInputs = only_the_wrapper(root.as_path());
     std::fs::create_dir(root.join("plain")).expect("directory");
     std::fs::write(root.join("plain/git"), b"\x7fELF not executable").expect("plain file");
-    for named in [root.join("gone/git"), root.join("plain/git"), root.join("plain")] {
+    for named in [
+        root.join("gone/git"),
+        root.join("plain/git"),
+        root.join("plain"),
+    ] {
         write_unit(root.as_path(), named.as_path());
-        let failure: RealGitNotFound = resolve_real_git(&resolution).expect_err("the record is refused");
+        let failure: RealGitNotFound =
+            resolve_real_git(&resolution).expect_err("the record is refused");
         let recorded: RecordedGit = failure.recorded.expect("the record is named");
         assert_eq!(recorded.candidate.path, named);
-        assert_eq!(recorded.candidate.kind, CandidateKind::Unusable, "{}", named.display());
+        assert_eq!(
+            recorded.candidate.kind,
+            CandidateKind::Unusable,
+            "{}",
+            named.display()
+        );
     }
-    std::fs::write(root.join("unit"), b"ExecStart=/bin/service --git git --instance x\n").expect("relative record");
-    assert_eq!(resolve_real_git(&resolution).expect_err("relative").recorded, None);
+    std::fs::write(
+        root.join("unit"),
+        b"ExecStart=/bin/service --git git --instance x\n",
+    )
+    .expect("relative record");
+    assert_eq!(
+        resolve_real_git(&resolution)
+            .expect_err("relative")
+            .recorded,
+        None
+    );
     remove(root.as_path());
 }
 
@@ -231,7 +320,12 @@ fn process_inputs_name_the_unit_below_an_absolute_runtime_directory_only() {
         .expect("process inputs")
         .service_unit;
     };
-    assert_eq!(named(Some("/run/user/7")), Some(PathBuf::from("/run/user/7/systemd/user/monochromatic-git-policy-cli@.service")));
+    assert_eq!(
+        named(Some("/run/user/7")),
+        Some(PathBuf::from(
+            "/run/user/7/systemd/user/monochromatic-git-policy-cli@.service"
+        ))
+    );
     assert_eq!(named(None), None);
     assert_eq!(named(Some("")), None);
     assert_eq!(named(Some("run/user/7")), None);

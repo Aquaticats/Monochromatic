@@ -21,13 +21,19 @@ use crate::diagnostic_log::debug;
 /// Tree removal.
 use crate::private_storage::remove_tree;
 /// The fail-closed recovery failure.
-use crate::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{
+    RecoveryError,
+    io_failure,
+};
 /// One Git start.
 use crate::transaction_git::GitRequest;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Variables that would redirect a shadow command to another repository,
 ///  index or store.
@@ -56,7 +62,10 @@ pub const SHADOW_ROOT_NAME: &str = "shadow";
 /// ```ts
 /// shadowRepositoryPath({ commonDir, transactionId }) // `${commonDir}/monochromatic-git-policy-cli/shadow/${transactionId}`
 /// ```
-pub fn shadow_repository_path(common_dir: &Path, transaction_id: &str) -> PathBuf {
+pub fn shadow_repository_path(
+    common_dir: &Path,
+    transaction_id: &str,
+) -> PathBuf {
     return common_dir
         .join("monochromatic-git-policy-cli")
         .join(SHADOW_ROOT_NAME)

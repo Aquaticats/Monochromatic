@@ -22,9 +22,17 @@
 //! if (decision.ok) recordParentIdentity(store, decision.identity);
 //! ```
 
-use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
+use super::clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+    field_names,
+};
 use super::clone_slot_walk_refusals::WalkRefusal;
-use super::parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
+use super::parent_adoption_facts::{
+    BindingState,
+    ParentPolicy,
+    SlotState,
+};
 
 /// What:
 ///  Every fact the adoption decision reads.
@@ -143,27 +151,53 @@ impl AdoptionRefusal {
     /// naming the failing component or field and every way forward.
     pub fn message(&self) -> String {
         return match self {
-            AdoptionRefusal::Walk { refusal } => format!("the adoption's walk refused the parent folder: {}. Ways forward: fix the component it names and run the adoption again; nothing was recorded.", refusal.message()),
-            AdoptionRefusal::Identity { field, identified, held } => format!(
+            AdoptionRefusal::Walk {
+                refusal,
+            } => format!(
+                "the adoption's walk refused the parent folder: {}. Ways forward: fix the component it names and run the adoption again; nothing was recorded.",
+                refusal.message()
+            ),
+            AdoptionRefusal::Identity {
+                field,
+                identified,
+                held,
+            } => format!(
                 "the held `.claude/worktrees` folder is not the one the administrator identified: the {} is {identified}, and the held folder holds {held}. Nothing was recorded. Ways forward: identify the intended replacement again from the restored checkout or the controlled recreation, and run the adoption with its own device and inode.",
                 field.name()
             ),
-            AdoptionRefusal::Policy { fields } => format!(
+            AdoptionRefusal::Policy {
+                fields,
+            } => format!(
                 "the held `.claude/worktrees` folder does not hold the shape the recorded folder set: the {} differs from the policy. Nothing was recorded, because a replacement must not come back wider than the folder it replaces. Ways forward: give the folder the recorded owner, mode and ACLs and run the adoption again.",
                 field_names(fields)
             ),
-            AdoptionRefusal::BindingUnresolved { what, reason } => format!(
+            AdoptionRefusal::BindingUnresolved {
+                what,
+                reason,
+            } => format!(
                 "the adoption cannot reconcile {what}: {reason}. Nothing was recorded, because a replacement is recorded only once every affected binding is known to be live or staged. Ways forward: settle or remove that binding as recovery requires, then run the adoption again."
             ),
-            AdoptionRefusal::SlotDiffers { slot, field } => format!(
+            AdoptionRefusal::SlotDiffers {
+                slot,
+                field,
+            } => format!(
                 "the surviving clone slot `{slot}` differs from its record in the {field}, and an adoption never overwrites a surviving slot identity. Nothing was recorded. Ways forward: restore the folder whose identity is recorded, or settle that binding with the removal workflow, then run the adoption again.",
                 field = field.name()
             ),
-            AdoptionRefusal::SlotNotListed { slot } => format!(
+            AdoptionRefusal::SlotNotListed {
+                slot,
+            } => format!(
                 "the store records a clone slot `{slot}` and the adoption was given no state for it, so nothing proves that slot survives the replacement. Nothing was recorded. Ways forward: enumerate every slot the store records (its `slot_names`) against its live folder and run the adoption again."
             ),
-            AdoptionRefusal::FreshLookup { refusal } => format!("the fresh canonical lookup after the walk refused: {}. Nothing was recorded. Ways forward: fix what it names and run the adoption again.", refusal.message()),
-            AdoptionRefusal::FreshLookupDiffers { fields } => format!(
+            AdoptionRefusal::FreshLookup {
+                refusal,
+            } => format!(
+                "the fresh canonical lookup after the walk refused: {}. Nothing was recorded. Ways forward: fix what it names and run the adoption again.",
+                refusal.message()
+            ),
+            AdoptionRefusal::FreshLookupDiffers {
+                fields,
+            } => format!(
                 "the fresh canonical lookup reached another folder than the held one: the {} differs. Nothing was recorded. Ways forward: stop the account from changing the folder, run the adoption again, and let it record only what both looks agree on.",
                 field_names(fields)
             ),
@@ -218,48 +252,92 @@ pub struct Adoption {
 pub fn decide_adoption(facts: &AdoptionFacts) -> Result<Adoption, AdoptionRefusal> {
     let held: &CloneFolderIdentity = match &facts.walk {
         Ok(identity) => identity,
-        Err(refusal) => return Err(AdoptionRefusal::Walk { refusal: refusal.clone() }),
+        Err(refusal) => {
+            return Err(AdoptionRefusal::Walk {
+                refusal: refusal.clone(),
+            });
+        }
     };
     if held.device != facts.identified_device {
-        return Err(AdoptionRefusal::Identity { field: CloneFolderField::Device, identified: facts.identified_device.to_string(), held: held.device.to_string() });
+        return Err(AdoptionRefusal::Identity {
+            field: CloneFolderField::Device,
+            identified: facts.identified_device.to_string(),
+            held: held.device.to_string(),
+        });
     }
     if held.inode != facts.identified_inode {
-        return Err(AdoptionRefusal::Identity { field: CloneFolderField::Inode, identified: facts.identified_inode.to_string(), held: held.inode.to_string() });
+        return Err(AdoptionRefusal::Identity {
+            field: CloneFolderField::Inode,
+            identified: facts.identified_inode.to_string(),
+            held: held.inode.to_string(),
+        });
     }
     let policy_fields: Vec<CloneFolderField> = facts.policy.differences(held);
     if !policy_fields.is_empty() {
-        return Err(AdoptionRefusal::Policy { fields: policy_fields });
+        return Err(AdoptionRefusal::Policy {
+            fields: policy_fields,
+        });
     }
     for binding in &facts.bindings {
-        if let BindingState::Unresolved { what, reason } = binding {
-            return Err(AdoptionRefusal::BindingUnresolved { what: what.clone(), reason: reason.clone() });
+        if let BindingState::Unresolved {
+            what,
+            reason,
+        } = binding
+        {
+            return Err(AdoptionRefusal::BindingUnresolved {
+                what: what.clone(),
+                reason: reason.clone(),
+            });
         }
     }
     for recorded in &facts.store {
         let listed: bool = facts.slots.iter().any(|state| {
             let named: &str = match state {
-                SlotState::Agrees { slot } | SlotState::Differs { slot, .. } => slot,
+                SlotState::Agrees {
+                    slot,
+                }
+                | SlotState::Differs {
+                    slot,
+                    ..
+                } => slot,
             };
             return named == recorded.as_str();
         });
         if !listed {
-            return Err(AdoptionRefusal::SlotNotListed { slot: recorded.clone() });
+            return Err(AdoptionRefusal::SlotNotListed {
+                slot: recorded.clone(),
+            });
         }
     }
     for slot in &facts.slots {
-        if let SlotState::Differs { slot: differs, field } = slot {
-            return Err(AdoptionRefusal::SlotDiffers { slot: differs.clone(), field: *field });
+        if let SlotState::Differs {
+            slot: differs,
+            field,
+        } = slot
+        {
+            return Err(AdoptionRefusal::SlotDiffers {
+                slot: differs.clone(),
+                field: *field,
+            });
         }
     }
     let fresh: &CloneFolderIdentity = match &facts.fresh {
         Ok(identity) => identity,
-        Err(refusal) => return Err(AdoptionRefusal::FreshLookup { refusal: refusal.clone() }),
+        Err(refusal) => {
+            return Err(AdoptionRefusal::FreshLookup {
+                refusal: refusal.clone(),
+            });
+        }
     };
     let fresh_fields: Vec<CloneFolderField> = held.differences(fresh);
     if !fresh_fields.is_empty() {
-        return Err(AdoptionRefusal::FreshLookupDiffers { fields: fresh_fields });
+        return Err(AdoptionRefusal::FreshLookupDiffers {
+            fields: fresh_fields,
+        });
     }
-    return Ok(Adoption { identity: held.clone() });
+    return Ok(Adoption {
+        identity: held.clone(),
+    });
 }
 
 /// Controls stay out of the release executable.

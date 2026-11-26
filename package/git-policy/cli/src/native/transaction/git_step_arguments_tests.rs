@@ -36,7 +36,14 @@ fn object_names_and_ref_names_are_kept() {
     let first: &str = "e6a1b7c9d2f30415263748596a7b8c9d0e1f2a3b";
     let second: &str = "0123456789abcdef0123456789abcdef01234567";
     assert_eq!(
-        named(&["rev-list", "--objects", first, "--not", second, "refs/heads/main"]),
+        named(&[
+            "rev-list",
+            "--objects",
+            first,
+            "--not",
+            second,
+            "refs/heads/main"
+        ]),
         format!("rev-list --objects {first} --not {second} refs/heads/main")
     );
 }
@@ -47,15 +54,19 @@ fn object_names_and_ref_names_are_kept() {
 #[test]
 fn a_message_and_a_path_are_never_written() {
     assert_eq!(
-        named(&["commit",
-        "--message=the person's words",
-        "a.txt"]),
+        named(&["commit", "--message=the person's words", "a.txt"]),
         "commit --message an argument an argument",
         "the message and the path are each a placeholder,
         and neither is written"
     );
-    assert_eq!(named(&["commit", "-m", "the person's words", "--no-only"]), "commit -m an argument --no-only");
-    assert_eq!(named(&["commit", "--file", "/somewhere/MESSAGE"]), "commit --file an argument");
+    assert_eq!(
+        named(&["commit", "-m", "the person's words", "--no-only"]),
+        "commit -m an argument --no-only"
+    );
+    assert_eq!(
+        named(&["commit", "--file", "/somewhere/MESSAGE"]),
+        "commit --file an argument"
+    );
     assert!(!named(&["commit", "--message=secret"]).contains("secret"));
 }
 
@@ -63,8 +74,14 @@ fn a_message_and_a_path_are_never_written() {
 /// because a global option's value is a directory or a setting of the wrapper's own.
 #[test]
 fn a_global_option_s_value_is_left_out() {
-    assert_eq!(named(&["-C", "/var/home/person/work", "status", "--porcelain"]), "status --porcelain");
-    assert_eq!(named(&["-c", "core.hooksPath=/dev/null", "commit"]), "commit");
+    assert_eq!(
+        named(&["-C", "/var/home/person/work", "status", "--porcelain"]),
+        "status --porcelain"
+    );
+    assert_eq!(
+        named(&["-c", "core.hooksPath=/dev/null", "commit"]),
+        "commit"
+    );
 }
 
 /// A step whose arguments name nothing has no words at all,
@@ -72,7 +89,13 @@ fn a_global_option_s_value_is_left_out() {
 #[test]
 fn a_step_with_nothing_to_name_has_no_words() {
     assert_eq!(named_arguments(&[]), "");
-    assert_eq!(named_arguments(&[OsString::from("-C"), OsString::from("/var/home/person/work")]), "");
+    assert_eq!(
+        named_arguments(&[
+            OsString::from("-C"),
+            OsString::from("/var/home/person/work")
+        ]),
+        ""
+    );
 }
 
 /// The words are bounded and the rest are counted,
@@ -87,10 +110,17 @@ fn the_words_are_bounded_and_the_rest_counted() {
     let text: String = named_arguments(arguments.as_slice());
     // Two words are the subcommand and the separator; every word after the bound is counted.
     let words_before_the_bound: usize = 2;
-    let left_out: usize = paths.saturating_sub(NAMED_WORDS_LIMIT.saturating_sub(words_before_the_bound));
-    assert!(text.ends_with(format!("and {left_out} more").as_str()), "{text}");
+    let left_out: usize =
+        paths.saturating_sub(NAMED_WORDS_LIMIT.saturating_sub(words_before_the_bound));
+    assert!(
+        text.ends_with(format!("and {left_out} more").as_str()),
+        "{text}"
+    );
     assert!(!text.contains("package/path-"), "{text}");
-    assert!(text.len() < 200, "the record carries a bounded number of words: {text}");
+    assert!(
+        text.len() < 200,
+        "the record carries a bounded number of words: {text}"
+    );
 }
 
 /// A word holding a quote or a backslash never breaks the record,
@@ -98,18 +128,14 @@ fn the_words_are_bounded_and_the_rest_counted() {
 #[test]
 fn a_word_with_a_quote_cannot_break_the_record() {
     let arguments: Vec<OsString> = vec![OsString::from("log"), OsString::from("--format=%H\"%n\\")];
-    let words:
-    String = named_arguments(arguments.as_slice());
-    let figure:
-    crate::transaction_step_durations::StepFigure =
-        crate::transaction_step_durations::StepFigure { name:
-        String::from("git log"),
-        arguments:
-        Some(words),
-        offset_ms:
-        1,
-        duration_ms:
-        1500 };
+    let words: String = named_arguments(arguments.as_slice());
+    let figure: crate::transaction_step_durations::StepFigure =
+        crate::transaction_step_durations::StepFigure {
+            name: String::from("git log"),
+            arguments: Some(words),
+            offset_ms: 1,
+            duration_ms: 1500,
+        };
     assert_eq!(
         crate::transaction_step_durations::steps_json(&[figure]),
         "[{\"name\":\"git log\",\"arguments\":\"log --format=%H\\\"%n\\\\\",\"offsetMs\":1,\"durationMs\":1500}]"

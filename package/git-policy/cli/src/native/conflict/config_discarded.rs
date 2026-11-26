@@ -23,9 +23,21 @@
 //! ```
 
 use crate::config_error::ConfigError;
-use crate::config_values::{member_keys, member_path, safe_integer, text, wrong_kind};
-use crate::discarded_prune::{Limits, parse_size};
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue};
+use crate::config_values::{
+    member_keys,
+    member_path,
+    safe_integer,
+    text,
+    wrong_kind,
+};
+use crate::discarded_prune::{
+    Limits,
+    parse_size,
+};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+};
 
 /// The name of the section.
 pub const SECTION: &str = "discardedCopies";
@@ -53,12 +65,19 @@ pub const SIZE_KEY: &str = "maxSize";
 /// ```ts
 /// const bytes = typeof value === 'number' ? safeInteger(value, 1) : parseSize(value);
 /// ```
-fn size_limit(value: &JsoncValue, path: &str) -> Result<u64, ConfigError> {
+fn size_limit(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<u64, ConfigError> {
     if matches!(value.kind, JsoncKind::Number { .. }) {
         return safe_integer(value, path, 1);
     }
     if !matches!(value.kind, JsoncKind::Text { .. }) {
-        return Err(wrong_kind(value, path, "a number of bytes or a size such as \"256m\""));
+        return Err(wrong_kind(
+            value,
+            path,
+            "a number of bytes or a size such as \"256m\"",
+        ));
     }
     let spelled: String = text(value, path)?;
     return match parse_size(spelled.as_str()) {

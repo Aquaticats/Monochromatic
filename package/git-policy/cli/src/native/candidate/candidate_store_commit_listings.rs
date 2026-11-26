@@ -17,29 +17,44 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// The validated object name and its parser.
-use crate::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 /// The size of a pathspec chunk,
 /// shared with the prediction and the attribute query.
 use crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
 /// The record a diff listing prints,
 /// and its parser.
-use crate::candidate_record::{CandidateRecord, parse_raw_records};
+use crate::candidate_record::{
+    CandidateRecord,
+    parse_raw_records,
+};
 /// The store these operations belong to,
 /// and the failure of a listing command.
-use crate::candidate_store::{CandidateStore, listing_failure};
+use crate::candidate_store::{
+    CandidateStore,
+    listing_failure,
+};
 /// The record a tree listing prints,
 /// and its parser.
-use crate::candidate_tree::{TreeRecord, parse_tree_records};
+use crate::candidate_tree::{
+    TreeRecord,
+    parse_tree_records,
+};
 /// A hash-based set,
 /// for the membership tests of the parent listing.
 use std::collections::HashSet;
+/// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
+use std::ffi::OsString;
 /// A shared,
 ///  immutable listing the store keeps for the commit it listed.
 use std::sync::Arc;
-/// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
-use std::ffi::OsString;
 
 /// The most commits one `git rev-list` receives.
 ///  `usize` is the type of counts;
@@ -114,7 +129,10 @@ impl CandidateStore {
 
     /// The listing of one commit's files by Git,
     /// as `commit_tree_records` asks for it when it has no answer kept.
-    fn list_commit_tree(&mut self, commit: &ObjectId) -> Result<Vec<TreeRecord>, CandidateError> {
+    fn list_commit_tree(
+        &mut self,
+        commit: &ObjectId,
+    ) -> Result<Vec<TreeRecord>, CandidateError> {
         let output: Vec<u8> = self.run_listing(
             "ls-tree",
             &[

@@ -26,9 +26,16 @@ use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 /// The call that sets an entry's modification time to now.
 use crate::scratch_location::renew;
 /// A path.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// A span of time and the channel that stops the renewal.
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{
+    Receiver,
+    Sender,
+    channel,
+};
 use std::time::Duration;
 
 /// What:
@@ -67,21 +74,34 @@ impl ScratchRenewal {
     /// ```ts
     /// ScratchRenewal.start(path, REFRESH_EVERY);
     /// ```
-    pub fn start(path: &Path, every: Duration) -> Self {
+    pub fn start(
+        path: &Path,
+        every: Duration,
+    ) -> Self {
         let (stop, waited): (Sender<()>, Receiver<()>) = channel();
         let renewed: PathBuf = path.to_path_buf();
-        let started = std::thread::Builder::new().name(String::from("scratch-renewal")).spawn(move || {
-            while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = waited.recv_timeout(every) {
-                renew(renewed.as_path());
-            }
-        });
+        let started = std::thread::Builder::new()
+            .name(String::from("scratch-renewal"))
+            .spawn(move || {
+                while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                    waited.recv_timeout(every)
+                {
+                    renew(renewed.as_path());
+                }
+            });
         if let Err(error) = started {
             crate::diagnostic_log::debug(
                 "monochromatic-git-policy-cli",
-                format!("the scratch tree {} is not renewed while this command lives: {error}", path.display()).as_str(),
+                format!(
+                    "the scratch tree {} is not renewed while this command lives: {error}",
+                    path.display()
+                )
+                .as_str(),
             );
         }
-        return Self { stop };
+        return Self {
+            stop,
+        };
     }
 
     /// What:

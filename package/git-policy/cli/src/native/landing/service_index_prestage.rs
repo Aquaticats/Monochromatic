@@ -40,17 +40,35 @@
 //! prestage.start(index, seq + 1); /* idle */ const ready = await prestage.take(index, seq); // undefined: stage cold
 //! ```
 
+use crate::blocking_job::{
+    BlockingJobError,
+    run_blocking_job,
+};
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
+use crate::lazy_runtime::{
+    run_on_runtime,
+    spawn_on_runtime,
+};
 use crate::process_identity::ProcessIdentityError;
 use crate::service_index_lock::lock_path_of;
-use crate::service_index_marker::{marker_text, own_identity};
+use crate::service_index_marker::{
+    marker_text,
+    own_identity,
+};
 use crate::service_index_placement::sync_file;
 use crate::service_index_staging::stage_marker;
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use crate::blocking_job::{BlockingJobError, run_blocking_job};
-use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use tokio::task::JoinHandle;
 
 /// A marked file that is flushed and ready to become the lock.
@@ -181,7 +199,9 @@ struct MadeAhead {
 /// const step = creatingAndRecording.lock()
 /// ```
 fn in_the_step_of_creating_and_recording() -> std::sync::MutexGuard<'static, ()> {
-    return CREATING_AND_RECORDING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    return CREATING_AND_RECORDING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 }
 
 /// What:
@@ -200,13 +220,22 @@ fn in_the_step_of_creating_and_recording() -> std::sync::MutexGuard<'static, ()>
 /// ```ts
 /// const step = creatingAndRecording.lock(); if (!wanted || serviceEnds) return undefined; const made = stageMarker(); record(made); return made
 /// ```
-fn make_and_record(lock: &Path, seq: u64, wanted: &AtomicBool, marker: &str) -> std::io::Result<Option<Prestaged>> {
+fn make_and_record(
+    lock: &Path,
+    seq: u64,
+    wanted: &AtomicBool,
+    marker: &str,
+) -> std::io::Result<Option<Prestaged>> {
     let _step = in_the_step_of_creating_and_recording();
     if !wanted.load(Ordering::SeqCst) || SERVICE_ENDS.load(Ordering::SeqCst) {
         return Ok(None);
     }
     let (staged, held): (PathBuf, std::fs::File) = stage_marker(lock, seq, marker)?;
-    let made: Prestaged = Prestaged { staged, held, marker: String::from(marker) };
+    let made: Prestaged = Prestaged {
+        staged,
+        held,
+        marker: String::from(marker),
+    };
     if let Err(error) = record_the_file(lock, seq, &made) {
         remove_if_ours(made);
         return Err(error);
@@ -216,12 +245,24 @@ fn make_and_record(lock: &Path, seq: u64, wanted: &AtomicBool, marker: &str) -> 
 
 /// Records a file that was just made,
 /// so a stop that runs on another thread removes it.
-fn record_the_file(lock: &Path, seq: u64, made: &Prestaged) -> std::io::Result<()> {
+fn record_the_file(
+    lock: &Path,
+    seq: u64,
+    made: &Prestaged,
+) -> std::io::Result<()> {
     let on_disk: std::fs::Metadata = made.held.metadata()?;
     let Ok(mut kept) = MADE_AHEAD.lock() else {
-        return Err(std::io::Error::other("the record of the files made ahead could not be written"));
+        return Err(std::io::Error::other(
+            "the record of the files made ahead could not be written",
+        ));
     };
-    kept.push(MadeAhead { lock: lock.to_path_buf(), seq, path: made.staged.clone(), device: on_disk.dev(), inode: on_disk.ino() });
+    kept.push(MadeAhead {
+        lock: lock.to_path_buf(),
+        seq,
+        path: made.staged.clone(),
+        device: on_disk.dev(),
+        inode: on_disk.ino(),
+    });
     return Ok(());
 }
 
@@ -236,8 +277,13 @@ fn no_longer_wanted() -> std::io::Error {
 
 /// Takes the record of the marker made for batch `seq` of the lock at `lock`,
 /// so the removal of its file runs with nothing held.
-fn take_the_record_of(lock: &Path, seq: u64) -> Option<MadeAhead> {
-    let Ok(mut kept) = MADE_AHEAD.lock() else { return None };
+fn take_the_record_of(
+    lock: &Path,
+    seq: u64,
+) -> Option<MadeAhead> {
+    let Ok(mut kept) = MADE_AHEAD.lock() else {
+        return None;
+    };
     let mut wanted: Option<MadeAhead> = None;
     let mut remaining: Vec<MadeAhead> = Vec::new();
     for made in std::mem::take(&mut *kept) {
@@ -254,8 +300,11 @@ fn take_the_record_of(lock: &Path, seq: u64) -> Option<MadeAhead> {
 /// Removes the file a record names when the pathname still names that file,
 /// and leaves any other file at the pathname alone.
 fn remove_the_recorded_file(made: MadeAhead) {
-    let Ok(on_path) = std::fs::symlink_metadata(made.path.as_path()) else { return };
-    if on_path.file_type().is_file() && on_path.dev() == made.device && on_path.ino() == made.inode {
+    let Ok(on_path) = std::fs::symlink_metadata(made.path.as_path()) else {
+        return;
+    };
+    if on_path.file_type().is_file() && on_path.dev() == made.device && on_path.ino() == made.inode
+    {
         let _removed = std::fs::remove_file(made.path.as_path());
     }
 }
@@ -264,7 +313,9 @@ fn remove_the_recorded_file(made: MadeAhead) {
 /// because the landing thread took,
 /// placed or removed it.
 fn forget_made_ahead(path: &Path) {
-    let Ok(mut kept) = MADE_AHEAD.lock() else { return };
+    let Ok(mut kept) = MADE_AHEAD.lock() else {
+        return;
+    };
     let mut remaining: Vec<MadeAhead> = Vec::new();
     for made in std::mem::take(&mut *kept) {
         if made.path != path {
@@ -277,7 +328,9 @@ fn forget_made_ahead(path: &Path) {
 /// Takes the records of the files made ahead,
 /// so that the file calls of their removal run with nothing held.
 fn take_made_aheads() -> Vec<MadeAhead> {
-    let Ok(mut kept) = MADE_AHEAD.lock() else { return Vec::new() };
+    let Ok(mut kept) = MADE_AHEAD.lock() else {
+        return Vec::new();
+    };
     return std::mem::take(&mut kept);
 }
 
@@ -325,15 +378,22 @@ pub fn make_markers_again() {
 /// Whether a commit has begun to wait for the marker being made,
 /// so a control can hold the flush until a commit is waiting for it instead of racing a timer against the flush.
 #[cfg(test)]
-pub static COMMIT_WAITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static COMMIT_WAITING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// Takes the pre-staged markers out of the state they are kept in.
-fn take_the_slots(state: &LandingState, (): ()) -> Vec<Slot> {
+fn take_the_slots(
+    state: &LandingState,
+    (): (),
+) -> Vec<Slot> {
     return state.prestaged_markers.take();
 }
 
 /// Keeps `slots` as the landing's pre-staged markers.
-fn keep_the_slots(state: &LandingState, slots: Vec<Slot>) {
+fn keep_the_slots(
+    state: &LandingState,
+    slots: Vec<Slot>,
+) {
     *state.prestaged_markers.borrow_mut() = slots;
 }
 
@@ -370,13 +430,20 @@ fn identity_error(error: ProcessIdentityError) -> std::io::Error {
 /// ```ts
 /// prestage.start(index, seq)
 /// ```
-pub fn start(index: &Path, seq: u64) {
+pub fn start(
+    index: &Path,
+    seq: u64,
+) {
     start_with(sync_file, index, seq);
 }
 
 /// `start` with the flush given,
 /// which a control makes slow.
-pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
+pub fn start_with(
+    sync: fn(&std::fs::File) -> std::io::Result<()>,
+    index: &Path,
+    seq: u64,
+) {
     let lock: PathBuf = lock_path_of(index);
     // The markers that can still be used here: every one for this index, and the one this call asks for among them.
     // A marker of this batch is kept exactly as it is, being made or finished, so the landing that asks again for it
@@ -420,7 +487,13 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
         // The file is made and recorded in one step, before the flush, because a stop or a batch that will not use this
         //  marker must find the file to remove it, and the landing thread must wait for neither.
-        let Some(made) = make_and_record(work_lock.as_path(), seq, wanted_by_the_job.as_ref(), marker.as_str())? else {
+        let Some(made) = make_and_record(
+            work_lock.as_path(),
+            seq,
+            wanted_by_the_job.as_ref(),
+            marker.as_str(),
+        )?
+        else {
             // The marker was let go, or the service stopped keeping them: nothing is made and nothing waits for it.
             return Err(no_longer_wanted());
         };
@@ -435,7 +508,12 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     }));
     // No worker to make it on is no marker made ahead: the commit stages its own.
     if let Some(work) = spawned {
-        kept.push(Slot { lock, seq, wanted, work });
+        kept.push(Slot {
+            lock,
+            seq,
+            wanted,
+            work,
+        });
     }
     put_slots(kept);
 }
@@ -458,8 +536,15 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
 /// const on = await lstat(path); on.isFile() && on.ino === (await held.stat()).ino && on.dev === held.dev
 /// ```
 fn still_there(made: &Prestaged) -> bool {
-    let (Ok(on_path), Ok(open)) = (std::fs::symlink_metadata(&made.staged), made.held.metadata()) else { return false };
-    return on_path.file_type().is_file() && on_path.dev() == open.dev() && on_path.ino() == open.ino();
+    let (Ok(on_path), Ok(open)) = (
+        std::fs::symlink_metadata(&made.staged),
+        made.held.metadata(),
+    ) else {
+        return false;
+    };
+    return on_path.file_type().is_file()
+        && on_path.dev() == open.dev()
+        && on_path.ino() == open.ino();
 }
 
 /// Removes the staged file when the pathname still names it,
@@ -478,7 +563,9 @@ fn remove_if_ours(made: Prestaged) {
 /// or the runtime could not be entered.
 /// The service's landing thread is the one that waits,
 /// outside the runtime.
-fn made_marker(work: JoinHandle<Result<std::io::Result<Prestaged>, BlockingJobError>>) -> Option<Prestaged> {
+fn made_marker(
+    work: JoinHandle<Result<std::io::Result<Prestaged>, BlockingJobError>>
+) -> Option<Prestaged> {
     return match run_on_runtime(work) {
         Ok(Ok(Ok(Ok(made)))) => Some(made),
         // A marker that could not be made, a job that could not run, a task that was cancelled, a runtime that could not start.
@@ -542,7 +629,10 @@ fn let_go_of_unused(slot: Slot) {
 /// ```ts
 /// const ready = await prestage.take(index, seq) // Prestaged | undefined
 /// ```
-pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
+pub fn take(
+    index: &Path,
+    seq: u64,
+) -> Option<Prestaged> {
     let lock: PathBuf = lock_path_of(index);
     let slots: Vec<Slot> = take_slots();
     #[cfg(test)]
@@ -593,7 +683,14 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
 #[cfg(test)]
 pub fn finished_markers() -> usize {
     return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
-        return state.prestaged_markers.borrow().iter().filter(|held| { return held.work.is_finished(); }).count();
+        return state
+            .prestaged_markers
+            .borrow()
+            .iter()
+            .filter(|held| {
+                return held.work.is_finished();
+            })
+            .count();
     });
 }
 

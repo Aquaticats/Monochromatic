@@ -21,19 +21,46 @@
 use crate::auto_push_single_flight::PushGit;
 use crate::candidate_object::parse_object_id;
 use crate::candidate_prediction::PushedScope;
-use crate::manual_push_cause::ManualPushCause;
-use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_and_destination};
 /// The branches a destination reported,
 /// which the upload plan of the same push reads.
 use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
-use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
-use crate::manual_push_range::{ManualPushRangeError, UpdateScope, update_scope};
-use crate::manual_push_range_published_tips::{peel_commits, published_tips, tracking_commits};
+use crate::manual_push_cause::ManualPushCause;
+use crate::manual_push_probe::{
+    GitRefusal,
+    MOST_CONCURRENT_LOCAL_QUERIES,
+    PushUpdate,
+    QUERY_MEMORY,
+    probe_manual_push_and_destination,
+};
+use crate::manual_push_range::{
+    ManualPushRangeError,
+    UpdateScope,
+    update_scope,
+};
+use crate::manual_push_range_published_tips::{
+    peel_commits,
+    published_tips,
+    tracking_commits,
+};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
+use crate::parallel_runner::{
+    Event,
+    OrderedEvents,
+    OrderedRun,
+    OrderedWork,
+    run_ordered,
+};
 /// Maps keyed by remote name and by object name,
 /// and the sets that answer whether a commit or tree is already listed.
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 /// Owned OS strings for the replayed global options and the post-subcommand arguments.
 use std::ffi::OsString;
 
@@ -64,14 +91,25 @@ pub struct ManualPushFailure {
 impl ManualPushFailure {
     /// A failure of the wrapper's own step,
     /// which is no refusal by Git.
-    pub fn step(cause: ManualPushCause, message: String) -> Self {
-        return Self { message, refusal: None, cause, sentence: None };
+    pub fn step(
+        cause: ManualPushCause,
+        message: String,
+    ) -> Self {
+        return Self {
+            message,
+            refusal: None,
+            cause,
+            sentence: None,
+        };
     }
 }
 
 impl std::fmt::Display for ManualPushFailure {
     /// Writes the diagnostic text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(&self.message);
     }
 }
@@ -141,8 +179,17 @@ struct ScopeOfEachUpdate<'a> {
 }
 
 impl OrderedWork<PushUpdate, Result<UpdateScope, ManualPushRangeError>> for ScopeOfEachUpdate<'_> {
-    fn run(&self, _index: usize, update: &PushUpdate, _say: &mut dyn LineSink) -> Result<UpdateScope, ManualPushRangeError> {
-        let published: Vec<String> = self.tips.get(&update.remote_name).cloned().unwrap_or_default();
+    fn run(
+        &self,
+        _index: usize,
+        update: &PushUpdate,
+        _say: &mut dyn LineSink,
+    ) -> Result<UpdateScope, ManualPushRangeError> {
+        let published: Vec<String> = self
+            .tips
+            .get(&update.remote_name)
+            .cloned()
+            .unwrap_or_default();
         return update_scope(self.git, update, &published);
     }
 }
@@ -167,8 +214,13 @@ struct KeepScopesUntilTheFirstFailure<'a> {
     failure: &'a mut Option<ManualPushRangeError>,
 }
 
-impl OrderedEvents<Result<UpdateScope, ManualPushRangeError>> for KeepScopesUntilTheFirstFailure<'_> {
-    fn on_event(&mut self, event: Event<'_, Result<UpdateScope, ManualPushRangeError>>) {
+impl OrderedEvents<Result<UpdateScope, ManualPushRangeError>>
+    for KeepScopesUntilTheFirstFailure<'_>
+{
+    fn on_event(
+        &mut self,
+        event: Event<'_, Result<UpdateScope, ManualPushRangeError>>,
+    ) {
         if let Event::End(_index, outcome) = event {
             match outcome {
                 Ok(scope) if self.failure.is_none() => self.scopes.push(scope),
@@ -214,15 +266,27 @@ pub fn scopes_of_updates_on(
     for index in 0..updates.len() {
         lanes.push(vec![index]);
     }
-    let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_LOCAL_QUERIES), cap: None, host });
+    let workers: usize = worker_budget(&BudgetRequest {
+        items: updates.len(),
+        per_item_memory: QUERY_MEMORY,
+        ceiling: Some(MOST_CONCURRENT_LOCAL_QUERIES),
+        cap: None,
+        host,
+    });
     let mut scopes: Vec<UpdateScope> = Vec::new();
     let mut failure: Option<ManualPushRangeError> = None;
     run_ordered(OrderedRun {
         items: updates,
         lanes: lanes.as_slice(),
         workers,
-        work: &ScopeOfEachUpdate { git, tips: &tips },
-        on_event: &mut KeepScopesUntilTheFirstFailure { scopes: &mut scopes, failure: &mut failure },
+        work: &ScopeOfEachUpdate {
+            git,
+            tips: &tips,
+        },
+        on_event: &mut KeepScopesUntilTheFirstFailure {
+            scopes: &mut scopes,
+            failure: &mut failure,
+        },
     });
     return match failure {
         Some(error) => Err(from_range(&error)),
@@ -254,9 +318,10 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
             UpdateScope::Commits(names) => {
                 for name in names {
                     let Some(oid) = parse_object_id(name.as_bytes()) else {
-                        return Err(ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!(
-                            "Git named a commit that is not an object name: {name}"
-                        )));
+                        return Err(ManualPushFailure::step(
+                            ManualPushCause::UnexpectedOutput,
+                            format!("Git named a commit that is not an object name: {name}"),
+                        ));
                     };
                     crate::collected_elements_looked_at::note_looked_at(1);
                     if listed_commits.insert(oid.clone()) {
@@ -266,7 +331,10 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
             }
             UpdateScope::FinalTree(tip) => {
                 let Some(oid) = parse_object_id(tip.as_bytes()) else {
-                    return Err(ManualPushFailure::step(ManualPushCause::UnexpectedOutput, format!("Git named a commit that is not an object name: {tip}")));
+                    return Err(ManualPushFailure::step(
+                        ManualPushCause::UnexpectedOutput,
+                        format!("Git named a commit that is not an object name: {tip}"),
+                    ));
                 };
                 crate::collected_elements_looked_at::note_looked_at(1);
                 if listed_trees.insert(oid.clone()) {
@@ -275,7 +343,10 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
             }
         }
     }
-    return Ok(PushedScope { commits, trees });
+    return Ok(PushedScope {
+        commits,
+        trees,
+    });
 }
 
 /// What:
@@ -295,7 +366,11 @@ pub fn manual_push_scope(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<PushedScope, ManualPushFailure> {
-    return manual_push_scope_with_destination(git, global_prefix, post_subcommand).map(|(scope, _destination)| { return scope; });
+    return manual_push_scope_with_destination(git, global_prefix, post_subcommand).map(
+        |(scope, _destination)| {
+            return scope;
+        },
+    );
 }
 
 /// What:
@@ -327,13 +402,14 @@ pub fn manual_push_scope_with_destination(
             let mut failure: ManualPushFailure = from_probe(&error);
             #[cfg(unix)]
             if let Some(refusal) = error.refusal.as_ref() {
-                failure.sentence = crate::typed_network_command_relay::sentence_after_a_refused_probe_of_a_push(
-                    git.real_git.as_path(),
-                    git.cwd.as_path(),
-                    git.environment.as_slice(),
-                    post_subcommand,
-                    refusal.stderr.as_str(),
-                );
+                failure.sentence =
+                    crate::typed_network_command_relay::sentence_after_a_refused_probe_of_a_push(
+                        git.real_git.as_path(),
+                        git.cwd.as_path(),
+                        git.environment.as_slice(),
+                        post_subcommand,
+                        refusal.stderr.as_str(),
+                    );
             }
             return Err(failure);
         }

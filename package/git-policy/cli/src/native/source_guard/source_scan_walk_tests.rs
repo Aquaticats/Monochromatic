@@ -7,7 +7,10 @@
 //! read,
 //! so each of those is an error here instead.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  `fn relative_name(root: &Path, path: &Path) -> Result<String, String>` turns an absolute `path` under `root` into
@@ -34,7 +37,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function relativeName(root: string, path: string): string  // throws Error
 /// ```
-fn relative_name(root: &Path, path: &Path) -> Result<String, String> {
+fn relative_name(
+    root: &Path,
+    path: &Path,
+) -> Result<String, String> {
     // What:
     //  `path.strip_prefix(root)` removes the `root` front from `path`, giving `Err` when `path` is not under `root`.
     //  `.map_err(|error| ...)` rewrites that error into our own text; `|error| ...` is a closure (an arrow function
@@ -46,9 +52,13 @@ fn relative_name(root: &Path, path: &Path) -> Result<String, String> {
     // ```ts
     // const below = stripPrefix(path, root) ?? throwError(`${path} is not under ${root}`)
     // ```
-    let below: &Path = path
-        .strip_prefix(root)
-        .map_err(|error| return format!("{} is not under {}: {error}", path.display(), root.display()))?;
+    let below: &Path = path.strip_prefix(root).map_err(|error| {
+        return format!(
+            "{} is not under {}: {error}",
+            path.display(),
+            root.display()
+        );
+    })?;
     // What:
     //  `Vec<String>` is a growable list of owned text (sibling: `&[String]`, a borrowed view; `[String; N]`, a
     //  fixed-size array). `Vec::new()` is an empty one. `mut` allows the list to change.
@@ -101,7 +111,9 @@ const FOLDER_USES_LINKS: &str = "uses";
 
 /// Whether `directory` is the folder whose entries are the repository's links between source folders.
 fn is_uses_folder(directory: &Path) -> bool {
-    return directory.file_name().is_some_and(|name| return name == FOLDER_USES_LINKS);
+    return directory
+        .file_name()
+        .is_some_and(|name| return name == FOLDER_USES_LINKS);
 }
 
 /// What:
@@ -140,7 +152,8 @@ fn is_uses_folder(directory: &Path) -> bool {
 pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
     // The walk's own root, resolved once, so a `uses` link is judged against the tree this listing covers.
-    let canonical_root: PathBuf = std::fs::canonicalize(root).map_err(|error| return format!("cannot resolve {}: {error}", root.display()))?;
+    let canonical_root: PathBuf = std::fs::canonicalize(root)
+        .map_err(|error| return format!("cannot resolve {}: {error}", root.display()))?;
     // What:
     //  `vec![root.to_path_buf()]` makes a list holding one owned copy of the root path (`vec![...]` is a macro,
     //  Rust's compile-time code expansion, here only a list literal; `PathBuf` is the owned sibling of `&Path`).
@@ -167,12 +180,14 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
             .map_err(|error| return format!("cannot list {}: {error}", directory.display()))?;
         for item in entries {
             // The entry itself can fail to read, which a plain `.flatten()` would skip silently.
-            let entry: std::fs::DirEntry =
-                item.map_err(|error| return format!("cannot read an entry of {}: {error}", directory.display()))?;
+            let entry: std::fs::DirEntry = item.map_err(|error| {
+                return format!("cannot read an entry of {}: {error}", directory.display());
+            })?;
             let path: PathBuf = entry.path();
             // `file_type()` does not follow links, so a link is seen as a link.
-            let kind: std::fs::FileType =
-                entry.file_type().map_err(|error| return format!("cannot inspect {}: {error}", path.display()))?;
+            let kind: std::fs::FileType = entry
+                .file_type()
+                .map_err(|error| return format!("cannot inspect {}: {error}", path.display()))?;
             if kind.is_symlink() {
                 // A `uses` folder is the repository's own record of which source folders a folder's code uses, written
                 // as one link per folder (`AGENTS.md`, rule LYD). Only a link to a folder below this walk's root is that
@@ -180,7 +195,9 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
                 // a folder outside the tree or to nothing is refused, because it is not the layout's record and it could
                 // hide a source. The lint that compares those links with the code owns them.
                 if is_uses_folder(&directory) {
-                    let target: PathBuf = std::fs::canonicalize(&path).map_err(|error| return format!("cannot resolve the link {}: {error}", path.display()))?;
+                    let target: PathBuf = std::fs::canonicalize(&path).map_err(|error| {
+                        return format!("cannot resolve the link {}: {error}", path.display());
+                    })?;
                     if target.starts_with(canonical_root.as_path()) && target.is_dir() {
                         continue;
                     }
@@ -190,19 +207,28 @@ pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String> {
                         root.display()
                     ));
                 }
-                return Err(format!("{} is a symbolic link; the scan cannot prove what it reads", path.display()));
+                return Err(format!(
+                    "{} is a symbolic link; the scan cannot prove what it reads",
+                    path.display()
+                ));
             }
             if kind.is_dir() {
                 pending.push(path);
                 continue;
             }
-            if path.extension().is_some_and(|extension| return extension == "rs") {
+            if path
+                .extension()
+                .is_some_and(|extension| return extension == "rs")
+            {
                 found.push(relative_name(root, &path)?);
             }
         }
     }
     if found.is_empty() {
-        return Err(format!("no .rs file under {}; an empty listing proves nothing", root.display()));
+        return Err(format!(
+            "no .rs file under {}; an empty listing proves nothing",
+            root.display()
+        ));
     }
     found.sort();
     // What:

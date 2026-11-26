@@ -24,17 +24,47 @@
 //! expect(await second).toLandItsCapturedLinesOntoTheFirst();
 //! ```
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use super::commit::{
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
 use super::support::in_a_fixture_root_taking_any_name;
+use super::support::{
+    Fixture,
+    FixtureService,
+    fixture,
+    git,
+    repository,
+    start_fixture_service,
+};
 use git_policy_cli::service_fault::QUEUED_DIRECTORY_VARIABLE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
-use std::ffi::{OsStr, OsString};
-use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{Receiver, channel};
-use std::time::{Duration, Instant};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::io::{
+    BufRead,
+    BufReader,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::sync::mpsc::{
+    Receiver,
+    channel,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for anything,
 /// far beyond a healthy run.
@@ -87,7 +117,19 @@ struct Ended {
 fn lines_with(edits: &[(usize, &str)]) -> String {
     let mut text: String = String::new();
     for number in 1..=LINES {
-        let line: String = edits.iter().find(|(at, _)| { return *at == number; }).map_or_else(|| { return format!("line {number}"); }, |(_, edit)| { return (*edit).to_string(); });
+        let line: String = edits
+            .iter()
+            .find(|(at, _)| {
+                return *at == number;
+            })
+            .map_or_else(
+                || {
+                    return format!("line {number}");
+                },
+                |(_, edit)| {
+                    return (*edit).to_string();
+                },
+            );
         text.push_str(&line);
         text.push('\n');
     }
@@ -98,47 +140,103 @@ fn lines_with(edits: &[(usize, &str)]) -> String {
 /// a commit template in the configuration
 ///  is something the service does not embed,
 /// so Git builds the commit in a scratch repository and the service lands it whole.
-fn scene(name: &str, native: bool) -> Scene {
+fn scene(
+    name: &str,
+    native: bool,
+) -> Scene {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     if native {
         let template: PathBuf = fixture.root.join("template");
         std::fs::write(&template, "").expect("template");
-        git(&fixture, &repo, &["config", "commit.template", template.to_str().expect("UTF-8")]);
+        git(
+            &fixture,
+            &repo,
+            &[
+                "config",
+                "commit.template",
+                template.to_str().expect("UTF-8"),
+            ],
+        );
     }
     std::fs::write(repo.join(FILE), lines_with(&[])).expect("the file");
     std::fs::write(repo.join(OTHER), "other\n").expect("the other file");
     git(&fixture, &repo, &["add", "--", FILE, OTHER]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("markers");
     let queued: PathBuf = fixture.root.join("queued");
     std::fs::create_dir(&queued).expect("queued");
-    super::support::give_service_environment(&fixture, QUEUED_DIRECTORY_VARIABLE, queued.to_str().expect("UTF-8"));
+    super::support::give_service_environment(
+        &fixture,
+        QUEUED_DIRECTORY_VARIABLE,
+        queued.to_str().expect("UTF-8"),
+    );
     let service: FixtureService = start_fixture_service(&fixture);
     // One service per worktree, as in production: the manager would start it on the first connection.
     service.serve(&fixture, repo.join(".git").as_path());
-    return Scene { fixture, repo, service, markers, queued };
+    return Scene {
+        fixture,
+        repo,
+        service,
+        markers,
+        queued,
+    };
 }
 
-fn start(scene: &Scene, message: &str, paused: bool) -> Started {
-    return start_on(scene, message, FILE, paused.then_some(scene.markers.as_path()));
+fn start(
+    scene: &Scene,
+    message: &str,
+    paused: bool,
+) -> Started {
+    return start_on(
+        scene,
+        message,
+        FILE,
+        paused.then_some(scene.markers.as_path()),
+    );
 }
 
 /// Starts a wrapped commit of `path`,
 /// paused after it captured when `markers` names the directory of its markers.
-fn start_on(scene: &Scene, message: &str, path: &str, markers: Option<&Path>) -> Started {
+fn start_on(
+    scene: &Scene,
+    message: &str,
+    path: &str,
+    markers: Option<&Path>,
+) -> Started {
     return start_with_phase(scene, message, path, "service-prepared", markers);
 }
 
 /// Starts a wrapped commit of `path`,
 /// paused at `phase` when `markers` names the directory of its markers.
-fn start_with_phase(scene: &Scene, message: &str, path: &str, phase: &str, markers: Option<&Path>) -> Started {
-    let mut command: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", message, "--", path]);
-    command.env("XDG_RUNTIME_DIR", &scene.service.runtime).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+fn start_with_phase(
+    scene: &Scene,
+    message: &str,
+    path: &str,
+    phase: &str,
+    markers: Option<&Path>,
+) -> Started {
+    let mut command: Command = wrapped_commit(
+        &scene.fixture,
+        &scene.repo,
+        &["commit", "--quiet", "-m", message, "--", path],
+    );
+    command
+        .env("XDG_RUNTIME_DIR", &scene.service.runtime)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
     if let Some(directory) = markers {
-        command.env(PHASE_SIGNAL_VARIABLE, format!("{phase}:pause:{}", directory.display()));
+        command.env(
+            PHASE_SIGNAL_VARIABLE,
+            format!("{phase}:pause:{}", directory.display()),
+        );
     }
     let mut child: Child = command.spawn().expect("the wrapped commit starts");
     let stderr = child.stderr.take().expect("piped standard error");
@@ -154,15 +252,25 @@ fn start_with_phase(scene: &Scene, message: &str, path: &str, phase: &str, marke
         }
         return all;
     });
-    return Started { child, stderr: reader, waiting };
+    return Started {
+        child,
+        stderr: reader,
+        waiting,
+    };
 }
 
 fn finish(mut started: Started) -> Ended {
     let status = started.child.wait().expect("the commit ends");
-    return Ended { code: status.code(), stderr: started.stderr.join().expect("the reader") };
+    return Ended {
+        code: status.code(),
+        stderr: started.stderr.join().expect("the reader"),
+    };
 }
 
-fn wait_for(what: &str, present: impl Fn() -> bool) {
+fn wait_for(
+    what: &str,
+    present: impl Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !present() {
         assert!(began.elapsed() < PATIENCE, "never happened: {what}");
@@ -175,22 +283,37 @@ fn wait_for(what: &str, present: impl Fn() -> bool) {
 /// the second captures `second`,
 ///  `late` is written after the second captured,
 /// and then the lock is let go.
-fn run(scene: &Scene, first: &[(usize, &str)], second: &[(usize, &str)], late: &[(usize, &str)]) -> (Ended, Ended) {
+fn run(
+    scene: &Scene,
+    first: &[(usize, &str)],
+    second: &[(usize, &str)],
+    late: &[(usize, &str)],
+) -> (Ended, Ended) {
     let file: PathBuf = scene.repo.join(FILE);
     let lock: PathBuf = scene.repo.join(".git/index.lock");
     // Only the first arrival at the marker is held for the control; a commit sent back reaches it again, and goes on.
     for number in 2..=LATER_ARRIVALS {
-        std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+        std::fs::write(
+            scene
+                .markers
+                .join(format!("service-prepared-{number}.release")),
+            "",
+        )
+        .expect("release of a later arrival");
     }
     // The lock is the control's, so the service waits for it exactly as it waits for a foreign Git.
     std::fs::write(&lock, "a foreign program's lock\n").expect("the index lock");
     std::fs::write(&file, lines_with(first)).expect("first edit");
     let one: Started = start(scene, "one", false);
-    one.waiting.recv_timeout(PATIENCE).expect("the first commit waits for the index");
+    one.waiting
+        .recv_timeout(PATIENCE)
+        .expect("the first commit waits for the index");
     std::fs::write(&file, lines_with(second)).expect("second edit");
     let two: Started = start(scene, "two", true);
     let reached: PathBuf = scene.markers.join("service-prepared-1.reached");
-    wait_for("the second commit prepared", || { return reached.exists(); });
+    wait_for("the second commit prepared", || {
+        return reached.exists();
+    });
     // The second commit has captured its file. What is written now was not part of the command.
     std::fs::write(&file, lines_with(late)).expect("late edit");
     std::fs::write(scene.markers.join("service-prepared-1.release"), "").expect("release");
@@ -200,7 +323,10 @@ fn run(scene: &Scene, first: &[(usize, &str)], second: &[(usize, &str)], late: &
     return (first_end, second_end);
 }
 
-fn show(scene: &Scene, revision: &str) -> String {
+fn show(
+    scene: &Scene,
+    revision: &str,
+) -> String {
     return git_text(&scene.fixture, &scene.repo, &["show", revision]);
 }
 
@@ -216,11 +342,30 @@ fn a_commit_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() 
     assert_eq!(one.code, Some(0), "{}", one.stderr);
     assert_eq!(two.code, Some(0), "{}", two.stderr);
     let landed: String = show(&scene, &format!("HEAD:{FILE}"));
-    assert_eq!(landed, lines_with(&[(1, "first edit"), (7, "second edit")]), "both edits landed and the late write did not");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "two\none\nbase\n");
-    let second_change: String = git_text(&scene.fixture, &scene.repo, &["diff", "--numstat", "HEAD~1", "HEAD"]);
-    assert_eq!(second_change, format!("1\t1\t{FILE}\n"), "the second commit changes its own line only");
-    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&late), "the person's file is intact");
+    assert_eq!(
+        landed,
+        lines_with(&[(1, "first edit"), (7, "second edit")]),
+        "both edits landed and the late write did not"
+    );
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]),
+        "two\none\nbase\n"
+    );
+    let second_change: String = git_text(
+        &scene.fixture,
+        &scene.repo,
+        &["diff", "--numstat", "HEAD~1", "HEAD"],
+    );
+    assert_eq!(
+        second_change,
+        format!("1\t1\t{FILE}\n"),
+        "the second commit changes its own line only"
+    );
+    assert_eq!(
+        std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"),
+        lines_with(&late),
+        "the person's file is intact"
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -239,9 +384,20 @@ fn a_commit_git_builds_that_waits_behind_another_lands_its_captured_lines_merged
     let (one, two) = run(&scene, &first, &second, &late);
     assert_eq!(one.code, Some(0), "{}", one.stderr);
     assert_eq!(two.code, Some(0), "{}", two.stderr);
-    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "first edit"), (7, "second edit")]), "both edits landed and the late write did not");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "two\none\nbase\n");
-    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&late), "the person's file is intact");
+    assert_eq!(
+        show(&scene, &format!("HEAD:{FILE}")),
+        lines_with(&[(1, "first edit"), (7, "second edit")]),
+        "both edits landed and the late write did not"
+    );
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]),
+        "two\none\nbase\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"),
+        lines_with(&late),
+        "the person's file is intact"
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -263,9 +419,20 @@ fn the_later_capture_of_one_worktree_lands_its_bytes_over_an_overlapping_earlier
     let (one, two) = run(&scene, &first, &second, &late);
     assert_eq!(one.code, Some(0), "{}", one.stderr);
     assert_eq!(two.code, Some(0), "{}", two.stderr);
-    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&second), "the bytes the second command captured landed, not the late write");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "two\none\nbase\n");
-    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&late), "the person's file is intact");
+    assert_eq!(
+        show(&scene, &format!("HEAD:{FILE}")),
+        lines_with(&second),
+        "the bytes the second command captured landed, not the late write"
+    );
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]),
+        "two\none\nbase\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"),
+        lines_with(&late),
+        "the person's file is intact"
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -275,42 +442,98 @@ fn the_later_capture_of_one_worktree_lands_its_bytes_over_an_overlapping_earlier
 ///  message saved,
 /// and says what and why.
 #[test]
-fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_nothing_changed_and_its_message_saved() {
+fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_nothing_changed_and_its_message_saved()
+ {
     let scene: Scene = scene("replay-conflict", false);
     let file: PathBuf = scene.repo.join(FILE);
     let second: [(usize, &str); 1] = [(1, "second edit")];
     let late: [(usize, &str); 2] = [(1, "second edit"), (4, "late edit")];
     for number in 2..=LATER_ARRIVALS {
-        std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+        std::fs::write(
+            scene
+                .markers
+                .join(format!("service-prepared-{number}.release")),
+            "",
+        )
+        .expect("release of a later arrival");
     }
     std::fs::write(&file, lines_with(&second)).expect("second edit");
     let waiting: Started = start(&scene, "two", true);
     let reached: PathBuf = scene.markers.join("service-prepared-1.reached");
-    wait_for("the second commit prepared", || { return reached.exists(); });
+    wait_for("the second commit prepared", || {
+        return reached.exists();
+    });
     // Another program commits the same line while the second command waits: the service has no capture of it.
     std::fs::write(&file, lines_with(&[(1, "foreign edit")])).expect("foreign edit");
-    git(&scene.fixture, &scene.repo, &["commit", "--quiet", "--message=one", "--", FILE]);
+    git(
+        &scene.fixture,
+        &scene.repo,
+        &["commit", "--quiet", "--message=one", "--", FILE],
+    );
     std::fs::write(&file, lines_with(&late)).expect("late edit");
     std::fs::write(scene.markers.join("service-prepared-1.release"), "").expect("release");
     let two: Ended = finish(waiting);
     assert_eq!(two.code, Some(1), "{}", two.stderr);
-    let short: String = git_text(&scene.fixture, &scene.repo, &["log", "-1", "--format=%h"]).trim().to_string();
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-2"]), "one\nbase\n", "only the other commit landed");
-    let text: String = two.stderr.lines().filter(|line| { return !line.starts_with("[warn] "); }).collect::<Vec<&str>>().join("\n");
+    let short: String = git_text(&scene.fixture, &scene.repo, &["log", "-1", "--format=%h"])
+        .trim()
+        .to_string();
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-2"]),
+        "one\nbase\n",
+        "only the other commit landed"
+    );
+    let text: String = two
+        .stderr
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("[warn] ");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
     assert!(text.contains(FILE), "the file is named: {text}");
-    assert!(text.contains(short.as_str()) && text.contains("one"), "the commit that landed first is named: {text}");
+    assert!(
+        text.contains(short.as_str()) && text.contains("one"),
+        "the commit that landed first is named: {text}"
+    );
     let saved: Vec<PathBuf> = std::fs::read_dir(scene.repo.join(".git"))
         .expect("the git directory")
         .flatten()
-        .map(|entry| { return entry.path(); })
-        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("monochromatic-git-policy-cli-saved-message-"); }); })
+        .map(|entry| {
+            return entry.path();
+        })
+        .filter(|path| {
+            return path.file_name().is_some_and(|name| {
+                return name
+                    .to_string_lossy()
+                    .starts_with("monochromatic-git-policy-cli-saved-message-");
+            });
+        })
         .collect();
     assert_eq!(saved.len(), 1, "the message is saved once: {saved:?}");
-    assert!(text.contains(saved[0].to_string_lossy().as_ref()), "the saved message is named: {text}");
-    assert_eq!(std::fs::read_to_string(&saved[0]).expect("the saved message").trim_end(), "two");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["diff", "--cached", "--raw"]), "", "the index matches the branch the other commit left");
-    assert_eq!(std::fs::read_to_string(&file).expect("the file"), lines_with(&late), "the person's file is intact");
-    assert!(!scene.repo.join(".git/index.lock").exists(), "no lock is left");
+    assert!(
+        text.contains(saved[0].to_string_lossy().as_ref()),
+        "the saved message is named: {text}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&saved[0])
+            .expect("the saved message")
+            .trim_end(),
+        "two"
+    );
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["diff", "--cached", "--raw"]),
+        "",
+        "the index matches the branch the other commit left"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the file"),
+        lines_with(&late),
+        "the person's file is intact"
+    );
+    assert!(
+        !scene.repo.join(".git/index.lock").exists(),
+        "no lock is left"
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -319,7 +542,9 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
 /// behind the commit that landed first.
 #[test]
 fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another() {
-    if !in_a_fixture_root_taking_any_name("service_replay::a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another") {
+    if !in_a_fixture_root_taking_any_name(
+        "service_replay::a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;
@@ -327,41 +552,93 @@ fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_anothe
     let name: OsString = OsString::from_vec(b"caf\xe9.txt".to_vec());
     let named: PathBuf = scene.repo.join(&name);
     std::fs::write(&named, b"one\n").expect("the base file");
-    git(&scene.fixture, &scene.repo, &[OsStr::new("add"), OsStr::new("--"), name.as_os_str()]);
-    git(&scene.fixture, &scene.repo, &["commit", "--quiet", "--message=base two"]);
+    git(
+        &scene.fixture,
+        &scene.repo,
+        &[OsStr::new("add"), OsStr::new("--"), name.as_os_str()],
+    );
+    git(
+        &scene.fixture,
+        &scene.repo,
+        &["commit", "--quiet", "--message=base two"],
+    );
     for number in 2..=LATER_ARRIVALS {
-        std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+        std::fs::write(
+            scene
+                .markers
+                .join(format!("service-prepared-{number}.release")),
+            "",
+        )
+        .expect("release of a later arrival");
     }
     std::fs::write(&named, b"one\ntwo\n").expect("the edit");
-    let mut slow: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", "slow", "--"]);
+    let mut slow: Command = wrapped_commit(
+        &scene.fixture,
+        &scene.repo,
+        &["commit", "--quiet", "-m", "slow", "--"],
+    );
     slow.arg(&name)
         .env("XDG_RUNTIME_DIR", &scene.service.runtime)
-        .env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", scene.markers.display()))
+        .env(
+            PHASE_SIGNAL_VARIABLE,
+            format!("service-prepared:pause:{}", scene.markers.display()),
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     let child: Child = slow.spawn().expect("the slow commit starts");
     let reached: PathBuf = scene.markers.join("service-prepared-1.reached");
-    wait_for("the slow commit prepared", || { return reached.exists(); });
+    wait_for("the slow commit prepared", || {
+        return reached.exists();
+    });
     // Another commit lands on the branch while the slow one waits, so its preparation is out of date.
     std::fs::write(scene.repo.join(OTHER), "other edit\n").expect("the other edit");
-    let mut winner: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", "winner", "--", OTHER]);
+    let mut winner: Command = wrapped_commit(
+        &scene.fixture,
+        &scene.repo,
+        &["commit", "--quiet", "-m", "winner", "--", OTHER],
+    );
     winner.env("XDG_RUNTIME_DIR", &scene.service.runtime);
     let landed = winner.output().expect("the winner runs");
-    assert!(landed.status.success(), "{}", String::from_utf8_lossy(&landed.stderr));
+    assert!(
+        landed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&landed.stderr)
+    );
     std::fs::write(scene.markers.join("service-prepared-1.release"), "").expect("release");
     let ended = child.wait_with_output().expect("the slow commit ends");
     let stderr: String = String::from_utf8_lossy(&ended.stderr).into_owned();
     assert_eq!(ended.status.code(), Some(0), "{stderr}");
-    let listed = git(&scene.fixture, &scene.repo, &["ls-tree", "-z", "--name-only", "HEAD"]);
-    assert!(listed.stdout.split(|byte| { return *byte == 0; }).any(|entry| { return entry == name.as_encoded_bytes(); }), "the exact name is in the tree");
-    let blob = git(&scene.fixture, &scene.repo, &[OsString::from("show"), {
-        let mut spec: OsString = OsString::from("HEAD:");
-        spec.push(&name);
-        spec
-    }]);
+    let listed = git(
+        &scene.fixture,
+        &scene.repo,
+        &["ls-tree", "-z", "--name-only", "HEAD"],
+    );
+    assert!(
+        listed
+            .stdout
+            .split(|byte| {
+                return *byte == 0;
+            })
+            .any(|entry| {
+                return entry == name.as_encoded_bytes();
+            }),
+        "the exact name is in the tree"
+    );
+    let blob = git(
+        &scene.fixture,
+        &scene.repo,
+        &[OsString::from("show"), {
+            let mut spec: OsString = OsString::from("HEAD:");
+            spec.push(&name);
+            spec
+        }],
+    );
     assert_eq!(blob.stdout, b"one\ntwo\n", "the captured content landed");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "slow\nwinner\nbase two\n");
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]),
+        "slow\nwinner\nbase two\n"
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -370,14 +647,26 @@ fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_anothe
 ///  to the service and is sending its request.
 fn holds_socket(marker: &Path) -> bool {
     let needle: Vec<u8> = marker.to_string_lossy().as_bytes().to_vec();
-    let Ok(processes) = std::fs::read_dir("/proc") else { return false };
+    let Ok(processes) = std::fs::read_dir("/proc") else {
+        return false;
+    };
     return processes.flatten().any(|process| {
-        let Ok(environment) = std::fs::read(process.path().join("environ")) else { return false };
-        if !environment.windows(needle.len()).any(|window| { return window == needle.as_slice(); }) {
+        let Ok(environment) = std::fs::read(process.path().join("environ")) else {
+            return false;
+        };
+        if !environment.windows(needle.len()).any(|window| {
+            return window == needle.as_slice();
+        }) {
             return false;
         }
-        let Ok(descriptors) = std::fs::read_dir(process.path().join("fd")) else { return false };
-        return descriptors.flatten().any(|descriptor| { return std::fs::read_link(descriptor.path()).is_ok_and(|target| { return target.to_string_lossy().starts_with("socket:"); }); });
+        let Ok(descriptors) = std::fs::read_dir(process.path().join("fd")) else {
+            return false;
+        };
+        return descriptors.flatten().any(|descriptor| {
+            return std::fs::read_link(descriptor.path()).is_ok_and(|target| {
+                return target.to_string_lossy().starts_with("socket:");
+            });
+        });
     });
 }
 
@@ -395,7 +684,10 @@ fn queued_requests(scene: &Scene) -> usize {
 /// so the later one's bytes hold
 ///  the earlier one's edit;
 /// `later_arrives_first` says which of the two reaches the service first.
-fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, Ended) {
+fn run_one_batch(
+    scene: &Scene,
+    later_arrives_first: bool,
+) -> (Ended, Ended, Ended) {
     let file: PathBuf = scene.repo.join(FILE);
     let lock: PathBuf = scene.repo.join(".git/index.lock");
     let earlier_markers: PathBuf = scene.markers.join("earlier");
@@ -403,29 +695,51 @@ fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, End
     for directory in [&earlier_markers, &later_markers] {
         std::fs::create_dir(directory).expect("markers of one commit");
         for number in 2..=LATER_ARRIVALS {
-            std::fs::write(directory.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+            std::fs::write(
+                directory.join(format!("service-prepared-{number}.release")),
+                "",
+            )
+            .expect("release of a later arrival");
         }
     }
     std::fs::write(&lock, "a foreign program's lock\n").expect("the index lock");
     std::fs::write(scene.repo.join(OTHER), "other edit\n").expect("edit of the other file");
     let holder: Started = start_on(scene, "holder", OTHER, None);
-    holder.waiting.recv_timeout(PATIENCE).expect("the first commit waits for the index");
+    holder
+        .waiting
+        .recv_timeout(PATIENCE)
+        .expect("the first commit waits for the index");
     std::fs::write(&file, lines_with(&[(1, "earlier edit")])).expect("earlier edit");
     let earlier: Started = start_on(scene, "earlier", FILE, Some(earlier_markers.as_path()));
-    wait_for("the earlier commit captured", || { return earlier_markers.join("service-prepared-1.reached").exists(); });
-    std::fs::write(&file, lines_with(&[(1, "earlier edit"), (5, "later edit")])).expect("later edit");
+    wait_for("the earlier commit captured", || {
+        return earlier_markers.join("service-prepared-1.reached").exists();
+    });
+    std::fs::write(&file, lines_with(&[(1, "earlier edit"), (5, "later edit")]))
+        .expect("later edit");
     let later: Started = start_on(scene, "later", FILE, Some(later_markers.as_path()));
-    wait_for("the later commit captured", || { return later_markers.join("service-prepared-1.reached").exists(); });
-    let order: [&Path; 2] = if later_arrives_first { [later_markers.as_path(), earlier_markers.as_path()] } else { [earlier_markers.as_path(), later_markers.as_path()] };
+    wait_for("the later commit captured", || {
+        return later_markers.join("service-prepared-1.reached").exists();
+    });
+    let order: [&Path; 2] = if later_arrives_first {
+        [later_markers.as_path(), earlier_markers.as_path()]
+    } else {
+        [earlier_markers.as_path(), later_markers.as_path()]
+    };
     // The service has the holder's request already; each release is followed by the service queueing one more.
     let mut queued_before: usize = 1;
-    wait_for("the holder's request queued", || { return queued_requests(scene) >= queued_before; });
+    wait_for("the holder's request queued", || {
+        return queued_requests(scene) >= queued_before;
+    });
     for directory in order {
         std::fs::write(directory.join("service-prepared-1.release"), "").expect("release");
-        wait_for("the commit connected to the service", || { return holds_socket(directory); });
+        wait_for("the commit connected to the service", || {
+            return holds_socket(directory);
+        });
         // The service leaves a file when it has put the request in its queue: that, not a pause, orders the arrivals.
         queued_before += 1;
-        wait_for("the service queued the request", || { return queued_requests(scene) >= queued_before; });
+        wait_for("the service queued the request", || {
+            return queued_requests(scene) >= queued_before;
+        });
     }
     std::fs::remove_file(&lock).expect("the lock is let go");
     return (finish(holder), finish(earlier), finish(later));
@@ -445,9 +759,19 @@ fn an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_late
     let (holder, earlier, later) = run_one_batch(&scene, true);
     assert_eq!(holder.code, Some(0), "{}", holder.stderr);
     assert_eq!(later.code, Some(0), "{}", later.stderr);
-    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "earlier edit"), (5, "later edit")]), "the later edit is on the branch");
+    assert_eq!(
+        show(&scene, &format!("HEAD:{FILE}")),
+        lines_with(&[(1, "earlier edit"), (5, "later edit")]),
+        "the later edit is on the branch"
+    );
     assert_eq!(earlier.code, Some(1), "{}", earlier.stderr);
-    assert!(earlier.stderr.contains("concurrent-commit/already-committed"), "{}", earlier.stderr);
+    assert!(
+        earlier
+            .stderr
+            .contains("concurrent-commit/already-committed"),
+        "{}",
+        earlier.stderr
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -463,8 +787,14 @@ fn captures_that_arrive_in_order_in_one_batch_both_land() {
     for ended in [&holder, &earlier, &later] {
         assert_eq!(ended.code, Some(0), "{}", ended.stderr);
     }
-    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "earlier edit"), (5, "later edit")]));
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-4"]), "later\nearlier\nholder\nbase\n");
+    assert_eq!(
+        show(&scene, &format!("HEAD:{FILE}")),
+        lines_with(&[(1, "earlier edit"), (5, "later edit")])
+    );
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-4"]),
+        "later\nearlier\nholder\nbase\n"
+    );
     remove_settled(&scene.fixture);
 }
 
@@ -473,8 +803,13 @@ fn captures_that_arrive_in_order_in_one_batch_both_land() {
 /// named after the request and the attempt,
 /// inside the repository scratch directory.
 fn scratch_trees(scene: &Scene) -> Vec<PathBuf> {
-    let directory: PathBuf = scene.repo.join(".git").join("monochromatic-git-policy-cli-scratch");
-    let Ok(entries) = std::fs::read_dir(&directory) else { return Vec::new() };
+    let directory: PathBuf = scene
+        .repo
+        .join(".git")
+        .join("monochromatic-git-policy-cli-scratch");
+    let Ok(entries) = std::fs::read_dir(&directory) else {
+        return Vec::new();
+    };
     let mut trees: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
@@ -488,7 +823,10 @@ fn scratch_trees(scene: &Scene) -> Vec<PathBuf> {
 
 /// The scratch tree that appeared since `before`:
 /// the one the commit that was started after that look made.
-fn the_tree_that_appeared(scene: &Scene, before: &[PathBuf]) -> PathBuf {
+fn the_tree_that_appeared(
+    scene: &Scene,
+    before: &[PathBuf],
+) -> PathBuf {
     let mut appeared: Vec<PathBuf> = Vec::new();
     for tree in scratch_trees(scene) {
         if !before.contains(&tree) {
@@ -522,7 +860,13 @@ fn a_commit_the_service_sent_back_still_has_the_private_index_of_the_attempt_it_
     let file: PathBuf = scene.repo.join(FILE);
     // Only the first arrival at the marker is held for the control; a commit sent back reaches it again, and goes on.
     for number in 2..=LATER_ARRIVALS {
-        std::fs::write(scene.markers.join(format!("service-sent-back-{number}.release")), "").expect("release of a later arrival");
+        std::fs::write(
+            scene
+                .markers
+                .join(format!("service-sent-back-{number}.release")),
+            "",
+        )
+        .expect("release of a later arrival");
     }
     std::fs::write(scene.repo.join(OTHER), "the other edit\n").expect("the other edit");
     std::fs::write(&file, lines_with(&[(1, "the edit")])).expect("the edit");
@@ -531,14 +875,27 @@ fn a_commit_the_service_sent_back_still_has_the_private_index_of_the_attempt_it_
     let lock: PathBuf = scene.repo.join(".git/index.lock");
     std::fs::write(&lock, "a foreign program's lock\n").expect("the index lock");
     let holder: Started = start_on(&scene, "holder", OTHER, None);
-    holder.waiting.recv_timeout(PATIENCE).expect("the holder waits for the index");
+    holder
+        .waiting
+        .recv_timeout(PATIENCE)
+        .expect("the holder waits for the index");
     let before: Vec<PathBuf> = scratch_trees(&scene);
-    let sent_back: Started = start_with_phase(&scene, "sent back", FILE, "service-sent-back", Some(scene.markers.as_path()));
+    let sent_back: Started = start_with_phase(
+        &scene,
+        "sent back",
+        FILE,
+        "service-sent-back",
+        Some(scene.markers.as_path()),
+    );
     // The commit under control is prepared and its request is queued while the branch is still where the holder found it.
-    wait_for("the service queued the commit under control", || { return queued_requests(&scene) >= 2; });
+    wait_for("the service queued the commit under control", || {
+        return queued_requests(&scene) >= 2;
+    });
     std::fs::remove_file(&lock).expect("the lock is let go");
     let reached: PathBuf = scene.markers.join("service-sent-back-1.reached");
-    wait_for("the service sent the commit back", || { return reached.exists(); });
+    wait_for("the service sent the commit back", || {
+        return reached.exists();
+    });
     let tree: PathBuf = the_tree_that_appeared(&scene, before.as_slice());
     let index: PathBuf = tree.join("commit.index");
     // The service removes the trees it answered beside its landing loop; a removal of this one would show up here.
@@ -546,13 +903,28 @@ fn a_commit_the_service_sent_back_still_has_the_private_index_of_the_attempt_it_
     while index.exists() && began.elapsed() < Duration::from_secs(2) {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(index.exists(), "the private index of the attempt the service sent back was removed: {}", index.display());
+    assert!(
+        index.exists(),
+        "the private index of the attempt the service sent back was removed: {}",
+        index.display()
+    );
     std::fs::write(scene.markers.join("service-sent-back-1.release"), "").expect("release");
     let ended: Ended = finish(sent_back);
     assert_eq!(ended.code, Some(0), "{}", ended.stderr);
-    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "the edit")]), "the captured bytes landed on the moved branch");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "sent back\nholder\nbase\n");
-    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&[(1, "the edit")]), "the person's file is intact");
+    assert_eq!(
+        show(&scene, &format!("HEAD:{FILE}")),
+        lines_with(&[(1, "the edit")]),
+        "the captured bytes landed on the moved branch"
+    );
+    assert_eq!(
+        git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]),
+        "sent back\nholder\nbase\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"),
+        lines_with(&[(1, "the edit")]),
+        "the person's file is intact"
+    );
     assert_eq!(finish(holder).code, Some(0), "the holder landed too");
     remove_settled(&scene.fixture);
 }

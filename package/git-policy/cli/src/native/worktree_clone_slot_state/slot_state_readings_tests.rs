@@ -11,13 +11,28 @@ use crate::testing::test_support::fixture;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{
-    IntentReading, IntentRefusal, MountIntent, MountOperation,
+    IntentReading,
+    IntentRefusal,
+    MountIntent,
+    MountOperation,
 };
 use crate::worktree_clone_slot_state::slot_state_readings::{
-    BindingReading, IntentFacts, PlanReading, SlotReadings, intent_facts_of, read_binding_reading, read_plan,
+    BindingReading,
+    IntentFacts,
+    PlanReading,
+    SlotReadings,
+    intent_facts_of,
+    read_binding_reading,
+    read_plan,
 };
-use crate::worktree_clone_slot_state::slot_state_test_records::{publish, record_at};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_slot_state::slot_state_test_records::{
+    publish,
+    record_at,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The fixture's slot name.
 fn slot() -> &'static str {
@@ -31,7 +46,8 @@ fn slot_path() -> PathBuf {
 
 /// The fixture's nonce.
 fn nonce() -> RequestNonce {
-    return RequestNonce::parse("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f").expect("the fixture nonce reads");
+    return RequestNonce::parse("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f")
+        .expect("the fixture nonce reads");
 }
 
 /// No record and a record the grammar accepts are told apart by the reader.
@@ -40,10 +56,18 @@ fn a_missing_record_is_an_absence_and_a_written_one_is_read() {
     let root: PathBuf = fixture("slot-state-readings");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("the fixture common directory");
-    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(common.as_path());
+    let home: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::home_folder(common.as_path());
     std::fs::create_dir_all(home.as_path()).expect("the fixture home");
-    assert_eq!(read_binding_reading(home.as_path(), slot()), BindingReading::Absent);
-    publish(common.as_path(), &record_at(Phase::Filled, slot_path().as_path()), slot());
+    assert_eq!(
+        read_binding_reading(home.as_path(), slot()),
+        BindingReading::Absent
+    );
+    publish(
+        common.as_path(),
+        &record_at(Phase::Filled, slot_path().as_path()),
+        slot(),
+    );
     let read: BindingReading = read_binding_reading(home.as_path(), slot());
     match &read {
         BindingReading::Record(record) => assert_eq!(record.phase, Phase::Filled),
@@ -56,12 +80,15 @@ fn a_missing_record_is_an_absence_and_a_written_one_is_read() {
 fn a_record_no_reader_may_act_on_names_why() {
     let root: PathBuf = fixture("slot-state-unreadable-record");
     let common: PathBuf = root.join(".git");
-    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(common.as_path());
+    let home: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::home_folder(common.as_path());
     std::fs::create_dir_all(home.as_path()).expect("the fixture home");
     std::fs::write(home.join("topic.binding"), b"not a record\n").expect("the foreign file writes");
     let read: BindingReading = read_binding_reading(home.as_path(), slot());
     match &read {
-        BindingReading::Unreadable { reason } => assert!(reason.contains("topic.binding"), "{reason}"),
+        BindingReading::Unreadable {
+            reason,
+        } => assert!(reason.contains("topic.binding"), "{reason}"),
         found => panic!("expected an unreadable record, got {found:?}"),
     }
 }
@@ -70,9 +97,11 @@ fn a_record_no_reader_may_act_on_names_why() {
 #[test]
 fn a_plan_under_the_clone_guid_names_it() {
     let root: PathBuf = fixture("slot-state-plan-names");
-    let plans: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(root.as_path());
+    let plans: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::plans_folder(root.as_path());
     std::fs::create_dir_all(plans.as_path()).expect("the fixture plan folder");
-    let guid = crate::worktree_clone_slot_state::slot_state_test_records::guid("4821193048571903102");
+    let guid =
+        crate::worktree_clone_slot_state::slot_state_test_records::guid("4821193048571903102");
     std::fs::write(
         plans.join(guid.file_name()),
         format!(
@@ -83,9 +112,18 @@ fn a_plan_under_the_clone_guid_names_it() {
         ),
     )
     .expect("the fixture plan writes");
-    let reading: PlanReading = read_plan(root.as_path(), Some(guid), crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET);
+    let reading: PlanReading = read_plan(
+        root.as_path(),
+        Some(guid),
+        crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET,
+    );
     match &reading {
-        PlanReading::NamesTheClone { plan } => assert_eq!(plan.file_name().and_then(|name| return name.to_str()), Some(guid.file_name().as_str())),
+        PlanReading::NamesTheClone {
+            plan,
+        } => assert_eq!(
+            plan.file_name().and_then(|name| return name.to_str()),
+            Some(guid.file_name().as_str())
+        ),
         found => panic!("expected the plan to name the clone, got {found:?}"),
     }
 }
@@ -94,13 +132,21 @@ fn a_plan_under_the_clone_guid_names_it() {
 #[test]
 fn an_unreadable_plan_names_the_file() {
     let root: PathBuf = fixture("slot-state-plan-unreadable");
-    let plans: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(root.as_path());
+    let plans: PathBuf =
+        crate::worktree_clone_binding_record::registration_home::plans_folder(root.as_path());
     std::fs::create_dir_all(plans.as_path()).expect("the fixture plan folder");
     let foreign: PathBuf = plans.join("4821193048571903102");
     std::fs::write(foreign.as_path(), b"someone's notes\n").expect("the foreign file writes");
-    let reading: PlanReading = read_plan(root.as_path(), None, crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET);
+    let reading: PlanReading = read_plan(
+        root.as_path(),
+        None,
+        crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET,
+    );
     match &reading {
-        PlanReading::Unreadable { plan, .. } => assert_eq!(plan, &foreign),
+        PlanReading::Unreadable {
+            plan,
+            ..
+        } => assert_eq!(plan, &foreign),
         found => panic!("expected the unreadable plan, got {found:?}"),
     }
 }
@@ -109,21 +155,55 @@ fn an_unreadable_plan_names_the_file() {
 #[test]
 fn an_absent_plan_folder_is_no_plan() {
     let root: PathBuf = fixture("slot-state-plan-absent");
-    assert_eq!(read_plan(root.as_path(), None, crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET), PlanReading::NoPlan);
+    assert_eq!(
+        read_plan(
+            root.as_path(),
+            None,
+            crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET
+        ),
+        PlanReading::NoPlan
+    );
 }
 
 /// Every intent arm keeps the request's operation and nonce or its refusal.
 #[test]
 fn each_intent_arm_is_read_as_its_facts() {
-    let mounting: IntentReading = IntentReading::Request(MountIntent { operation: MountOperation::Mount, nonce: nonce() });
-    assert_eq!(intent_facts_of(&mounting), IntentFacts::Mounting { nonce: String::from("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f") });
-    let unmounting: IntentReading = IntentReading::Request(MountIntent { operation: MountOperation::Unmount, nonce: nonce() });
-    assert_eq!(intent_facts_of(&unmounting), IntentFacts::Unmounting { nonce: String::from("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f") });
+    let mounting: IntentReading = IntentReading::Request(MountIntent {
+        operation: MountOperation::Mount,
+        nonce: nonce(),
+    });
+    assert_eq!(
+        intent_facts_of(&mounting),
+        IntentFacts::Mounting {
+            nonce: String::from("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f")
+        }
+    );
+    let unmounting: IntentReading = IntentReading::Request(MountIntent {
+        operation: MountOperation::Unmount,
+        nonce: nonce(),
+    });
+    assert_eq!(
+        intent_facts_of(&unmounting),
+        IntentFacts::Unmounting {
+            nonce: String::from("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f")
+        }
+    );
     assert_eq!(intent_facts_of(&IntentReading::Absent), IntentFacts::Absent);
-    assert_eq!(intent_facts_of(&IntentReading::Inherited { from: String::from("tank") }), IntentFacts::Inherited { from: String::from("tank") });
-    let refused: IntentReading = IntentReading::Refused(IntentRefusal::UnknownOperation { word: String::from("park") });
+    assert_eq!(
+        intent_facts_of(&IntentReading::Inherited {
+            from: String::from("tank")
+        }),
+        IntentFacts::Inherited {
+            from: String::from("tank")
+        }
+    );
+    let refused: IntentReading = IntentReading::Refused(IntentRefusal::UnknownOperation {
+        word: String::from("park"),
+    });
     match intent_facts_of(&refused) {
-        IntentFacts::Unreadable { reason } => assert!(reason.contains("park"), "{reason}"),
+        IntentFacts::Unreadable {
+            reason,
+        } => assert!(reason.contains("park"), "{reason}"),
         found => panic!("expected an unreadable intent, got {found:?}"),
     }
 }

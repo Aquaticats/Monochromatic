@@ -20,7 +20,10 @@
 //! const root = await btrfsFixture(name); // throws unless the run acknowledged that btrfs is absent
 //! ```
 
-use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::fs_kind::{
+    FilesystemKind,
+    filesystem_kind,
+};
 use crate::test_support::fixture;
 use std::path::PathBuf;
 
@@ -48,14 +51,19 @@ pub(crate) fn btrfs_fixture(name: &str) -> Option<PathBuf> {
     if kind == Ok(FilesystemKind::Btrfs) {
         return Some(root);
     }
-    let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
+    let acknowledged: bool = std::env::var_os(ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| {
+        return !value.is_empty();
+    });
     assert!(
         acknowledged,
         "the control {name} needs a btrfs fixture root, but {} is on {kind:?}; set CLI_GIT_TEST_ROOT to a directory on \
          btrfs, or set {ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
         root.display()
     );
-    eprintln!("BTRFS CONTROL NOT RUN: {name} (fixture root {} is on {kind:?}; the host task native:test:host:btrfs covers it)", root.display());
+    eprintln!(
+        "BTRFS CONTROL NOT RUN: {name} (fixture root {} is on {kind:?}; the host task native:test:host:btrfs covers it)",
+        root.display()
+    );
     return None;
 }
 
@@ -74,7 +82,9 @@ pub(crate) fn removal_allowed(root: &std::path::Path) -> bool {
     return crate::fs_mount_options::read_mount_facts(root)
         .ok()
         .flatten()
-        .is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); });
+        .is_some_and(|facts| {
+            return facts.has_option("user_subvol_rm_allowed");
+        });
 }
 
 /// What:
@@ -95,8 +105,15 @@ pub(crate) fn removal_allowed(root: &std::path::Path) -> bool {
 /// ```
 pub(crate) fn commit_the_filesystem(path: &std::path::Path) {
     use std::os::fd::AsRawFd;
-    let directory: std::fs::File = std::fs::File::open(path).expect("the directory whose filesystem is committed");
+    let directory: std::fs::File =
+        std::fs::File::open(path).expect("the directory whose filesystem is committed");
     // SAFETY: `directory` holds an open descriptor for the mount `syncfs` is asked about, and the call neither reads nor writes through it.
     let result: libc::c_int = unsafe { libc::syncfs(directory.as_raw_fd()) };
-    assert_eq!(result, 0, "the filesystem holding {} is committed: {}", path.display(), std::io::Error::last_os_error());
+    assert_eq!(
+        result,
+        0,
+        "the filesystem holding {} is committed: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
 }

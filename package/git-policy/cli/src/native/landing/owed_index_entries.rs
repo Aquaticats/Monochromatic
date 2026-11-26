@@ -18,10 +18,20 @@
 //! const [mode, object, stage] = frontFields(record); const entries = await indexEntries(index, names);
 //! ```
 
-use crate::service_protocol::{FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::service_protocol::{
+    FailureCode,
+    is_zero_object,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 use std::collections::BTreeMap;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
@@ -96,7 +106,14 @@ fn front_fields(record: &[u8]) -> Option<([&[u8]; 3], &[u8])> {
     let first: usize = record.iter().position(is_space_byte)?;
     let second: usize = record[first + 1..].iter().position(is_space_byte)? + first + 1;
     let third: usize = record[second + 1..].iter().position(is_tab_byte)? + second + 1;
-    return Some(([&record[..first], &record[first + 1..second], &record[second + 1..third]], &record[third + 1..]));
+    return Some((
+        [
+            &record[..first],
+            &record[first + 1..second],
+            &record[second + 1..third],
+        ],
+        &record[third + 1..],
+    ));
 }
 
 /// The paths as literal pathspecs from the top of the worktree.
@@ -112,7 +129,13 @@ pub(crate) fn specs_of(names: &[Vec<u8>]) -> Vec<OsString> {
 
 /// One Git question with `names` as literal pathspecs,
 /// answered or not.
-pub(crate) fn with_specs(git: &GitContext, repository: &Path, index: Option<&Path>, words: &[&str], names: &[Vec<u8>]) -> Result<crate::transaction_git::GitOutput, FailureCode> {
+pub(crate) fn with_specs(
+    git: &GitContext,
+    repository: &Path,
+    index: Option<&Path>,
+    words: &[&str],
+    names: &[Vec<u8>],
+) -> Result<crate::transaction_git::GitOutput, FailureCode> {
     let specs: Vec<OsString> = specs_of(names);
     let mut arguments: Vec<&OsStr> = words.iter().map(OsStr::new).collect();
     arguments.push(OsStr::new("--"));
@@ -135,16 +158,35 @@ pub(crate) fn with_specs(git: &GitContext, repository: &Path, index: Option<&Pat
 /// ```ts
 /// treeEntries(old, names) // `ls-tree -z --full-tree <old> -- :(top,literal)<name>...`
 /// ```
-pub(crate) fn tree_entries(git: &GitContext, repository: &Path, old: &str, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+pub(crate) fn tree_entries(
+    git: &GitContext,
+    repository: &Path,
+    old: &str,
+    names: &[Vec<u8>],
+) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if names.is_empty() || is_zero_object(old) {
         return Ok(BTreeMap::new());
     }
-    let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", old], names)?;
+    let output = with_specs(
+        git,
+        repository,
+        None,
+        &["ls-tree", "-z", "--full-tree", old],
+        names,
+    )?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
         // A tree line is `<mode> <type> <object> TAB <path>`.
-        let Some(([mode, _kind, object], path)) = front_fields(record) else { continue };
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
+        let Some(([mode, _kind, object], path)) = front_fields(record) else {
+            continue;
+        };
+        found.insert(
+            path.to_vec(),
+            (
+                String::from_utf8_lossy(mode).into_owned(),
+                String::from_utf8_lossy(object).into_owned(),
+            ),
+        );
     }
     return Ok(found);
 }
@@ -167,21 +209,40 @@ pub(crate) fn tree_entries(git: &GitContext, repository: &Path, old: &str, names
 /// ```ts
 /// indexEntries(index, names) // `ls-files -s -z --full-name -- :(top,literal)<name>...`
 /// ```
-pub(crate) fn index_entries(git: &GitContext, repository: &Path, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+pub(crate) fn index_entries(
+    git: &GitContext,
+    repository: &Path,
+    index: &Path,
+    names: &[Vec<u8>],
+) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if names.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let output = with_specs(git, repository, Some(index), &["ls-files", "-s", "-z", "--full-name"], names)?;
+    let output = with_specs(
+        git,
+        repository,
+        Some(index),
+        &["ls-files", "-s", "-z", "--full-name"],
+        names,
+    )?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
         // An index line is `<mode> <object> <stage> TAB <path>`; a stage other than zero is a conflict.
-        let Some(([mode, object, stage], path)) = front_fields(record) else { continue };
+        let Some(([mode, object, stage], path)) = front_fields(record) else {
+            continue;
+        };
         if is_conflict_stage(&stage) {
             let _dropped = found.remove(path);
             found.insert(path.to_vec(), (String::from("unmerged"), String::new()));
             continue;
         }
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
+        found.insert(
+            path.to_vec(),
+            (
+                String::from_utf8_lossy(mode).into_owned(),
+                String::from_utf8_lossy(object).into_owned(),
+            ),
+        );
     }
     return Ok(found);
 }
@@ -203,10 +264,15 @@ pub(crate) fn is_unmerged(entry: Option<&Entry>) -> bool {
 /// ```ts
 /// wholeListing(index) // `ls-files -s -z`
 /// ```
-pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+pub(crate) fn whole_listing(
+    git: &GitContext,
+    repository: &Path,
+    index: &Path,
+) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     // `--full-name`: the names of both listings are compared and then named to `git rm` and `git reset` as
     // `:(top,literal)<path>` specs, which a caller's `-C` into a subdirectory would otherwise shorten.
-    let mut request: GitRequest = GitRequest::new(repository, &["ls-files", "-s", "-z", "--full-name"]);
+    let mut request: GitRequest =
+        GitRequest::new(repository, &["ls-files", "-s", "-z", "--full-name"]);
     request.index = Some(index.to_path_buf());
     let output = match run_git(git, &request) {
         Ok(answer) if answer.succeeded() => answer,
@@ -214,13 +280,21 @@ pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -
     };
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
-        let Some(([mode, object, stage], path)) = front_fields(record) else { continue };
+        let Some(([mode, object, stage], path)) = front_fields(record) else {
+            continue;
+        };
         if is_conflict_stage(&stage) {
             let _dropped = found.remove(path);
             found.insert(path.to_vec(), (String::from("unmerged"), String::new()));
             continue;
         }
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
+        found.insert(
+            path.to_vec(),
+            (
+                String::from_utf8_lossy(mode).into_owned(),
+                String::from_utf8_lossy(object).into_owned(),
+            ),
+        );
     }
     return Ok(found);
 }
@@ -234,23 +308,44 @@ pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -
 /// ```ts
 /// headEntries(paths) // `ls-tree -z --full-tree HEAD -- :(top,literal)<path>...`
 /// ```
-pub(crate) fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+pub(crate) fn head_entries(
+    git: &GitContext,
+    repository: &Path,
+    paths: &[Vec<u8>],
+) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     // An unborn branch has no head to hold an entry: nothing is there, and a commit that owes an index update must not stop for it.
     // Only `rev-parse --verify --quiet`'s own answer for a name that is no object means that:
     //  exit 1 with nothing on the standard error.
     // A probe that failed for any other reason is a failure to know the head,
     //  and the caller restores what it had.
-    let unborn: GitRequest = GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"]);
+    let unborn: GitRequest =
+        GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"]);
     match run_git(git, &unborn) {
         Ok(answer) if answer.succeeded() => {}
-        Ok(answer) if answer.code == Some(NAME_IS_NO_OBJECT) && answer.stderr.is_empty() => return Ok(BTreeMap::new()),
+        Ok(answer) if answer.code == Some(NAME_IS_NO_OBJECT) && answer.stderr.is_empty() => {
+            return Ok(BTreeMap::new());
+        }
         _ => return Err(FailureCode::Unavailable),
     }
-    let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", "HEAD"], paths)?;
+    let output = with_specs(
+        git,
+        repository,
+        None,
+        &["ls-tree", "-z", "--full-tree", "HEAD"],
+        paths,
+    )?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
-        let Some(([mode, _kind, object], path)) = front_fields(record) else { continue };
-        found.insert(path.to_vec(), (String::from_utf8_lossy(mode).into_owned(), String::from_utf8_lossy(object).into_owned()));
+        let Some(([mode, _kind, object], path)) = front_fields(record) else {
+            continue;
+        };
+        found.insert(
+            path.to_vec(),
+            (
+                String::from_utf8_lossy(mode).into_owned(),
+                String::from_utf8_lossy(object).into_owned(),
+            ),
+        );
     }
     return Ok(found);
 }
@@ -267,7 +362,12 @@ pub(crate) fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>
 /// ```ts
 /// movedSinceByListing(liveIndex, commitIndex) // every path whose entry differs, from `ls-files -s -z`
 /// ```
-pub(crate) fn moved_since_listing(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
+pub(crate) fn moved_since_listing(
+    git: &GitContext,
+    repository: &Path,
+    live_index: &Path,
+    commit_index: &Path,
+) -> Result<Vec<Vec<u8>>, FailureCode> {
     let live: BTreeMap<Vec<u8>, Entry> = whole_listing(git, repository, live_index)?;
     let held: BTreeMap<Vec<u8>, Entry> = whole_listing(git, repository, commit_index)?;
     let mut moved: Vec<Vec<u8>> = Vec::new();

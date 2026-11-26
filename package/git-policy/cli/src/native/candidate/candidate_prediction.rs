@@ -22,29 +22,45 @@
 //! // for (const candidate of prepared.version.candidates) await prepared.store.bytes(candidate);
 //! ```
 
+/// Import the layer's failure type and its closed list of causes.
+use crate::candidate_attribute::{
+    AttributeSource,
+    CandidateAttributes,
+};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+/// The landed commit object name a landed-delta request reads.
+use crate::candidate_object::ObjectId;
 /// The size of a pathspec chunk,
 /// kept in a file of its own so that sibling files share it without importing each other.
 use crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
 /// Running Git for a prediction,
 /// and the path of the real index.
-use crate::candidate_prediction_git_runs::{real_index_path, run_git};
-/// Import the layer's failure type and its closed list of causes.
-use crate::candidate_attribute::{AttributeSource, CandidateAttributes};
-use crate::candidate_error::{CandidateError, CandidateFailure};
-/// The landed commit object name a landed-delta request reads.
-use crate::candidate_object::ObjectId;
+use crate::candidate_prediction_git_runs::{
+    real_index_path,
+    run_git,
+};
 /// Import the private index copy every prediction stages into.
 use crate::candidate_private_index::PrivateIndex;
 /// Import the candidate record a version is built from.
 use crate::candidate_record::CandidateRecord;
 /// Import the stage-record comparison and the two ways of turning entries into candidates.
 use crate::candidate_stage::{
-    ChangedPath, StageRecord, delta_candidates, scope_candidates, staged_delta,
+    ChangedPath,
+    StageRecord,
+    delta_candidates,
+    scope_candidates,
+    staged_delta,
 };
 /// Import the per-invocation owner of versions and bytes.
 use crate::candidate_store::CandidateStore;
 /// Import the immutable version type.
-use crate::candidate_version::{CandidateSource, CandidateVersion};
+use crate::candidate_version::{
+    CandidateSource,
+    CandidateVersion,
+};
 /// Import the captured-query runner and its byte helpers.
 use crate::git_metadata::path_from_git_bytes;
 /// What:
@@ -61,7 +77,10 @@ use crate::git_metadata::path_from_git_bytes;
 use std::collections::HashMap;
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Rc<T>` is a shared,
 ///  read-only handle;
 ///  versions are shared by every policy of a pass.
@@ -383,7 +402,9 @@ fn note_listing(
 ) {
     for record in listed {
         // The source is cloned only for a path not yet listed, as `or_insert_with` ran its closure.
-        if let std::collections::hash_map::Entry::Vacant(slot) = listed_from.entry(record.path.clone()) {
+        if let std::collections::hash_map::Entry::Vacant(slot) =
+            listed_from.entry(record.path.clone())
+        {
             slot.insert(source.clone());
         }
     }
@@ -441,7 +462,10 @@ pub fn prepare_candidates(
     let purpose: &str = match request {
         CandidateRequest::Add(_) => "predict what git add stages",
         CandidateRequest::Direct(_) => "read the selected worktree files",
-        CandidateRequest::Staged(_) | CandidateRequest::StagedAtBase { .. } => "read the staged index entries",
+        CandidateRequest::Staged(_)
+        | CandidateRequest::StagedAtBase {
+            ..
+        } => "read the staged index entries",
         CandidateRequest::Landed(_) => "read the landed commit changes",
         CandidateRequest::Pushed(_) => "read the pushed commit changes",
     };
@@ -457,8 +481,15 @@ pub fn prepare_candidates(
     // const private = request.stages ? PrivateIndex.create(realIndex) : undefined;
     // ```
     let private: Option<PrivateIndex> = match request {
-        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => Some(PrivateIndex::create(real_index.as_path())?),
-        CandidateRequest::Staged(_) | CandidateRequest::StagedAtBase { .. } | CandidateRequest::Landed(_) | CandidateRequest::Pushed(_) => None,
+        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => {
+            Some(PrivateIndex::create(real_index.as_path())?)
+        }
+        CandidateRequest::Staged(_)
+        | CandidateRequest::StagedAtBase {
+            ..
+        }
+        | CandidateRequest::Landed(_)
+        | CandidateRequest::Pushed(_) => None,
     };
     // The caller's environment, with every command of the prediction on the private index where there is one.
     let mut private_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
@@ -543,8 +574,11 @@ pub fn prepare_candidates(
         }
         CandidateRequest::Direct(pathspecs) => {
             let scope_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
-            let mut scope_store: CandidateStore =
-                CandidateStore::new(real_git, scope_prefix.as_slice(), private_overlay.as_slice());
+            let mut scope_store: CandidateStore = CandidateStore::new(
+                real_git,
+                scope_prefix.as_slice(),
+                private_overlay.as_slice(),
+            );
             let selected: Vec<CandidateRecord> = projected_scope(
                 &mut scope_store,
                 real_git,
@@ -556,12 +590,19 @@ pub fn prepare_candidates(
         }
         CandidateRequest::Staged(pathspecs) => {
             let scope_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
-            let mut scope_store: CandidateStore =
-                CandidateStore::new(real_git, scope_prefix.as_slice(), private_overlay.as_slice());
-            let selected: Vec<CandidateRecord> = staged_scope(&mut scope_store, pathspecs.as_slice())?;
+            let mut scope_store: CandidateStore = CandidateStore::new(
+                real_git,
+                scope_prefix.as_slice(),
+                private_overlay.as_slice(),
+            );
+            let selected: Vec<CandidateRecord> =
+                staged_scope(&mut scope_store, pathspecs.as_slice())?;
             (scope_store, selected)
         }
-        CandidateRequest::StagedAtBase { base, pathspecs } => {
+        CandidateRequest::StagedAtBase {
+            base,
+            pathspecs,
+        } => {
             let scope_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
             let mut scope_store: CandidateStore = CandidateStore::new(
                 real_git,

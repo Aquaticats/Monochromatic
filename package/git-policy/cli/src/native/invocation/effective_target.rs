@@ -26,7 +26,10 @@ use crate::worktree_identity::WorktreeIdentity;
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The four targets worktree policies distinguish.
@@ -222,7 +225,7 @@ pub fn mise_data_dir(
 /// function cargoBuildScriptOutputDir(environment: [string, string][]): { path: string; namedBy: string } | undefined;
 /// ```
 pub fn cargo_build_script_output_dir(
-    environment: &[(OsString, OsString)],
+    environment: &[(OsString, OsString)]
 ) -> Option<ToolCacheDirectory> {
     // An empty value is unset: an empty path would exempt whatever the current directory is.
     if let Some(explicit) = environment_value(environment, "OUT_DIR")
@@ -249,8 +252,11 @@ pub fn cargo_build_script_output_dir(
 /// ```ts
 /// const CARGO_BUILD_DIRECTORY_VARIABLES = ['CARGO_BUILD_DIR', 'CARGO_BUILD_BUILD_DIR', 'CARGO_TARGET_DIR'];
 /// ```
-const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] =
-    ["CARGO_BUILD_DIR", "CARGO_BUILD_BUILD_DIR", "CARGO_TARGET_DIR"];
+const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] = [
+    "CARGO_BUILD_DIR",
+    "CARGO_BUILD_BUILD_DIR",
+    "CARGO_TARGET_DIR",
+];
 
 /// What:
 ///  Cargo's build directory as the invocation's environment names it:
@@ -289,9 +295,7 @@ const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] =
 /// ```ts
 /// function cargoBuildDir(environment: [string, string][]): { path: string; namedBy: string } | undefined;
 /// ```
-pub fn cargo_build_dir(
-    environment: &[(OsString, OsString)],
-) -> Option<ToolCacheDirectory> {
+pub fn cargo_build_dir(environment: &[(OsString, OsString)]) -> Option<ToolCacheDirectory> {
     // `for named_by in CARGO_BUILD_DIRECTORY_VARIABLES` asks each name in the order the answer ranks them.
     for named_by in CARGO_BUILD_DIRECTORY_VARIABLES {
         // What: `let Some(value) = ... else { continue; };` moves on when this name is absent.
@@ -320,7 +324,10 @@ pub fn cargo_build_dir(
         if !path.is_absolute() {
             return None;
         }
-        return Some(ToolCacheDirectory { path, named_by });
+        return Some(ToolCacheDirectory {
+            path,
+            named_by,
+        });
     }
     return None;
 }
@@ -439,7 +446,10 @@ fn exempted_repository_paths(identity: &WorktreeIdentity) -> Vec<&Path> {
     // `match` binds the two paths each shape holds; a bare repository and no repository hold at most one.
     return match identity {
         WorktreeIdentity::OutsideWorktree => Vec::<&Path>::new(),
-        WorktreeIdentity::BareRepository { git_dir, .. } => vec![git_dir.as_path()],
+        WorktreeIdentity::BareRepository {
+            git_dir,
+            ..
+        } => vec![git_dir.as_path()],
         WorktreeIdentity::MainWorktree {
             git_dir,
             worktree_root,
@@ -498,16 +508,23 @@ pub fn classify_effective_target(
     // switch (identity.kind) { case 'outside-worktree': return 'outside-worktree'; ... }
     // ```
     match identity {
-        WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => {
+        WorktreeIdentity::OutsideWorktree
+        | WorktreeIdentity::BareRepository {
+            ..
+        } => {
             return EffectiveTarget::OutsideWorktree;
         }
-        WorktreeIdentity::MainWorktree { .. } => {
+        WorktreeIdentity::MainWorktree {
+            ..
+        } => {
             if matching_allowed_worktree_dir_for_repository(identity, allowed_dirs).is_some() {
                 return EffectiveTarget::Allowlisted;
             }
             return EffectiveTarget::MainWorktree;
         }
-        WorktreeIdentity::LinkedWorktree { .. } => {
+        WorktreeIdentity::LinkedWorktree {
+            ..
+        } => {
             if matching_allowed_worktree_dir_for_repository(identity, allowed_dirs).is_some() {
                 return EffectiveTarget::Allowlisted;
             }

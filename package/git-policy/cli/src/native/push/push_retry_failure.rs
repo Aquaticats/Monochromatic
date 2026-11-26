@@ -18,16 +18,20 @@
 //! const cause = finalFailure(output); if (outOfTries(output, tryNumber)) fail(outOfTriesWords(first));
 //! ```
 
-/// The pause schedule of the plan,
-/// which the words of a counted failure measure their span with.
-use crate::push_retry::pause_before;
 /// The failed attempt a push leaves,
 /// whose exit code and signal are the whole cause of one that wrote nothing.
 use crate::auto_push_single_flight::PushAttempt;
 /// The sentence a refusal prints for a host key this machine does not know,
 /// the reading that says OpenSSH's words are that refusal,
 /// and the opening words that say the sentence is already there.
-use crate::lfs_pre_push::{HOST_KEY_NOT_KNOWN_SENTENCE_OPENING, host_key_not_known_sentence, reads_as_unknown_host_key};
+use crate::lfs_pre_push::{
+    HOST_KEY_NOT_KNOWN_SENTENCE_OPENING,
+    host_key_not_known_sentence,
+    reads_as_unknown_host_key,
+};
+/// The pause schedule of the plan,
+/// which the words of a counted failure measure their span with.
+use crate::push_retry::pause_before;
 use std::time::Duration;
 
 /// The words of the reconcile's report of a conflict,
@@ -133,7 +137,13 @@ pub const PROTECTED_BRANCH_TRIES: u32 = 5;
 ///   the server refused the login or the permission;
 /// - OpenSSH's `Permission denied (publickey).`,
 ///   which Git relays when the key is refused.
-pub const LOGIN_PHRASES: [&str; 5] = ["Authentication failed for", "terminal prompts disabled", "returned error: 401", "returned error: 403", "Permission denied ("];
+pub const LOGIN_PHRASES: [&str; 5] = [
+    "Authentication failed for",
+    "terminal prompts disabled",
+    "returned error: 401",
+    "returned error: 403",
+    "Permission denied (",
+];
 
 /// The lines of an output in which the server rejected a reference.
 fn rejection_lines(output: &str) -> Vec<&str> {
@@ -222,7 +232,10 @@ pub fn final_failure(output: &str) -> Option<FinalFailure> {
 /// ```
 pub(crate) fn silent_failure_line(attempt: &PushAttempt) -> String {
     let ending: String = match attempt.signal {
-        Some(signal) => format!("was ended by signal {signal} (status {})", attempt.exit_code),
+        Some(signal) => format!(
+            "was ended by signal {signal} (status {})",
+            attempt.exit_code
+        ),
         None => format!("exited with status {}", attempt.exit_code),
     };
     return format!(
@@ -251,7 +264,12 @@ pub(crate) fn silent_failure_line(attempt: &PushAttempt) -> String {
 /// ```ts
 /// const recordWords = (attempt, heldBack, said, failed) => [heldBack, said].filter(Boolean).join('\n') || (failed ? silentFailureLine(attempt) : '');
 /// ```
-pub(crate) fn record_words(attempt: &PushAttempt, held_back: Option<&str>, said: &str, failed: bool) -> String {
+pub(crate) fn record_words(
+    attempt: &PushAttempt,
+    held_back: Option<&str>,
+    said: &str,
+    failed: bool,
+) -> String {
     let mut shown: String = match (held_back, said.is_empty()) {
         (None, _) => said.to_owned(),
         (Some(line), true) => line.to_owned(),
@@ -301,7 +319,10 @@ pub fn retried_failure_record(output: &str) -> String {
     if folded.contains(HOST_KEY_NOT_KNOWN_SENTENCE_OPENING) {
         return format!("{SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}");
     }
-    return format!("{} {SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}", host_key_not_known_sentence(None));
+    return format!(
+        "{} {SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}",
+        host_key_not_known_sentence(None)
+    );
 }
 
 /// The promise the service's record adds for a host key this machine does not know,
@@ -325,7 +346,10 @@ const SERVICE_KEEPS_RETRYING_SENTENCE: &str = "The commit service keeps its usua
 /// Every other retried failure is tried until it passes and has no count of its own,
 /// so the answer depends on the words
 ///  and not on the count alone.
-pub fn out_of_tries(output: &str, try_number: u32) -> bool {
+pub fn out_of_tries(
+    output: &str,
+    try_number: u32,
+) -> bool {
     return protected_branch_refusal(output).is_some() && try_number >= PROTECTED_BRANCH_TRIES;
 }
 
@@ -395,8 +419,15 @@ pub fn needs_the_person(output: &str) -> bool {
 }
 
 /// One count and the unit that follows it.
-fn count_words(count: u64, unit: &str) -> String {
-    return if count == 1 { format!("1 {unit}") } else { format!("{count} {unit}s") };
+fn count_words(
+    count: u64,
+    unit: &str,
+) -> String {
+    return if count == 1 {
+        format!("1 {unit}")
+    } else {
+        format!("{count} {unit}s")
+    };
 }
 
 /// What:
@@ -421,9 +452,12 @@ fn span_words(span: Duration) -> String {
     if rest == 0 {
         return count_words(minutes, "minute");
     }
-    return format!("{} and {}", count_words(minutes, "minute"), count_words(rest, "second"));
+    return format!(
+        "{} and {}",
+        count_words(minutes, "minute"),
+        count_words(rest, "second")
+    );
 }
-
 
 /// The pauses the plan asks between the tries of a failure it gives `PROTECTED_BRANCH_TRIES` of:
 /// the first pause and each doubling after it,
@@ -435,7 +469,6 @@ fn pauses_before_the_last_try(first: Duration) -> Duration {
     }
     return span;
 }
-
 
 /// What:
 ///  The plain words the person's failure record starts with when a protected-branch refusal outlasted every try

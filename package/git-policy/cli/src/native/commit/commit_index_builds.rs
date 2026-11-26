@@ -90,10 +90,18 @@ static BUILDS: Mutex<Vec<IndexBuild>> = Mutex::new(Vec::new());
 /// ```ts
 /// noteIndexBuild('first', true);
 /// ```
-pub fn note_index_build(kind: IndexBuildKind, stat_data_kept: bool) {
+pub fn note_index_build(
+    kind: IndexBuildKind,
+    stat_data_kept: bool,
+) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of builds.
-    let mut builds = BUILDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    builds.push(IndexBuild { kind, stat_data_kept });
+    let mut builds = BUILDS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    builds.push(IndexBuild {
+        kind,
+        stat_data_kept,
+    });
 }
 
 /// What:
@@ -108,7 +116,9 @@ pub fn note_index_build(kind: IndexBuildKind, stat_data_kept: bool) {
 /// const builds = drainIndexBuilds();
 /// ```
 pub fn drain_index_builds() -> Vec<IndexBuild> {
-    let mut builds = BUILDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut builds = BUILDS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     return std::mem::take(&mut *builds);
 }
 
@@ -123,7 +133,11 @@ pub fn drain_index_builds() -> Vec<IndexBuild> {
 /// JSON.stringify({ kind, statDataKept })
 /// ```
 fn build_json(build: &IndexBuild) -> String {
-    return format!("{{\"kind\":{},\"statDataKept\":{}}}", quote(build.kind.word()), build.stat_data_kept);
+    return format!(
+        "{{\"kind\":{},\"statDataKept\":{}}}",
+        quote(build.kind.word()),
+        build.stat_data_kept
+    );
 }
 
 /// What:

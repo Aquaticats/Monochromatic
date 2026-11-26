@@ -27,15 +27,32 @@
 //! const lines = theOriginCleanupLook({ commonDir, reads, device, now });
 //! ```
 
-use crate::worktree_clone_origin_cleanup::origin_cleanup_attempt::{CleanupAttempt, CleanupOutcome, attempt_the_cleanup};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_lines::{line_of_a_block, line_of_a_destruction, line_of_a_refusal, the_reason_changed};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_attempt::{
+    CleanupAttempt,
+    CleanupOutcome,
+    attempt_the_cleanup,
+};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_lines::{
+    line_of_a_block,
+    line_of_a_destruction,
+    line_of_a_refusal,
+    the_reason_changed,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_publication::CleanupFolder;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{CleanupListing, list_the_origin_cleanups, origin_cleanups_folder, read_the_cleanup_record};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
+    CleanupListing,
+    list_the_origin_cleanups,
+    origin_cleanups_folder,
+    read_the_cleanup_record,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusal;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One look's inputs:
@@ -103,16 +120,27 @@ pub struct LookAnswer {
 /// const answer = theOriginCleanupLook({ commonDir, reads, device, now });
 /// ```
 pub fn the_origin_cleanup_look(look: &OriginCleanupLook<'_>) -> LookAnswer {
-    let mut answer: LookAnswer = LookAnswer { lines: Vec::new(), finished: 0, blocked: 0, refused: 0 };
+    let mut answer: LookAnswer = LookAnswer {
+        lines: Vec::new(),
+        finished: 0,
+        blocked: 0,
+        refused: 0,
+    };
     let maybe_listing: Option<CleanupListing> = match list_the_origin_cleanups(look.common_dir) {
         Ok(found) => found,
         Err(refusal) => {
             answer.refused += 1;
-            answer.lines.push(line_of_a_refusal("<the folder>", &refusal, origin_cleanups_folder(look.common_dir).as_path()));
+            answer.lines.push(line_of_a_refusal(
+                "<the folder>",
+                &refusal,
+                origin_cleanups_folder(look.common_dir).as_path(),
+            ));
             return answer;
         }
     };
-    let Some(listing) = maybe_listing else { return answer };
+    let Some(listing) = maybe_listing else {
+        return answer;
+    };
     for name in &listing.foreign {
         answer.refused += 1;
         let refusal: CleanupRefusal = CleanupRefusal::at(
@@ -120,7 +148,11 @@ pub fn the_origin_cleanup_look(look: &OriginCleanupLook<'_>) -> LookAnswer {
             "name",
             String::from(name),
         );
-        answer.lines.push(line_of_a_refusal(name, &refusal, origin_cleanups_folder(look.common_dir).as_path()));
+        answer.lines.push(line_of_a_refusal(
+            name,
+            &refusal,
+            origin_cleanups_folder(look.common_dir).as_path(),
+        ));
     }
     for name in &listing.staging {
         answer.refused += 1;
@@ -134,7 +166,11 @@ pub fn the_origin_cleanup_look(look: &OriginCleanupLook<'_>) -> LookAnswer {
         Ok(opened) => opened,
         Err(refusal) => {
             answer.refused += 1;
-            answer.lines.push(line_of_a_refusal("<the folder>", &refusal, origin_cleanups_folder(look.common_dir).as_path()));
+            answer.lines.push(line_of_a_refusal(
+                "<the folder>",
+                &refusal,
+                origin_cleanups_folder(look.common_dir).as_path(),
+            ));
             return answer;
         }
     };
@@ -145,22 +181,38 @@ pub fn the_origin_cleanup_look(look: &OriginCleanupLook<'_>) -> LookAnswer {
 }
 
 /// One record's attempt and the lines it prints.
-fn attempt_one(look: &OriginCleanupLook<'_>, folder: &CleanupFolder, name: &str, answer: &mut LookAnswer) {
+fn attempt_one(
+    look: &OriginCleanupLook<'_>,
+    folder: &CleanupFolder,
+    name: &str,
+    answer: &mut LookAnswer,
+) {
     let path: PathBuf = folder.path().join(name);
     let record: OriginCleanupRecord = match read_the_cleanup_record(look.common_dir, name) {
         Ok(read) => read,
         Err(refusal) => {
             answer.refused += 1;
-            answer.lines.push(line_of_a_refusal(name, &refusal, path.as_path()));
+            answer
+                .lines
+                .push(line_of_a_refusal(name, &refusal, path.as_path()));
             return;
         }
     };
-    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt { record: &record, reads: look.reads, device: look.device, attempted_at: look.now });
+    let outcome: CleanupOutcome = attempt_the_cleanup(&CleanupAttempt {
+        record: &record,
+        reads: look.reads,
+        device: look.device,
+        attempted_at: look.now,
+    });
     match outcome {
-        CleanupOutcome::Finished { destroyed } => {
+        CleanupOutcome::Finished {
+            destroyed,
+        } => {
             if let Err(refusal) = folder.remove(name) {
                 answer.refused += 1;
-                answer.lines.push(line_of_a_refusal(name, &refusal, path.as_path()));
+                answer
+                    .lines
+                    .push(line_of_a_refusal(name, &refusal, path.as_path()));
                 return;
             }
             answer.finished += 1;
@@ -168,15 +220,22 @@ fn attempt_one(look: &OriginCleanupLook<'_>, folder: &CleanupFolder, name: &str,
                 answer.lines.push(line_of_a_destruction(snapshot.as_str()));
             }
         }
-        CleanupOutcome::Blocked { record: next, detail } => {
+        CleanupOutcome::Blocked {
+            record: next,
+            detail,
+        } => {
             if let Err(refusal) = folder.publish(next.as_ref()) {
                 answer.refused += 1;
-                answer.lines.push(line_of_a_refusal(name, &refusal, path.as_path()));
+                answer
+                    .lines
+                    .push(line_of_a_refusal(name, &refusal, path.as_path()));
                 return;
             }
             answer.blocked += 1;
             if the_reason_changed(Some(&record), next.as_ref()) {
-                answer.lines.push(line_of_a_block(&next, path.as_path(), detail.as_str()));
+                answer
+                    .lines
+                    .push(line_of_a_block(&next, path.as_path(), detail.as_str()));
             }
         }
     }

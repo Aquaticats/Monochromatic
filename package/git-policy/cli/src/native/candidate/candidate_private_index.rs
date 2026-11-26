@@ -32,12 +32,21 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// The record a copy writes of its owner,
 ///  and the proof that the owner is gone.
-use crate::worktree_copy_owner::{current_copy_owner, token_owner_is_dead};
+use crate::worktree_copy_owner::{
+    current_copy_owner,
+    token_owner_is_dead,
+};
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  `AtomicU64` is a counter that several threads may increase without a lock;
 ///       `Ordering::Relaxed` asks only that each increase is counted once.
@@ -49,7 +58,10 @@ use crate::worktree_copy_owner::{current_copy_owner, token_owner_is_dead};
 /// ```ts
 /// let created = 0n;
 /// ```
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// The name prefix of every private index directory;
 ///  the installed wrapper uses the same one.
@@ -177,12 +189,16 @@ fn is_copy_name(name: &str) -> bool {
 /// ```
 #[cfg(unix)]
 fn record_text(record: &Path) -> Option<String> {
+    /// `Read` adds `read_to_string` to the opened record.
+    use std::io::Read as _;
     /// `OpenOptionsExt` adds `custom_flags`,
     ///  the open flags the standard library has no setting for.
     use std::os::unix::fs::OpenOptionsExt as _;
-    /// `Read` adds `read_to_string` to the opened record.
-    use std::io::Read as _;
-    let mut opened: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(record).ok()?;
+    let mut opened: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(record)
+        .ok()?;
     // The type is read from the open descriptor, so the name cannot be swapped for a pipe after a separate check.
     if !opened.metadata().ok()?.is_file() {
         return None;
@@ -297,7 +313,10 @@ fn reap_copies_of_gone_owners(parent: &Path) {
 /// ```ts
 /// function privateIndexFailure(step: string, error: Error): CandidateError;
 /// ```
-fn private_index_failure(step: &str, error: &std::io::Error) -> CandidateError {
+fn private_index_failure(
+    step: &str,
+    error: &std::io::Error,
+) -> CandidateError {
     return CandidateError::new(
         CandidateFailure::PrivateIndexUnavailable,
         format!("monochromatic-git-policy-cli could not prepare a private copy of the index: {step}: {error}.").as_str(),
@@ -347,7 +366,10 @@ fn create_private_directory(directory: &Path) -> std::io::Result<()> {
 /// ```ts
 /// async function copyIndex(source: string, destination: string): Promise<boolean>;
 /// ```
-fn copy_index(source: &Path, destination: &Path) -> std::io::Result<bool> {
+fn copy_index(
+    source: &Path,
+    destination: &Path,
+) -> std::io::Result<bool> {
     // `match` on the metadata read: a missing file is an answer, every other error is a failure.
     let metadata: std::fs::Metadata = match std::fs::metadata(source) {
         Ok(found) => found,
@@ -406,7 +428,8 @@ impl PrivateIndex {
         // Before a new copy exists, the copies of commands that will never finish leave.
         reap_copies_of_gone_owners(parent);
         let suffix: String = unique_suffix();
-        let staging: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{suffix}{STAGING_SUFFIX}"));
+        let staging: PathBuf =
+            parent.join(format!("{PRIVATE_INDEX_PREFIX}{suffix}{STAGING_SUFFIX}"));
         if let Err(error) = create_private_directory(staging.as_path()) {
             return Err(private_index_failure("creating its directory", &error));
         }

@@ -43,10 +43,14 @@ use std::task::Poll;
 /// ```ts
 /// const answer = await keepAPanicAwaiting(work);
 /// ```
-pub(crate) async fn keep_a_panic_awaiting<T, F: Future<Output = T> + Send>(work: F) -> Result<T, String> {
+pub(crate) async fn keep_a_panic_awaiting<T, F: Future<Output = T> + Send>(
+    work: F
+) -> Result<T, String> {
     let mut the_work: Pin<Box<F>> = Box::pin(work);
     return std::future::poll_fn(move |context| {
-        return match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return the_work.as_mut().poll(context); })) {
+        return match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            return the_work.as_mut().poll(context);
+        })) {
             Ok(Poll::Ready(answer)) => Poll::Ready(Ok(answer)),
             Ok(Poll::Pending) => Poll::Pending,
             Err(payload) => Poll::Ready(Err(what_a_panic_said(payload))),

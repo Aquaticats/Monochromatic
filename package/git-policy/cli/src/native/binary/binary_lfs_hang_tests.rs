@@ -7,12 +7,37 @@
 //! The verdicts are in `doc/planning/cli-git-no-self-invocation.md`,
 //! section "Hang analysis".
 
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
-use git_policy_cli::bounded_push::{PUSH_DEADLINE_VARIABLE, STOP_GRACE};
+use super::commit::{
+    assert_nothing_left,
+    git_text,
+    keep_maintenance_in_the_foreground,
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    decline_in_process_lfs_scan,
+    executable,
+    fixture,
+    git,
+    observe,
+    repository,
+    stderr_of,
+};
+use git_policy_cli::bounded_push::{
+    PUSH_DEADLINE_VARIABLE,
+    STOP_GRACE,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The push deadline the detaching control sets,
 /// in whole seconds.
@@ -40,29 +65,79 @@ const SECOND_WORKTREE_UPLOAD_SECONDS: u64 = 1;
 /// A repository with a bare origin,
 /// an LFS key,
 /// and a stand-in `git-lfs` made from `source`.
-fn world(fixture: &Fixture, source: &str) -> (PathBuf, PathBuf) {
+fn world(
+    fixture: &Fixture,
+    source: &str,
+) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
-    git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
-    git(fixture, repo.as_path(), &["remote", "add", "origin", origin.to_str().expect("UTF-8")]);
-    git(fixture, repo.as_path(), &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
-    git(fixture, repo.as_path(), &["push", "--quiet", "--no-verify", "--set-upstream", "origin", "main"]);
+    git(
+        fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "origin.git",
+        ],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", origin.to_str().expect("UTF-8")],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "push",
+            "--quiet",
+            "--no-verify",
+            "--set-upstream",
+            "origin",
+            "main",
+        ],
+    );
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     decline_in_process_lfs_scan(fixture, repo.as_path());
-    executable(fixture.root.join("bin/git-lfs").as_path(), source.as_bytes());
+    executable(
+        fixture.root.join("bin/git-lfs").as_path(),
+        source.as_bytes(),
+    );
     return (repo, origin);
 }
 
 /// Stage a file and commit it through the wrapper with extra environment,
 /// returning what the caller saw.
-fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(&str, String)]) -> Observed {
+fn commit_file(
+    fixture: &Fixture,
+    directory: &Path,
+    name: &str,
+    environment: &[(&str, String)],
+) -> Observed {
     std::fs::write(directory.join(name), format!("{name}\n")).expect("file");
     git(fixture, directory, &["add", "--", name]);
     // The push runs in the service's environment, so what the control sets for it is given there, before the service starts.
     for (key, value) in environment {
         super::support::give_service_environment(fixture, key, value);
     }
-    let mut command = wrapped_commit(fixture, directory, &["commit", "--quiet", &format!("--message={name}"), "--", name]);
+    let mut command = wrapped_commit(
+        fixture,
+        directory,
+        &[
+            "commit",
+            "--quiet",
+            &format!("--message={name}"),
+            "--",
+            name,
+        ],
+    );
     for (key, value) in environment {
         command.env(key, value);
     }
@@ -78,7 +153,8 @@ fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(
 ///  The second upload is slowed so that the wait after the first worktree's commit cannot be mistaken for the second's:
 /// the control fails every run on a helper that waits for no worktree whose `.git` is a file.
 #[test]
-fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other() {
+fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other()
+{
     let fixture: Fixture = fixture("lfs-hang-two-worktrees");
     // Each upload announces itself and then waits for the other to announce itself; an upload that never sees the
     //  other start (uploads taken in turn) leaves a mark and fails the control.
@@ -94,8 +170,30 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
     );
     let (repo, origin) = world(&fixture, barrier.as_str());
     let second: PathBuf = fixture.root.join("second");
-    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "other", second.to_str().expect("UTF-8")]);
-    git(&fixture, second.as_path(), &["push", "--quiet", "--no-verify", "--set-upstream", "origin", "other"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "other",
+            second.to_str().expect("UTF-8"),
+        ],
+    );
+    git(
+        &fixture,
+        second.as_path(),
+        &[
+            "push",
+            "--quiet",
+            "--no-verify",
+            "--set-upstream",
+            "origin",
+            "other",
+        ],
+    );
     let (first_seen, second_seen, second_waited) = std::thread::scope(|scope| {
         let first = scope.spawn(|| {
             return commit_file(&fixture, repo.as_path(), "first.txt", &[]);
@@ -110,12 +208,24 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
     });
     for (label, seen) in [("first", &first_seen), ("second", &second_seen)] {
         assert_eq!(seen.code, Some(0), "{label}: {}", stderr_of(seen));
-        assert!(!stderr_of(seen).contains("waiting for"), "{label} waited for the other: {}", stderr_of(seen));
+        assert!(
+            !stderr_of(seen).contains("waiting for"),
+            "{label} waited for the other: {}",
+            stderr_of(seen)
+        );
     }
     for (branch, worktree) in [("main", repo.as_path()), ("other", second.as_path())] {
-        let published: String = git_text(&fixture, origin.as_path(), &["rev-parse", &format!("refs/heads/{branch}")]);
+        let published: String = git_text(
+            &fixture,
+            origin.as_path(),
+            &["rev-parse", &format!("refs/heads/{branch}")],
+        );
         let landed: String = git_text(&fixture, worktree, &["rev-parse", "HEAD"]);
-        assert_eq!(published.trim(), landed.trim(), "{branch}: the new commit, not the earlier one, reached the origin");
+        assert_eq!(
+            published.trim(),
+            landed.trim(),
+            "{branch}: the new commit, not the earlier one, reached the origin"
+        );
     }
     // The forcing itself is controlled: the wait after the second worktree's commit outlasted its slowed upload, so the
     //  wait above covered that push and not only the commit.
@@ -156,7 +266,12 @@ fn a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit() {
     assert_eq!(seen.code, Some(0), "the commit itself succeeds: {stderr}");
     // With the service the push is stopped after the command returned, and the stop is the notice of the next commit.
     let report: String = super::support::push_report(repo.as_path(), &stderr);
-    assert!(report.contains(&format!("made no progress for {SHORT_DEADLINE_SECONDS} seconds and was stopped")), "{report}");
+    assert!(
+        report.contains(&format!(
+            "made no progress for {SHORT_DEADLINE_SECONDS} seconds and was stopped"
+        )),
+        "{report}"
+    );
     assert!(
         elapsed < Duration::from_secs(SHORT_DEADLINE_SECONDS) + STOP_GRACE + LOAD_ALLOWANCE,
         "the wrapper returned at the deadline plus the grace, not when the detached helper ended: {elapsed:?}"

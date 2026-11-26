@@ -27,12 +27,30 @@
 //! ```
 
 use crate::diagnostic_log::warn;
-use crate::stale_ref_lock_found::{Found, Outcome};
-use crate::stale_ref_lock_judge::{Examined, Identity, Judge, Verdict, identity_of};
 use crate::service_index_placement::rename_noreplace;
-use crate::stale_ref_lock_walk::{Candidate, companions_of};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use crate::stale_ref_lock_found::{
+    Found,
+    Outcome,
+};
+use crate::stale_ref_lock_judge::{
+    Examined,
+    Identity,
+    Judge,
+    Verdict,
+    identity_of,
+};
+use crate::stale_ref_lock_walk::{
+    Candidate,
+    companions_of,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -48,8 +66,14 @@ static ASIDE_COUNT: AtomicU64 = AtomicU64::new(0);
 /// A private name in `root` that no other process uses.
 fn aside_name(root: &Path) -> PathBuf {
     let count: u64 = ASIDE_COUNT.fetch_add(1, Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    return root.join(format!("{ASIDE_PREFIX}-{}-{count}-{nanos:x}", std::process::id()));
+    let nanos: u128 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    return root.join(format!(
+        "{ASIDE_PREFIX}-{}-{count}-{nanos:x}",
+        std::process::id()
+    ));
 }
 
 /// Take the file at `lock` by renaming it into `root`;
@@ -62,7 +86,12 @@ fn aside_name(root: &Path) -> PathBuf {
 /// ```ts
 /// function removeIfUnchanged(root: string, lock: string, judged: Identity, outcome: Outcome): boolean;
 /// ```
-pub fn remove_if_unchanged(root: &Path, lock: &Path, judged: &Identity, outcome: &mut Outcome) -> Result<bool, String> {
+pub fn remove_if_unchanged(
+    root: &Path,
+    lock: &Path,
+    judged: &Identity,
+    outcome: &mut Outcome,
+) -> Result<bool, String> {
     // A second look just before the move: whatever was judged may have been replaced while the judgement ran, and a file
     //  that is visibly another one is not taken even for the moment the move lasts.
     if identity_of(lock).as_ref() != Some(judged) {
@@ -81,7 +110,12 @@ pub fn remove_if_unchanged(root: &Path, lock: &Path, judged: &Identity, outcome:
 /// ```ts
 /// function takeAndCheck(root: string, lock: string, judged: Identity, outcome: Outcome): boolean;
 /// ```
-pub fn take_and_check(root: &Path, lock: &Path, judged: &Identity, outcome: &mut Outcome) -> Result<bool, String> {
+pub fn take_and_check(
+    root: &Path,
+    lock: &Path,
+    judged: &Identity,
+    outcome: &mut Outcome,
+) -> Result<bool, String> {
     let aside: PathBuf = aside_name(root);
     // `RENAME_NOREPLACE`: the private name is never written over, whatever is there.
     match rename_noreplace(lock, aside.as_path()) {
@@ -93,17 +127,33 @@ pub fn take_and_check(root: &Path, lock: &Path, judged: &Identity, outcome: &mut
     if identity_of(aside.as_path()).as_ref() == Some(judged) {
         return match std::fs::remove_file(aside.as_path()) {
             Ok(()) => Ok(true),
-            Err(error) => Err(format!("the file that was set aside could not be removed ({error}); it is at {}", aside.display())),
+            Err(error) => Err(format!(
+                "the file that was set aside could not be removed ({error}); it is at {}",
+                aside.display()
+            )),
         };
     }
     // It was not the judged file: a live Git made a new lock there in between. Put it back whole.
     match std::fs::hard_link(aside.as_path(), lock) {
         Ok(()) => {
             let _removed = std::fs::remove_file(aside.as_path());
-            warn(TAG, &format!("{} was taken again after it was judged; the new lock was put back", lock.display()));
+            warn(
+                TAG,
+                &format!(
+                    "{} was taken again after it was judged; the new lock was put back",
+                    lock.display()
+                ),
+            );
         }
         Err(error) => {
-            warn(TAG, &format!("{} was taken again after it was judged and could not be put back ({error}); it is left at {}", lock.display(), aside.display()));
+            warn(
+                TAG,
+                &format!(
+                    "{} was taken again after it was judged and could not be put back ({error}); it is left at {}",
+                    lock.display(),
+                    aside.display()
+                ),
+            );
             outcome.displaced.push(aside);
         }
     }
@@ -117,7 +167,11 @@ pub fn take_and_check(root: &Path, lock: &Path, judged: &Identity, outcome: &mut
 /// ```ts
 /// function judgeAndClear(candidate: Candidate, judge: Judge, outcome: Outcome): void;
 /// ```
-pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outcome) {
+pub fn judge_and_clear(
+    candidate: &Candidate,
+    judge: &Judge,
+    outcome: &mut Outcome,
+) {
     // The files that go with the lock are looked at before the judgement, so that each is removed only if it is still the
     //  file that was there while the lock was judged.
     let companions: Vec<(PathBuf, Identity)> = if candidate.orphan_staging {
@@ -131,8 +185,18 @@ pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outco
         }
         with_identity
     };
-    let maybe: Option<Examined> = if candidate.orphan_staging { judge.examine_staging(candidate.lock.as_path()) } else { judge.examine(candidate.lock.as_path()) };
-    let Some(Examined { verdict, pid_file, identity, born }) = maybe else {
+    let maybe: Option<Examined> = if candidate.orphan_staging {
+        judge.examine_staging(candidate.lock.as_path())
+    } else {
+        judge.examine(candidate.lock.as_path())
+    };
+    let Some(Examined {
+        verdict,
+        pid_file,
+        identity,
+        born,
+    }) = maybe
+    else {
         return;
     };
     let mut companion_paths: Vec<PathBuf> = Vec::new();
@@ -152,12 +216,34 @@ pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outco
         Verdict::Held(_) | Verdict::Unproven(_) => outcome.left.push(found),
         // The staging file exists only while its lock does, so the lock is looked for again, after the file was judged: a
         //  lock that is back means a Git holds both, and the file is left.
-        Verdict::Stale(_) if candidate.orphan_staging && candidate.lock.with_file_name("packed-refs.lock").symlink_metadata().is_ok() => {}
-        Verdict::Stale(_) => match remove_if_unchanged(candidate.root.as_path(), candidate.lock.as_path(), &identity, outcome) {
+        Verdict::Stale(_)
+            if candidate.orphan_staging
+                && candidate
+                    .lock
+                    .with_file_name("packed-refs.lock")
+                    .symlink_metadata()
+                    .is_ok() => {}
+        Verdict::Stale(_) => match remove_if_unchanged(
+            candidate.root.as_path(),
+            candidate.lock.as_path(),
+            &identity,
+            outcome,
+        ) {
             Ok(true) => {
                 for (companion, judged) in &companions {
-                    if let Err(reason) = remove_if_unchanged(candidate.root.as_path(), companion.as_path(), judged, outcome) {
-                        warn(TAG, &format!("{} went with a lock that was removed, and could not be removed: {reason}", companion.display()));
+                    if let Err(reason) = remove_if_unchanged(
+                        candidate.root.as_path(),
+                        companion.as_path(),
+                        judged,
+                        outcome,
+                    ) {
+                        warn(
+                            TAG,
+                            &format!(
+                                "{} went with a lock that was removed, and could not be removed: {reason}",
+                                companion.display()
+                            ),
+                        );
                     }
                 }
                 outcome.cleared.push(found);

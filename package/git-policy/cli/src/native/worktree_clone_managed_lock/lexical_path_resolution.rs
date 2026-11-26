@@ -15,7 +15,11 @@
 //! const resolved = path.resolve('/a/b/../c'); // the lexical answer, without touching the disk
 //! ```
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One path with its `.` components dropped and its `..` components resolved.

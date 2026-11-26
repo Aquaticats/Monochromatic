@@ -8,7 +8,10 @@ use super::*;
 const BIT_LIMIT: usize = 1 << 20;
 
 /// The bytes of a bitmap with one literal word after one run-length word.
-fn one_literal(bit_size: u32, literal: u64) -> Vec<u8> {
+fn one_literal(
+    bit_size: u32,
+    literal: u64,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     bytes.extend_from_slice(&bit_size.to_be_bytes());
     bytes.extend_from_slice(&2u32.to_be_bytes());
@@ -73,7 +76,10 @@ fn shapes_round_trip_through_bytes() {
         (0..300).collect(),
         (0..300).step_by(7).collect(),
         vec![5, 5 + 64 * 100, 5 + 64 * 100 + 1],
-        (10..20).chain(64 * 4..64 * 6).chain(64 * 9 + 3..64 * 9 + 5).collect(),
+        (10..20)
+            .chain(64 * 4..64 * 6)
+            .chain(64 * 9 + 3..64 * 9 + 5)
+            .collect(),
     ];
     for bits in shapes {
         let bitmap: Ewah = Ewah::from_bits(bits.as_slice());
@@ -85,7 +91,12 @@ fn shapes_round_trip_through_bytes() {
         let mut again: Vec<u8> = Vec::new();
         read.serialize(&mut again);
         assert_eq!(again, bytes);
-        assert_eq!(read.bit_size(), bits.last().map_or(0, |last| { return last + 1; }));
+        assert_eq!(
+            read.bit_size(),
+            bits.last().map_or(0, |last| {
+                return last + 1;
+            })
+        );
     }
 }
 
@@ -95,17 +106,27 @@ fn damaged_bytes_are_not_a_bitmap() {
     let mut bytes: Vec<u8> = Vec::new();
     Ewah::from_bits(&[1, 2, 3]).serialize(&mut bytes);
     for cut in 0..bytes.len() {
-        assert!(Ewah::read(&bytes[..cut], BIT_LIMIT).is_none(), "cut at {cut}");
+        assert!(
+            Ewah::read(&bytes[..cut], BIT_LIMIT).is_none(),
+            "cut at {cut}"
+        );
     }
     let mut far: Vec<u8> = bytes.clone();
     let last: usize = far.len() - 1;
     far[last] = 9;
-    assert!(Ewah::read(far.as_slice(), BIT_LIMIT).is_none(), "a run-length position past the words");
+    assert!(
+        Ewah::read(far.as_slice(), BIT_LIMIT).is_none(),
+        "a run-length position past the words"
+    );
 }
 
 /// The bytes of a bitmap of `bit_size` bits made of the given words,
 /// with the last run-length word at `rlw`.
-fn raw(bit_size: u32, words: &[u64], rlw: u32) -> Vec<u8> {
+fn raw(
+    bit_size: u32,
+    words: &[u64],
+    rlw: u32,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     bytes.extend_from_slice(&bit_size.to_be_bytes());
     bytes.extend_from_slice(&(words.len() as u32).to_be_bytes());
@@ -125,11 +146,20 @@ fn raw(bit_size: u32, words: &[u64], rlw: u32) -> Vec<u8> {
 fn inconsistent_bitmaps_are_not_read() {
     // One run-length word: a run of 2^20 words of ones, with a bit size of one bit.
     let long_run: u64 = 1 | ((1u64 << 20) << 1);
-    assert!(Ewah::read(raw(1, &[long_run], 0).as_slice(), BIT_LIMIT).is_none(), "a run past the bit size");
+    assert!(
+        Ewah::read(raw(1, &[long_run], 0).as_slice(), BIT_LIMIT).is_none(),
+        "a run past the bit size"
+    );
     // One run-length word that announces five literal words and has none.
-    assert!(Ewah::read(raw(64, &[5u64 << 33], 0).as_slice(), BIT_LIMIT).is_none(), "literals past the words");
+    assert!(
+        Ewah::read(raw(64, &[5u64 << 33], 0).as_slice(), BIT_LIMIT).is_none(),
+        "literals past the words"
+    );
     // A run-length word with one literal, then another run-length word, and the position names the first.
-    assert!(Ewah::read(raw(64, &[1u64 << 33, 1, 0], 0).as_slice(), BIT_LIMIT).is_none(), "the last run-length word is elsewhere");
+    assert!(
+        Ewah::read(raw(64, &[1u64 << 33, 1, 0], 0).as_slice(), BIT_LIMIT).is_none(),
+        "the last run-length word is elsewhere"
+    );
 }
 
 /// A bitmap of more bits than the caller can use is not read,

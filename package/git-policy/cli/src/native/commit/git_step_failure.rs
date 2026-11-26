@@ -51,10 +51,18 @@ static LAST: Mutex<Option<FailedStep>> = Mutex::new(None);
 /// ```ts
 /// noteFailedStep('git add', 128);
 /// ```
-pub fn note_failed_step(name: &str, status: Option<i32>) {
+pub fn note_failed_step(
+    name: &str,
+    status: Option<i32>,
+) {
     // A poisoned lock means another thread panicked while holding it; the note is still one note.
-    let mut last = LAST.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    *last = Some(FailedStep { name: plain_name(name), status });
+    let mut last = LAST
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    *last = Some(FailedStep {
+        name: plain_name(name),
+        status,
+    });
 }
 
 /// What:
@@ -69,7 +77,9 @@ pub fn note_failed_step(name: &str, status: Option<i32>) {
 /// clearFailedStep();
 /// ```
 pub fn clear_failed_step() {
-    let mut last = LAST.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut last = LAST
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     *last = None;
 }
 
@@ -85,7 +95,9 @@ pub fn clear_failed_step() {
 /// const failed = drainFailedStep();
 /// ```
 pub fn drain_failed_step() -> Option<FailedStep> {
-    let mut last = LAST.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut last = LAST
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     return std::mem::take(&mut *last);
 }
 

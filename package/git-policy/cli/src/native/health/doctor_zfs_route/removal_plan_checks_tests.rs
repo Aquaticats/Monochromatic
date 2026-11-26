@@ -15,10 +15,22 @@
 //! expect(checkRemovalPlan({ clone, reading: { kind: 'none' } })).toMatchObject({ kind: 'pass' });
 //! ```
 
-use super::{PlanFileReading, RemovalPlanFacts, check_removal_plan, recorded_outcomes};
+use super::{
+    PlanFileReading,
+    RemovalPlanFacts,
+    check_removal_plan,
+    recorded_outcomes,
+};
 use crate::health::doctor_zfs_route::CheckOutcome;
-use crate::worktree_clone_removal_proof_and_plan::fixtures::{guid, sample_plan, sample_snapshots};
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt};
+use crate::worktree_clone_removal_proof_and_plan::fixtures::{
+    guid,
+    sample_plan,
+    sample_snapshots,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
 use std::path::PathBuf;
 
@@ -32,16 +44,28 @@ fn plan_path() -> PathBuf {
 
 /// The sample plan as a standing reading.
 fn standing(plan: DestructionPlan) -> RemovalPlanFacts {
-    return RemovalPlanFacts { clone: String::from(CLONE), reading: PlanFileReading::Standing { path: plan_path(), plan: Box::new(plan) } };
+    return RemovalPlanFacts {
+        clone: String::from(CLONE),
+        reading: PlanFileReading::Standing {
+            path: plan_path(),
+            plan: Box::new(plan),
+        },
+    };
 }
 
 /// No plan passes,
 /// and says every snapshot is the clone's own.
 #[test]
 fn no_plan_passes() {
-    let facts: RemovalPlanFacts = RemovalPlanFacts { clone: String::from(CLONE), reading: PlanFileReading::NoPlan };
+    let facts: RemovalPlanFacts = RemovalPlanFacts {
+        clone: String::from(CLONE),
+        reading: PlanFileReading::NoPlan,
+    };
     let answer: CheckOutcome = check_removal_plan(&facts);
-    let CheckOutcome::Pass { detail } = answer else {
+    let CheckOutcome::Pass {
+        detail,
+    } = answer
+    else {
         panic!("no plan passes: {answer:?}");
     };
     assert!(detail.contains("no destruction plan stands"), "{detail}");
@@ -51,9 +75,18 @@ fn no_plan_passes() {
 /// because it may hold the only record of a destroyed snapshot.
 #[test]
 fn an_unreadable_plan_is_unknown() {
-    let facts: RemovalPlanFacts = RemovalPlanFacts { clone: String::from(CLONE), reading: PlanFileReading::Unreadable { path: plan_path(), reason: String::from("the header ends early") } };
+    let facts: RemovalPlanFacts = RemovalPlanFacts {
+        clone: String::from(CLONE),
+        reading: PlanFileReading::Unreadable {
+            path: plan_path(),
+            reason: String::from("the header ends early"),
+        },
+    };
     let answer: CheckOutcome = check_removal_plan(&facts);
-    let CheckOutcome::Unknown { reason } = answer else {
+    let CheckOutcome::Unknown {
+        reason,
+    } = answer
+    else {
         panic!("an unreadable plan is unknown: {answer:?}");
     };
     assert!(reason.contains("the header ends early"), "{reason}");
@@ -66,16 +99,26 @@ fn an_unreadable_plan_is_unknown() {
 #[test]
 fn a_standing_plan_names_every_field() {
     let answer: CheckOutcome = check_removal_plan(&standing(sample_plan()));
-    let CheckOutcome::Finding { field, detail } = answer else {
+    let CheckOutcome::Finding {
+        field,
+        detail,
+    } = answer
+    else {
         panic!("a standing plan is a finding: {answer:?}");
     };
     assert_eq!(field, "plan");
-    assert!(detail.contains(plan_path().display().to_string().as_str()), "{detail}");
+    assert!(
+        detail.contains(plan_path().display().to_string().as_str()),
+        "{detail}"
+    );
     assert!(detail.contains("2026-11-22T18:40:12-05:00"), "{detail}");
     assert!(detail.contains("48213:linux:9481733"), "{detail}");
     assert!(detail.contains("head=present"), "{detail}");
     for snapshot in sample_snapshots() {
-        assert!(detail.contains(snapshot.name.as_str()), "{snapshot:?} is missing from {detail}");
+        assert!(
+            detail.contains(snapshot.name.as_str()),
+            "{snapshot:?} is missing from {detail}"
+        );
     }
     assert!(detail.contains("no removal for a clone"), "{detail}");
 }
@@ -85,14 +128,30 @@ fn a_standing_plan_names_every_field() {
 #[test]
 fn a_later_attempt_is_the_names_current_state() {
     let mut plan: DestructionPlan = sample_plan();
-    let first = sample_snapshots().into_iter().next().expect("the sample holds a snapshot");
-    plan.record_line(PlanAttempt { snapshot: first.clone(), attempt: 1, outcome: SnapshotOutcome::Destroyed, errno: None }).expect("the later line is inside the record's rule");
+    let first = sample_snapshots()
+        .into_iter()
+        .next()
+        .expect("the sample holds a snapshot");
+    plan.record_line(PlanAttempt {
+        snapshot: first.clone(),
+        attempt: 1,
+        outcome: SnapshotOutcome::Destroyed,
+        errno: None,
+    })
+    .expect("the later line is inside the record's rule");
     let outcomes = recorded_outcomes(&plan);
-    let settled = outcomes.iter().find(|line| return line.name == first.name).expect("the name keeps its line");
+    let settled = outcomes
+        .iter()
+        .find(|line| return line.name == first.name)
+        .expect("the name keeps its line");
     assert_eq!(settled.outcome, SnapshotOutcome::Destroyed);
     assert_eq!(settled.attempt, 1);
     let answer: CheckOutcome = check_removal_plan(&standing(plan));
-    let CheckOutcome::Finding { detail, .. } = answer else {
+    let CheckOutcome::Finding {
+        detail,
+        ..
+    } = answer
+    else {
         panic!("a standing plan is a finding: {answer:?}");
     };
     assert!(detail.contains("destroyed on attempt 1"), "{detail}");
@@ -104,10 +163,23 @@ fn a_later_attempt_is_the_names_current_state() {
 #[test]
 fn a_refused_line_names_its_errno() {
     let mut plan: DestructionPlan = sample_plan();
-    let first = sample_snapshots().into_iter().next().expect("the sample holds a snapshot");
-    plan.record_line(PlanAttempt { snapshot: first, attempt: 1, outcome: SnapshotOutcome::Refused, errno: Some(16) }).expect("the later line is inside the record's rule");
+    let first = sample_snapshots()
+        .into_iter()
+        .next()
+        .expect("the sample holds a snapshot");
+    plan.record_line(PlanAttempt {
+        snapshot: first,
+        attempt: 1,
+        outcome: SnapshotOutcome::Refused,
+        errno: Some(16),
+    })
+    .expect("the later line is inside the record's rule");
     let answer: CheckOutcome = check_removal_plan(&standing(plan));
-    let CheckOutcome::Finding { detail, .. } = answer else {
+    let CheckOutcome::Finding {
+        detail,
+        ..
+    } = answer
+    else {
         panic!("a standing plan is a finding: {answer:?}");
     };
     assert!(detail.contains("errno 16"), "{detail}");
@@ -121,9 +193,17 @@ fn every_clause_carries_the_recorded_guid() {
     let outcomes = recorded_outcomes(&plan);
     assert_eq!(outcomes.len(), sample_snapshots().len());
     for outcome in &outcomes {
-        let recorded = sample_snapshots().into_iter().find(|snapshot| return snapshot.name == outcome.name).expect("the sample holds every name");
+        let recorded = sample_snapshots()
+            .into_iter()
+            .find(|snapshot| return snapshot.name == outcome.name)
+            .expect("the sample holds every name");
         assert_eq!(outcome.guid, recorded.guid, "{outcome:?}");
-        assert!(outcome.clause().contains(recorded.guid.file_name().as_str()), "{outcome:?}");
+        assert!(
+            outcome
+                .clause()
+                .contains(recorded.guid.file_name().as_str()),
+            "{outcome:?}"
+        );
     }
     let _ = guid(crate::worktree_clone_removal_proof_and_plan::fixtures::SAMPLE_OWN_GUID);
 }

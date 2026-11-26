@@ -15,12 +15,16 @@
 //! expect(text.split('\n')[0]).toBe('v1'); expect(text).toContain('state finished');
 //! ```
 
-use super::super::probe_fingerprint::ProbeFingerprint;
 use super::super::probe_arms::ProbeStep;
+use super::super::probe_fingerprint::ProbeFingerprint;
 use super::super::probe_report::ProbeReport;
 use super::super::probe_report::ProbeVerdict;
 use super::super::probe_status_line::StepLine;
-use super::{ProbeRecord, SourcePresence, started_text};
+use super::{
+    ProbeRecord,
+    SourcePresence,
+    started_text,
+};
 
 /// A fingerprint with every attribute present.
 fn fingerprint() -> ProbeFingerprint {
@@ -30,7 +34,9 @@ fn fingerprint() -> ProbeFingerprint {
         module_srcversion: Some(String::from("A3553C308C29FD4B6595A72")),
         module_build_id: Some(String::from("00ff")),
         boot_id: String::from("6f0f1a2b-3c4d"),
-        handler: Some(String::from("/usr/libexec/mount-git-worktree-clone-datasets\t1\t2.3\t4.5\t6\t7")),
+        handler: Some(String::from(
+            "/usr/libexec/mount-git-worktree-clone-datasets\t1\t2.3\t4.5\t6\t7",
+        )),
     };
 }
 
@@ -65,7 +71,9 @@ fn the_finished_record_names_verdict_arms_and_steps() {
     for step in ProbeStep::HOLDER_ORDER {
         report.record(StepLine::passed(step));
     }
-    let verdict: ProbeVerdict = ProbeVerdict::Blocked { arm: super::super::probe_arms::ProbeArm::Walk };
+    let verdict: ProbeVerdict = ProbeVerdict::Blocked {
+        arm: super::super::probe_arms::ProbeArm::Walk,
+    };
     let record = ProbeRecord {
         fingerprint: &fingerprint(),
         time: "2026-11-20T10:00:00-05:00",
@@ -93,16 +101,35 @@ fn the_finished_record_names_verdict_arms_and_steps() {
 /// and one it refused with `EBUSY` did.
 #[test]
 fn the_source_presence_follows_the_exclusive_create() {
-    for (errno, presence) in [(Some("ENOENT"), SourcePresence::No), (Some("EBUSY"), SourcePresence::Yes)] {
+    for (errno, presence) in [
+        (Some("ENOENT"), SourcePresence::No),
+        (Some("EBUSY"), SourcePresence::Yes),
+    ] {
         let mut report: ProbeReport = ProbeReport::new();
         report.record(StepLine::failed(ProbeStep::AttachExclusiveCreate, errno));
-        let record = ProbeRecord { fingerprint: &fingerprint(), time: "t", source: None, source_refusal: None, report: &report, verdict: ProbeVerdict::Failed { step: ProbeStep::AttachExclusiveCreate }, worker_namespace: None, holder_namespace: None, skip_reason: None };
+        let record = ProbeRecord {
+            fingerprint: &fingerprint(),
+            time: "t",
+            source: None,
+            source_refusal: None,
+            report: &report,
+            verdict: ProbeVerdict::Failed {
+                step: ProbeStep::AttachExclusiveCreate,
+            },
+            worker_namespace: None,
+            holder_namespace: None,
+            skip_reason: None,
+        };
         let word: &str = match presence {
             SourcePresence::Yes => "yes",
             SourcePresence::No => "no",
             SourcePresence::Unknown => "unknown",
         };
-        assert!(record.text().contains(&format!("source-existed {word}")), "{}", record.text());
+        assert!(
+            record.text().contains(&format!("source-existed {word}")),
+            "{}",
+            record.text()
+        );
     }
 }
 

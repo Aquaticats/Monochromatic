@@ -24,8 +24,15 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
-use crate::worktree_copy_stage_made_object::{is_the_recorded_object, made_record_beside_claim, read_made};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+};
+use crate::worktree_copy_stage_made_object::{
+    is_the_recorded_object,
+    made_record_beside_claim,
+    read_made,
+};
 use std::path::Path;
 
 /// What:
@@ -86,14 +93,24 @@ pub(crate) enum Provenance {
 /// const unaccounted = firstUnaccountedEntry(container, written);
 /// ```
 #[cfg(target_os = "linux")]
-fn unaccounted_entry(container: &Path, written: std::time::SystemTime) -> Option<String> {
-    return crate::worktree_copy_stage_entries_the_record_accounts_for::unaccounted_entry(container, written);
+fn unaccounted_entry(
+    container: &Path,
+    written: std::time::SystemTime,
+) -> Option<String> {
+    return crate::worktree_copy_stage_entries_the_record_accounts_for::unaccounted_entry(
+        container, written,
+    );
 }
 
 /// `unaccounted_entry` where the accounting is not built.
 #[cfg(not(target_os = "linux"))]
-fn unaccounted_entry(_container: &Path, _written: std::time::SystemTime) -> Option<String> {
-    return Some(String::from("this build cannot examine what the folder holds, so nothing in it was removed"));
+fn unaccounted_entry(
+    _container: &Path,
+    _written: std::time::SystemTime,
+) -> Option<String> {
+    return Some(String::from(
+        "this build cannot examine what the folder holds, so nothing in it was removed",
+    ));
 }
 
 /// What:
@@ -115,17 +132,25 @@ fn unaccounted_entry(_container: &Path, _written: std::time::SystemTime) -> Opti
 /// ```ts
 /// function provenanceOf(claim: string, container: string): Provenance;
 /// ```
-pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance, WorktreeCopyError> {
+pub(crate) fn provenance_of(
+    claim: &Path,
+    container: &Path,
+) -> Result<Provenance, WorktreeCopyError> {
     if !still_there(container)? {
         return Ok(Provenance::Gone);
     }
     let Some(made) = read_made(claim) else {
-        let stands: bool = std::fs::symlink_metadata(made_record_beside_claim(claim).as_path()).is_ok();
+        let stands: bool =
+            std::fs::symlink_metadata(made_record_beside_claim(claim).as_path()).is_ok();
         // A file that stands there and does not read is damage, which is said differently from an absent record, so the
         // person knows whether to look at a file of their own or at nothing.
         return Ok(Provenance::Unproved(match stands {
-            true => String::from("the record of the object its creation made does not read as this release writes it"),
-            false => String::from("no record of the object its creation made stands beside its claim"),
+            true => String::from(
+                "the record of the object its creation made does not read as this release writes it",
+            ),
+            false => {
+                String::from("no record of the object its creation made stands beside its claim")
+            }
         }));
     };
     if made.container.as_path() != container {
@@ -149,13 +174,17 @@ pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance
                 "the record of the object its creation made names no object and no source the snapshot was taken from, so nothing proves which folder this is",
             )));
         };
-        return match crate::worktree_copy_stage_snapshot_origin::proved_created_after_the_record(container, origin) {
+        return match crate::worktree_copy_stage_snapshot_origin::proved_created_after_the_record(
+            container, origin,
+        ) {
             Ok(()) => Ok(Provenance::Proved),
             Err(reason) => Ok(Provenance::Unproved(reason)),
         };
     }
     if !is_the_recorded_object(container, &made) {
-        return Ok(Provenance::Unproved(String::from("the object there now is not the one the record of its creation made")));
+        return Ok(Provenance::Unproved(String::from(
+            "the object there now is not the one the record of its creation made",
+        )));
     }
     return Ok(Provenance::Proved);
 }
@@ -174,7 +203,10 @@ pub(crate) fn provenance_of(claim: &Path, container: &Path) -> Result<Provenance
 /// ```ts
 /// `the stage ${path} was left by an interrupted \`git worktree add\` and was not changed: ${reason}; remove it yourself once nothing needs it (...)`
 /// ```
-pub(crate) fn kept_stage_words(container: &Path, reason: &str) -> String {
+pub(crate) fn kept_stage_words(
+    container: &Path,
+    reason: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the stage {} was left by an interrupted `git worktree add` and was not changed: {reason}; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
         quote(container.to_string_lossy().as_ref())

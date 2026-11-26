@@ -41,19 +41,43 @@
 
 use crate::subvolume::fs_beneath::ObjectId;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_removal_proof_and_plan::bookmark_rule::{explanations_of, refuse_the_unexplained_bookmarks};
-use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{ProvenRemoval, prove_the_lineage};
+use crate::worktree_clone_removal_proof_and_plan::bookmark_rule::{
+    explanations_of,
+    refuse_the_unexplained_bookmarks,
+};
+use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{
+    ProvenRemoval,
+    prove_the_lineage,
+};
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanFacts, owner_text};
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::{RecordedBinding, prove_the_adds_registration, read_the_origin_inventory, read_the_recorded_binding};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanFacts,
+    owner_text,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
+    RecordedBinding,
+    prove_the_adds_registration,
+    read_the_origin_inventory,
+    read_the_recorded_binding,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::started_moment::now_with_offset;
-use crate::worktree_clone_removal_proof_and_plan::unmount_request::{ExpectedUnmount, RemovalIntent, RemovalUnmount, UnmountProof, verify_the_answer};
+use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
+    ExpectedUnmount,
+    RemovalIntent,
+    RemovalUnmount,
+    UnmountProof,
+    verify_the_answer,
+};
 use crate::worktree_removal_deferred_origin_check::removal_history::RemovalHistory;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The removal's own context:
@@ -122,11 +146,20 @@ pub struct TheLiveClock;
 
 impl RemovalClock for TheLiveClock {
     fn run(&self) -> Result<RequestNonce, RemovalStop> {
-        return RequestNonce::fresh().map_err(|refusal| return RemovalStop::NoRunNonce { reason: refusal.message() });
+        return RequestNonce::fresh().map_err(|refusal| {
+            return RemovalStop::NoRunNonce {
+                reason: refusal.message(),
+            };
+        });
     }
 
     fn owner(&self) -> Result<String, RemovalStop> {
-        let identity: String = crate::process::process_identity::current_birth_identity().map_err(|error| return RemovalStop::NoOwnerIdentity { reason: format!("{error:?}") })?;
+        let identity: String =
+            crate::process::process_identity::current_birth_identity().map_err(|error| {
+                return RemovalStop::NoOwnerIdentity {
+                    reason: format!("{error:?}"),
+                };
+            })?;
         return Ok(owner_text(std::process::id(), identity.as_str()));
     }
 
@@ -187,22 +220,55 @@ pub struct EnteredRemoval {
 /// ```ts
 /// const entered = enterTheRemoval(entry, reads, unmount, clock);
 /// ```
-pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads, unmount: &dyn RemovalUnmount, clock: &dyn RemovalClock) -> Result<EnteredRemoval, RemovalStop> {
+pub fn enter_the_removal(
+    entry: &RemovalEntry<'_>,
+    reads: &dyn RemovalPoolReads,
+    unmount: &dyn RemovalUnmount,
+    clock: &dyn RemovalClock,
+) -> Result<EnteredRemoval, RemovalStop> {
     let prepared: PreparedRemoval = prepare_the_removal(entry, reads)?;
     let intent: RemovalIntent = RemovalIntent::fresh()?;
     let answer = unmount.request_the_unmount(&intent.mount_intent())?;
-    let proof: UnmountProof = verify_the_answer(&answer, &ExpectedUnmount { clone_guid: prepared.recorded.clone_guid, nonce: intent.nonce.clone() })?;
+    let proof: UnmountProof = verify_the_answer(
+        &answer,
+        &ExpectedUnmount {
+            clone_guid: prepared.recorded.clone_guid,
+            nonce: intent.nonce.clone(),
+        },
+    )?;
     // The design verifies the clone GUID, the underlay identity and the Git registration again after the unmount, so a
     // registration swapped during the request stops the plan rather than the destroy. The proof is the same identity
     // comparison the entry made before the request, so a registration whose inode and birth time changed refuses here.
     prove_the_adds_registration(entry.common_dir, &prepared.recorded)?;
-    let facts: PlanFacts = facts_of(&prepared.recorded, &prepared.proven, &proof, prepared.registration, clock)?;
-    let plan: DestructionPlan = DestructionPlan::first_write(facts, prepared.proven.own_snapshots.as_slice());
+    let facts: PlanFacts = facts_of(
+        &prepared.recorded,
+        &prepared.proven,
+        &proof,
+        prepared.registration,
+        clock,
+    )?;
+    let plan: DestructionPlan =
+        DestructionPlan::first_write(facts, prepared.proven.own_snapshots.as_slice());
     let folder: PlanFolder = PlanFolder::open_or_create(entry.common_dir).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir), refusal };
+        return RemovalStop::PlanUnreadable {
+            path: crate::worktree_clone_binding_record::registration_home::plans_folder(
+                entry.common_dir,
+            ),
+            refusal,
+        };
     })?;
-    let plan_path: PathBuf = folder.publish(&plan).map_err(|refusal| return RemovalStop::PlanUnreadable { path: folder.path().join(prepared.recorded.clone_guid.file_name()), refusal })?;
-    return Ok(EnteredRemoval { pool: prepared.recorded.pool, plan, plan_path, lost: prepared.lost });
+    let plan_path: PathBuf = folder.publish(&plan).map_err(|refusal| {
+        return RemovalStop::PlanUnreadable {
+            path: folder.path().join(prepared.recorded.clone_guid.file_name()),
+            refusal,
+        };
+    })?;
+    return Ok(EnteredRemoval {
+        pool: prepared.recorded.pool,
+        plan,
+        plan_path,
+        lost: prepared.lost,
+    });
 }
 
 /// What:
@@ -227,8 +293,12 @@ pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads,
 /// ```ts
 /// const prepared = prepareTheRemoval(entry, reads);
 /// ```
-pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads) -> Result<PreparedRemoval, RemovalStop> {
-    let (prepared, _standing): (PreparedRemoval, Option<DestructionPlan>) = prepare_the_removal_over_a_plan(entry, reads, true)?;
+pub(super) fn prepare_the_removal(
+    entry: &RemovalEntry<'_>,
+    reads: &dyn RemovalPoolReads,
+) -> Result<PreparedRemoval, RemovalStop> {
+    let (prepared, _standing): (PreparedRemoval, Option<DestructionPlan>) =
+        prepare_the_removal_over_a_plan(entry, reads, true)?;
     return Ok(prepared);
 }
 
@@ -249,35 +319,77 @@ pub(super) fn prepare_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalP
 /// ```ts
 /// const [prepared, standing] = prepareTheRemovalOverAPlan(entry, reads);
 /// ```
-pub(super) fn prepare_the_removal_over_a_plan(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads, refuse_a_standing_plan: bool) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
+pub(super) fn prepare_the_removal_over_a_plan(
+    entry: &RemovalEntry<'_>,
+    reads: &dyn RemovalPoolReads,
+    refuse_a_standing_plan: bool,
+) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
     let recorded: RecordedBinding = read_the_recorded_binding(entry.common_dir, entry.slot)?;
     let registration: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
     let origin_inventory = read_the_origin_inventory(entry.common_dir, &recorded)?;
-    let standing: Option<DestructionPlan> = read_an_existing_plan(entry.common_dir, recorded.clone_guid).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name()), refusal };
-    })?;
+    let standing: Option<DestructionPlan> =
+        read_an_existing_plan(entry.common_dir, recorded.clone_guid).map_err(|refusal| {
+            return RemovalStop::PlanUnreadable {
+                path: crate::worktree_clone_binding_record::registration_home::plans_folder(
+                    entry.common_dir,
+                )
+                .join(recorded.clone_guid.file_name()),
+                refusal,
+            };
+        })?;
     let history: RemovalHistory = history_of(standing.as_ref());
     if let Some(plan) = &standing {
         // The plan's own identities must be this clone's before its tuples explain a bookmark.
         refuse_a_plan_of_another_clone(plan, &recorded)?;
         if refuse_a_standing_plan {
-            let path: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir).join(recorded.clone_guid.file_name());
-            return Err(RemovalStop::APlanStands { slot: String::from(entry.slot), path });
+            let path: PathBuf =
+                crate::worktree_clone_binding_record::registration_home::plans_folder(
+                    entry.common_dir,
+                )
+                .join(recorded.clone_guid.file_name());
+            return Err(RemovalStop::APlanStands {
+                slot: String::from(entry.slot),
+                path,
+            });
         }
     }
     let proven: ProvenRemoval = prove_the_lineage(reads, &recorded, &origin_inventory, &history)?;
     let explanations = explanations_of(&proven.inventory, standing.as_ref());
-    let refused = refuse_the_unexplained_bookmarks(&explanations, proven.inventory.bookmarks().as_slice(), &origin_inventory);
+    let refused = refuse_the_unexplained_bookmarks(
+        &explanations,
+        proven.inventory.bookmarks().as_slice(),
+        &origin_inventory,
+    );
     if !refused.is_empty() {
-        return Err(RemovalStop::BookmarksRefused { clone: recorded.clone_dataset.clone(), refused });
+        return Err(RemovalStop::BookmarksRefused {
+            clone: recorded.clone_dataset.clone(),
+            refused,
+        });
     }
     let lost: NamesToBeLost = NamesToBeLost {
         slot: String::from(entry.slot),
         dataset: recorded.clone_dataset.clone(),
-        snapshots: proven.own_snapshots.iter().map(|snapshot| return snapshot.name.clone()).collect(),
-        bookmarks: proven.inventory.bookmarks().iter().map(|bookmark| return bookmark.full_name()).collect(),
+        snapshots: proven
+            .own_snapshots
+            .iter()
+            .map(|snapshot| return snapshot.name.clone())
+            .collect(),
+        bookmarks: proven
+            .inventory
+            .bookmarks()
+            .iter()
+            .map(|bookmark| return bookmark.full_name())
+            .collect(),
     };
-    return Ok((PreparedRemoval { recorded, registration, proven, lost }, standing));
+    return Ok((
+        PreparedRemoval {
+            recorded,
+            registration,
+            proven,
+            lost,
+        },
+        standing,
+    ));
 }
 
 /// What:
@@ -320,7 +432,10 @@ pub(super) fn history_of(plan: Option<&DestructionPlan>) -> RemovalHistory {
     };
     let mut names: Vec<String> = Vec::new();
     for line in &found.attempts {
-        if line.outcome == crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome::Destroyed && !names.contains(&line.snapshot.name) {
+        if line.outcome
+            == crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome::Destroyed
+            && !names.contains(&line.snapshot.name)
+        {
             names.push(line.snapshot.name.clone());
         }
     }
@@ -331,18 +446,50 @@ pub(super) fn history_of(plan: Option<&DestructionPlan>) -> RemovalHistory {
 ///
 /// # Throws
 /// The field in which the plan and the add's record disagree.
-pub(super) fn refuse_a_plan_of_another_clone(plan: &DestructionPlan, recorded: &RecordedBinding) -> Result<(), RemovalStop> {
+pub(super) fn refuse_a_plan_of_another_clone(
+    plan: &DestructionPlan,
+    recorded: &RecordedBinding,
+) -> Result<(), RemovalStop> {
     let pairs: [(&'static str, String, String); 6] = [
-        ("cloneDataset", plan.facts.clone_dataset.clone(), recorded.clone_dataset.clone()),
-        ("cloneGuid", plan.facts.clone_guid.file_name(), recorded.clone_guid.file_name()),
-        ("originDataset", plan.facts.origin_dataset.clone(), recorded.origin_dataset.clone()),
-        ("originDatasetGuid", plan.facts.origin_dataset_guid.file_name(), recorded.origin_dataset_guid.file_name()),
-        ("originSnapshot", plan.facts.origin_snapshot.clone(), recorded.origin_snapshot.clone()),
-        ("originSnapshotGuid", plan.facts.origin_snapshot_guid.file_name(), recorded.origin_snapshot_guid.file_name()),
+        (
+            "cloneDataset",
+            plan.facts.clone_dataset.clone(),
+            recorded.clone_dataset.clone(),
+        ),
+        (
+            "cloneGuid",
+            plan.facts.clone_guid.file_name(),
+            recorded.clone_guid.file_name(),
+        ),
+        (
+            "originDataset",
+            plan.facts.origin_dataset.clone(),
+            recorded.origin_dataset.clone(),
+        ),
+        (
+            "originDatasetGuid",
+            plan.facts.origin_dataset_guid.file_name(),
+            recorded.origin_dataset_guid.file_name(),
+        ),
+        (
+            "originSnapshot",
+            plan.facts.origin_snapshot.clone(),
+            recorded.origin_snapshot.clone(),
+        ),
+        (
+            "originSnapshotGuid",
+            plan.facts.origin_snapshot_guid.file_name(),
+            recorded.origin_snapshot_guid.file_name(),
+        ),
     ];
     for (field, plan_value, recorded_value) in pairs {
         if plan_value != recorded_value {
-            return Err(RemovalStop::IdentityDiffers { object: String::from("the standing destruction plan"), field, recorded: recorded_value, live: plan_value });
+            return Err(RemovalStop::IdentityDiffers {
+                object: String::from("the standing destruction plan"),
+                field,
+                recorded: recorded_value,
+                live: plan_value,
+            });
         }
     }
     return Ok(());
@@ -364,7 +511,13 @@ pub(super) fn refuse_a_plan_of_another_clone(plan: &DestructionPlan, recorded: &
 /// ```ts
 /// const facts = factsOf(recorded, proven, proof, registration, clock);
 /// ```
-pub(super) fn facts_of(recorded: &RecordedBinding, proven: &ProvenRemoval, proof: &UnmountProof, registration: ObjectId, clock: &dyn RemovalClock) -> Result<PlanFacts, RemovalStop> {
+pub(super) fn facts_of(
+    recorded: &RecordedBinding,
+    proven: &ProvenRemoval,
+    proof: &UnmountProof,
+    registration: ObjectId,
+    clock: &dyn RemovalClock,
+) -> Result<PlanFacts, RemovalStop> {
     return Ok(PlanFacts {
         run: clock.run()?,
         owner: clock.owner()?,

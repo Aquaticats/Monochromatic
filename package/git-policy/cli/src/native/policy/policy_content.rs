@@ -22,18 +22,31 @@
 //! ```
 
 /// Import the layer's failure type and its causes.
-use crate::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
 /// Import the lookup of content that a parent commit's tree already holds.
-use crate::candidate_known_content::{ContentBasis, KnownContent, find_known_content};
+use crate::candidate_known_content::{
+    ContentBasis,
+    KnownContent,
+    find_known_content,
+};
 /// Import the candidate's mode,
 ///  which a correction keeps.
 use crate::candidate_object::CandidateMode;
 /// Import what a lifecycle asks for and what preparing it yields.
-use crate::candidate_prediction::{CandidateRequest, PreparedCandidates};
+use crate::candidate_prediction::{
+    CandidateRequest,
+    PreparedCandidates,
+};
 /// Import the store the overlay reads through.
 use crate::candidate_store::CandidateStore;
 /// Import the candidate and the immutable version type.
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// Import the change a converged fix installs,
 ///  which also records a corrected file.
 use crate::direct_fix_install::InstallChange;
@@ -50,7 +63,11 @@ use crate::scanner_adapter::CandidateScanner;
 use crate::scanner_failure_code::candidate_failure_code;
 /// Import the scan pass,
 ///  its byte reader and its failure.
-use crate::scanner_run::{CandidateBytes, ScanRunError, scan_version_skipping};
+use crate::scanner_run::{
+    CandidateBytes,
+    ScanRunError,
+    scan_version_skipping,
+};
 /// The scanner library's per-candidate result.
 use forbidden_strings::CandidateScan;
 /// What:
@@ -65,7 +82,10 @@ use forbidden_strings::CandidateScan;
 /// ```ts
 /// // Map<string, Uint8Array>, iterated in sorted key order.
 /// ```
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// `Rc<T>` is a shared,
@@ -207,7 +227,10 @@ impl CandidateBytes for OverlaidStore<'_> {
     /// ```ts
     /// bytes(candidate) { return overlaidBytes(this.store, this.corrected, candidate); }
     /// ```
-    fn candidate_bytes(&mut self, candidate: &Candidate) -> Result<Rc<[u8]>, CandidateError> {
+    fn candidate_bytes(
+        &mut self,
+        candidate: &Candidate,
+    ) -> Result<Rc<[u8]>, CandidateError> {
         return overlaid_bytes(self.store, self.corrected, candidate);
     }
 }
@@ -289,7 +312,10 @@ pub fn candidate_failure(error: &CandidateError) -> PolicyOutcome {
 /// ```ts
 /// const readFailure = (candidate, error) => error.failure === 'object-too-large' ? { kind: 'skipped', path: candidate.path, message: error.message } : candidateFailure(error);
 /// ```
-pub fn candidate_read_failure(candidate: &Candidate, error: &CandidateError) -> PolicyOutcome {
+pub fn candidate_read_failure(
+    candidate: &Candidate,
+    error: &CandidateError,
+) -> PolicyOutcome {
     if error.failure == CandidateFailure::GitStopped {
         return PolicyOutcome::Stopped {
             message: error.message.clone(),
@@ -367,7 +393,10 @@ impl ContentState {
             // first, which the timing record would otherwise blame by name (`prepare_work_spans.rs`).
             let began: std::time::Instant = std::time::Instant::now();
             let prepared: Result<PreparedCandidates, CandidateError> = facts.candidates(request);
-            crate::prepare_work_spans::note_span(crate::prepare_work_spans::CANDIDATES_PREPARED, began.elapsed());
+            crate::prepare_work_spans::note_span(
+                crate::prepare_work_spans::CANDIDATES_PREPARED,
+                began.elapsed(),
+            );
             // `Some(...)` stores the one attempt's result, success or failure.
             self.prepared = Some(prepared);
         }
@@ -418,7 +447,10 @@ impl ContentState {
     /// ```ts
     /// async bytes(candidate: Candidate): Promise<Uint8Array>;
     /// ```
-    pub fn bytes(&mut self, candidate: &Candidate) -> Result<Rc<[u8]>, PolicyOutcome> {
+    pub fn bytes(
+        &mut self,
+        candidate: &Candidate,
+    ) -> Result<Rc<[u8]>, PolicyOutcome> {
         // `&mut self.prepared` lends the remembered attempt for reading through its store.
         match &mut self.prepared {
             Some(Ok(prepared)) => {
@@ -444,7 +476,10 @@ impl ContentState {
     /// ```ts
     /// async textUnset(paths: Uint8Array[]): Promise<Set<string>>; // throws PolicyOutcome
     /// ```
-    pub fn text_unset(&self, paths: &[&[u8]]) -> Result<HashSet<Vec<u8>>, PolicyOutcome> {
+    pub fn text_unset(
+        &self,
+        paths: &[&[u8]],
+    ) -> Result<HashSet<Vec<u8>>, PolicyOutcome> {
         // `&self.prepared` borrows the remembered attempt read-only.
         match &self.prepared {
             Some(Ok(prepared)) => match prepared.attributes.text_unset(paths) {
@@ -500,7 +535,10 @@ impl ContentState {
     /// ```ts
     /// propose(correction: Correction): void;
     /// ```
-    pub fn propose(&mut self, correction: Correction) {
+    pub fn propose(
+        &mut self,
+        correction: Correction,
+    ) {
         self.proposals.push(correction);
     }
 
@@ -536,7 +574,10 @@ impl ContentState {
     /// ```ts
     /// apply(corrections: Correction[]): void;
     /// ```
-    pub fn apply(&mut self, corrections: Vec<Correction>) {
+    pub fn apply(
+        &mut self,
+        corrections: Vec<Correction>,
+    ) {
         for correction in corrections {
             let original: Rc<[u8]> = match self.corrected.get(&correction.path) {
                 Some(file) => Rc::clone(&file.original),
@@ -730,7 +771,7 @@ impl ContentState {
     /// storeWithCorrections(): [CandidateStore, Map<string, InstallChange>] | undefined;
     /// ```
     pub fn store_with_corrections(
-        &mut self,
+        &mut self
     ) -> Option<(&mut CandidateStore, &BTreeMap<Vec<u8>, InstallChange>)> {
         match &mut self.prepared {
             Some(Ok(prepared)) => return Some((&mut prepared.store, &self.corrected)),

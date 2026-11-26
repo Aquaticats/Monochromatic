@@ -23,11 +23,14 @@
 //! if (attempt.exitCode !== 0) attempt.output += outcome.notice();
 //! ```
 
-use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    SingleFlightError,
+};
 use crate::bounded_push::run_bounded_push_once_naming;
-use crate::push_deadline_and_patience_settings::Patience;
 use crate::diagnostic_log::warn;
 use crate::git_directory_roots::roots_of_command;
+use crate::push_deadline_and_patience_settings::Patience;
 use crate::stale_ref_lock_judge::Judge;
 use crate::stale_ref_locks::clear_stale_ref_locks;
 use std::ffi::OsString;
@@ -80,13 +83,18 @@ pub fn run_clearing_locks_naming(
 ) -> Result<PushAttempt, SingleFlightError> {
     let outcome = clear_stale_ref_locks(roots_of_command(&command).as_slice(), judge);
     let notice: String = outcome.notice();
-    let mut attempt: PushAttempt = run_bounded_push_once_naming(command, patience, grace, environment, server)?;
+    let mut attempt: PushAttempt =
+        run_bounded_push_once_naming(command, patience, grace, environment, server)?;
     // A push that delivered but could not update its tracking reference prints the refusal and exits 0, so the refusal is
     //  looked for as well as the exit status (the service repeats such a push on the same words).
     let failed: bool = attempt.exit_code != 0 || attempt.output.contains(REFERENCE_LOCK_REFUSAL);
     if failed && !notice.is_empty() {
         // The service shows this output, so the notice is not logged a second time.
-        attempt.output = if attempt.output.is_empty() { notice.trim_end().to_owned() } else { format!("{}\n{}", attempt.output, notice.trim_end()) };
+        attempt.output = if attempt.output.is_empty() {
+            notice.trim_end().to_owned()
+        } else {
+            format!("{}\n{}", attempt.output, notice.trim_end())
+        };
     } else if !notice.is_empty() {
         warn(TAG, notice.trim_end());
     }

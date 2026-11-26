@@ -27,13 +27,26 @@
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_finish_pass::pass_on_one_plan::finish_one_plan;
-use crate::worktree_clone_removal_finish_pass::pass_refusal_lines::{the_entry_is_no_plan_name, the_folder_could_not_be_listed, the_plan_was_not_read};
+use crate::worktree_clone_removal_finish_pass::pass_refusal_lines::{
+    the_entry_is_no_plan_name,
+    the_folder_could_not_be_listed,
+    the_plan_was_not_read,
+};
 use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass;
-use crate::worktree_clone_removal_finish_pass::the_plans_folder::{FolderLook, remove_the_folder_when_empty};
-use crate::worktree_clone_removal_proof_and_plan::plan_reading::{is_a_plan_entry, read_the_plan};
+use crate::worktree_clone_removal_finish_pass::the_plans_folder::{
+    FolderLook,
+    remove_the_folder_when_empty,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_reading::{
+    is_a_plan_entry,
+    read_the_plan,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass as TheFinishPass;
 
@@ -54,8 +67,13 @@ pub fn finish_the_removal_plans(pass: &FinishPass<'_>) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let names: Vec<std::ffi::OsString> = match pass.folder.look(folder.as_path()) {
         FolderLook::NoFolder => return lines,
-        FolderLook::NotAFolder { said } => {
-            lines.push(the_folder_could_not_be_listed(folder.as_path(), said.as_str()));
+        FolderLook::NotAFolder {
+            said,
+        } => {
+            lines.push(the_folder_could_not_be_listed(
+                folder.as_path(),
+                said.as_str(),
+            ));
             return lines;
         }
         FolderLook::Entries(found) => found,
@@ -82,7 +100,12 @@ pub fn finish_the_removal_plans(pass: &FinishPass<'_>) -> Vec<String> {
 /// ```ts
 /// finishOneEntry(pass, folder, name, lines);
 /// ```
-fn finish_one_entry(pass: &FinishPass<'_>, folder: &Path, name: &OsStr, lines: &mut Vec<String>) {
+fn finish_one_entry(
+    pass: &FinishPass<'_>,
+    folder: &Path,
+    name: &OsStr,
+    lines: &mut Vec<String>,
+) {
     let path: PathBuf = folder.join(name);
     let Some(spelled) = name.to_str() else {
         lines.push(the_entry_is_no_plan_name(path.as_path()));
@@ -95,14 +118,20 @@ fn finish_one_entry(pass: &FinishPass<'_>, folder: &Path, name: &OsStr, lines: &
     let guid: DatasetGuid = match DatasetGuid::parse(spelled) {
         Ok(found) => found,
         Err(refusal) => {
-            lines.push(the_plan_was_not_read(path.as_path(), refusal.message().as_str()));
+            lines.push(the_plan_was_not_read(
+                path.as_path(),
+                refusal.message().as_str(),
+            ));
             return;
         }
     };
     let plan: DestructionPlan = match read_the_plan(pass.common_dir, guid) {
         Ok(found) => found,
         Err(not_read) => {
-            lines.push(the_plan_was_not_read(path.as_path(), not_read.message(path.as_path()).as_str()));
+            lines.push(the_plan_was_not_read(
+                path.as_path(),
+                not_read.message(path.as_path()).as_str(),
+            ));
             return;
         }
     };

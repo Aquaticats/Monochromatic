@@ -27,11 +27,17 @@
 
 /// The prefix of a commit's scratch tree,
 /// and what an identity in a name may hold.
-use crate::wrapper_names_old_and_new::{SERVICE_SCRATCH_PREFIX, is_identity_byte};
+use crate::wrapper_names_old_and_new::{
+    SERVICE_SCRATCH_PREFIX,
+    is_identity_byte,
+};
 /// A path,
 /// a moment and a span of time.
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// How old a commit scratch tree must be before any command may remove it.
 ///  Measured:
@@ -79,14 +85,23 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 /// ```ts
 /// mayGo(entry, metadata, now, day) // true when nothing may still read it
 /// ```
-pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_age: Duration) -> bool {
+pub fn may_go(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    now: SystemTime,
+    max_age: Duration,
+) -> bool {
     let age: Option<Duration> = age_before(metadata, now);
     let tree: bool = names_a_trees_file(path) && metadata.is_dir();
     // A tree one of this service's requests still lands on is nobody's but that request's, however long its queue.
     if tree && crate::service_scratch_trees_of_queued_requests::is_held(path) {
         return false;
     }
-    let allowed: Duration = if tree { SCRATCH_TREE_ABANDONED_AFTER } else { max_age };
+    let allowed: Duration = if tree {
+        SCRATCH_TREE_ABANDONED_AFTER
+    } else {
+        max_age
+    };
     return match age {
         Some(found) => found > allowed,
         None => false,
@@ -97,14 +112,21 @@ pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_ag
 /// the prefix and an identity of letters,
 /// digits and dashes.
 fn names_a_trees_file(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
-    let Some(identity) = name.strip_prefix(SERVICE_SCRATCH_PREFIX) else { return false };
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
+    let Some(identity) = name.strip_prefix(SERVICE_SCRATCH_PREFIX) else {
+        return false;
+    };
     return !identity.is_empty() && identity.as_bytes().iter().all(is_identity_byte);
 }
 
 /// How long before `now` the entry was last modified,
 /// or nothing when the time cannot be told or lies in the future.
-fn age_before(metadata: &std::fs::Metadata, now: SystemTime) -> Option<Duration> {
+fn age_before(
+    metadata: &std::fs::Metadata,
+    now: SystemTime,
+) -> Option<Duration> {
     let modified: SystemTime = metadata.modified().ok()?;
     return now.duration_since(modified).ok();
 }

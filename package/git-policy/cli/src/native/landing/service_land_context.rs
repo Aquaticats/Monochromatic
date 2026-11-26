@@ -14,7 +14,10 @@
 //! ```
 
 use crate::transaction_git::GitContext;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What the service needs to land:
 /// how to run Git and where the journal lives.
 ///
@@ -54,13 +57,20 @@ impl LandContext {
     /// ```ts
     /// context.forTheRepository({ gitDir, workTree });
     /// ```
-    pub fn for_the_repository(&self, git_dir: &Path, work_tree: &Path) -> LandContext {
+    pub fn for_the_repository(
+        &self,
+        git_dir: &Path,
+        work_tree: &Path,
+    ) -> LandContext {
         // The selection comes after whatever the service already ran its Git with, so an absolute path it names wins over a
         //  relative one an earlier option wrote.
         let mut prefix: Vec<std::ffi::OsString> = self.git.global_prefix.clone();
         prefix.extend(crate::repository_selection::of_paths(git_dir, work_tree));
         return LandContext {
-            git: GitContext { global_prefix: prefix, ..self.git.clone() },
+            git: GitContext {
+                global_prefix: prefix,
+                ..self.git.clone()
+            },
             journal: self.journal.clone(),
             on_objects_written: self.on_objects_written.clone(),
             lock_ceiling: self.lock_ceiling,

@@ -48,16 +48,43 @@
 //! await removeSnapshotPlaceholders({ root, source, plan, trash }); // one rename per worktree folder that holds only stand-ins
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
-use crate::fs_beneath::{ObjectId, entry_metadata_at, handle_path, make_directory_at, open_directory_at, plain_components, remove_at};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
+use crate::fs_beneath::{
+    ObjectId,
+    entry_metadata_at,
+    handle_path,
+    make_directory_at,
+    open_directory_at,
+    plain_components,
+    remove_at,
+};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
-use crate::worktree_trash::{TRASH_PARENT, Trash, TrashManifest, entry_name, make_trash, reopen_trash};
-use std::ffi::{OsStr, OsString};
+use crate::worktree_trash::{
+    TRASH_PARENT,
+    Trash,
+    TrashManifest,
+    entry_name,
+    make_trash,
+    reopen_trash,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSnapshotPlaceholders";
@@ -104,11 +131,20 @@ const MODE_BITS: u32 = 0o7777;
 /// ```ts
 /// function worktreeFolders({ nested, destination, sourceRoot }): string[];
 /// ```
-fn worktree_folders(nested: &[PathBuf], destination: &Path, source_root: &Path) -> Vec<PathBuf> {
+fn worktree_folders(
+    nested: &[PathBuf],
+    destination: &Path,
+    source_root: &Path,
+) -> Vec<PathBuf> {
     let mut folders: Vec<PathBuf> = Vec::new();
-    let paths = nested.iter().map(PathBuf::as_path).chain(std::iter::once(destination));
+    let paths = nested
+        .iter()
+        .map(PathBuf::as_path)
+        .chain(std::iter::once(destination));
     for path in paths {
-        let Some(parent) = path.parent() else { continue };
+        let Some(parent) = path.parent() else {
+            continue;
+        };
         if parent.strip_prefix(source_root).is_err() || folders.contains(&parent.to_path_buf()) {
             continue;
         }
@@ -147,7 +183,10 @@ fn listed_names(directory: &File) -> std::io::Result<Vec<OsString>> {
 /// ```ts
 /// (found) => found.isDirectory() && found.ino === STAND_IN_INODE
 /// ```
-fn is_stand_in(directory: &File, name: &OsStr) -> bool {
+fn is_stand_in(
+    directory: &File,
+    name: &OsStr,
+) -> bool {
     return match entry_metadata_at(directory, name) {
         Ok(found) => found.is_dir() && found.ino() == BTRFS_STAND_IN_INODE,
         Err(_unreadable) => false,
@@ -168,7 +207,10 @@ fn is_stand_in(directory: &File, name: &OsStr) -> bool {
 /// ```ts
 /// const isAnEmptyStandIn = (dir, name) => isStandIn(dir, name) && readdirSync(handlePath(open(dir, name))).length === 0;
 /// ```
-fn is_an_empty_stand_in(directory: &File, name: &OsStr) -> bool {
+fn is_an_empty_stand_in(
+    directory: &File,
+    name: &OsStr,
+) -> bool {
     if !is_stand_in(directory, name) {
         return false;
     }
@@ -213,15 +255,24 @@ fn entries_of(manifest: &TrashManifest) -> usize {
 /// ```ts
 /// function openBelowStandIns({ root, names, shown }): File | undefined; // throws on a link or a mount
 /// ```
-pub(crate) fn open_below_stand_ins(root: &File, names: &[OsString], shown: &str) -> Result<Option<File>, String> {
+pub(crate) fn open_below_stand_ins(
+    root: &File,
+    names: &[OsString],
+    shown: &str,
+) -> Result<Option<File>, String> {
     let mut current: File = subject_failure(root.try_clone(), &shown, "cannot be held")?;
     for name in names {
         let next: File = match open_directory_at(&current, name.as_os_str()) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(format!("{shown} is reached through a link or another mount in the snapshot ({error})")),
+            Err(error) => {
+                return Err(format!(
+                    "{shown} is reached through a link or another mount in the snapshot ({error})"
+                ));
+            }
         };
-        let found: std::fs::Metadata = subject_failure(next.metadata(), &shown, "cannot be examined")?;
+        let found: std::fs::Metadata =
+            subject_failure(next.metadata(), &shown, "cannot be examined")?;
         if found.is_dir() && found.ino() == BTRFS_STAND_IN_INODE {
             return Ok(None);
         }
@@ -318,7 +369,13 @@ impl HandOver {
     /// and the add hands
     ///  the service one record of everything it left out.
     pub(crate) fn starting(carried: Option<TrashManifest>) -> HandOver {
-        return HandOver { carried, held: None, taken: Vec::new(), no_trash_place: false, new_worktree: None };
+        return HandOver {
+            carried,
+            held: None,
+            taken: Vec::new(),
+            no_trash_place: false,
+            new_worktree: None,
+        };
     }
 
     /// What:
@@ -329,23 +386,32 @@ impl HandOver {
     /// and the folder is then kept in the
     ///  trash parent of the stage,
     /// which becomes that path once the add puts the stage in place.
-    pub(crate) fn name_the_new_worktree(&mut self, destination: &Path) {
+    pub(crate) fn name_the_new_worktree(
+        &mut self,
+        destination: &Path,
+    ) {
         self.new_worktree = Some(destination.to_path_buf());
     }
 
     /// The trash a whole folder may go into,
     /// or nothing when this source has no trash place.
-    fn opened(&mut self, root: &File, source: &SnapshotSource) -> Result<Option<&Trash>, String> {
+    fn opened(
+        &mut self,
+        root: &File,
+        source: &SnapshotSource,
+    ) -> Result<Option<&Trash>, String> {
         if self.held.is_none() && !self.no_trash_place {
             match self.carried.as_ref() {
                 Some(manifest) => self.held = Some(reopen_trash(root, manifest)?),
-                None if source.trash_ignored => match make_trash(root) {
-                    Ok(made) => self.held = Some(made),
-                    Err(reason) => {
-                        debug(TAG, format!("{reason}; what this step sets aside is removed where it is instead").as_str());
-                        self.no_trash_place = true;
+                None if source.trash_ignored => {
+                    match make_trash(root) {
+                        Ok(made) => self.held = Some(made),
+                        Err(reason) => {
+                            debug(TAG, format!("{reason}; what this step sets aside is removed where it is instead").as_str());
+                            self.no_trash_place = true;
+                        }
                     }
-                },
+                }
                 None => self.no_trash_place = true,
             }
         }
@@ -365,8 +431,18 @@ impl HandOver {
     ///  removing it inside the add would cost one btrfs metadata change for each worktree of the repository.
     /// `false`
     ///  means this source has no trash place and the caller removes the entry where it is.
-    pub(crate) fn take_entry(&mut self, root: &File, source: &SnapshotSource, parent: &File, name: &OsStr, shown: &Path) -> Result<bool, String> {
-        let Some((_to, moved)) = self.move_into_the_trash(root, source, parent, name, shown)? else { return Ok(false) };
+    pub(crate) fn take_entry(
+        &mut self,
+        root: &File,
+        source: &SnapshotSource,
+        parent: &File,
+        name: &OsStr,
+        shown: &Path,
+    ) -> Result<bool, String> {
+        let Some((_to, moved)) = self.move_into_the_trash(root, source, parent, name, shown)?
+        else {
+            return Ok(false);
+        };
         self.taken.push(moved);
         return Ok(true);
     }
@@ -386,7 +462,14 @@ impl HandOver {
     /// ```ts
     /// const moved = handOver.moveIntoTheTrash({ root, source, parent, name, shown }); // { to, id } | undefined
     /// ```
-    fn move_into_the_trash(&mut self, root: &File, source: &SnapshotSource, parent: &File, name: &OsStr, shown: &Path) -> Result<Option<(String, ObjectId)>, String> {
+    fn move_into_the_trash(
+        &mut self,
+        root: &File,
+        source: &SnapshotSource,
+        parent: &File,
+        name: &OsStr,
+        shown: &Path,
+    ) -> Result<Option<(String, ObjectId)>, String> {
         let index: usize = self.carried.as_ref().map_or(0, entries_of) + self.taken.len();
         let to: String = entry_name(index);
         let moved: ObjectId = match self.opened(root, source)? {
@@ -408,8 +491,16 @@ impl HandOver {
     /// ```ts
     /// handOver.heldInTheTrash({ to: 'd3', moved: id });
     /// ```
-    fn held_in_the_trash(&self, to: &str, moved: ObjectId) -> Result<Option<File>, String> {
-        let Some(trash) = self.held.as_ref() else { return Err(String::from("the trash this folder was put in is not held any more")) };
+    fn held_in_the_trash(
+        &self,
+        to: &str,
+        moved: ObjectId,
+    ) -> Result<Option<File>, String> {
+        let Some(trash) = self.held.as_ref() else {
+            return Err(String::from(
+                "the trash this folder was put in is not held any more",
+            ));
+        };
         return trash.held_entry(to, moved);
     }
 
@@ -427,8 +518,18 @@ impl HandOver {
     /// ```ts
     /// handOver.putBack({ to: 'd3', parent, name, shown });
     /// ```
-    fn put_back(&self, to: &str, parent: &File, name: &OsStr, shown: &Path) -> Result<(), String> {
-        let Some(trash) = self.held.as_ref() else { return Err(String::from("the trash this folder was put in is not held any more")) };
+    fn put_back(
+        &self,
+        to: &str,
+        parent: &File,
+        name: &OsStr,
+        shown: &Path,
+    ) -> Result<(), String> {
+        let Some(trash) = self.held.as_ref() else {
+            return Err(String::from(
+                "the trash this folder was put in is not held any more",
+            ));
+        };
         return trash.put_back(to, parent, name, shown);
     }
 
@@ -446,7 +547,17 @@ impl HandOver {
     ///  data,
     /// and the fresh folder keeps the mode of the one it replaces.
     /// `None` means the folder stays and its stand-ins are removed one by one.
-    fn take_folder(&mut self, root: &File, source: &SnapshotSource, parent: &File, name: &OsStr, held: &File, listed: &[OsString], shown: &Path, seams: &mut FoldSeams<'_>) -> Result<Option<usize>, String> {
+    fn take_folder(
+        &mut self,
+        root: &File,
+        source: &SnapshotSource,
+        parent: &File,
+        name: &OsStr,
+        held: &File,
+        listed: &[OsString],
+        shown: &Path,
+        seams: &mut FoldSeams<'_>,
+    ) -> Result<Option<usize>, String> {
         if listed.is_empty() {
             return Ok(None);
         }
@@ -455,9 +566,14 @@ impl HandOver {
                 return Ok(None);
             }
         }
-        let mode: u32 = subject_failure(held.metadata(), &shown.display(), "cannot be examined")?.permissions().mode() & MODE_BITS;
+        let mode: u32 = subject_failure(held.metadata(), &shown.display(), "cannot be examined")?
+            .permissions()
+            .mode()
+            & MODE_BITS;
         (seams.before_take)();
-        let Some((to, moved)) = self.move_into_the_trash(root, source, parent, name, shown)? else { return Ok(None) };
+        let Some((to, moved)) = self.move_into_the_trash(root, source, parent, name, shown)? else {
+            return Ok(None);
+        };
         // The check above and the rename are two steps, and a directory somebody made in between has to be seen before the
         //  service is told to delete the folder: the copy that arrived in the trash is looked at again.
         if !self.arrived_holding_only_stand_ins(to.as_str(), moved)? {
@@ -465,12 +581,27 @@ impl HandOver {
             return self.take_the_folder_back(to.as_str(), moved, parent, name, shown);
         }
         self.taken.push(moved);
-        let made: bool = subject_failure(make_directory_at(parent, name, mode), &shown.display(), "cannot be made again in the snapshot")?;
+        let made: bool = subject_failure(
+            make_directory_at(parent, name, mode),
+            &shown.display(),
+            "cannot be made again in the snapshot",
+        )?;
         if !made {
-            return Err(format!("{} was made again by somebody else while the snapshot was taken, so it is left as it is", shown.display()));
+            return Err(format!(
+                "{} was made again by somebody else while the snapshot was taken, so it is left as it is",
+                shown.display()
+            ));
         }
-        let fresh: File = subject_failure(open_directory_at(parent, name), &shown.display(), "is not a plain directory in the snapshot")?;
-        subject_failure(fresh.set_permissions(std::fs::Permissions::from_mode(mode)), &shown.display(), "cannot take the mode of the folder it replaces")?;
+        let fresh: File = subject_failure(
+            open_directory_at(parent, name),
+            &shown.display(),
+            "is not a plain directory in the snapshot",
+        )?;
+        subject_failure(
+            fresh.set_permissions(std::fs::Permissions::from_mode(mode)),
+            &shown.display(),
+            "cannot take the mode of the folder it replaces",
+        )?;
         return Ok(Some(listed.len()));
     }
 
@@ -487,7 +618,11 @@ impl HandOver {
     /// ```ts
     /// handOver.arrivedHoldingOnlyStandIns({ to: 'd3', moved: id });
     /// ```
-    fn arrived_holding_only_stand_ins(&self, to: &str, moved: ObjectId) -> Result<bool, String> {
+    fn arrived_holding_only_stand_ins(
+        &self,
+        to: &str,
+        moved: ObjectId,
+    ) -> Result<bool, String> {
         let folder: File = match self.held_in_the_trash(to, moved) {
             Ok(Some(found)) => found,
             // The entry is not in the trash any more, so nothing of it is left to delete.
@@ -518,16 +653,28 @@ impl HandOver {
     /// ```ts
     /// handOver.takeTheFolderBack({ to: 'd3', moved: id, parent, name, shown }); // the folder stays
     /// ```
-    fn take_the_folder_back(&self, to: &str, moved: ObjectId, parent: &File, name: &OsStr, shown: &Path) -> Result<Option<usize>, String> {
+    fn take_the_folder_back(
+        &self,
+        to: &str,
+        moved: ObjectId,
+        parent: &File,
+        name: &OsStr,
+        shown: &Path,
+    ) -> Result<Option<usize>, String> {
         match self.put_back(to, parent, name, shown) {
             Ok(()) => {
                 debug(TAG, format!("{} changed after it was checked, so it stays and its stand-ins are removed one by one", shown.display()).as_str());
             }
             Err(reason) => {
-                let why_it_cannot_go_back: String = format!("{reason}; {} changed after it was checked, so it is not deleted with its stand-ins", shown.display());
+                let why_it_cannot_go_back: String = format!(
+                    "{reason}; {} changed after it was checked, so it is not deleted with its stand-ins",
+                    shown.display()
+                );
                 // A folder that is not held in a trash is one this step never set aside, so nothing of it is kept.
                 let keeping: Result<Option<PathBuf>, String> = match self.held.as_ref() {
-                    Some(trash) => crate::worktree_kept_folders::keep_the_folder(trash, to, moved, shown),
+                    Some(trash) => {
+                        crate::worktree_kept_folders::keep_the_folder(trash, to, moved, shown)
+                    }
                     None => Ok(None),
                 };
                 match keeping {
@@ -554,9 +701,18 @@ impl HandOver {
     ///   A person who has to copy a folder out of a trash needs the path it is at,
     /// and an entry's name alone names no
     ///  folder.
-    fn shown_trash_entry(&self, to: &str) -> String {
-        let Some(trash) = self.held.as_ref() else { return Path::new(TRASH_PARENT).join(to).display().to_string() };
-        return Path::new(TRASH_PARENT).join(trash.name()).join(to).display().to_string();
+    fn shown_trash_entry(
+        &self,
+        to: &str,
+    ) -> String {
+        let Some(trash) = self.held.as_ref() else {
+            return Path::new(TRASH_PARENT).join(to).display().to_string();
+        };
+        return Path::new(TRASH_PARENT)
+            .join(trash.name())
+            .join(to)
+            .display()
+            .to_string();
     }
 
     /// What:
@@ -568,7 +724,10 @@ impl HandOver {
     /// so the person is told the
     ///  path the folder will have when the add serves it,
     /// and the stage's own path only when the add ends without serving it.
-    fn shown(&self, kept: &Path) -> String {
+    fn shown(
+        &self,
+        kept: &Path,
+    ) -> String {
         return match self.new_worktree.as_ref() {
             Some(worktree) => worktree.join(kept).display().to_string(),
             None => kept.display().to_string(),
@@ -629,7 +788,11 @@ fn holds_only_empty_stand_ins(folder: &File) -> bool {
 ///  may go,
 /// and the empty-directory removal keeps every file of that case too:
 /// a folder that holds anything is refused.
-fn remove_stand_ins(held: &File, shown: &str, listed: &[OsString]) -> Result<usize, String> {
+fn remove_stand_ins(
+    held: &File,
+    shown: &str,
+    listed: &[OsString],
+) -> Result<usize, String> {
     let mut removed: usize = 0;
     for name in listed {
         if !is_stand_in(held, name.as_os_str()) {
@@ -639,7 +802,11 @@ fn remove_stand_ins(held: &File, shown: &str, listed: &[OsString]) -> Result<usi
         match remove_at(held, name.as_os_str(), true) {
             Ok(()) => removed += 1,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("{path} is a stand-in folder that cannot be removed from the snapshot as an empty directory ({error})")),
+            Err(error) => {
+                return Err(format!(
+                    "{path} is a stand-in folder that cannot be removed from the snapshot as an empty directory ({error})"
+                ));
+            }
         }
     }
     return Ok(removed);
@@ -662,30 +829,65 @@ fn remove_stand_ins(held: &File, shown: &str, listed: &[OsString]) -> Result<usi
 /// ```ts
 /// function standInsBelow({ root, source, folder, handOver }): number;
 /// ```
-fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_over: &mut HandOver, seams: &mut FoldSeams<'_>) -> Result<usize, String> {
-    let Ok(relative) = folder.strip_prefix(source.root.as_path()) else { return Ok(0) };
+fn stand_ins_below(
+    root: &File,
+    source: &SnapshotSource,
+    folder: &Path,
+    hand_over: &mut HandOver,
+    seams: &mut FoldSeams<'_>,
+) -> Result<usize, String> {
+    let Ok(relative) = folder.strip_prefix(source.root.as_path()) else {
+        return Ok(0);
+    };
     let shown: String = folder.display().to_string();
-    let names: Vec<OsString> = subject_failure(plain_components(relative), &shown, "is not a plain path inside the source")?;
+    let names: Vec<OsString> = subject_failure(
+        plain_components(relative),
+        &shown,
+        "is not a plain path inside the source",
+    )?;
     let Some((name, parents)) = names.split_last() else {
         // The source root is the snapshot itself, so no fresh folder can take its place here.
         let held: File = subject_failure(root.try_clone(), &shown, "cannot be held")?;
         let listed: Vec<OsString> = match listed_names(&held) {
             Ok(found) => found,
-            Err(error) => return Err(format!("{shown} cannot be listed in the snapshot ({error})")),
+            Err(error) => {
+                return Err(format!(
+                    "{shown} cannot be listed in the snapshot ({error})"
+                ));
+            }
         };
         return remove_stand_ins(&held, &shown, listed.as_slice());
     };
-    let Some(parent) = open_below_stand_ins(root, parents, &shown)? else { return Ok(0) };
+    let Some(parent) = open_below_stand_ins(root, parents, &shown)? else {
+        return Ok(0);
+    };
     let held: File = match open_directory_at(&parent, name.as_os_str()) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
-        Err(error) => return Err(format!("{shown} is reached through a link or another mount in the snapshot ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "{shown} is reached through a link or another mount in the snapshot ({error})"
+            ));
+        }
     };
     let listed: Vec<OsString> = match listed_names(&held) {
         Ok(found) => found,
-        Err(error) => return Err(format!("{shown} cannot be listed in the snapshot ({error})")),
+        Err(error) => {
+            return Err(format!(
+                "{shown} cannot be listed in the snapshot ({error})"
+            ));
+        }
     };
-    if let Some(count) = hand_over.take_folder(root, source, &parent, name.as_os_str(), &held, listed.as_slice(), folder, seams)? {
+    if let Some(count) = hand_over.take_folder(
+        root,
+        source,
+        &parent,
+        name.as_os_str(),
+        &held,
+        listed.as_slice(),
+        folder,
+        seams,
+    )? {
         return Ok(count);
     }
     return remove_stand_ins(&held, &shown, listed.as_slice());
@@ -707,8 +909,22 @@ fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_ove
 /// ```ts
 /// await removeSnapshotPlaceholders({ root, source, plan, handOver });
 /// ```
-pub(crate) fn remove_snapshot_placeholders(root: &File, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver) -> Result<(), String> {
-    return remove_snapshot_placeholders_with(root, source, plan, hand_over, &mut FoldSeams { before_take: &mut do_nothing, before_put_back: &mut do_nothing });
+pub(crate) fn remove_snapshot_placeholders(
+    root: &File,
+    source: &SnapshotSource,
+    plan: &AddPlan,
+    hand_over: &mut HandOver,
+) -> Result<(), String> {
+    return remove_snapshot_placeholders_with(
+        root,
+        source,
+        plan,
+        hand_over,
+        &mut FoldSeams {
+            before_take: &mut do_nothing,
+            before_put_back: &mut do_nothing,
+        },
+    );
 }
 
 /// What:
@@ -722,13 +938,23 @@ pub(crate) fn remove_snapshot_placeholders(root: &File, source: &SnapshotSource,
 /// ```ts
 /// await removeSnapshotPlaceholdersWith({ root, source, plan, handOver, seams });
 /// ```
-pub(crate) fn remove_snapshot_placeholders_with(root: &File, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver, seams: &mut FoldSeams<'_>) -> Result<(), String> {
+pub(crate) fn remove_snapshot_placeholders_with(
+    root: &File,
+    source: &SnapshotSource,
+    plan: &AddPlan,
+    hand_over: &mut HandOver,
+    seams: &mut FoldSeams<'_>,
+) -> Result<(), String> {
     let mut removed: usize = 0;
     let folders_before: usize = hand_over.taken.len();
     // A folder this sweep takes whole is kept in the trash parent when it cannot go back to the name it came from,
     //  and the warning names the path it has once the stage is the new worktree.
     hand_over.name_the_new_worktree(plan.destination.as_path());
-    for folder in worktree_folders(source.nested.as_slice(), plan.destination.as_path(), source.root.as_path()) {
+    for folder in worktree_folders(
+        source.nested.as_slice(),
+        plan.destination.as_path(),
+        source.root.as_path(),
+    ) {
         removed += stand_ins_below(root, source, folder.as_path(), hand_over, seams)?;
     }
     let took: usize = hand_over.taken.len() - folders_before;

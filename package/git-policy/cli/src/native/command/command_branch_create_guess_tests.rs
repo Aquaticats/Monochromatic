@@ -15,12 +15,28 @@
 
 /// The parser,
 ///  the command names and the real-Git fixture helpers.
-use super::BranchCreationCommand::{Checkout, Switch};
-use super::{BranchCreationCommand, BranchCreationRegion, parse_branch_creation_region};
-use crate::command_test_support::{
-    fixture, git, git_status, os_arguments, output_text, remove, repository,
+use super::BranchCreationCommand::{
+    Checkout,
+    Switch,
 };
-use std::path::{Path, PathBuf};
+use super::{
+    BranchCreationCommand,
+    BranchCreationRegion,
+    parse_branch_creation_region,
+};
+use crate::command_test_support::{
+    fixture,
+    git,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// A repository on `main` whose only remote `origin` has the branches `topic` and `main`,
@@ -44,7 +60,11 @@ fn guess_fixture(name: &str) -> (PathBuf, PathBuf) {
 ///  Report every branch other than `main` that exists afterwards,
 /// and the unborn branch `HEAD` names after `--orphan`;
 ///  then return to `main` and delete them.
-fn branches_after(root: &Path, word: &str, line: &str) -> Vec<String> {
+fn branches_after(
+    root: &Path,
+    word: &str,
+    line: &str,
+) -> Vec<String> {
     let mut full: Vec<&str> = vec![word];
     full.extend(line.split_whitespace());
     // Git's own verdict is read from the repository, so its exit status is not judged here.
@@ -77,7 +97,10 @@ fn branches_after(root: &Path, word: &str, line: &str) -> Vec<String> {
 ///  or by
 /// naming `topic`,
 ///  the only name the fixture's remote can supply.
-fn predicted(command: BranchCreationCommand, line: &str) -> bool {
+fn predicted(
+    command: BranchCreationCommand,
+    line: &str,
+) -> bool {
     let values: Vec<&str> = line.split_whitespace().collect();
     let parsed: BranchCreationRegion =
         parse_branch_creation_region(command, os_arguments(values.as_slice()).as_slice(), &[])
@@ -92,7 +115,12 @@ fn predicted(command: BranchCreationCommand, line: &str) -> bool {
 }
 
 /// Require Git to create exactly the named branches and the parser to agree.
-fn assert_cases(root: &Path, word: &str, command: BranchCreationCommand, cases: &[(&str, &str)]) {
+fn assert_cases(
+    root: &Path,
+    word: &str,
+    command: BranchCreationCommand,
+    cases: &[(&str, &str)],
+) {
     for (line, expected) in cases {
         let created: Vec<String> = branches_after(root, word, line);
         let wanted: Vec<&str> = expected.split_whitespace().collect();

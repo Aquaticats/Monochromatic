@@ -19,7 +19,11 @@ impl SharedSink {
     /// Everything written so far,
     /// as text.
     pub fn text(&self) -> String {
-        let bytes: Vec<u8> = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        let bytes: Vec<u8> = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
         return String::from_utf8_lossy(bytes.as_slice()).into_owned();
     }
 }
@@ -27,8 +31,14 @@ impl SharedSink {
 /// Writes go to the shared buffer.
 impl std::io::Write for SharedSink {
     /// Append the bytes.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
@@ -59,8 +69,17 @@ pub struct ActionSink {
 
 impl ActionSink {
     /// A sink that copies into `shared` and runs `action` once the `after`th line is finished.
-    pub fn new(shared: &SharedSink, after: usize, action: impl FnOnce() + Send + 'static) -> Self {
-        return Self { shared: shared.clone(), lines: 0, after, action: Some(Box::new(action)) };
+    pub fn new(
+        shared: &SharedSink,
+        after: usize,
+        action: impl FnOnce() + Send + 'static,
+    ) -> Self {
+        return Self {
+            shared: shared.clone(),
+            lines: 0,
+            after,
+            action: Some(Box::new(action)),
+        };
     }
 }
 
@@ -70,10 +89,20 @@ impl std::io::Write for ActionSink {
     /// Append the bytes,
     /// count finished lines,
     /// run the action at the counted one.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         std::io::Write::write(&mut self.shared, bytes)?;
-        self.lines += bytes.iter().filter(|byte| { return **byte == b'\n'; }).count();
-        if self.lines >= self.after && let Some(action) = self.action.take() {
+        self.lines += bytes
+            .iter()
+            .filter(|byte| {
+                return **byte == b'\n';
+            })
+            .count();
+        if self.lines >= self.after
+            && let Some(action) = self.action.take()
+        {
             action();
         }
         return Ok(bytes.len());

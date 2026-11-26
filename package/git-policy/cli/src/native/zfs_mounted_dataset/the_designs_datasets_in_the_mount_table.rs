@@ -32,9 +32,16 @@
 //! const container = theDesignsContainerBeside(checkout.dataset);
 //! ```
 
-use super::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
+use super::mounted_dataset_instance::{
+    MountHoldingAPath,
+    MountedDatasetInstance,
+    MountedDatasets,
+};
 use super::mounted_dataset_refusal::MountedDatasetRefusal;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The leaf name the design gives the checkout dataset.
 pub const DESIGN_CHECKOUT_DATASET_NAME: &str = "monochromatic-git-checkout";
@@ -49,7 +56,9 @@ pub const DESIGN_PROBE_DATASET_UNDER_THE_POOL: &str = "nosnap/git-worktree-probe
 /// The last `/`-separated component of a dataset name,
 /// which is the leaf name the design fixes.
 fn leaf_of(dataset: &str) -> &str {
-    return dataset.rsplit_once('/').map_or(dataset, |(_parent, leaf)| return leaf);
+    return dataset
+        .rsplit_once('/')
+        .map_or(dataset, |(_parent, leaf)| return leaf);
 }
 
 /// What:
@@ -88,7 +97,10 @@ fn leaf_of(dataset: &str) -> &str {
 /// ```ts
 /// const clone = row.dataset.split('/').slice(0, -1).at(-1) === 'monochromatic-git-worktree-clone-datasets';
 /// ```
-pub fn is_a_managed_clone(row: &MountedDatasetInstance, container_in_use: Option<&str>) -> bool {
+pub fn is_a_managed_clone(
+    row: &MountedDatasetInstance,
+    container_in_use: Option<&str>,
+) -> bool {
     let Some((parent, _leaf)) = row.dataset.rsplit_once('/') else {
         return false;
     };
@@ -111,7 +123,10 @@ pub fn is_a_managed_clone(row: &MountedDatasetInstance, container_in_use: Option
 /// ```ts
 /// const why = !row.ownRoot ? 'a bind tree' : 'a managed clone';
 /// ```
-fn why_ignored(row: &MountedDatasetInstance, container_in_use: Option<&str>) -> String {
+fn why_ignored(
+    row: &MountedDatasetInstance,
+    container_in_use: Option<&str>,
+) -> String {
     let mut reasons: Vec<&'static str> = Vec::new();
     if !row.shows_the_datasets_own_root() {
         reasons.push("a bind mount of a subtree, which shows no dataset's own root");
@@ -134,8 +149,15 @@ fn why_ignored(row: &MountedDatasetInstance, container_in_use: Option<&str>) -> 
 /// ```ts
 /// const instances = rows.filter((row) => row.dataset === dataset && row.root === '/');
 /// ```
-pub fn instances_of(dataset: &str, rows: &[MountedDatasetInstance]) -> Vec<MountedDatasetInstance> {
-    return rows.iter().filter(|row| return row.dataset == dataset && row.shows_the_datasets_own_root()).cloned().collect();
+pub fn instances_of(
+    dataset: &str,
+    rows: &[MountedDatasetInstance],
+) -> Vec<MountedDatasetInstance> {
+    return rows
+        .iter()
+        .filter(|row| return row.dataset == dataset && row.shows_the_datasets_own_root())
+        .cloned()
+        .collect();
 }
 
 /// What:
@@ -154,18 +176,39 @@ pub fn instances_of(dataset: &str, rows: &[MountedDatasetInstance]) -> Vec<Mount
 /// The table could not be read,
 /// no row is an instance,
 /// or more than one row is.
-pub fn the_one_mounted_checkout(mounts: &dyn MountedDatasets, container_in_use: Option<&str>) -> Result<MountedDatasetInstance, MountedDatasetRefusal> {
-    let rows: Vec<MountedDatasetInstance> = mounts.mounted_datasets().map_err(|said| return MountedDatasetRefusal::TableUnreadable { said })?;
-    let carrying_the_leaf: Vec<MountedDatasetInstance> = rows.into_iter().filter(|row| return row.last_name_component() == DESIGN_CHECKOUT_DATASET_NAME).collect();
+pub fn the_one_mounted_checkout(
+    mounts: &dyn MountedDatasets,
+    container_in_use: Option<&str>,
+) -> Result<MountedDatasetInstance, MountedDatasetRefusal> {
+    let rows: Vec<MountedDatasetInstance> = mounts.mounted_datasets().map_err(|said| {
+        return MountedDatasetRefusal::TableUnreadable {
+            said,
+        };
+    })?;
+    let carrying_the_leaf: Vec<MountedDatasetInstance> = rows
+        .into_iter()
+        .filter(|row| return row.last_name_component() == DESIGN_CHECKOUT_DATASET_NAME)
+        .collect();
     let instances: Vec<MountedDatasetInstance> = carrying_the_leaf
         .iter()
-        .filter(|row| return row.shows_the_datasets_own_root() && !is_a_managed_clone(row, container_in_use))
+        .filter(|row| {
+            return row.shows_the_datasets_own_root() && !is_a_managed_clone(row, container_in_use);
+        })
         .cloned()
         .collect();
     let ignored: Vec<String> = carrying_the_leaf
         .iter()
-        .filter(|row| return !(row.shows_the_datasets_own_root() && !is_a_managed_clone(row, container_in_use)))
-        .map(|row| return format!("{} ({})", row.described(), why_ignored(row, container_in_use)))
+        .filter(|row| {
+            return !(row.shows_the_datasets_own_root()
+                && !is_a_managed_clone(row, container_in_use));
+        })
+        .map(|row| {
+            return format!(
+                "{} ({})",
+                row.described(),
+                why_ignored(row, container_in_use)
+            );
+        })
         .collect();
     return match instances.as_slice() {
         [] => Err(MountedDatasetRefusal::NoneMounted {
@@ -173,7 +216,10 @@ pub fn the_one_mounted_checkout(mounts: &dyn MountedDatasets, container_in_use: 
             ignored,
         }),
         [one] => Ok(one.clone()),
-        several => Err(MountedDatasetRefusal::SeveralMounted { leaf: DESIGN_CHECKOUT_DATASET_NAME, found: several.iter().map(|row| return row.described()).collect() }),
+        several => Err(MountedDatasetRefusal::SeveralMounted {
+            leaf: DESIGN_CHECKOUT_DATASET_NAME,
+            found: several.iter().map(|row| return row.described()).collect(),
+        }),
     };
 }
 
@@ -193,14 +239,26 @@ pub fn the_one_mounted_checkout(mounts: &dyn MountedDatasets, container_in_use: 
 /// The table could not be read,
 /// the dataset is not mounted,
 /// or it is mounted more than once.
-pub fn the_one_mount_of(dataset: &str, mounts: &dyn MountedDatasets) -> Result<PathBuf, MountedDatasetRefusal> {
-    let rows: Vec<MountedDatasetInstance> = mounts.mounted_datasets().map_err(|said| return MountedDatasetRefusal::TableUnreadable { said })?;
+pub fn the_one_mount_of(
+    dataset: &str,
+    mounts: &dyn MountedDatasets,
+) -> Result<PathBuf, MountedDatasetRefusal> {
+    let rows: Vec<MountedDatasetInstance> = mounts.mounted_datasets().map_err(|said| {
+        return MountedDatasetRefusal::TableUnreadable {
+            said,
+        };
+    })?;
     return match instances_of(dataset, rows.as_slice()).as_slice() {
-        [] => Err(MountedDatasetRefusal::DatasetNotMounted { dataset: String::from(dataset) }),
+        [] => Err(MountedDatasetRefusal::DatasetNotMounted {
+            dataset: String::from(dataset),
+        }),
         [one] => Ok(one.mount_point.clone()),
         several => Err(MountedDatasetRefusal::DatasetMountedSeveralTimes {
             dataset: String::from(dataset),
-            mount_points: several.iter().map(|row| return row.mount_point.display().to_string()).collect(),
+            mount_points: several
+                .iter()
+                .map(|row| return row.mount_point.display().to_string())
+                .collect(),
         }),
     };
 }
@@ -225,16 +283,32 @@ pub fn the_one_mount_of(dataset: &str, mounts: &dyn MountedDatasets) -> Result<P
 /// no mount stands at the path,
 /// the mount there is no ZFS dataset,
 /// or its dataset carries another leaf name.
-pub fn the_checkout_dataset_at(path: &Path, mounts: &dyn MountedDatasets) -> Result<String, MountedDatasetRefusal> {
-    let holding: Option<MountHoldingAPath> = mounts.mount_holding(path).map_err(|said| return MountedDatasetRefusal::TableUnreadable { said })?;
+pub fn the_checkout_dataset_at(
+    path: &Path,
+    mounts: &dyn MountedDatasets,
+) -> Result<String, MountedDatasetRefusal> {
+    let holding: Option<MountHoldingAPath> = mounts.mount_holding(path).map_err(|said| {
+        return MountedDatasetRefusal::TableUnreadable {
+            said,
+        };
+    })?;
     let Some(mount) = holding else {
-        return Err(MountedDatasetRefusal::NoDatasetAtThePath { path: path.to_path_buf() });
+        return Err(MountedDatasetRefusal::NoDatasetAtThePath {
+            path: path.to_path_buf(),
+        });
     };
     let Some(dataset) = mount.dataset else {
-        return Err(MountedDatasetRefusal::NotADataset { path: path.to_path_buf(), found: mount.filesystem_type });
+        return Err(MountedDatasetRefusal::NotADataset {
+            path: path.to_path_buf(),
+            found: mount.filesystem_type,
+        });
     };
     if leaf_of(dataset.as_str()) != DESIGN_CHECKOUT_DATASET_NAME {
-        return Err(MountedDatasetRefusal::LeafNameDiffers { path: path.to_path_buf(), found: dataset, wanted: DESIGN_CHECKOUT_DATASET_NAME });
+        return Err(MountedDatasetRefusal::LeafNameDiffers {
+            path: path.to_path_buf(),
+            found: dataset,
+            wanted: DESIGN_CHECKOUT_DATASET_NAME,
+        });
     }
     return Ok(dataset);
 }
@@ -252,9 +326,13 @@ pub fn the_checkout_dataset_at(path: &Path, mounts: &dyn MountedDatasets) -> Res
 ///
 /// # Errors
 /// The checkout dataset has no parent component.
-pub fn the_designs_container_beside(checkout_dataset: &str) -> Result<String, MountedDatasetRefusal> {
+pub fn the_designs_container_beside(
+    checkout_dataset: &str
+) -> Result<String, MountedDatasetRefusal> {
     let Some((parent, _leaf)) = checkout_dataset.rsplit_once('/') else {
-        return Err(MountedDatasetRefusal::NoParentForTheContainer { dataset: String::from(checkout_dataset) });
+        return Err(MountedDatasetRefusal::NoParentForTheContainer {
+            dataset: String::from(checkout_dataset),
+        });
     };
     return Ok(format!("{parent}/{DESIGN_CONTAINER_DATASET_NAME}"));
 }
@@ -274,9 +352,13 @@ pub fn the_designs_container_beside(checkout_dataset: &str) -> Result<String, Mo
 ///
 /// # Errors
 /// The checkout dataset's name has no pool component.
-pub fn the_designs_probe_dataset_under(checkout_dataset: &str) -> Result<String, MountedDatasetRefusal> {
+pub fn the_designs_probe_dataset_under(
+    checkout_dataset: &str
+) -> Result<String, MountedDatasetRefusal> {
     let Some((pool, _rest)) = checkout_dataset.split_once('/') else {
-        return Err(MountedDatasetRefusal::NoPoolForTheProbeDataset { dataset: String::from(checkout_dataset) });
+        return Err(MountedDatasetRefusal::NoPoolForTheProbeDataset {
+            dataset: String::from(checkout_dataset),
+        });
     };
     return Ok(format!("{pool}/{DESIGN_PROBE_DATASET_UNDER_THE_POOL}"));
 }

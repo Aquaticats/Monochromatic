@@ -21,9 +21,16 @@
 //! ```
 
 use crate::child_awaited_through_a_pidfd::adopt;
-use crate::output_capture::{Capture, STEP_OUTPUT_LIMIT};
+use crate::output_capture::{
+    Capture,
+    STEP_OUTPUT_LIMIT,
+};
 use crate::start_retry::spawn_retrying_without_blocking;
-use std::process::{Child, Command, Output};
+use std::process::{
+    Child,
+    Command,
+    Output,
+};
 use std::time::Duration;
 
 /// What:
@@ -48,7 +55,11 @@ pub async fn output_of(command: &mut Command) -> std::io::Result<Output> {
     let mut owned = adopt(child);
     let status: std::process::ExitStatus = owned.wait().await?;
     let captured = capture.snapshot(STEP_OUTPUT_LIMIT);
-    return Ok(Output { status, stdout: captured.stdout, stderr: captured.stderr });
+    return Ok(Output {
+        status,
+        stdout: captured.stdout,
+        stderr: captured.stderr,
+    });
 }
 
 /// What:
@@ -72,7 +83,10 @@ pub async fn output_of(command: &mut Command) -> std::io::Result<Output> {
 /// ```ts
 /// const status = waitWithin(child, ceiling) ?? (child.kill(), throw ceilingReached());
 /// ```
-pub fn output_of_within_bound(command: &mut Command, ceiling: Duration) -> std::io::Result<Output> {
+pub fn output_of_within_bound(
+    command: &mut Command,
+    ceiling: Duration,
+) -> std::io::Result<Output> {
     let program: String = command.get_program().to_string_lossy().into_owned();
     let capture: Capture = Capture::new()?;
     let (standard_output, standard_error) = capture.stdio()?;
@@ -80,19 +94,28 @@ pub fn output_of_within_bound(command: &mut Command, ceiling: Duration) -> std::
     let child: Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
     // This thread has not reaped the child, so the ceiling's kill reaches it and nothing else, and the reap here leaves no
     //  zombie behind.
-    let status: std::process::ExitStatus = match crate::child_waited_for_within_a_ceiling::wait_within(child, ceiling) {
-        Ok(finished) => finished,
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-            let left_running: bool = crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&error);
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                crate::child_waited_for_within_a_ceiling::ceiling_reached_text(program.as_str(), ceiling, left_running),
-            ));
-        }
-        Err(error) => return Err(error),
-    };
+    let status: std::process::ExitStatus =
+        match crate::child_waited_for_within_a_ceiling::wait_within(child, ceiling) {
+            Ok(finished) => finished,
+            Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+                let left_running: bool = crate::child_waited_for_within_a_ceiling::left_running_when_the_ceiling_was_reached(&error);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    crate::child_waited_for_within_a_ceiling::ceiling_reached_text(
+                        program.as_str(),
+                        ceiling,
+                        left_running,
+                    ),
+                ));
+            }
+            Err(error) => return Err(error),
+        };
     let captured = capture.snapshot(STEP_OUTPUT_LIMIT);
-    return Ok(Output { status, stdout: captured.stdout, stderr: captured.stderr });
+    return Ok(Output {
+        status,
+        stdout: captured.stdout,
+        stderr: captured.stderr,
+    });
 }
 
 /// Captured-run controls stay out of the release executable.

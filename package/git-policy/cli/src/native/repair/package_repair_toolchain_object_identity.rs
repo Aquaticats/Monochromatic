@@ -20,21 +20,30 @@
 //! const identityOf = (path: string) => [statSync(path).dev, statSync(path).ino, statSync(path).size, statSync(path).mtime];
 //! ```
 
-/// Import the lock file's name and the record's key.
-use super::names_and_bounds::{LOCK_FILE, LOCK_KEY};
-/// Import the byte bound a record is read at and the log tag.
-use super::names_and_bounds::{LONGEST_RECORD, TAG};
 /// Import the slot a control stands a concurrent writer in,
 /// which only a control build has.
 #[cfg(test)]
 use super::names_and_bounds::WHEN_THE_RECORD_IS_OPENED;
+/// Import the lock file's name and the record's key.
+use super::names_and_bounds::{
+    LOCK_FILE,
+    LOCK_KEY,
+};
+/// Import the byte bound a record is read at and the log tag.
+use super::names_and_bounds::{
+    LONGEST_RECORD,
+    TAG,
+};
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
 /// Import the bounded,
 /// non-blocking read of a plain file.
 use crate::plain_file::read_plain_text_at;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  The object a name held:
 ///  its device and inode, its size, and the moment it was written.
@@ -140,7 +149,11 @@ impl ThisWorktreesLock {
             Err(_) => None,
         };
         let identity: Option<Identity> = identity_following_links_of(own.as_path());
-        return ThisWorktreesLock { own, real, identity };
+        return ThisWorktreesLock {
+            own,
+            real,
+            identity,
+        };
     }
 
     /// Whether `record` names a lock other than this worktree's:
@@ -154,9 +167,14 @@ impl ThisWorktreesLock {
     ///  checkout's lock.
     ///  Comparing spellings deleted a record an install had just written, which is why the comparison is the object's.
     ///  A name whose object cannot be read (a lock that is gone) falls back to the two spellings this release writes.
-    pub(super) fn names_another_lock(&self, record: &Path) -> Option<bool> {
+    pub(super) fn names_another_lock(
+        &self,
+        record: &Path,
+    ) -> Option<bool> {
         let named: PathBuf = lock_named_by_record(record)?;
-        if let (Some(mine), Some(theirs)) = (self.identity, identity_following_links_of(named.as_path())) {
+        if let (Some(mine), Some(theirs)) =
+            (self.identity, identity_following_links_of(named.as_path()))
+        {
             return Some(mine != theirs);
         }
         let mine: bool = named == self.own || Some(&named) == self.real.as_ref();
@@ -181,7 +199,13 @@ impl ThisWorktreesLock {
 /// ```
 #[cfg(test)]
 fn a_control_may_replace_the_record_now() {
-    let Some(replace) = WHEN_THE_RECORD_IS_OPENED.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| return cell.borrow_mut().take()) else { return };
+    let Some(replace) =
+        WHEN_THE_RECORD_IS_OPENED.with(|cell: &std::cell::RefCell<Option<Box<dyn FnOnce()>>>| {
+            return cell.borrow_mut().take();
+        })
+    else {
+        return;
+    };
     replace();
 }
 
@@ -219,11 +243,19 @@ pub(super) fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
     let text: String = match read_plain_text_at(path, LONGEST_RECORD) {
         Ok(text) => text,
         Err(error) => {
-            debug(TAG, format!("{} is no launcher record this release reads, so it is left ({error})", path.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} is no launcher record this release reads, so it is left ({error})",
+                    path.display()
+                )
+                .as_str(),
+            );
             return None;
         }
     };
-    let record: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
+    let record: serde_json::Value =
+        serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
     let lock: &str = record.get(LOCK_KEY).and_then(serde_json::Value::as_str)?;
     return Some(PathBuf::from(lock));
 }

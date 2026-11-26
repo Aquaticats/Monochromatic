@@ -232,7 +232,10 @@ pub fn parse_config_text(text: &[u8]) -> Option<Vec<ConfigEntry>> {
         return None;
     }
     let body: &[u8] = text.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(text);
-    let mut cursor: Cursor<'_> = Cursor { bytes: body, at: 0 };
+    let mut cursor: Cursor<'_> = Cursor {
+        bytes: body,
+        at: 0,
+    };
     let mut prefix: Option<String> = None;
     let mut entries: Vec<ConfigEntry> = Vec::new();
     while let Some(byte) = cursor.peek() {
@@ -260,9 +263,15 @@ pub fn parse_config_text(text: &[u8]) -> Option<Vec<ConfigEntry>> {
             match cursor.peek() {
                 Some(b'=') => {
                     cursor.advance();
-                    entries.push(ConfigEntry { key, value: Some(read_value(&mut cursor)?) });
+                    entries.push(ConfigEntry {
+                        key,
+                        value: Some(read_value(&mut cursor)?),
+                    });
                 }
-                Some(b'\n') | None => entries.push(ConfigEntry { key, value: None }),
+                Some(b'\n') | None => entries.push(ConfigEntry {
+                    key,
+                    value: None,
+                }),
                 Some(_) => return None,
             }
         } else {
@@ -282,7 +291,10 @@ pub fn parse_config_text(text: &[u8]) -> Option<Vec<ConfigEntry>> {
 /// ```ts
 /// entries.findLast((entry) => entry.key === key)
 /// ```
-pub fn last_entry<'a>(entries: &'a [ConfigEntry], key: &str) -> Option<&'a ConfigEntry> {
+pub fn last_entry<'a>(
+    entries: &'a [ConfigEntry],
+    key: &str,
+) -> Option<&'a ConfigEntry> {
     for entry in entries.iter().rev() {
         if entry.key == key {
             return Some(entry);

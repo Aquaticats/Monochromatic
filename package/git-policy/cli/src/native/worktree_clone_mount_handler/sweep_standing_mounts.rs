@@ -33,12 +33,25 @@
 //! const standing = LiveStandingMounts.read().standingMountOf(request, clone);
 //! ```
 
-use super::sweep_standing_mount_source::{KernelMountSource, MountSourceAnswer, MountSourceByNumber};
+use super::sweep_standing_mount_source::{
+    KernelMountSource,
+    MountSourceAnswer,
+    MountSourceByNumber,
+};
 use crate::diagnostic_log::debug;
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
-use crate::worktree_clone_mount::{FreshSlotLookup, LookAgainAtSlotRequest, MountIdentity, look_again_at_the_slot, mount_facts_of};
-use std::cell::{Cell, RefCell};
+use crate::worktree_clone_mount::{
+    FreshSlotLookup,
+    LookAgainAtSlotRequest,
+    MountIdentity,
+    look_again_at_the_slot,
+    mount_facts_of,
+};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use std::collections::HashMap;
 use std::os::fd::AsRawFd;
 use std::path::Path;
@@ -66,7 +79,10 @@ const TAG: &str = "sweepStandingMounts";
 /// ```ts
 /// const own = isThisClonesOwnMount(facts, clone); // source, root, type and both flags
 /// ```
-pub(crate) fn is_this_clones_own_mount(facts: &MountFacts, clone: &str) -> bool {
+pub(crate) fn is_this_clones_own_mount(
+    facts: &MountFacts,
+    clone: &str,
+) -> bool {
     return the_facts_are_a_datasets_own_mount(facts) && facts.source == clone;
 }
 
@@ -86,7 +102,10 @@ pub(crate) fn is_this_clones_own_mount(facts: &MountFacts, clone: &str) -> bool 
 /// const datasetMount = theFactsAreADatasetsOwnMount(facts); // type, root and both flags
 /// ```
 pub(crate) fn the_facts_are_a_datasets_own_mount(facts: &MountFacts) -> bool {
-    return facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE && facts.root == Path::new("/") && facts.has_option("nosuid") && facts.has_option("nodev");
+    return facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE
+        && facts.root == Path::new("/")
+        && facts.has_option("nosuid")
+        && facts.has_option("nodev");
 }
 
 /// What:
@@ -106,7 +125,11 @@ pub(crate) fn the_facts_are_a_datasets_own_mount(facts: &MountFacts) -> bool {
 pub trait StandingMounts {
     /// The mount the canonical slot holds when it is this clone's own,
     /// or nothing when the slot holds no mount or another dataset's.
-    fn standing_mount_of(&self, request: &LookAgainAtSlotRequest<'_>, clone: &str) -> Option<MountIdentity>;
+    fn standing_mount_of(
+        &self,
+        request: &LookAgainAtSlotRequest<'_>,
+        clone: &str,
+    ) -> Option<MountIdentity>;
 }
 
 /// What:
@@ -175,7 +198,11 @@ impl LiveMountTableSource {
         let descriptor: Option<std::fs::File> = match std::fs::File::open(path) {
             Ok(file) => Some(file),
             Err(error) => {
-                debug(TAG, format!("the mount table {path:?} could not be opened for its poll: {error}").as_str());
+                debug(
+                    TAG,
+                    format!("the mount table {path:?} could not be opened for its poll: {error}")
+                        .as_str(),
+                );
                 None
             }
         };
@@ -199,8 +226,11 @@ impl MountTableSource for LiveMountTableSource {
 
     fn read(&self) -> Result<Vec<MountFacts>, String> {
         let path: &Path = Path::new(crate::fs_mount_options::MOUNTINFO_PATH);
-        let bytes: Vec<u8> = crate::plain_file::read_plain_file(path, crate::plain_file::MOUNT_TABLE_LIMIT)
-            .map_err(|error| return format!("the mount table {path:?} could not be read: {error}"))?;
+        let bytes: Vec<u8> =
+            crate::plain_file::read_plain_file(path, crate::plain_file::MOUNT_TABLE_LIMIT)
+                .map_err(|error| {
+                    return format!("the mount table {path:?} could not be read: {error}");
+                })?;
         return Ok(crate::fs_mount_options::parse_mount_table(bytes.as_slice()));
     }
 }
@@ -222,12 +252,23 @@ impl LiveMountTableSource {
         let Some(file) = &self.descriptor else {
             return None;
         };
-        let mut watched: libc::pollfd = libc::pollfd { fd: file.as_raw_fd(), events: libc::POLLPRI | libc::POLLERR, revents: 0 };
+        let mut watched: libc::pollfd = libc::pollfd {
+            fd: file.as_raw_fd(),
+            events: libc::POLLPRI | libc::POLLERR,
+            revents: 0,
+        };
         // SAFETY: `watched` is one initialised `pollfd`, the call writes only its `revents` field, and the timeout is
         // zero so it never waits.
         let ready: libc::c_int = unsafe { libc::poll(&mut watched, 1, 0) };
         if ready < 0 {
-            debug(TAG, format!("the mount table's descriptor could not be polled: {}", std::io::Error::last_os_error()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "the mount table's descriptor could not be polled: {}",
+                    std::io::Error::last_os_error()
+                )
+                .as_str(),
+            );
             return None;
         }
         if ready == 0 {
@@ -240,14 +281,20 @@ impl LiveMountTableSource {
     /// for the control that the answer is then "changed".
     #[cfg(test)]
     pub(crate) fn without_a_descriptor() -> Self {
-        return Self { descriptor: None, answered_for_the_control: None };
+        return Self {
+            descriptor: None,
+            answered_for_the_control: None,
+        };
     }
 
     /// A source whose poll answers the control's value,
     /// `None` being a poll that refused.
     #[cfg(test)]
     pub(crate) fn whose_poll_answers(answer: Option<libc::c_short>) -> Self {
-        return Self { descriptor: None, answered_for_the_control: Some(answer) };
+        return Self {
+            descriptor: None,
+            answered_for_the_control: Some(answer),
+        };
     }
 }
 
@@ -329,15 +376,26 @@ impl CopiedTable {
     ///  The first answer to a read scans it,
     ///  the second builds the map,
     ///  and every later answer is a lookup.
-    fn look_up(&mut self, mount_id: u64) -> Option<MountFacts> {
+    fn look_up(
+        &mut self,
+        mount_id: u64,
+    ) -> Option<MountFacts> {
         if let Some(by_number) = &self.by_number {
             return by_number.get(&mount_id).cloned();
         }
         if !self.answered {
             self.answered = true;
-            return self.mounts.iter().find(|facts| return facts.mount_id == mount_id).cloned();
+            return self
+                .mounts
+                .iter()
+                .find(|facts| return facts.mount_id == mount_id)
+                .cloned();
         }
-        let by_number: HashMap<u64, MountFacts> = self.mounts.iter().map(|facts| return (facts.mount_id, facts.clone())).collect();
+        let by_number: HashMap<u64, MountFacts> = self
+            .mounts
+            .iter()
+            .map(|facts| return (facts.mount_id, facts.clone()))
+            .collect();
         let found: Option<MountFacts> = by_number.get(&mount_id).cloned();
         self.by_number = Some(by_number);
         return found;
@@ -352,7 +410,10 @@ impl LiveStandingMounts {
     /// const standing = LiveStandingMounts.read();
     /// ```
     pub fn read() -> Self {
-        return Self::from_sources(Box::new(LiveMountTableSource::open()), Box::new(KernelMountSource));
+        return Self::from_sources(
+            Box::new(LiveMountTableSource::open()),
+            Box::new(KernelMountSource),
+        );
     }
 
     /// Build one reader over a table source a control owns,
@@ -363,8 +424,16 @@ impl LiveStandingMounts {
     }
 
     /// Build one reader over the sources a control owns.
-    pub(crate) fn from_sources(source: Box<dyn MountTableSource>, sources: Box<dyn MountSourceByNumber>) -> Self {
-        let standing: Self = Self { source, sources, table: RefCell::new(CopiedTable::default()), reads: Cell::new(0) };
+    pub(crate) fn from_sources(
+        source: Box<dyn MountTableSource>,
+        sources: Box<dyn MountSourceByNumber>,
+    ) -> Self {
+        let standing: Self = Self {
+            source,
+            sources,
+            table: RefCell::new(CopiedTable::default()),
+            reads: Cell::new(0),
+        };
         standing.refresh();
         return standing;
     }
@@ -377,12 +446,19 @@ impl LiveStandingMounts {
         let mut table = self.table.borrow_mut();
         match self.source.read() {
             Ok(read) => {
-                *table = CopiedTable { mounts: read, answered: false, by_number: None };
+                *table = CopiedTable {
+                    mounts: read,
+                    answered: false,
+                    by_number: None,
+                };
             }
             Err(error) => {
                 // A table the run cannot read leaves the copy empty, and each standing answer falls back to the child's
                 // own live read, which is `main`'s answer.
-                debug(TAG, format!("the mount table could not be read for this sweep: {error}").as_str());
+                debug(
+                    TAG,
+                    format!("the mount table could not be read for this sweep: {error}").as_str(),
+                );
                 *table = CopiedTable::default();
             }
         }
@@ -392,7 +468,10 @@ impl LiveStandingMounts {
     /// or when no poll could say it did not.
     fn refresh_if_changed(&self) {
         if self.source.changed() {
-            debug(TAG, "the mount table of this namespace changed, so this sweep reads it again");
+            debug(
+                TAG,
+                "the mount table of this namespace changed, so this sweep reads it again",
+            );
             self.refresh();
         }
     }
@@ -406,7 +485,10 @@ impl LiveStandingMounts {
 
     /// One mount's facts from this sweep's table,
     /// or the live table when the run did not see the mount.
-    pub(crate) fn facts_of(&self, mount_id: u64) -> Result<MountFacts, String> {
+    pub(crate) fn facts_of(
+        &self,
+        mount_id: u64,
+    ) -> Result<MountFacts, String> {
         self.refresh_if_changed();
         if let Some(facts) = self.table.borrow_mut().look_up(mount_id) {
             return Ok(facts);
@@ -431,11 +513,22 @@ impl LiveStandingMounts {
     /// ```ts
     /// const [own, source] = standing.theDatasetUnder(fresh, clone);
     /// ```
-    fn the_dataset_under(&self, fresh: &FreshSlotLookup, clone: &str) -> (bool, String) {
+    fn the_dataset_under(
+        &self,
+        fresh: &FreshSlotLookup,
+        clone: &str,
+    ) -> (bool, String) {
         return match self.sources.source_of(fresh.unique_mount_number) {
             MountSourceAnswer::Source(source) => (source == clone, source),
             MountSourceAnswer::NoAnswer(why) => {
-                debug(TAG, format!("the kernel did not name the source of mount {}: {why}", fresh.mount_id).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the kernel did not name the source of mount {}: {why}",
+                        fresh.mount_id
+                    )
+                    .as_str(),
+                );
                 self.the_live_tables_answer(fresh.mount_id, clone)
             }
         };
@@ -446,17 +539,31 @@ impl LiveStandingMounts {
     /// the table is read again now,
     /// the copy is not consulted,
     /// and every clause of the predicate is applied to what the read says.
-    fn the_live_tables_answer(&self, mount_id: u64, clone: &str) -> (bool, String) {
+    fn the_live_tables_answer(
+        &self,
+        mount_id: u64,
+        clone: &str,
+    ) -> (bool, String) {
         return match self.source.read() {
-            Ok(mounts) => match mounts.into_iter().find(|facts| return facts.mount_id == mount_id) {
+            Ok(mounts) => match mounts
+                .into_iter()
+                .find(|facts| return facts.mount_id == mount_id)
+            {
                 Some(facts) => (is_this_clones_own_mount(&facts, clone), facts.source),
                 None => {
-                    debug(TAG, format!("the live mount table does not list mount {mount_id}").as_str());
+                    debug(
+                        TAG,
+                        format!("the live mount table does not list mount {mount_id}").as_str(),
+                    );
                     (false, String::new())
                 }
             },
             Err(said) => {
-                debug(TAG, format!("the live mount table could not be read for mount {mount_id}: {said}").as_str());
+                debug(
+                    TAG,
+                    format!("the live mount table could not be read for mount {mount_id}: {said}")
+                        .as_str(),
+                );
                 (false, String::new())
             }
         };
@@ -464,18 +571,36 @@ impl LiveStandingMounts {
 }
 
 impl StandingMounts for LiveStandingMounts {
-    fn standing_mount_of(&self, request: &LookAgainAtSlotRequest<'_>, clone: &str) -> Option<MountIdentity> {
+    fn standing_mount_of(
+        &self,
+        request: &LookAgainAtSlotRequest<'_>,
+        clone: &str,
+    ) -> Option<MountIdentity> {
         let fresh = match look_again_at_the_slot(request) {
             Ok(fresh) => fresh,
             Err(refusal) => {
-                debug(TAG, format!("the canonical slot could not be read for `{clone}`: {}", refusal.message()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the canonical slot could not be read for `{clone}`: {}",
+                        refusal.message()
+                    )
+                    .as_str(),
+                );
                 return None;
             }
         };
         let facts = match self.facts_of(fresh.mount_id) {
             Ok(facts) => facts,
             Err(said) => {
-                debug(TAG, format!("the mount {} the slot is on could not be read: {said}", fresh.mount_id).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the mount {} the slot is on could not be read: {said}",
+                        fresh.mount_id
+                    )
+                    .as_str(),
+                );
                 return None;
             }
         };

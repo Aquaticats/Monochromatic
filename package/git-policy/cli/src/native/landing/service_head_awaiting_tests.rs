@@ -5,9 +5,19 @@
 //!  whose Git must be asked can ask it.
 
 use super::*;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// The shortest a wait can be and still leave a task beside it time to run on this host.
 const SHORT_CEILING: Duration = Duration::from_millis(100);
@@ -33,11 +43,17 @@ const THE_PATIENCE: Duration = Duration::from_secs(10);
 /// execFileSync('mkfifo', [path]);
 /// ```
 fn stall_a_file(path: &Path) {
-    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
+    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
+        .expect("a path without a zero byte");
     // SAFETY: `mkfifo` reads the path it is given and writes only the file it makes; the mode is the one a control's own
     //  fixture takes.
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "the pipe must stand where the file would be: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        made,
+        0,
+        "the pipe must stand where the file would be: {}",
+        std::io::Error::last_os_error()
+    );
 }
 
 /// What:
@@ -56,7 +72,16 @@ fn a_linked_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = repository(root.as_path(), "repo");
     git(repo.as_path(), &["branch", "linked-branch"]);
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("a path"), "linked-branch"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            linked.to_str().expect("a path"),
+            "linked-branch",
+        ],
+    );
     let own: PathBuf = repo.join(".git").join("worktrees").join("linked");
     return (root, repo, linked, own);
 }
@@ -91,7 +116,11 @@ fn a_head_file_that_gives_no_answer_does_not_hold_a_worker() {
     let stalled: PathBuf = own.join("commondir");
     std::fs::remove_file(stalled.as_path()).expect("the pointer a pipe stands in place of");
     stall_a_file(stalled.as_path());
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime of one worker");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("a runtime of one worker");
     let ticked: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let tick: Arc<AtomicBool> = Arc::clone(&ticked);
     let _ticking = runtime.spawn(async move {
@@ -100,16 +129,35 @@ fn a_head_file_that_gives_no_answer_does_not_hold_a_worker() {
     });
     let reading_directory: PathBuf = own.clone();
     let common_directory: PathBuf = common.clone();
-    let reading = runtime.spawn(async move { return head_file_within(SHORT_CEILING, reading_directory.as_path(), common_directory.as_path()).await; });
+    let reading = runtime.spawn(async move {
+        return head_file_within(
+            SHORT_CEILING,
+            reading_directory.as_path(),
+            common_directory.as_path(),
+        )
+        .await;
+    });
     let began: std::time::Instant = std::time::Instant::now();
     // No writer ever opens the pipe, so a read that waited on it could not answer here at all.
-    let answered: HeadFile = runtime.block_on(async { return reading.await.expect("the reading task ends") });
-    assert_eq!(answered, HeadFile::Unreadable, "a head file that gave nothing in time is answered as an unreadable one, so Git is asked instead");
+    let answered: HeadFile =
+        runtime.block_on(async { return reading.await.expect("the reading task ends") });
+    assert_eq!(
+        answered,
+        HeadFile::Unreadable,
+        "a head file that gave nothing in time is answered as an unreadable one, so Git is asked instead"
+    );
     while !ticked.load(Ordering::SeqCst) && began.elapsed() < THE_PATIENCE {
         std::thread::sleep(THE_TICK);
     }
-    assert!(ticked.load(Ordering::SeqCst), "the task beside a head file that gives no answer still runs, so no worker is held by that read");
-    assert!(began.elapsed() < THE_PATIENCE, "the question ended without waiting on the file without end: {} ms", began.elapsed().as_millis());
+    assert!(
+        ticked.load(Ordering::SeqCst),
+        "the task beside a head file that gives no answer still runs, so no worker is held by that read"
+    );
+    assert!(
+        began.elapsed() < THE_PATIENCE,
+        "the question ended without waiting on the file without end: {} ms",
+        began.elapsed().as_millis()
+    );
     remove(root.as_path());
 }
 
@@ -125,10 +173,19 @@ fn a_head_file_that_gives_no_answer_does_not_hold_a_worker() {
 /// ```ts
 /// const [sync, awaited] = bothAnswers(git, repo, own, common, reference);
 /// ```
-fn both_answers(git: &GitContext, repository: &Path, own: &Path, common: &Path, reference: &crate::ref_name::RefName) -> (Result<bool, FailureCode>, Result<bool, FailureCode>) {
-    let synchronous: Result<bool, FailureCode> = still_checked_out(git, repository, own, common, reference);
-    let awaited: Result<bool, FailureCode> =
-        crate::lazy_runtime::run_on_runtime(still_checked_out_awaiting(git, repository, own, common, reference)).expect("the runtime");
+fn both_answers(
+    git: &GitContext,
+    repository: &Path,
+    own: &Path,
+    common: &Path,
+    reference: &crate::ref_name::RefName,
+) -> (Result<bool, FailureCode>, Result<bool, FailureCode>) {
+    let synchronous: Result<bool, FailureCode> =
+        still_checked_out(git, repository, own, common, reference);
+    let awaited: Result<bool, FailureCode> = crate::lazy_runtime::run_on_runtime(
+        still_checked_out_awaiting(git, repository, own, common, reference),
+    )
+    .expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -153,23 +210,62 @@ fn the_awaited_head_questions_answer_what_the_synchronous_ones_answer() {
     let common: PathBuf = repo.join(".git");
     let context: GitContext = git_context();
     for reference in ["refs/heads/main", "refs/heads/other", "HEAD"] {
-        let (synchronous, awaited) = both_answers(&context, repo.as_path(), common.as_path(), common.as_path(), &crate::ref_name::RefName::from_text(reference));
-        assert_eq!(synchronous, awaited, "the two faces answer one thing about {reference} in a worktree on a branch");
+        let (synchronous, awaited) = both_answers(
+            &context,
+            repo.as_path(),
+            common.as_path(),
+            common.as_path(),
+            &crate::ref_name::RefName::from_text(reference),
+        );
+        assert_eq!(
+            synchronous, awaited,
+            "the two faces answer one thing about {reference} in a worktree on a branch"
+        );
     }
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["checkout", "--quiet", "--detach", head.as_str()]);
+    git(
+        repo.as_path(),
+        &["checkout", "--quiet", "--detach", head.as_str()],
+    );
     for reference in ["refs/heads/main", "HEAD"] {
-        let (synchronous, awaited) = both_answers(&context, repo.as_path(), common.as_path(), common.as_path(), &crate::ref_name::RefName::from_text(reference));
-        assert_eq!(synchronous, awaited, "the two faces answer one thing about {reference} in a worktree with a detached head");
+        let (synchronous, awaited) = both_answers(
+            &context,
+            repo.as_path(),
+            common.as_path(),
+            common.as_path(),
+            &crate::ref_name::RefName::from_text(reference),
+        );
+        assert_eq!(
+            synchronous, awaited,
+            "the two faces answer one thing about {reference} in a worktree with a detached head"
+        );
     }
     // A linked worktree reads its own Git directory, and the two faces read the same one.
     git(repo.as_path(), &["branch", "linked-branch"]);
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("a path"), "linked-branch"]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            linked.to_str().expect("a path"),
+            "linked-branch",
+        ],
+    );
     let own: PathBuf = common.join("worktrees").join("linked");
     for reference in ["refs/heads/linked-branch", "refs/heads/main", "HEAD"] {
-        let (synchronous, awaited) = both_answers(&context, linked.as_path(), own.as_path(), common.as_path(), &crate::ref_name::RefName::from_text(reference));
-        assert_eq!(synchronous, awaited, "the two faces answer one thing about {reference} in a linked worktree");
+        let (synchronous, awaited) = both_answers(
+            &context,
+            linked.as_path(),
+            own.as_path(),
+            common.as_path(),
+            &crate::ref_name::RefName::from_text(reference),
+        );
+        assert_eq!(
+            synchronous, awaited,
+            "the two faces answer one thing about {reference} in a linked worktree"
+        );
     }
     remove(root.as_path());
 }
@@ -201,17 +297,32 @@ fn a_head_question_whose_git_must_be_asked_is_answered_inside_a_task() {
     let elsewhere: PathBuf = root.join("no-git-dir");
     std::fs::create_dir_all(elsewhere.as_path()).expect("a directory that is no Git directory");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime of one worker");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("a runtime of one worker");
     let awaiting_context: GitContext = context.clone();
     let awaiting_repository: PathBuf = repo.clone();
     let awaiting_own: PathBuf = elsewhere.clone();
     let awaiting_common: PathBuf = common.clone();
     let awaiting_head: String = head.clone();
     let answered: Result<bool, FailureCode> = runtime.block_on(async move {
-        return follows_move_awaiting(&awaiting_context, awaiting_repository.as_path(), awaiting_own.as_path(), awaiting_common.as_path(), &crate::ref_name::RefName::from_text("HEAD"), awaiting_head.as_str())
-            .await;
+        return follows_move_awaiting(
+            &awaiting_context,
+            awaiting_repository.as_path(),
+            awaiting_own.as_path(),
+            awaiting_common.as_path(),
+            &crate::ref_name::RefName::from_text("HEAD"),
+            awaiting_head.as_str(),
+        )
+        .await;
     });
-    assert_eq!(answered, Ok(true), "the awaited face asks Git for a head no file can answer and the commit it names is the one that moved the branch");
+    assert_eq!(
+        answered,
+        Ok(true),
+        "the awaited face asks Git for a head no file can answer and the commit it names is the one that moved the branch"
+    );
     let waiting: GitContext = context.clone();
     let waiting_repository: PathBuf = repo.clone();
     let waiting_own: PathBuf = elsewhere.clone();
@@ -219,10 +330,21 @@ fn a_head_question_whose_git_must_be_asked_is_answered_inside_a_task() {
     let waiting_head: String = head.clone();
     let refused: Result<bool, FailureCode> = runtime.block_on(async move {
         let asking = tokio::spawn(async move {
-            return follows_move(&waiting, waiting_repository.as_path(), waiting_own.as_path(), waiting_common.as_path(), &crate::ref_name::RefName::from_text("HEAD"), waiting_head.as_str());
+            return follows_move(
+                &waiting,
+                waiting_repository.as_path(),
+                waiting_own.as_path(),
+                waiting_common.as_path(),
+                &crate::ref_name::RefName::from_text("HEAD"),
+                waiting_head.as_str(),
+            );
         });
         return asking.await.expect("the task that asks ends");
     });
-    assert_eq!(refused, Err(FailureCode::Unavailable), "the synchronous face cannot start its Git from inside the runtime, which is why a task asks the awaited face");
+    assert_eq!(
+        refused,
+        Err(FailureCode::Unavailable),
+        "the synchronous face cannot start its Git from inside the runtime, which is why a task asks the awaited face"
+    );
     remove(root.as_path());
 }

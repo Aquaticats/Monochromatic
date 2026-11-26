@@ -26,19 +26,37 @@
 //! const adopted = adopt({ checkout, device, inode }); // the recorded identity, or the refusal
 //! ```
 
-use crate::worktree_clone_mount::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
+use crate::worktree_clone_mount::clone_folder_identity::{
+    CloneFolderField,
+    CloneFolderIdentity,
+};
 use crate::worktree_clone_mount::clone_slot_walk_refusals::WalkRefusal;
-use crate::worktree_clone_mount::parent_adoption_decision::{Adoption, AdoptionFacts, AdoptionRefusal, decide_adoption};
-use crate::worktree_clone_mount::parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
+use crate::worktree_clone_mount::parent_adoption_decision::{
+    Adoption,
+    AdoptionFacts,
+    AdoptionRefusal,
+    decide_adoption,
+};
+use crate::worktree_clone_mount::parent_adoption_facts::{
+    BindingState,
+    ParentPolicy,
+    SlotState,
+};
 use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use crate::worktree_clone_mount::slot_identity_store_refusals::StoreRefusal;
 use crate::worktree_clone_mount::{
-    HeldWorktreesParent, SLOT_IDENTITY_STORE_PATH, hold_the_worktrees_parent, replace_parent_identity_under_root_control,
+    HeldWorktreesParent,
+    SLOT_IDENTITY_STORE_PATH,
+    hold_the_worktrees_parent,
+    replace_parent_identity_under_root_control,
 };
 use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use rustix::process::geteuid;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why this mode recorded nothing.
@@ -81,7 +99,9 @@ impl AdoptFailure {
     pub fn message(&self) -> String {
         let prefix: String = format!("{}: ", super::handler_install_paths::root_modes_name());
         return match self {
-            AdoptFailure::NotRoot { effective_user } => {
+            AdoptFailure::NotRoot {
+                effective_user,
+            } => {
                 return super::root_mode_caller::NotRootRefusal {
                     mode: "adopt-worktree-parent",
                     nothing: "read or recorded",
@@ -95,7 +115,9 @@ impl AdoptFailure {
                 "{prefix}the recorded clone slot identities could not be read, so the adoption judged nothing: {}. Nothing was recorded. Ways forward: fix what the store refusal names and run the mode again; the parent record is replaced only after the store reads.",
                 refusal.message()
             ),
-            AdoptFailure::NoParentRecord { path } => format!(
+            AdoptFailure::NoParentRecord {
+                path,
+            } => format!(
                 "{prefix}{} holds no record for the `.claude/worktrees` parent folder, so no folder is recorded that a replacement could succeed. Nothing was recorded. Ways forward: let the setup run record the parent identity first (plan step 19), then run the adoption again.",
                 path.display()
             ),
@@ -152,11 +174,20 @@ enum SlotReading {
 /// ```ts
 /// const reading = readSlot(parent, 'my-worktree', recorded);
 /// ```
-fn read_slot(parent: &HeldWorktreesParent, slot: &str, recorded: &CloneFolderIdentity) -> SlotReading {
-    let folder: std::fs::File = match crate::fs_beneath::open_directory_at(&parent.folder, OsStr::new(slot)) {
-        Ok(folder) => folder,
-        Err(error) => return SlotReading::Unresolved { reason: slot_folder_reason(&error) },
-    };
+fn read_slot(
+    parent: &HeldWorktreesParent,
+    slot: &str,
+    recorded: &CloneFolderIdentity,
+) -> SlotReading {
+    let folder: std::fs::File =
+        match crate::fs_beneath::open_directory_at(&parent.folder, OsStr::new(slot)) {
+            Ok(folder) => folder,
+            Err(error) => {
+                return SlotReading::Unresolved {
+                    reason: slot_folder_reason(&error),
+                };
+            }
+        };
     let identity: CloneFolderIdentity = match CloneFolderIdentity::capture(&folder) {
         Ok(identity) => identity,
         Err(error) => {
@@ -168,7 +199,9 @@ fn read_slot(parent: &HeldWorktreesParent, slot: &str, recorded: &CloneFolderIde
         }
     };
     return match recorded.differences(&identity).first() {
-        Some(field) => SlotReading::Differs { field: *field },
+        Some(field) => SlotReading::Differs {
+            field: *field,
+        },
         None => SlotReading::Agrees,
     };
 }
@@ -213,7 +246,11 @@ fn slot_folder_reason(error: &std::io::Error) -> String {
 /// ```ts
 /// const { slots, bindings } = recordedSlots(parent, store);
 /// ```
-fn recorded_slots(parent: Option<&HeldWorktreesParent>, store: &SlotIdentityStore, names: &[String]) -> Result<(Vec<SlotState>, Vec<BindingState>), StoreRefusal> {
+fn recorded_slots(
+    parent: Option<&HeldWorktreesParent>,
+    store: &SlotIdentityStore,
+    names: &[String],
+) -> Result<(Vec<SlotState>, Vec<BindingState>), StoreRefusal> {
     let mut slots: Vec<SlotState> = Vec::new();
     let mut bindings: Vec<BindingState> = Vec::new();
     let Some(worktrees) = parent else {
@@ -222,10 +259,22 @@ fn recorded_slots(parent: Option<&HeldWorktreesParent>, store: &SlotIdentityStor
     for name in names {
         let recorded: CloneFolderIdentity = store.slot(name.as_str())?;
         match read_slot(worktrees, name.as_str(), &recorded) {
-            SlotReading::Agrees => slots.push(SlotState::Agrees { slot: name.clone() }),
-            SlotReading::Differs { field } => slots.push(SlotState::Differs { slot: name.clone(), field }),
-            SlotReading::Unresolved { reason } => bindings.push(BindingState::Unresolved {
-                what: format!("the clone slot `{name}` below {}", worktrees.canonical.display()),
+            SlotReading::Agrees => slots.push(SlotState::Agrees {
+                slot: name.clone(),
+            }),
+            SlotReading::Differs {
+                field,
+            } => slots.push(SlotState::Differs {
+                slot: name.clone(),
+                field,
+            }),
+            SlotReading::Unresolved {
+                reason,
+            } => bindings.push(BindingState::Unresolved {
+                what: format!(
+                    "the clone slot `{name}` below {}",
+                    worktrees.canonical.display()
+                ),
                 reason,
             }),
         }
@@ -246,15 +295,24 @@ fn recorded_slots(parent: Option<&HeldWorktreesParent>, store: &SlotIdentityStor
 /// ```ts
 /// compareTheTwoListings(first, second); // throws SlotNotListed or NoSlotRecord
 /// ```
-fn compare_the_two_listings(first: &[String], second: &[String], store_path: &Path) -> Result<(), AdoptFailure> {
+fn compare_the_two_listings(
+    first: &[String],
+    second: &[String],
+    store_path: &Path,
+) -> Result<(), AdoptFailure> {
     for name in second {
         if !first.contains(name) {
-            return Err(AdoptFailure::Decision(AdoptionRefusal::SlotNotListed { slot: name.clone() }));
+            return Err(AdoptFailure::Decision(AdoptionRefusal::SlotNotListed {
+                slot: name.clone(),
+            }));
         }
     }
     for name in first {
         if !second.contains(name) {
-            return Err(AdoptFailure::Store(StoreRefusal::NoSlotRecord { path: store_path.to_path_buf(), slot: name.clone() }));
+            return Err(AdoptFailure::Store(StoreRefusal::NoSlotRecord {
+                path: store_path.to_path_buf(),
+                slot: name.clone(),
+            }));
         }
     }
     return Ok(());
@@ -272,7 +330,10 @@ fn compare_the_two_listings(first: &[String], second: &[String], store_path: &Pa
 /// ```ts
 /// const line = `recorded ${canonical} as the adopted parent: device ${device}, inode ${inode}`;
 /// ```
-fn recorded_line(parent: &HeldWorktreesParent, adoption: &Adoption) -> String {
+fn recorded_line(
+    parent: &HeldWorktreesParent,
+    adoption: &Adoption,
+) -> String {
     return format!(
         "recorded {} as the adopted `.claude/worktrees` parent folder: device {}, inode {}, owner {}, mode {:04o}. Every later sweep, attach and unmount compares against this identity, and a surviving clone slot keeps its own record. Nothing was mounted or unmounted.",
         parent.canonical.display(),
@@ -314,7 +375,12 @@ fn recorded_line(parent: &HeldWorktreesParent, adoption: &Adoption) -> String {
 /// or a store that could not be written.
 pub fn run(request: &AdoptRequest) -> Result<String, AdoptFailure> {
     let effective_user: u32 = geteuid().as_raw();
-    return adopt_at(request, Path::new(SLOT_IDENTITY_STORE_PATH), geteuid().is_root(), effective_user);
+    return adopt_at(
+        request,
+        Path::new(SLOT_IDENTITY_STORE_PATH),
+        geteuid().is_root(),
+        effective_user,
+    );
 }
 
 /// What:
@@ -330,29 +396,48 @@ pub fn run(request: &AdoptRequest) -> Result<String, AdoptFailure> {
 /// ```ts
 /// const adopted = adoptAt({ request, storePath, runningAsRoot: false, effectiveUser: 1000 });
 /// ```
-fn adopt_at(request: &AdoptRequest, store_path: &Path, running_as_root: bool, effective_user: u32) -> Result<String, AdoptFailure> {
+fn adopt_at(
+    request: &AdoptRequest,
+    store_path: &Path,
+    running_as_root: bool,
+    effective_user: u32,
+) -> Result<String, AdoptFailure> {
     if !running_as_root {
-        return Err(AdoptFailure::NotRoot { effective_user });
+        return Err(AdoptFailure::NotRoot {
+            effective_user,
+        });
     }
-    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(store_path).map_err(AdoptFailure::Store)?;
-    let recorded_parent: CloneFolderIdentity = store.parent().map_err(|refusal| return match refusal {
-        StoreRefusal::NoParentRecord { path } => AdoptFailure::NoParentRecord { path },
-        other => AdoptFailure::Store(other),
+    let store: SlotIdentityStore =
+        SlotIdentityStore::open_under_root_control(store_path).map_err(AdoptFailure::Store)?;
+    let recorded_parent: CloneFolderIdentity = store.parent().map_err(|refusal| {
+        return match refusal {
+            StoreRefusal::NoParentRecord {
+                path,
+            } => AdoptFailure::NoParentRecord {
+                path,
+            },
+            other => AdoptFailure::Store(other),
+        };
     })?;
     let policy: ParentPolicy = ParentPolicy::from_recorded(&recorded_parent);
     // The first listing is also the removal: the staging names a killed writer left are removed as this pass reads the
     // set, which is what makes one remover's reach the quiesced adoption rather than a lock.
-    let names: Vec<String> = store.list_and_remove_staging_entries().map_err(AdoptFailure::Store)?;
-    let walked: Result<HeldWorktreesParent, WalkRefusal> = hold_the_worktrees_parent(request.checkout.as_path());
+    let names: Vec<String> = store
+        .list_and_remove_staging_entries()
+        .map_err(AdoptFailure::Store)?;
+    let walked: Result<HeldWorktreesParent, WalkRefusal> =
+        hold_the_worktrees_parent(request.checkout.as_path());
     let walk: Result<CloneFolderIdentity, WalkRefusal> = match &walked {
         Ok(held) => Ok(held.identity.clone()),
         Err(refusal) => Err(refusal.clone()),
     };
-    let (slots, bindings) = recorded_slots(walked.as_ref().ok(), &store, names.as_slice()).map_err(AdoptFailure::Store)?;
-    let fresh: Result<CloneFolderIdentity, WalkRefusal> = match hold_the_worktrees_parent(request.checkout.as_path()) {
-        Ok(looked) => Ok(looked.identity),
-        Err(refusal) => Err(refusal),
-    };
+    let (slots, bindings) = recorded_slots(walked.as_ref().ok(), &store, names.as_slice())
+        .map_err(AdoptFailure::Store)?;
+    let fresh: Result<CloneFolderIdentity, WalkRefusal> =
+        match hold_the_worktrees_parent(request.checkout.as_path()) {
+            Ok(looked) => Ok(looked.identity),
+            Err(refusal) => Err(refusal),
+        };
     let facts: AdoptionFacts = AdoptionFacts {
         walk,
         identified_device: request.device,
@@ -365,10 +450,15 @@ fn adopt_at(request: &AdoptRequest, store_path: &Path, running_as_root: bool, ef
     };
     let adoption: Adoption = decide_adoption(&facts).map_err(AdoptFailure::Decision)?;
     #[cfg(test)]
-    BETWEEN_THE_TWO_LISTINGS.with(|hook| { if let Some(between) = hook.borrow().as_ref() { between(); } });
+    BETWEEN_THE_TWO_LISTINGS.with(|hook| {
+        if let Some(between) = hook.borrow().as_ref() {
+            between();
+        }
+    });
     let after: Vec<String> = store.slot_names().map_err(AdoptFailure::Store)?;
     compare_the_two_listings(names.as_slice(), after.as_slice(), store_path)?;
-    replace_parent_identity_under_root_control(store_path, &adoption.identity).map_err(AdoptFailure::Write)?;
+    replace_parent_identity_under_root_control(store_path, &adoption.identity)
+        .map_err(AdoptFailure::Write)?;
     let Ok(held) = walked else {
         unreachable!("a decided adoption walked the parent folder");
     };

@@ -26,14 +26,26 @@
 //! const path = folder.publish(plan);
 //! ```
 
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file_unsynced,
+};
 use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_removal_proof_and_plan::plan_parse::parse_plan;
-use crate::worktree_clone_removal_proof_and_plan::plan_reading::{check_the_folder, split_the_header};
+use crate::worktree_clone_removal_proof_and_plan::plan_reading::{
+    check_the_folder,
+    split_the_header,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{
+    PlanRefusal,
+    PlanRefusalCause,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The folder one repository's destruction plans live in,
@@ -52,8 +64,14 @@ pub struct PlanFolder {
 }
 
 impl std::fmt::Debug for PlanFolder {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.debug_struct("PlanFolder").field("path", &self.path).finish();
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return formatter
+            .debug_struct("PlanFolder")
+            .field("path", &self.path)
+            .finish();
     }
 }
 
@@ -75,10 +93,14 @@ impl PlanFolder {
     /// ```
     pub fn open_or_create(common_dir: &Path) -> Result<PlanFolder, PlanRefusal> {
         let path: PathBuf = plans_folder(common_dir);
-        create_private_directory_all(path.as_path()).map_err(|error| return PlanRefusal::at(PlanRefusalCause::Unreadable, "folder", error.to_string()))?;
+        create_private_directory_all(path.as_path()).map_err(|error| {
+            return PlanRefusal::at(PlanRefusalCause::Unreadable, "folder", error.to_string());
+        })?;
         let owner: u32 = common_directory_owner(common_dir)?;
         check_the_folder(path.as_path(), owner)?;
-        return Ok(PlanFolder { path });
+        return Ok(PlanFolder {
+            path,
+        });
     }
 
     /// The folder's path.
@@ -103,27 +125,47 @@ impl PlanFolder {
     /// ```ts
     /// const path = folder.publish(plan);
     /// ```
-    pub fn publish(&self, plan: &DestructionPlan) -> Result<PathBuf, PlanRefusal> {
+    pub fn publish(
+        &self,
+        plan: &DestructionPlan,
+    ) -> Result<PathBuf, PlanRefusal> {
         let name: String = plan.facts.clone_guid.file_name();
         if !is_canonical_guid_name(name.as_str()) {
-            return Err(PlanRefusal::at(PlanRefusalCause::ForeignName, "cloneGuid", name));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::ForeignName,
+                "cloneGuid",
+                name,
+            ));
         }
         let bytes: Vec<u8> = plan.encode()?;
         let (header, attempts) = split_the_header(bytes.as_slice())?;
         match parse_plan(header, attempts, Some(name.as_str())) {
             Ok(read_back) if read_back == *plan => {}
-            Ok(_) => return Err(PlanRefusal::of(PlanRefusalCause::WriterWouldNotReadItBack, name)),
+            Ok(_) => {
+                return Err(PlanRefusal::of(
+                    PlanRefusalCause::WriterWouldNotReadItBack,
+                    name,
+                ));
+            }
             Err(refusal) => return Err(refusal),
         }
         let path: PathBuf = self.path.join(name.as_str());
-        replace_private_file_unsynced(path.as_path(), bytes.as_slice()).map_err(|error| return PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string()))?;
+        replace_private_file_unsynced(path.as_path(), bytes.as_slice()).map_err(|error| {
+            return PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string());
+        })?;
         return Ok(path);
     }
 }
 
 /// The account that owns the common Git directory.
 fn common_directory_owner(common_dir: &Path) -> Result<u32, PlanRefusal> {
-    let metadata: std::fs::Metadata = std::fs::metadata(common_dir).map_err(|error| return PlanRefusal::at(PlanRefusalCause::Unreadable, "common directory", error.to_string()))?;
+    let metadata: std::fs::Metadata = std::fs::metadata(common_dir).map_err(|error| {
+        return PlanRefusal::at(
+            PlanRefusalCause::Unreadable,
+            "common directory",
+            error.to_string(),
+        );
+    })?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;

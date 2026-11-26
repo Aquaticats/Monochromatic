@@ -570,15 +570,15 @@ index-item src/native/invocation/typed_network_command_relay/mod.rs enum-TypedNe
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-relay_when_ssh_carries
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-sentence_after_a_refused_probe_of_a_push
 index-item src/native/invocation/typed_network_command_relay/mod.rs impl-TypedNetworkCommandEnding
-index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-a_target_the_sentence_may_name::{Target, target_of}
+index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-a_target_the_sentence_may_name::{ Target, target_of, }
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-crate::forwarding::ChildOutcome
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-crate::forwarding::git_command
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-crate::hooks_off::StartOwner
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-crate::signal_relay::SignalGuard
-index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-git_error_stream_relayed_as_it_arrives::{ErrorStreamShape, RelayedErrorStream, read_to_the_child_s_end, shape_of_this_process, start_relaying}
+index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-git_error_stream_relayed_as_it_arrives::{ ErrorStreamShape, RelayedErrorStream, read_to_the_child_s_end, shape_of_this_process, start_relaying, }
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-std::ffi::OsString
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-std::path::Path
-index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-the_remote_a_typed_command_names::{RemoteRead, TypedNetworkCommand, remote_read_for, remote_url, ssh_carries, typed_command}
+index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-the_remote_a_typed_command_names::{ RemoteRead, TypedNetworkCommand, remote_read_for, remote_url, ssh_carries, typed_command, }
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-the_sentence_after_the_refusal::print_after_a_refusal
 index-item src/native/main.rs function-end_after_the_log
 missing-entry src/native/candidate/mod.rs blob_batch.rs

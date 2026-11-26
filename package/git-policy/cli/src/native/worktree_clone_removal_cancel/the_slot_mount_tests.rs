@@ -16,10 +16,21 @@
 //! expect(whereTheCloneStands(scriptedTable, 'tank/clone', '/repo/.claude/worktrees/one')).toEqual({ kind: 'at-its-slot' });
 //! ```
 
-use super::{counts_as_at_its_slot, of_a_table, word};
+use super::{
+    counts_as_at_its_slot,
+    of_a_table,
+    word,
+};
 use crate::worktree_clone_slot_state::slot_state_mounts::CloneMount;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
-use std::path::{Path, PathBuf};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    MountHoldingAPath,
+    MountedDatasetInstance,
+    MountedDatasets,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The clone the controls read.
 const CLONE: &str = "tank/clone";
@@ -45,7 +56,10 @@ impl MountedDatasets for ScriptedTable {
         return self.rows.clone();
     }
 
-    fn mount_holding(&self, _path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+    fn mount_holding(
+        &self,
+        _path: &Path,
+    ) -> Result<Option<MountHoldingAPath>, String> {
         if let Some(reason) = &self.holding_refusal {
             return Err(reason.clone());
         }
@@ -55,14 +69,26 @@ impl MountedDatasets for ScriptedTable {
 
 /// A table where nothing but the clone's own mount stands.
 fn a_table(rows: Vec<MountedDatasetInstance>) -> ScriptedTable {
-    return ScriptedTable { rows: Ok(rows), holding: None, holding_refusal: None };
+    return ScriptedTable {
+        rows: Ok(rows),
+        holding: None,
+        holding_refusal: None,
+    };
 }
 
 #[test]
 fn a_row_of_the_clone_at_its_slot_is_the_state_the_answer_must_produce() {
     let table: ScriptedTable = ScriptedTable {
-        rows: Ok(vec![MountedDatasetInstance { dataset: String::from(CLONE), mount_point: slot(), root: PathBuf::from("/") }]),
-        holding: Some(MountHoldingAPath { dataset: Some(String::from(CLONE)), filesystem_type: String::from("zfs"), mount_point: slot() }),
+        rows: Ok(vec![MountedDatasetInstance {
+            dataset: String::from(CLONE),
+            mount_point: slot(),
+            root: PathBuf::from("/"),
+        }]),
+        holding: Some(MountHoldingAPath {
+            dataset: Some(String::from(CLONE)),
+            filesystem_type: String::from("zfs"),
+            mount_point: slot(),
+        }),
         holding_refusal: None,
     };
     let state: CloneMount = of_a_table(&table, CLONE, slot().as_path());
@@ -82,7 +108,11 @@ fn a_table_with_no_row_and_nothing_at_the_slot_is_mounted_nowhere() {
 #[test]
 fn the_clone_under_another_path_is_elsewhere() {
     let table: ScriptedTable = ScriptedTable {
-        rows: Ok(vec![MountedDatasetInstance { dataset: String::from(CLONE), mount_point: PathBuf::from("/home/user/.cache/staging"), root: PathBuf::from("/") }]),
+        rows: Ok(vec![MountedDatasetInstance {
+            dataset: String::from(CLONE),
+            mount_point: PathBuf::from("/home/user/.cache/staging"),
+            root: PathBuf::from("/"),
+        }]),
         holding: None,
         holding_refusal: None,
     };
@@ -96,30 +126,52 @@ fn the_clone_under_another_path_is_elsewhere() {
 fn something_else_standing_at_the_slot_is_its_own_state() {
     let table: ScriptedTable = ScriptedTable {
         rows: Ok(Vec::new()),
-        holding: Some(MountHoldingAPath { dataset: None, filesystem_type: String::from("tmpfs"), mount_point: slot() }),
+        holding: Some(MountHoldingAPath {
+            dataset: None,
+            filesystem_type: String::from("tmpfs"),
+            mount_point: slot(),
+        }),
         holding_refusal: None,
     };
     let state: CloneMount = of_a_table(&table, CLONE, slot().as_path());
-    assert!(matches!(state, CloneMount::SomethingElseAtTheSlot { .. }), "{state:?}");
+    assert!(
+        matches!(state, CloneMount::SomethingElseAtTheSlot { .. }),
+        "{state:?}"
+    );
     assert!(!counts_as_at_its_slot(&state));
 }
 
 #[test]
 fn a_table_that_could_not_be_read_is_its_own_state_and_never_absence() {
-    let table: ScriptedTable = ScriptedTable { rows: Err(String::from("cannot read /proc/self/mountinfo")), holding: None, holding_refusal: None };
+    let table: ScriptedTable = ScriptedTable {
+        rows: Err(String::from("cannot read /proc/self/mountinfo")),
+        holding: None,
+        holding_refusal: None,
+    };
     let state: CloneMount = of_a_table(&table, CLONE, slot().as_path());
     assert!(matches!(state, CloneMount::Unreadable { .. }), "{state:?}");
     assert!(!counts_as_at_its_slot(&state));
-    assert!(word(&state).contains("could not be read"), "{}", word(&state));
+    assert!(
+        word(&state).contains("could not be read"),
+        "{}",
+        word(&state)
+    );
 }
 
 #[test]
 fn a_bind_mount_of_a_subtree_is_not_the_clones_own_root() {
     let table: ScriptedTable = ScriptedTable {
-        rows: Ok(vec![MountedDatasetInstance { dataset: String::from(CLONE), mount_point: slot(), root: PathBuf::from("/some/subtree") }]),
+        rows: Ok(vec![MountedDatasetInstance {
+            dataset: String::from(CLONE),
+            mount_point: slot(),
+            root: PathBuf::from("/some/subtree"),
+        }]),
         holding: None,
         holding_refusal: None,
     };
     let state: CloneMount = of_a_table(&table, CLONE, slot().as_path());
-    assert!(matches!(state, CloneMount::SomethingElseAtTheSlot { .. }), "a subtree bind is not the clone: {state:?}");
+    assert!(
+        matches!(state, CloneMount::SomethingElseAtTheSlot { .. }),
+        "a subtree bind is not the clone: {state:?}"
+    );
 }

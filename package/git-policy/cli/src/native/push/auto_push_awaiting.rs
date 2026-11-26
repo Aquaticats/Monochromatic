@@ -20,17 +20,46 @@
 //! ```
 
 use crate::auto_push::{
-    AutoPushOutcome, AutoPushResult, PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES, Planned, REFERENCE_LOCK_REFUSAL, Refspec, Sent,
-    TAG, held_back_result, moved_past_the_pin, push_arguments, pushed_tracking_ref, refspec_of, reported, skipped_with, source_of,
+    AutoPushOutcome,
+    AutoPushResult,
+    PUSH_LOCK_PAUSE,
+    PUSH_LOCK_RETRIES,
+    Planned,
+    REFERENCE_LOCK_REFUSAL,
+    Refspec,
+    Sent,
+    TAG,
+    held_back_result,
+    moved_past_the_pin,
+    push_arguments,
+    pushed_tracking_ref,
+    refspec_of,
+    reported,
+    skipped_with,
+    source_of,
 };
-use crate::auto_push_destination::{NamedPush, named_push_awaiting};
+use crate::auto_push_destination::{
+    NamedPush,
+    named_push_awaiting,
+};
 use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query_awaiting};
-/// Whether a push Git reported as failed published the recorded branch all the same.
-use crate::matching_push_delivered_the_recorded_branch::{MatchingPush, delivered_although_git_failed_awaiting};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+    SingleFlightError,
+    run_query_awaiting,
+};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
-use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops_awaiting};
+/// Whether a push Git reported as failed published the recorded branch all the same.
+use crate::matching_push_delivered_the_recorded_branch::{
+    MatchingPush,
+    delivered_although_git_failed_awaiting,
+};
+use crate::push_held_back_by_a_blocked_commit::{
+    WhereThePushStops,
+    where_the_push_stops_awaiting,
+};
 use crate::work_item_holding::BlockedVerdict;
 use std::ffi::OsString;
 use std::io::Write;
@@ -47,7 +76,10 @@ use std::io::Write;
 /// ```ts
 /// await gitQuerySucceedsOnTheRuntime({ gitPath, cwd, args });
 /// ```
-async fn query_succeeds_awaiting(git: &PushGit, arguments: &[&str]) -> Result<bool, SingleFlightError> {
+async fn query_succeeds_awaiting(
+    git: &PushGit,
+    arguments: &[&str],
+) -> Result<bool, SingleFlightError> {
     let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     return Ok(run_query_awaiting(git, &argv).await?.code == Some(0));
 }
@@ -76,23 +108,39 @@ pub(crate) async fn plan_named_push_awaiting(
         Some(name) => upstream_of_awaiting(git, name).await?,
         None => None,
     };
-    if upstream.is_none() && !query_succeeds_awaiting(git, &["remote", "get-url", "origin"]).await? {
+    if upstream.is_none() && !query_succeeds_awaiting(git, &["remote", "get-url", "origin"]).await?
+    {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new() }));
+        return Ok(Planned::Skip(AutoPushResult {
+            outcome: AutoPushOutcome::Skipped,
+            exit_code: 0,
+            shown: String::new(),
+        }));
     }
     return Ok(match &upstream {
         Some(_upstream_ref) => match named_push_awaiting(git, branch_ref).await? {
-            NamedPush::Push { remote, targets } => Planned::Push {
+            NamedPush::Push {
+                remote,
+                targets,
+            } => Planned::Push {
                 branch_ref: branch_ref.to_owned(),
                 upstream,
-                sent: Sent { remote, targets },
+                sent: Sent {
+                    remote,
+                    targets,
+                },
                 set_upstream: false,
             },
             // Git matches the branches itself: the plain push of the remote, with no refspec.
-            NamedPush::Matching { remote } => Planned::Push {
+            NamedPush::Matching {
+                remote,
+            } => Planned::Push {
                 branch_ref: branch_ref.to_owned(),
                 upstream,
-                sent: Sent { remote, targets: Vec::new() },
+                sent: Sent {
+                    remote,
+                    targets: Vec::new(),
+                },
                 set_upstream: false,
             },
             NamedPush::Skip(note) => skipped_with(note, err),
@@ -101,7 +149,10 @@ pub(crate) async fn plan_named_push_awaiting(
         None => Planned::Push {
             branch_ref: branch_ref.to_owned(),
             upstream: None,
-            sent: Sent { remote: String::from("origin"), targets: vec![branch_ref.to_owned()] },
+            sent: Sent {
+                remote: String::from("origin"),
+                targets: vec![branch_ref.to_owned()],
+            },
             set_upstream: true,
         },
     });
@@ -120,14 +171,27 @@ pub(crate) async fn plan_named_push_awaiting(
 /// ```ts
 /// const upstreamOf = async (git, short) => (await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${short}@{upstream}`])).ok || undefined;
 /// ```
-async fn upstream_of_awaiting(git: &PushGit, short: &str) -> Result<Option<String>, SingleFlightError> {
+async fn upstream_of_awaiting(
+    git: &PushGit,
+    short: &str,
+) -> Result<Option<String>, SingleFlightError> {
     let asked: String = format!("{short}@{{upstream}}");
-    let arguments: Vec<OsString> = ["rev-parse", "--abbrev-ref", "--symbolic-full-name", asked.as_str()].iter().map(OsString::from).collect();
+    let arguments: Vec<OsString> = [
+        "rev-parse",
+        "--abbrev-ref",
+        "--symbolic-full-name",
+        asked.as_str(),
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
     let output = run_query_awaiting(git, &arguments).await?;
     if output.code != Some(0) {
         return Ok(None);
     }
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let named: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
     return Ok((!named.is_empty()).then_some(named));
 }
 
@@ -144,9 +208,16 @@ async fn upstream_of_awaiting(git: &PushGit, short: &str) -> Result<Option<Strin
 /// ```ts
 /// const branchNamesThePin = async ({ gitPath, cwd }, branchRef, commit) => (await gitText(gitPath, ['rev-parse', '--verify', '--quiet', `${branchRef}^{commit}`], { cwd })) === commit;
 /// ```
-async fn branch_names_the_pin_awaiting(git: &PushGit, branch_ref: &str, commit: &str) -> Result<bool, SingleFlightError> {
+async fn branch_names_the_pin_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+    commit: &str,
+) -> Result<bool, SingleFlightError> {
     let asked: String = format!("{branch_ref}^{{commit}}");
-    let arguments: Vec<OsString> = ["rev-parse", "--verify", "--quiet", asked.as_str()].iter().map(OsString::from).collect();
+    let arguments: Vec<OsString> = ["rev-parse", "--verify", "--quiet", asked.as_str()]
+        .iter()
+        .map(OsString::from)
+        .collect();
     let output = run_query_awaiting(git, &arguments).await?;
     if output.code != Some(0) {
         // The branch names no commit at all, so it does not name this one.
@@ -182,13 +253,26 @@ pub async fn push_once_awaiting(
     err: &mut (dyn Write + Send),
 ) -> Result<AutoPushResult, SingleFlightError> {
     let planned: Planned = plan_named_push_awaiting(git, branch_ref, err).await?;
-    let (pushed_ref, upstream, sent, set_upstream): (String, Option<String>, Sent, bool) = match planned {
-        Planned::Skip(result) => return Ok(result),
-        Planned::Push { branch_ref: planned_ref, upstream, sent, set_upstream } => (planned_ref, upstream, sent, set_upstream),
-    };
+    let (pushed_ref, upstream, sent, set_upstream): (String, Option<String>, Sent, bool) =
+        match planned {
+            Planned::Skip(result) => return Ok(result),
+            Planned::Push {
+                branch_ref: planned_ref,
+                upstream,
+                sent,
+                set_upstream,
+            } => (planned_ref, upstream, sent, set_upstream),
+        };
     // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it,
     //  and so does a commit whose own checks still run.
-    let stop: WhereThePushStops = where_the_push_stops_awaiting(git, pushed_ref.as_str(), upstream.as_deref(), blocked, undecided).await;
+    let stop: WhereThePushStops = where_the_push_stops_awaiting(
+        git,
+        pushed_ref.as_str(),
+        upstream.as_deref(),
+        blocked,
+        undecided,
+    )
+    .await;
     let Some(pinned) = source_of(&stop, &sent, sent_up_to) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };
@@ -208,10 +292,15 @@ pub async fn push_once_awaiting(
     }
     let refspec: Refspec = refspec_of(pinned.as_str(), pushed_ref.as_str(), names_the_pin);
     let pushing_whole: bool = stop == WhereThePushStops::Nothing;
-    let arguments: Vec<String> = push_arguments(refspec.source.as_str(), &sent, refspec.set_upstream);
+    let arguments: Vec<String> =
+        push_arguments(refspec.source.as_str(), &sent, refspec.set_upstream);
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {sent_up_to} with {argument_views:?} on {pushed_ref}"));
-    let mut attempt: PushAttempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
+    debug(
+        TAG,
+        &format!("pushing {sent_up_to} with {argument_views:?} on {pushed_ref}"),
+    );
+    let mut attempt: PushAttempt =
+        run_push_command_awaiting(git, argument_views.as_slice()).await?;
     // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
     //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
     //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
@@ -234,7 +323,13 @@ pub async fn push_once_awaiting(
             Some(named) => named,
             None => of.to_owned(),
         };
-        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), pinned.as_str()).await {
+        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(
+            git,
+            full.as_str(),
+            pinned.as_str(),
+        )
+        .await
+        {
             note = crate::push_tracking_ref_repair::still_behind(full.as_str(), pinned.as_str());
         }
     }
@@ -257,9 +352,15 @@ pub async fn push_once_awaiting(
         },
     )
     .await?;
-    return reported(attempt, delivered, &stop, pushed_ref.as_str(), note.as_str(), err);
+    return reported(
+        attempt,
+        delivered,
+        &stop,
+        pushed_ref.as_str(),
+        note.as_str(),
+        err,
+    );
 }
-
 
 /// What:
 ///  Run one real `git push` and capture its interleaved output,
@@ -272,7 +373,10 @@ pub async fn push_once_awaiting(
 /// ```ts
 /// const attempt = await runPushAwaiting(git, pushArgs);
 /// ```
-async fn run_push_command_awaiting(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, SingleFlightError> {
+async fn run_push_command_awaiting(
+    git: &PushGit,
+    arguments: &[&str],
+) -> Result<PushAttempt, SingleFlightError> {
     let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     return run_push_awaiting(git, &argv).await;
 }

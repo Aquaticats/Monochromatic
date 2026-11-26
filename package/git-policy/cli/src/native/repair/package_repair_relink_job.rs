@@ -27,9 +27,21 @@
 
 use crate::diagnostic_log::debug;
 use crate::package_repair_pnpm::repair_pnpm_awaiting;
-use crate::package_repair_relink::{RelinkEntry, RelinkTool, SearchPathOfTheAdd, decode};
-use crate::package_repair_relink_job_worktree_proof::{HeldWorktree, refusal_of_a_replaced_or_unregistered_worktree, verdict_for_a_refusal};
-use crate::package_repair_report::{Finding, Outcome};
+use crate::package_repair_relink::{
+    RelinkEntry,
+    RelinkTool,
+    SearchPathOfTheAdd,
+    decode,
+};
+use crate::package_repair_relink_job_worktree_proof::{
+    HeldWorktree,
+    refusal_of_a_replaced_or_unregistered_worktree,
+    verdict_for_a_refusal,
+};
+use crate::package_repair_report::{
+    Finding,
+    Outcome,
+};
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_toolchain::repair_toolchain_awaiting;
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
@@ -50,7 +62,11 @@ const TAG: &str = "packageRepairRelinkJob";
 /// ```ts
 /// const run = (tool, root, environment) => tool === 'pnpm' ? repairPnpmAwaiting(root, environment) : repairToolchainAwaiting(root, environment);
 /// ```
-async fn relink_one(tool: RelinkTool, root: &std::path::Path, environment: &RepairEnvironment) -> Option<Finding> {
+async fn relink_one(
+    tool: RelinkTool,
+    root: &std::path::Path,
+    environment: &RepairEnvironment,
+) -> Option<Finding> {
     return match tool {
         RelinkTool::Pnpm => repair_pnpm_awaiting(root, environment).await,
         RelinkTool::Toolchain => repair_toolchain_awaiting(root, environment).await,
@@ -90,7 +106,10 @@ pub async fn relink_awaiting(item: &WorkItem) -> Verdict {
 /// ```ts
 /// async function relinkWith(item, environment): Promise<Verdict>;
 /// ```
-async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdict {
+async fn relink_with(
+    item: &WorkItem,
+    environment: &RepairEnvironment,
+) -> Verdict {
     let entry: RelinkEntry = match decode(item.parent.as_str()) {
         Ok(decoded) => decoded,
         Err(reason) => return Verdict::Failed(reason),
@@ -117,12 +136,40 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
         }
         match relink_one(*tool, held.path(), &as_the_add_left_it).await {
             // The worktree no longer needs this tool, which a person's own command may have seen to.
-            None => debug(TAG, format!("{}: {} had nothing to relink", entry.root.display(), tool.name()).as_str()),
-            Some(Finding { outcome: Outcome::Repaired { .. }, .. }) => repaired += 1,
-            Some(Finding { outcome: Outcome::Failed { reason, .. }, .. }) => failures.push(format!("{}: {reason}", tool.name())),
+            None => debug(
+                TAG,
+                format!(
+                    "{}: {} had nothing to relink",
+                    entry.root.display(),
+                    tool.name()
+                )
+                .as_str(),
+            ),
+            Some(Finding {
+                outcome: Outcome::Repaired {
+                    ..
+                },
+                ..
+            }) => repaired += 1,
+            Some(Finding {
+                outcome:
+                    Outcome::Failed {
+                        reason,
+                        ..
+                    },
+                ..
+            }) => failures.push(format!("{}: {reason}", tool.name())),
         }
     }
-    debug(TAG, format!("{}: {repaired} relinked, {} failed", entry.root.display(), failures.len()).as_str());
+    debug(
+        TAG,
+        format!(
+            "{}: {repaired} relinked, {} failed",
+            entry.root.display(),
+            failures.len()
+        )
+        .as_str(),
+    );
     return match failures.first() {
         None => Verdict::Done,
         // A tool that failed under the conditions this machine calls ordinary is not given up on after one try: another
@@ -153,12 +200,21 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
 /// ```ts
 /// const environmentAsTheAddLeftIt = (entry, environment) => entry.searchPath.kind === 'not-recorded' ? environment : { ...environment, searchPath: entry.searchPath.path ?? undefined };
 /// ```
-fn environment_as_the_add_left_it(entry: &RelinkEntry, environment: &RepairEnvironment) -> RepairEnvironment {
+fn environment_as_the_add_left_it(
+    entry: &RelinkEntry,
+    environment: &RepairEnvironment,
+) -> RepairEnvironment {
     return match entry.search_path {
         SearchPathOfTheAdd::NotRecorded => environment.clone(),
         // No path at all, so `find_program` finds nothing and a tool with its own link in the worktree uses that one.
-        SearchPathOfTheAdd::Unset => RepairEnvironment { search_path: None, ..environment.clone() },
-        SearchPathOfTheAdd::Set(ref search_path) => RepairEnvironment { search_path: Some(search_path.clone()), ..environment.clone() },
+        SearchPathOfTheAdd::Unset => RepairEnvironment {
+            search_path: None,
+            ..environment.clone()
+        },
+        SearchPathOfTheAdd::Set(ref search_path) => RepairEnvironment {
+            search_path: Some(search_path.clone()),
+            ..environment.clone()
+        },
     };
 }
 

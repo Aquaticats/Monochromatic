@@ -5,7 +5,10 @@
 //! with no real mount.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A root with a stand-in device for the root mount and one for a mounted drive,
 /// a folder of UUID links to both,
@@ -37,7 +40,11 @@ fn world(name: &str) -> World {
         mount_point.display(),
         drive_device.display()
     );
-    return World { root, mount_point, probe: RealLinkProbe::over(table.into_bytes(), by_uuid) };
+    return World {
+        root,
+        mount_point,
+        probe: RealLinkProbe::over(table.into_bytes(), by_uuid),
+    };
 }
 
 /// A path is on the filesystem of the longest mount that holds it,
@@ -46,10 +53,28 @@ fn world(name: &str) -> World {
 #[test]
 fn a_path_has_the_uuid_of_the_filesystem_that_holds_it() {
     let world: World = world("probe-uuid");
-    assert_eq!(world.probe.uuid_of(world.mount_point.join("folder").as_path()), "DRIVE-UUID");
-    assert_eq!(world.probe.uuid_of(world.root.join("dev").as_path()), "ROOT-UUID");
-    assert_eq!(world.probe.uuid_of(world.mount_point.join("folder").as_path()), "DRIVE-UUID", "asked again");
-    assert_eq!(world.probe.uuid_of(world.root.join("absent").as_path()), "", "a path that is not there has none");
+    assert_eq!(
+        world
+            .probe
+            .uuid_of(world.mount_point.join("folder").as_path()),
+        "DRIVE-UUID"
+    );
+    assert_eq!(
+        world.probe.uuid_of(world.root.join("dev").as_path()),
+        "ROOT-UUID"
+    );
+    assert_eq!(
+        world
+            .probe
+            .uuid_of(world.mount_point.join("folder").as_path()),
+        "DRIVE-UUID",
+        "asked again"
+    );
+    assert_eq!(
+        world.probe.uuid_of(world.root.join("absent").as_path()),
+        "",
+        "a path that is not there has none"
+    );
     remove(world.root.as_path());
 }
 
@@ -59,8 +84,16 @@ fn a_path_has_the_uuid_of_the_filesystem_that_holds_it() {
 fn only_the_mount_point_is_a_mount_point() {
     let world: World = world("probe-mount-point");
     assert!(world.probe.is_mount_point(world.mount_point.as_path()));
-    assert!(!world.probe.is_mount_point(world.mount_point.join("folder").as_path()));
-    assert!(!world.probe.is_mount_point(world.root.join("absent").as_path()));
+    assert!(
+        !world
+            .probe
+            .is_mount_point(world.mount_point.join("folder").as_path())
+    );
+    assert!(
+        !world
+            .probe
+            .is_mount_point(world.root.join("absent").as_path())
+    );
     remove(world.root.as_path());
 }
 
@@ -69,6 +102,11 @@ fn only_the_mount_point_is_a_mount_point() {
 fn a_device_without_a_uuid_link_has_none() {
     let world: World = world("probe-no-link");
     std::fs::remove_file(world.root.join("by-uuid/DRIVE-UUID")).expect("remove the drive's link");
-    assert_eq!(world.probe.uuid_of(world.mount_point.join("folder").as_path()), "");
+    assert_eq!(
+        world
+            .probe
+            .uuid_of(world.mount_point.join("folder").as_path()),
+        ""
+    );
     remove(world.root.as_path());
 }

@@ -3,11 +3,30 @@
 //! and of the copy such an add never owes.
 
 use super::*;
-use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
-use crate::worktree_add_binding::{OwedCopy, OwedSelection, bind_registration};
-use crate::worktree_copy_recovery::{RecoveryDestinations, recover_pending_worktree_copies};
+use crate::test_support::{
+    dead_copy_owner,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
+use crate::worktree_add_binding::{
+    OwedCopy,
+    OwedSelection,
+    bind_registration,
+};
+use crate::worktree_copy_recovery::{
+    RecoveryDestinations,
+    recover_pending_worktree_copies,
+};
 use crate::worktree_copy_stage_claim::claim_stage_for_add_as_owing;
-use crate::worktree_copy_stage_made_object::{made_record_beside_claim, read_made, record_creating_at, record_made};
+use crate::worktree_copy_stage_made_object::{
+    made_record_beside_claim,
+    read_made,
+    record_creating_at,
+    record_made,
+};
 
 /// One add whose exchange completed,
 /// as a command killed between the exchange and its settlement leaves it.
@@ -100,7 +119,10 @@ enum SnapshotIdentity {
 /// ```ts
 /// const scene = exchangedAddRecordedAs('name', identity);
 /// ```
-fn exchanged_add_recorded_as(name: &str, identity: SnapshotIdentity) -> Exchanged {
+fn exchanged_add_recorded_as(
+    name: &str,
+    identity: SnapshotIdentity,
+) -> Exchanged {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("tracked.txt"), b"tracked content\n").expect("a tracked file");
@@ -109,31 +131,75 @@ fn exchanged_add_recorded_as(name: &str, identity: SnapshotIdentity) -> Exchange
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common directory");
     let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("the fixture root");
     let planned: PathBuf = canonical_root.join("topic");
-    let owed: OwedCopy = OwedCopy { source: repo.clone(), selection: OwedSelection::MainCheckout };
-    let claim = claim_stage_for_add_as_owing(common.as_path(), planned.as_path(), &dead_copy_owner(), Some(&owed)).expect("claim");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("the destination Git made");
+    let owed: OwedCopy = OwedCopy {
+        source: repo.clone(),
+        selection: OwedSelection::MainCheckout,
+    };
+    let claim = claim_stage_for_add_as_owing(
+        common.as_path(),
+        planned.as_path(),
+        &dead_copy_owner(),
+        Some(&owed),
+    )
+    .expect("claim");
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "--no-checkout",
+            "-b",
+            "topic",
+            "../topic",
+        ],
+    );
+    let destination: PathBuf =
+        std::fs::canonicalize(root.join("topic")).expect("the destination Git made");
     // The wrapper's own snapshot carries the source's index, so every tracked file is in it before the swap;
     // Git's own checkout is the step the snapshot replaced.
     git(destination.as_path(), &["read-tree", "HEAD"]);
-    let bound = bind_registration(common.as_path(), destination.as_path()).expect("the binding Git's registration proves");
+    let bound = bind_registration(common.as_path(), destination.as_path())
+        .expect("the binding Git's registration proves");
     claim.record_binding(&bound.binding).expect("recorded");
     let container: PathBuf = claim.container().to_path_buf();
     std::fs::create_dir(container.as_path()).expect("the snapshot at the stage name");
-    std::fs::write(container.join("tracked.txt"), b"tracked content\n").expect("the tracked file the snapshot carried");
-    std::fs::write(container.join("ignored.txt"), b"ignored content\n").expect("the source's ignored state");
-    std::fs::write(container.join(".git"), bound.binding.pointer.as_slice()).expect("the new worktree's pointer");
-    let snapshot: crate::fs_beneath::ObjectId = path_identity(container.as_path()).expect("the snapshot's identity");
+    std::fs::write(container.join("tracked.txt"), b"tracked content\n")
+        .expect("the tracked file the snapshot carried");
+    std::fs::write(container.join("ignored.txt"), b"ignored content\n")
+        .expect("the source's ignored state");
+    std::fs::write(container.join(".git"), bound.binding.pointer.as_slice())
+        .expect("the new worktree's pointer");
+    let snapshot: crate::fs_beneath::ObjectId =
+        path_identity(container.as_path()).expect("the snapshot's identity");
     match identity {
-        SnapshotIdentity::Recorded => record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the stage's creation"),
-        SnapshotIdentity::NotRecorded => {
-            record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), None).expect("the record of the creation")
-        }
+        SnapshotIdentity::Recorded => record_made(common.as_path(), container.as_path(), snapshot)
+            .expect("the record of the stage's creation"),
+        SnapshotIdentity::NotRecorded => record_creating_at(
+            common.as_path(),
+            container.as_path(),
+            std::time::SystemTime::now(),
+            None,
+        )
+        .expect("the record of the creation"),
     }
     let parent = open_root(container.parent().expect("the stage's parent")).expect("the parent");
-    crate::fs_beneath::exchange_at(&parent, container.file_name().expect("the stage's name"), destination.file_name().expect("the destination's name")).expect("the exchange");
+    crate::fs_beneath::exchange_at(
+        &parent,
+        container.file_name().expect("the stage's name"),
+        destination.file_name().expect("the destination's name"),
+    )
+    .expect("the exchange");
     let claim_path: PathBuf = claim_file_beside(common.as_path());
-    return Exchanged { root, repo, common, destination, claim: claim_path, container, observer: canonical_root.join("observer") };
+    return Exchanged {
+        root,
+        repo,
+        common,
+        destination,
+        claim: claim_path,
+        container,
+        observer: canonical_root.join("observer"),
+    };
 }
 
 /// What:
@@ -153,8 +219,12 @@ fn claim_file_beside(common: &Path) -> PathBuf {
     let mut found: Vec<PathBuf> = std::fs::read_dir(root.as_path())
         .expect("the journal root")
         .flatten()
-        .map(|entry| { return entry.path() })
-        .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "stage" }) })
+        .map(|entry| return entry.path())
+        .filter(|path| {
+            return path
+                .extension()
+                .is_some_and(|extension| return extension == "stage");
+        })
         .collect();
     found.sort();
     return found.first().expect("a claim").clone();
@@ -174,16 +244,30 @@ fn claim_file_beside(common: &Path) -> PathBuf {
 /// ```
 fn records(scene: &Exchanged) -> Vec<String> {
     let root: PathBuf = crate::worktree_copy_journal::journal_root(scene.common.as_path());
-    let Ok(listing) = std::fs::read_dir(root.as_path()) else { return Vec::new() };
-    let mut names: Vec<String> = listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned() }).collect();
+    let Ok(listing) = std::fs::read_dir(root.as_path()) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = listing
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .collect();
     names.sort();
     return names;
 }
 
 /// The recovery pass a command in `running_in` makes.
-fn recovery_words(scene: &Exchanged, running_in: &Path) -> String {
+fn recovery_words(
+    scene: &Exchanged,
+    running_in: &Path,
+) -> String {
     let mut said: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(scene.common.as_path(), RecoveryDestinations::OnlyThisWorktree(running_in), &git_context(), &mut said).expect("the recovery pass");
+    recover_pending_worktree_copies(
+        scene.common.as_path(),
+        RecoveryDestinations::OnlyThisWorktree(running_in),
+        &git_context(),
+        &mut said,
+    )
+    .expect("the recovery pass");
     return String::from_utf8(said).expect("the words are text");
 }
 
@@ -209,14 +293,40 @@ fn recovery_words(scene: &Exchanged, running_in: &Path) -> String {
 fn an_exchange_another_worktree_meets_is_settled_without_a_copy() {
     let scene: Exchanged = exchanged_add("swap-settled-elsewhere");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(!said.contains("still owed"), "no copy is owed by an add whose snapshot carried the state: {said}");
-    assert!(!said.contains("never finished"), "and none may be reported as unfinished: {said}");
-    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names what the kill left: {said}");
-    assert!(!scene.container.exists(), "the directory Git made is removed from the stage name");
-    assert!(records(&scene).is_empty(), "the add's records are settled: {:?}", records(&scene));
-    assert_eq!(std::fs::read(scene.destination.join("ignored.txt")).ok(), Some(b"ignored content\n".to_vec()), "the snapshot's ignored state stays");
-    assert!(scene.destination.join(".git").exists(), "the worktree keeps its pointer");
-    assert!(scene.destination.join("tracked.txt").exists(), "and the files the snapshot carried");
+    assert!(
+        !said.contains("still owed"),
+        "no copy is owed by an add whose snapshot carried the state: {said}"
+    );
+    assert!(
+        !said.contains("never finished"),
+        "and none may be reported as unfinished: {said}"
+    );
+    assert!(
+        said.contains("was interrupted after its snapshot was swapped into place"),
+        "the settlement names what the kill left: {said}"
+    );
+    assert!(
+        !scene.container.exists(),
+        "the directory Git made is removed from the stage name"
+    );
+    assert!(
+        records(&scene).is_empty(),
+        "the add's records are settled: {:?}",
+        records(&scene)
+    );
+    assert_eq!(
+        std::fs::read(scene.destination.join("ignored.txt")).ok(),
+        Some(b"ignored content\n".to_vec()),
+        "the snapshot's ignored state stays"
+    );
+    assert!(
+        scene.destination.join(".git").exists(),
+        "the worktree keeps its pointer"
+    );
+    assert!(
+        scene.destination.join("tracked.txt").exists(),
+        "and the files the snapshot carried"
+    );
     remove(scene.root.as_path());
 }
 
@@ -236,10 +346,23 @@ fn an_exchange_another_worktree_meets_is_settled_without_a_copy() {
 fn an_exchange_the_worktrees_own_command_meets_is_settled_without_a_copy() {
     let scene: Exchanged = exchanged_add("swap-settled-in-destination");
     let said: String = recovery_words(&scene, scene.destination.as_path());
-    assert!(!said.contains("still owed"), "the worktree holds the state: {said}");
-    assert!(!said.contains("did not make it"), "and no reason for a copy that was never owed: {said}");
-    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names the exchange: {said}");
-    assert!(records(&scene).is_empty(), "the add's records are settled: {:?}", records(&scene));
+    assert!(
+        !said.contains("still owed"),
+        "the worktree holds the state: {said}"
+    );
+    assert!(
+        !said.contains("did not make it"),
+        "and no reason for a copy that was never owed: {said}"
+    );
+    assert!(
+        said.contains("was interrupted after its snapshot was swapped into place"),
+        "the settlement names the exchange: {said}"
+    );
+    assert!(
+        records(&scene).is_empty(),
+        "the add's records are settled: {:?}",
+        records(&scene)
+    );
     assert!(!scene.container.exists(), "the stage name is clear");
     remove(scene.root.as_path());
 }
@@ -263,11 +386,19 @@ fn an_exchange_the_worktrees_own_command_meets_is_settled_without_a_copy() {
 #[test]
 fn an_exchange_whose_stage_was_removed_before_the_claim_settled_still_settles() {
     let scene: Exchanged = exchanged_add("swap-settled-claim-only");
-    std::fs::remove_dir_all(scene.container.as_path()).expect("a command removed the directory Git made");
+    std::fs::remove_dir_all(scene.container.as_path())
+        .expect("a command removed the directory Git made");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names the exchange: {said}");
+    assert!(
+        said.contains("was interrupted after its snapshot was swapped into place"),
+        "the settlement names the exchange: {said}"
+    );
     assert!(!said.contains("still owed"), "nothing is owed: {said}");
-    assert!(records(&scene).is_empty(), "the claim the killed command left is settled: {:?}", records(&scene));
+    assert!(
+        records(&scene).is_empty(),
+        "the claim the killed command left is settled: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -290,12 +421,33 @@ fn an_exchange_whose_stage_was_removed_before_the_claim_settled_still_settles() 
 #[test]
 fn an_exchange_whose_destination_was_removed_settles_the_stage_name() {
     let scene: Exchanged = exchanged_add("swap-after-removal");
-    git(scene.repo.as_path(), &["worktree", "remove", "--force", scene.destination.to_str().expect("a text path")]);
+    git(
+        scene.repo.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            scene.destination.to_str().expect("a text path"),
+        ],
+    );
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(said.contains("no longer the one the add made"), "the settlement says the worktree moved on: {said}");
-    assert!(!said.contains("still owed"), "nothing is owed to a worktree that is gone: {said}");
-    assert!(!scene.container.exists(), "the directory Git made is removed: {said}");
-    assert!(records(&scene).is_empty(), "the add's records are settled: {:?}", records(&scene));
+    assert!(
+        said.contains("no longer the one the add made"),
+        "the settlement says the worktree moved on: {said}"
+    );
+    assert!(
+        !said.contains("still owed"),
+        "nothing is owed to a worktree that is gone: {said}"
+    );
+    assert!(
+        !scene.container.exists(),
+        "the directory Git made is removed: {said}"
+    );
+    assert!(
+        records(&scene).is_empty(),
+        "the add's records are settled: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -318,12 +470,24 @@ fn an_exchange_whose_destination_was_removed_settles_the_stage_name() {
 #[test]
 fn an_entry_added_to_the_directory_git_made_moves_into_the_worktree() {
     let scene: Exchanged = exchanged_add("swap-stray-entry");
-    std::fs::write(scene.container.join("mine.txt"), b"mine\n").expect("an entry another process added");
+    std::fs::write(scene.container.join("mine.txt"), b"mine\n")
+        .expect("an entry another process added");
     let said: String = recovery_words(&scene, scene.observer.as_path());
     assert!(!said.contains("still owed"), "no copy is owed: {said}");
-    assert_eq!(std::fs::read(scene.destination.join("mine.txt")).ok(), Some(b"mine\n".to_vec()), "the entry moves into the worktree: {said}");
-    assert!(!scene.container.exists(), "and the directory Git made goes: {said}");
-    assert!(records(&scene).is_empty(), "the add's records are settled: {:?}", records(&scene));
+    assert_eq!(
+        std::fs::read(scene.destination.join("mine.txt")).ok(),
+        Some(b"mine\n".to_vec()),
+        "the entry moves into the worktree: {said}"
+    );
+    assert!(
+        !scene.container.exists(),
+        "and the directory Git made goes: {said}"
+    );
+    assert!(
+        records(&scene).is_empty(),
+        "the add's records are settled: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -346,14 +510,37 @@ fn an_entry_added_to_the_directory_git_made_moves_into_the_worktree() {
 #[test]
 fn a_folder_holding_more_than_the_pointer_is_kept_and_named() {
     let scene: Exchanged = exchanged_add("swap-kept-by-a-persons-file");
-    git(scene.repo.as_path(), &["worktree", "remove", "--force", scene.destination.to_str().expect("a text path")]);
-    std::fs::write(scene.container.join("mine.txt"), b"mine\n").expect("a person's file in the folder");
+    git(
+        scene.repo.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            scene.destination.to_str().expect("a text path"),
+        ],
+    );
+    std::fs::write(scene.container.join("mine.txt"), b"mine\n")
+        .expect("a person's file in the folder");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(said.contains("was not changed"), "the folder is named as kept: {said}");
-    assert!(said.contains("mine.txt"), "the entry that keeps it is named: {said}");
+    assert!(
+        said.contains("was not changed"),
+        "the folder is named as kept: {said}"
+    );
+    assert!(
+        said.contains("mine.txt"),
+        "the entry that keeps it is named: {said}"
+    );
     assert!(!said.contains("still owed"), "no copy is owed: {said}");
-    assert_eq!(std::fs::read(scene.container.join("mine.txt")).ok(), Some(b"mine\n".to_vec()), "the person's file stays");
-    assert!(!records(&scene).is_empty(), "the claim stays with the folder it names: {:?}", records(&scene));
+    assert_eq!(
+        std::fs::read(scene.container.join("mine.txt")).ok(),
+        Some(b"mine\n".to_vec()),
+        "the person's file stays"
+    );
+    assert!(
+        !records(&scene).is_empty(),
+        "the claim stays with the folder it names: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -381,14 +568,40 @@ fn a_folder_holding_more_than_the_pointer_is_kept_and_named() {
 fn an_exchange_whose_identity_was_never_recorded_is_settled_without_a_copy() {
     let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-unrecorded-identity");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(!said.contains("still owed"), "no copy is owed by an add whose snapshot carried the state: {said}");
-    assert!(!said.contains("never finished"), "and none may be reported as unfinished: {said}");
-    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names what the kill left: {said}");
-    assert!(said.contains("names no identity"), "and says what no record let it compare: {said}");
-    assert!(!scene.container.exists(), "the directory Git made is removed from the stage name");
-    assert!(records(&scene).is_empty(), "the add's records are settled: {:?}", records(&scene));
-    assert_eq!(std::fs::read(scene.destination.join("ignored.txt")).ok(), Some(b"ignored content\n".to_vec()), "the snapshot's ignored state stays");
-    assert!(scene.destination.join("tracked.txt").exists(), "and the files the snapshot carried");
+    assert!(
+        !said.contains("still owed"),
+        "no copy is owed by an add whose snapshot carried the state: {said}"
+    );
+    assert!(
+        !said.contains("never finished"),
+        "and none may be reported as unfinished: {said}"
+    );
+    assert!(
+        said.contains("was interrupted after its snapshot was swapped into place"),
+        "the settlement names what the kill left: {said}"
+    );
+    assert!(
+        said.contains("names no identity"),
+        "and says what no record let it compare: {said}"
+    );
+    assert!(
+        !scene.container.exists(),
+        "the directory Git made is removed from the stage name"
+    );
+    assert!(
+        records(&scene).is_empty(),
+        "the add's records are settled: {:?}",
+        records(&scene)
+    );
+    assert_eq!(
+        std::fs::read(scene.destination.join("ignored.txt")).ok(),
+        Some(b"ignored content\n".to_vec()),
+        "the snapshot's ignored state stays"
+    );
+    assert!(
+        scene.destination.join("tracked.txt").exists(),
+        "and the files the snapshot carried"
+    );
     remove(scene.root.as_path());
 }
 
@@ -410,13 +623,25 @@ fn an_exchange_whose_identity_was_never_recorded_is_settled_without_a_copy() {
 /// ```
 #[test]
 fn an_exchange_whose_identity_was_never_recorded_and_whose_stage_was_removed_still_settles() {
-    let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-unrecorded-claim-only");
-    std::fs::remove_dir_all(scene.container.as_path()).expect("a command removed the directory Git made");
+    let scene: Exchanged =
+        exchanged_add_without_the_snapshot_identity("swap-unrecorded-claim-only");
+    std::fs::remove_dir_all(scene.container.as_path())
+        .expect("a command removed the directory Git made");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names the exchange: {said}");
-    assert!(said.contains("names no identity"), "and says what no record let it compare: {said}");
+    assert!(
+        said.contains("was interrupted after its snapshot was swapped into place"),
+        "the settlement names the exchange: {said}"
+    );
+    assert!(
+        said.contains("names no identity"),
+        "and says what no record let it compare: {said}"
+    );
     assert!(!said.contains("still owed"), "nothing is owed: {said}");
-    assert!(records(&scene).is_empty(), "the claim the killed command left is settled: {:?}", records(&scene));
+    assert!(
+        records(&scene).is_empty(),
+        "the claim the killed command left is settled: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -446,16 +671,42 @@ fn an_exchange_whose_identity_was_never_recorded_and_whose_stage_was_removed_sti
 #[test]
 fn a_folder_whose_snapshot_no_record_names_is_kept_and_named() {
     let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-unrecorded-kept");
-    git(scene.repo.as_path(), &["worktree", "remove", "--force", scene.destination.to_str().expect("a text path")]);
+    git(
+        scene.repo.as_path(),
+        &[
+            "worktree",
+            "remove",
+            "--force",
+            scene.destination.to_str().expect("a text path"),
+        ],
+    );
     std::fs::create_dir(scene.destination.as_path()).expect("another directory at the destination");
-    std::fs::write(scene.container.join("mine.txt"), b"mine\n").expect("a person's file in the folder");
+    std::fs::write(scene.container.join("mine.txt"), b"mine\n")
+        .expect("a person's file in the folder");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(said.contains("was not changed"), "the folder is named as kept: {said}");
-    assert!(said.contains("mine.txt"), "the entry that keeps it is named: {said}");
+    assert!(
+        said.contains("was not changed"),
+        "the folder is named as kept: {said}"
+    );
+    assert!(
+        said.contains("mine.txt"),
+        "the entry that keeps it is named: {said}"
+    );
     assert!(!said.contains("still owed"), "no copy is owed: {said}");
-    assert_eq!(std::fs::read(scene.container.join("mine.txt")).ok(), Some(b"mine\n".to_vec()), "the person's file stays where they put it");
-    assert!(!scene.destination.join("mine.txt").exists(), "and is never moved into a folder no record proves is the worktree it belongs to");
-    assert!(!records(&scene).is_empty(), "the claim stays with the folder it names: {:?}", records(&scene));
+    assert_eq!(
+        std::fs::read(scene.container.join("mine.txt")).ok(),
+        Some(b"mine\n".to_vec()),
+        "the person's file stays where they put it"
+    );
+    assert!(
+        !scene.destination.join("mine.txt").exists(),
+        "and is never moved into a folder no record proves is the worktree it belongs to"
+    );
+    assert!(
+        !records(&scene).is_empty(),
+        "the claim stays with the folder it names: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -481,18 +732,35 @@ fn a_folder_whose_snapshot_no_record_names_is_kept_and_named() {
 #[test]
 fn an_add_killed_before_its_exchange_settles_nothing() {
     let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-before-the-exchange");
-    let parent = open_root(scene.container.parent().expect("the stage's parent")).expect("the parent");
+    let parent =
+        open_root(scene.container.parent().expect("the stage's parent")).expect("the parent");
     crate::fs_beneath::exchange_at(
         &parent,
         scene.container.file_name().expect("the stage's name"),
-        scene.destination.file_name().expect("the destination's name"),
+        scene
+            .destination
+            .file_name()
+            .expect("the destination's name"),
     )
     .expect("the exchange put back, as a kill before it leaves them");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(!said.contains("was interrupted after its snapshot was swapped into place"), "no swap is claimed: {said}");
-    assert!(said.contains("still owed"), "the copy the add owes is still owed: {said}");
-    assert!(scene.container.exists(), "the folder at the stage name stays whole");
-    assert!(!records(&scene).is_empty(), "and so do the claim and the records that name it: {:?}", records(&scene));
+    assert!(
+        !said.contains("was interrupted after its snapshot was swapped into place"),
+        "no swap is claimed: {said}"
+    );
+    assert!(
+        said.contains("still owed"),
+        "the copy the add owes is still owed: {said}"
+    );
+    assert!(
+        scene.container.exists(),
+        "the folder at the stage name stays whole"
+    );
+    assert!(
+        !records(&scene).is_empty(),
+        "and so do the claim and the records that name it: {:?}",
+        records(&scene)
+    );
     remove(scene.root.as_path());
 }
 
@@ -502,11 +770,22 @@ fn an_add_killed_before_its_exchange_settles_nothing() {
 fn the_scene_records_the_object_it_made() {
     let scene: Exchanged = exchanged_add("swap-scene-recorded");
     let made = read_made(scene.claim.as_path()).expect("the record of the stage's creation");
-    assert_eq!(made.container, scene.container, "the record names the stage container");
-    let recorded: crate::fs_beneath::ObjectId =
-        made.object.expect("the record names the object the creation made, not only the creation to come");
-    assert!(made_record_beside_claim(scene.claim.as_path()).exists(), "the record stands beside the claim");
-    assert_eq!(path_identity(scene.destination.as_path()), Some(recorded), "the snapshot is at the destination after the exchange");
+    assert_eq!(
+        made.container, scene.container,
+        "the record names the stage container"
+    );
+    let recorded: crate::fs_beneath::ObjectId = made
+        .object
+        .expect("the record names the object the creation made, not only the creation to come");
+    assert!(
+        made_record_beside_claim(scene.claim.as_path()).exists(),
+        "the record stands beside the claim"
+    );
+    assert_eq!(
+        path_identity(scene.destination.as_path()),
+        Some(recorded),
+        "the snapshot is at the destination after the exchange"
+    );
     remove(scene.root.as_path());
 }
 
@@ -532,20 +811,57 @@ fn the_scene_records_the_object_it_made() {
 fn a_kill_after_the_release_removed_the_object_record_leaves_no_copy_owed() {
     let scene: Exchanged = exchanged_add("swap-killed-in-the-release");
     let record: PathBuf = scene.claim.with_extension(&DESTINATION_SUFFIX[1..]);
-    let text: String = std::fs::read_to_string(record.as_path()).expect("the record the add wrote before Git ran");
-    let Some(Recorded::Registered(binding)) = decode_record(text.as_str()) else { panic!("the scene's record is the binding the add wrote") };
+    let text: String =
+        std::fs::read_to_string(record.as_path()).expect("the record the add wrote before Git ran");
+    let Some(Recorded::Registered(binding)) = decode_record(text.as_str()) else {
+        panic!("the scene's record is the binding the add wrote")
+    };
     // The rung settles the directory Git made before it returns, and the release's removals run after that.
-    let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(scene.container.as_path(), scene.destination.as_path(), binding.destination_id, binding.pointer.as_slice());
-    assert_eq!(notes, Vec::<String>::new(), "the disconnected directory is settled as the creating command settles it");
-    let claim: StageClaim = StageClaim::adopted(scene.claim.as_path(), scene.container.as_path(), Some(record.as_path())).expect("the claim the add wrote");
+    let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(
+        scene.container.as_path(),
+        scene.destination.as_path(),
+        binding.destination_id,
+        binding.pointer.as_slice(),
+    );
+    assert_eq!(
+        notes,
+        Vec::<String>::new(),
+        "the disconnected directory is settled as the creating command settles it"
+    );
+    let claim: StageClaim = StageClaim::adopted(
+        scene.claim.as_path(),
+        scene.container.as_path(),
+        Some(record.as_path()),
+    )
+    .expect("the claim the add wrote");
     // `StageClaim::settle_unsynced`, instruction by instruction, with the kill after the first removal.
-    claim.mark_complete_unsynced().expect("the completion marker the release writes before any removal");
-    crate::worktree_copy_stage_made_object::remove_made(scene.claim.as_path()).expect("the record of the object the stage's creation made");
+    claim
+        .mark_complete_unsynced()
+        .expect("the completion marker the release writes before any removal");
+    crate::worktree_copy_stage_made_object::remove_made(scene.claim.as_path())
+        .expect("the record of the object the stage's creation made");
     let said: String = recovery_words(&scene, scene.observer.as_path());
-    assert!(!said.contains("still owed"), "an add that finished owes no copy, whatever stands recorded: {said}");
-    assert!(!said.contains("never finished"), "and none may be reported as unfinished: {said}");
-    assert_eq!(said, "", "the add is whole, so there is nothing to say about it: {said}");
-    assert!(records(&scene).is_empty(), "the claim and its records settle: {:?}", records(&scene));
-    assert_eq!(std::fs::read(scene.destination.join("ignored.txt")).ok(), Some(b"ignored content\n".to_vec()), "the snapshot's ignored state stays where it is");
+    assert!(
+        !said.contains("still owed"),
+        "an add that finished owes no copy, whatever stands recorded: {said}"
+    );
+    assert!(
+        !said.contains("never finished"),
+        "and none may be reported as unfinished: {said}"
+    );
+    assert_eq!(
+        said, "",
+        "the add is whole, so there is nothing to say about it: {said}"
+    );
+    assert!(
+        records(&scene).is_empty(),
+        "the claim and its records settle: {:?}",
+        records(&scene)
+    );
+    assert_eq!(
+        std::fs::read(scene.destination.join("ignored.txt")).ok(),
+        Some(b"ignored content\n".to_vec()),
+        "the snapshot's ignored state stays where it is"
+    );
     remove(scene.root.as_path());
 }

@@ -38,17 +38,29 @@
 //! when they can be read
 //! ```
 
-/// One real Git start,
-/// and its failure text.
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// The package's own reader of Git's ref files,
 /// which answers without a Git start.
-use crate::repo_read_refs::{RefValue, Refs};
+use crate::repo_read_refs::{
+    RefValue,
+    Refs,
+};
+/// One real Git start,
+/// and its failure text.
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
 /// The ref backend,
 /// which decides whether files or tables hold the refs.
 use crate::transaction_journal::RefFormat;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Whether one byte is the line feed that ends one listed ref.
 /// `&u8` borrows the byte,
@@ -90,7 +102,10 @@ pub struct RefSnapshotEntry {
 /// Order two ref entries by the bytes of their names,
 /// which is the order Git lists refs in.
 /// `sort_by` takes this function by path.
-fn compare_by_name_bytes(left: &RefSnapshotEntry, right: &RefSnapshotEntry) -> std::cmp::Ordering {
+fn compare_by_name_bytes(
+    left: &RefSnapshotEntry,
+    right: &RefSnapshotEntry,
+) -> std::cmp::Ordering {
     return left.name.cmp(&right.name);
 }
 
@@ -139,8 +154,18 @@ impl SnapshotSources {
     /// ```ts
     /// SnapshotSources.of(gitDir, commonDir, refFormat, objectFormat)
     /// ```
-    pub fn of(git_dir: PathBuf, common_dir: PathBuf, ref_format: RefFormat, object_format: &str) -> SnapshotSources {
-        return SnapshotSources { git_dir, common_dir, ref_format, hex_length: crate::ref_files::hex_length(object_format) };
+    pub fn of(
+        git_dir: PathBuf,
+        common_dir: PathBuf,
+        ref_format: RefFormat,
+        object_format: &str,
+    ) -> SnapshotSources {
+        return SnapshotSources {
+            git_dir,
+            common_dir,
+            ref_format,
+            hex_length: crate::ref_files::hex_length(object_format),
+        };
     }
 }
 
@@ -154,12 +179,23 @@ impl SnapshotSources {
 /// ```ts
 /// const entryOf = (name: string, value: RefValue): RefSnapshotEntry
 /// ```
-fn entry_of(name: &str, value: RefValue) -> RefSnapshotEntry {
+fn entry_of(
+    name: &str,
+    value: RefValue,
+) -> RefSnapshotEntry {
     // A name is bytes in a ref store, and the reader hands it as text only where it is text.
     let bytes: Vec<u8> = name.as_bytes().to_vec();
     return match value {
-        RefValue::Direct(oid) => RefSnapshotEntry { name: bytes, oid, symref: Vec::new() },
-        RefValue::Symbolic(target) => RefSnapshotEntry { name: bytes, oid: String::new(), symref: target.into_bytes() },
+        RefValue::Direct(oid) => RefSnapshotEntry {
+            name: bytes,
+            oid,
+            symref: Vec::new(),
+        },
+        RefValue::Symbolic(target) => RefSnapshotEntry {
+            name: bytes,
+            oid: String::new(),
+            symref: target.into_bytes(),
+        },
     };
 }
 
@@ -243,7 +279,11 @@ fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntr
     //  while they are being read.
     let mut ends: Vec<Option<(Vec<u8>, String)>> = Vec::with_capacity(entries.len());
     for entry in &entries {
-        ends.push(if entry.symref.is_empty() { None } else { end_of_a_symbolic_chain(entries.as_slice(), entry.symref.as_slice()) });
+        ends.push(if entry.symref.is_empty() {
+            None
+        } else {
+            end_of_a_symbolic_chain(entries.as_slice(), entry.symref.as_slice())
+        });
     }
     let mut kept: Vec<RefSnapshotEntry> = Vec::with_capacity(entries.len());
     for (entry, end) in entries.into_iter().zip(ends) {
@@ -252,7 +292,11 @@ fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntr
             None if entry.symref.is_empty() => kept.push(entry),
             // A chain that ends nowhere, or beyond Git's depth, is not a ref Git prints.
             None => {}
-            Some((ends_at, oid)) => kept.push(RefSnapshotEntry { name: entry.name, symref: ends_at, oid }),
+            Some((ends_at, oid)) => kept.push(RefSnapshotEntry {
+                name: entry.name,
+                symref: ends_at,
+                oid,
+            }),
         }
     }
     return Some(kept);
@@ -270,7 +314,10 @@ fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntr
 /// ```
 fn is_a_per_worktree_name(name: &str) -> bool {
     for namespace in PER_WORKTREE_NAMESPACES {
-        if name.len() > namespace.len() && name.starts_with(namespace) && name.as_bytes()[namespace.len()] == b'/' {
+        if name.len() > namespace.len()
+            && name.starts_with(namespace)
+            && name.as_bytes()[namespace.len()] == b'/'
+        {
             return true;
         }
     }
@@ -305,7 +352,10 @@ pub const SYMBOLIC_REF_DEPTH_IN_A_LISTING: usize = 4;
 /// ```ts
 /// const endOfChain = (entries, target) => { let name = target; for (let step = 0; step < 4; step++) { const found = findByName(entries, name); if (found === undefined) return undefined; if (entries[found].symref === '') return [name, entries[found].oid]; name = entries[found].symref } return undefined }
 /// ```
-fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
+fn end_of_a_symbolic_chain(
+    entries: &[RefSnapshotEntry],
+    target: &[u8],
+) -> Option<(Vec<u8>, String)> {
     let mut current: Vec<u8> = target.to_vec();
     for _step in 0..SYMBOLIC_REF_DEPTH_IN_A_LISTING {
         // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
@@ -330,7 +380,10 @@ fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Optio
 /// ```ts
 /// const findByName = (entries, name) => { let low = 0, high = entries.length; while (low < high) { const middle = low + ((high - low) >> 1); const order = compare(entries[middle].name, name); if (order < 0) low = middle + 1; else if (order > 0) high = middle; else return middle } return undefined }
 /// ```
-fn find_by_name(entries: &[RefSnapshotEntry], name: &[u8]) -> Option<usize> {
+fn find_by_name(
+    entries: &[RefSnapshotEntry],
+    name: &[u8],
+) -> Option<usize> {
     let mut low: usize = 0;
     let mut high: usize = entries.len();
     while low < high {
@@ -357,7 +410,11 @@ fn find_by_name(entries: &[RefSnapshotEntry], name: &[u8]) -> Option<usize> {
 /// ```ts
 /// const refs = refsReadFromFiles(sources) ?? listRealRefs({ gitPath, cwd });
 /// ```
-pub fn list_real_refs_from(context: &GitContext, cwd: &Path, sources: &SnapshotSources) -> Result<Vec<RefSnapshotEntry>, GitFailure> {
+pub fn list_real_refs_from(
+    context: &GitContext,
+    cwd: &Path,
+    sources: &SnapshotSources,
+) -> Result<Vec<RefSnapshotEntry>, GitFailure> {
     if let Some(read) = refs_read_from_files(sources) {
         return Ok(read);
     }
@@ -374,10 +431,16 @@ pub fn list_real_refs_from(context: &GitContext, cwd: &Path, sources: &SnapshotS
 /// ```ts
 /// await listRealRefs({ gitPath, cwd });
 /// ```
-pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapshotEntry>, GitFailure> {
+pub fn list_real_refs(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<Vec<RefSnapshotEntry>, GitFailure> {
     let mut request: GitRequest = GitRequest::new(
         cwd,
-        &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"],
+        &[
+            "for-each-ref",
+            "--format=%(refname)%00%(objectname)%00%(symref)",
+        ],
     );
     request.without_prefix = true;
     let output: GitOutput = run_git_checked(context, &request)?;
@@ -400,7 +463,7 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
                 return Err(GitFailure(format!(
                     "git for-each-ref returned a malformed object name: {:?}",
                     String::from_utf8_lossy(line)
-                )))
+                )));
             }
         };
         refs.push(RefSnapshotEntry {

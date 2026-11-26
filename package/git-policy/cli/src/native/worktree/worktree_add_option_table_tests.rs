@@ -15,7 +15,11 @@
 //! ```
 
 use super::*;
-use crate::test_support::{fixture, remove, repository};
+use crate::test_support::{
+    fixture,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 use std::process::Output;
 
@@ -28,15 +32,37 @@ use std::process::Output;
 #[test]
 fn a_long_option_resolves_the_way_gits_parser_does() {
     let name = |text: &str| -> Option<(&'static str, bool, Option<String>)> {
-        return resolve_long(text).map(|found| { return (found.option.long.unwrap_or("-"), found.unset, found.attached.map(String::from)); });
+        return resolve_long(text).map(|found| {
+            return (
+                found.option.long.unwrap_or("-"),
+                found.unset,
+                found.attached.map(String::from),
+            );
+        });
     };
     assert_eq!(name("detach"), Some(("detach", false, None)));
-    assert_eq!(name("det"), Some(("detach", false, None)), "a unique prefix");
+    assert_eq!(
+        name("det"),
+        Some(("detach", false, None)),
+        "a unique prefix"
+    );
     assert_eq!(name("d"), Some(("detach", false, None)));
-    assert_eq!(name("no-che"), Some(("checkout", true, None)), "a negated prefix");
+    assert_eq!(
+        name("no-che"),
+        Some(("checkout", true, None)),
+        "a negated prefix"
+    );
     assert_eq!(name("no-checkout"), Some(("checkout", true, None)));
-    assert_eq!(name("reas=why"), Some(("reason", false, Some(String::from("why")))), "a prefix with its value");
-    assert_eq!(name("reason="), Some(("reason", false, Some(String::new()))), "an empty value is a value");
+    assert_eq!(
+        name("reas=why"),
+        Some(("reason", false, Some(String::from("why")))),
+        "a prefix with its value"
+    );
+    assert_eq!(
+        name("reason="),
+        Some(("reason", false, Some(String::new()))),
+        "an empty value is a value"
+    );
     assert_eq!(name("re"), None, "reason and relative-paths");
     assert_eq!(name("rel"), Some(("relative-paths", false, None)));
     assert_eq!(name("f"), Some(("force", false, None)));
@@ -44,12 +70,20 @@ fn a_long_option_resolves_the_way_gits_parser_does() {
     assert_eq!(name("l"), Some(("lock", false, None)));
     assert_eq!(name("o"), Some(("orphan", false, None)));
     assert_eq!(name("t"), Some(("track", false, None)));
-    assert_eq!(name("n"), None, "a prefix of no- abbreviates every negation");
+    assert_eq!(
+        name("n"),
+        None,
+        "a prefix of no- abbreviates every negation"
+    );
     assert_eq!(name("no"), None);
     assert_eq!(name("no-"), None);
     assert_eq!(name("no-no-checkout"), None, "a double negation");
     assert_eq!(name("nonsense"), None);
-    assert_eq!(name("detachx"), None, "a longer text than the name is not a prefix");
+    assert_eq!(
+        name("detachx"),
+        None,
+        "a longer text than the name is not a prefix"
+    );
     assert_eq!(name("c"), Some(("checkout", false, None)));
 }
 
@@ -73,11 +107,16 @@ fn the_option_table_matches_what_git_prints_for_dash_h() {
         .expect("git runs");
     remove(root.as_path());
     // `-h` prints the usage on standard output with status 129, and the option lines follow a blank line.
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned() + String::from_utf8_lossy(output.stderr.as_slice()).as_ref();
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned()
+        + String::from_utf8_lossy(output.stderr.as_slice()).as_ref();
     let listed: Vec<(Option<u8>, Option<String>, bool)> = text
         .lines()
-        .skip_while(|line| { return !line.is_empty(); })
-        .filter(|line| { return line.starts_with("    -"); })
+        .skip_while(|line| {
+            return !line.is_empty();
+        })
+        .filter(|line| {
+            return line.starts_with("    -");
+        })
         .map(|line| {
             // The spelling is dash words and `<placeholder>` words; the description starts at the first other word.
             let mut short: Option<u8> = None;
@@ -100,14 +139,26 @@ fn the_option_table_matches_what_git_prints_for_dash_h() {
         .collect();
     let table: Vec<(Option<u8>, Option<String>, bool)> = ADD_OPTIONS
         .iter()
-        .map(|option| { return (option.short, option.long.map(String::from), option.takes == Takes::Required); })
+        .map(|option| {
+            return (
+                option.short,
+                option.long.map(String::from),
+                option.takes == Takes::Required,
+            );
+        })
         .collect();
     assert!(!listed.is_empty(), "the usage lists options: {text}");
     for entry in &listed {
-        assert!(table.contains(entry), "Git lists {entry:?}, which the table lacks: {text}");
+        assert!(
+            table.contains(entry),
+            "Git lists {entry:?}, which the table lacks: {text}"
+        );
     }
     for entry in &table {
-        assert!(listed.contains(entry), "the table lists {entry:?}, which Git does not: {text}");
+        assert!(
+            listed.contains(entry),
+            "the table lists {entry:?}, which Git does not: {text}"
+        );
     }
 }
 
@@ -119,14 +170,38 @@ fn the_option_table_matches_what_git_prints_for_dash_h() {
 #[test]
 fn an_exact_name_wins_over_the_names_it_is_a_prefix_of() {
     static TABLE: &[AddOption] = &[
-        AddOption { short: None, long: Some("reason"), takes: Takes::Nothing },
-        AddOption { short: None, long: Some("re"), takes: Takes::Required },
-        AddOption { short: None, long: Some("reset"), takes: Takes::Nothing },
+        AddOption {
+            short: None,
+            long: Some("reason"),
+            takes: Takes::Nothing,
+        },
+        AddOption {
+            short: None,
+            long: Some("re"),
+            takes: Takes::Required,
+        },
+        AddOption {
+            short: None,
+            long: Some("reset"),
+            takes: Takes::Nothing,
+        },
     ];
     let exact = resolve_in(TABLE, "re").expect("the exact name");
     assert_eq!(exact.option.long, Some("re"));
-    assert!(resolve_in(TABLE, "res").is_some_and(|prefix| { return prefix.option.long == Some("reset"); }), "a unique prefix");
-    assert!(resolve_in(TABLE, "rea").is_some_and(|prefix| { return prefix.option.long == Some("reason"); }));
-    assert!(resolve_in(TABLE, "r").is_none(), "three names share the prefix");
-    assert!(resolve_in(TABLE, "re=1").is_some_and(|valued| { return valued.attached == Some("1"); }));
+    assert!(
+        resolve_in(TABLE, "res").is_some_and(|prefix| {
+            return prefix.option.long == Some("reset");
+        }),
+        "a unique prefix"
+    );
+    assert!(resolve_in(TABLE, "rea").is_some_and(|prefix| {
+        return prefix.option.long == Some("reason");
+    }));
+    assert!(
+        resolve_in(TABLE, "r").is_none(),
+        "three names share the prefix"
+    );
+    assert!(resolve_in(TABLE, "re=1").is_some_and(|valued| {
+        return valued.attached == Some("1");
+    }));
 }

@@ -118,14 +118,27 @@ impl VerifyFailure {
     /// naming the field and what to do about it.
     pub fn message(&self) -> String {
         return match self {
-            VerifyFailure::NotListed { expected } => format!(
+            VerifyFailure::NotListed {
+                expected,
+            } => format!(
                 "the probe's attach made mount {expected}, and the mount table of its own namespace has no line for it. The mount did not land where the probe placed it."
             ),
-            VerifyFailure::OtherFilesystem { found } => format!("the probe's attach made a mount whose filesystem is `{found}`, not `{EXPECTED_FILESYSTEM}`."),
-            VerifyFailure::OtherSource { found, expected } => {
-                format!("the probe's attach made a mount whose source is `{found}`, not the `{expected}` it asked for.")
+            VerifyFailure::OtherFilesystem {
+                found,
+            } => format!(
+                "the probe's attach made a mount whose filesystem is `{found}`, not `{EXPECTED_FILESYSTEM}`."
+            ),
+            VerifyFailure::OtherSource {
+                found,
+                expected,
+            } => {
+                format!(
+                    "the probe's attach made a mount whose source is `{found}`, not the `{expected}` it asked for."
+                )
             }
-            VerifyFailure::MissingFlag { flag } => format!("the probe's attach made a mount without the `{flag}` flag it asked for."),
+            VerifyFailure::MissingFlag {
+                flag,
+            } => format!("the probe's attach made a mount without the `{flag}` flag it asked for."),
         };
     }
 }
@@ -149,19 +162,34 @@ impl VerifyFailure {
 ///  is another filesystem,
 ///  carries another source,
 ///  or lacks one of the three flags.
-pub fn verify_mount(table: &[MountFacts], expected: ExpectedMount<'_>) -> Result<VerifiedMount, VerifyFailure> {
-    let Some(facts) = table.iter().find(|facts| return facts.mount_id == expected.mount_id) else {
-        return Err(VerifyFailure::NotListed { expected: expected.mount_id });
+pub fn verify_mount(
+    table: &[MountFacts],
+    expected: ExpectedMount<'_>,
+) -> Result<VerifiedMount, VerifyFailure> {
+    let Some(facts) = table
+        .iter()
+        .find(|facts| return facts.mount_id == expected.mount_id)
+    else {
+        return Err(VerifyFailure::NotListed {
+            expected: expected.mount_id,
+        });
     };
     if facts.filesystem_type != EXPECTED_FILESYSTEM {
-        return Err(VerifyFailure::OtherFilesystem { found: facts.filesystem_type.clone() });
+        return Err(VerifyFailure::OtherFilesystem {
+            found: facts.filesystem_type.clone(),
+        });
     }
     if facts.source != expected.source {
-        return Err(VerifyFailure::OtherSource { found: facts.source.clone(), expected: String::from(expected.source) });
+        return Err(VerifyFailure::OtherSource {
+            found: facts.source.clone(),
+            expected: String::from(expected.source),
+        });
     }
     for flag in EXPECTED_FLAGS {
         if !facts.has_option(flag) {
-            return Err(VerifyFailure::MissingFlag { flag });
+            return Err(VerifyFailure::MissingFlag {
+                flag,
+            });
         }
     }
     return Ok(VerifiedMount {

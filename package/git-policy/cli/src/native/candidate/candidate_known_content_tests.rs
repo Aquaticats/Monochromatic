@@ -15,17 +15,47 @@
 #![cfg(unix)]
 
 /// Import the items under test.
-use super::{ContentBasis, KnownContent, KnownEntry, find_known_content};
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
-use crate::candidate_prediction::{CandidateRequest, PushedScope};
+use super::{
+    ContentBasis,
+    KnownContent,
+    KnownEntry,
+    find_known_content,
+};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
+use crate::candidate_prediction::{
+    CandidateRequest,
+    PushedScope,
+};
 use crate::candidate_store::CandidateStore;
 use crate::candidate_version::CandidateVersion;
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
-use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts};
-use crate::test_support::{REAL_GIT, fixture, git, git_text, remove, repository};
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    main_worktree,
+    scripted_facts,
+};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    git_text,
+    remove,
+    repository,
+};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// An object name from hexadecimal text.
@@ -34,7 +64,10 @@ fn name(hex: &str) -> ObjectId {
 }
 
 /// The object name `revision` resolves to in `repo`.
-fn oid(repo: &Path, revision: &str) -> ObjectId {
+fn oid(
+    repo: &Path,
+    revision: &str,
+) -> ObjectId {
     return name(git_text(repo, &["rev-parse", revision]).as_str());
 }
 
@@ -64,7 +97,10 @@ fn facts_in(repo: &Path) -> ScriptedFacts {
 }
 
 /// The position of the candidate at `path` in `version`.
-fn index_of(version: &CandidateVersion, path: &str) -> usize {
+fn index_of(
+    version: &CandidateVersion,
+    path: &str,
+) -> usize {
     return version
         .candidate_at_path(path.as_bytes())
         .expect("a candidate at the path")
@@ -240,7 +276,9 @@ fn parents_outside_the_given_commits_are_listed_once() {
     let mut subject: CandidateStore = store_in(repo.as_path());
     // The merge has two parents, and both are outside the commits asked about.
     assert_eq!(
-        subject.parents_outside(std::slice::from_ref(&merge)).expect("parents"),
+        subject
+            .parents_outside(std::slice::from_ref(&merge))
+            .expect("parents"),
         vec![main_tip.clone(), side_tip.clone()]
     );
     // A parent that is itself asked about is not outside; the other commits' parents still count once.

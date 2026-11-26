@@ -22,11 +22,11 @@
 //! const seen = seenBelow(look); creditBetweenLooks(facts, seen, nextLook, interval);
 //! ```
 
-/// What the record keeps of the programs below the step.
-use crate::scratch_commit_step::ScratchStepFacts;
 /// The kernel's name,
 /// state and processor time of one process.
 use crate::process_tree::ProcessUse;
+/// What the record keeps of the programs below the step.
+use crate::scratch_commit_step::ScratchStepFacts;
 /// Time spans,
 /// for the interval one look credits.
 use std::time::Duration;
@@ -68,7 +68,11 @@ pub struct SeenBelow {
 pub fn seen_below(below: &[(i32, ProcessUse)]) -> Vec<SeenBelow> {
     let mut seen: Vec<SeenBelow> = Vec::with_capacity(below.len());
     for (pid, used) in below {
-        seen.push(SeenBelow { pid: *pid, started: used.started, name: used.name.clone() });
+        seen.push(SeenBelow {
+            pid: *pid,
+            started: used.started,
+            name: used.name.clone(),
+        });
     }
     return seen;
 }
@@ -80,7 +84,12 @@ pub fn seen_below(below: &[(i32, ProcessUse)]) -> Vec<SeenBelow> {
 /// and the same name,
 /// because an `exec` keeps both of the first two while the program behind them changes
 /// (finding 7 of the second review).
-fn seen_at_both_looks(before: &[SeenBelow], pid: i32, started: u64, name: &str) -> bool {
+fn seen_at_both_looks(
+    before: &[SeenBelow],
+    pid: i32,
+    started: u64,
+    name: &str,
+) -> bool {
     for known in before {
         if known.pid == pid && known.started == started && known.name == name {
             return true;
@@ -107,14 +116,27 @@ fn seen_at_both_looks(before: &[SeenBelow], pid: i32, started: u64, name: &str) 
 /// ```ts
 /// for (const [pid, used] of now) facts.credit(used.name, seenAtBothLooks(before, pid, used.started) ? sinceLastLook : 0);
 /// ```
-pub fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[SeenBelow], now: &[(i32, ProcessUse)], interval: Duration) {
+pub fn credit_between_looks(
+    facts: &mut ScratchStepFacts,
+    before: &[SeenBelow],
+    now: &[(i32, ProcessUse)],
+    interval: Duration,
+) {
     let mut credited: Vec<&str> = Vec::new();
     for (pid, used) in now {
         if credited.contains(&used.name.as_str()) {
             continue;
         }
-        let at_both_looks: bool = seen_at_both_looks(before, *pid, used.started, used.name.as_str());
-        facts.credit(used.name.as_str(), if at_both_looks { interval } else { Duration::ZERO });
+        let at_both_looks: bool =
+            seen_at_both_looks(before, *pid, used.started, used.name.as_str());
+        facts.credit(
+            used.name.as_str(),
+            if at_both_looks {
+                interval
+            } else {
+                Duration::ZERO
+            },
+        );
         credited.push(used.name.as_str());
     }
 }

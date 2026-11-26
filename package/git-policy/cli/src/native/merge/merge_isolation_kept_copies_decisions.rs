@@ -32,45 +32,77 @@
 //! await settleKeptCopy({ ..., aside, change, capture, live, stderr }); await sweepKeptCopiesAwaiting(place, stderr);
 //! ```
 
-/// The private names a take leaves,
-/// which say whether an unfinished merge names one.
-use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_copy, kept_copies};
-/// The lines a copy earns,
-/// which say what stands at its path and what ends it.
-use crate::merge_isolation_kept_copies_words::{say_the_copy_stays, say_the_copy_stays_because};
-use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, merge_key_of_a_record, stale_carry_names_of};
-/// The records still there,
-/// and whether the merge each names still runs.
-use crate::merge_isolation_journal::{list_merge_intents, parse_merge_intent};
-use crate::transaction_owner::OwnerLiveness;
-/// Reading the bytes of a file through Git.
-use crate::merge_isolation_changes::file_identity;
-use crate::merge_isolation_take_asides::{CopyRemoval, ProofNothingCanWrite, may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
-/// The person's own work a merge captured,
-/// which holds the bytes of a path the take of a carry moved aside.
-use crate::merge_isolation_carry_parts::Capture;
-/// The change one path of a merge makes,
-/// whose two commits hold the bytes a copy may carry.
-use crate::merge_isolation_changes::{Change, worktree_path};
-/// The place a command's recovery runs in.
-use crate::merge_isolation_recovery_steps::RecoveryPlace;
-/// The step that puts one name back where it was found,
-/// as a job of the blocking pool.
-use crate::rename_that_never_replaces::{TheAnswerOfARename, rename_noreplace_on_the_blocking_pool};
 /// The one job of the blocking pool that makes a step's file calls,
 /// so a disk that makes them wait holds no worker of the runtime
 /// (`doc/planning/git-policy-cli-full-tokio.md`,
 /// "Blocking files,
 /// fsync and the runtime's own shutdown").
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// The person's own work a merge captured,
+/// which holds the bytes of a path the take of a carry moved aside.
+use crate::merge_isolation_carry_parts::Capture;
+/// Reading the bytes of a file through Git.
+use crate::merge_isolation_changes::file_identity;
+/// The change one path of a merge makes,
+/// whose two commits hold the bytes a copy may carry.
+use crate::merge_isolation_changes::{
+    Change,
+    worktree_path,
+};
+/// The records still there,
+/// and whether the merge each names still runs.
+use crate::merge_isolation_journal::{
+    list_merge_intents,
+    parse_merge_intent,
+};
+/// The private names a take leaves,
+/// which say whether an unfinished merge names one.
+use crate::merge_isolation_kept_copies::{
+    KeptCopy,
+    forget_the_copy,
+    keep_the_copy,
+    kept_copies,
+};
+/// The lines a copy earns,
+/// which say what stands at its path and what ends it.
+use crate::merge_isolation_kept_copies_words::{
+    say_the_copy_stays,
+    say_the_copy_stays_because,
+};
+/// The place a command's recovery runs in.
+use crate::merge_isolation_recovery_steps::RecoveryPlace;
+use crate::merge_isolation_take_aside_names::{
+    Aside,
+    asides_of,
+    live_merge_keys,
+    merge_key_of_a_record,
+    stale_carry_names_of,
+};
+use crate::merge_isolation_take_asides::{
+    CopyRemoval,
+    ProofNothingCanWrite,
+    may_remove_the_copy_awaiting,
+    raw_bytes_of_awaiting,
+    the_file_form_of_awaiting,
+};
+/// The step that puts one name back where it was found,
+/// as a job of the blocking pool.
+use crate::rename_that_never_replaces::{
+    TheAnswerOfARename,
+    rename_noreplace_on_the_blocking_pool,
+};
 /// Real Git.
 use crate::transaction_git::GitContext;
+use crate::transaction_owner::OwnerLiveness;
 /// Writing the lines a person reads.
 use std::io::Write;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// A list of the live merges' keys shared with each path's job, so no path's job copies it.
 use std::sync::Arc;
-/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
 
 /// What:
 ///  Whether an unfinished merge names one copy.
@@ -88,8 +120,13 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const named = (aside, live) => aside.merge !== undefined && live.includes(aside.merge);
 /// ```
-fn an_unfinished_merge_names_it(aside: &Aside, live: &[String]) -> bool {
-    let Some(named) = aside.merge.as_ref() else { return false };
+fn an_unfinished_merge_names_it(
+    aside: &Aside,
+    live: &[String],
+) -> bool {
+    let Some(named) = aside.merge.as_ref() else {
+        return false;
+    };
     for key in live {
         if key == named {
             return true;
@@ -105,7 +142,10 @@ fn an_unfinished_merge_names_it(aside: &Aside, live: &[String]) -> bool {
 /// ```ts
 /// const namedOf = (aside: Aside | undefined, live: string[]) => aside !== undefined && anUnfinishedMergeNamesIt(aside, live);
 /// ```
-fn an_unfinished_merge_names_it_of(aside: Option<&Aside>, live: &[String]) -> bool {
+fn an_unfinished_merge_names_it_of(
+    aside: Option<&Aside>,
+    live: &[String],
+) -> bool {
     return match aside {
         Some(found) => an_unfinished_merge_names_it(found, live),
         None => false,
@@ -200,10 +240,28 @@ async fn the_bytes_the_merge_holds_awaiting(
     }
     // The file form is what the worktree would hold for one of the merge's commits, so a copy of either side's file is the
     //  file the merge judged.
-    if the_file_form_of_awaiting(context, root, change.path.as_slice(), change.old_oid.as_str()).await.as_deref() == Some(held.as_str()) {
+    if the_file_form_of_awaiting(
+        context,
+        root,
+        change.path.as_slice(),
+        change.old_oid.as_str(),
+    )
+    .await
+    .as_deref()
+        == Some(held.as_str())
+    {
         return Some(Held::BranchCommit(String::from(change.old_oid.as_str())));
     }
-    if the_file_form_of_awaiting(context, root, change.path.as_slice(), change.new_oid.as_str()).await.as_deref() == Some(held.as_str()) {
+    if the_file_form_of_awaiting(
+        context,
+        root,
+        change.path.as_slice(),
+        change.new_oid.as_str(),
+    )
+    .await
+    .as_deref()
+        == Some(held.as_str())
+    {
         return Some(Held::MergeCommit);
     }
     return None;
@@ -223,22 +281,38 @@ async fn the_bytes_the_merge_holds_awaiting(
 /// ```ts
 /// async function theFileHoldsThem(context, root, location, aside): Promise<boolean>;
 /// ```
-async fn the_file_holds_them_awaiting(context: &GitContext, root: &Path, location: &Path, aside: &Path) -> bool {
+async fn the_file_holds_them_awaiting(
+    context: &GitContext,
+    root: &Path,
+    location: &Path,
+    aside: &Path,
+) -> bool {
     // The two looks are file calls that can wait on a disk, so one job of the blocking pool makes both.
     let (path_at, copy_at): (PathBuf, PathBuf) = (location.to_path_buf(), aside.to_path_buf());
     let looked = run_blocking_job_within_the_budget(move || {
-        let Ok(here) = std::fs::symlink_metadata(path_at.as_path()) else { return None };
-        let Ok(there) = std::fs::symlink_metadata(copy_at.as_path()) else { return None };
+        let Ok(here) = std::fs::symlink_metadata(path_at.as_path()) else {
+            return None;
+        };
+        let Ok(there) = std::fs::symlink_metadata(copy_at.as_path()) else {
+            return None;
+        };
         return Some((here, there));
     })
     .await;
     // An entry that is not there, and a look the pool never made, both leave the bytes unproven, so the copy is kept.
-    let Ok(Some((here, there))) = looked else { return false };
+    let Ok(Some((here, there))) = looked else {
+        return false;
+    };
     if here.file_type().is_symlink() != there.file_type().is_symlink() {
         return false;
     }
-    let Some(held) = raw_bytes_of_awaiting(context, root, aside).await else { return false };
-    return raw_bytes_of_awaiting(context, root, location).await.as_deref() == Some(held.as_str());
+    let Some(held) = raw_bytes_of_awaiting(context, root, aside).await else {
+        return false;
+    };
+    return raw_bytes_of_awaiting(context, root, location)
+        .await
+        .as_deref()
+        == Some(held.as_str());
 }
 
 /// What:
@@ -258,16 +332,24 @@ async fn the_file_holds_them_awaiting(context: &GitContext, root: &Path, locatio
 /// ```ts
 /// const thePermissionsAreTheCopies = (location, aside) => isLink(location) ? isLink(aside) : mode(location) === mode(aside);
 /// ```
-fn the_permissions_are_the_copies(location: &Path, aside: &Path) -> bool {
-    let Ok(here) = std::fs::symlink_metadata(location) else { return false };
-    let Ok(there) = std::fs::symlink_metadata(aside) else { return false };
+fn the_permissions_are_the_copies(
+    location: &Path,
+    aside: &Path,
+) -> bool {
+    let Ok(here) = std::fs::symlink_metadata(location) else {
+        return false;
+    };
+    let Ok(there) = std::fs::symlink_metadata(aside) else {
+        return false;
+    };
     if here.file_type().is_symlink() && there.file_type().is_symlink() {
         return true;
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        return here.permissions().mode() & PERMISSION_BITS == there.permissions().mode() & PERMISSION_BITS;
+        return here.permissions().mode() & PERMISSION_BITS
+            == there.permissions().mode() & PERMISSION_BITS;
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
@@ -347,7 +429,10 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     //  blocking pool makes both.
     let (copy_at, path_at): (PathBuf, PathBuf) = (copy.aside.clone(), copy.location.clone());
     let looked = run_blocking_job_within_the_budget(move || {
-        return (std::fs::symlink_metadata(copy_at.as_path()).is_ok(), std::fs::symlink_metadata(path_at.as_path()).is_ok());
+        return (
+            std::fs::symlink_metadata(copy_at.as_path()).is_ok(),
+            std::fs::symlink_metadata(path_at.as_path()).is_ok(),
+        );
     })
     .await;
     let (stands, path_stands): (bool, bool) = match looked {
@@ -356,7 +441,11 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         Err(refused) => {
             crate::diagnostic_log::debug(
                 "settleKeptCopy",
-                format!("{} could not be looked at, so it stays where it is: {refused}", copy.aside.display()).as_str(),
+                format!(
+                    "{} could not be looked at, so it stays where it is: {refused}",
+                    copy.aside.display()
+                )
+                .as_str(),
             );
             say_the_copy_stays(out, copy, named);
             return false;
@@ -373,12 +462,23 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     //  have deleted on purpose, and the merge that would judge it is gone.
     let keyless: bool = the_name_carries_no_merge_key(aside);
     let held: Option<Held> = match change {
-        Some(found) if !live.is_empty() => the_bytes_the_merge_holds_awaiting(context, root, found, capture, copy.aside.as_path()).await,
+        Some(found) if !live.is_empty() => {
+            the_bytes_the_merge_holds_awaiting(context, root, found, capture, copy.aside.as_path())
+                .await
+        }
         _ => None,
     };
     let fate: Fate = if free && (named || (keyless && held.is_some())) {
         Fate::PutBack
-    } else if !free && the_file_holds_them_awaiting(context, root, copy.location.as_path(), copy.aside.as_path()).await {
+    } else if !free
+        && the_file_holds_them_awaiting(
+            context,
+            root,
+            copy.location.as_path(),
+            copy.aside.as_path(),
+        )
+        .await
+    {
         // One run of bytes is not one file: the entries differ in their permissions, which Git does not record outside the
         //  executable bit, or a program still holds the copy open, and a write through that descriptor lands in the file an
         //  unlink would leave with no name at all. Both are the person's, so the copy goes only when neither holds.
@@ -388,7 +488,10 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         //  so one job of the blocking pool makes them.
         let (the_path, the_copy): (PathBuf, PathBuf) = (copy.location.clone(), copy.aside.clone());
         let compared = run_blocking_job_within_the_budget(move || {
-            return (file_identity(the_path.as_path()), the_permissions_are_the_copies(the_path.as_path(), the_copy.as_path()));
+            return (
+                file_identity(the_path.as_path()),
+                the_permissions_are_the_copies(the_path.as_path(), the_copy.as_path()),
+            );
         })
         .await;
         match compared {
@@ -397,17 +500,33 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
                     Fate::KeptBecause("the two entries do not have the same permissions")
                 } else {
                     match the_file {
-                        Some(standing) => match may_remove_the_copy_awaiting(context, root, copy.aside.as_path(), copy.location.as_path(), standing).await {
+                        Some(standing) => match may_remove_the_copy_awaiting(
+                            context,
+                            root,
+                            copy.aside.as_path(),
+                            copy.location.as_path(),
+                            standing,
+                        )
+                        .await
+                        {
                             CopyRemoval::Proven(proof) => Fate::TheFileHoldsThem(proof),
-                            CopyRemoval::HeldOpen => Fate::KeptBecause("a program still holds the copy open"),
-                            CopyRemoval::Changed => Fate::KeptBecause("the file at its path or the copy changed after they were compared"),
+                            CopyRemoval::HeldOpen => {
+                                Fate::KeptBecause("a program still holds the copy open")
+                            }
+                            CopyRemoval::Changed => Fate::KeptBecause(
+                                "the file at its path or the copy changed after they were compared",
+                            ),
                         },
-                        None => Fate::KeptBecause("the file at its path changed after they were compared"),
+                        None => Fate::KeptBecause(
+                            "the file at its path changed after they were compared",
+                        ),
                     }
                 }
             }
             // A comparison the pool never made proves nothing about the two entries, so the copy stays and is named.
-            Err(_refused) => Fate::KeptBecause("this command could not read both entries to compare them"),
+            Err(_refused) => {
+                Fate::KeptBecause("this command could not read both entries to compare them")
+            }
         }
     } else if let Some(Held::BranchCommit(object)) = held {
         Fate::GitHoldsThem(object)
@@ -416,8 +535,12 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     };
     match fate {
         Fate::PutBack => return put_the_copy_back_awaiting(git_dir, copy, named, out).await,
-        Fate::TheFileHoldsThem(proof) => remove_the_copy_because_the_file_holds_it_awaiting(git_dir, copy, proof, out).await,
-        Fate::GitHoldsThem(object) => remove_the_copy_because_git_holds_it_awaiting(git_dir, copy, object.as_str(), out).await,
+        Fate::TheFileHoldsThem(proof) => {
+            remove_the_copy_because_the_file_holds_it_awaiting(git_dir, copy, proof, out).await
+        }
+        Fate::GitHoldsThem(object) => {
+            remove_the_copy_because_git_holds_it_awaiting(git_dir, copy, object.as_str(), out).await
+        }
         Fate::Kept | Fate::KeptBecause(_) => {
             // The copy is recorded, so the next command that runs the recovery decides it again even though no later merge
             //  touches its path.
@@ -443,8 +566,14 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
 /// ```ts
 /// const putBack = async (aside, location) => { const moved = await renameNoReplaceOnThePool(aside, location); moved.kind === 'renamed' ? forget(gitDir, aside) : sayTheCopyStays(...); };
 /// ```
-async fn put_the_copy_back_awaiting<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, named: bool, out: &mut W) -> bool {
-    match rename_noreplace_on_the_blocking_pool(copy.aside.as_path(), copy.location.as_path()).await {
+async fn put_the_copy_back_awaiting<W: Write + ?Sized>(
+    git_dir: &Path,
+    copy: &KeptCopy,
+    named: bool,
+    out: &mut W,
+) -> bool {
+    match rename_noreplace_on_the_blocking_pool(copy.aside.as_path(), copy.location.as_path()).await
+    {
         TheAnswerOfARename::Renamed => {
             forget_the_copy(git_dir, copy.aside.as_path());
             let _said = out.write_all(
@@ -459,7 +588,9 @@ async fn put_the_copy_back_awaiting<W: Write + ?Sized>(git_dir: &Path, copy: &Ke
         }
         // The path was taken between the reading and the rename, so both stay and the copy is named; a rename the pool did not
         //  make leaves both as they are, and the copy is named the same way.
-        TheAnswerOfARename::NameTaken(_) | TheAnswerOfARename::Failed(_) | TheAnswerOfARename::NoThreadToRunIt(_) => {
+        TheAnswerOfARename::NameTaken(_)
+        | TheAnswerOfARename::Failed(_)
+        | TheAnswerOfARename::NoThreadToRunIt(_) => {
             say_the_copy_stays(out, copy, named);
             return false;
         }
@@ -478,8 +609,16 @@ async fn put_the_copy_back_awaiting<W: Write + ?Sized>(git_dir: &Path, copy: &Ke
 /// ```ts
 /// rm(aside); forget(gitDir, aside); say(`${aside} was removed: ${location} holds those same bytes`);
 /// ```
-async fn remove_the_copy_because_the_file_holds_it_awaiting<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, proof: ProofNothingCanWrite, out: &mut W) {
-    match proof.remove_on_the_blocking_pool(copy.aside.as_path()).await {
+async fn remove_the_copy_because_the_file_holds_it_awaiting<W: Write + ?Sized>(
+    git_dir: &Path,
+    copy: &KeptCopy,
+    proof: ProofNothingCanWrite,
+    out: &mut W,
+) {
+    match proof
+        .remove_on_the_blocking_pool(copy.aside.as_path())
+        .await
+    {
         Ok(()) => {
             forget_the_copy(git_dir, copy.aside.as_path());
             let _said = out.write_all(
@@ -515,7 +654,12 @@ async fn remove_the_copy_because_the_file_holds_it_awaiting<W: Write + ?Sized>(g
 /// ```ts
 /// rm(aside); forget(gitDir, aside); say(`${aside} was removed: ${oid} holds its bytes`);
 /// ```
-async fn remove_the_copy_because_git_holds_it_awaiting<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, object: &str, out: &mut W) {
+async fn remove_the_copy_because_git_holds_it_awaiting<W: Write + ?Sized>(
+    git_dir: &Path,
+    copy: &KeptCopy,
+    object: &str,
+    out: &mut W,
+) {
     // The removal is a file call that can wait on a disk, so a job of the blocking pool makes it.
     let copy_at: PathBuf = copy.aside.clone();
     let removed: std::io::Result<()> = match run_blocking_job_within_the_budget(move || {
@@ -585,7 +729,11 @@ async fn remove_the_copy_because_git_holds_it_awaiting<W: Write + ?Sized>(git_di
 /// ```ts
 /// await sweepKeptCopiesAwaiting(place, runningKeys, stderr);
 /// ```
-pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &RecoveryPlace, running: &[String], out: &mut W) {
+pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(
+    place: &RecoveryPlace,
+    running: &[String],
+    out: &mut W,
+) {
     // The copies this worktree's records name and the keys of the merges that are live are read from a folder of the Git
     //  directory, so one job of the blocking pool makes both.
     let records_of: PathBuf = place.git_dir.clone();
@@ -604,7 +752,10 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
         Err(refused) => {
             crate::diagnostic_log::debug(
                 "sweepKeptCopies",
-                format!("the copies kept beside this worktree's paths could not be read: {refused}").as_str(),
+                format!(
+                    "the copies kept beside this worktree's paths could not be read: {refused}"
+                )
+                .as_str(),
             );
             return;
         }
@@ -613,7 +764,11 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
         // The copy's own name says which merge took it, and the record cannot: a name is the only thing that survives a release
         //  that changed the record's shape.
         let names_beside: PathBuf = copy.location.clone();
-        let asides: Vec<Aside> = match run_blocking_job_within_the_budget(move || return asides_of(names_beside.as_path())).await {
+        let asides: Vec<Aside> = match run_blocking_job_within_the_budget(move || {
+            return asides_of(names_beside.as_path());
+        })
+        .await
+        {
             Ok(found) => found,
             // A folder the pool never read says nothing about this path's copies, so they wait for the next command.
             Err(_refused) => continue,
@@ -633,7 +788,11 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
         //  again here, beside the copy they decide, so a merge that started in between keeps what it took.
         if named.is_some() {
             let records_again: PathBuf = place.git_dir.clone();
-            let owners_that_run: Vec<String> = match run_blocking_job_within_the_budget(move || return merges_whose_owner_runs(records_again.as_path())).await {
+            let owners_that_run: Vec<String> = match run_blocking_job_within_the_budget(move || {
+                return merges_whose_owner_runs(records_again.as_path());
+            })
+            .await
+            {
                 Ok(found) => found,
                 // A reading the pool never made proves nothing about this copy's merge, so the copy is left for that merge.
                 Err(_refused) => continue,
@@ -642,7 +801,18 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
                 continue;
             }
         }
-        settle_kept_copy_awaiting(&place.git, place.cwd.as_path(), place.git_dir.as_path(), &copy, named.as_ref(), None, None, live.as_slice(), out).await;
+        settle_kept_copy_awaiting(
+            &place.git,
+            place.cwd.as_path(),
+            place.git_dir.as_path(),
+            &copy,
+            named.as_ref(),
+            None,
+            None,
+            live.as_slice(),
+            out,
+        )
+        .await;
     }
     return;
 }
@@ -667,11 +837,18 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
 /// ```
 fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
     let mut keys: Vec<String> = Vec::new();
-    let Ok(records) = list_merge_intents(git_dir) else { return keys };
+    let Ok(records) = list_merge_intents(git_dir) else {
+        return keys;
+    };
     for record in records {
-        let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
-        let Some(intent) = parse_merge_intent(bytes.as_slice()) else { continue };
-        let liveness = crate::merge_isolation_recovery_records::owner_liveness(&intent, record.as_path());
+        let Ok(bytes) = std::fs::read(record.as_path()) else {
+            continue;
+        };
+        let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
+            continue;
+        };
+        let liveness =
+            crate::merge_isolation_recovery_records::owner_liveness(&intent, record.as_path());
         if matches!(liveness, Ok(OwnerLiveness::Alive)) {
             keys.push(merge_key_of_a_record(record.as_path()));
         }
@@ -703,7 +880,11 @@ pub(crate) async fn settle_the_asides_of_a_merge_awaiting<W: Write + ?Sized>(
 ) -> Vec<PathBuf> {
     // The keys of the live merges are read from a folder of the Git directory, so a job of the blocking pool reads them.
     let records_of: PathBuf = git_dir.to_path_buf();
-    let live: Arc<Vec<String>> = match run_blocking_job_within_the_budget(move || return live_merge_keys(records_of.as_path())).await {
+    let live: Arc<Vec<String>> = match run_blocking_job_within_the_budget(move || {
+        return live_merge_keys(records_of.as_path());
+    })
+    .await
+    {
         Ok(found) => Arc::new(found),
         // A folder the pool never read names no merge whose copies are its own, so the caller is answered none and the next
         //  command decides them.
@@ -725,9 +906,15 @@ pub(crate) async fn settle_the_asides_of_a_merge_awaiting<W: Write + ?Sized>(
         //  decided: otherwise a finished merge leaves an untracked file in the worktree for good (`SPEC.md`, no half-applied
         //  result). Reading those names, removing them and reading the asides are file calls that can wait on a disk, so one job
         //  of the blocking pool makes all three.
-        let (path_beside, keys, finished): (PathBuf, Arc<Vec<String>>, String) = (location.clone(), Arc::clone(&live), String::from(transaction_id));
+        let (path_beside, keys, finished): (PathBuf, Arc<Vec<String>>, String) = (
+            location.clone(),
+            Arc::clone(&live),
+            String::from(transaction_id),
+        );
         let looked = run_blocking_job_within_the_budget(move || {
-            for stale in stale_carry_names_of(path_beside.as_path(), keys.as_slice(), finished.as_str()) {
+            for stale in
+                stale_carry_names_of(path_beside.as_path(), keys.as_slice(), finished.as_str())
+            {
                 let _removed = std::fs::remove_file(stale.as_path());
             }
             return asides_of(path_beside.as_path());
@@ -738,8 +925,23 @@ pub(crate) async fn settle_the_asides_of_a_merge_awaiting<W: Write + ?Sized>(
             continue;
         };
         for aside in asides {
-            let copy: KeptCopy = KeptCopy { location: location.clone(), aside: aside.path.clone() };
-            if settle_kept_copy_awaiting(context, root, git_dir, &copy, Some(&aside), Some(change), capture, live.as_slice(), out).await {
+            let copy: KeptCopy = KeptCopy {
+                location: location.clone(),
+                aside: aside.path.clone(),
+            };
+            if settle_kept_copy_awaiting(
+                context,
+                root,
+                git_dir,
+                &copy,
+                Some(&aside),
+                Some(change),
+                capture,
+                live.as_slice(),
+                out,
+            )
+            .await
+            {
                 put_back.push(location.clone());
             }
         }

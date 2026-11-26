@@ -14,17 +14,28 @@
 //! await mergeReplayTree({ gitPath, shadowPath, mergeBase, current, prepared, worktreeRoot });
 //! ```
 
-/// The conflicts of a merge tree,
-/// with their stages,
-/// for the word-level second pass.
-use crate::merge_second_pass::{Conflict, conflicts_of_merge_tree};
 /// The attribute tree a merge from objects reads.
 use crate::child_environment::environment_with_overlay;
 use crate::merge_second_pass::ContextRunner;
-use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables_on_the_runtime};
+/// The conflicts of a merge tree,
+/// with their stages,
+/// for the word-level second pass.
+use crate::merge_second_pass::{
+    Conflict,
+    conflicts_of_merge_tree,
+};
+use crate::merge_second_pass_tree::{
+    AttributeProbe,
+    attribute_tree_variables_on_the_runtime,
+};
 /// Shadow runs and the raw runner for a merge whose exit status matters.
 use crate::shadow_git::shadow_request;
-use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitRequest,
+    run_git,
+};
 /// Filesystem paths.
 use std::path::Path;
 
@@ -120,17 +131,38 @@ pub fn merge_replay_tree(
         ],
     );
     // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies (the `union` line included).
-    let process_environment: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
-    let variables = environment_with_overlay(process_environment.as_slice(), context.overlay.as_slice());
+    let process_environment: Vec<(std::ffi::OsString, std::ffi::OsString)> =
+        std::env::vars_os().collect();
+    let variables =
+        environment_with_overlay(process_environment.as_slice(), context.overlay.as_slice());
     // The attribute read keeps none of the caller's other options, and the repository the line named is carried here.
-    let repository = crate::repository_selection::from_global_options(worktree_root, context.global_prefix.as_slice());
-    let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, repository, object_directory: None, environment: Vec::new() };
-    let probe = AttributeProbe { directory: worktree_root, global_prefix: &[], variables: variables.as_slice(), runner: &probing };
-    request.environment.extend(attribute_tree_variables_on_the_runtime(current, &probe));
+    let repository = crate::repository_selection::from_global_options(
+        worktree_root,
+        context.global_prefix.as_slice(),
+    );
+    let probing = ContextRunner {
+        context,
+        cwd: worktree_root,
+        without_prefix: true,
+        repository,
+        object_directory: None,
+        environment: Vec::new(),
+    };
+    let probe = AttributeProbe {
+        directory: worktree_root,
+        global_prefix: &[],
+        variables: variables.as_slice(),
+        runner: &probing,
+    };
+    request
+        .environment
+        .extend(attribute_tree_variables_on_the_runtime(current, &probe));
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => {
-            return Err(ReplayMergeError::Git(GitFailure(format!("git merge-tree could not start: {error}"))));
+            return Err(ReplayMergeError::Git(GitFailure(format!(
+                "git merge-tree could not start: {error}"
+            ))));
         }
     };
     let code: Option<i32> = output.code;
@@ -144,7 +176,9 @@ pub fn merge_replay_tree(
     // The paths stay bytes: a name that is not UTF-8 is reported with its exact bytes.
     let (tree_oid, conflicts) = conflicts_of_merge_tree(output.stdout.as_slice());
     if code == Some(0) {
-        return Ok(ReplayMerge::Merged { tree_oid });
+        return Ok(ReplayMerge::Merged {
+            tree_oid,
+        });
     }
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for conflict in &conflicts {
@@ -152,7 +186,11 @@ pub fn merge_replay_tree(
     }
     paths.sort();
     paths.dedup();
-    return Ok(ReplayMerge::Conflict { paths, tree_oid, conflicts });
+    return Ok(ReplayMerge::Conflict {
+        paths,
+        tree_oid,
+        conflicts,
+    });
 }
 
 #[cfg(test)]

@@ -11,24 +11,50 @@
 //! ```
 
 use super::*;
-use crate::test_support::{fixture, remove};
-use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, retained_mode};
-use crate::worktree_copy_stage_leaf_copying::{CopiedLeaf, copy_one_leaf};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    WorktreeCopyEntry,
+    retained_mode,
+};
+use crate::worktree_copy_stage_leaf_copying::{
+    CopiedLeaf,
+    copy_one_leaf,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The link the controls copy: a package's entry in one workspace package's `node_modules`.
 const THE_LINK: &[u8] = b"package/x/node_modules/zod";
 
 /// A clone callback for a link,
 /// which never runs: only files are cloned.
-fn never_cloned(_source: &std::fs::File, _stage: &std::fs::File) -> bool {
+fn never_cloned(
+    _source: &std::fs::File,
+    _stage: &std::fs::File,
+) -> bool {
     return false;
 }
 
 /// One link as the manifest describes it.
-fn link_entry(source_root: &Path, relative_path: &[u8]) -> WorktreeCopyEntry {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(source_root.join(crate::path_bytes::os_from_path_bytes(relative_path))).expect("metadata");
-    return WorktreeCopyEntry { kind: EntryKind::Symlink, mode: retained_mode(&metadata), relative_path: relative_path.to_vec() };
+fn link_entry(
+    source_root: &Path,
+    relative_path: &[u8],
+) -> WorktreeCopyEntry {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(
+        source_root.join(crate::path_bytes::os_from_path_bytes(relative_path)),
+    )
+    .expect("metadata");
+    return WorktreeCopyEntry {
+        kind: EntryKind::Symlink,
+        mode: retained_mode(&metadata),
+        relative_path: relative_path.to_vec(),
+    };
 }
 
 /// What:
@@ -43,14 +69,25 @@ fn link_entry(source_root: &Path, relative_path: &[u8]) -> WorktreeCopyEntry {
 /// ```ts
 /// const install = (sourceRoot, stageRoot, destinationRoot, relativePath) => { copyOneLeaf(...); const stage = join(stageRoot, relativePath); const destination = join(destinationRoot, relativePath); mkdir(dirname(destination)); symlink(readLink(stage), destination); return destination };
 /// ```
-fn copied_link(source_root: &Path, stage_root: &Path, destination_root: &Path, relative_path: &[u8]) -> PathBuf {
+fn copied_link(
+    source_root: &Path,
+    stage_root: &Path,
+    destination_root: &Path,
+    relative_path: &[u8],
+) -> PathBuf {
     let entry: WorktreeCopyEntry = link_entry(source_root, relative_path);
     let stage_path: PathBuf = stage_root.join(crate::path_bytes::os_from_path_bytes(relative_path));
     std::fs::create_dir_all(stage_path.parent().expect("stage parent")).expect("stage directories");
-    let leaf: CopiedLeaf = copy_one_leaf(source_root, stage_path.as_path(), &entry, never_cloned).expect("copy");
-    assert!(matches!(leaf, CopiedLeaf::Staged(_)), "the link was not staged");
-    let destination_path: PathBuf = destination_root.join(crate::path_bytes::os_from_path_bytes(relative_path));
-    std::fs::create_dir_all(destination_path.parent().expect("destination parent")).expect("destination directories");
+    let leaf: CopiedLeaf =
+        copy_one_leaf(source_root, stage_path.as_path(), &entry, never_cloned).expect("copy");
+    assert!(
+        matches!(leaf, CopiedLeaf::Staged(_)),
+        "the link was not staged"
+    );
+    let destination_path: PathBuf =
+        destination_root.join(crate::path_bytes::os_from_path_bytes(relative_path));
+    std::fs::create_dir_all(destination_path.parent().expect("destination parent"))
+        .expect("destination directories");
     let text: PathBuf = std::fs::read_link(stage_path.as_path()).expect("staged text");
     std::os::unix::fs::symlink(text, destination_path.as_path()).expect("install");
     return destination_path;
@@ -74,7 +111,11 @@ fn store_beside(root: &Path) -> PathBuf {
     std::fs::write(package.join("package.json"), b"{}").expect("store entry file");
     let modules: PathBuf = root.join("checkout/package/x/node_modules");
     std::fs::create_dir_all(modules.as_path()).expect("modules");
-    std::os::unix::fs::symlink("../../../../store/links/@/zod/node_modules/zod", modules.join("zod")).expect("store link");
+    std::os::unix::fs::symlink(
+        "../../../../store/links/@/zod/node_modules/zod",
+        modules.join("zod"),
+    )
+    .expect("store link");
     return modules.join("zod");
 }
 
@@ -94,9 +135,18 @@ fn a_link_into_a_store_outside_the_tree_reaches_it_from_the_deeper_worktree() {
     let root: PathBuf = fixture("symlink-target-store");
     let source_link: PathBuf = store_beside(root.as_path());
     let destination_root: PathBuf = root.join("deeper/one/two/three/checkout");
-    let copied: PathBuf = copied_link(root.join("checkout").as_path(), root.join("stage-of-the-copy").as_path(), destination_root.as_path(), THE_LINK);
-    let reached: PathBuf = std::fs::canonicalize(copied.as_path()).expect("the copied link reaches the store");
-    assert_eq!(reached, std::fs::canonicalize(source_link.as_path()).expect("the source link reaches the store"));
+    let copied: PathBuf = copied_link(
+        root.join("checkout").as_path(),
+        root.join("stage-of-the-copy").as_path(),
+        destination_root.as_path(),
+        THE_LINK,
+    );
+    let reached: PathBuf =
+        std::fs::canonicalize(copied.as_path()).expect("the copied link reaches the store");
+    assert_eq!(
+        reached,
+        std::fs::canonicalize(source_link.as_path()).expect("the source link reaches the store")
+    );
     remove(root.as_path());
 }
 
@@ -117,17 +167,28 @@ fn a_link_inside_the_tree_reaches_the_copys_own_directory() {
     let source_root: PathBuf = root.join("checkout");
     std::fs::create_dir_all(source_root.join("package/x/y").as_path()).expect("target");
     std::fs::create_dir_all(source_root.join("package/x/node_modules").as_path()).expect("modules");
-    std::os::unix::fs::symlink("../y", source_root.join("package/x/node_modules/zod")).expect("inside link");
+    std::os::unix::fs::symlink("../y", source_root.join("package/x/node_modules/zod"))
+        .expect("inside link");
     let destination_root: PathBuf = root.join("elsewhere/the worktree");
-    std::fs::create_dir_all(destination_root.join("package/x/y").as_path()).expect("the copy's own directory");
-    let copied: PathBuf = copied_link(source_root.as_path(), root.join("stage-of-the-copy").as_path(), destination_root.as_path(), THE_LINK);
+    std::fs::create_dir_all(destination_root.join("package/x/y").as_path())
+        .expect("the copy's own directory");
+    let copied: PathBuf = copied_link(
+        source_root.as_path(),
+        root.join("stage-of-the-copy").as_path(),
+        destination_root.as_path(),
+        THE_LINK,
+    );
     assert_eq!(
-        std::fs::canonicalize(copied.as_path()).expect("the copied link reaches the copy's own directory"),
-        std::fs::canonicalize(destination_root.join("package/x/y").as_path()).expect("the copy's own directory")
+        std::fs::canonicalize(copied.as_path())
+            .expect("the copied link reaches the copy's own directory"),
+        std::fs::canonicalize(destination_root.join("package/x/y").as_path())
+            .expect("the copy's own directory")
     );
     assert_ne!(
-        std::fs::canonicalize(copied.as_path()).expect("the copied link reaches the copy's own directory"),
-        std::fs::canonicalize(source_root.join("package/x/y").as_path()).expect("the checkout's directory")
+        std::fs::canonicalize(copied.as_path())
+            .expect("the copied link reaches the copy's own directory"),
+        std::fs::canonicalize(source_root.join("package/x/y").as_path())
+            .expect("the checkout's directory")
     );
     remove(root.as_path());
 }
@@ -148,14 +209,31 @@ fn an_absolute_link_into_the_tree_names_the_copys_own_directory() {
     let source_root: PathBuf = root.join("checkout");
     std::fs::create_dir_all(source_root.join("package/x/y").as_path()).expect("target");
     std::fs::create_dir_all(source_root.join("package/x/node_modules").as_path()).expect("modules");
-    std::os::unix::fs::symlink(source_root.join("package/x/y"), source_root.join("package/x/node_modules/zod")).expect("absolute link");
+    std::os::unix::fs::symlink(
+        source_root.join("package/x/y"),
+        source_root.join("package/x/node_modules/zod"),
+    )
+    .expect("absolute link");
     let destination_root: PathBuf = root.join("elsewhere/the worktree");
-    std::fs::create_dir_all(destination_root.join("package/x/y").as_path()).expect("the copy's own directory");
-    let copied: PathBuf = copied_link(source_root.as_path(), root.join("stage-of-the-copy").as_path(), destination_root.as_path(), THE_LINK);
-    assert!(std::fs::read_link(copied.as_path()).expect("text").is_relative(), "the copy kept an absolute path into the checkout");
+    std::fs::create_dir_all(destination_root.join("package/x/y").as_path())
+        .expect("the copy's own directory");
+    let copied: PathBuf = copied_link(
+        source_root.as_path(),
+        root.join("stage-of-the-copy").as_path(),
+        destination_root.as_path(),
+        THE_LINK,
+    );
+    assert!(
+        std::fs::read_link(copied.as_path())
+            .expect("text")
+            .is_relative(),
+        "the copy kept an absolute path into the checkout"
+    );
     assert_eq!(
-        std::fs::canonicalize(copied.as_path()).expect("the copied link reaches the copy's own directory"),
-        std::fs::canonicalize(destination_root.join("package/x/y").as_path()).expect("the copy's own directory")
+        std::fs::canonicalize(copied.as_path())
+            .expect("the copied link reaches the copy's own directory"),
+        std::fs::canonicalize(destination_root.join("package/x/y").as_path())
+            .expect("the copy's own directory")
     );
     remove(root.as_path());
 }
@@ -182,7 +260,10 @@ fn only_a_text_that_leaves_the_tree_is_made_absolute() {
         normalized_path(link.parent().expect("parent").join(outside).as_path())
     );
     let inside: &Path = Path::new("../y");
-    assert_eq!(target_for_the_new_place(inside, link.as_path(), source_root.as_path()), PathBuf::from("../y"));
+    assert_eq!(
+        target_for_the_new_place(inside, link.as_path(), source_root.as_path()),
+        PathBuf::from("../y")
+    );
     remove(root.as_path());
 }
 
@@ -204,7 +285,13 @@ fn a_made_absolute_text_and_the_source_text_name_one_place() {
     let source_link: PathBuf = source_root.join("package/x/node_modules/zod");
     let stage_root: PathBuf = root.join("elsewhere/stage");
     let stage_link: PathBuf = stage_root.join("package/x/node_modules/zod");
-    let reached: PathBuf = normalized_path(source_link.parent().expect("parent").join("../../../../store/links/zod").as_path());
+    let reached: PathBuf = normalized_path(
+        source_link
+            .parent()
+            .expect("parent")
+            .join("../../../../store/links/zod")
+            .as_path(),
+    );
     assert!(names_the_same_place(
         Path::new("../../../../store/links/zod"),
         source_link.as_path(),

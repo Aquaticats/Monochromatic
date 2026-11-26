@@ -14,8 +14,17 @@
 #![cfg(unix)]
 
 /// Import the primitives under test and shared fixtures.
-use super::{has_wrapper_marker, identical_content, is_native_header, same_file};
-use crate::test_support::{executable, fixture, remove};
+use super::{
+    has_wrapper_marker,
+    identical_content,
+    is_native_header,
+    same_file,
+};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// Every supported native signature is recognised,

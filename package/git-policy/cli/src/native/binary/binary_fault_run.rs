@@ -25,15 +25,46 @@
 //! process.kill(wrapper.pid, 'SIGTERM'); // the wrapper alone
 //! ```
 
-use super::supervisor::{Judge, Limits, Reason};
-use super::supervisor_proc::{Look, look_at, stat_of, tick};
-use super::support::{Fixture, ServiceLaunch, hermetic, read_from_start, restart_ended_services, service_runtime, wrapper_first_path};
+use super::supervisor::{
+    Judge,
+    Limits,
+    Reason,
+};
+use super::supervisor_proc::{
+    Look,
+    look_at,
+    stat_of,
+    tick,
+};
+use super::support::{
+    Fixture,
+    ServiceLaunch,
+    hermetic,
+    read_from_start,
+    restart_ended_services,
+    service_runtime,
+    wrapper_first_path,
+};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
-use std::process::{Child, Command, Output, Stdio};
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::process::{
+    Child,
+    Command,
+    Output,
+    Stdio,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long the processes a killed wrapper left behind may take to end by themselves,
 /// in seconds.
@@ -63,14 +94,26 @@ const QUIET_WINDOW: Duration = Duration::from_secs(120);
 /// because a traced run moves bytes and processor time in the `strace` that carries it,
 /// and its whole duration is the disk's,
 /// never a loop's.
-const LIMITS: Limits = Limits { no_progress: QUIET_WINDOW, cpu_budget: Duration::MAX, backstop: Duration::MAX };
+const LIMITS: Limits = Limits {
+    no_progress: QUIET_WINDOW,
+    cpu_budget: Duration::MAX,
+    backstop: Duration::MAX,
+};
 
 /// The wrapper (the fixture's `bin/git`) with the fixture's environment,
 /// run in `directory`,
 /// and no `timeout`.
-pub(super) fn unbounded_wrapper(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Command {
+pub(super) fn unbounded_wrapper(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> Command {
     let mut command: Command = Command::new(fixture.root.join("bin/git"));
-    hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
+    hermetic(
+        &mut command,
+        fixture,
+        wrapper_first_path(fixture).as_os_str(),
+    );
     if let Some(runtime) = service_runtime(fixture) {
         command.env("XDG_RUNTIME_DIR", runtime);
     }
@@ -124,18 +167,35 @@ impl Watched {
     ///  When the wrapper ends first,
     ///  naming what it printed,
     ///  or when its tree shows no sign of work before the marker appears.
-    pub(super) fn wait_for(&mut self, marker: &Path) {
+    pub(super) fn wait_for(
+        &mut self,
+        marker: &Path,
+    ) {
         let began: Instant = Instant::now();
-        let mut judge: Judge = Judge::new(Limits { no_progress: self.window, ..LIMITS }, tick());
+        let mut judge: Judge = Judge::new(
+            Limits {
+                no_progress: self.window,
+                ..LIMITS
+            },
+            tick(),
+        );
         while !marker.exists() {
             if let Some(status) = self.child.try_wait().expect("the wrapper's state") {
-                let said: String = String::from_utf8_lossy(read_from_start(&mut self.stderr).as_slice()).into_owned();
-                panic!("the wrapper ended with {status:?} before {} appeared: {said}", marker.display());
+                let said: String =
+                    String::from_utf8_lossy(read_from_start(&mut self.stderr).as_slice())
+                        .into_owned();
+                panic!(
+                    "the wrapper ended with {status:?} before {} appeared: {said}",
+                    marker.display()
+                );
             }
             if let Look::Seen(sample) = look_at(self.group, self.started)
                 && let Some(reason) = judge.observe(began.elapsed(), &sample, false)
             {
-                panic!("{} never appeared: the wrapper was ended because it {reason}", marker.display());
+                panic!(
+                    "{} never appeared: the wrapper was ended because it {reason}",
+                    marker.display()
+                );
             }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
@@ -185,23 +245,41 @@ impl Watched {
     /// the
     ///  group is given time to end by itself when `let_stragglers_end`,
     /// then ended.
-    fn wait_and_end(self, let_stragglers_end: bool) -> (Output, Option<Reason>) {
-        let Watched { mut child, mut stdout, mut stderr, finished, expired, .. } = self;
+    fn wait_and_end(
+        self,
+        let_stragglers_end: bool,
+    ) -> (Output, Option<Reason>) {
+        let Watched {
+            mut child,
+            mut stdout,
+            mut stderr,
+            finished,
+            expired,
+            ..
+        } = self;
         let status: std::process::ExitStatus = child.wait().expect("the wrapper ends");
         finished.store(true, Ordering::SeqCst);
         let group: i32 = i32::try_from(child.id()).expect("a process ID fits");
         if let_stragglers_end {
             let began: Instant = Instant::now();
             // SAFETY: `kill` with signal 0 only checks that the group has a member.
-            while unsafe { libc::kill(-group, 0) } == 0 && began.elapsed() < Duration::from_secs(STRAGGLER_SECONDS) {
+            while unsafe { libc::kill(-group, 0) } == 0
+                && began.elapsed() < Duration::from_secs(STRAGGLER_SECONDS)
+            {
                 std::thread::sleep(Duration::from_millis(20));
             }
         }
         // Whatever the wrapper left running in its group (an editor that was never told to stop) ends with it.
         // SAFETY: `kill` takes two integers and touches no memory of this process.
         unsafe { libc::kill(-group, libc::SIGKILL) };
-        let output: Output = Output { status, stdout: read_from_start(&mut stdout), stderr: read_from_start(&mut stderr) };
-        let ended: Option<Reason> = *expired.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let output: Output = Output {
+            status,
+            stdout: read_from_start(&mut stdout),
+            stderr: read_from_start(&mut stderr),
+        };
+        let ended: Option<Reason> = *expired
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         return (output, ended);
     }
 }
@@ -210,31 +288,53 @@ impl Watched {
 /// with a watchdog,
 /// and standard output and error in files under the
 ///  fixture.
-pub(super) fn spawn_watched(fixture: &Fixture, command: &mut Command) -> Watched {
+pub(super) fn spawn_watched(
+    fixture: &Fixture,
+    command: &mut Command,
+) -> Watched {
     return spawn_watched_with(fixture, command, QUIET_WINDOW);
 }
 
 /// `spawn_watched` with the quiet window given,
 /// so a control of the guard itself states a window it reaches in a moment.
-pub(super) fn spawn_watched_with(fixture: &Fixture, command: &mut Command, window: Duration) -> Watched {
-    let stdout: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard output");
-    let stderr: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard error");
+pub(super) fn spawn_watched_with(
+    fixture: &Fixture,
+    command: &mut Command,
+    window: Duration,
+) -> Watched {
+    let stdout: std::fs::File =
+        tempfile::tempfile_in(&fixture.root).expect("a file for standard output");
+    let stderr: std::fs::File =
+        tempfile::tempfile_in(&fixture.root).expect("a file for standard error");
     let child: Child = command
         .process_group(0)
         .stdin(Stdio::null())
-        .stdout(Stdio::from(stdout.try_clone().expect("standard output file")))
-        .stderr(Stdio::from(stderr.try_clone().expect("standard error file")))
+        .stdout(Stdio::from(
+            stdout.try_clone().expect("standard output file"),
+        ))
+        .stderr(Stdio::from(
+            stderr.try_clone().expect("standard error file"),
+        ))
         .spawn()
         .expect("the wrapper starts");
     let group: i32 = i32::try_from(child.id()).expect("a process ID fits");
-    let started: u64 = stat_of(group).expect("the wrapper that just started to be running").started;
+    let started: u64 = stat_of(group)
+        .expect("the wrapper that just started to be running")
+        .started;
     let finished: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let expired: Arc<Mutex<Option<Reason>>> = Arc::new(Mutex::new(None));
-    let watching: (Arc<AtomicBool>, Arc<Mutex<Option<Reason>>>) = (Arc::clone(&finished), Arc::clone(&expired));
+    let watching: (Arc<AtomicBool>, Arc<Mutex<Option<Reason>>>) =
+        (Arc::clone(&finished), Arc::clone(&expired));
     std::thread::spawn(move || {
         let (done, reason): (Arc<AtomicBool>, Arc<Mutex<Option<Reason>>>) = watching;
         let began: Instant = Instant::now();
-        let mut judge: Judge = Judge::new(Limits { no_progress: window, ..LIMITS }, tick());
+        let mut judge: Judge = Judge::new(
+            Limits {
+                no_progress: window,
+                ..LIMITS
+            },
+            tick(),
+        );
         while !done.load(Ordering::SeqCst) {
             std::thread::sleep(crate::supervisor::POLL);
             // A wrapper that has exited is waited for by the control, and its work is over whatever its group still holds.
@@ -242,28 +342,50 @@ pub(super) fn spawn_watched_with(fixture: &Fixture, command: &mut Command, windo
                 continue;
             };
             if let Some(ending) = judge.observe(began.elapsed(), &sample, false) {
-                *reason.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(ending);
+                *reason
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(ending);
                 // SAFETY: `kill` takes two integers and touches no memory of this process.
                 unsafe { libc::kill(-group, libc::SIGKILL) };
                 return;
             }
         }
     });
-    return Watched { child, stdout, stderr, finished, expired, started, group, window };
+    return Watched {
+        child,
+        stdout,
+        stderr,
+        finished,
+        expired,
+        started,
+        group,
+        window,
+    };
 }
 
 /// Runs `command` to its end under the watchdog.
-pub(super) fn run_watched(fixture: &Fixture, command: &mut Command) -> Output {
+pub(super) fn run_watched(
+    fixture: &Fixture,
+    command: &mut Command,
+) -> Output {
     return spawn_watched(fixture, command).finish();
 }
 
 /// Sends `signal` to one process (a positive target) or to a process group (a negative one).
 ///  # Panics
 ///  When the signal cannot be sent.
-pub(super) fn send(target: i32, signal: i32) {
+pub(super) fn send(
+    target: i32,
+    signal: i32,
+) {
     // SAFETY: `kill` takes two integers and touches no memory of this process.
     let status: libc::c_int = unsafe { libc::kill(target, signal) };
-    assert_eq!(status, 0, "kill({target}, {signal}) failed: {}", std::io::Error::last_os_error());
+    assert_eq!(
+        status,
+        0,
+        "kill({target}, {signal}) failed: {}",
+        std::io::Error::last_os_error()
+    );
 }
 
 /// Whether a process with this ID still exists (a zombie that nothing reaped counts as gone:
@@ -272,15 +394,28 @@ pub(super) fn is_running(pid: i32) -> bool {
     let Ok(status) = std::fs::read_to_string(format!("/proc/{pid}/status")) else {
         return false;
     };
-    return !status.lines().any(|line| { return line.starts_with("State:") && line.contains('Z'); });
+    return !status.lines().any(|line| {
+        return line.starts_with("State:") && line.contains('Z');
+    });
 }
 
 /// Runs one wrapped command to its end and reports what it showed its caller,
 /// without waiting for the service's after-commit work
 ///  (see `verify_recovery_with`).
-pub(super) fn run_unsettled(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> super::support::Observed {
-    let output: Output = run_watched(fixture, &mut unbounded_wrapper(fixture, directory, arguments));
-    return super::support::Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+pub(super) fn run_unsettled(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> super::support::Observed {
+    let output: Output = run_watched(
+        fixture,
+        &mut unbounded_wrapper(fixture, directory, arguments),
+    );
+    return super::support::Observed {
+        code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    };
 }
 
 /// Sets a flag when dropped,
@@ -299,7 +434,10 @@ const MANAGER_POLL: Duration = Duration::from_millis(5);
 /// Runs `body` while a stand-in for the user manager starts again any service of the fixture that ends,
 /// as production does at the
 ///  next connection to the manager's socket.
-pub(super) fn with_manager<T>(fixture: &Fixture, body: impl FnOnce() -> T) -> T {
+pub(super) fn with_manager<T>(
+    fixture: &Fixture,
+    body: impl FnOnce() -> T,
+) -> T {
     let finished: AtomicBool = AtomicBool::new(false);
     return std::thread::scope(|scope| {
         scope.spawn(|| {
@@ -321,7 +459,10 @@ pub(super) const SWEEP_WIDTH: usize = 6;
 /// Runs `check` over every item,
 /// `SWEEP_WIDTH` at a time,
 /// and returns the messages of the items that failed.
-pub(super) fn in_batches<T: Sync>(items: &[T], check: &(dyn Fn(&T) -> Result<(), String> + Sync)) -> Vec<String> {
+pub(super) fn in_batches<T: Sync>(
+    items: &[T],
+    check: &(dyn Fn(&T) -> Result<(), String> + Sync),
+) -> Vec<String> {
     let failures: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
     for batch in items.chunks(SWEEP_WIDTH) {
         std::thread::scope(|scope| {
@@ -351,8 +492,14 @@ pub(super) fn in_batches<T: Sync>(items: &[T], check: &(dyn Fn(&T) -> Result<(),
 /// ```ts
 /// const said = `${message}\n${serviceLog(fixture)}`;
 /// ```
-pub(super) fn with_service_log(fixture: &Fixture, message: String) -> String {
-    return format!("{message}\n{}", super::support::service_log(fixture.root.as_path()));
+pub(super) fn with_service_log(
+    fixture: &Fixture,
+    message: String,
+) -> String {
+    return format!(
+        "{message}\n{}",
+        super::support::service_log(fixture.root.as_path())
+    );
 }
 
 /// The verdict of a fault case,
@@ -362,7 +509,10 @@ pub(super) fn with_service_log(fixture: &Fixture, message: String) -> String {
 /// ```ts
 /// const verdict = raw.ok ? raw : { error: withServiceLog(fixture, raw.error) };
 /// ```
-pub(super) fn keeping_the_service_log(fixture: &Fixture, verdict: Result<(), String>) -> Result<(), String> {
+pub(super) fn keeping_the_service_log(
+    fixture: &Fixture,
+    verdict: Result<(), String>,
+) -> Result<(), String> {
     return match verdict {
         Ok(()) => Ok(()),
         Err(message) => Err(with_service_log(fixture, message)),
@@ -375,7 +525,12 @@ pub(super) fn keeping_the_service_log(fixture: &Fixture, verdict: Result<(), Str
 /// with no extra limit and
 ///  no tracer.
 pub(super) fn end_the_pressure(fixture: &Fixture) {
-    if let Some(services) = fixture.service.lock().expect("the fixture's service lock").as_ref() {
+    if let Some(services) = fixture
+        .service
+        .lock()
+        .expect("the fixture's service lock")
+        .as_ref()
+    {
         services.stop_all();
     }
     *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();

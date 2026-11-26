@@ -25,17 +25,36 @@
 /// The shared fixtures,
 ///  bounded runs and observation of what a run showed its caller.
 use super::support::{
-    Fixture, Observed, bounded, copy_executable, executable, fixture, link_real_git, observe, remove,
+    Fixture,
+    Observed,
+    bounded,
+    copy_executable,
+    executable,
+    fixture,
+    link_real_git,
+    observe,
+    remove,
     repository,
 };
 /// The writer of the unit text the wrapper itself provisions,
 ///  so the control records a path exactly as the product does.
-use git_policy_cli::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, runtime_unit_dir, unit_texts};
+use git_policy_cli::service_provision::{
+    ProvisionHost,
+    SERVICE_UNIT_NAME,
+    runtime_unit_dir,
+    unit_texts,
+};
 /// Operating-system text,
 ///  for the one `PATH` value of a run.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// The paths of the fixture's files.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The exit code of a wrapper that stops because it has no real Git to run.
 const WRAPPER_STOP_CODE: i32 = 2;
@@ -49,7 +68,10 @@ const STAND_IN_VERSION: &str = "git version 2.56.0";
 
 /// One directory under the fixture,
 ///  created now.
-fn directory(fixture: &Fixture, name: &str) -> PathBuf {
+fn directory(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let path: PathBuf = fixture.root.join(name);
     std::fs::create_dir(&path).expect("fixture directory");
     return path;
@@ -67,7 +89,10 @@ fn directory(fixture: &Fixture, name: &str) -> PathBuf {
 /// ```ts
 /// writeExecutable(path, `appendLine(counter, 'started'); console.log('git version 2.56.0')`);
 /// ```
-fn counting_git(path: &Path, counter: &Path) {
+fn counting_git(
+    path: &Path,
+    counter: &Path,
+) {
     let script: String = format!(
         "#!/bin/sh\necho started >> '{counter}'\necho '{STAND_IN_VERSION}'\n",
         counter = counter.display(),
@@ -99,7 +124,10 @@ fn starts(counter: &Path) -> usize {
 /// ```ts
 /// mkdirSync(join(runtime, 'systemd/user'), { recursive: true }); writeFileSync(join(runtime, 'systemd/user/cli-git@.service'), unitTexts({ git })[1]);
 /// ```
-fn write_record(runtime: &Path, git: &Path) {
+fn write_record(
+    runtime: &Path,
+    git: &Path,
+) {
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: runtime.to_path_buf(),
         user_unit_dir: None,
@@ -137,7 +165,10 @@ fn write_record(runtime: &Path, git: &Path) {
 /// ```ts
 /// writeFileSync(`${launcher}.launch`, JSON.stringify({ toolId, lockFile, real, scope: 'repo' }));
 /// ```
-fn write_launch_record(launcher: &Path, real: &Path) {
+fn write_launch_record(
+    launcher: &Path,
+    real: &Path,
+) {
     let mut record_name: OsString = launcher.as_os_str().to_os_string();
     record_name.push(".launch");
     let record: String = format!(
@@ -174,10 +205,14 @@ fn run_with_only(
         path.push(entry);
     }
     return observe(
-        bounded(fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
-            .current_dir(repo)
-            .env("XDG_RUNTIME_DIR", runtime)
-            .args(arguments),
+        bounded(
+            fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+        )
+        .current_dir(repo)
+        .env("XDG_RUNTIME_DIR", runtime)
+        .args(arguments),
         b"",
     );
 }
@@ -208,7 +243,8 @@ fn output(observed: &Observed) -> String {
 /// expect(run(['--version'], { PATH: wrapperDirectory })).toMatchObject({ code: 0 }); expect(starts).toBe(1); expect(stderr).toContain(notice);
 /// ```
 #[test]
-fn a_path_with_only_the_wrapper_and_a_recorded_real_git_runs_the_command_once_through_it_with_the_notice() {
+fn a_path_with_only_the_wrapper_and_a_recorded_real_git_runs_the_command_once_through_it_with_the_notice()
+ {
     let fixture: Fixture = fixture("record-fallback-once");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let recorded_directory: PathBuf = directory(&fixture, "recorded");
@@ -218,15 +254,38 @@ fn a_path_with_only_the_wrapper_and_a_recorded_real_git_runs_the_command_once_th
     let runtime: PathBuf = directory(&fixture, "run");
     write_record(runtime.as_path(), recorded.as_path());
     let wrapper_directory: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[wrapper_directory.as_path()], runtime.as_path(), &["--version"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[wrapper_directory.as_path()],
+        runtime.as_path(),
+        &["--version"],
+    );
     let text: String = words(&observed);
     assert_eq!(observed.code, Some(0), "{text}");
-    assert_eq!(starts(counter.as_path()), 1, "the recorded Git is started once: {text}");
-    assert!(output(&observed).contains(STAND_IN_VERSION), "Git's own answer reaches the caller: {}", output(&observed));
-    assert!(text.starts_with(NOTICE_LEAD), "the notice leads standard error: {text}");
+    assert_eq!(
+        starts(counter.as_path()),
+        1,
+        "the recorded Git is started once: {text}"
+    );
+    assert!(
+        output(&observed).contains(STAND_IN_VERSION),
+        "Git's own answer reaches the caller: {}",
+        output(&observed)
+    );
+    assert!(
+        text.starts_with(NOTICE_LEAD),
+        "the notice leads standard error: {text}"
+    );
     assert_eq!(text.lines().count(), 1, "the notice is one line: {text}");
-    assert!(text.contains(wrapper_directory.to_string_lossy().as_ref()), "names the PATH it read: {text}");
-    assert!(text.contains(recorded.to_string_lossy().as_ref()), "names the file it used: {text}");
+    assert!(
+        text.contains(wrapper_directory.to_string_lossy().as_ref()),
+        "names the PATH it read: {text}"
+    );
+    assert!(
+        text.contains(recorded.to_string_lossy().as_ref()),
+        "names the file it used: {text}"
+    );
     assert!(
         text.contains(&format!("add {} to the PATH", recorded_directory.display())),
         "names the way to silence it: {text}"
@@ -245,7 +304,8 @@ fn a_path_with_only_the_wrapper_and_a_recorded_real_git_runs_the_command_once_th
 /// expect(run(['rev-parse', 'HEAD'], { PATH: wrapperDirectory }).stdout).toBe(directGit(['rev-parse', 'HEAD']).stdout);
 /// ```
 #[test]
-fn the_recorded_real_git_answers_a_command_that_reads_the_repository_and_the_notice_stays_off_standard_output() {
+fn the_recorded_real_git_answers_a_command_that_reads_the_repository_and_the_notice_stays_off_standard_output()
+ {
     let fixture: Fixture = fixture("record-fallback-real");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     link_real_git(&fixture);
@@ -253,16 +313,27 @@ fn the_recorded_real_git_answers_a_command_that_reads_the_repository_and_the_not
     let runtime: PathBuf = directory(&fixture, "run");
     write_record(runtime.as_path(), recorded.as_path());
     let wrapper_directory: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[wrapper_directory.as_path()], runtime.as_path(), &["rev-parse", "HEAD"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[wrapper_directory.as_path()],
+        runtime.as_path(),
+        &["rev-parse", "HEAD"],
+    );
     let expected: Observed = observe(
-        super::support::direct(&fixture).current_dir(&repo).args(["rev-parse", "HEAD"]),
+        super::support::direct(&fixture)
+            .current_dir(&repo)
+            .args(["rev-parse", "HEAD"]),
         b"",
     );
     let text: String = words(&observed);
     assert_eq!(observed.code, Some(0), "{text}");
     assert_eq!(observed.stdout, expected.stdout);
     assert!(text.starts_with(NOTICE_LEAD), "{text}");
-    assert!(!output(&observed).contains("monochromatic-git-policy-cli:"), "standard output carries Git's answer only");
+    assert!(
+        !output(&observed).contains("monochromatic-git-policy-cli:"),
+        "standard output carries Git's answer only"
+    );
     remove(&fixture);
 }
 
@@ -298,8 +369,16 @@ fn a_real_git_on_path_is_used_and_the_record_is_neither_started_nor_announced() 
         &["--version"],
     );
     assert_eq!(observed.code, Some(0), "{}", words(&observed));
-    assert_eq!(starts(counter.as_path()), 0, "the recorded file is not started");
-    assert!(!words(&observed).contains(NOTICE_LEAD), "no notice: {}", words(&observed));
+    assert_eq!(
+        starts(counter.as_path()),
+        0,
+        "the recorded file is not started"
+    );
+    assert!(
+        !words(&observed).contains(NOTICE_LEAD),
+        "no notice: {}",
+        words(&observed)
+    );
     remove(&fixture);
 }
 
@@ -318,14 +397,24 @@ fn a_real_git_on_path_is_used_and_the_record_is_neither_started_nor_announced() 
 /// ```ts
 /// expect(observed).toMatchObject({ code: 2, stdout: '' }); expect(stderr).not.toContain(notice); expect(starts).toBe(0);
 /// ```
-fn assert_stopped(observed: &Observed, counter: &Path, path_directory: &Path) {
+fn assert_stopped(
+    observed: &Observed,
+    counter: &Path,
+    path_directory: &Path,
+) {
     let text: String = words(observed);
     assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{text}");
     assert!(observed.stdout.is_empty(), "{}", output(observed));
     assert!(!text.contains(NOTICE_LEAD), "no fallback happened: {text}");
     assert_eq!(starts(counter), 0, "nothing was started as Git: {text}");
-    assert!(text.contains(path_directory.to_string_lossy().as_ref()), "names the PATH it read: {text}");
-    assert!(text.contains("install Git") || text.contains("Install Git"), "names the remedy: {text}");
+    assert!(
+        text.contains(path_directory.to_string_lossy().as_ref()),
+        "names the PATH it read: {text}"
+    );
+    assert!(
+        text.contains("install Git") || text.contains("Install Git"),
+        "names the remedy: {text}"
+    );
 }
 
 /// What:
@@ -346,12 +435,22 @@ fn no_record_keeps_the_stop() {
     let counter: PathBuf = fixture.root.join("starts");
     let runtime: PathBuf = directory(&fixture, "run");
     let wrapper_directory: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[wrapper_directory.as_path()], runtime.as_path(), &["--version"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[wrapper_directory.as_path()],
+        runtime.as_path(),
+        &["--version"],
+    );
     assert_stopped(&observed, counter.as_path(), wrapper_directory.as_path());
     let unset: Observed = observe(
-        bounded(&fixture, fixture.root.join("bin/git").as_path(), wrapper_directory.as_os_str())
-            .current_dir(&repo)
-            .args(["--version"]),
+        bounded(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            wrapper_directory.as_os_str(),
+        )
+        .current_dir(&repo)
+        .args(["--version"]),
         b"",
     );
     assert_stopped(&unset, counter.as_path(), wrapper_directory.as_path());
@@ -381,12 +480,25 @@ fn a_record_naming_the_wrapper_or_a_copy_of_it_is_refused_and_keeps_the_stop() {
     let copy: PathBuf = copied_directory.join("git");
     copy_executable(fixture.wrapper.as_path(), copy.as_path());
     let wrapper_directory: PathBuf = fixture.root.join("bin");
-    for (index, named) in [fixture.wrapper.clone(), fixture.root.join("bin/git"), copy].into_iter().enumerate() {
+    for (index, named) in [fixture.wrapper.clone(), fixture.root.join("bin/git"), copy]
+        .into_iter()
+        .enumerate()
+    {
         let runtime: PathBuf = directory(&fixture, format!("run-{index}").as_str());
         write_record(runtime.as_path(), named.as_path());
-        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[wrapper_directory.as_path()], runtime.as_path(), &["--version"]);
+        let observed: Observed = run_with_only(
+            &fixture,
+            repo.as_path(),
+            &[wrapper_directory.as_path()],
+            runtime.as_path(),
+            &["--version"],
+        );
         assert_stopped(&observed, counter.as_path(), wrapper_directory.as_path());
-        assert!(words(&observed).contains(named.to_string_lossy().as_ref()), "names the recorded file: {}", words(&observed));
+        assert!(
+            words(&observed).contains(named.to_string_lossy().as_ref()),
+            "names the recorded file: {}",
+            words(&observed)
+        );
     }
     remove(&fixture);
 }
@@ -416,9 +528,19 @@ fn a_record_naming_a_launcher_of_the_wrapper_is_refused_without_a_start_and_keep
     let runtime: PathBuf = directory(&fixture, "run");
     write_record(runtime.as_path(), launcher.as_path());
     let wrapper_directory: PathBuf = fixture.root.join("bin");
-    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[wrapper_directory.as_path()], runtime.as_path(), &["--version"]);
+    let observed: Observed = run_with_only(
+        &fixture,
+        repo.as_path(),
+        &[wrapper_directory.as_path()],
+        runtime.as_path(),
+        &["--version"],
+    );
     assert_stopped(&observed, counter.as_path(), wrapper_directory.as_path());
-    assert!(words(&observed).contains(launcher.to_string_lossy().as_ref()), "names the recorded file: {}", words(&observed));
+    assert!(
+        words(&observed).contains(launcher.to_string_lossy().as_ref()),
+        "names the recorded file: {}",
+        words(&observed)
+    );
     remove(&fixture);
 }
 
@@ -447,9 +569,19 @@ fn a_record_naming_a_missing_or_non_executable_file_is_refused_and_keeps_the_sto
     for (index, named) in [missing, plain].into_iter().enumerate() {
         let runtime: PathBuf = directory(&fixture, format!("run-{index}").as_str());
         write_record(runtime.as_path(), named.as_path());
-        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[wrapper_directory.as_path()], runtime.as_path(), &["--version"]);
+        let observed: Observed = run_with_only(
+            &fixture,
+            repo.as_path(),
+            &[wrapper_directory.as_path()],
+            runtime.as_path(),
+            &["--version"],
+        );
         assert_stopped(&observed, counter.as_path(), wrapper_directory.as_path());
-        assert!(words(&observed).contains(named.to_string_lossy().as_ref()), "names the recorded file: {}", words(&observed));
+        assert!(
+            words(&observed).contains(named.to_string_lossy().as_ref()),
+            "names the recorded file: {}",
+            words(&observed)
+        );
     }
     remove(&fixture);
 }

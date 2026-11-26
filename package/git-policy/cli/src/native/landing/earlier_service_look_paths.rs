@@ -19,7 +19,10 @@
 //! // lookPaths.ts: the spelling of a path, the part of it the file system knows, and the identity of a journal folder.
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The bytes of a path,
 /// as a command line word spells it.

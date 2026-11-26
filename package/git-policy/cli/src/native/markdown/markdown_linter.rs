@@ -28,24 +28,44 @@
 //! // const run = embeddedLinter().lint({ topLevel, options, path, source });
 //! ```
 
-/// Import the guarded thread runner.
-use crate::markdown_linter_guard::{GuardFailure, GuardLimits, NoticeSink, run_guarded};
-/// Import the one-rule configuration.
-use crate::markdown_linter_config::one_rule_configuration;
-/// Import the reading of one run.
-use crate::markdown_linter_output::{LintRun, explanation, interpret_embedded_run};
 /// Import the conversion of Git's pathname bytes to a path.
 use crate::git_metadata::path_from_git_bytes;
+/// Import the one-rule configuration.
+use crate::markdown_linter_config::one_rule_configuration;
+/// Import the guarded thread runner.
+use crate::markdown_linter_guard::{
+    GuardFailure,
+    GuardLimits,
+    NoticeSink,
+    run_guarded,
+};
+/// Import the reading of one run.
+use crate::markdown_linter_output::{
+    LintRun,
+    explanation,
+    interpret_embedded_run,
+};
 /// Import the interface this linter provides.
-use crate::policy_markdown::{LintRequest, MarkdownLinter};
+use crate::policy_markdown::{
+    LintRequest,
+    MarkdownLinter,
+};
 /// When a long run prints its notices.
 use crate::wait_progress::Cadence;
 /// The linter library's in-process entry and its types.
-use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun, fix_source};
+use monochromatic_lint::run_embedded::{
+    EmbeddedFailure,
+    EmbeddedRequest,
+    EmbeddedRun,
+    fix_source,
+};
 /// The sink of those notices.
 use std::io::Write;
 /// `PathBuf` is an owned filesystem path.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Duration` is a span of time.
 use std::time::Duration;
 
@@ -160,7 +180,10 @@ pub fn embedded_linter() -> EmbeddedLinter {
 /// ```ts
 /// const embeddedLinterWith = (fix, window) => new EmbeddedLinter(fix, window, cadenceFromEnvironment(), stderr);
 /// ```
-pub fn embedded_linter_with(fix: FixFunction, window: Duration) -> EmbeddedLinter {
+pub fn embedded_linter_with(
+    fix: FixFunction,
+    window: Duration,
+) -> EmbeddedLinter {
     return EmbeddedLinter {
         fix,
         window,
@@ -199,7 +222,9 @@ const ABANDONED_REASON: &str = "an earlier Markdown check in this command did no
 fn guard_failure_reason(failure: &GuardFailure) -> String {
     match failure {
         GuardFailure::Start(reason) => {
-            return format!("monochromatic-git-policy-cli did not run the markdown check: {reason}");
+            return format!(
+                "monochromatic-git-policy-cli did not run the markdown check: {reason}"
+            );
         }
         GuardFailure::Panicked(reason) => {
             return format!(
@@ -257,7 +282,10 @@ impl MarkdownLinter for EmbeddedLinter {
     /// ```ts
     /// lint(request: LintRequest): LintRun; // throws string
     /// ```
-    fn lint(&mut self, request: &LintRequest<'_>) -> Result<LintRun, String> {
+    fn lint(
+        &mut self,
+        request: &LintRequest<'_>,
+    ) -> Result<LintRun, String> {
         if self.abandoned {
             return Err(String::from(ABANDONED_REASON));
         }
@@ -284,21 +312,32 @@ impl MarkdownLinter for EmbeddedLinter {
                     source: source.as_slice(),
                 });
             },
-            GuardLimits { window: self.window, ceiling: self.ceiling },
+            GuardLimits {
+                window: self.window,
+                ceiling: self.ceiling,
+            },
             self.cadence,
             waiting_for.as_str(),
             &mut self.notices,
         );
         match outcome {
             Ok(finished) => {
-                return interpret_embedded_run(request.source, request.options.rules.as_slice(), finished);
+                return interpret_embedded_run(
+                    request.source,
+                    request.options.rules.as_slice(),
+                    finished,
+                );
             }
             Err(failure) => {
                 // A thread that was abandoned may still be running, so no second one starts beside it.
-                self.abandoned = matches!(failure, GuardFailure::Quiet(_) | GuardFailure::Ceiling(_));
+                self.abandoned =
+                    matches!(failure, GuardFailure::Quiet(_) | GuardFailure::Ceiling(_));
                 // The ceiling's sentence names the file, because a ceiling is reached by a file that works for long.
                 if matches!(failure, GuardFailure::Ceiling(_)) {
-                    return Err(format!("monochromatic-lint, checking {checking}: {}", guard_failure_reason(&failure)));
+                    return Err(format!(
+                        "monochromatic-lint, checking {checking}: {}",
+                        guard_failure_reason(&failure)
+                    ));
                 }
                 return Err(guard_failure_reason(&failure));
             }
@@ -309,14 +348,21 @@ impl MarkdownLinter for EmbeddedLinter {
 impl EmbeddedLinter {
     /// The same linter with another ceiling;
     /// controls plant a fix that keeps working with a short one.
-    pub fn with_ceiling(mut self, ceiling: Duration) -> Self {
+    pub fn with_ceiling(
+        mut self,
+        ceiling: Duration,
+    ) -> Self {
         self.ceiling = ceiling;
         return self;
     }
 
     /// The same linter with another notice cadence and sink;
     ///  tests choose a short cadence and read the notices from a buffer that a thread can hold.
-    pub fn with_notices(mut self, cadence: Cadence, notices: Option<Box<dyn Write + Send>>) -> Self {
+    pub fn with_notices(
+        mut self,
+        cadence: Cadence,
+        notices: Option<Box<dyn Write + Send>>,
+    ) -> Self {
         self.cadence = cadence;
         self.notices = notices;
         return self;

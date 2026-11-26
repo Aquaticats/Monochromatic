@@ -36,18 +36,37 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{open_directory_at, open_root};
+use crate::fs_beneath::{
+    open_directory_at,
+    open_root,
+};
 use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::plain_file::read_plain_file;
-use crate::service_work::{MAX_TRIES, work_directory};
+use crate::service_work::{
+    MAX_TRIES,
+    work_directory,
+};
 use crate::work_item::queued_ids;
 use crate::worktree_removal_finishes_an_interrupted_destroy::owner_may_be_running;
-use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, RECORD_LIMIT, forget_the_leaving, leaving_records, queue_the_delete_again, read_the_leaving};
+use crate::worktree_removal_leaving_that_outlives_its_record::{
+    Leaving,
+    RECORD_LIMIT,
+    forget_the_leaving,
+    leaving_records,
+    queue_the_delete_again,
+    read_the_leaving,
+};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
-use crate::worktree_remove_hand_over::{DELETE_REFERENCE, recorded_subvolume};
+use crate::worktree_remove_hand_over::{
+    DELETE_REFERENCE,
+    recorded_subvolume,
+};
 use std::collections::HashSet;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemovalLeavings";
@@ -94,7 +113,10 @@ pub struct Leavings {
 /// return answer;
 /// ```
 pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leavings {
-    let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
+    let mut answer: Leavings = Leavings {
+        queued: false,
+        said: Vec::new(),
+    };
     let records: Vec<(String, PathBuf)> = leaving_records(common_dir);
     if records.is_empty() {
         return answer;
@@ -103,7 +125,13 @@ pub fn queue_the_leavings_a_record_no_longer_names(common_dir: &Path) -> Leaving
     // One listing of each state a round acts on, asked only when a removal left something to decide about.
     let owed: HashSet<String> = queued_ids(work.as_path());
     for (id, record) in records {
-        queue_one_leaving(common_dir, record.as_path(), id.as_str(), &owed, &mut answer);
+        queue_one_leaving(
+            common_dir,
+            record.as_path(),
+            id.as_str(),
+            &owed,
+            &mut answer,
+        );
     }
     return answer;
 }
@@ -149,27 +177,47 @@ enum Standing {
 /// ```ts
 /// const standing = whatStandsAt(target, recorded); // opens the parent, then the name, then asks the id
 /// ```
-fn what_stands_at(target: &Path, recorded: u64) -> Standing {
+fn what_stands_at(
+    target: &Path,
+    recorded: u64,
+) -> Standing {
     if !target.is_absolute() || !is_a_leaving_name(target) {
         return Standing::NotThisLeaving;
     }
-    let Some(parent_path) = target.parent() else { return Standing::NotThisLeaving };
-    let Some(name) = target.file_name() else { return Standing::NotThisLeaving };
+    let Some(parent_path) = target.parent() else {
+        return Standing::NotThisLeaving;
+    };
+    let Some(name) = target.file_name() else {
+        return Standing::NotThisLeaving;
+    };
     let parent: File = match open_root(parent_path) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Standing::Gone,
-        Err(error) => return Standing::Unreadable(format!("the directory {} cannot be opened ({error})", parent_path.display())),
+        Err(error) => {
+            return Standing::Unreadable(format!(
+                "the directory {} cannot be opened ({error})",
+                parent_path.display()
+            ));
+        }
     };
     let held: File = match open_directory_at(&parent, name) {
         Ok(opened) => opened,
         Err(error) if is_gone(error.kind()) => return Standing::Gone,
-        Err(error) => return Standing::Unreadable(format!("{} cannot be opened ({error})", target.display())),
+        Err(error) => {
+            return Standing::Unreadable(format!(
+                "{} cannot be opened ({error})",
+                target.display()
+            ));
+        }
     };
     return match subvolume_id(&held, target) {
         Ok(id) if id == recorded => Standing::TheSubvolumeItNames,
         Ok(_other) => Standing::SomebodyElses,
         Err(error) if error.errno == libc::ENOENT => Standing::Gone,
-        Err(error) => Standing::Unreadable(format!("the subvolume of {} cannot be identified ({error})", target.display())),
+        Err(error) => Standing::Unreadable(format!(
+            "the subvolume of {} cannot be identified ({error})",
+            target.display()
+        )),
     };
 }
 
@@ -190,13 +238,26 @@ fn is_gone(kind: std::io::ErrorKind) -> bool {
 /// ```ts
 /// queueOneLeaving({ commonDir, record, id, owed, answer });
 /// ```
-fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<String>, answer: &mut Leavings) {
+fn queue_one_leaving(
+    common_dir: &Path,
+    record: &Path,
+    id: &str,
+    owed: &HashSet<String>,
+    answer: &mut Leavings,
+) {
     let bytes: Vec<u8> = match read_plain_file(record, RECORD_LIMIT) {
         Ok(read) => read,
         Err(error) => {
             // A named pipe, a device or a directory in this folder is not a record of this program's, and opening one would
             // wait for a writer that never comes, on every command of the repository.
-            debug(TAG, format!("{} is not a plain record and is left alone ({error})", record.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{} is not a plain record and is left alone ({error})",
+                    record.display()
+                )
+                .as_str(),
+            );
             return;
         }
     };
@@ -230,7 +291,14 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
     let target: PathBuf = PathBuf::from(leaving.item.parent.as_str());
     match what_stands_at(target.as_path(), recorded) {
         Standing::Gone => {
-            debug(TAG, format!("nothing of a removal's stands at {}, so its leaving is finished", target.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "nothing of a removal's stands at {}, so its leaving is finished",
+                    target.display()
+                )
+                .as_str(),
+            );
             forget_the_leaving(common_dir, id);
             return;
         }
@@ -286,9 +354,22 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
 /// const queued = queueTheDeleteAgain(commonDir, leaving); if (queued.error) { answer.said.push(cannotQueueWords(queued.error)); return; }
 /// answer.queued = true;
 /// ```
-fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving, target: &Path, owed: &HashSet<String>, answer: &mut Leavings) {
+fn queue_the_delete_of_one_standing_leaving(
+    common_dir: &Path,
+    leaving: &Leaving,
+    target: &Path,
+    owed: &HashSet<String>,
+    answer: &mut Leavings,
+) {
     if owed.contains(leaving.item.id().as_str()) {
-        debug(TAG, format!("a round of the service owes the delete of {}, so nothing here is queued", target.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "a round of the service owes the delete of {}, so nothing here is queued",
+                target.display()
+            )
+            .as_str(),
+        );
         return;
     }
     if leaving.tries >= MAX_TRIES {

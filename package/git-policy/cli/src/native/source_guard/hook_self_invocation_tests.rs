@@ -19,7 +19,10 @@
 //! before any repository is built.
 
 /// The pins' reader and the comment rule: a line as written, and comments on their own line only.
-use super::{assert_whole_line_comments_only, pinned_code_lines};
+use super::{
+    assert_whole_line_comments_only,
+    pinned_code_lines,
+};
 
 /// The executable entry point, whole.
 const MAIN_SOURCE: &str = include_str!("../main.rs");
@@ -29,12 +32,18 @@ const MAIN_SOURCE: &str = include_str!("../main.rs");
 /// A change to any line here is a change to what `main` may do with the argument vector,
 /// so the pin and the code change in one commit,
 /// and a reviewer reads the two diffs together.
-const MAIN_CODE: [&str; 47] = [
-    "use std::ffi::OsString;",
-    "use git_policy_cli::service_log_lines_off_the_calling_thread::{WAIT_BEFORE_AN_EXIT, write_what_waits};",
+const MAIN_CODE: &[&str] = &[
     "use git_policy_cli::diagnostic_lines_off_the_calling_thread::write_what_waits as write_every_diagnostic_line_that_waits;",
+    "use git_policy_cli::service_log_lines_off_the_calling_thread::{",
+    "WAIT_BEFORE_AN_EXIT,",
+    "write_what_waits,",
+    "};",
     "#[cfg(target_os = \"linux\")]",
-    "use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{self, RootModeStart};",
+    "use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{",
+    "self,",
+    "RootModeStart,",
+    "};",
+    "use std::ffi::OsString;",
     "fn main() {",
     "#[allow(clippy::disallowed_methods)]",
     "let arguments: Vec<OsString> = std::env::args_os().collect();",
@@ -49,7 +58,8 @@ const MAIN_CODE: [&str; 47] = [
     "}",
     "RootModeStart::Refused(misuse) => {",
     "git_policy_cli::panic_notice::install_payload_free_panic_hook();",
-    "let code: i32 = git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);",
+    "let code: i32 =",
+    "git_policy_cli::worktree_clone_mount_handler::refuse_root_mode_misuse(misuse);",
     "end_after_the_log(code);",
     "}",
     "}",
@@ -59,7 +69,10 @@ const MAIN_CODE: [&str; 47] = [
     "let code: i32 = match git_policy_cli::service_main::service_options(handed) {",
     "Ok(options) => git_policy_cli::service_main::run(options.as_slice()),",
     "Err(word) => {",
-    "git_policy_cli::service_error!(\"an argument of the service is not text: {}\", word.to_string_lossy());",
+    "git_policy_cli::service_error!(",
+    "\"an argument of the service is not text: {}\",",
+    "word.to_string_lossy()",
+    ");",
     "git_policy_cli::service_main::EXIT_REFUSED",
     "}",
     "};",
@@ -69,7 +82,8 @@ const MAIN_CODE: [&str; 47] = [
     "let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();",
     "let start_directory: git_policy_cli::start_directory::StartDirectory =",
     "git_policy_cli::start_directory::StartDirectory::read_from_the_process();",
-    "let code: i32 = git_policy_cli::entry::run_process(handed, environment.as_slice(), &start_directory);",
+    "let code: i32 =",
+    "git_policy_cli::entry::run_process(handed, environment.as_slice(), &start_directory);",
     "end_after_the_log(code);",
     "}",
     "fn end_after_the_log(code: i32) -> ! {",
@@ -81,14 +95,38 @@ const MAIN_CODE: [&str; 47] = [
 
 /// Every source of the commit path that decides what Git is started with.
 const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
-    ("commit/commit_conclusion.rs", include_str!("../commit/commit_conclusion.rs")),
-    ("commit/commit_preparation.rs", include_str!("../commit/commit_preparation.rs")),
-    ("invocation/hooks_off.rs", include_str!("../invocation/hooks_off.rs")),
-    ("landing/service_commit.rs", include_str!("../landing/service_commit.rs")),
-    ("landing/service_native.rs", include_str!("../landing/service_native.rs")),
-    ("landing/service_prepare.rs", include_str!("../landing/service_prepare.rs")),
-    ("health/external_hooks.rs", include_str!("../health/external_hooks.rs")),
-    ("shadow/shadow_config.rs", include_str!("../shadow/shadow_config.rs")),
+    (
+        "commit/commit_conclusion.rs",
+        include_str!("../commit/commit_conclusion.rs"),
+    ),
+    (
+        "commit/commit_preparation.rs",
+        include_str!("../commit/commit_preparation.rs"),
+    ),
+    (
+        "invocation/hooks_off.rs",
+        include_str!("../invocation/hooks_off.rs"),
+    ),
+    (
+        "landing/service_commit.rs",
+        include_str!("../landing/service_commit.rs"),
+    ),
+    (
+        "landing/service_native.rs",
+        include_str!("../landing/service_native.rs"),
+    ),
+    (
+        "landing/service_prepare.rs",
+        include_str!("../landing/service_prepare.rs"),
+    ),
+    (
+        "health/external_hooks.rs",
+        include_str!("../health/external_hooks.rs"),
+    ),
+    (
+        "shadow/shadow_config.rs",
+        include_str!("../shadow/shadow_config.rs"),
+    ),
 ];
 
 /// What a commit-path source must never contain:
@@ -120,7 +158,9 @@ fn code_lines(source: &str) -> Vec<&str> {
     return source
         .lines()
         .map(str::trim_start)
-        .filter(|line| { return !line.starts_with("//"); })
+        .filter(|line| {
+            return !line.starts_with("//");
+        })
         .collect();
 }
 
@@ -136,10 +176,26 @@ fn code_lines(source: &str) -> Vec<&str> {
 #[test]
 fn main_is_the_reviewed_handful_of_statements() {
     assert_whole_line_comments_only("main.rs", MAIN_SOURCE);
-    let code: Vec<String> = pinned_code_lines(MAIN_SOURCE, "main.rs").into_iter().filter(|line| { return !line.is_empty(); }).collect();
-    assert_eq!(code.len(), MAIN_CODE.len(), "main.rs has {} code line(s), and the reviewed text has {}: {code:#?}", code.len(), MAIN_CODE.len());
+    let code: Vec<String> = pinned_code_lines(MAIN_SOURCE, "main.rs")
+        .into_iter()
+        .filter(|line| {
+            return !line.is_empty();
+        })
+        .collect();
+    assert_eq!(
+        code.len(),
+        MAIN_CODE.len(),
+        "main.rs has {} code line(s), and the reviewed text has {}: {code:#?}",
+        code.len(),
+        MAIN_CODE.len()
+    );
     for (at, (found, want)) in code.iter().zip(MAIN_CODE.iter()).enumerate() {
-        assert_eq!(found.as_str(), *want, "main.rs's code line {} is not the reviewed one", at + 1);
+        assert_eq!(
+            found.as_str(),
+            *want,
+            "main.rs's code line {} is not the reviewed one",
+            at + 1
+        );
     }
 }
 
@@ -162,7 +218,13 @@ fn the_commit_path_writes_no_entry_and_runs_no_hook_program() {
 /// comments excluded.
 fn violations(source: &str) -> Vec<&'static str> {
     let joined: String = code_lines(source).join("\n");
-    return FORBIDDEN_IN_COMMIT_PATH.iter().copied().filter(|forbidden| { return joined.contains(forbidden); }).collect();
+    return FORBIDDEN_IN_COMMIT_PATH
+        .iter()
+        .copied()
+        .filter(|forbidden| {
+            return joined.contains(forbidden);
+        })
+        .collect();
 }
 
 /// The scan flags each kind of violation it exists for,
@@ -174,9 +236,15 @@ fn violations(source: &str) -> Vec<&'static str> {
 fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
     for token in FORBIDDEN_IN_COMMIT_PATH {
         let planted_code: String = format!("fn planted() {{ let _ = {token}; }}");
-        assert!(violations(planted_code.as_str()).contains(token), "{token} in code");
+        assert!(
+            violations(planted_code.as_str()).contains(token),
+            "{token} in code"
+        );
         let planted_comment: String = format!("// {token} is explained here\nfn fine() {{}}");
-        assert!(violations(planted_comment.as_str()).is_empty(), "{token} in a comment");
+        assert!(
+            violations(planted_comment.as_str()).is_empty(),
+            "{token} in a comment"
+        );
     }
     assert!(violations("let shell = Command::new(\"sh\");").contains(&"Command::new(\""));
 }

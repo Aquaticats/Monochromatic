@@ -8,9 +8,19 @@
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;
-use crate::manual_push_porcelain::{PorcelainUpdate, RemoteBefore};
-use crate::test_support::{fixture, git, remove};
-use std::path::{Path, PathBuf};
+use crate::manual_push_porcelain::{
+    PorcelainUpdate,
+    RemoteBefore,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Environment every Git child of these fixtures runs with.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
@@ -86,7 +96,10 @@ fn head_of(repo: &Path) -> String {
 
 /// The object a ref names in a bare remote,
 /// or nothing.
-fn remote_value(origin: &Path, reference: &str) -> Option<String> {
+fn remote_value(
+    origin: &Path,
+    reference: &str,
+) -> Option<String> {
     let output = std::process::Command::new("/usr/bin/git")
         .current_dir(origin)
         .env_clear()
@@ -227,10 +240,15 @@ fn a_push_git_refuses_carries_gits_status_and_words() {
             .args(&arguments)
             .output()
             .expect("plain push");
-        let error = probe_manual_push_updates(&git_for(&repo), &[], &post(&arguments)).expect_err("Git refuses this push");
+        let error = probe_manual_push_updates(&git_for(&repo), &[], &post(&arguments))
+            .expect_err("Git refuses this push");
         let refusal = error.refusal.expect("Git's refusal is carried");
         assert_eq!(Some(refusal.code), plain.status.code(), "{arguments:?}");
-        assert_eq!(refusal.stderr, String::from_utf8_lossy(&plain.stderr), "{arguments:?}");
+        assert_eq!(
+            refusal.stderr,
+            String::from_utf8_lossy(&plain.stderr),
+            "{arguments:?}"
+        );
     }
     remove(repo.parent().expect("root"));
 }
@@ -245,11 +263,13 @@ fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-no-refusal");
     let mut silent = git_for(&repo);
     silent.real_git = PathBuf::from("/usr/bin/false");
-    let silent_error = probe_manual_push_updates(&silent, &[], &post(&["origin", "main"])).expect_err("a silent failure");
+    let silent_error = probe_manual_push_updates(&silent, &[], &post(&["origin", "main"]))
+        .expect_err("a silent failure");
     assert_eq!(silent_error.refusal, None, "{silent_error}");
     let mut garbled = git_for(&repo);
     garbled.real_git = PathBuf::from("/usr/bin/echo");
-    let error = probe_manual_push_updates(&garbled, &[], &post(&["origin", "main"])).expect_err("an unreadable report");
+    let error = probe_manual_push_updates(&garbled, &[], &post(&["origin", "main"]))
+        .expect_err("an unreadable report");
     assert_eq!(error.refusal, None, "{error}");
     remove(repo.parent().expect("root"));
 }
@@ -270,11 +290,27 @@ fn probe_arguments_place_their_options_before_the_terminator_git_reads() {
         (&["origin", "main"][..], 2),
     ] {
         let arguments: Vec<OsString> = probe_arguments(&[], &post(typed));
-        let text: Vec<String> = arguments.iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
-        let push: usize = text.iter().position(|word| { return word == "push"; }).expect("push");
+        let text: Vec<String> = arguments
+            .iter()
+            .map(|argument| {
+                return argument.to_string_lossy().into_owned();
+            })
+            .collect();
+        let push: usize = text
+            .iter()
+            .position(|word| {
+                return word == "push";
+            })
+            .expect("push");
         let options: &[String] = &text[push + 1 + before..push + 1 + before + own.len()];
         assert_eq!(options, own, "{text:?}");
-        let rest: Vec<&str> = text[push + 1..].iter().map(String::as_str).filter(|word| { return !own.contains(word); }).collect();
+        let rest: Vec<&str> = text[push + 1..]
+            .iter()
+            .map(String::as_str)
+            .filter(|word| {
+                return !own.contains(word);
+            })
+            .collect();
         assert_eq!(rest, typed, "{text:?}");
     }
 }
@@ -283,7 +319,10 @@ fn probe_arguments_place_their_options_before_the_terminator_git_reads() {
 /// switch every hook off and ask for full names.
 #[test]
 fn probe_arguments_keep_git_options_before_the_terminator() {
-    let arguments: Vec<OsString> = probe_arguments(&post(&["-C", "dir"]), &post(&["--force", "origin", "--", "main"]));
+    let arguments: Vec<OsString> = probe_arguments(
+        &post(&["-C", "dir"]),
+        &post(&["--force", "origin", "--", "main"]),
+    );
     let text: Vec<String> = arguments
         .iter()
         .map(|argument| {
@@ -300,8 +339,14 @@ fn probe_arguments_keep_git_options_before_the_terminator() {
     };
     assert!(position("--dry-run") < position("--"), "{text:?}");
     assert!(position("--porcelain") < position("--"), "{text:?}");
-    assert!(position("push") < position("--force") && position("--force") < position("--dry-run"), "{text:?}");
-    assert!(text.contains(&String::from("hook.pre-push.enabled=false")), "{text:?}");
+    assert!(
+        position("push") < position("--force") && position("--force") < position("--dry-run"),
+        "{text:?}"
+    );
+    assert!(
+        text.contains(&String::from("hook.pre-push.enabled=false")),
+        "{text:?}"
+    );
     assert!(text.contains(&String::from("core.abbrev=no")), "{text:?}");
     assert!(
         text.iter().any(|word| {
@@ -309,7 +354,11 @@ fn probe_arguments_keep_git_options_before_the_terminator() {
         }),
         "{text:?}"
     );
-    assert_eq!(&text[..2], ["-C", "dir"], "the caller's global options come first");
+    assert_eq!(
+        &text[..2],
+        ["-C", "dir"],
+        "the caller's global options come first"
+    );
 }
 
 /// A configured `pre-push` hook of the repository does not run for the probe,
@@ -319,12 +368,27 @@ fn a_configured_pre_push_hook_does_not_run_for_the_probe() {
     let (repo, origin, _base) = repository_with_origin("mp-probe-hook-off");
     let marker = repo.parent().expect("root").join("hook-ran");
     git(&repo, &["config", "hook.mine.event", "pre-push"]);
-    git(&repo, &["config", "hook.mine.command", &format!("touch {}", marker.display())]);
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
-    let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", "main"])).expect("probes");
+    git(
+        &repo,
+        &[
+            "config",
+            "hook.mine.command",
+            &format!("touch {}", marker.display()),
+        ],
+    );
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
+    let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", "main"]))
+        .expect("probes");
     assert_eq!(updates.len(), 1);
     assert!(!marker.exists(), "the caller's hook ran for the probe");
-    assert_ne!(remote_value(&origin, "refs/heads/main"), Some(head_of(&repo)), "the probe published");
+    assert_ne!(
+        remote_value(&origin, "refs/heads/main"),
+        Some(head_of(&repo)),
+        "the probe published"
+    );
     remove(repo.parent().expect("root"));
 }
 
@@ -334,15 +398,28 @@ fn a_configured_pre_push_hook_does_not_run_for_the_probe() {
 fn a_bare_push_and_a_tag_are_reported_with_the_remote_git_picks() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-bare");
     git(&repo, &["config", "push.default", "current"]);
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
     git(&repo, &["tag", "--annotate", "--message=tag", "v1"]);
     let tip = head_of(&repo);
     let bare = probe_manual_push_updates(&git_for(&repo), &[], &[]).expect("probes");
     assert_eq!(bare.len(), 1);
-    assert_eq!((bare[0].remote_name.as_str(), bare[0].local_oid.as_deref()), ("origin", Some(tip.as_str())));
-    let tag_object = String::from_utf8_lossy(&git(&repo, &["rev-parse", "refs/tags/v1"]).stdout).trim().to_owned();
-    let tags = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", "v1"])).expect("probes");
-    assert_eq!(tags[0].local_oid.as_deref(), Some(tag_object.as_str()), "the tag object, not the commit");
+    assert_eq!(
+        (bare[0].remote_name.as_str(), bare[0].local_oid.as_deref()),
+        ("origin", Some(tip.as_str()))
+    );
+    let tag_object = String::from_utf8_lossy(&git(&repo, &["rev-parse", "refs/tags/v1"]).stdout)
+        .trim()
+        .to_owned();
+    let tags =
+        probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", "v1"])).expect("probes");
+    assert_eq!(
+        tags[0].local_oid.as_deref(),
+        Some(tag_object.as_str()),
+        "the tag object, not the commit"
+    );
     assert_eq!(tags[0].remote_oid, None);
     remove(repo.parent().expect("root"));
 }
@@ -353,23 +430,61 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     let (repo, origin, base) = repository_with_origin("mp-confirm-changed");
     // The object this push sends is not the one the destination holds,
     //  which is what makes a changed report a move the push does not account for.
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
     let location: &str = origin.to_str().expect("utf-8");
     let reported = |before: RemoteBefore, to: &str| -> Vec<(PorcelainUpdate, Option<String>)> {
-        let update = PorcelainUpdate { from: String::from("refs/heads/main"), to: to.to_owned(), before, after: None };
+        let update = PorcelainUpdate {
+            from: String::from("refs/heads/main"),
+            to: to.to_owned(),
+            before,
+            after: None,
+        };
         return vec![(update, Some(head_of(&repo)))];
     };
-    let changed = reported(RemoteBefore::Known("1".repeat(base.len())), "refs/heads/main");
-    let moved = confirm_group(&git_for(&repo), location, "origin", changed.as_slice()).expect_err("the remote moved");
+    let changed = reported(
+        RemoteBefore::Known("1".repeat(base.len())),
+        "refs/heads/main",
+    );
+    let moved = confirm_group(&git_for(&repo), location, "origin", changed.as_slice())
+        .expect_err("the remote moved");
     assert_eq!(moved.cause, ManualPushCause::RemoteMoved, "{moved}");
     let matching = reported(RemoteBefore::Known(base.clone()), "refs/heads/main");
-    let confirmed = confirm_group(&git_for(&repo), location, "origin", matching.as_slice()).expect("confirms");
-    assert_eq!(confirmed.updates[0].remote_oid.as_deref(), Some(base.as_str()));
-    assert!(confirmed.listing.contains("refs/heads/main"), "the confirmation lists the branch heads too: {}", confirmed.listing);
+    let confirmed =
+        confirm_group(&git_for(&repo), location, "origin", matching.as_slice()).expect("confirms");
+    assert_eq!(
+        confirmed.updates[0].remote_oid.as_deref(),
+        Some(base.as_str())
+    );
+    assert!(
+        confirmed.listing.contains("refs/heads/main"),
+        "the confirmation lists the branch heads too: {}",
+        confirmed.listing
+    );
     let deleted_since = reported(RemoteBefore::Known(base), "refs/heads/gone");
-    assert!(confirm_group(&git_for(&repo), location, "origin", deleted_since.as_slice()).is_err(), "the reported tip no longer exists");
+    assert!(
+        confirm_group(
+            &git_for(&repo),
+            location,
+            "origin",
+            deleted_since.as_slice()
+        )
+        .is_err(),
+        "the reported tip no longer exists"
+    );
     let appeared_since = reported(RemoteBefore::Absent, "refs/heads/main");
-    assert!(confirm_group(&git_for(&repo), location, "origin", appeared_since.as_slice()).is_err(), "a new ref that now exists");
+    assert!(
+        confirm_group(
+            &git_for(&repo),
+            location,
+            "origin",
+            appeared_since.as_slice()
+        )
+        .is_err(),
+        "a new ref that now exists"
+    );
     remove(repo.parent().expect("root"));
 }
 
@@ -379,22 +494,42 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
 #[test]
 fn a_destination_that_holds_what_the_push_sends_is_confirmed_as_nothing_to_publish() {
     let (repo, origin, _base) = repository_with_origin("mp-confirm-already-there");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
     let pushed = head_of(&repo);
     // What the auto-push of that same commit does: the remote holds it before the person's push arrives.
-    git(&repo, &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    git(
+        &repo,
+        &["push", "--quiet", "origin", "HEAD:refs/heads/main"],
+    );
     let location: &str = origin.to_str().expect("utf-8");
     let reported = |before: RemoteBefore| -> Vec<(PorcelainUpdate, Option<String>)> {
-        let update = PorcelainUpdate { from: String::from("refs/heads/main"), to: String::from("refs/heads/main"), before, after: None };
+        let update = PorcelainUpdate {
+            from: String::from("refs/heads/main"),
+            to: String::from("refs/heads/main"),
+            before,
+            after: None,
+        };
         return vec![(update, Some(pushed.clone()))];
     };
     let other = "1".repeat(pushed.len());
     for before in [RemoteBefore::Absent, RemoteBefore::Known(other)] {
         let said = format!("{before:?}");
-        let confirmed = confirm_group(&git_for(&repo), location, "origin", reported(before).as_slice())
-            .expect("a destination that holds the pushed object is no move at all");
+        let confirmed = confirm_group(
+            &git_for(&repo),
+            location,
+            "origin",
+            reported(before).as_slice(),
+        )
+        .expect("a destination that holds the pushed object is no move at all");
         assert_eq!(confirmed.updates.len(), 1, "{said}");
-        assert_eq!(confirmed.updates[0].local_oid.as_deref(), Some(pushed.as_str()), "{said}");
+        assert_eq!(
+            confirmed.updates[0].local_oid.as_deref(),
+            Some(pushed.as_str()),
+            "{said}"
+        );
         assert_eq!(
             confirmed.updates[0].remote_oid.as_deref(),
             Some(pushed.as_str()),
@@ -413,7 +548,11 @@ fn git_that_cannot_list_the_remote(root: &Path) -> PathBuf {
     let stand_in = root.join("git-stand-in");
     let script = "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = ls-remote ]; then\n    echo \"fatal: unable to access 'https://person:hunter2@example.invalid/r.git/': could not resolve host\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n";
     std::fs::write(&stand_in, script).expect("stand-in");
-    std::fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &stand_in,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return stand_in;
 }
 
@@ -422,14 +561,24 @@ fn git_that_cannot_list_the_remote(root: &Path) -> PathBuf {
 #[test]
 fn an_unreadable_remote_is_the_unreachable_cause_and_masks_the_password() {
     let (repo, _origin, _base) = repository_with_origin("mp-cause-unreachable");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
     let mut stand_in = git_for(&repo);
     stand_in.real_git = git_that_cannot_list_the_remote(repo.parent().expect("root"));
-    let error = probe_manual_push_updates(&stand_in, &[], &post(&["origin", "main"])).expect_err("the remote cannot be listed");
+    let error = probe_manual_push_updates(&stand_in, &[], &post(&["origin", "main"]))
+        .expect_err("the remote cannot be listed");
     assert_eq!(error.cause, ManualPushCause::RemoteUnreachable, "{error}");
     assert_eq!(error.refusal, None);
-    assert!(!error.message.contains("hunter2"), "the password must not appear: {error}");
-    assert!(error.message.contains("example.invalid"), "the address is still named: {error}");
+    assert!(
+        !error.message.contains("hunter2"),
+        "the password must not appear: {error}"
+    );
+    assert!(
+        error.message.contains("example.invalid"),
+        "the address is still named: {error}"
+    );
     remove(repo.parent().expect("root"));
 }
 
@@ -441,23 +590,37 @@ fn git_that_cannot_start_or_say_why_or_be_read_has_its_own_cause() {
     let arguments = post(&["origin", "main"]);
     let mut absent = git_for(&repo);
     absent.real_git = repo.parent().expect("root").join("no-such-git");
-    let not_started = probe_manual_push_updates(&absent, &[], &arguments).expect_err("Git cannot start");
-    assert_eq!(not_started.cause, ManualPushCause::GitNotStarted, "{not_started}");
+    let not_started =
+        probe_manual_push_updates(&absent, &[], &arguments).expect_err("Git cannot start");
+    assert_eq!(
+        not_started.cause,
+        ManualPushCause::GitNotStarted,
+        "{not_started}"
+    );
     let mut silent = git_for(&repo);
     silent.real_git = PathBuf::from("/usr/bin/false");
-    let not_said = probe_manual_push_updates(&silent, &[], &arguments).expect_err("Git says nothing");
+    let not_said =
+        probe_manual_push_updates(&silent, &[], &arguments).expect_err("Git says nothing");
     assert_eq!(not_said.cause, ManualPushCause::GitSilent, "{not_said}");
     let mut garbled = git_for(&repo);
     garbled.real_git = PathBuf::from("/usr/bin/echo");
-    let unreadable = probe_manual_push_updates(&garbled, &[], &arguments).expect_err("an unreadable report");
-    assert_eq!(unreadable.cause, ManualPushCause::UnexpectedOutput, "{unreadable}");
+    let unreadable =
+        probe_manual_push_updates(&garbled, &[], &arguments).expect_err("an unreadable report");
+    assert_eq!(
+        unreadable.cause,
+        ManualPushCause::UnexpectedOutput,
+        "{unreadable}"
+    );
     remove(repo.parent().expect("root"));
 }
 
 /// The probe error displays its message.
 #[test]
 fn the_probe_error_displays_its_message() {
-    assert_eq!(probe_error(ManualPushCause::SelfExplained, String::from("why")).to_string(), "why");
+    assert_eq!(
+        probe_error(ManualPushCause::SelfExplained, String::from("why")).to_string(),
+        "why"
+    );
 }
 
 /// `-u`,
@@ -469,12 +632,19 @@ fn the_probe_error_displays_its_message() {
 fn the_three_ways_to_set_an_upstream_do_not_stop_the_probe() {
     for (name, prefix, region) in [
         ("short", Vec::new(), vec!["-u", "origin", "feature"]),
-        ("long", Vec::new(), vec!["--set-upstream", "origin", "feature"]),
+        (
+            "long",
+            Vec::new(),
+            vec!["--set-upstream", "origin", "feature"],
+        ),
         ("auto", vec!["-c", "push.autoSetupRemote=true"], Vec::new()),
     ] {
         let (repo, _origin, _base) = repository_with_origin(&format!("mp-probe-upstream-{name}"));
         git(&repo, &["checkout", "--quiet", "-b", "feature"]);
-        git(&repo, &["commit", "--quiet", "--allow-empty", "--message=feature"]);
+        git(
+            &repo,
+            &["commit", "--quiet", "--allow-empty", "--message=feature"],
+        );
         let updates = probe_manual_push_updates(&git_for(&repo), &post(&prefix), &post(&region))
             .unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(updates.len(), 1, "{name}");
@@ -488,12 +658,24 @@ fn the_three_ways_to_set_an_upstream_do_not_stop_the_probe() {
 #[test]
 fn a_quiet_push_is_probed_like_any_other() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-quiet");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
     let tip = head_of(&repo);
-    for region in [vec!["-q", "origin", "main"], vec!["--quiet", "origin", "main"], vec!["origin", "main", "-q"]] {
-        let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&region)).expect("probes");
+    for region in [
+        vec!["-q", "origin", "main"],
+        vec!["--quiet", "origin", "main"],
+        vec!["origin", "main", "-q"],
+    ] {
+        let updates =
+            probe_manual_push_updates(&git_for(&repo), &[], &post(&region)).expect("probes");
         assert_eq!(updates.len(), 1, "{region:?}");
-        assert_eq!(updates[0].local_oid.as_deref(), Some(tip.as_str()), "{region:?}");
+        assert_eq!(
+            updates[0].local_oid.as_deref(),
+            Some(tip.as_str()),
+            "{region:?}"
+        );
     }
     remove(repo.parent().expect("root"));
 }
@@ -504,13 +686,20 @@ fn a_quiet_push_is_probed_like_any_other() {
 #[test]
 fn only_a_remote_name_needs_the_push_url_query() {
     let (repo, origin, _base) = repository_with_origin("mp-probe-locations");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
     let root = repo.parent().expect("root").to_path_buf();
     let log = root.join("starts.log");
     let wrapper = root.join("counting-git");
     crate::test_support::executable(
         &wrapper,
-        format!("#!/bin/sh\necho \"$@\" >> '{}'\nexec /usr/bin/git \"$@\"\n", log.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\necho \"$@\" >> '{}'\nexec /usr/bin/git \"$@\"\n",
+            log.display()
+        )
+        .as_bytes(),
     );
     let mut counting = git_for(&repo);
     counting.real_git = wrapper;
@@ -521,10 +710,19 @@ fn only_a_remote_name_needs_the_push_url_query() {
     };
     let typed: String = starts_after(origin.to_str().expect("utf-8"));
     assert!(!typed.contains("remote get-url"), "{typed}");
-    assert!(typed.contains("ls-remote"), "the destination is still confirmed: {typed}");
-    assert!(typed.contains(crate::manual_push_probe::ALL_HEADS_PATTERN), "the one confirmation reads the branch heads the upload plan asks about: {typed}");
+    assert!(
+        typed.contains("ls-remote"),
+        "the destination is still confirmed: {typed}"
+    );
+    assert!(
+        typed.contains(crate::manual_push_probe::ALL_HEADS_PATTERN),
+        "the one confirmation reads the branch heads the upload plan asks about: {typed}"
+    );
     let named: String = starts_after("origin");
-    assert!(named.contains("remote get-url --push --all origin"), "{named}");
+    assert!(
+        named.contains("remote get-url --push --all origin"),
+        "{named}"
+    );
     remove(&root);
 }
 
@@ -538,17 +736,36 @@ fn only_a_remote_name_needs_the_push_url_query() {
 #[test]
 fn the_discovery_carries_the_branches_its_confirmation_read() {
     let (repo, _origin, base) = repository_with_origin("mp-probe-destination-heads");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
-    let probed = crate::manual_push_probe::probe_manual_push_and_destination(&git_for(&repo), &[], &post(&["origin", "main"])).expect("probes");
-    assert_eq!(probed.updates.len(), 1, "the updates are the ones the confirmation read");
-    let destination = probed.destination.expect("one destination reported its branches");
-    let heads = destination.heads_for("origin").expect("the answer is for the remote this push goes to");
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=next"],
+    );
+    let probed = crate::manual_push_probe::probe_manual_push_and_destination(
+        &git_for(&repo),
+        &[],
+        &post(&["origin", "main"]),
+    )
+    .expect("probes");
+    assert_eq!(
+        probed.updates.len(),
+        1,
+        "the updates are the ones the confirmation read"
+    );
+    let destination = probed
+        .destination
+        .expect("one destination reported its branches");
+    let heads = destination
+        .heads_for("origin")
+        .expect("the answer is for the remote this push goes to");
     assert_eq!(
         heads.get("refs/heads/main").map(String::as_str),
         Some(base.as_str()),
         "the branch head the destination reported, which is the commit this clone fetched"
     );
-    assert!(destination.heads_for("elsewhere").is_none(), "another remote's branch heads are not this push's answer");
+    assert!(
+        destination.heads_for("elsewhere").is_none(),
+        "another remote's branch heads are not this push's answer"
+    );
     remove(repo.parent().expect("root"));
 }
 
@@ -575,13 +792,32 @@ fn a_location_is_told_from_a_remote_name_by_its_shape() {
 #[test]
 fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-colon-source");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=uniquemessage"]);
+    git(
+        &repo,
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message=uniquemessage",
+        ],
+    );
     let tip = head_of(&repo);
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=later"]);
-    let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", ":/uniquemessage:refs/heads/new"]))
-        .expect("probes");
+    git(
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=later"],
+    );
+    let updates = probe_manual_push_updates(
+        &git_for(&repo),
+        &[],
+        &post(&["origin", ":/uniquemessage:refs/heads/new"]),
+    )
+    .expect("probes");
     assert_eq!(updates.len(), 1);
-    assert_eq!(updates[0].local_oid.as_deref(), Some(tip.as_str()), "not a deletion");
+    assert_eq!(
+        updates[0].local_oid.as_deref(),
+        Some(tip.as_str()),
+        "not a deletion"
+    );
     assert_eq!(updates[0].remote_ref, "refs/heads/new");
     remove(repo.parent().expect("root"));
 }
@@ -590,8 +826,16 @@ fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
 /// and is that measurement rounded up to a power of two.
 #[test]
 fn the_query_estimate_is_the_measured_whole_history_peak_rounded_up_to_a_power_of_two() {
-    const { assert!(QUERY_MEMORY >= MEASURED_WHOLE_HISTORY_QUERY, "the query estimate must cover the measured whole-history query") };
-    assert_eq!(QUERY_MEMORY, MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two());
+    const {
+        assert!(
+            QUERY_MEMORY >= MEASURED_WHOLE_HISTORY_QUERY,
+            "the query estimate must cover the measured whole-history query"
+        )
+    };
+    assert_eq!(
+        QUERY_MEMORY,
+        MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two()
+    );
 }
 
 /// A Git stand-in that answers `ls-remote` with one record per ref it was asked for:
@@ -603,7 +847,11 @@ fn git_that_lists_every_ref_asked_for(root: &Path) -> PathBuf {
     // A pattern is no ref the remote reports, as `git ls-remote` prints no line for one.
     let script = "#!/bin/sh\nfor word in \"$@\"; do\n  case \"$word\" in\n    *\\**) ;;\n    refs/*) printf '%s\\t%s\\n' \"$word\" \"$word\" ;;\n  esac\ndone\n";
     std::fs::write(&stand_in, script).expect("stand-in");
-    std::fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::fs::set_permissions(
+        &stand_in,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .expect("executable");
     return stand_in;
 }
 
@@ -622,7 +870,10 @@ fn confirming_a_destination_reads_each_listed_ref_once() {
     let root = fixture("mp-probe-confirm-once");
     std::fs::create_dir_all(root.as_path()).expect("fixture root");
     let mut environment: Vec<(OsString, OsString)> = fixture_environment();
-    environment.push((OsString::from("HOME"), home_beside(root.as_path()).into_os_string()));
+    environment.push((
+        OsString::from("HOME"),
+        home_beside(root.as_path()).into_os_string(),
+    ));
     let coordinator = PushGit {
         real_git: git_that_lists_every_ref_asked_for(root.as_path()),
         cwd: root.clone(),
@@ -634,17 +885,31 @@ fn confirming_a_destination_reads_each_listed_ref_once() {
     for number in 0..width {
         let to: String = format!("refs/heads/branch-{number:05}");
         updates.push((
-            PorcelainUpdate { from: to.clone(), to: to.clone(), before: RemoteBefore::Unknown, after: None },
+            PorcelainUpdate {
+                from: to.clone(),
+                to: to.clone(),
+                before: RemoteBefore::Unknown,
+                after: None,
+            },
             Some(format!("{number:040x}")),
         ));
     }
     let before: u64 = crate::collected_elements_looked_at::looked_at();
-    let confirmed = confirm_group(&coordinator, "origin", "origin", updates.as_slice()).expect("confirms").updates;
+    let confirmed = confirm_group(&coordinator, "origin", "origin", updates.as_slice())
+        .expect("confirms")
+        .updates;
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
     assert_eq!(confirmed.len(), width);
     for (index, update) in confirmed.iter().enumerate() {
-        assert_eq!(update.remote_ref, updates[index].0.to, "the updates keep their order");
-        assert_eq!(update.remote_oid.as_deref(), Some(update.remote_ref.as_str()), "each update read its own record");
+        assert_eq!(
+            update.remote_ref, updates[index].0.to,
+            "the updates keep their order"
+        );
+        assert_eq!(
+            update.remote_oid.as_deref(),
+            Some(update.remote_ref.as_str()),
+            "each update read its own record"
+        );
     }
     assert_eq!(
         looked,

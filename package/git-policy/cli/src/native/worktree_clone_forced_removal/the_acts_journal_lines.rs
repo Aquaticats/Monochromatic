@@ -82,7 +82,11 @@ pub struct TheActsJournal<'a> {
 impl TheActsJournal<'_> {
     /// The two fields every line repeats.
     fn the_request(&self) -> String {
-        return format!("dataset={} nonce={}", quoted(self.dataset), quoted(self.nonce.as_str()));
+        return format!(
+            "dataset={} nonce={}",
+            quoted(self.dataset),
+            quoted(self.nonce.as_str())
+        );
     }
 }
 
@@ -124,7 +128,10 @@ pub struct ABlockersEnd<'a> {
 
 impl TheActsJournal<'_> {
     /// One blocker and its end.
-    pub fn a_blocker_ended(&self, ended: &ABlockersEnd<'_>) -> String {
+    pub fn a_blocker_ended(
+        &self,
+        ended: &ABlockersEnd<'_>,
+    ) -> String {
         let mount: String = match ended.mount_id {
             Some(id) => id.to_string(),
             None => String::from("none"),
@@ -183,7 +190,10 @@ pub struct APropagationChange<'a> {
 
 impl TheActsJournal<'_> {
     /// One mount's propagation change.
-    pub fn a_propagation_change(&self, changed: &APropagationChange<'_>) -> String {
+    pub fn a_propagation_change(
+        &self,
+        changed: &APropagationChange<'_>,
+    ) -> String {
         return format!(
             "{LINE_PREFIX} propagation-changed {} namespace={} mount={} was={} now={} change={} removal={}",
             self.the_request(),
@@ -192,7 +202,11 @@ impl TheActsJournal<'_> {
             quoted(changed.was),
             quoted(changed.now),
             quoted(changed.change),
-            if changed.finished { "finished" } else { "failed" }
+            if changed.finished {
+                "finished"
+            } else {
+                "failed"
+            }
         );
     }
 }
@@ -219,7 +233,10 @@ pub struct ADestinationDirectory<'a> {
 
 impl TheActsJournal<'_> {
     /// One destination directory.
-    pub fn a_destination_directory(&self, directory: &ADestinationDirectory<'_>) -> String {
+    pub fn a_destination_directory(
+        &self,
+        directory: &ADestinationDirectory<'_>,
+    ) -> String {
         return format!(
             "{LINE_PREFIX} destination-directory {} namespace={} name={} left={}",
             self.the_request(),
@@ -253,7 +270,10 @@ pub struct AStoppedUnit<'a> {
 impl TheActsJournal<'_> {
     /// One stopped unit,
     /// with the sentence that the removal may be run again.
-    pub fn a_stopped_unit(&self, stopped: &AStoppedUnit<'_>) -> String {
+    pub fn a_stopped_unit(
+        &self,
+        stopped: &AStoppedUnit<'_>,
+    ) -> String {
         return format!(
             "{LINE_PREFIX} unit-stopped {} unit={} cgroup={} namespace={} again=run-the-removal-and-start-the-unit",
             self.the_request(),
@@ -289,7 +309,10 @@ pub struct AHolderNotEnded<'a> {
 
 impl TheActsJournal<'_> {
     /// One holder not ended.
-    pub fn a_holder_not_ended(&self, kept: &AHolderNotEnded<'_>) -> String {
+    pub fn a_holder_not_ended(
+        &self,
+        kept: &AHolderNotEnded<'_>,
+    ) -> String {
         let mount: String = match kept.mount_id {
             Some(id) => id.to_string(),
             None => String::from("none"),
@@ -326,7 +349,10 @@ pub struct ARefusedNamespace<'a> {
 
 impl TheActsJournal<'_> {
     /// One refused namespace.
-    pub fn a_refused_namespace(&self, refused: &ARefusedNamespace<'_>) -> String {
+    pub fn a_refused_namespace(
+        &self,
+        refused: &ARefusedNamespace<'_>,
+    ) -> String {
         return format!(
             "{LINE_PREFIX} namespace-refused {} namespace={} word={} said={}",
             self.the_request(),
@@ -366,7 +392,10 @@ pub struct AStructuralRefusal<'a> {
 
 impl TheActsJournal<'_> {
     /// One refusal in the middle of the structural stage.
-    pub fn a_structural_refusal(&self, refused: &AStructuralRefusal<'_>) -> String {
+    pub fn a_structural_refusal(
+        &self,
+        refused: &AStructuralRefusal<'_>,
+    ) -> String {
         let mut changed: String = String::with_capacity(16);
         for namespace in refused.changed {
             if !changed.is_empty() {
@@ -415,13 +444,20 @@ pub struct AClosingLine {
 
 impl TheActsJournal<'_> {
     /// The act's closing line.
-    pub fn closed(&self, line: &AClosingLine) -> String {
+    pub fn closed(
+        &self,
+        line: &AClosingLine,
+    ) -> String {
         return format!(
             "{LINE_PREFIX} act-closed {} ended={} unproven={} scan={} changed={} stage={}",
             self.the_request(),
             line.ended,
             line.unproven,
-            if line.scan_clear { "clear" } else { "not-clear" },
+            if line.scan_clear {
+                "clear"
+            } else {
+                "not-clear"
+            },
             line.propagation_changes,
             quoted(line.stage.word())
         );

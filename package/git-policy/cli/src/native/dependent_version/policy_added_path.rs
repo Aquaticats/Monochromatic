@@ -29,15 +29,26 @@
 //! ```
 
 /// The modes and object names the precondition compares.
-use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    mode_from_git,
+    parse_object_id,
+};
 /// The pathname conversion the worktree copy is found through.
 use crate::git_metadata::path_from_git_bytes;
 /// The exact path bytes a Git command is given.
 use crate::path_bytes::os_from_path_bytes;
-/// The Git context and request the real index is listed in.
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// The repository location Git answered for the invocation the listing serves.
 use crate::repository_location::RepositoryLocation;
+/// The Git context and request the real index is listed in.
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
 /// The worktree top the listing runs in.
 use crate::worktree_identity::worktree_root;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
@@ -85,7 +96,10 @@ pub type Entry = (CandidateMode, ObjectId);
 /// ```ts
 /// const directFixMessage = ({ path, reason }) => `A policy fix needs to change ${path}, ...`;
 /// ```
-pub fn added_path_message(path: &str, reason: &str) -> String {
+pub fn added_path_message(
+    path: &str,
+    reason: &str,
+) -> String {
     return format!(
         "A policy fix needs to change {path}, which this fix did not select, but {reason}. \
          Include {path} in the fix pathspecs so the fix applies to its worktree copy, \
@@ -112,7 +126,13 @@ pub fn added_path_message(path: &str, reason: &str) -> String {
 /// ```ts
 /// const commitMessage = ({ path, name, from, to, reason }) => `A policy fix needs to add ${path} to this commit, but ${reason}. ${name} keeps ${from} ...`;
 /// ```
-pub fn commit_added_path_message(path: &str, name: &str, from: &str, to: &str, reason: &str) -> String {
+pub fn commit_added_path_message(
+    path: &str,
+    name: &str,
+    from: &str,
+    to: &str,
+    reason: &str,
+) -> String {
     return format!(
         "A policy fix needs to add {path} to this commit to bump {name} from {from} to {to}, but {reason}. {name} \
          keeps {from} in this commit, and its copy was left exactly as it is. Commit the file too, with its version \
@@ -151,7 +171,10 @@ fn is_ordinary(mode: CandidateMode) -> bool {
 /// ```ts
 /// function headMode(head: Entry | undefined, index: Entry): CandidateMode; // throws the reason
 /// ```
-pub fn head_mode(head: Option<&Entry>, index: &Entry) -> Result<CandidateMode, &'static str> {
+pub fn head_mode(
+    head: Option<&Entry>,
+    index: &Entry,
+) -> Result<CandidateMode, &'static str> {
     let Some((mode, object)) = head else {
         return Err(ADDED_PATH_HEAD_REASON);
     };
@@ -175,7 +198,10 @@ pub fn head_mode(head: Option<&Entry>, index: &Entry) -> Result<CandidateMode, &
 /// ```ts
 /// const executableMatches = ((stat.mode & 0o100) !== 0) === (mode === 'executable');
 /// ```
-fn executable_matches(metadata: &std::fs::Metadata, mode: CandidateMode) -> bool {
+fn executable_matches(
+    metadata: &std::fs::Metadata,
+    mode: CandidateMode,
+) -> bool {
     #[cfg(unix)]
     {
         /// Unix permission bits.
@@ -391,11 +417,17 @@ pub fn real_index_entries(
             "the repository holds no work tree to list the real index in",
         ));
     };
-    let mut request: GitRequest = GitRequest::new(repository_root, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
+    let mut request: GitRequest = GitRequest::new(
+        repository_root,
+        &["ls-files", "--stage", "-z", "--full-name", "--"],
+    )
+    .own_pathspecs();
     for path in paths {
         let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
         pathspec.extend_from_slice(path.as_slice());
-        request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+        request
+            .arguments
+            .push(os_from_path_bytes(pathspec.as_slice()));
     }
     // The listing is the caller's own pathspecs, and the caller's pathspec mode would read them as file names.
     request.without_prefix = true;
@@ -416,7 +448,8 @@ pub fn real_index_entries(
         if *stage != b"0" {
             continue;
         }
-        let (Some(mode), Some(object)) = (mode_from_git(raw_mode), parse_object_id(raw_object)) else {
+        let (Some(mode), Some(object)) = (mode_from_git(raw_mode), parse_object_id(raw_object))
+        else {
             continue;
         };
         entries.insert(record[tab + 1..].to_vec(), (mode, object));

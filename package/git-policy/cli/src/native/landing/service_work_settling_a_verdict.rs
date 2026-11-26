@@ -19,12 +19,20 @@
 //! ```
 
 use super::service_work_handlers_replanning_and_acceptance::*;
+use crate::push_failure_notice::PushOutcome;
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_storage_awaited::{
-    clear_push_failures_before_awaiting, record_push_failure_awaiting, record_push_report_awaiting, record_push_skip_awaiting, settle_all_awaiting,
+    clear_push_failures_before_awaiting,
+    record_push_failure_awaiting,
+    record_push_report_awaiting,
+    record_push_skip_awaiting,
+    settle_all_awaiting,
 };
-use crate::push_failure_notice::PushOutcome;
-use crate::work_item::{Claimed, DONE, FAILED};
+use crate::work_item::{
+    Claimed,
+    DONE,
+    FAILED,
+};
 use std::path::Path;
 
 /// What:
@@ -47,7 +55,10 @@ use std::path::Path;
 /// ```
 fn forget_the_programs_of(members: &[Claimed]) {
     for member in members {
-        crate::service_push_programs_held_in_memory::forget(member.item.git_dir.as_path(), member.item.id().as_str());
+        crate::service_push_programs_held_in_memory::forget(
+            member.item.git_dir.as_path(),
+            member.item.id().as_str(),
+        );
     }
 }
 
@@ -89,34 +100,63 @@ pub(super) async fn settle_after_the_push(
         Verdict::Done => {
             // A push of the branch went through, so an earlier failure to push it is no longer true.
             if let Some(latest) = newest {
-                clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
-                replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
+                clear_push_failures_before_awaiting(
+                    git_dir,
+                    latest.item.branch_ref.as_str(),
+                    pushing_since,
+                )
+                .await;
+                replanning
+                    .forget(git_dir, latest.item.branch_ref.as_str())
+                    .await;
             }
             // The values go only once the records are settled: a settling step that could not run leaves the claims to their lease and
             //  the push runs again, and then it needs exactly these values.
-            let back: Option<HeldClaims> = settle_all_awaiting(held, work_dir, settling, DONE).await;
+            let back: Option<HeldClaims> =
+                settle_all_awaiting(held, work_dir, settling, DONE).await;
             if back.is_some() {
                 forget_the_programs_of(members);
             }
             return back;
         }
-        Verdict::Delivered { commit, said } => {
+        Verdict::Delivered {
+            commit,
+            said,
+        } => {
             // The push landed, so an earlier failure of its branch is no longer true and no retry plan is left for it. What it
             //  said is a record the next command shows, and that record goes before the items settle: an item in `done` always has
             //  its record, so a storage that refused the words leaves the item failed rather than done, and the words are said in
             //  the journal where the step that was refused them says them. Nothing makes an accepted push say them again.
             let recorded: bool = match newest {
-                Some(latest) if !said.is_empty() => {
-                    record_push_report_awaiting(git_dir, latest.item.branch_ref.as_str(), commit.as_str(), said.as_str()).await.is_ok()
-                }
+                Some(latest) if !said.is_empty() => record_push_report_awaiting(
+                    git_dir,
+                    latest.item.branch_ref.as_str(),
+                    commit.as_str(),
+                    said.as_str(),
+                )
+                .await
+                .is_ok(),
                 _ => true,
             };
             if let Some(latest) = newest {
-                clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
-                replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
+                clear_push_failures_before_awaiting(
+                    git_dir,
+                    latest.item.branch_ref.as_str(),
+                    pushing_since,
+                )
+                .await;
+                replanning
+                    .forget(git_dir, latest.item.branch_ref.as_str())
+                    .await;
             }
             // The values go only once the records are settled, for the reason the landed push above gives.
-            let back: Option<HeldClaims> = settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
+            let back: Option<HeldClaims> = settle_all_awaiting(
+                held,
+                work_dir,
+                settling,
+                if recorded { DONE } else { FAILED },
+            )
+            .await;
             if back.is_some() {
                 forget_the_programs_of(members);
             }
@@ -126,19 +166,38 @@ pub(super) async fn settle_after_the_push(
             // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
             //  have reached the remote, so its record says that instead of naming what was refused, and it says
             //  whether a plan will try it again.
-            let (said, outcome, carried): (String, PushOutcome, bool) = match (newest, replanning.first) {
-                (Some(latest), Some(first)) => {
-                    let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &latest.item, 1, text.as_str()).await;
-                    // The framing promises a retry only when the plan the words speak of exists.
-                    let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
-                    (planned.words, outcome, planned.kept)
-                }
-                _ => (text, PushOutcome::UnfinishedWithNoRetry, false),
-            };
+            let (said, outcome, carried): (String, PushOutcome, bool) =
+                match (newest, replanning.first) {
+                    (Some(latest), Some(first)) => {
+                        let planned: PlannedRetry = planned_retry(
+                            git_dir,
+                            replanning,
+                            first,
+                            &latest.item,
+                            1,
+                            text.as_str(),
+                        )
+                        .await;
+                        // The framing promises a retry only when the plan the words speak of exists.
+                        let outcome: PushOutcome = if planned.kept {
+                            PushOutcome::Unfinished
+                        } else {
+                            PushOutcome::UnfinishedWithNoRetry
+                        };
+                        (planned.words, outcome, planned.kept)
+                    }
+                    _ => (text, PushOutcome::UnfinishedWithNoRetry, false),
+                };
             let recorded: bool = match newest {
-                Some(latest) => {
-                    record_push_failure_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), outcome, said.as_str()).await.is_ok()
-                }
+                Some(latest) => record_push_failure_awaiting(
+                    git_dir,
+                    latest.item.branch_ref.as_str(),
+                    latest.item.oid.as_str(),
+                    outcome,
+                    said.as_str(),
+                )
+                .await
+                .is_ok(),
                 None => true,
             };
             // A plan that carries the push says these words again on its next try, so the items may settle. Without one the claims
@@ -151,7 +210,11 @@ pub(super) async fn settle_after_the_push(
             //  would search the manager's list instead: `git-lfs` it cannot find, and a transport nobody chose. A plan carries only
             //  the newest record of the branch, and a push no plan carries is over, so every other record keeps nothing
             //  (`service_push_programs_held_in_memory`).
-            let over: &[Claimed] = if carried { &members[..members.len().saturating_sub(1)] } else { members };
+            let over: &[Claimed] = if carried {
+                &members[..members.len().saturating_sub(1)]
+            } else {
+                members
+            };
             forget_the_programs_of(over);
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
@@ -160,11 +223,15 @@ pub(super) async fn settle_after_the_push(
             //  leaves the claims to their lease, so the push is tried again by itself and the server's refusal is recorded then:
             //  settling as failed would be the end of it, with nothing said and nothing that could say it.
             let recorded: bool = match newest {
-                Some(latest) => {
-                    record_push_failure_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), PushOutcome::Refused, text.as_str())
-                        .await
-                        .is_ok()
-                }
+                Some(latest) => record_push_failure_awaiting(
+                    git_dir,
+                    latest.item.branch_ref.as_str(),
+                    latest.item.oid.as_str(),
+                    PushOutcome::Refused,
+                    text.as_str(),
+                )
+                .await
+                .is_ok(),
                 None => true,
             };
             if !recorded {
@@ -176,7 +243,9 @@ pub(super) async fn settle_after_the_push(
             //  the refusal is recorded: a service killed between the two then leaves the plan, so a later one tries the
             //  push again instead of the person waiting for a try nothing schedules.
             if let Some(latest) = newest {
-                replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
+                replanning
+                    .forget(git_dir, latest.item.branch_ref.as_str())
+                    .await;
             }
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
@@ -186,7 +255,14 @@ pub(super) async fn settle_after_the_push(
             //  skip is worked out again and recorded then, because settling it either way would leave the person no reason for a
             //  backup that does not exist.
             let recorded: bool = match newest {
-                Some(latest) if !text.is_empty() => record_push_skip_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), text.as_str()).await.is_ok(),
+                Some(latest) if !text.is_empty() => record_push_skip_awaiting(
+                    git_dir,
+                    latest.item.branch_ref.as_str(),
+                    latest.item.oid.as_str(),
+                    text.as_str(),
+                )
+                .await
+                .is_ok(),
                 _ => true,
             };
             if !recorded {

@@ -3,9 +3,20 @@
 //! and every other entry of a common Git directory stays absent.
 
 use super::*;
-use crate::candidate_private_index::{PRIVATE_INDEX_PREFIX, STAGING_SUFFIX};
-use crate::test_support::{fixture, git, remove, repository};
-use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SHADOW_POOL_FOLDER};
+use crate::candidate_private_index::{
+    PRIVATE_INDEX_PREFIX,
+    STAGING_SUFFIX,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
+use crate::wrapper_names_old_and_new::{
+    REPOSITORY_SCRATCH,
+    SHADOW_POOL_FOLDER,
+};
 
 /// Every entry a shadow shares,
 /// beside the ones a fixture repository has,
@@ -62,15 +73,25 @@ fn only_the_named_shared_entries_link() {
     );
     let mut expected: Vec<String> = SHARED_ENTRY_NAMES
         .iter()
-        .map(|name| { return String::from(*name); })
-        .filter(|name| { return common.join(name).exists(); })
+        .map(|name| {
+            return String::from(*name);
+        })
+        .filter(|name| {
+            return common.join(name).exists();
+        })
         .collect();
     let mut linked: Vec<String> = entry_names(shadow.as_path());
     expected.sort();
     linked.sort();
-    assert_eq!(linked, expected, "a creation links the named entries the repository holds, and nothing else");
+    assert_eq!(
+        linked, expected,
+        "a creation links the named entries the repository holds, and nothing else"
+    );
     for name in ENTRIES_A_COMMIT_DOES_NOT_READ {
-        assert!(std::fs::symlink_metadata(shadow.join(name)).is_err(), "an entry no commit reads reached the shadow as {name}");
+        assert!(
+            std::fs::symlink_metadata(shadow.join(name)).is_err(),
+            "an entry no commit reads reached the shadow as {name}"
+        );
     }
     remove(root.as_path());
 }
@@ -87,8 +108,13 @@ fn only_the_named_shared_entries_link() {
 /// "The choices this leaves to the owner").
 #[test]
 fn the_named_list_is_what_a_commit_reads() {
-    for name in ["branches", "hooks", "info", "lfs", "modules", "remotes", "rr-cache", "shallow", "svn"] {
-        assert!(is_shared_shadow_entry(name), "{name} is an entry a commit reads");
+    for name in [
+        "branches", "hooks", "info", "lfs", "modules", "remotes", "rr-cache", "shallow", "svn",
+    ] {
+        assert!(
+            is_shared_shadow_entry(name),
+            "{name} is an entry a commit reads"
+        );
     }
     for name in [
         // The shadow's own.
@@ -126,7 +152,10 @@ fn the_named_list_is_what_a_commit_reads() {
         "cli-git-captures",
         ".factory-scm-trigger",
     ] {
-        assert!(!is_shared_shadow_entry(name), "{name} is not an entry a commit reads");
+        assert!(
+            !is_shared_shadow_entry(name),
+            "{name} is not an entry a commit reads"
+        );
     }
 }
 
@@ -140,7 +169,14 @@ fn linked_worktree_copies_its_per_worktree_entries() {
     let linked: PathBuf = root.join("linked");
     git(
         repo.as_path(),
-        &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")],
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
     );
     let common: PathBuf = repo.join(".git");
     let git_dir: PathBuf = common.join("worktrees").join("linked");
@@ -151,7 +187,11 @@ fn linked_worktree_copies_its_per_worktree_entries() {
     std::fs::create_dir(&shadow).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), git_dir.as_path()).expect("link");
     let shadow_info: PathBuf = shadow.join("info");
-    assert!(std::fs::symlink_metadata(&shadow_info).expect("info").is_dir());
+    assert!(
+        std::fs::symlink_metadata(&shadow_info)
+            .expect("info")
+            .is_dir()
+    );
     assert_eq!(
         std::fs::read_link(shadow_info.join("exclude")).expect("exclude link"),
         common.join("info").join("exclude")
@@ -160,9 +200,11 @@ fn linked_worktree_copies_its_per_worktree_entries() {
         std::fs::read_to_string(shadow_info.join("sparse-checkout")).expect("sparse copy"),
         "/*\n"
     );
-    assert!(std::fs::symlink_metadata(shadow.join("info").join("sparse-checkout"))
-        .expect("copy")
-        .is_file());
+    assert!(
+        std::fs::symlink_metadata(shadow.join("info").join("sparse-checkout"))
+            .expect("copy")
+            .is_file()
+    );
     assert_eq!(
         std::fs::read_to_string(shadow.join("config.worktree")).expect("config copy"),
         "[core]\n\tbare = false\n"
@@ -205,7 +247,17 @@ fn private_info_directory_is_private() {
     let root: PathBuf = fixture("shadow-links-info-mode");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
+    );
     let common: PathBuf = repo.join(".git");
     let git_dir: PathBuf = common.join("worktrees").join("linked");
     std::fs::create_dir_all(git_dir.join("info")).expect("worktree info");
@@ -213,7 +265,11 @@ fn private_info_directory_is_private() {
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(&shadow).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), git_dir.as_path()).expect("link");
-    let mode: u32 = std::fs::metadata(shadow.join("info")).expect("info").permissions().mode() & 0o777;
+    let mode: u32 = std::fs::metadata(shadow.join("info"))
+        .expect("info")
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o700);
     remove(root.as_path());
 }
@@ -225,7 +281,17 @@ fn linked_worktree_without_a_shared_info_directory_still_links() {
     let root: PathBuf = fixture("shadow-links-no-info");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
+    );
     let common: PathBuf = repo.join(".git");
     let git_dir: PathBuf = common.join("worktrees").join("linked");
     std::fs::create_dir_all(git_dir.join("info")).expect("worktree info");
@@ -255,8 +321,14 @@ fn existing_shadow_entries_are_replaced_by_links() {
     std::fs::create_dir_all(shadow.join("info")).expect("template info");
     std::fs::write(shadow.join("info").join("exclude"), "template\n").expect("template exclude");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
-    assert_eq!(std::fs::read_link(shadow.join("hooks")).expect("hooks link"), common.join("hooks"));
-    assert_eq!(std::fs::read_link(shadow.join("info")).expect("info link"), common.join("info"));
+    assert_eq!(
+        std::fs::read_link(shadow.join("hooks")).expect("hooks link"),
+        common.join("hooks")
+    );
+    assert_eq!(
+        std::fs::read_link(shadow.join("info")).expect("info link"),
+        common.join("info")
+    );
     remove(root.as_path());
 }
 
@@ -278,18 +350,31 @@ fn a_shared_entry_that_is_gone_before_it_is_linked_is_not_an_error() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let common: PathBuf = repo.join(".git");
     std::fs::create_dir(common.join("rr-cache")).expect("rerere has run here");
-    let (shared, own_info): (Vec<SharedEntry>, bool) = shared_entries_of(common.as_path(), common.as_path()).expect("listed");
+    let (shared, own_info): (Vec<SharedEntry>, bool) =
+        shared_entries_of(common.as_path(), common.as_path()).expect("listed");
     assert!(!own_info);
-    assert!(shared.iter().any(|entry| { return entry.name == "rr-cache"; }), "the listing holds rr-cache");
+    assert!(
+        shared.iter().any(|entry| {
+            return entry.name == "rr-cache";
+        }),
+        "the listing holds rr-cache"
+    );
     std::fs::remove_dir_all(common.join("rr-cache")).expect("another command removes rr-cache");
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
-    link_directory_entries(shared.as_slice(), shadow.as_path()).expect("a vanished entry is no failure");
+    link_directory_entries(shared.as_slice(), shadow.as_path())
+        .expect("a vanished entry is no failure");
     assert!(!common.join("rr-cache").exists(), "the real entry is gone");
     if let Ok(metadata) = std::fs::symlink_metadata(shadow.join("rr-cache").as_path()) {
-        assert!(metadata.file_type().is_symlink(), "a gone entry is a link to nothing, never a copy of something");
+        assert!(
+            metadata.file_type().is_symlink(),
+            "a gone entry is a link to nothing, never a copy of something"
+        );
     }
-    assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "the entries that are there still link");
+    assert!(
+        std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(),
+        "the entries that are there still link"
+    );
     remove(root.as_path());
 }
 
@@ -318,7 +403,11 @@ fn the_store_a_filter_writes_into_is_made_and_linked() {
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
     assert!(
-        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME).as_path()).is_ok_and(|metadata| { return metadata.is_dir(); }),
+        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME).as_path()).is_ok_and(
+            |metadata| {
+                return metadata.is_dir();
+            }
+        ),
         "the creation makes the real store"
     );
     assert_eq!(
@@ -326,9 +415,21 @@ fn the_store_a_filter_writes_into_is_made_and_linked() {
         common.join(LFS_STORE_ENTRY_NAME),
         "and the shadow links that one directory"
     );
-    std::fs::write(shadow.join(LFS_STORE_ENTRY_NAME).join("written-by-a-filter"), b"x").expect("a write through the link");
+    std::fs::write(
+        shadow
+            .join(LFS_STORE_ENTRY_NAME)
+            .join("written-by-a-filter"),
+        b"x",
+    )
+    .expect("a write through the link");
     assert!(
-        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME).join("written-by-a-filter").as_path()).is_ok(),
+        std::fs::symlink_metadata(
+            common
+                .join(LFS_STORE_ENTRY_NAME)
+                .join("written-by-a-filter")
+                .as_path()
+        )
+        .is_ok(),
         "what a filter writes through the shadow's link is the real store's"
     );
     remove(root.as_path());
@@ -342,7 +443,17 @@ fn an_unreadable_sparse_location_is_an_error() {
     let root: PathBuf = fixture("shadow-links-unreadable");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
+    );
     let common: PathBuf = repo.join(".git");
     let git_dir: PathBuf = common.join("worktrees").join("linked");
     std::fs::write(git_dir.join("info"), "not a directory").expect("info as a file");
@@ -359,7 +470,17 @@ fn a_shared_info_that_is_not_a_directory_is_an_error() {
     let root: PathBuf = fixture("shadow-links-shared-info-file");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")]);
+    git(
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "feature",
+            linked.to_str().expect("fixture"),
+        ],
+    );
     let common: PathBuf = repo.join(".git");
     let git_dir: PathBuf = common.join("worktrees").join("linked");
     std::fs::create_dir_all(git_dir.join("info")).expect("worktree info");
@@ -395,10 +516,19 @@ fn a_staged_lock_marker_never_reaches_the_shadow() {
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
-    for entry in std::fs::read_dir(shadow.as_path()).expect("shadow entries").flatten() {
+    for entry in std::fs::read_dir(shadow.as_path())
+        .expect("shadow entries")
+        .flatten()
+    {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        assert!(!name.contains("cli-git-marker"), "a staged marker reached the shadow as {name}");
-        assert!(!name.ends_with(".lock"), "a lock reached the shadow as {name}");
+        assert!(
+            !name.contains("cli-git-marker"),
+            "a staged marker reached the shadow as {name}"
+        );
+        assert!(
+            !name.ends_with(".lock"),
+            "a lock reached the shadow as {name}"
+        );
     }
     remove(root.as_path());
 }
@@ -418,8 +548,14 @@ fn the_pool_of_finished_shadows_never_reaches_the_shadow() {
     let common: PathBuf = repo.join(".git");
     let pool: PathBuf = common.join(SHADOW_POOL_FOLDER);
     std::fs::create_dir_all(pool.join("main").join("member-x")).expect("the pool and one member");
-    assert!(!is_shared_shadow_entry(SHADOW_POOL_FOLDER), "the pool's own name is never linked");
-    assert!(is_shared_shadow_entry("hooks"), "an entry a commit reads is linked");
+    assert!(
+        !is_shared_shadow_entry(SHADOW_POOL_FOLDER),
+        "the pool's own name is never linked"
+    );
+    assert!(
+        is_shared_shadow_entry("hooks"),
+        "an entry a commit reads is linked"
+    );
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
@@ -427,7 +563,10 @@ fn the_pool_of_finished_shadows_never_reaches_the_shadow() {
         std::fs::symlink_metadata(shadow.join(SHADOW_POOL_FOLDER).as_path()).is_err(),
         "the pool is not in the shadow"
     );
-    assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "a real shared entry is");
+    assert!(
+        std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(),
+        "a real shared entry is"
+    );
     remove(root.as_path());
 }
 
@@ -450,20 +589,33 @@ fn an_error_while_listing_the_shared_info_is_reported() {
     std::fs::create_dir_all(info.as_path()).expect("a shared info");
     std::fs::write(info.join("attributes").as_path(), "* text\n").expect("attributes");
     std::fs::write(info.join("exclude").as_path(), "*.log\n").expect("exclude");
-    std::fs::write(info.join("sparse-checkout").as_path(), "/*\n").expect("the per-worktree pattern");
+    std::fs::write(info.join("sparse-checkout").as_path(), "/*\n")
+        .expect("the per-worktree pattern");
     let written: std::fs::ReadDir = std::fs::read_dir(info.as_path()).expect("a written directory");
-    let listed: Vec<SharedEntry> = shared_info_entries(written).expect("a directory that reads lists");
-    let mut names: Vec<String> = listed.iter().map(|entry| { return entry.name.to_string_lossy().into_owned(); }).collect();
+    let listed: Vec<SharedEntry> =
+        shared_info_entries(written).expect("a directory that reads lists");
+    let mut names: Vec<String> = listed
+        .iter()
+        .map(|entry| {
+            return entry.name.to_string_lossy().into_owned();
+        })
+        .collect();
     names.sort();
     assert_eq!(
         names,
         vec![String::from("attributes"), String::from("exclude")],
         "every shared entry is listed, and never the per-worktree pattern"
     );
-    let failed: std::io::Result<Vec<SharedEntry>> =
-        shared_info_entries(vec![Err(std::io::Error::other("a directory read that failed"))].into_iter());
-    let error: std::io::Error = failed.expect_err("an error the listing reports is the creation's, never an entry left out");
-    assert_eq!(error.kind(), std::io::ErrorKind::Other, "the creation reports the error the listing gave it");
+    let failed: std::io::Result<Vec<SharedEntry>> = shared_info_entries(
+        vec![Err(std::io::Error::other("a directory read that failed"))].into_iter(),
+    );
+    let error: std::io::Error = failed
+        .expect_err("an error the listing reports is the creation's, never an entry left out");
+    assert_eq!(
+        error.kind(),
+        std::io::ErrorKind::Other,
+        "the creation reports the error the listing gave it"
+    );
     remove(root.as_path());
 }
 
@@ -482,7 +634,11 @@ fn an_error_while_listing_the_shared_info_is_reported() {
 /// const { repo, elsewhere } = storeHeldAs(root, 'file')
 /// ```
 #[cfg(unix)]
-fn store_held_as(root: &Path, slug: &str, state: &str) -> (PathBuf, PathBuf) {
+fn store_held_as(
+    root: &Path,
+    slug: &str,
+    state: &str,
+) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(root, slug);
     let common: PathBuf = repo.join(".git");
     let elsewhere: PathBuf = root.join(format!("{slug}-elsewhere"));
@@ -490,14 +646,21 @@ fn store_held_as(root: &Path, slug: &str, state: &str) -> (PathBuf, PathBuf) {
     let store: PathBuf = common.join(LFS_STORE_ENTRY_NAME);
     match state {
         "file" => {
-            std::fs::write(store.as_path(), b"a file where the store belongs\n").expect("a regular file at the store's name");
+            std::fs::write(store.as_path(), b"a file where the store belongs\n")
+                .expect("a regular file at the store's name");
         }
         "dangling" => {
-            std::os::unix::fs::symlink(elsewhere.join("not-mounted"), store.as_path()).expect("a link that reaches nothing");
+            std::os::unix::fs::symlink(elsewhere.join("not-mounted"), store.as_path())
+                .expect("a link that reaches nothing");
         }
         "link-to-file" => {
-            std::fs::write(elsewhere.join("store-file"), b"a file where the store belongs\n").expect("a file to link to");
-            std::os::unix::fs::symlink(elsewhere.join("store-file"), store.as_path()).expect("a link to a file");
+            std::fs::write(
+                elsewhere.join("store-file"),
+                b"a file where the store belongs\n",
+            )
+            .expect("a file to link to");
+            std::os::unix::fs::symlink(elsewhere.join("store-file"), store.as_path())
+                .expect("a link to a file");
         }
         other => panic!("{other} is not a store state this control names"),
     }
@@ -530,14 +693,19 @@ fn a_store_that_is_not_a_directory_is_linked_as_it_is() {
         link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path())
             .unwrap_or_else(|error| panic!("a store held as {state} failed the creation: {error}"));
         assert_eq!(
-            std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the shadow's link to the store"),
+            std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME))
+                .expect("the shadow's link to the store"),
             store,
             "the creation links the name the repository holds, held as {state}"
         );
-        let held: std::fs::Metadata = std::fs::symlink_metadata(store.as_path()).expect("the store's name is still taken");
+        let held: std::fs::Metadata =
+            std::fs::symlink_metadata(store.as_path()).expect("the store's name is still taken");
         match state {
             "file" => {
-                assert!(held.is_file(), "a regular file stands where the store would be");
+                assert!(
+                    held.is_file(),
+                    "a regular file stands where the store would be"
+                );
                 assert_eq!(
                     std::fs::read(store.as_path()).expect("the file"),
                     b"a file where the store belongs\n",
@@ -545,22 +713,36 @@ fn a_store_that_is_not_a_directory_is_linked_as_it_is() {
                 );
             }
             "dangling" => {
-                assert!(held.file_type().is_symlink(), "the link that reaches nothing is still a link");
+                assert!(
+                    held.file_type().is_symlink(),
+                    "the link that reaches nothing is still a link"
+                );
                 assert_eq!(
                     std::fs::read_link(store.as_path()).expect("the link"),
                     elsewhere.join("not-mounted"),
                     "and it still names what the person pointed it at"
                 );
-                assert!(std::fs::metadata(store.as_path()).is_err(), "and it still reaches nothing");
+                assert!(
+                    std::fs::metadata(store.as_path()).is_err(),
+                    "and it still reaches nothing"
+                );
             }
             "link-to-file" => {
-                assert!(held.file_type().is_symlink(), "the link to the file is still a link");
+                assert!(
+                    held.file_type().is_symlink(),
+                    "the link to the file is still a link"
+                );
                 assert_eq!(
                     std::fs::read_link(store.as_path()).expect("the link"),
                     elsewhere.join("store-file"),
                     "and it still names the file the person pointed it at"
                 );
-                assert!(std::fs::metadata(store.as_path()).expect("the file").is_file(), "and still reaches that file");
+                assert!(
+                    std::fs::metadata(store.as_path())
+                        .expect("the file")
+                        .is_file(),
+                    "and still reaches that file"
+                );
             }
             other => panic!("{other} is not a store state this control names"),
         }
@@ -586,26 +768,38 @@ fn a_store_another_command_takes_while_the_creation_links_is_not_a_failure() {
     let root: PathBuf = fixture("shadow-links-store-taken-while-linking");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let common: PathBuf = repo.join(".git");
-    std::fs::create_dir(common.join(LFS_STORE_ENTRY_NAME)).expect("git-lfs has run in this repository");
-    let (shared, own_info): (Vec<SharedEntry>, bool) = shared_entries_of(common.as_path(), common.as_path()).expect("listed");
+    std::fs::create_dir(common.join(LFS_STORE_ENTRY_NAME))
+        .expect("git-lfs has run in this repository");
+    let (shared, own_info): (Vec<SharedEntry>, bool) =
+        shared_entries_of(common.as_path(), common.as_path()).expect("listed");
     assert!(!own_info);
     assert!(
-        shared.iter().any(|entry| { return entry.name == LFS_STORE_ENTRY_NAME; }),
+        shared.iter().any(|entry| {
+            return entry.name == LFS_STORE_ENTRY_NAME;
+        }),
         "the listing holds the store"
     );
     // Another command removes the store and takes the name with a link that reaches nothing.
-    std::fs::remove_dir_all(common.join(LFS_STORE_ENTRY_NAME)).expect("another command removes the store");
-    std::os::unix::fs::symlink(root.join("not-mounted"), common.join(LFS_STORE_ENTRY_NAME)).expect("another command takes the name");
+    std::fs::remove_dir_all(common.join(LFS_STORE_ENTRY_NAME))
+        .expect("another command removes the store");
+    std::os::unix::fs::symlink(root.join("not-mounted"), common.join(LFS_STORE_ENTRY_NAME))
+        .expect("another command takes the name");
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
-    link_directory_entries(shared.as_slice(), shadow.as_path())
-        .expect("a store another command changed while the creation ran is no failure of the commit");
+    link_directory_entries(shared.as_slice(), shadow.as_path()).expect(
+        "a store another command changed while the creation ran is no failure of the commit",
+    );
     assert_eq!(
-        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the shadow's link to the store"),
+        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME))
+            .expect("the shadow's link to the store"),
         common.join(LFS_STORE_ENTRY_NAME)
     );
-    let held: std::fs::Metadata = std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).expect("the name is still taken");
-    assert!(held.file_type().is_symlink(), "the name another command took is left as it is");
+    let held: std::fs::Metadata = std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME))
+        .expect("the name is still taken");
+    assert!(
+        held.file_type().is_symlink(),
+        "the name another command took is left as it is"
+    );
     assert_eq!(
         std::fs::read_link(common.join(LFS_STORE_ENTRY_NAME)).expect("the link"),
         root.join("not-mounted"),
@@ -629,7 +823,9 @@ fn a_store_the_account_cannot_make_does_not_fail_the_creation() {
     use std::os::unix::fs::PermissionsExt;
     // SAFETY: `geteuid` takes no arguments, touches no memory and cannot fail.
     if unsafe { libc::geteuid() } == 0 {
-        eprintln!("skipped: a mode this account is refused by needs an account the kernel refuses, and this run is root");
+        eprintln!(
+            "skipped: a mode this account is refused by needs an account the kernel refuses, and this run is root"
+        );
         return;
     }
     let root: PathBuf = fixture("shadow-links-store-unwritable-git-directory");
@@ -639,18 +835,23 @@ fn a_store_the_account_cannot_make_does_not_fail_the_creation() {
         std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).is_err(),
         "this repository has no store yet"
     );
-    std::fs::set_permissions(common.as_path(), std::fs::Permissions::from_mode(0o500)).expect("the Git directory made unwritable");
+    std::fs::set_permissions(common.as_path(), std::fs::Permissions::from_mode(0o500))
+        .expect("the Git directory made unwritable");
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
-    let linked: std::io::Result<()> = link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path());
-    std::fs::set_permissions(common.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the Git directory given back");
-    linked.unwrap_or_else(|error| panic!("a store that cannot be made failed the creation: {error}"));
+    let linked: std::io::Result<()> =
+        link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path());
+    std::fs::set_permissions(common.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("the Git directory given back");
+    linked
+        .unwrap_or_else(|error| panic!("a store that cannot be made failed the creation: {error}"));
     assert!(
         std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).is_err(),
         "nothing stands where the account cannot write"
     );
     assert_eq!(
-        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the shadow's link to the store"),
+        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME))
+            .expect("the shadow's link to the store"),
         common.join(LFS_STORE_ENTRY_NAME),
         "the shadow still links the name, so a filter that cannot write there fails as real Git's does"
     );
@@ -679,24 +880,38 @@ fn the_store_step_makes_a_link_that_reaches_nothing_reach_the_store() {
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     // The link a creation makes while the repository has no store: what a removal leaves behind it.
-    std::os::unix::fs::symlink(common.join(LFS_STORE_ENTRY_NAME), shadow.join(LFS_STORE_ENTRY_NAME))
-        .expect("the link a creation makes");
+    std::os::unix::fs::symlink(
+        common.join(LFS_STORE_ENTRY_NAME),
+        shadow.join(LFS_STORE_ENTRY_NAME),
+    )
+    .expect("the link a creation makes");
     assert!(
         std::fs::metadata(shadow.join(LFS_STORE_ENTRY_NAME)).is_err(),
         "the link reaches nothing, which is the state a store removed after the link leaves"
     );
     make_the_store_a_filter_writes_into(common.as_path());
-    let made: std::fs::Metadata = std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME)).expect("the step made the store");
-    assert!(made.is_dir(), "the step makes a directory at the store's name");
+    let made: std::fs::Metadata = std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME))
+        .expect("the step made the store");
     assert!(
-        shadow.join(LFS_STORE_ENTRY_NAME).metadata().is_ok_and(|metadata| { return metadata.is_dir(); }),
+        made.is_dir(),
+        "the step makes a directory at the store's name"
+    );
+    assert!(
+        shadow
+            .join(LFS_STORE_ENTRY_NAME)
+            .metadata()
+            .is_ok_and(|metadata| {
+                return metadata.is_dir();
+            }),
         "and the link the creation made reaches it, which is what the commit's filter writes through"
     );
     // A store that is there is not made again: only an absent name is the creation's to make.
     let inode: u64 = made.ino();
     make_the_store_a_filter_writes_into(common.as_path());
     assert_eq!(
-        std::fs::metadata(common.join(LFS_STORE_ENTRY_NAME)).expect("the store is still there").ino(),
+        std::fs::metadata(common.join(LFS_STORE_ENTRY_NAME))
+            .expect("the store is still there")
+            .ino(),
         inode,
         "a store the repository holds is left as it is"
     );

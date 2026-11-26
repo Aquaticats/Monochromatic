@@ -33,12 +33,32 @@
 /// import { COPY, DELETE /* ... */ } from './command_branch_table.ts';
 /// ```
 use crate::command_branch_table::{
-    COPY, COPY_FORCE, DELETE, DELETE_FORCE, DELETE_MERGED, DRY_RUN, EDIT_DESCRIPTION, FILTER, KIND,
-    LIST, MOVE, MOVE_FORCE, POINTS_AT, RECURSE_SUBMODULES, REMOTES, SET_UPSTREAM, SET_UPSTREAM_TO,
-    SHOW_CURRENT, TRACK, UNSET_UPSTREAM,
+    COPY,
+    COPY_FORCE,
+    DELETE,
+    DELETE_FORCE,
+    DELETE_MERGED,
+    DRY_RUN,
+    EDIT_DESCRIPTION,
+    FILTER,
+    KIND,
+    LIST,
+    MOVE,
+    MOVE_FORCE,
+    POINTS_AT,
+    RECURSE_SUBMODULES,
+    REMOTES,
+    SET_UPSTREAM,
+    SET_UPSTREAM_TO,
+    SHOW_CURRENT,
+    TRACK,
+    UNSET_UPSTREAM,
 };
 use crate::command_options::ParsedOptions;
-use crate::command_options_query::{is_enabled, is_stated};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+};
 
 /// What:
 ///  Whether the tracking mode ends as the one `--set-upstream` writes.
@@ -104,7 +124,10 @@ fn count_true(flags: &[bool]) -> usize {
 /// ```ts
 /// function branchCreates(parsed: ParsedOptions, positionalCount: number): boolean;
 /// ```
-pub(crate) fn branch_creates(parsed: &ParsedOptions, positional_count: usize) -> bool {
+pub(crate) fn branch_creates(
+    parsed: &ParsedOptions,
+    positional_count: usize,
+) -> bool {
     // `-d`/`--delete` is one bit that `--no-delete` clears; `-D` is another bit.
     let delete: bool = is_enabled(parsed, DELETE) || is_stated(parsed, DELETE_FORCE);
     let rename: bool = is_enabled(parsed, MOVE) || is_stated(parsed, MOVE_FORCE);

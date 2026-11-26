@@ -16,14 +16,22 @@
 /// The renderer,
 ///  its event types and the names it prints.
 use super::{
-    FindingEvent, FindingLocation, PolicyEvent, WARN_UNSAFE_CODE, event_blocks,
-    render_policy_event, render_policy_events,
+    FindingEvent,
+    FindingLocation,
+    PolicyEvent,
+    WARN_UNSAFE_CODE,
+    event_blocks,
+    render_policy_event,
+    render_policy_events,
 };
 use crate::diagnostics::EngineFailureCode;
 use crate::test_support::strip_hint_fields;
 
 /// The rendering of one event without its additive `hint` field.
-fn rendered_without_hint(sequence: u64, event: &PolicyEvent) -> String {
+fn rendered_without_hint(
+    sequence: u64,
+    event: &PolicyEvent,
+) -> String {
     return strip_hint_fields(render_policy_event(sequence, event).as_str());
 }
 
@@ -42,23 +50,39 @@ fn a_hinted_event_carries_the_hint_as_its_own_field() {
             path: None,
         },
     );
-    assert!(line.contains("\"message\":\"cycle\",\"hint\":\"Hint: "), "{line}");
+    assert!(
+        line.contains("\"message\":\"cycle\",\"hint\":\"Hint: "),
+        "{line}"
+    );
     assert!(line.ends_with("\"}\n"), "{line}");
     let warning: String = render_policy_event(
         3,
-        &PolicyEvent::WarnUnsafe { trigger: Trigger::PreForward, policy: PolicyId::AddExplicit },
+        &PolicyEvent::WarnUnsafe {
+            trigger: Trigger::PreForward,
+            policy: PolicyId::AddExplicit,
+        },
     );
-    assert!(warning.contains("\"hint\":\"Hint: if you set it to warn"), "{warning}");
+    assert!(
+        warning.contains("\"hint\":\"Hint: if you set it to warn"),
+        "{warning}"
+    );
     let unhinted: String = render_policy_event(
         0,
-        &PolicyEvent::CoreFinding { core_id: "commit-only", code: "all-flag", message: String::from("m") },
+        &PolicyEvent::CoreFinding {
+            core_id: "commit-only",
+            code: "all-flag",
+            message: String::from("m"),
+        },
     );
     assert!(!unhinted.contains("hint"), "{unhinted}");
 }
 
 /// The event form of a pathname.
 use crate::event_path::EventPath;
-use crate::policy_registry::{PolicyId, Severity};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use crate::policy_trigger::Trigger;
 
 /// A finding with only its required fields.
@@ -257,7 +281,12 @@ fn fix_summary_has_the_incumbent_shape() {
 /// and it blocks nothing.
 #[test]
 fn word_merged_has_its_shape_and_does_not_block() {
-    let event: PolicyEvent = PolicyEvent::WordMerged { lines: vec![String::from("word-level merge: a.md: part 1 of 1: \"x\""), String::from("second")] };
+    let event: PolicyEvent = PolicyEvent::WordMerged {
+        lines: vec![
+            String::from("word-level merge: a.md: part 1 of 1: \"x\""),
+            String::from("second"),
+        ],
+    };
     assert_eq!(
         rendered_without_hint(1, &event),
         "{\"schemaVersion\":1,\"sequence\":1,\"type\":\"word-merged\",\"outcome\":\"word-merged\",\
@@ -462,9 +491,17 @@ fn an_engine_failure_renders_the_hint_it_chose() {
     };
     let of_code: String = render(crate::policy_events::EngineFailureHint::OfCode);
     assert!(of_code.contains("\"hint\":"), "{of_code}");
-    let chosen: String = render(crate::policy_events::EngineFailureHint::Chosen(Some("Hint: run it again.")));
-    assert!(chosen.contains("\"hint\":\"Hint: run it again.\""), "{chosen}");
-    assert!(!chosen.contains("not in this clone"), "the code's hint must not follow a chosen one: {chosen}");
+    let chosen: String = render(crate::policy_events::EngineFailureHint::Chosen(Some(
+        "Hint: run it again.",
+    )));
+    assert!(
+        chosen.contains("\"hint\":\"Hint: run it again.\""),
+        "{chosen}"
+    );
+    assert!(
+        !chosen.contains("not in this clone"),
+        "the code's hint must not follow a chosen one: {chosen}"
+    );
     let withheld: String = render(crate::policy_events::EngineFailureHint::Chosen(None));
     assert!(!withheld.contains("\"hint\""), "{withheld}");
 }

@@ -48,7 +48,10 @@ pub struct Fsmonitor {
 /// its bitmap may name at most `entries` entries (Git
 ///  stops with an error on a longer one,
 /// `assert_index_minimum`).
-pub fn read_fsmonitor(data: &[u8], entries: usize) -> Option<Fsmonitor> {
+pub fn read_fsmonitor(
+    data: &[u8],
+    entries: usize,
+) -> Option<Fsmonitor> {
     let version: u32 = be32(data, 0)?;
     let (token, after): (Vec<u8>, usize) = if version == VERSION_TIMESTAMP {
         let stamp: u64 = u64::from_be_bytes(data.get(4..12)?.try_into().ok()?);
@@ -66,12 +69,18 @@ pub fn read_fsmonitor(data: &[u8], entries: usize) -> Option<Fsmonitor> {
     if used != size || after + 4 + size != data.len() {
         return None;
     }
-    return Some(Fsmonitor { token, dirty: bitmap.bits() });
+    return Some(Fsmonitor {
+        token,
+        dirty: bitmap.bits(),
+    });
 }
 
 /// The extension's bytes in version 2,
 /// for the entries at `dirty` (increasing) not being valid.
-pub fn write_fsmonitor(token: &[u8], dirty: &[usize]) -> Vec<u8> {
+pub fn write_fsmonitor(
+    token: &[u8],
+    dirty: &[usize],
+) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     out.extend_from_slice(&VERSION_TEXT_TOKEN.to_be_bytes());
     out.extend_from_slice(token);

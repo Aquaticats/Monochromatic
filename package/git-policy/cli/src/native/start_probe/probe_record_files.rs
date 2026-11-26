@@ -26,10 +26,19 @@
 //! const place = RecordPlace.live(); place.prepare(); place.publish(resultText);
 //! ```
 
-use std::fs::{File, OpenOptions};
+use std::fs::{
+    File,
+    OpenOptions,
+};
 use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    OpenOptionsExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory the probe's record and the first real attach's outcome live in.
 pub const RECORD_DIRECTORY: &str = "/run/git-worktree-clone-mount-probe";
@@ -90,12 +99,18 @@ impl RecordFileRefusal {
     /// naming the path and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            RecordFileRefusal::Directory { path, reason } => format!(
+            RecordFileRefusal::Directory {
+                path,
+                reason,
+            } => format!(
                 "the probe could not make its record directory {} ({reason}), so this boot has no record and every managed attach stays on the reflink or ordinary Git route. Ways forward: make {} writable by root, then run the probe again.",
                 path.display(),
                 path.parent().unwrap_or(path).display()
             ),
-            RecordFileRefusal::Publish { path, reason } => format!(
+            RecordFileRefusal::Publish {
+                path,
+                reason,
+            } => format!(
                 "the probe could not write its record at {} ({reason}), so this boot has no record and every managed attach stays on the reflink or ordinary Git route. Ways forward: make the record directory writable by root and start the probe again.",
                 path.display()
             ),
@@ -123,13 +138,17 @@ pub struct RecordPlace {
 impl RecordPlace {
     /// The place a probe at boot writes.
     pub fn live() -> Self {
-        return RecordPlace { directory: PathBuf::from(RECORD_DIRECTORY) };
+        return RecordPlace {
+            directory: PathBuf::from(RECORD_DIRECTORY),
+        };
     }
 
     /// A place at the given directory,
     /// which a control names.
     pub fn at(directory: PathBuf) -> Self {
-        return RecordPlace { directory };
+        return RecordPlace {
+            directory,
+        };
     }
 
     /// The directory.
@@ -145,7 +164,9 @@ impl RecordPlace {
     /// This writer's own staging path,
     /// named for its process so two probes at once keep separate files.
     pub fn staging(&self) -> PathBuf {
-        return self.directory.join(format!("{STAGING_NAME}.{}", std::process::id()));
+        return self
+            .directory
+            .join(format!("{STAGING_NAME}.{}", std::process::id()));
     }
 
     /// The worker's scratch mount point.
@@ -172,10 +193,19 @@ impl RecordPlace {
     pub fn prepare(&self) -> Result<(), RecordFileRefusal> {
         for path in [self.directory.clone(), self.scratch(), self.holder()] {
             if let Err(error) = std::fs::create_dir_all(path.as_path()) {
-                return Err(RecordFileRefusal::Directory { path, reason: error.to_string() });
+                return Err(RecordFileRefusal::Directory {
+                    path,
+                    reason: error.to_string(),
+                });
             }
-            if let Err(error) = std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(DIRECTORY_MODE)) {
-                return Err(RecordFileRefusal::Directory { path, reason: error.to_string() });
+            if let Err(error) = std::fs::set_permissions(
+                path.as_path(),
+                std::fs::Permissions::from_mode(DIRECTORY_MODE),
+            ) {
+                return Err(RecordFileRefusal::Directory {
+                    path,
+                    reason: error.to_string(),
+                });
             }
         }
         return Ok(());
@@ -195,7 +225,10 @@ impl RecordPlace {
     /// # Errors
     /// The staging write,
     /// its sync or the rename answered an error.
-    pub fn publish(&self, text: &str) -> Result<(), RecordFileRefusal> {
+    pub fn publish(
+        &self,
+        text: &str,
+    ) -> Result<(), RecordFileRefusal> {
         let staging: PathBuf = self.staging();
         let staged: Result<(), String> = (|| {
             let mut file: File = OpenOptions::new()
@@ -205,16 +238,25 @@ impl RecordPlace {
                 .mode(RECORD_MODE)
                 .open(staging.as_path())
                 .map_err(|error| return error.to_string())?;
-            file.set_permissions(std::fs::Permissions::from_mode(RECORD_MODE)).map_err(|error| return error.to_string())?;
-            file.write_all(text.as_bytes()).map_err(|error| return error.to_string())?;
+            file.set_permissions(std::fs::Permissions::from_mode(RECORD_MODE))
+                .map_err(|error| return error.to_string())?;
+            file.write_all(text.as_bytes())
+                .map_err(|error| return error.to_string())?;
             file.sync_all().map_err(|error| return error.to_string())?;
-            std::fs::rename(staging.as_path(), self.result().as_path()).map_err(|error| return error.to_string())?;
-            let directory: File = File::open(self.directory.as_path()).map_err(|error| return error.to_string())?;
-            return directory.sync_all().map_err(|error| return error.to_string());
+            std::fs::rename(staging.as_path(), self.result().as_path())
+                .map_err(|error| return error.to_string())?;
+            let directory: File =
+                File::open(self.directory.as_path()).map_err(|error| return error.to_string())?;
+            return directory
+                .sync_all()
+                .map_err(|error| return error.to_string());
         })();
         return match staged {
             Ok(()) => Ok(()),
-            Err(reason) => Err(RecordFileRefusal::Publish { path: self.result(), reason }),
+            Err(reason) => Err(RecordFileRefusal::Publish {
+                path: self.result(),
+                reason,
+            }),
         };
     }
 }

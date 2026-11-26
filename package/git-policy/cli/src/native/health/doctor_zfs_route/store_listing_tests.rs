@@ -16,19 +16,37 @@
 //! expect(check_store_entries(withSlots([{ name: 'one', facts: { kind: 'misfiled', recorded: 'two' } }]))).toMatchObject({ field: 'record' });
 //! ```
 
-use crate::health::doctor_zfs_route::route_test_facts::healthy_store;
 use super::{
-    ListedEntry, RecordFacts, SlotRecordFacts, StoreListingFacts, check_staging_forms, check_store_entries, check_unknown_dot_entries, is_foreign_entry, is_unknown_dot_entry, known_staging_entries,
+    ListedEntry,
+    RecordFacts,
+    SlotRecordFacts,
+    StoreListingFacts,
+    check_staging_forms,
+    check_store_entries,
+    check_unknown_dot_entries,
+    is_foreign_entry,
+    is_unknown_dot_entry,
+    known_staging_entries,
 };
+use crate::health::doctor_zfs_route::route_test_facts::healthy_store;
 
 /// One entry with an age.
-fn entry(name: &str, age: u64) -> ListedEntry {
-    return ListedEntry { name: String::from(name), modified_seconds_ago: Some(age) };
+fn entry(
+    name: &str,
+    age: u64,
+) -> ListedEntry {
+    return ListedEntry {
+        name: String::from(name),
+        modified_seconds_ago: Some(age),
+    };
 }
 
 /// The healthy store with one entry added,
 /// and its slot records kept.
-fn with_entry(name: &str, age: u64) -> StoreListingFacts {
+fn with_entry(
+    name: &str,
+    age: u64,
+) -> StoreListingFacts {
     let mut store: StoreListingFacts = healthy_store();
     store.entries.push(entry(name, age));
     return store;
@@ -40,7 +58,10 @@ fn with_entry(name: &str, age: u64) -> StoreListingFacts {
 #[test]
 fn the_healthy_store_reports_its_entry_and_record_count() {
     let outcome: super::CheckOutcome = check_store_entries(&healthy_store());
-    let super::CheckOutcome::Pass { detail } = outcome else {
+    let super::CheckOutcome::Pass {
+        detail,
+    } = outcome
+    else {
         panic!("the healthy store passes");
     };
     assert!(detail.contains('2'), "{detail}");
@@ -51,19 +72,35 @@ fn the_healthy_store_reports_its_entry_and_record_count() {
 #[test]
 fn a_misfiled_record_is_a_finding_naming_both_names() {
     let mut store: StoreListingFacts = healthy_store();
-    store.slots = vec![SlotRecordFacts { name: String::from("one"), facts: RecordFacts::Misfiled { recorded: String::from("two") } }];
-    let super::CheckOutcome::Finding { field, detail } = check_store_entries(&store) else {
+    store.slots = vec![SlotRecordFacts {
+        name: String::from("one"),
+        facts: RecordFacts::Misfiled {
+            recorded: String::from("two"),
+        },
+    }];
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_store_entries(&store)
+    else {
         panic!("a misfiled record is a finding");
     };
     assert_eq!(field, "record");
-    assert!(detail.contains('`') && detail.contains("one") && detail.contains("two"), "{detail}");
+    assert!(
+        detail.contains('`') && detail.contains("one") && detail.contains("two"),
+        "{detail}"
+    );
 }
 
 /// A foreign name is a finding naming the name.
 #[test]
 fn a_foreign_name_is_a_finding_naming_the_name() {
     let store: StoreListingFacts = with_entry("has space", 5);
-    let super::CheckOutcome::Finding { field, detail } = check_store_entries(&store) else {
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_store_entries(&store)
+    else {
         panic!("a foreign name is a finding");
     };
     assert_eq!(field, "name");
@@ -74,8 +111,16 @@ fn a_foreign_name_is_a_finding_naming_the_name() {
 #[test]
 fn an_unreadable_record_is_unknown() {
     let mut store: StoreListingFacts = healthy_store();
-    store.slots = vec![SlotRecordFacts { name: String::from("one"), facts: RecordFacts::Unreadable { why: String::from("permission denied") } }];
-    assert!(matches!(check_store_entries(&store), super::CheckOutcome::Unknown { .. }));
+    store.slots = vec![SlotRecordFacts {
+        name: String::from("one"),
+        facts: RecordFacts::Unreadable {
+            why: String::from("permission denied"),
+        },
+    }];
+    assert!(matches!(
+        check_store_entries(&store),
+        super::CheckOutcome::Unknown { .. }
+    ));
 }
 
 /// A missing parent record is not unknown:
@@ -85,7 +130,10 @@ fn a_missing_parent_record_is_counted_rather_than_unknown() {
     let mut store: StoreListingFacts = healthy_store();
     store.parent = RecordFacts::Absent;
     store.entries.retain(|entry| return entry.name != ".parent");
-    let super::CheckOutcome::Pass { detail } = check_store_entries(&store) else {
+    let super::CheckOutcome::Pass {
+        detail,
+    } = check_store_entries(&store)
+    else {
         panic!("a missing parent record is still a readable listing");
     };
     assert!(detail.contains("no parent record"), "{detail}");
@@ -98,16 +146,27 @@ fn a_missing_parent_record_is_counted_rather_than_unknown() {
 /// A store with no staging form passes.
 #[test]
 fn a_store_without_staging_passes() {
-    assert!(matches!(check_staging_forms(&healthy_store()), super::CheckOutcome::Pass { .. }));
+    assert!(matches!(
+        check_staging_forms(&healthy_store()),
+        super::CheckOutcome::Pass { .. }
+    ));
 }
 
 /// Both known forms are one finding with their count and ages.
 #[test]
 fn both_known_staging_forms_are_one_finding_with_count_and_age() {
     let mut store: StoreListingFacts = healthy_store();
-    store.entries.push(entry(".0123456789abcdef0123456789abcdef", 120));
-    store.entries.push(entry("..parent.0123456789abcdef.partial", 30));
-    let super::CheckOutcome::Finding { field, detail } = check_staging_forms(&store) else {
+    store
+        .entries
+        .push(entry(".0123456789abcdef0123456789abcdef", 120));
+    store
+        .entries
+        .push(entry("..parent.0123456789abcdef.partial", 30));
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_staging_forms(&store)
+    else {
         panic!("staging forms are a finding");
     };
     assert_eq!(field, "staging");
@@ -121,8 +180,15 @@ fn both_known_staging_forms_are_one_finding_with_count_and_age() {
 #[test]
 fn a_staging_form_without_an_age_says_so() {
     let mut store: StoreListingFacts = healthy_store();
-    store.entries.push(ListedEntry { name: String::from(".0123456789abcdef0123456789abcdef"), modified_seconds_ago: None });
-    let super::CheckOutcome::Finding { detail, .. } = check_staging_forms(&store) else {
+    store.entries.push(ListedEntry {
+        name: String::from(".0123456789abcdef0123456789abcdef"),
+        modified_seconds_ago: None,
+    });
+    let super::CheckOutcome::Finding {
+        detail,
+        ..
+    } = check_staging_forms(&store)
+    else {
         panic!("a staging form is a finding");
     };
     assert!(detail.contains("age unreadable"), "{detail}");
@@ -132,8 +198,12 @@ fn a_staging_form_without_an_age_says_so() {
 #[test]
 fn only_the_two_known_forms_are_staging_entries() {
     let mut store: StoreListingFacts = healthy_store();
-    store.entries.push(entry(".0123456789abcdef0123456789abcdef", 1));
-    store.entries.push(entry(".ABCDEF0123456789abcdef0123456789", 1));
+    store
+        .entries
+        .push(entry(".0123456789abcdef0123456789abcdef", 1));
+    store
+        .entries
+        .push(entry(".ABCDEF0123456789abcdef0123456789", 1));
     store.entries.push(entry("..parent..partial", 1));
     assert_eq!(known_staging_entries(&store).len(), 1);
 }
@@ -146,7 +216,11 @@ fn only_the_two_known_forms_are_staging_entries() {
 #[test]
 fn a_third_dot_form_is_a_finding_naming_it() {
     let store: StoreListingFacts = with_entry(".partial-write", 9);
-    let super::CheckOutcome::Finding { field, detail } = check_unknown_dot_entries(&store) else {
+    let super::CheckOutcome::Finding {
+        field,
+        detail,
+    } = check_unknown_dot_entries(&store)
+    else {
         panic!("a third dot form is a finding");
     };
     assert_eq!(field, "name");
@@ -158,8 +232,13 @@ fn a_third_dot_form_is_a_finding_naming_it() {
 #[test]
 fn the_known_dot_names_are_not_unknown() {
     let mut store: StoreListingFacts = healthy_store();
-    store.entries.push(entry(".0123456789abcdef0123456789abcdef", 1));
-    assert!(matches!(check_unknown_dot_entries(&store), super::CheckOutcome::Pass { .. }));
+    store
+        .entries
+        .push(entry(".0123456789abcdef0123456789abcdef", 1));
+    assert!(matches!(
+        check_unknown_dot_entries(&store),
+        super::CheckOutcome::Pass { .. }
+    ));
 }
 
 /// The dot rule tells a known form from a stranger's name.

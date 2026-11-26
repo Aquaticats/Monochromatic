@@ -29,14 +29,28 @@
 use super::*;
 /// How the client asks the manager about a unit,
 /// and what its answers keep apart.
-use crate::service_client_settings_and_watches::{ManagerAnswer, ManagerWatch};
+use crate::service_client_settings_and_watches::{
+    ManagerAnswer,
+    ManagerWatch,
+};
 /// The line a service greets with.
-use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service};
+use crate::service_protocol::{
+    PROTOCOL_VERSION,
+    RELEASE,
+    ServiceMessage,
+    encode_service,
+};
 use crate::service_server::Bind;
 use std::io::Write;
 use std::os::linux::net::SocketAddrExt;
-use std::os::unix::net::{SocketAddr, UnixListener};
-use std::path::{Path, PathBuf};
+use std::os::unix::net::{
+    SocketAddr,
+    UnixListener,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -82,7 +96,15 @@ struct StandIn {
 impl StandIn {
     /// A manager that holds nothing and answers nothing.
     const fn empty() -> Self {
-        return Self { socket: None, state: None, release: None, asked: Vec::new(), wedged: false, keep_serving: true, unreachable: false };
+        return Self {
+            socket: None,
+            state: None,
+            release: None,
+            asked: Vec::new(),
+            wedged: false,
+            keep_serving: true,
+            unreachable: false,
+        };
     }
 }
 
@@ -102,7 +124,10 @@ static MANAGER: Mutex<StandIn> = Mutex::new(StandIn::empty());
 ///  `NoSuchUnit`,
 ///  which says the unit can be started rather than that the manager cannot be asked;
 ///  a control says so itself when it needs the other answer.
-fn stand_in_state(_bus: &Path, unit: &str) -> ManagerAnswer {
+fn stand_in_state(
+    _bus: &Path,
+    unit: &str,
+) -> ManagerAnswer {
     let mut manager = MANAGER.lock().expect("lock");
     let held: Option<String> = manager.state.clone();
     let answer: ManagerAnswer = match (&manager.unreachable, held.clone()) {
@@ -110,15 +135,24 @@ fn stand_in_state(_bus: &Path, unit: &str) -> ManagerAnswer {
         (false, Some(state)) => ManagerAnswer::State(state),
         (false, None) => ManagerAnswer::NotHeld,
     };
-    let recorded: String = held.unwrap_or_else(|| { return String::from("held-nothing"); });
+    let recorded: String = held.unwrap_or_else(|| {
+        return String::from("held-nothing");
+    });
     manager.asked.push(format!("state {unit} {recorded}"));
     return answer;
 }
 
 /// The reset the client asks for,
 /// recorded and taken from the stand-in.
-fn stand_in_reset(_bus: &Path, unit: &str) -> bool {
-    MANAGER.lock().expect("lock").asked.push(format!("reset-failed {unit}"));
+fn stand_in_reset(
+    _bus: &Path,
+    unit: &str,
+) -> bool {
+    MANAGER
+        .lock()
+        .expect("lock")
+        .asked
+        .push(format!("reset-failed {unit}"));
     return true;
 }
 
@@ -131,7 +165,10 @@ fn stand_in_reset(_bus: &Path, unit: &str) -> bool {
 /// so the
 ///  stand-in answers the restart by making its service greet again,
 /// which is what the manager's restart does.
-fn stand_in_restart(_bus: &Path, unit: &str) -> bool {
+fn stand_in_restart(
+    _bus: &Path,
+    unit: &str,
+) -> bool {
     let mut manager = MANAGER.lock().expect("lock");
     manager.asked.push(format!("restart {unit}"));
     manager.wedged = false;
@@ -147,7 +184,10 @@ fn stand_in_restart(_bus: &Path, unit: &str) -> bool {
 /// recorded and performed from the stand-in:
 /// one service greets the next connection,
 /// as the manager's socket activation would have it.
-fn stand_in_start(_bus: &Path, unit: &str) -> bool {
+fn stand_in_start(
+    _bus: &Path,
+    unit: &str,
+) -> bool {
     let name: String = {
         let mut manager = MANAGER.lock().expect("lock");
         manager.asked.push(format!("start {unit}"));
@@ -159,7 +199,11 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
     let listener: UnixListener = match listen_at(name.as_str()) {
         Ok(listener) => listener,
         Err(error) => {
-            MANAGER.lock().expect("lock").asked.push(format!("bind failed: {error}"));
+            MANAGER
+                .lock()
+                .expect("lock")
+                .asked
+                .push(format!("bind failed: {error}"));
             return false;
         }
     };
@@ -171,7 +215,10 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
             match listener.accept() {
                 Ok((mut stream, _address)) => {
                     let greeting: String = manager_release();
-                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(greeting) });
+                    let mut line: String = encode_service(&ServiceMessage::Welcome {
+                        version: PROTOCOL_VERSION,
+                        release: Some(greeting),
+                    });
                     line.push('\n');
                     let _sent = stream.write_all(line.as_bytes());
                 }
@@ -188,7 +235,9 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
 /// this one unless a control named another.
 fn manager_release() -> String {
     let named: Option<String> = MANAGER.lock().expect("lock").release.clone();
-    return named.unwrap_or_else(|| { return String::from(RELEASE); });
+    return named.unwrap_or_else(|| {
+        return String::from(RELEASE);
+    });
 }
 
 /// The stand-in service's listening socket at an abstract name,
@@ -214,7 +263,11 @@ fn asked() -> Vec<String> {
 /// ```ts
 /// reachConfig({ socket, every: 40, startWait: 200, startCeiling: 5000 })
 /// ```
-fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
+fn config(
+    socket: &str,
+    unit: &str,
+    socket_unit: &str,
+) -> ClientConfig {
     return ClientConfig {
         address: Bind::Abstract(String::from(socket)),
         activation: Activation::Managed,
@@ -296,12 +349,18 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
     // The start comes from the first answer, not from the start wait: the answers before it are counted, not timed.
     let before_the_start: usize = asked_of_the_manager
         .iter()
-        .take_while(|call| { return !call.starts_with("start "); })
-        .filter(|call| { return call.starts_with("state "); })
+        .take_while(|call| {
+            return !call.starts_with("start ");
+        })
+        .filter(|call| {
+            return call.starts_with("state ");
+        })
         .count();
-    assert!(before_the_start <= 2, "{before_the_start} state answers came before the start request: {asked_of_the_manager:?}");
+    assert!(
+        before_the_start <= 2,
+        "{before_the_start} state answers came before the start request: {asked_of_the_manager:?}"
+    );
 }
-
 
 /// What:
 ///  A unit the manager holds no such unit for is asked to start,
@@ -352,7 +411,9 @@ fn a_unit_the_manager_holds_no_such_unit_for_is_asked_to_start() {
     assert_eq!(version, PROTOCOL_VERSION);
     drop(reader);
     assert!(
-        asked_of_the_manager.iter().any(|call| { return call == &format!("start {unit}"); }),
+        asked_of_the_manager.iter().any(|call| {
+            return call == &format!("start {unit}");
+        }),
         "the unit the manager holds no such unit for is asked to start: {asked_of_the_manager:?}"
     );
 }
@@ -390,8 +451,14 @@ fn a_manager_that_cannot_be_asked_names_itself_and_asks_for_no_start() {
     settings.start_wait = Duration::from_millis(1_200);
     let mut announced: bool = false;
     let mut notices: Vec<u8> = Vec::new();
-    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect_err("nothing answers and no manager can start anything");
+    let failure: ClientFailure = reach(
+        &settings,
+        &mut notices,
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("nothing answers and no manager can start anything");
     let asked_of_the_manager: Vec<String> = asked();
     assert_eq!(
         failure,
@@ -402,23 +469,44 @@ fn a_manager_that_cannot_be_asked_names_itself_and_asks_for_no_start() {
         }
     );
     assert!(
-        !asked_of_the_manager.iter().any(|call| { return call.starts_with("start "); }),
+        !asked_of_the_manager.iter().any(|call| {
+            return call.starts_with("start ");
+        }),
         "no start is asked for where nothing can be asked: {asked_of_the_manager:?}"
     );
     let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
-    assert!(said.contains("could not be asked about"), "the notice says the manager could not be asked: {said:?}");
-    assert!(!said.contains("holds no"), "and never that it holds no such unit: {said:?}");
+    assert!(
+        said.contains("could not be asked about"),
+        "the notice says the manager could not be asked: {said:?}"
+    );
+    assert!(
+        !said.contains("holds no"),
+        "and never that it holds no such unit: {said:?}"
+    );
     let rendered: String = crate::service_messages::render(&failure);
-    assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
+    assert!(
+        rendered.contains(unit.as_str()),
+        "the person reads which unit was asked about: {rendered}"
+    );
     // The failure says what the manager did, which is to answer nothing, and what this command asked, which is nothing:
     //  the two clauses of the words a wait that ends without a greeting prints.
-    assert!(rendered.contains("gave no answer"), "and that the manager answered nothing: {rendered}");
-    assert!(rendered.contains("asked it for nothing itself"), "and that nothing of this command asked for a start: {rendered}");
-    let reason: String = match crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over(failure) {
-        ClientFailure::WorkNotHandedOver(reason) => reason,
-        other => panic!("work that was not handed over says so: {other:?}"),
-    };
-    assert!(reason.contains(unit.as_str()), "the record names the unit too: {reason}");
+    assert!(
+        rendered.contains("gave no answer"),
+        "and that the manager answered nothing: {rendered}"
+    );
+    assert!(
+        rendered.contains("asked it for nothing itself"),
+        "and that nothing of this command asked for a start: {rendered}"
+    );
+    let reason: String =
+        match crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over(failure) {
+            ClientFailure::WorkNotHandedOver(reason) => reason,
+            other => panic!("work that was not handed over says so: {other:?}"),
+        };
+    assert!(
+        reason.contains(unit.as_str()),
+        "the record names the unit too: {reason}"
+    );
 }
 
 /// What:
@@ -448,15 +536,21 @@ fn a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_
     let socket: String = address("client-reach-other-release");
     let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
     // The service answers every connection as a later release of this wrapper, which reads no retire of this one.
-    let done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let done: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let serving_done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&done);
     let serving = std::thread::spawn(move || {
         let _set = listener.set_nonblocking(true);
         let began: std::time::Instant = std::time::Instant::now();
-        while !serving_done.load(std::sync::atomic::Ordering::Relaxed) && began.elapsed() < Duration::from_secs(30) {
+        while !serving_done.load(std::sync::atomic::Ordering::Relaxed)
+            && began.elapsed() < Duration::from_secs(30)
+        {
             match listener.accept() {
                 Ok((mut stream, _address)) => {
-                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from("another-release")) });
+                    let mut line: String = encode_service(&ServiceMessage::Welcome {
+                        version: PROTOCOL_VERSION,
+                        release: Some(String::from("another-release")),
+                    });
                     line.push('\n');
                     let _sent = stream.write_all(line.as_bytes());
                 }
@@ -472,10 +566,20 @@ fn a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_
     settings.start_wait = Duration::from_millis(300);
     MANAGER.lock().expect("lock").asked.clear();
     let mut announced: bool = false;
-    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect_err("a service of another release that will not stop ends the command");
+    let failure: ClientFailure = reach_current(
+        &settings,
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("a service of another release that will not stop ends the command");
     assert_eq!(failure, ClientFailure::OtherRelease);
-    assert!(asked().is_empty(), "nothing of the manager was asked for: {:?}", asked());
+    assert!(
+        asked().is_empty(),
+        "nothing of the manager was asked for: {:?}",
+        asked()
+    );
     done.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the service's thread");
 }
@@ -521,16 +625,22 @@ fn a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_o
         manager.asked.clear();
         manager.release = Some(String::from("another-release"));
     }
-    let done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let done: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let serving_done: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&done);
     let serving = std::thread::spawn(move || {
         let _set = listener.set_nonblocking(true);
         let began: std::time::Instant = std::time::Instant::now();
-        while !serving_done.load(std::sync::atomic::Ordering::Relaxed) && began.elapsed() < Duration::from_secs(30) {
+        while !serving_done.load(std::sync::atomic::Ordering::Relaxed)
+            && began.elapsed() < Duration::from_secs(30)
+        {
             match listener.accept() {
                 Ok((mut stream, _address)) => {
                     // The release the service answers with, which the stand-in's restart changes to this release's.
-                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(manager_release()) });
+                    let mut line: String = encode_service(&ServiceMessage::Welcome {
+                        version: PROTOCOL_VERSION,
+                        release: Some(manager_release()),
+                    });
                     line.push('\n');
                     let _sent = stream.write_all(line.as_bytes());
                 }
@@ -547,13 +657,36 @@ fn a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_o
     settings.start_ceiling = Duration::from_millis(3000);
     let mut notices: Vec<u8> = Vec::new();
     let mut announced: bool = false;
-    let reader = reach_current(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect("the service of another release is ended and the program of this release answers");
+    let reader = reach_current(
+        &settings,
+        &mut notices,
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect("the service of another release is ended and the program of this release answers");
     drop(reader);
     let said: String = String::from_utf8_lossy(&notices).into_owned();
-    assert_eq!(said.matches("has not stopped after").count(), 1, "said once: {said}");
-    assert!(said.contains(unit.as_str()) && said.contains("this commit goes on"), "{said}");
-    assert_eq!(asked().iter().filter(|call| { return call.starts_with("restart "); }).count(), 1, "ended once: {:?}", asked());
+    assert_eq!(
+        said.matches("has not stopped after").count(),
+        1,
+        "said once: {said}"
+    );
+    assert!(
+        said.contains(unit.as_str()) && said.contains("this commit goes on"),
+        "{said}"
+    );
+    assert_eq!(
+        asked()
+            .iter()
+            .filter(|call| {
+                return call.starts_with("restart ");
+            })
+            .count(),
+        1,
+        "ended once: {:?}",
+        asked()
+    );
     done.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the service's thread");
     MANAGER.lock().expect("lock").release = None;
@@ -594,7 +727,10 @@ fn a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted() {
                 Ok((mut stream, _address)) => {
                     // Nothing greets for the first seconds, exactly as a service whose program is still starting answers.
                     if began.elapsed() >= LATE_GREETING {
-                        let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+                        let mut line: String = encode_service(&ServiceMessage::Welcome {
+                            version: PROTOCOL_VERSION,
+                            release: Some(String::from(RELEASE)),
+                        });
                         line.push('\n');
                         let _sent = stream.write_all(line.as_bytes());
                     }
@@ -613,16 +749,29 @@ fn a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted() {
     let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
     settings.start_ceiling = Duration::from_secs(20);
     let mut announced: bool = false;
-    let (_reader, version, release) = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect("a greeting that is late still lands the commit");
+    let (_reader, version, release) = reach(
+        &settings,
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect("a greeting that is late still lands the commit");
     assert_eq!(version, PROTOCOL_VERSION);
     assert_eq!(release.as_deref(), Some(RELEASE));
     let asked_of_the_manager: Vec<String> = asked();
     assert!(
-        !asked_of_the_manager.iter().any(|call| { return call.starts_with("restart "); }),
+        !asked_of_the_manager.iter().any(|call| {
+            return call.starts_with("restart ");
+        }),
         "a late greeting is no evidence of a service stopped inside its own process: {asked_of_the_manager:?}"
     );
-    assert!(!asked_of_the_manager.iter().any(|call| { return call == "reload"; }), "and nothing asks the manager to read every unit: {asked_of_the_manager:?}");
+    assert!(
+        !asked_of_the_manager.iter().any(|call| {
+            return call == "reload";
+        }),
+        "and nothing asks the manager to read every unit: {asked_of_the_manager:?}"
+    );
     serving.join().expect("the service's thread");
 }
 
@@ -666,13 +815,38 @@ fn a_unit_that_never_greets_is_restarted_once_at_the_start_ceiling_and_nothing_g
     settings.start_ceiling = Duration::from_millis(600);
     let mut announced: bool = false;
     // The stand-in's restart makes its service greet the next connection, so a repaired unit is reached.
-    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let reached = reach(
+        &settings,
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    );
     let asked_of_the_manager: Vec<String> = asked();
-    let restarts: usize = asked_of_the_manager.iter().filter(|call| { return call.starts_with("restart "); }).count();
-    let reloads: usize = asked_of_the_manager.iter().filter(|call| { return call.as_str() == "reload"; }).count();
-    assert!(reached.is_ok() || restarts == 1, "a unit that never greets is restarted once and the wait ends: {asked_of_the_manager:?}");
-    assert_eq!(restarts, 1, "one restart and no more: {asked_of_the_manager:?}");
-    assert_eq!(reloads, 0, "and nothing asks the manager to read every unit it holds: {asked_of_the_manager:?}");
+    let restarts: usize = asked_of_the_manager
+        .iter()
+        .filter(|call| {
+            return call.starts_with("restart ");
+        })
+        .count();
+    let reloads: usize = asked_of_the_manager
+        .iter()
+        .filter(|call| {
+            return call.as_str() == "reload";
+        })
+        .count();
+    assert!(
+        reached.is_ok() || restarts == 1,
+        "a unit that never greets is restarted once and the wait ends: {asked_of_the_manager:?}"
+    );
+    assert_eq!(
+        restarts, 1,
+        "one restart and no more: {asked_of_the_manager:?}"
+    );
+    assert_eq!(
+        reloads, 0,
+        "and nothing asks the manager to read every unit it holds: {asked_of_the_manager:?}"
+    );
     MANAGER.lock().expect("lock").state = None;
 }
 /// What:
@@ -698,7 +872,10 @@ fn serve_silent_until_restarted(listener: UnixListener) -> std::thread::JoinHand
                     if MANAGER.lock().expect("lock").wedged {
                         continue;
                     }
-                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+                    let mut line: String = encode_service(&ServiceMessage::Welcome {
+                        version: PROTOCOL_VERSION,
+                        release: Some(String::from(RELEASE)),
+                    });
                     line.push('\n');
                     let _sent = stream.write_all(line.as_bytes());
                 }
@@ -735,7 +912,8 @@ fn serve_silent_until_restarted(listener: UnixListener) -> std::thread::JoinHand
 #[test]
 fn a_running_unit_that_greets_nothing_is_asked_to_restart_once_and_the_service_is_reached() {
     let socket: String = address("client-reach-wedged");
-    let listener: UnixListener = listen_at(socket.as_str()).expect("the service's address is bound");
+    let listener: UnixListener =
+        listen_at(socket.as_str()).expect("the service's address is bound");
     {
         let mut manager = MANAGER.lock().expect("lock");
         manager.socket = Some(socket.clone());
@@ -750,24 +928,44 @@ fn a_running_unit_that_greets_nothing_is_asked_to_restart_once_and_the_service_i
     settings.start_ceiling = Duration::from_secs(30);
     let mut announced: bool = false;
     let mut notices: Vec<u8> = Vec::new();
-    let reached = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let reached = reach(
+        &settings,
+        &mut notices,
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    );
     let asked_of_the_manager: Vec<String> = asked();
     let (_reader, version, _release) = reached.unwrap_or_else(|failure| {
         panic!("the restart must make the service answer: {failure:?} after {asked_of_the_manager:?}, notices {:?}", String::from_utf8_lossy(notices.as_slice()))
     });
     assert_eq!(version, PROTOCOL_VERSION);
-    let restarts: Vec<&String> = asked_of_the_manager.iter().filter(|call| { return call.starts_with("restart "); }).collect();
-    assert_eq!(restarts.len(), 1, "one restart, and one only: {asked_of_the_manager:?}");
+    let restarts: Vec<&String> = asked_of_the_manager
+        .iter()
+        .filter(|call| {
+            return call.starts_with("restart ");
+        })
+        .collect();
+    assert_eq!(
+        restarts.len(),
+        1,
+        "one restart, and one only: {asked_of_the_manager:?}"
+    );
     // The wait says what it waits for before it acts, so a commit held for a restart is not a commit held in silence.
     let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
-    assert!(said.contains("nothing has answered at"), "the wait names what it waits for and where: {said:?}");
-    assert!(said.contains("asked to restart"), "the restart is said: {said:?}");
+    assert!(
+        said.contains("nothing has answered at"),
+        "the wait names what it waits for and where: {said:?}"
+    );
+    assert!(
+        said.contains("asked to restart"),
+        "the restart is said: {said:?}"
+    );
     MANAGER.lock().expect("lock").keep_serving = false;
     serving.join().expect("the stand-in service's thread");
     MANAGER.lock().expect("lock").wedged = false;
     MANAGER.lock().expect("lock").keep_serving = true;
 }
-
 
 /// What:
 ///  A service that accepts every connection and greets none,
@@ -781,11 +979,21 @@ fn a_running_unit_that_greets_nothing_is_asked_to_restart_once_and_the_service_i
 /// ```ts
 /// const held = takeEveryConnectionAndSayNothing(listener);
 /// ```
-fn take_connections_and_greet_nothing(listener: UnixListener) -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>>, std::thread::JoinHandle<()>) {
-    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let serving_finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
-    let held: std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let serving_held: std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>> = std::sync::Arc::clone(&held);
+fn take_connections_and_greet_nothing(
+    listener: UnixListener
+) -> (
+    std::sync::Arc<std::sync::atomic::AtomicBool>,
+    std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>>,
+    std::thread::JoinHandle<()>,
+) {
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let serving_finished: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::clone(&finished);
+    let held: std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let serving_held: std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>> =
+        std::sync::Arc::clone(&held);
     let serving = std::thread::spawn(move || {
         let _set = listener.set_nonblocking(true);
         while !serving_finished.load(std::sync::atomic::Ordering::Relaxed) {
@@ -839,21 +1047,62 @@ fn an_address_that_answers_nothing_with_no_manager_to_ask_is_named_truly() {
     let mut announced: bool = false;
     let mut notices: Vec<u8> = Vec::new();
     let began: std::time::Instant = std::time::Instant::now();
-    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing answered, so nothing is reached");
-    assert!(began.elapsed() < Duration::from_secs(3), "the wait ends at its own bound: {:?}", began.elapsed());
-    let ClientFailure::NothingAnswered { address: named, waited } = &failure else { panic!("the failure says what the wait proved: {failure:?}") };
-    assert!(named.contains(socket.as_str()), "the address is named: {named}");
+    let failure: ClientFailure = reach(
+        &settings,
+        &mut notices,
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("nothing answered, so nothing is reached");
+    assert!(
+        began.elapsed() < Duration::from_secs(3),
+        "the wait ends at its own bound: {:?}",
+        began.elapsed()
+    );
+    let ClientFailure::NothingAnswered {
+        address: named,
+        waited,
+    } = &failure
+    else {
+        panic!("the failure says what the wait proved: {failure:?}")
+    };
+    assert!(
+        named.contains(socket.as_str()),
+        "the address is named: {named}"
+    );
     // The wait that ended is the one the wait counted: it lasts the start wait and no longer than the pause after the last
     //  look, so a reader of the record is told what the wait came to and never the bound it was granted.
-    assert!(*waited >= settings.start_wait, "the wait lasted its bound: {waited:?}");
-    assert!(*waited < settings.start_wait + Duration::from_millis(200), "and no longer than that plus one pause: {waited:?}");
+    assert!(
+        *waited >= settings.start_wait,
+        "the wait lasted its bound: {waited:?}"
+    );
+    assert!(
+        *waited < settings.start_wait + Duration::from_millis(200),
+        "and no longer than that plus one pause: {waited:?}"
+    );
     let rendered: String = crate::service_messages::render(&failure);
-    assert!(rendered.contains(socket.as_str()), "the person reads the address: {rendered}");
-    assert!(rendered.contains("signal") || rendered.contains("stopped") || rendered.contains("frozen"), "the words name what a silent address means: {rendered}");
-    assert!(!rendered.contains("did not start"), "the service did start: {rendered}");
+    assert!(
+        rendered.contains(socket.as_str()),
+        "the person reads the address: {rendered}"
+    );
+    assert!(
+        rendered.contains("signal") || rendered.contains("stopped") || rendered.contains("frozen"),
+        "the words name what a silent address means: {rendered}"
+    );
+    assert!(
+        !rendered.contains("did not start"),
+        "the service did start: {rendered}"
+    );
     let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
-    assert!(said.contains(socket.as_str()), "the wait names the address before it ends: {said:?}");
-    assert!(said.contains("no service manager"), "and says whom it cannot ask: {said:?}");
+    assert!(
+        said.contains(socket.as_str()),
+        "the wait names the address before it ends: {said:?}"
+    );
+    assert!(
+        said.contains("no service manager"),
+        "and says whom it cannot ask: {said:?}"
+    );
     finished.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the stand-in service's thread");
     drop(held);
@@ -889,7 +1138,14 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
         start_ceiling: Duration::from_secs(5),
     };
     let mut announced: bool = false;
-    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing listens, so nothing is reached");
+    let failure: ClientFailure = reach(
+        &settings,
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("nothing listens, so nothing is reached");
     // No manager can be asked here, so no unit was named to one and none answered.
     assert_eq!(
         failure,
@@ -900,7 +1156,6 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
         }
     );
 }
-
 
 /// The instance name every control's unit carries,
 /// in the shape systemd's instance units use.
@@ -956,14 +1211,32 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
     // The reset comes first: a unit that failed too often refuses a start as "repeated too quickly".
     let reset: String = format!("reset-failed {unit}");
     let start: String = format!("start {unit}");
-    let reset_at: Option<usize> = asked_of_the_manager.iter().position(|call| { return *call == reset; });
-    let start_at: Option<usize> = asked_of_the_manager.iter().position(|call| { return *call == start; });
-    assert!(reset_at.is_some(), "the failed state is forgotten: {asked_of_the_manager:?}");
-    assert!(start_at.is_some(), "the unit is asked to start: {asked_of_the_manager:?}");
-    assert!(reset_at < start_at, "the reset comes before the start: {asked_of_the_manager:?}");
+    let reset_at: Option<usize> = asked_of_the_manager.iter().position(|call| {
+        return *call == reset;
+    });
+    let start_at: Option<usize> = asked_of_the_manager.iter().position(|call| {
+        return *call == start;
+    });
+    assert!(
+        reset_at.is_some(),
+        "the failed state is forgotten: {asked_of_the_manager:?}"
+    );
+    assert!(
+        start_at.is_some(),
+        "the unit is asked to start: {asked_of_the_manager:?}"
+    );
+    assert!(
+        reset_at < start_at,
+        "the reset comes before the start: {asked_of_the_manager:?}"
+    );
     // The socket unit is required by the service unit, so its failed state is forgotten in the same repair.
     let socket_reset: String = format!("reset-failed {socket_unit}");
-    assert!(asked_of_the_manager.iter().any(|call| { return *call == socket_reset; }), "the socket unit's failed state is forgotten too: {asked_of_the_manager:?}");
+    assert!(
+        asked_of_the_manager.iter().any(|call| {
+            return *call == socket_reset;
+        }),
+        "the socket unit's failed state is forgotten too: {asked_of_the_manager:?}"
+    );
 }
 
 /// What:
@@ -989,7 +1262,10 @@ struct TimesOfLines {
 impl TimesOfLines {
     /// A sink that records every line from now on.
     fn start() -> Self {
-        return Self { began: std::time::Instant::now(), lines: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())) };
+        return Self {
+            began: std::time::Instant::now(),
+            lines: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+        };
     }
 
     /// The lines written so far,
@@ -1000,8 +1276,14 @@ impl TimesOfLines {
 }
 
 impl std::io::Write for TimesOfLines {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.lines.lock().expect("lines").push((self.began.elapsed(), String::from_utf8_lossy(bytes).into_owned()));
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.lines.lock().expect("lines").push((
+            self.began.elapsed(),
+            String::from_utf8_lossy(bytes).into_owned(),
+        ));
         return Ok(bytes.len());
     }
 
@@ -1047,21 +1329,52 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
     let mut notices: TimesOfLines = TimesOfLines::start();
     let mut announced: bool = false;
     let began: std::time::Instant = std::time::Instant::now();
-    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect_err("nothing answered, so nothing is reached");
+    let failure: ClientFailure = reach(
+        &settings,
+        &mut notices,
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("nothing answered, so nothing is reached");
     let waited: Duration = began.elapsed();
     // A formatting call may hand the sink the text and its line feed in two writes, so the text is read as one and the
     //  moment is the first write's.
     let said: Vec<(Duration, String)> = notices.lines();
-    let text: String = said.iter().map(|(_when, line)| { return line.as_str(); }).collect();
-    let telling: Vec<&(Duration, String)> = said.iter().filter(|(_when, line)| { return line.contains("nothing has answered at"); }).collect();
+    let text: String = said
+        .iter()
+        .map(|(_when, line)| {
+            return line.as_str();
+        })
+        .collect();
+    let telling: Vec<&(Duration, String)> = said
+        .iter()
+        .filter(|(_when, line)| {
+            return line.contains("nothing has answered at");
+        })
+        .collect();
     assert_eq!(telling.len(), 1, "one line, and one only: {text:?}");
     let (when, _line): &(Duration, String) = telling[0];
-    assert!(text.contains(socket.as_str()), "the line names the address: {text}");
-    assert!(*when < Duration::from_millis(1_500), "the line is read while the wait goes on ({when:?} of {waited:?}): {text}");
-    assert!(waited >= settings.start_wait, "and the wait still ends at its own bound: {waited:?}");
-    assert!(waited < settings.start_wait + Duration::from_millis(200), "and no later than that plus one pause: {waited:?}");
-    assert!(matches!(failure, ClientFailure::NothingAnswered { .. }), "the end says what the wait proved: {failure:?}");
+    assert!(
+        text.contains(socket.as_str()),
+        "the line names the address: {text}"
+    );
+    assert!(
+        *when < Duration::from_millis(1_500),
+        "the line is read while the wait goes on ({when:?} of {waited:?}): {text}"
+    );
+    assert!(
+        waited >= settings.start_wait,
+        "and the wait still ends at its own bound: {waited:?}"
+    );
+    assert!(
+        waited < settings.start_wait + Duration::from_millis(200),
+        "and no later than that plus one pause: {waited:?}"
+    );
+    assert!(
+        matches!(failure, ClientFailure::NothingAnswered { .. }),
+        "the end says what the wait proved: {failure:?}"
+    );
     finished.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the stand-in service's thread");
     drop(held);
@@ -1091,7 +1404,8 @@ fn a_start_the_manager_reports_as_under_way_is_not_described_as_never_asked_for(
     let socket: String = address("client-reach-activating");
     // The socket unit holds the address and nothing accepts: the connection this control makes is the one that asks the
     //  manager to start the service, and no service greets it while the program starts.
-    let _held_by_the_socket_unit: UnixListener = listen_at(socket.as_str()).expect("the socket unit holds the address");
+    let _held_by_the_socket_unit: UnixListener =
+        listen_at(socket.as_str()).expect("the socket unit holds the address");
     {
         let mut manager = MANAGER.lock().expect("lock");
         manager.state = Some(String::from("activating"));
@@ -1104,16 +1418,36 @@ fn a_start_the_manager_reports_as_under_way_is_not_described_as_never_asked_for(
     settings.start_wait = Duration::from_millis(200);
     settings.start_ceiling = Duration::from_millis(400);
     let mut announced: bool = false;
-    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect_err("nothing greets while the manager says a start is under way");
+    let failure: ClientFailure = reach(
+        &settings,
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("nothing greets while the manager says a start is under way");
     let asked_of_the_manager: Vec<String> = asked();
     let rendered: String = crate::service_messages::render(&failure);
-    assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
-    assert!(rendered.contains("activating"), "the manager's own word is carried: {rendered}");
-    assert!(rendered.contains("under way"), "the person is told a start is under way: {rendered}");
-    assert!(!rendered.contains("nothing asked"), "and never that nothing asked it to start: {rendered}");
     assert!(
-        !asked_of_the_manager.iter().any(|call| { return call.starts_with("start "); }),
+        rendered.contains(unit.as_str()),
+        "the person reads which unit was asked about: {rendered}"
+    );
+    assert!(
+        rendered.contains("activating"),
+        "the manager's own word is carried: {rendered}"
+    );
+    assert!(
+        rendered.contains("under way"),
+        "the person is told a start is under way: {rendered}"
+    );
+    assert!(
+        !rendered.contains("nothing asked"),
+        "and never that nothing asked it to start: {rendered}"
+    );
+    assert!(
+        !asked_of_the_manager.iter().any(|call| {
+            return call.starts_with("start ");
+        }),
         "a unit the manager reports as activating is left alone: {asked_of_the_manager:?}"
     );
 }
@@ -1152,15 +1486,32 @@ fn a_unit_the_manager_holds_no_such_unit_for_is_not_described_as_a_manager_that_
     settings.start_wait = Duration::from_millis(200);
     settings.start_ceiling = Duration::from_millis(500);
     let mut announced: bool = false;
-    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect_err("nothing answers, and the manager holds no such unit");
+    let failure: ClientFailure = reach(
+        &settings,
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    )
+    .expect_err("nothing answers, and the manager holds no such unit");
     let asked_of_the_manager: Vec<String> = asked();
     assert!(
-        asked_of_the_manager.iter().any(|call| { return call == &format!("start {unit}"); }),
+        asked_of_the_manager.iter().any(|call| {
+            return call == &format!("start {unit}");
+        }),
         "the unit is asked to start, which is the repair of that state: {asked_of_the_manager:?}"
     );
     let rendered: String = crate::service_messages::render(&failure);
-    assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
-    assert!(rendered.contains("holds no such unit"), "the manager's own answer is carried: {rendered}");
-    assert!(!rendered.contains("no answer"), "and never that it gave no answer: {rendered}");
+    assert!(
+        rendered.contains(unit.as_str()),
+        "the person reads which unit was asked about: {rendered}"
+    );
+    assert!(
+        rendered.contains("holds no such unit"),
+        "the manager's own answer is carried: {rendered}"
+    );
+    assert!(
+        !rendered.contains("no answer"),
+        "and never that it gave no answer: {rendered}"
+    );
 }

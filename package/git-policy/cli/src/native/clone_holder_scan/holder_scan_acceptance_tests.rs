@@ -20,7 +20,10 @@
 
 use super::super::holder_scan::HolderScan;
 use super::super::holder_scan_parse::parse_holder_scan;
-use super::{ScanExpectation, StaleResult};
+use super::{
+    ScanExpectation,
+    StaleResult,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
@@ -44,7 +47,8 @@ fn read_back() -> HolderScan {
         incomplete: Vec::new(),
         time: String::from("2026-11-22T16:00:00-05:00"),
     };
-    return parse_holder_scan(scan.text().as_str()).expect("the result this route wrote reads back");
+    return parse_holder_scan(scan.text().as_str())
+        .expect("the result this route wrote reads back");
 }
 
 /// The request that made a result accepts it,
@@ -54,18 +58,36 @@ fn a_result_for_another_dataset_or_an_older_request_is_refused() {
     let read: HolderScan = read_back();
     let dataset: DatasetGuid = DatasetGuid::parse("42").expect("the fixture GUID is canonical");
     let nonce: RequestNonce = RequestNonce::parse(NONCE).expect("the fixture nonce is one");
-    assert_eq!(read.accept(&ScanExpectation { dataset, nonce: &nonce }), Ok(()));
+    assert_eq!(
+        read.accept(&ScanExpectation {
+            dataset,
+            nonce: &nonce
+        }),
+        Ok(())
+    );
     let other_dataset: DatasetGuid = DatasetGuid::parse("43").expect("the other GUID is canonical");
-    match read.accept(&ScanExpectation { dataset: other_dataset, nonce: &nonce }) {
-        Err(StaleResult::ForeignDataset { expected, found }) => {
+    match read.accept(&ScanExpectation {
+        dataset: other_dataset,
+        nonce: &nonce,
+    }) {
+        Err(StaleResult::ForeignDataset {
+            expected,
+            found,
+        }) => {
             assert_eq!(expected.file_name(), String::from("43"));
             assert_eq!(found.file_name(), String::from("42"));
         }
         other => panic!("{other:?}"),
     }
     let old: RequestNonce = RequestNonce::parse(OLD_NONCE).expect("the older nonce is one");
-    match read.accept(&ScanExpectation { dataset, nonce: &old }) {
-        Err(StaleResult::AnotherNonce { expected, found }) => {
+    match read.accept(&ScanExpectation {
+        dataset,
+        nonce: &old,
+    }) {
+        Err(StaleResult::AnotherNonce {
+            expected,
+            found,
+        }) => {
             assert_eq!(expected, OLD_NONCE);
             assert_eq!(found, NONCE);
         }
@@ -84,7 +106,14 @@ fn the_refusals_name_both_values_and_what_to_do() {
     assert!(foreign.contains("GUID 42"), "{foreign}");
     assert!(foreign.contains("GUID 43"), "{foreign}");
     assert!(foreign.contains("Nothing was read from it"), "{foreign}");
-    let stale: String = StaleResult::AnotherNonce { expected: String::from(OLD_NONCE), found: String::from(NONCE) }.message();
+    let stale: String = StaleResult::AnotherNonce {
+        expected: String::from(OLD_NONCE),
+        found: String::from(NONCE),
+    }
+    .message();
     assert!(stale.contains(OLD_NONCE), "{stale}");
-    assert!(stale.contains("no earlier scan answers a later request"), "{stale}");
+    assert!(
+        stale.contains("no earlier scan answers a later request"),
+        "{stale}"
+    );
 }

@@ -20,10 +20,21 @@
 //! ```
 
 use super::companion_buffers::CompanionBuffers;
-use super::companion_calls::{CompanionCall, Failure, NO_ERRNO};
+use super::companion_calls::{
+    CompanionCall,
+    Failure,
+    NO_ERRNO,
+};
 use super::companion_child_tree::Slots;
 use super::companion_descriptor_calls::open_directory_beneath;
-use super::companion_file_calls::{Identity, close, identity_of, make_directory, make_symlink, rename_within};
+use super::companion_file_calls::{
+    Identity,
+    close,
+    identity_of,
+    make_directory,
+    make_symlink,
+    rename_within,
+};
 use super::companion_mount_calls::bind_mount;
 
 /// What:
@@ -37,8 +48,12 @@ use super::companion_mount_calls::bind_mount;
 /// A control did not refuse as designed,
 ///  or a call it needed refused,
 ///  and the failure names the control and what it answered.
-pub fn run_the_controls(buffers: &CompanionBuffers, slots: Slots) -> Result<(), Failure> {
-    let refusal: std::os::fd::RawFd = open_directory_beneath(slots.root, buffers.refusal_name.as_c_str())?;
+pub fn run_the_controls(
+    buffers: &CompanionBuffers,
+    slots: Slots,
+) -> Result<(), Failure> {
+    let refusal: std::os::fd::RawFd =
+        open_directory_beneath(slots.root, buffers.refusal_name.as_c_str())?;
     let answered: Result<(), Failure> = run_inside(buffers, slots, refusal);
     close(refusal);
     return answered;
@@ -46,26 +61,60 @@ pub fn run_the_controls(buffers: &CompanionBuffers, slots: Slots) -> Result<(), 
 
 /// The controls inside the refusal tree,
 /// which needs that folder's own descriptor.
-fn run_inside(buffers: &CompanionBuffers, slots: Slots, refusal: std::os::fd::RawFd) -> Result<(), Failure> {
-    make_symlink(buffers.slot_name.as_c_str(), refusal, buffers.link_name.as_c_str())?;
-    expect_errno(open_directory_beneath(refusal, buffers.link_name.as_c_str()).map(|opened| return close(opened)), "link", libc::ELOOP)?;
-    expect_errno(open_directory_beneath(slots.root, buffers.escape_name.as_c_str()).map(|opened| return close(opened)), "escape", libc::EXDEV)?;
+fn run_inside(
+    buffers: &CompanionBuffers,
+    slots: Slots,
+    refusal: std::os::fd::RawFd,
+) -> Result<(), Failure> {
+    make_symlink(
+        buffers.slot_name.as_c_str(),
+        refusal,
+        buffers.link_name.as_c_str(),
+    )?;
+    expect_errno(
+        open_directory_beneath(refusal, buffers.link_name.as_c_str())
+            .map(|opened| return close(opened)),
+        "link",
+        libc::ELOOP,
+    )?;
+    expect_errno(
+        open_directory_beneath(slots.root, buffers.escape_name.as_c_str())
+            .map(|opened| return close(opened)),
+        "escape",
+        libc::EXDEV,
+    )?;
     bind_mount(buffers.slot.as_c_str(), buffers.bound_slot.as_c_str())?;
     let crossing: Result<(), Failure> = crossed(buffers, slots.root);
     expect_errno(crossing, "crossing", libc::EXDEV)?;
-    let recorded: Identity = identity_of(open_directory_beneath(refusal, buffers.replaced_name.as_c_str())?)?;
-    rename_within(refusal, buffers.replaced_name.as_c_str(), buffers.replaced_elsewhere_name.as_c_str())?;
+    let recorded: Identity = identity_of(open_directory_beneath(
+        refusal,
+        buffers.replaced_name.as_c_str(),
+    )?)?;
+    rename_within(
+        refusal,
+        buffers.replaced_name.as_c_str(),
+        buffers.replaced_elsewhere_name.as_c_str(),
+    )?;
     make_directory(buffers.replaced.as_c_str())?;
-    let now: Identity = identity_of(open_directory_beneath(refusal, buffers.replaced_name.as_c_str())?)?;
+    let now: Identity = identity_of(open_directory_beneath(
+        refusal,
+        buffers.replaced_name.as_c_str(),
+    )?)?;
     if now == recorded {
-        return Err(Failure { call: CompanionCall::MountFactsCheck, errno: NO_ERRNO });
+        return Err(Failure {
+            call: CompanionCall::MountFactsCheck,
+            errno: NO_ERRNO,
+        });
     }
     return Ok(());
 }
 
 /// Walk the three components the bind mount sits across,
 /// which must refuse at the crossing.
-fn crossed(buffers: &CompanionBuffers, root: std::os::fd::RawFd) -> Result<(), Failure> {
+fn crossed(
+    buffers: &CompanionBuffers,
+    root: std::os::fd::RawFd,
+) -> Result<(), Failure> {
     let refusal = open_directory_beneath(root, buffers.refusal_name.as_c_str())?;
     let bound = open_directory_beneath(refusal, buffers.bound_name.as_c_str())?;
     let crossed = open_directory_beneath(bound, buffers.slot_name.as_c_str());
@@ -79,11 +128,21 @@ fn crossed(buffers: &CompanionBuffers, root: std::os::fd::RawFd) -> Result<(), F
 /// Why:
 ///  A control that attached or answered another errno is this step's failure,
 ///  and its number is what the line prints.
-fn expect_errno(answer: Result<(), Failure>, control: &'static str, wanted: i32) -> Result<(), Failure> {
+fn expect_errno(
+    answer: Result<(), Failure>,
+    control: &'static str,
+    wanted: i32,
+) -> Result<(), Failure> {
     let _named: &'static str = control;
     return match answer {
-        Err(Failure { errno, .. }) if errno == wanted => Ok(()),
+        Err(Failure {
+            errno,
+            ..
+        }) if errno == wanted => Ok(()),
         Err(failure) => Err(failure),
-        Ok(()) => Err(Failure { call: CompanionCall::Openat2, errno: NO_ERRNO }),
+        Ok(()) => Err(Failure {
+            call: CompanionCall::Openat2,
+            errno: NO_ERRNO,
+        }),
     };
 }

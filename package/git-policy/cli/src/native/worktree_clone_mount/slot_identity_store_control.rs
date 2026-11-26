@@ -54,7 +54,10 @@ pub const WRITABLE_BY_OTHERS: u32 = 0o022;
 /// ```ts
 /// const refusal = storeControlRefusal(owner, mode & 0o7777); // string | undefined
 /// ```
-pub fn store_control_refusal(owner: u32, mode: u32) -> Option<String> {
+pub fn store_control_refusal(
+    owner: u32,
+    mode: u32,
+) -> Option<String> {
     if owner != STORE_OWNER {
         return Some(format!(
             "its owner is user {owner} and not root, so the account that owns it could rewrite the identities this route compares against"
@@ -68,17 +71,29 @@ pub fn store_control_refusal(owner: u32, mode: u32) -> Option<String> {
     return None;
 }
 
-
 /// Whether the entry at `path` is under root control,
 /// and the refusal naming what lets this account write it when it is not.
 ///
 /// Why:
 ///  The check reads the descriptor that was opened,
 ///  so a swap between a name and the read cannot change which object was judged.
-pub(super) fn check_under_root_control(path: &Path, what: &str, file: &std::fs::File) -> Result<(), StoreRefusal> {
-    let metadata: std::fs::Metadata = file.metadata().map_err(|error| return StoreRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() })?;
+pub(super) fn check_under_root_control(
+    path: &Path,
+    what: &str,
+    file: &std::fs::File,
+) -> Result<(), StoreRefusal> {
+    let metadata: std::fs::Metadata = file.metadata().map_err(|error| {
+        return StoreRefusal::Unreadable {
+            path: path.to_path_buf(),
+            reason: error.to_string(),
+        };
+    })?;
     return match store_control_refusal(metadata.uid(), metadata.mode() & PERMISSION_BITS) {
-        Some(reason) => Err(StoreRefusal::NotUnderRootControl { path: path.to_path_buf(), what: what.to_string(), reason }),
+        Some(reason) => Err(StoreRefusal::NotUnderRootControl {
+            path: path.to_path_buf(),
+            what: what.to_string(),
+            reason,
+        }),
         None => Ok(()),
     };
 }

@@ -19,10 +19,23 @@
 //! expect(runWith({ PATH: empty, CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED: '1' }).stderr).toContain('STRACE CONTROL NOT RUN');
 //! ```
 
-use super::strace_the_controls_run_under::{ABSENT_ACKNOWLEDGED_VARIABLE, decided, strace_available_or_acknowledged};
-use crate::child_test_process::{ChildTest, finished};
-use crate::test_support::{fixture, remove};
-use std::ffi::{OsStr, OsString};
+use super::strace_the_controls_run_under::{
+    ABSENT_ACKNOWLEDGED_VARIABLE,
+    decided,
+    strace_available_or_acknowledged,
+};
+use crate::child_test_process::{
+    ChildTest,
+    finished,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -141,25 +154,50 @@ fn the_absence_the_environment_states_decides_whether_a_control_fails() {
         (ABSENT_ACKNOWLEDGED_VARIABLE, OsStr::new("")),
         ("PATH", search.as_os_str()),
     ];
-    let unstated: std::process::Output = finished(ChildTest { exact_test: THIS_CONTROL, environment: environment.as_slice(), ..ChildTest::default() })
-        .expect("the child control ends within the deadline");
-    let unstated_said: String =
-        format!("{}{}", String::from_utf8_lossy(unstated.stdout.as_slice()), String::from_utf8_lossy(unstated.stderr.as_slice()));
-    assert!(!unstated.status.success(), "a run that states nothing fails the control: {unstated_said}");
-    assert!(unstated_said.contains(ABSENT_ACKNOWLEDGED_VARIABLE), "the failure names the variable that would pass it: {unstated_said}");
-    assert!(unstated_said.contains("1 failed"), "the child ran the control and it failed: {unstated_said}");
+    let unstated: std::process::Output = finished(ChildTest {
+        exact_test: THIS_CONTROL,
+        environment: environment.as_slice(),
+        ..ChildTest::default()
+    })
+    .expect("the child control ends within the deadline");
+    let unstated_said: String = format!(
+        "{}{}",
+        String::from_utf8_lossy(unstated.stdout.as_slice()),
+        String::from_utf8_lossy(unstated.stderr.as_slice())
+    );
+    assert!(
+        !unstated.status.success(),
+        "a run that states nothing fails the control: {unstated_said}"
+    );
+    assert!(
+        unstated_said.contains(ABSENT_ACKNOWLEDGED_VARIABLE),
+        "the failure names the variable that would pass it: {unstated_said}"
+    );
+    assert!(
+        unstated_said.contains("1 failed"),
+        "the child ran the control and it failed: {unstated_said}"
+    );
     // The control of that arm: the same absent tracer, acknowledged, passes and says which control did not run.
-    let acknowledged_environment: [(&str, &OsStr); 3] =
-        [(CHILD_VARIABLE, OsStr::new("1")), (ABSENT_ACKNOWLEDGED_VARIABLE, OsStr::new("1")), ("PATH", search.as_os_str())];
-    let acknowledged: std::process::Output =
-        finished(ChildTest { exact_test: THIS_CONTROL, environment: acknowledged_environment.as_slice(), ..ChildTest::default() })
-        .expect("the child control ends within the deadline");
+    let acknowledged_environment: [(&str, &OsStr); 3] = [
+        (CHILD_VARIABLE, OsStr::new("1")),
+        (ABSENT_ACKNOWLEDGED_VARIABLE, OsStr::new("1")),
+        ("PATH", search.as_os_str()),
+    ];
+    let acknowledged: std::process::Output = finished(ChildTest {
+        exact_test: THIS_CONTROL,
+        environment: acknowledged_environment.as_slice(),
+        ..ChildTest::default()
+    })
+    .expect("the child control ends within the deadline");
     let acknowledged_said: String = format!(
         "{}{}",
         String::from_utf8_lossy(acknowledged.stdout.as_slice()),
         String::from_utf8_lossy(acknowledged.stderr.as_slice())
     );
-    assert!(acknowledged.status.success(), "a run that acknowledged the absence passes the control: {acknowledged_said}");
+    assert!(
+        acknowledged.status.success(),
+        "a run that acknowledged the absence passes the control: {acknowledged_said}"
+    );
     assert!(
         acknowledged_said.contains("STRACE CONTROL NOT RUN: the acknowledgement of this run"),
         "the pass names the control that did not run: {acknowledged_said}"

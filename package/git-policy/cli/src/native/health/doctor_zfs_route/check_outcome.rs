@@ -221,17 +221,27 @@ pub enum CheckOutcome {
 
 /// A pass with what the check read.
 pub fn pass(detail: impl Into<String>) -> CheckOutcome {
-    return CheckOutcome::Pass { detail: detail.into() };
+    return CheckOutcome::Pass {
+        detail: detail.into(),
+    };
 }
 
 /// A finding naming the failing field or path component.
-pub fn finding(field: impl Into<String>, detail: impl Into<String>) -> CheckOutcome {
-    return CheckOutcome::Finding { field: field.into(), detail: detail.into() };
+pub fn finding(
+    field: impl Into<String>,
+    detail: impl Into<String>,
+) -> CheckOutcome {
+    return CheckOutcome::Finding {
+        field: field.into(),
+        detail: detail.into(),
+    };
 }
 
 /// Unknown with the reason the check could not read or prove the fact.
 pub fn unknown(reason: impl Into<String>) -> CheckOutcome {
-    return CheckOutcome::Unknown { reason: reason.into() };
+    return CheckOutcome::Unknown {
+        reason: reason.into(),
+    };
 }
 
 /// What:
@@ -257,8 +267,14 @@ pub struct CheckReport {
 
 impl CheckReport {
     /// The check and its answer.
-    pub fn new(check: Check, outcome: CheckOutcome) -> Self {
-        return CheckReport { check, outcome };
+    pub fn new(
+        check: Check,
+        outcome: CheckOutcome,
+    ) -> Self {
+        return CheckReport {
+            check,
+            outcome,
+        };
     }
 
     /// Whether the answer is a pass.
@@ -295,9 +311,16 @@ impl CheckReport {
     pub fn line(&self) -> String {
         let name: &'static str = self.check.name();
         return match &self.outcome {
-            CheckOutcome::Pass { detail } => format!("zfs: {name}: pass: {detail}"),
-            CheckOutcome::Finding { field, detail } => format!("zfs: {name}: finding: {field}: {detail}"),
-            CheckOutcome::Unknown { reason } => format!("zfs: {name}: unknown: {reason}"),
+            CheckOutcome::Pass {
+                detail,
+            } => format!("zfs: {name}: pass: {detail}"),
+            CheckOutcome::Finding {
+                field,
+                detail,
+            } => format!("zfs: {name}: finding: {field}: {detail}"),
+            CheckOutcome::Unknown {
+                reason,
+            } => format!("zfs: {name}: unknown: {reason}"),
         };
     }
 }

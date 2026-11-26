@@ -33,10 +33,30 @@
 //! ```
 
 use crate::command_checkout_table::{
-    CHECKOUT_TABLE, DISCARD_CHANGES, FORCE, PATCH, PATHSPEC_FROM_FILE, STAGE, SWITCH_TABLE,
+    CHECKOUT_TABLE,
+    DISCARD_CHANGES,
+    FORCE,
+    PATCH,
+    PATHSPEC_FROM_FILE,
+    STAGE,
+    SWITCH_TABLE,
 };
-use crate::command_options::{Arity, Boundary, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options, row, UNREAD};
-use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
+use crate::command_options::{
+    Arity,
+    Boundary,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    UNREAD,
+    parse_options,
+    row,
+};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    positional_tokens,
+};
 use std::ffi::OsString;
 
 /// The `--dry-run` row of `git read-tree`:
@@ -90,7 +110,10 @@ pub enum Discard {
 /// ```ts
 /// function revisionBeforePaths(region: string[], table: OptionSpec[]): string | undefined;
 /// ```
-pub fn revision_before_paths(region: &[OsString], table: &[OptionSpec]) -> Option<OsString> {
+pub fn revision_before_paths(
+    region: &[OsString],
+    table: &[OptionSpec],
+) -> Option<OsString> {
     // `let Ok(parsed) = ... else { return None; }` is the accepted region or nothing.
     let Ok(parsed) = parse_options(region, table, DEFAULT_MODE, &[]) else {
         return None;
@@ -218,7 +241,11 @@ fn is_equals(byte: &u8) -> bool {
 /// ```ts
 /// function spellsLong(token: string, full: string, minimum: number): boolean;
 /// ```
-fn spells_long(token: &[u8], full: &str, minimum: usize) -> bool {
+fn spells_long(
+    token: &[u8],
+    full: &str,
+    minimum: usize,
+) -> bool {
     if !token.starts_with(b"--") {
         return false;
     }
@@ -236,7 +263,10 @@ fn spells_long(token: &[u8], full: &str, minimum: usize) -> bool {
 /// ```ts
 /// function hasShort(token: string, letter: string): boolean;
 /// ```
-fn has_short(token: &[u8], letter: u8) -> bool {
+fn has_short(
+    token: &[u8],
+    letter: u8,
+) -> bool {
     return token.len() > 1 && token[0] == b'-' && token[1] != b'-' && token[1..].contains(&letter);
 }
 
@@ -293,7 +323,9 @@ pub fn restores_index_only(region: &[OsString]) -> bool {
                 worktree = true;
             }
             // `--source <tree>` and `--conflict <style>` take the next token as their value, whatever it looks like.
-            if !token.contains(&b'=') && (spells_long(token, "--source", 4) || spells_long(token, "--conflict", 3)) {
+            if !token.contains(&b'=')
+                && (spells_long(token, "--source", 4) || spells_long(token, "--conflict", 3))
+            {
                 at += 1;
             }
             continue;
@@ -374,12 +406,24 @@ pub const READ_TREE_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("reset"), Arity::None, true),
     row(UNREAD, None, Some("prefix"), Arity::Required, false),
     row(UNREAD, Some(b'u'), None, Arity::None, true),
-    row(UNREAD, None, Some("exclude-per-directory"), Arity::Required, false),
+    row(
+        UNREAD,
+        None,
+        Some("exclude-per-directory"),
+        Arity::Required,
+        false,
+    ),
     row(UNREAD, Some(b'i'), None, Arity::None, true),
     row(DRY_RUN, Some(b'n'), Some("dry-run"), Arity::None, true),
     row(UNREAD, None, Some("no-sparse-checkout"), Arity::None, true),
     row(DEBUG_UNPACK, None, Some("debug-unpack"), Arity::None, true),
-    row(UNREAD, None, Some("recurse-submodules"), Arity::Optional, true),
+    row(
+        UNREAD,
+        None,
+        Some("recurse-submodules"),
+        Arity::Optional,
+        true,
+    ),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
 ];
 

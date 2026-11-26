@@ -34,11 +34,20 @@ use crate::private_storage::remove_tree;
 use crate::time_spent_outside_the_phases::note_scratch_removal;
 /// A path,
 /// a span of time and a moment.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The counter of the removals that are still running,
 /// shared by the threads of one process.
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The tag of this module's diagnostics.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -126,7 +135,10 @@ fn take_a_place() -> Option<ThePlaceOfARunningRemoval> {
         if running >= cap {
             return None;
         }
-        if UNFINISHED_REMOVALS.compare_exchange(running, running + 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+        if UNFINISHED_REMOVALS
+            .compare_exchange(running, running + 1, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
             return Some(ThePlaceOfARunningRemoval(()));
         }
     }
@@ -164,7 +176,10 @@ pub fn unfinished_removals() -> usize {
 /// ```ts
 /// const removal = removeWithin(path, ceiling); // 'finished' | 'unfinished' | { failed }
 /// ```
-pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
+pub fn remove_within(
+    path: &Path,
+    ceiling: Duration,
+) -> Removal {
     let began: Instant = Instant::now();
     let target: PathBuf = path.to_path_buf();
     // A removal that outlasted its ceiling keeps its thread, so a place is taken before one is started, and a caller that finds
@@ -180,16 +195,18 @@ pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     };
     // What the thread ended with; a thread that outlives the ceiling sends into a channel nobody reads, which is no error.
     let (ended, waited) = std::sync::mpsc::channel::<std::io::Result<()>>();
-    let started = std::thread::Builder::new().name(String::from("scratch-removal")).spawn(move || {
-        // The place belongs to the removal's own work, so a removal its caller stopped waiting for keeps it until that work ends.
-        let outcome: std::io::Result<()> = remove_entry(&target);
-        // It goes back before the answer is sent, so a caller told a removal finished finds its place free: a sweep that
-        //  followed one whose removals had just been reported would otherwise find every place held by that sweep's own
-        //  work and start nothing (measured on 2026-11-11: 0 of 2 entries removed in the gate's image, `left: 0, right: 2`
-        //  in a gate of 2026-11-10).
-        drop(place);
-        let _sent = ended.send(outcome);
-    });
+    let started = std::thread::Builder::new()
+        .name(String::from("scratch-removal"))
+        .spawn(move || {
+            // The place belongs to the removal's own work, so a removal its caller stopped waiting for keeps it until that work ends.
+            let outcome: std::io::Result<()> = remove_entry(&target);
+            // It goes back before the answer is sent, so a caller told a removal finished finds its place free: a sweep that
+            //  followed one whose removals had just been reported would otherwise find every place held by that sweep's own
+            //  work and start nothing (measured on 2026-11-11: 0 of 2 entries removed in the gate's image, `left: 0, right: 2`
+            //  in a gate of 2026-11-10).
+            drop(place);
+            let _sent = ended.send(outcome);
+        });
     let removal: Removal = match started {
         Err(error) => Removal::Failed(error),
         Ok(_thread) => match waited.recv_timeout(ceiling) {
@@ -200,10 +217,24 @@ pub fn remove_within(path: &Path, ceiling: Duration) -> Removal {
     };
     let took: Duration = began.elapsed();
     if let Removal::Failed(error) = &removal {
-        debug(TAG, format!("could not remove the scratch entry {}: {error}", path.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "could not remove the scratch entry {}: {error}",
+                path.display()
+            )
+            .as_str(),
+        );
     }
     if let Removal::Unfinished = &removal {
-        debug(TAG, format!("the scratch entry {} was still being removed after {ceiling:?}", path.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "the scratch entry {} was still being removed after {ceiling:?}",
+                path.display()
+            )
+            .as_str(),
+        );
     }
     note_scratch_removal(took, removal.finished());
     return removal;
@@ -219,7 +250,11 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     };
-    return if metadata.is_dir() { remove_tree(path) } else { std::fs::remove_file(path) };
+    return if metadata.is_dir() {
+        remove_tree(path)
+    } else {
+        std::fs::remove_file(path)
+    };
 }
 
 /// The removal is controlled in the test module.

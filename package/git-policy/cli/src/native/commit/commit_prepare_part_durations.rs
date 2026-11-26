@@ -42,7 +42,10 @@ use crate::transaction_step_durations::step_time_between;
 /// A lock around the shared list.
 use std::sync::Mutex;
 /// A moment and a span of time.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The most stretches one record lists.
 ///
@@ -98,15 +101,27 @@ static DROPPED: Mutex<usize> = Mutex::new(0);
 /// ```ts
 /// notePreparePart('layout', 12, 480);
 /// ```
-pub fn note_prepare_part(name: &str, took: Duration, children: Duration) {
+pub fn note_prepare_part(
+    name: &str,
+    took: Duration,
+    children: Duration,
+) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of stretches.
-    let mut parts = PARTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut parts = PARTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if parts.len() >= MAX_PREPARE_PARTS {
-        let mut dropped = DROPPED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut dropped = DROPPED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         *dropped += 1;
         return;
     }
-    parts.push(PreparePart { name: String::from(name), took, children });
+    parts.push(PreparePart {
+        name: String::from(name),
+        took,
+        children,
+    });
 }
 
 /// What:
@@ -122,9 +137,13 @@ pub fn note_prepare_part(name: &str, took: Duration, children: Duration) {
 /// const { parts, dropped } = drainPrepareParts();
 /// ```
 pub fn drain_prepare_parts() -> (Vec<PreparePart>, usize) {
-    let mut parts = PARTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut parts = PARTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let taken: Vec<PreparePart> = std::mem::take(&mut *parts);
-    let mut dropped = DROPPED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut dropped = DROPPED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let lost: usize = std::mem::take(&mut *dropped);
     return (taken, lost);
 }
@@ -215,12 +234,18 @@ impl PreparePartClock {
     /// Starts measuring,
     /// with the name of the stretch that is about to run.
     pub fn begin(name: &'static str) -> Self {
-        return Self { began: Instant::now(), name };
+        return Self {
+            began: Instant::now(),
+            name,
+        };
     }
 
     /// Ends the running stretch and starts the next one,
     /// named `name`.
-    pub fn next(&mut self, name: &'static str) {
+    pub fn next(
+        &mut self,
+        name: &'static str,
+    ) {
         self.close();
         self.name = name;
     }

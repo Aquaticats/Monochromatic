@@ -18,30 +18,47 @@
 //! child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree);
 //! ```
 
-/// The diagnostic log of the wrapper.
-use crate::diagnostic_log::debug;
 /// The blocking pool,
 /// for the sweep that reads directories.
 use crate::blocking_job::run_blocking_job;
 /// A child owned until it is reaped,
 /// awaited through its pidfd.
-use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+use crate::child_awaited_through_a_pidfd::{
+    OwnedChild,
+    adopt,
+};
+/// The diagnostic log of the wrapper.
+use crate::diagnostic_log::debug;
 /// The process's runtime,
 /// for the task that sweeps after the child ends.
 use crate::lazy_runtime::spawn_on_runtime;
-/// When a stop that asked its tree to end may force the end.
-use crate::stop_waits_while_a_member_cannot_be_interrupted::{STOP_CEILING, escalation_waits};
+use crate::member_signalled_through_its_pidfd::{
+    kill_members,
+    terminate_members,
+};
 /// The processes a push started,
 /// and the calls that look at and end them.
-use crate::process_tree::{TreeMember, descendants_of, member_of, still_running};
-use crate::member_signalled_through_its_pidfd::{kill_members, terminate_members};
+use crate::process_tree::{
+    TreeMember,
+    descendants_of,
+    member_of,
+    still_running,
+};
+/// When a stop that asked its tree to end may force the end.
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{
+    STOP_CEILING,
+    escalation_waits,
+};
 /// The lock files a stopped push leaves,
 /// and the ledger that finds them.
 use crate::stopped_git_locks::LockLedger;
 /// `Child` is a push handed to the sweeper.
 use std::process::Child;
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -84,7 +101,10 @@ fn ask_to_stop(_id: u32) {}
 /// ```ts
 /// asked < grace
 /// ```
-pub(crate) fn grace_remains(asked: Duration, grace: Duration) -> bool {
+pub(crate) fn grace_remains(
+    asked: Duration,
+    grace: Duration,
+) -> bool {
     return asked < grace;
 }
 
@@ -96,7 +116,10 @@ pub(crate) fn grace_remains(asked: Duration, grace: Duration) -> bool {
 /// ```ts
 /// await Promise.race([allEnded(tree), delay(graceMs)]);
 /// ```
-async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
+async fn wait_for_tree(
+    tree: &[TreeMember],
+    grace: Duration,
+) {
     let waited: Instant = Instant::now();
     while grace_remains(waited.elapsed(), grace) && tree.iter().any(still_running) {
         tokio::time::sleep(POLL_PAUSE).await;
@@ -133,13 +156,21 @@ async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 /// ```ts
 /// void Promise.race([child.exited, delay(ceiling)]).then(() => locks.sweep(tree));
 /// ```
-pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
+pub fn sweep_after_exit(
+    child: Child,
+    tree: Vec<TreeMember>,
+    locks: LockLedger,
+) -> Option<tokio::task::JoinHandle<()>> {
     return sweep_task(Some(child), tree, locks);
 }
 
 /// `sweep_after_exit` for a push that may already have been collected:
 /// with no child there is only the tree to wait for.
-fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
+fn sweep_task(
+    child: Option<Child>,
+    tree: Vec<TreeMember>,
+    locks: LockLedger,
+) -> Option<tokio::task::JoinHandle<()>> {
     let started = spawn_on_runtime(async move {
         // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
         let _earlier: usize = reap_abandoned_children();
@@ -155,7 +186,10 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
                     if let Some(left) = owned.into_std_when_unreaped() {
                         keep_abandoned(left);
                     }
-                    debug(TAG, "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel for the next round to collect, and its locks to the stale-lock judgement");
+                    debug(
+                        TAG,
+                        "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel for the next round to collect, and its locks to the stale-lock judgement",
+                    );
                 }
             }
         }
@@ -164,15 +198,28 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         //  stale-lock judgement every later push and fetch makes.
         let gone: bool = wait_until_gone(tree.as_slice(), STOP_CEILING).await;
         if !gone {
-            debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
+            debug(
+                TAG,
+                "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement",
+            );
         }
         // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
-        if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {
-            debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
+        if let Err(error) = run_blocking_job(move || {
+            locks.sweep();
+        })
+        .await
+        {
+            debug(
+                TAG,
+                &format!("the sweep of a stopped push's locks did not run: {error}"),
+            );
         }
     });
     if started.is_none() {
-        debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
+        debug(
+            TAG,
+            "the runtime has no worker to sweep a stopped push's locks",
+        );
     }
     return started;
 }
@@ -210,7 +257,10 @@ static CONTROL_CEILING: std::sync::Mutex<Option<(u32, Duration)>> = std::sync::M
 
 /// Gives the child `id` a ceiling of its own for a control.
 #[cfg(test)]
-pub(crate) fn ceiling_for_a_child_in_a_control(id: u32, ceiling: Duration) {
+pub(crate) fn ceiling_for_a_child_in_a_control(
+    id: u32,
+    ceiling: Duration,
+) {
     if let Ok(mut slot) = CONTROL_CEILING.lock() {
         *slot = Some((id, ceiling));
     }
@@ -293,7 +343,10 @@ pub fn reap_abandoned_children() -> usize {
 /// ```ts
 /// const began = Date.now(); while (running() && Date.now() - began < ceilingMs) await sleep(POLL_PAUSE);
 /// ```
-async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
+async fn wait_until_gone(
+    tree: &[TreeMember],
+    ceiling: Duration,
+) -> bool {
     let began: Instant = Instant::now();
     while tree.iter().any(still_running) {
         if began.elapsed() >= ceiling {
@@ -322,10 +375,20 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 /// ```ts
 /// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep();
 /// ```
-pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger) {
+pub async fn stop_push(
+    mut child: OwnedChild,
+    grace: Duration,
+    locks: LockLedger,
+) {
     // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
-    let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
-    let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
+    let below: Vec<TreeMember> = i32::try_from(child.id())
+        .map(descendants_of)
+        .unwrap_or_default();
+    let mut tree: Vec<TreeMember> = i32::try_from(child.id())
+        .ok()
+        .and_then(member_of)
+        .into_iter()
+        .collect();
     tree.extend(below.iter().cloned());
     // Nothing is claimed before the stop: a number in a pid file does not say which PID namespace wrote it, and a lock a member
     //  of the tree was seen to hold is a lock another Git may hold at the same path (cross-vendor review of 2026-11-09,
@@ -355,7 +418,9 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     // What the push started outlives it: its transport helper holds the connection and its hook may never exit
     // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
     // the push, so they get what is left of the grace and are then killed.
-    while escalation_waits(asked.elapsed(), grace, below.as_slice()) && below.iter().any(still_running) {
+    while escalation_waits(asked.elapsed(), grace, below.as_slice())
+        && below.iter().any(still_running)
+    {
         tokio::time::sleep(POLL_PAUSE).await;
     }
     kill_members(below.as_slice());
@@ -385,13 +450,25 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
 /// ```ts
 /// if (child === undefined && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
 /// ```
-pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<tokio::task::JoinHandle<()>> {
+pub async fn settle_locks(
+    child: Option<Child>,
+    tree: Vec<TreeMember>,
+    locks: LockLedger,
+    grace: Duration,
+) -> Option<tokio::task::JoinHandle<()>> {
     let Some(uncollected) = child else {
         wait_for_tree(tree.as_slice(), grace).await;
         if !tree.iter().any(still_running) {
             // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
-            if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {
-                debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
+            if let Err(error) = run_blocking_job(move || {
+                locks.sweep();
+            })
+            .await
+            {
+                debug(
+                    TAG,
+                    &format!("the sweep of a stopped push's locks did not run: {error}"),
+                );
             }
             return None;
         }

@@ -22,11 +22,20 @@
 //! ```
 
 use super::probe_call_error::CallError;
-use super::probe_open_beneath::open_directory_beneath;
 use super::probe_errno_names::errno_of;
-use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, open_root, symlink_at};
+use super::probe_open_beneath::open_directory_beneath;
+use crate::fs_beneath::{
+    ObjectId,
+    identity_of,
+    open_directory_at,
+    open_root,
+    symlink_at,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory inside the scratch tmpfs the refusal controls plant in.
 pub const REFUSAL_TREE: &str = "refusal";
@@ -104,7 +113,14 @@ impl WalkFailure {
     /// so a number this build does not name still reaches the record.
     pub fn errno_number(&self) -> Option<i32> {
         return match self {
-            WalkFailure::Call { errno, .. } | WalkFailure::Control { errno, .. } => *errno,
+            WalkFailure::Call {
+                errno,
+                ..
+            }
+            | WalkFailure::Control {
+                errno,
+                ..
+            } => *errno,
         };
     }
 
@@ -112,8 +128,16 @@ impl WalkFailure {
     /// naming the control and what it answered.
     pub fn message(&self) -> String {
         return match self {
-            WalkFailure::Call { call, errno } => format!("the probe's walk call `{call}` failed (errno {errno:?})."),
-            WalkFailure::Control { control, errno } => format!("the probe's refusal control `{control}` did not refuse as designed (errno {errno:?})."),
+            WalkFailure::Call {
+                call,
+                errno,
+            } => format!("the probe's walk call `{call}` failed (errno {errno:?})."),
+            WalkFailure::Control {
+                control,
+                errno,
+            } => format!(
+                "the probe's refusal control `{control}` did not refuse as designed (errno {errno:?})."
+            ),
         };
     }
 }
@@ -133,10 +157,17 @@ fn errno_of_call(error: &std::io::Error) -> Option<i32> {
 ///
 /// # Errors
 /// A directory could not be made.
-pub fn make_scratch_tree(scratch: &Path, slot: &Path, move_target: &Path) -> Result<(), WalkFailure> {
+pub fn make_scratch_tree(
+    scratch: &Path,
+    slot: &Path,
+    move_target: &Path,
+) -> Result<(), WalkFailure> {
     for path in [slot.to_path_buf(), move_target.to_path_buf()] {
         if let Err(error) = std::fs::create_dir_all(path.as_path()) {
-            return Err(WalkFailure::Call { call: "mkdir", errno: errno_of_call(&error) });
+            return Err(WalkFailure::Call {
+                call: "mkdir",
+                errno: errno_of_call(&error),
+            });
         }
     }
     let refusal: PathBuf = scratch.join(REFUSAL_TREE);
@@ -144,7 +175,10 @@ pub fn make_scratch_tree(scratch: &Path, slot: &Path, move_target: &Path) -> Res
     let bound_slot: PathBuf = bound.join("slot");
     for path in [refusal.as_path(), bound.as_path(), bound_slot.as_path()] {
         if let Err(error) = std::fs::create_dir_all(path) {
-            return Err(WalkFailure::Call { call: "mkdir", errno: errno_of_call(&error) });
+            return Err(WalkFailure::Call {
+                call: "mkdir",
+                errno: errno_of_call(&error),
+            });
         }
     }
     return Ok(());
@@ -158,11 +192,32 @@ pub fn make_scratch_tree(scratch: &Path, slot: &Path, move_target: &Path) -> Res
 ///
 /// # Errors
 /// The root or the slot could not be opened as a folder.
-pub fn walk_to_slot(scratch: &Path, slot: &Path) -> Result<ObjectId, WalkFailure> {
-    let root: std::fs::File = open_root(scratch).map_err(|error| return WalkFailure::Call { call: "open_root", errno: errno_of_call(&error) })?;
-    let slot_name: &OsStr = slot.file_name().ok_or(WalkFailure::Call { call: "slot name", errno: None })?;
-    let opened: std::fs::File = open_directory_at(&root, slot_name).map_err(|error| return WalkFailure::Call { call: "open_directory_at", errno: errno_of_call(&error) })?;
-    return identity_of(&opened).map_err(|error| return WalkFailure::Call { call: "identity_of", errno: errno_of_call(&error) });
+pub fn walk_to_slot(
+    scratch: &Path,
+    slot: &Path,
+) -> Result<ObjectId, WalkFailure> {
+    let root: std::fs::File = open_root(scratch).map_err(|error| {
+        return WalkFailure::Call {
+            call: "open_root",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    let slot_name: &OsStr = slot.file_name().ok_or(WalkFailure::Call {
+        call: "slot name",
+        errno: None,
+    })?;
+    let opened: std::fs::File = open_directory_at(&root, slot_name).map_err(|error| {
+        return WalkFailure::Call {
+            call: "open_directory_at",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    return identity_of(&opened).map_err(|error| {
+        return WalkFailure::Call {
+            call: "identity_of",
+            errno: errno_of_call(&error),
+        };
+    });
 }
 
 /// What:
@@ -175,36 +230,150 @@ pub fn walk_to_slot(scratch: &Path, slot: &Path) -> Result<ObjectId, WalkFailure
 ///
 /// # Errors
 /// A call failed or a control did not refuse as designed.
-pub fn refusal_controls(scratch: &Path, slot: &Path) -> Result<(), WalkFailure> {
-    let root: std::fs::File = open_root(scratch).map_err(|error| return WalkFailure::Call { call: "open_root", errno: errno_of_call(&error) })?;
-    let refusal: std::fs::File = open_directory_at(&root, OsStr::new(REFUSAL_TREE)).map_err(|error| return WalkFailure::Call { call: "open_directory_at", errno: errno_of_call(&error) })?;
-    symlink_at(slot, &refusal, OsStr::new(LINK_NAME)).map_err(|error| return WalkFailure::Call { call: "symlink_at", errno: errno_of_call(&error) })?;
+pub fn refusal_controls(
+    scratch: &Path,
+    slot: &Path,
+) -> Result<(), WalkFailure> {
+    let root: std::fs::File = open_root(scratch).map_err(|error| {
+        return WalkFailure::Call {
+            call: "open_root",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    let refusal: std::fs::File =
+        open_directory_at(&root, OsStr::new(REFUSAL_TREE)).map_err(|error| {
+            return WalkFailure::Call {
+                call: "open_directory_at",
+                errno: errno_of_call(&error),
+            };
+        })?;
+    symlink_at(slot, &refusal, OsStr::new(LINK_NAME)).map_err(|error| {
+        return WalkFailure::Call {
+            call: "symlink_at",
+            errno: errno_of_call(&error),
+        };
+    })?;
     match open_directory_at(&refusal, OsStr::new(LINK_NAME)) {
-        Ok(_) => return Err(WalkFailure::Control { control: "link", errno: None }),
+        Ok(_) => {
+            return Err(WalkFailure::Control {
+                control: "link",
+                errno: None,
+            });
+        }
         Err(error) if errno_of_call(&error) == Some(libc::ELOOP) => {}
-        Err(error) => return Err(WalkFailure::Control { control: "link", errno: errno_of_call(&error) }),
+        Err(error) => {
+            return Err(WalkFailure::Control {
+                control: "link",
+                errno: errno_of_call(&error),
+            });
+        }
     }
     match open_directory_beneath(&root, "../escape") {
-        Ok(_) => return Err(WalkFailure::Control { control: "escape", errno: None }),
-        Err(CallError { errno, .. }) if errno == libc::EXDEV => {}
-        Err(CallError { errno, .. }) => return Err(WalkFailure::Control { control: "escape", errno: Some(errno) }),
+        Ok(_) => {
+            return Err(WalkFailure::Control {
+                control: "escape",
+                errno: None,
+            });
+        }
+        Err(CallError {
+            errno,
+            ..
+        }) if errno == libc::EXDEV => {}
+        Err(CallError {
+            errno,
+            ..
+        }) => {
+            return Err(WalkFailure::Control {
+                control: "escape",
+                errno: Some(errno),
+            });
+        }
     }
-    super::probe_mount_calls::bind_mount(slot, bound_slot_of(scratch).as_path()).map_err(|error| return WalkFailure::Call { call: error.call, errno: Some(error.errno) })?;
+    super::probe_mount_calls::bind_mount(slot, bound_slot_of(scratch).as_path()).map_err(
+        |error| {
+            return WalkFailure::Call {
+                call: error.call,
+                errno: Some(error.errno),
+            };
+        },
+    )?;
     match open_beneath_components(&root, [REFUSAL_TREE, BOUND_NAME, "slot"]) {
-        Ok(_) => return Err(WalkFailure::Control { control: "crossing", errno: None }),
+        Ok(_) => {
+            return Err(WalkFailure::Control {
+                control: "crossing",
+                errno: None,
+            });
+        }
         Err(errno) if errno == Some(libc::EXDEV) => {}
-        Err(errno) => return Err(WalkFailure::Control { control: "crossing", errno }),
+        Err(errno) => {
+            return Err(WalkFailure::Control {
+                control: "crossing",
+                errno,
+            });
+        }
     }
     let replaced: PathBuf = scratch.join(REFUSAL_TREE).join(REPLACED_NAME);
-    std::fs::create_dir_all(replaced.as_path()).map_err(|error| return WalkFailure::Call { call: "mkdir", errno: errno_of_call(&error) })?;
-    let recorded: ObjectId = identity_of(&open_directory_at(&refusal, OsStr::new(REPLACED_NAME)).map_err(|error| return WalkFailure::Call { call: "open_directory_at", errno: errno_of_call(&error) })?)
-        .map_err(|error| return WalkFailure::Call { call: "identity_of", errno: errno_of_call(&error) })?;
-    std::fs::rename(replaced.as_path(), scratch.join(REFUSAL_TREE).join(REPLACED_ELSEWHERE_NAME).as_path())
-        .map_err(|error| return WalkFailure::Call { call: "rename", errno: errno_of_call(&error) })?;
-    std::fs::create_dir_all(replaced.as_path()).map_err(|error| return WalkFailure::Call { call: "mkdir", errno: errno_of_call(&error) })?;
-    let now: ObjectId = identity_of(&open_directory_at(&refusal, OsStr::new(REPLACED_NAME)).map_err(|error| return WalkFailure::Call { call: "open_directory_at", errno: errno_of_call(&error) })?)
-        .map_err(|error| return WalkFailure::Call { call: "identity_of", errno: errno_of_call(&error) })?;
-    return if now == recorded { Err(WalkFailure::Control { control: "changed identity", errno: None }) } else { Ok(()) };
+    std::fs::create_dir_all(replaced.as_path()).map_err(|error| {
+        return WalkFailure::Call {
+            call: "mkdir",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    let recorded: ObjectId = identity_of(
+        &open_directory_at(&refusal, OsStr::new(REPLACED_NAME)).map_err(|error| {
+            return WalkFailure::Call {
+                call: "open_directory_at",
+                errno: errno_of_call(&error),
+            };
+        })?,
+    )
+    .map_err(|error| {
+        return WalkFailure::Call {
+            call: "identity_of",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    std::fs::rename(
+        replaced.as_path(),
+        scratch
+            .join(REFUSAL_TREE)
+            .join(REPLACED_ELSEWHERE_NAME)
+            .as_path(),
+    )
+    .map_err(|error| {
+        return WalkFailure::Call {
+            call: "rename",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    std::fs::create_dir_all(replaced.as_path()).map_err(|error| {
+        return WalkFailure::Call {
+            call: "mkdir",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    let now: ObjectId = identity_of(
+        &open_directory_at(&refusal, OsStr::new(REPLACED_NAME)).map_err(|error| {
+            return WalkFailure::Call {
+                call: "open_directory_at",
+                errno: errno_of_call(&error),
+            };
+        })?,
+    )
+    .map_err(|error| {
+        return WalkFailure::Call {
+            call: "identity_of",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    return if now == recorded {
+        Err(WalkFailure::Control {
+            control: "changed identity",
+            errno: None,
+        })
+    } else {
+        Ok(())
+    };
 }
 
 /// What:
@@ -216,8 +385,18 @@ pub fn refusal_controls(scratch: &Path, slot: &Path) -> Result<(), WalkFailure> 
 /// # Errors
 /// The root could not be opened or its identity read.
 pub fn open_checkout(checkout: &Path) -> Result<ObjectId, WalkFailure> {
-    let root: std::fs::File = open_root(checkout).map_err(|error| return WalkFailure::Call { call: "open_root checkout", errno: errno_of_call(&error) })?;
-    return identity_of(&root).map_err(|error| return WalkFailure::Call { call: "identity_of checkout", errno: errno_of_call(&error) });
+    let root: std::fs::File = open_root(checkout).map_err(|error| {
+        return WalkFailure::Call {
+            call: "open_root checkout",
+            errno: errno_of_call(&error),
+        };
+    })?;
+    return identity_of(&root).map_err(|error| {
+        return WalkFailure::Call {
+            call: "identity_of checkout",
+            errno: errno_of_call(&error),
+        };
+    });
 }
 
 /// The bound control's mount point inside the scratch tmpfs.
@@ -227,8 +406,13 @@ fn bound_slot_of(scratch: &Path) -> PathBuf {
 
 /// Walk one component at a time beneath the held root and answer the errno of
 ///  the first refusal.
-fn open_beneath_components(root: &std::fs::File, components: [&str; 3]) -> Result<(), Option<i32>> {
-    let mut held: std::fs::File = root.try_clone().map_err(|error| return errno_of_call(&error))?;
+fn open_beneath_components(
+    root: &std::fs::File,
+    components: [&str; 3],
+) -> Result<(), Option<i32>> {
+    let mut held: std::fs::File = root
+        .try_clone()
+        .map_err(|error| return errno_of_call(&error))?;
     for component in components {
         match open_directory_at(&held, OsStr::new(component)) {
             Ok(next) => held = next,

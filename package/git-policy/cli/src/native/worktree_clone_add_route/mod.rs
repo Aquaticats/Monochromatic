@@ -54,66 +54,117 @@
 //! const finished = runAZfsAdd(realGit, args, overlay, facts); // null: the ordinary add
 //! ```
 
-/// Which add the route serves, and the facts every step uses.
-pub mod add_route_gate;
-/// The names one add chooses, its request, and the stop switch the guest arms use.
-pub mod add_route_plan;
-/// One descriptor-relative walk of many tracked paths.
-pub mod add_capture_tree;
 /// The frozen capture and the walk that takes it.
 pub mod add_capture;
 /// The capture's durable record.
 pub mod add_capture_record;
 /// Where the capture and the proof's marker live.
 pub mod add_capture_store;
+/// One descriptor-relative walk of many tracked paths.
+pub mod add_capture_tree;
+/// The pointer's exchange.
+pub mod add_exchange;
+/// The fill's order.
+pub mod add_fill;
 /// The frozen proof of a mounted clone.
 pub mod add_frozen_proof;
-/// The fill's private index.
-pub mod add_index;
-/// The Git runner the fill's own restore steps start.
-pub mod add_route_git;
 /// The words of the one locked Git invocation.
 pub mod add_git_words;
-/// The scan of the registrations and what it settles.
-pub mod add_registration;
-/// The pool's calls.
-pub mod add_zfs;
+/// The account's effective delegation over the route's two datasets.
+pub mod add_grants;
+/// The fill's private index.
+pub mod add_index;
+/// The wait for the mount.
+pub mod add_mount;
 /// What the pool answers about the clone a standing removal plan records.
 pub mod add_plan_clone_presence;
 /// The stop a standing removal plan leaves,
 /// with the one command that ends it.
 pub mod add_plan_stop;
-/// The account's effective delegation over the route's two datasets.
-pub mod add_grants;
-/// The wait for the mount.
-pub mod add_mount;
-/// The pointer's exchange.
-pub mod add_exchange;
-/// The fill's order.
-pub mod add_fill;
+/// The scan of the registrations and what it settles.
+pub mod add_registration;
+/// Which add the route serves, and the facts every step uses.
+pub mod add_route_gate;
+/// The Git runner the fill's own restore steps start.
+pub mod add_route_git;
+/// The names one add chooses, its request, and the stop switch the guest arms use.
+pub mod add_route_plan;
 /// One step per phase.
 pub mod add_route_steps_facts_and_refusal;
+/// The pool's calls.
+pub mod add_zfs;
 
 pub mod add_route_steps_slot_and_registration;
 
 pub mod add_route_steps_snapshot_and_capture;
 
-pub mod add_route_steps;
-/// The source shapes the fill's restore would refuse after the clone is made.
-pub mod add_source_the_restore_cannot_prove;
 /// What A0 proves before the claim writes anything.
 pub mod add_preflight;
 /// The route's entry point and runner.
 pub mod add_route_run;
+pub mod add_route_steps;
+/// The source shapes the fill's restore would refuse after the clone is made.
+pub mod add_source_the_restore_cannot_prove;
 
-pub use add_fill::{FillInput, Filled, fill_the_clone};
+pub use add_capture::{
+    Capture,
+    CaptureInput,
+    CapturedEntry,
+    CapturedIndex,
+    CapturedKind,
+    capture_the_source,
+};
+pub use add_capture_record::{
+    CAPTURE_HEADER,
+    capture_bound,
+    encode_capture,
+    parse_capture,
+};
+pub use add_capture_store::{
+    capture_name,
+    marker_name,
+    publish_capture,
+    read_capture,
+    remove_capture,
+};
+pub use add_fill::{
+    FillInput,
+    Filled,
+    fill_the_clone,
+};
 pub use add_frozen_proof::prove_the_clone;
-pub use add_route_gate::{CheckoutMount, RouteFacts, decide_the_routes_add, destination_is_the_routes_slot, the_routes_add};
-pub use add_route_plan::{AddNames, STOP_AFTER_VARIABLE, STOP_STEPS, Stops, name_the_add, request_of};
-pub use add_route_run::{FILLED_NOTE, run_a_zfs_add};
-pub use add_capture::{CapturedEntry, CapturedIndex, CapturedKind, Capture, CaptureInput, capture_the_source};
-pub use add_capture_record::{CAPTURE_HEADER, capture_bound, encode_capture, parse_capture};
-pub use add_capture_store::{capture_name, marker_name, publish_capture, read_capture, remove_capture};
-pub use add_git_words::{ROUTE_OPTIONS, person_lock_word, the_locked_add_words};
-pub use add_grants::{read_the_grants, refuse_unless_the_decided_ones, refuse_without_the_decided_grants};
-pub use add_registration::{Registration, ScanInput, ScanOutcome, scan_and_settle};
+pub use add_git_words::{
+    ROUTE_OPTIONS,
+    person_lock_word,
+    the_locked_add_words,
+};
+pub use add_grants::{
+    read_the_grants,
+    refuse_unless_the_decided_ones,
+    refuse_without_the_decided_grants,
+};
+pub use add_registration::{
+    Registration,
+    ScanInput,
+    ScanOutcome,
+    scan_and_settle,
+};
+pub use add_route_gate::{
+    CheckoutMount,
+    RouteFacts,
+    decide_the_routes_add,
+    destination_is_the_routes_slot,
+    the_routes_add,
+};
+pub use add_route_plan::{
+    AddNames,
+    STOP_AFTER_VARIABLE,
+    STOP_STEPS,
+    Stops,
+    name_the_add,
+    request_of,
+};
+pub use add_route_run::{
+    FILLED_NOTE,
+    run_a_zfs_add,
+};

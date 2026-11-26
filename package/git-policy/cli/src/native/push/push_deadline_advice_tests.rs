@@ -9,12 +9,26 @@ use super::*;
 #[test]
 fn the_service_advice_reaches_the_service_and_the_terminal_advice_names_the_variable() {
     let terminal: String = extend_clause_for(false);
-    assert_eq!(terminal, format!("set {PUSH_DEADLINE_VARIABLE} to allow longer"));
+    assert_eq!(
+        terminal,
+        format!("set {PUSH_DEADLINE_VARIABLE} to allow longer")
+    );
     let service: String = extend_clause_for(true);
-    assert!(service.contains(format!("systemctl --user set-environment {PUSH_DEADLINE_VARIABLE}=").as_str()), "{service}");
+    assert!(
+        service.contains(
+            format!("systemctl --user set-environment {PUSH_DEADLINE_VARIABLE}=").as_str()
+        ),
+        "{service}"
+    );
     assert!(service.contains(RESTART_COMMAND), "{service}");
-    assert!(!service.contains(format!("set {PUSH_DEADLINE_VARIABLE} to allow longer").as_str()), "{service}");
-    assert_eq!(limit_clause_for(false), format!("{PUSH_DEADLINE_VARIABLE} sets the limit"));
+    assert!(
+        !service.contains(format!("set {PUSH_DEADLINE_VARIABLE} to allow longer").as_str()),
+        "{service}"
+    );
+    assert_eq!(
+        limit_clause_for(false),
+        format!("{PUSH_DEADLINE_VARIABLE} sets the limit")
+    );
     assert_eq!(limit_clause_for(true), service);
 }
 

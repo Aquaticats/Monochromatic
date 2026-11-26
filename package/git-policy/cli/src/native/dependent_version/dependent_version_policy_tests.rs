@@ -18,12 +18,28 @@
 /// its request and finding types,
 /// and the in-memory workspace.
 use super::{
-    Candidate, CandidateChange, DEPENDENT_VERSION_STALE_CODE, DEPENDENT_VERSION_UNSUPPORTED_CODE,
-    DependentFinding, DependentRequest, find_dependent_bumps, should_plan,
+    Candidate,
+    CandidateChange,
+    DEPENDENT_VERSION_STALE_CODE,
+    DEPENDENT_VERSION_UNSUPPORTED_CODE,
+    DependentFinding,
+    DependentRequest,
+    find_dependent_bumps,
+    should_plan,
 };
-use crate::dependent_version_content::{PlanError, PolicyIncomplete, TrackedMode};
+use crate::dependent_version_content::{
+    PlanError,
+    PolicyIncomplete,
+    TrackedMode,
+};
 use crate::dependent_version_test_support::{
-    MemoryFile, MemoryWorkspace, changed, config, manifest_text, unchanged, workspace,
+    MemoryFile,
+    MemoryWorkspace,
+    changed,
+    config,
+    manifest_text,
+    unchanged,
+    workspace,
 };
 use crate::policy_trigger::Trigger;
 
@@ -95,7 +111,10 @@ fn runtime(version: &str) -> MemoryFile {
 }
 
 /// A package with a development dependency on `@s/base`.
-fn dev_dependent(name: &str, version: &str) -> MemoryFile {
+fn dev_dependent(
+    name: &str,
+    version: &str,
+) -> MemoryFile {
     return unchanged(
         &format!("package/module/{name}/package.json"),
         &manifest(&format!(

@@ -20,13 +20,33 @@
 
 use super::commit::git_text;
 use super::service_commit::runtime_for;
-use super::support::{Fixture, bounded_for, wrapper_first_path};
-use super::supervisor::{IdleHold, hold_idle_judgment};
+use super::supervisor::{
+    IdleHold,
+    hold_idle_judgment,
+};
+use super::support::{
+    Fixture,
+    bounded_for,
+    wrapper_first_path,
+};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
-use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::io::{
+    BufRead,
+    BufReader,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for a marker,
 /// in seconds,
@@ -76,7 +96,9 @@ impl Held {
     /// Everything the commit wrote to its standard error,
     /// read once the commit has ended.
     fn ended(&mut self) -> String {
-        let Some(reader) = self.stderr.take() else { return String::new() };
+        let Some(reader) = self.stderr.take() else {
+            return String::new();
+        };
         return reader.join().expect("the reader of standard error");
     }
 }
@@ -102,7 +124,11 @@ pub(super) fn marker_directory(fixture: &Fixture) -> PathBuf {
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("the marker directory");
     for number in 2..=LATER_ARRIVALS {
-        std::fs::write(markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+        std::fs::write(
+            markers.join(format!("service-prepared-{number}.release")),
+            "",
+        )
+        .expect("release of a later arrival");
     }
     return markers;
 }
@@ -118,7 +144,13 @@ pub(super) fn marker_directory(fixture: &Fixture) -> PathBuf {
 /// const held = heldCommit(fixture, repo, name, markers, { arguments: ['commit', '-m', 'conclude'], stdin: undefined, environment: [] });
 /// await waitHeld(held);
 /// ```
-pub(super) fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &Path, hold: &Hold<'_>) -> Held {
+pub(super) fn held_commit(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+    markers: &Path,
+    hold: &Hold<'_>,
+) -> Held {
     let mut command: Command = bounded_for(
         fixture,
         fixture.root.join("bin/git").as_path(),
@@ -131,7 +163,10 @@ pub(super) fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &
     }
     command
         .env("XDG_RUNTIME_DIR", runtime_for(name))
-        .env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", markers.display()))
+        .env(
+            PHASE_SIGNAL_VARIABLE,
+            format!("service-prepared:pause:{}", markers.display()),
+        )
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     match hold.stdin {
@@ -147,7 +182,8 @@ pub(super) fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &
         && let Some(mut pipe) = child.stdin.take()
     {
         use std::io::Write;
-        pipe.write_all(input).expect("the held commit reads what this control gives it");
+        pipe.write_all(input)
+            .expect("the held commit reads what this control gives it");
         // Dropped here, which is how a selection following the person's answers learns there are no more.
         drop(pipe);
     }
@@ -161,7 +197,12 @@ pub(super) fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &
         return all;
     });
     let idle: IdleHold = hold_idle_judgment(child.id());
-    return Held { child, stderr: Some(reader), markers: markers.to_path_buf(), hold: Some(idle) };
+    return Held {
+        child,
+        stderr: Some(reader),
+        markers: markers.to_path_buf(),
+        hold: Some(idle),
+    };
 }
 
 /// Waits until the commit is held at the marker between its preparation and its landing,
@@ -170,7 +211,11 @@ pub(super) fn wait_held(held: &mut Held) {
     let reached: PathBuf = held.markers.join("service-prepared-1.reached");
     let began: Instant = Instant::now();
     while !reached.exists() {
-        if let Some(status) = held.child.try_wait().expect("the commit can be asked whether it ended") {
+        if let Some(status) = held
+            .child
+            .try_wait()
+            .expect("the commit can be asked whether it ended")
+        {
             let words: String = held.ended();
             panic!("the commit ended ({status:?}) before it was held: {words}");
         }
@@ -189,30 +234,76 @@ pub(super) fn release(mut held: Held) -> Ended {
     // The guard judges the commit again once this control is no longer holding it.
     let _held_again: Option<IdleHold> = held.hold.take();
     let stderr: String = held.ended();
-    return Ended { code: status.code(), stderr };
+    return Ended {
+        code: status.code(),
+        stderr,
+    };
 }
 
 /// What one commit of a branch is,
 /// so a control can say a commit another command made was left as it is.
-pub(super) fn stored(fixture: &Fixture, repo: &Path, revision: &str) -> Vec<String> {
+pub(super) fn stored(
+    fixture: &Fixture,
+    repo: &Path,
+    revision: &str,
+) -> Vec<String> {
     let formats: [&str; 6] = ["%H", "%P", "%T", "%B", "%an <%ae>|%cn <%ce>", "%aI|%cI"];
-    return formats.map(|format| { return git_text(fixture, repo, &["log", "-1", "--date=iso-strict", format!("--format={format}").as_str(), revision]); }).to_vec();
+    return formats
+        .map(|format| {
+            return git_text(
+                fixture,
+                repo,
+                &[
+                    "log",
+                    "-1",
+                    "--date=iso-strict",
+                    format!("--format={format}").as_str(),
+                    revision,
+                ],
+            );
+        })
+        .to_vec();
 }
 
 /// The author of a commit,
 /// with the date the commit records,
 /// as the person reads it.
-pub(super) fn author_of(fixture: &Fixture, repo: &Path, revision: &str) -> String {
-    return git_text(fixture, repo, &["log", "-1", "--date=iso-strict", "--format=%an <%ae>|%aI", revision]);
+pub(super) fn author_of(
+    fixture: &Fixture,
+    repo: &Path,
+    revision: &str,
+) -> String {
+    return git_text(
+        fixture,
+        repo,
+        &[
+            "log",
+            "-1",
+            "--date=iso-strict",
+            "--format=%an <%ae>|%aI",
+            revision,
+        ],
+    );
 }
 
 /// The parents of `HEAD`,
 /// as object names.
-pub(super) fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
-    return git_text(fixture, repo, &["rev-list", "--parents", "-n", "1", "HEAD"]).split_whitespace().skip(1).map(String::from).collect();
+pub(super) fn parents(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Vec<String> {
+    return git_text(fixture, repo, &["rev-list", "--parents", "-n", "1", "HEAD"])
+        .split_whitespace()
+        .skip(1)
+        .map(String::from)
+        .collect();
 }
 
 /// Writes one file of the repository.
-pub(super) fn write(repo: &Path, name: &str, text: &str) {
+pub(super) fn write(
+    repo: &Path,
+    name: &str,
+    text: &str,
+) {
     std::fs::write(repo.join(name), text).expect("the file");
 }

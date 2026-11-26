@@ -16,7 +16,10 @@
 //! ```
 
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Instant` is a moment on the monotonic clock,
 /// which a scan's bound names.
 use std::time::Instant;
@@ -122,7 +125,8 @@ pub struct UseScan {
 /// ['ENOENT', 'ESRCH'].includes(error.code)
 /// ```
 fn exited(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+    return error.kind() == std::io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(libc::ESRCH);
 }
 
 /// What:
@@ -219,8 +223,19 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 /// opened?.device === device && opened?.inode === inode;
 /// ```
 #[cfg(unix)]
-pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> Result<bool, Unread> {
-    return descriptor_is_file_with(process, fd, device, inode, crate::open_file_of_a_descriptor::opened_file_of);
+pub fn descriptor_is_file(
+    process: &Path,
+    fd: &std::ffi::OsStr,
+    device: u64,
+    inode: u64,
+) -> Result<bool, Unread> {
+    return descriptor_is_file_with(
+        process,
+        fd,
+        device,
+        inode,
+        crate::open_file_of_a_descriptor::opened_file_of,
+    );
 }
 
 /// What:
@@ -265,12 +280,21 @@ pub fn descriptor_is_file_with(
     fd: &std::ffi::OsStr,
     device: u64,
     inode: u64,
-    opened: fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
+    opened: fn(
+        &Path,
+        &std::ffi::OsStr,
+    ) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
 ) -> Result<bool, Unread> {
-    let text: String = match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::RealFile) {
+    let text: String = match crate::descriptor_record::descriptor_record(
+        process,
+        fd,
+        crate::descriptor_record::Targeted::RealFile,
+    ) {
         // A pipe, a socket or a kernel anonymous inode cannot be a file of a file system, its record is never opened, and
         //  a descriptor that closed while the scan walked the directory is open in nothing.
-        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => return Ok(false),
+        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => {
+            return Ok(false);
+        }
         crate::descriptor_record::Record::Text(text) => text,
         // A record past the bound is one this scan did not read: the descriptor may hold the file, so nothing is concluded.
         crate::descriptor_record::Record::BeyondBound => {
@@ -279,10 +303,18 @@ pub fn descriptor_is_file_with(
                 crate::descriptor_record::RECORD_BYTES_AT_MOST
             )));
         }
-        crate::descriptor_record::Record::Unreadable { reason, .. } => return Err(Unread::Process(reason)),
+        crate::descriptor_record::Record::Unreadable {
+            reason,
+            ..
+        } => return Err(Unread::Process(reason)),
         // The kind of a descriptor whose link text cannot be read is unknown, so it may be the file.
-        crate::descriptor_record::Record::KindUnknown { reason, .. } => {
-            return Err(Unread::File(format!("the text of its link cannot be read ({reason}), so the descriptor may hold the file")));
+        crate::descriptor_record::Record::KindUnknown {
+            reason,
+            ..
+        } => {
+            return Err(Unread::File(format!(
+                "the text of its link cannot be read ({reason}), so the descriptor may hold the file"
+            )));
         }
     };
     let held: Option<u64> = crate::descriptor_record::inode_in(text.as_str());
@@ -311,7 +343,12 @@ pub fn descriptor_is_file_with(
 /// const mount = statx(path, { mask: STATX_MNT_ID }).stx_mnt_id ?? 0;
 /// ```
 pub fn mount_of(path: &Path) -> u64 {
-    let Ok(found) = rustix::fs::statx(rustix::fs::CWD, path, rustix::fs::AtFlags::SYMLINK_NOFOLLOW, rustix::fs::StatxFlags::MNT_ID) else {
+    let Ok(found) = rustix::fs::statx(
+        rustix::fs::CWD,
+        path,
+        rustix::fs::AtFlags::SYMLINK_NOFOLLOW,
+        rustix::fs::StatxFlags::MNT_ID,
+    ) else {
         return 0;
     };
     return found.stx_mnt_id;
@@ -330,11 +367,22 @@ pub fn mount_of(path: &Path) -> u64 {
 /// ```ts
 /// const { mnt_id, ino } = descriptorRecord({ process, fd, targeted: 'anonymous-file' }); ino === inode && mnt_id === mount;
 /// ```
-pub fn mounted_descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, mount: u64, inode: u64) -> Result<bool, Unread> {
-    let text: String = match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::AnonymousFile) {
+pub fn mounted_descriptor_is_file(
+    process: &Path,
+    fd: &std::ffi::OsStr,
+    mount: u64,
+    inode: u64,
+) -> Result<bool, Unread> {
+    let text: String = match crate::descriptor_record::descriptor_record(
+        process,
+        fd,
+        crate::descriptor_record::Targeted::AnonymousFile,
+    ) {
         // A kernel anonymous inode is not a pipe or another named anonymous file, its record is never opened, and a
         //  descriptor that closed while the scan walked the directory is open in nothing.
-        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => return Ok(false),
+        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => {
+            return Ok(false);
+        }
         crate::descriptor_record::Record::Text(text) => text,
         crate::descriptor_record::Record::BeyondBound => {
             return Err(Unread::File(format!(
@@ -342,9 +390,17 @@ pub fn mounted_descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, mount: u
                 crate::descriptor_record::RECORD_BYTES_AT_MOST
             )));
         }
-        crate::descriptor_record::Record::Unreadable { reason, .. } => return Err(Unread::Process(reason)),
-        crate::descriptor_record::Record::KindUnknown { reason, .. } => {
-            return Err(Unread::File(format!("the text of its link cannot be read ({reason}), so the descriptor may hold the file")));
+        crate::descriptor_record::Record::Unreadable {
+            reason,
+            ..
+        } => return Err(Unread::Process(reason)),
+        crate::descriptor_record::Record::KindUnknown {
+            reason,
+            ..
+        } => {
+            return Err(Unread::File(format!(
+                "the text of its link cannot be read ({reason}), so the descriptor may hold the file"
+            )));
         }
     };
     let reached: Option<u64> = crate::descriptor_record::mount_id_in(text.as_str());
@@ -364,7 +420,12 @@ pub fn mounted_descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, mount: u
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> Result<bool, Unread> {
+pub fn descriptor_is_file(
+    process: &Path,
+    fd: &std::ffi::OsStr,
+    device: u64,
+    inode: u64,
+) -> Result<bool, Unread> {
     let _ = (process, fd, device, inode);
     return Ok(false);
 }
@@ -410,7 +471,10 @@ enum Prepared<'a> {
 /// ```ts
 /// readlink(link).startsWith(directory);
 /// ```
-fn working_directory_is_inside(link: &Path, directory: &Path) -> std::io::Result<bool> {
+fn working_directory_is_inside(
+    link: &Path,
+    directory: &Path,
+) -> std::io::Result<bool> {
     let resolved: PathBuf = std::fs::read_link(link)?;
     return Ok(resolved.starts_with(directory));
 }
@@ -454,9 +518,19 @@ struct Findings {
 /// ```ts
 /// async function processesUsing({ procRoot, target, selfPid }): Promise<UseScan>;
 /// ```
-fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>, deadline: Option<Instant>) -> Findings {
+fn scan_process(
+    proc_root: &Path,
+    pid: &str,
+    prepared: &Prepared<'_>,
+    deadline: Option<Instant>,
+) -> Findings {
     let process: PathBuf = proc_root.join(pid);
-    let mut found: Findings = Findings { uses: false, unreadable: None, unresolved: None, stopped: false };
+    let mut found: Findings = Findings {
+        uses: false,
+        unreadable: None,
+        unresolved: None,
+        stopped: false,
+    };
     let mut described: PathBuf = process.join("fdinfo");
     if let Prepared::Inside(directory) = prepared {
         match working_directory_is_inside(process.join("cwd").as_path(), directory) {
@@ -484,18 +558,34 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>, deadline: 
         let answer: Result<bool, Unread> = match prepared {
             // A working directory that cannot be resolved is a path this scan could not look at, which a caller reads as an
             // unreadable process rather than as a file it could not identify.
-            Prepared::Inside(directory) => match working_directory_is_inside(item.path().as_path(), directory) {
-                Ok(inside) => Ok(inside),
-                Err(error) if exited(&error) => Ok(false),
-                Err(error) => Err(Unread::Process(format!("{error}"))),
-            },
-            Prepared::File { device, inode } => {
-                let name: std::ffi::OsString = item.file_name();
-                named_unread(pid, name.as_os_str(), descriptor_is_file(process.as_path(), name.as_os_str(), *device, *inode))
+            Prepared::Inside(directory) => {
+                match working_directory_is_inside(item.path().as_path(), directory) {
+                    Ok(inside) => Ok(inside),
+                    Err(error) if exited(&error) => Ok(false),
+                    Err(error) => Err(Unread::Process(format!("{error}"))),
+                }
             }
-            Prepared::Mounted { mount, inode } => {
+            Prepared::File {
+                device,
+                inode,
+            } => {
                 let name: std::ffi::OsString = item.file_name();
-                named_unread(pid, name.as_os_str(), mounted_descriptor_is_file(process.as_path(), name.as_os_str(), *mount, *inode))
+                named_unread(
+                    pid,
+                    name.as_os_str(),
+                    descriptor_is_file(process.as_path(), name.as_os_str(), *device, *inode),
+                )
+            }
+            Prepared::Mounted {
+                mount,
+                inode,
+            } => {
+                let name: std::ffi::OsString = item.file_name();
+                named_unread(
+                    pid,
+                    name.as_os_str(),
+                    mounted_descriptor_is_file(process.as_path(), name.as_os_str(), *mount, *inode),
+                )
             }
         };
         match answer {
@@ -526,7 +616,11 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>, deadline: 
 /// ```ts
 /// namedUnread(pid, fd, outcome);
 /// ```
-fn named_unread(pid: &str, fd: &std::ffi::OsStr, outcome: Result<bool, Unread>) -> Result<bool, Unread> {
+fn named_unread(
+    pid: &str,
+    fd: &std::ffi::OsStr,
+    outcome: Result<bool, Unread>,
+) -> Result<bool, Unread> {
     let where_: String = format!("PID {pid} fd {}", fd.to_string_lossy());
     return match outcome {
         Ok(found) => Ok(found),
@@ -549,14 +643,31 @@ fn named_unread(pid: &str, fd: &std::ffi::OsStr, outcome: Result<bool, Unread>) 
 /// ```ts
 /// async function processesUsingUntil({ procRoot, target, selfPid, deadline }): Promise<UseScan>;
 /// ```
-pub fn processes_using_until(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32, deadline: Option<Instant>) -> UseScan {
+pub fn processes_using_until(
+    proc_root: &Path,
+    target: &UseTarget<'_>,
+    self_pid: u32,
+    deadline: Option<Instant>,
+) -> UseScan {
     let mut scan: UseScan = UseScan::default();
     // A file is named by the device number and the inode it has, so no mount table is read and no descriptor is
     //  resolved except the ones whose record already names the file's inode number.
     let prepared: Prepared<'_> = match target {
         UseTarget::Inside(directory) => Prepared::Inside(directory),
-        UseTarget::File { device, inode } => Prepared::File { device: *device, inode: *inode },
-        UseTarget::Mounted { mount, inode } => Prepared::Mounted { mount: *mount, inode: *inode },
+        UseTarget::File {
+            device,
+            inode,
+        } => Prepared::File {
+            device: *device,
+            inode: *inode,
+        },
+        UseTarget::Mounted {
+            mount,
+            inode,
+        } => Prepared::Mounted {
+            mount: *mount,
+            inode: *inode,
+        },
     };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(listed) => listed,
@@ -587,7 +698,10 @@ pub fn processes_using_until(proc_root: &Path, target: &UseTarget<'_>, self_pid:
                 Ok(text) => Some(String::from(text.trim())),
                 Err(_) => None,
             };
-            scan.users.push(ProcessUser { pid: number, command });
+            scan.users.push(ProcessUser {
+                pid: number,
+                command,
+            });
         }
         if let Some(reason) = found.unresolved
             && belongs_to_this_account(item.path().as_path())
@@ -637,8 +751,17 @@ fn stopped_at_the_bound(reached: usize) -> String {
 /// ```ts
 /// async function processesUsingThrough({ procRoot, target, selfPid }): Promise<UseScan>;
 /// ```
-pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32) -> UseScan {
-    return processes_using_until(proc_root, target, self_pid, Some(Instant::now() + PROCESS_SCAN_CEILING));
+pub fn processes_using_through(
+    proc_root: &Path,
+    target: &UseTarget<'_>,
+    self_pid: u32,
+) -> UseScan {
+    return processes_using_until(
+        proc_root,
+        target,
+        self_pid,
+        Some(Instant::now() + PROCESS_SCAN_CEILING),
+    );
 }
 
 /// What:

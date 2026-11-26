@@ -17,7 +17,11 @@ const INSTANCE: &str = "0000000000000000000000000000000a";
 #[test]
 fn a_unit_the_manager_does_not_hold_is_gone() {
     let mut manager: Recorder = Recorder::default();
-    assert!(service_is_gone(&mut manager, INSTANCE), "{:?}", manager.calls());
+    assert!(
+        service_is_gone(&mut manager, INSTANCE),
+        "{:?}",
+        manager.calls()
+    );
 }
 
 /// What:
@@ -30,9 +34,20 @@ fn a_unit_the_manager_does_not_hold_is_gone() {
 #[test]
 fn a_unit_that_goes_from_deactivating_to_inactive_is_gone() {
     let mut manager: Recorder = Recorder::default();
-    manager.report_states_of(service_unit_instance(INSTANCE).as_str(), &[Some("deactivating"), Some("inactive")]);
-    assert!(service_is_gone(&mut manager, INSTANCE), "{:?}", manager.calls());
-    assert!(manager.calls().len() > 1, "the unit's ending is asked about more than once: {:?}", manager.calls());
+    manager.report_states_of(
+        service_unit_instance(INSTANCE).as_str(),
+        &[Some("deactivating"), Some("inactive")],
+    );
+    assert!(
+        service_is_gone(&mut manager, INSTANCE),
+        "{:?}",
+        manager.calls()
+    );
+    assert!(
+        manager.calls().len() > 1,
+        "the unit's ending is asked about more than once: {:?}",
+        manager.calls()
+    );
 }
 
 /// What:
@@ -48,8 +63,14 @@ fn a_unit_that_keeps_running_is_not_gone() {
     let began: std::time::Instant = std::time::Instant::now();
     assert!(!service_is_gone(&mut manager, INSTANCE));
     let waited: std::time::Duration = began.elapsed();
-    assert!(waited >= SERVICE_GONE_AFTER_A_STOP, "the wait ended before its bound ({waited:?})");
-    assert!(waited < SERVICE_GONE_AFTER_A_STOP + SERVICE_GONE_POLL * 20, "the wait outlasted its bound by more than a poll each ({waited:?})");
+    assert!(
+        waited >= SERVICE_GONE_AFTER_A_STOP,
+        "the wait ended before its bound ({waited:?})"
+    );
+    assert!(
+        waited < SERVICE_GONE_AFTER_A_STOP + SERVICE_GONE_POLL * 20,
+        "the wait outlasted its bound by more than a poll each ({waited:?})"
+    );
 }
 
 /// A manager that cannot answer proves nothing,
@@ -57,6 +78,9 @@ fn a_unit_that_keeps_running_is_not_gone() {
 #[test]
 fn a_manager_that_cannot_answer_leaves_the_service_unproven() {
     let mut manager: Recorder = Recorder::default();
-    manager.refuse_state_of(service_unit_instance(INSTANCE).as_str(), crate::systemd_dbus::CallError::TimedOut);
+    manager.refuse_state_of(
+        service_unit_instance(INSTANCE).as_str(),
+        crate::systemd_dbus::CallError::TimedOut,
+    );
     assert!(!service_is_gone(&mut manager, INSTANCE));
 }

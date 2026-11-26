@@ -35,15 +35,30 @@ thread_local! {
 
 /// Whether a control is capturing the entries of this thread.
 pub fn active() -> bool {
-    return ENTRIES.with(|entries| { return entries.borrow().is_some(); });
+    return ENTRIES.with(|entries| {
+        return entries.borrow().is_some();
+    });
 }
 
 /// Notes an entry when a control is capturing on this thread;
 /// says whether it did.
-pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+pub fn record(
+    priority: Priority,
+    message: &str,
+    fields: &[(&str, String)],
+) -> bool {
     return ENTRIES.with(|entries| {
         return entries.borrow_mut().as_mut().is_some_and(|taken| {
-            taken.push(Captured { priority, message: message.to_string(), fields: fields.iter().map(|(name, value)| { return ((*name).to_string(), value.clone()); }).collect() });
+            taken.push(Captured {
+                priority,
+                message: message.to_string(),
+                fields: fields
+                    .iter()
+                    .map(|(name, value)| {
+                        return ((*name).to_string(), value.clone());
+                    })
+                    .collect(),
+            });
             return true;
         });
     });
@@ -52,7 +67,11 @@ pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> b
 /// Runs `body` and gives its entries,
 /// which are not written anywhere.
 pub fn entries_of(body: impl FnOnce()) -> Vec<Captured> {
-    ENTRIES.with(|entries| { *entries.borrow_mut() = Some(Vec::new()); });
+    ENTRIES.with(|entries| {
+        *entries.borrow_mut() = Some(Vec::new());
+    });
     body();
-    return ENTRIES.with(|entries| { return entries.borrow_mut().take().unwrap_or_default(); });
+    return ENTRIES.with(|entries| {
+        return entries.borrow_mut().take().unwrap_or_default();
+    });
 }

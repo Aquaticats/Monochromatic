@@ -31,7 +31,10 @@
 
 use crate::worktree_operands::operands_after_options;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The worktree a `git worktree remove <path>` names,
@@ -87,16 +90,27 @@ fn is_force(token: &OsString) -> bool {
 /// ```ts
 /// function parseRemovePlan(args: string[], subcommandIndex: number, start: string, commonDir?: string): RemovePlan | undefined;
 /// ```
-pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Option<RemovePlan> {
-    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove" {
+pub fn parse_remove_plan(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    start: &Path,
+    common_dir: Option<&Path>,
+) -> Option<RemovePlan> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree"
+        || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove"
+    {
         return None;
     }
     let rest: &[OsString] = &arguments[subcommand_index + 2..];
     let (force, operand): (bool, &OsString) = match rest {
         [only] if !only.as_encoded_bytes().starts_with(b"-") => (false, only),
         [separator, only] if separator.as_encoded_bytes() == b"--" => (false, only),
-        [flag, only] if is_force(flag) && !only.as_encoded_bytes().starts_with(b"-") => (true, only),
-        [flag, separator, only] if is_force(flag) && separator.as_encoded_bytes() == b"--" => (true, only),
+        [flag, only] if is_force(flag) && !only.as_encoded_bytes().starts_with(b"-") => {
+            (true, only)
+        }
+        [flag, separator, only] if is_force(flag) && separator.as_encoded_bytes() == b"--" => {
+            (true, only)
+        }
         _ => return None,
     };
     // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
@@ -105,12 +119,21 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
     }
     // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
     if let Some(common) = common_dir
-        && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
+        && let Some(target) =
+            crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
     {
-        return Some(RemovePlan { target, operand: operand.clone(), force });
+        return Some(RemovePlan {
+            target,
+            operand: operand.clone(),
+            force,
+        });
     }
     let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
-    return target.is_dir().then_some(RemovePlan { target, operand: operand.clone(), force });
+    return target.is_dir().then_some(RemovePlan {
+        target,
+        operand: operand.clone(),
+        force,
+    });
 }
 
 /// What:
@@ -137,8 +160,15 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
 /// ```ts
 /// function parseRemovalTarget(args: string[], subcommandIndex: number, start: string, commonDir?: string): string | undefined;
 /// ```
-pub fn parse_removal_target(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Option<PathBuf> {
-    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove" {
+pub fn parse_removal_target(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    start: &Path,
+    common_dir: Option<&Path>,
+) -> Option<PathBuf> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree"
+        || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove"
+    {
         return None;
     }
     let operands: Vec<&OsString> = operands_after_options(&arguments[subcommand_index + 2..]);
@@ -152,7 +182,8 @@ pub fn parse_removal_target(arguments: &[OsString], subcommand_index: usize, sta
     }
     // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
     if let Some(common) = common_dir
-        && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
+        && let Some(target) =
+            crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
     {
         return Some(target);
     }

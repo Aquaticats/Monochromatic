@@ -25,8 +25,11 @@
 //! expect(findingsOfTheDoor(read(door))).toEqual([]); expect(findingsOfTheWriter(read(writer))).toEqual([]); expect(eprintlnInRelease(sources)).toEqual([]);
 //! ```
 
-use crate::source_guard::source_scan_tests::{real_roots, source_root};
 use crate::source_guard::source_scan_tests::tree::classified_sources;
+use crate::source_guard::source_scan_tests::{
+    real_roots,
+    source_root,
+};
 
 /// The file of the door every diagnostic level goes through.
 const DOOR: &str = "foundation/diagnostic_log.rs";
@@ -93,11 +96,15 @@ fn findings_of_the_door(text: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for word in A_HAND_WRITE {
         if code.contains(word) {
-            found.push(format!("the door writes a stream itself: it carries `{word}`"));
+            found.push(format!(
+                "the door writes a stream itself: it carries `{word}`"
+            ));
         }
     }
     if !code.contains(THE_HAND_OVER) {
-        found.push(String::from("the door says no line through `diagnostic_lines_off_the_calling_thread::write`"));
+        found.push(String::from(
+            "the door says no line through `diagnostic_lines_off_the_calling_thread::write`",
+        ));
     }
     return found;
 }
@@ -122,7 +129,9 @@ fn findings_of_the_writer(text: &str) -> Vec<String> {
         found.push(String::from("the writer takes the process's shared standard error, whose lock a waiting write would hold"));
     }
     if !code.contains(THE_DESCRIPTOR) {
-        found.push(String::from("the writer names no `StandardErrorDescriptor`, so it writes through some other stream"));
+        found.push(String::from(
+            "the writer names no `StandardErrorDescriptor`, so it writes through some other stream",
+        ));
     }
     return found;
 }
@@ -161,14 +170,16 @@ fn eprintln_in_release(files: &[(String, String)]) -> Vec<String> {
 /// ```
 fn release_sources() -> Vec<(String, String)> {
     let root: std::path::PathBuf = source_root();
-    let sources = classified_sources(root.as_path(), real_roots().as_slice()).expect("the crate's source tree");
+    let sources = classified_sources(root.as_path(), real_roots().as_slice())
+        .expect("the crate's source tree");
     let mut release: Vec<(String, String)> = Vec::new();
     for file in sources {
         if file.test_only {
             continue;
         }
         let path: std::path::PathBuf = root.join(file.path.as_str());
-        let text: String = std::fs::read_to_string(path.as_path()).unwrap_or_else(|error| panic!("{} cannot be read: {error}", path.display()));
+        let text: String = std::fs::read_to_string(path.as_path())
+            .unwrap_or_else(|error| panic!("{} cannot be read: {error}", path.display()));
         release.push((file.path, text));
     }
     return release;
@@ -177,7 +188,8 @@ fn release_sources() -> Vec<(String, String)> {
 /// The door hands every line over and writes no stream of its own.
 #[test]
 fn the_door_hands_every_line_to_the_writer_and_writes_no_stream_itself() {
-    let door: String = std::fs::read_to_string(source_root().join(DOOR)).expect("the door's source");
+    let door: String =
+        std::fs::read_to_string(source_root().join(DOOR)).expect("the door's source");
     assert_eq!(
         findings_of_the_door(door.as_str()),
         Vec::<String>::new(),
@@ -188,7 +200,8 @@ fn the_door_hands_every_line_to_the_writer_and_writes_no_stream_itself() {
 /// The writer writes the descriptor and never the process's shared standard error.
 #[test]
 fn the_writer_writes_the_descriptor_and_never_the_shared_standard_error() {
-    let writer: String = std::fs::read_to_string(source_root().join(WRITER)).expect("the writer's source");
+    let writer: String =
+        std::fs::read_to_string(source_root().join(WRITER)).expect("the writer's source");
     assert_eq!(
         findings_of_the_writer(writer.as_str()),
         Vec::<String>::new(),
@@ -217,7 +230,11 @@ fn no_release_file_says_a_line_with_eprintln() {
 /// ```ts
 /// const planted = (root, door, writer) => { mkdir(root); write(root + '/diagnostic_log.rs', door); write(root + '/writer.rs', writer) }
 /// ```
-fn a_planted_tree(name: &str, door: &str, writer: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+fn a_planted_tree(
+    name: &str,
+    door: &str,
+    writer: &str,
+) -> (std::path::PathBuf, std::path::PathBuf) {
     let root: std::path::PathBuf = crate::test_support::fixture(name);
     let door_path: std::path::PathBuf = root.join("diagnostic_log.rs");
     let writer_path: std::path::PathBuf = root.join("writer.rs");
@@ -236,13 +253,20 @@ fn the_door_check_fails_on_a_door_that_writes_the_stream_itself() {
     );
     let text: String = std::fs::read_to_string(door_path.as_path()).expect("the planted door");
     let found: Vec<String> = findings_of_the_door(text.as_str());
-    assert!(!found.is_empty(), "a door that writes the stream itself is a finding");
     assert!(
-        found.iter().any(|sentence| return sentence.contains("stderr(")),
+        !found.is_empty(),
+        "a door that writes the stream itself is a finding"
+    );
+    assert!(
+        found
+            .iter()
+            .any(|sentence| return sentence.contains("stderr(")),
         "the finding names the write the door must not make: {found:?}"
     );
     assert!(
-        found.iter().any(|sentence| return sentence.contains("no line through")),
+        found
+            .iter()
+            .any(|sentence| return sentence.contains("no line through")),
         "the finding names the hand-over the door lost: {found:?}"
     );
 }
@@ -256,7 +280,10 @@ fn the_writer_check_fails_on_a_writer_that_takes_the_shared_standard_error() {
         "fn write_it(bytes: &[u8]) { let _ = std::io::stderr().write_all(bytes); }\n",
     );
     let text: String = std::fs::read_to_string(writer_path.as_path()).expect("the planted writer");
-    assert!(!findings_of_the_writer(text.as_str()).is_empty(), "a writer that takes the shared handle is a finding");
+    assert!(
+        !findings_of_the_writer(text.as_str()).is_empty(),
+        "a writer that takes the shared handle is a finding"
+    );
 }
 
 /// The `eprintln!` check fails on a planted line, and answers nothing for no file at all.
@@ -272,7 +299,16 @@ fn the_eprintln_check_fails_on_a_planted_line_and_ignores_test_support() {
         "a release file that says a line with the terse macro is a finding"
     );
     let nothing: Vec<(String, String)> = Vec::new();
-    assert!(eprintln_in_release(nothing.as_slice()).is_empty(), "no file, no finding");
-    let a_line_through_the_door: Vec<(String, String)> = vec![(String::from("landing/a_settling.rs"), String::from("fn say() { crate::service_log!(\"the trash was left as it is\"); }\n"))];
-    assert!(eprintln_in_release(a_line_through_the_door.as_slice()).is_empty(), "a line through a door is no finding");
+    assert!(
+        eprintln_in_release(nothing.as_slice()).is_empty(),
+        "no file, no finding"
+    );
+    let a_line_through_the_door: Vec<(String, String)> = vec![(
+        String::from("landing/a_settling.rs"),
+        String::from("fn say() { crate::service_log!(\"the trash was left as it is\"); }\n"),
+    )];
+    assert!(
+        eprintln_in_release(a_line_through_the_door.as_slice()).is_empty(),
+        "a line through a door is no finding"
+    );
 }

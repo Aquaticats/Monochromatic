@@ -31,7 +31,10 @@
 /// ```ts
 /// theGateRefused(plan, refusal);
 /// ```
-pub fn the_gate_refused(plan: &std::path::Path, said: &str) -> String {
+pub fn the_gate_refused(
+    plan: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} is not finished: the ZFS compatibility gate refused before any pool request ({said}), so this pass made no request, and the plan, its registration and its binding stand. Ways forward: read the gate's own line, fix the module or the device it names, and run a command in this repository again.",
         plan.display()
@@ -49,7 +52,10 @@ pub fn the_gate_refused(plan: &std::path::Path, said: &str) -> String {
 /// ```ts
 /// thePoolCouldNotProve(plan, said);
 /// ```
-pub fn the_pool_could_not_prove(plan: &std::path::Path, said: &str) -> String {
+pub fn the_pool_could_not_prove(
+    plan: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} is not finished: the pool cannot prove this plan's clone gone ({said}), so the plan, its registration and its binding stand, and nothing was settled.",
         plan.display()
@@ -67,7 +73,11 @@ pub fn the_pool_could_not_prove(plan: &std::path::Path, said: &str) -> String {
 /// ```ts
 /// theCloneStands(plan, liveName, recordedGuid);
 /// ```
-pub fn the_clone_stands(plan: &std::path::Path, live: &str, recorded_guid: &str) -> String {
+pub fn the_clone_stands(
+    plan: &std::path::Path,
+    live: &str,
+    recorded_guid: &str,
+) -> String {
     return format!(
         "The removal plan {} records its head as gone, and `{live}` carries this plan's clone GUID {recorded_guid}, so the plan's word is contradicted: the plan, its registration and its binding stand, nothing was settled, and the plan was not rewritten.",
         plan.display()
@@ -85,7 +95,12 @@ pub fn the_clone_stands(plan: &std::path::Path, live: &str, recorded_guid: &str)
 /// ```ts
 /// theNameWasReusedWithARegistration(plan, clone, recorded, live);
 /// ```
-pub fn the_name_was_reused_with_a_registration(plan: &std::path::Path, clone: &str, recorded_guid: &str, live_guid: &str) -> String {
+pub fn the_name_was_reused_with_a_registration(
+    plan: &std::path::Path,
+    clone: &str,
+    recorded_guid: &str,
+    live_guid: &str,
+) -> String {
     return format!(
         "The removal plan {} records `{clone}` with clone GUID {recorded_guid}, the name now answers GUID {live_guid}, and a registration of this plan's still stands: nothing was settled, and the plan, its registration and its binding stay. Ways forward: `monochromatic-git-policy-cli doctor` names this plan and its registration.",
         plan.display()
@@ -103,7 +118,11 @@ pub fn the_name_was_reused_with_a_registration(plan: &std::path::Path, clone: &s
 /// ```ts
 /// theBindingCouldNotBeRead(plan, binding, said);
 /// ```
-pub fn the_binding_could_not_be_read(plan: &std::path::Path, binding: &std::path::Path, said: &str) -> String {
+pub fn the_binding_could_not_be_read(
+    plan: &std::path::Path,
+    binding: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} and its binding {} stay: the binding cannot be read ({said}), so nothing proves this plan's binding is finished. Nothing was removed, and a person reads the two records before acting.",
         plan.display(),
@@ -123,7 +142,13 @@ pub fn the_binding_could_not_be_read(plan: &std::path::Path, binding: &std::path
 /// ```ts
 /// theBindingDisagrees(plan, binding, field, bindingValue, planValue);
 /// ```
-pub fn the_binding_disagrees(plan: &std::path::Path, binding: &std::path::Path, field: &str, binding_value: &str, plan_value: &str) -> String {
+pub fn the_binding_disagrees(
+    plan: &std::path::Path,
+    binding: &std::path::Path,
+    field: &str,
+    binding_value: &str,
+    plan_value: &str,
+) -> String {
     return format!(
         "The removal plan {} and its binding {} stay: the binding's `{field}` is `{binding_value}` and the plan's is `{plan_value}`, so the two records do not name one clone and one origin. Nothing was removed.",
         plan.display(),
@@ -143,7 +168,11 @@ pub fn the_binding_disagrees(plan: &std::path::Path, binding: &std::path::Path, 
 /// ```ts
 /// theRegistrationCouldNotBeSettled(plan, step, said);
 /// ```
-pub fn the_registration_could_not_be_settled(plan: &std::path::Path, step: &str, said: &str) -> String {
+pub fn the_registration_could_not_be_settled(
+    plan: &std::path::Path,
+    step: &str,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} is not finished: the Git registration could not be settled ({step}: {said}), so the plan, its registration and its binding stand. Ways forward: read the registration and the managed lock the line names, and run a command in this repository again.",
         plan.display()
@@ -160,7 +189,11 @@ pub fn the_registration_could_not_be_settled(plan: &std::path::Path, step: &str,
 /// ```ts
 /// theRegistrationCouldNotBeRead(plan, registration, said);
 /// ```
-pub fn the_registration_could_not_be_read(plan: &std::path::Path, registration: &std::path::Path, said: &str) -> String {
+pub fn the_registration_could_not_be_read(
+    plan: &std::path::Path,
+    registration: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} is not finished: the registration {} cannot be read ({said}), so the plan, its registration and its binding stand. Nothing was removed.",
         plan.display(),
@@ -178,7 +211,11 @@ pub fn the_registration_could_not_be_read(plan: &std::path::Path, registration: 
 /// ```ts
 /// theSlotIsNotAName(plan, target, said);
 /// ```
-pub fn the_slot_is_not_a_name(plan: &std::path::Path, target: &str, said: &str) -> String {
+pub fn the_slot_is_not_a_name(
+    plan: &std::path::Path,
+    target: &str,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} names the slot path `{target}`, which keys no slot ({said}), so this pass took no claim and removed nothing. Ways forward: read the plan's `targetHex` field, and `monochromatic-git-policy-cli doctor` reports the record beside it.",
         plan.display()
@@ -195,7 +232,10 @@ pub fn the_slot_is_not_a_name(plan: &std::path::Path, target: &str, said: &str) 
 /// ```ts
 /// theClaimCouldNotBeTaken(plan, said);
 /// ```
-pub fn the_claim_could_not_be_taken(plan: &std::path::Path, said: &str) -> String {
+pub fn the_claim_could_not_be_taken(
+    plan: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} is not finished: the slot's claim could not be taken ({said}), so the plan, its registration and its binding stand. Ways forward: read the claim folder the line names, and run a command in this repository again.",
         plan.display()
@@ -213,7 +253,10 @@ pub fn the_claim_could_not_be_taken(plan: &std::path::Path, said: &str) -> Strin
 /// ```ts
 /// thePlanCouldNotBeRemoved(plan, said);
 /// ```
-pub fn the_plan_could_not_be_removed(plan: &std::path::Path, said: &str) -> String {
+pub fn the_plan_could_not_be_removed(
+    plan: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The removal plan {} stays: its own file could not be removed ({said}), so nothing else was removed. The plan is the last witness of this removal, and the next command reads it again.",
         plan.display()
@@ -231,7 +274,10 @@ pub fn the_plan_could_not_be_removed(plan: &std::path::Path, said: &str) -> Stri
 /// ```ts
 /// thePlanWasNotRead(entry, said);
 /// ```
-pub fn the_plan_was_not_read(entry: &std::path::Path, said: &str) -> String {
+pub fn the_plan_was_not_read(
+    entry: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The entry {} in the destruction plan folder is not a plan this build reads ({said}), so it was left alone and nothing was destroyed by reading it. Ways forward: `monochromatic-git-policy-cli doctor` reports the record and a person decides what stands there.",
         entry.display()
@@ -266,7 +312,10 @@ pub fn the_entry_is_no_plan_name(entry: &std::path::Path) -> String {
 /// ```ts
 /// theFolderCouldNotBeListed(folder, said);
 /// ```
-pub fn the_folder_could_not_be_listed(folder: &std::path::Path, said: &str) -> String {
+pub fn the_folder_could_not_be_listed(
+    folder: &std::path::Path,
+    said: &str,
+) -> String {
     return format!(
         "The destruction plan folder {} could not be listed ({said}), so this pass read no plan and removed nothing. Ways forward: read that path, and `monochromatic-git-policy-cli doctor` reports the records it holds.",
         folder.display()

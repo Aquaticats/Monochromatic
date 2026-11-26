@@ -30,22 +30,48 @@
 //! ```
 
 use super::support::{
-    Fixture, Observed, bounded_for, direct, executable, fixture, git, remove, repository, run_direct, run_wrapped, stderr_of,
+    Fixture,
+    Observed,
+    bounded_for,
+    direct,
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped,
+    stderr_of,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// Runs real Git and accepts any status,
 ///  because an operation that stops with a conflict exits nonzero.
-fn attempt(fixture: &Fixture, directory: &Path, arguments: &[&str]) {
+fn attempt(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) {
     let mut command: Command = direct(fixture);
-    command.current_dir(directory).args(arguments).env("GIT_EDITOR", "true").env("GIT_PAGER", "cat");
+    command
+        .current_dir(directory)
+        .args(arguments)
+        .env("GIT_EDITOR", "true")
+        .env("GIT_PAGER", "cat");
     let _output = command.output().expect("native Git starts");
 }
 
 /// The fixture's `bin/git` link,
 ///  for the few queries the controls make themselves.
-fn plain(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
+fn plain(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     let mut command: Command = direct(fixture);
     command.current_dir(directory).args(arguments);
     let output = command.output().expect("native Git starts");
@@ -54,8 +80,15 @@ fn plain(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
 }
 
 /// The common Git directory of the repository a directory belongs to.
-fn common_dir(fixture: &Fixture, directory: &Path) -> PathBuf {
-    let text: String = plain(fixture, directory, &["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+fn common_dir(
+    fixture: &Fixture,
+    directory: &Path,
+) -> PathBuf {
+    let text: String = plain(
+        fixture,
+        directory,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    );
     return PathBuf::from(text.trim());
 }
 
@@ -88,7 +121,9 @@ fn saved_copy_names(common_dir: &Path) -> Vec<String> {
 /// The audit lines of a common Git directory,
 ///  newest last.
 fn audit_lines(common_dir: &Path) -> Vec<String> {
-    let text: String = std::fs::read_to_string(common_dir.join("monochromatic-git-policy-cli-audit.jsonl")).unwrap_or_default();
+    let text: String =
+        std::fs::read_to_string(common_dir.join("monochromatic-git-policy-cli-audit.jsonl"))
+            .unwrap_or_default();
     return text.lines().map(str::to_owned).collect();
 }
 
@@ -100,22 +135,49 @@ fn linked_worktree_with_a_diverged_side(fixture: &Fixture) -> PathBuf {
     std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
     std::fs::write(repo.join("b.txt"), b"base b\n").expect("tracked file");
     std::fs::write(repo.join("victim.txt"), b"HEAD holds this\n").expect("tracked file");
-    git(fixture, repo.as_path(), &["add", "--", "a.txt", "b.txt", "victim.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "side"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", "a.txt", "b.txt", "victim.txt"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "side"],
+    );
     std::fs::write(repo.join("a.txt"), b"side\n").expect("side edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=side"],
+    );
     git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), b"main\n").expect("main edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main"],
+    );
     let linked: PathBuf = fixture.root.join("work");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "work", "../work", "main"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree", "add", "--quiet", "-b", "work", "../work", "main",
+        ],
+    );
     return linked;
 }
 
 /// Whether the policy rejected the command.
 fn rejected(observed: &Observed) -> bool {
-    return observed.code == Some(1) && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
+    return observed.code == Some(1)
+        && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
 }
 
 /// What a directory holds,
@@ -127,14 +189,24 @@ fn rejected(observed: &Observed) -> bool {
 /// Why:
 ///   A refusal's opt-out has to leave the state real Git leaves,
 ///  and comparing a status against a status misses the bytes Git replaced.
-fn state_after(fixture: &Fixture, directory: &Path, paths: &[&str]) -> String {
+fn state_after(
+    fixture: &Fixture,
+    directory: &Path,
+    paths: &[&str],
+) -> String {
     let mut text: String = plain(fixture, directory, &["status", "--porcelain=v1"]);
     // The tree is content-addressed, so two fixtures built the same way have the same tree and not the same commit
     //  (a commit also holds its time), which is what a comparison of two states can use.
     text.push_str(plain(fixture, directory, &["rev-parse", "HEAD^{tree}"]).as_str());
     for path in paths {
         let bytes: Vec<u8> = std::fs::read(directory.join(path)).unwrap_or_default();
-        text.push_str(format!("\n{path} holds {}", String::from_utf8_lossy(bytes.as_slice())).as_str());
+        text.push_str(
+            format!(
+                "\n{path} holds {}",
+                String::from_utf8_lossy(bytes.as_slice())
+            )
+            .as_str(),
+        );
     }
     return text;
 }
@@ -143,7 +215,10 @@ fn state_after(fixture: &Fixture, directory: &Path, paths: &[&str]) -> String {
 ///  whose hand resolution is the person's own work.
 ///  `Option<&str>` names the merge strategy,
 /// and nothing uses the one Git picks.
-fn linked_worktree_at_a_conflicted_merge_with(fixture: &Fixture, strategy: Option<&str>) -> PathBuf {
+fn linked_worktree_at_a_conflicted_merge_with(
+    fixture: &Fixture,
+    strategy: Option<&str>,
+) -> PathBuf {
     let linked: PathBuf = linked_worktree_with_a_diverged_side(fixture);
     let arguments: Vec<&str> = match strategy {
         Some(named) => vec!["merge", "--no-ff", "-s", named, "side"],
@@ -151,7 +226,10 @@ fn linked_worktree_at_a_conflicted_merge_with(fixture: &Fixture, strategy: Optio
     };
     attempt(fixture, linked.as_path(), arguments.as_slice());
     let during: String = plain(fixture, linked.as_path(), &["status", "--porcelain=v1"]);
-    assert!(during.contains("UU a.txt"), "a conflicted merge is in progress: {during}");
+    assert!(
+        during.contains("UU a.txt"),
+        "a conflicted merge is in progress: {during}"
+    );
     return linked;
 }
 
@@ -175,24 +253,46 @@ fn linked_worktree_at_a_conflicted_merge(fixture: &Fixture) -> PathBuf {
 /// ```ts
 /// const repo = mainWorktreeAtAConflictedMerge(fixture, undefined);
 /// ```
-fn main_worktree_at_a_conflicted_merge(fixture: &Fixture, strategy: Option<&str>) -> PathBuf {
+fn main_worktree_at_a_conflicted_merge(
+    fixture: &Fixture,
+    strategy: Option<&str>,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "side"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "side"],
+    );
     std::fs::write(repo.join("a.txt"), b"side\n").expect("side edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=side"],
+    );
     git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), b"main\n").expect("main edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main"],
+    );
     let arguments: Vec<&str> = match strategy {
         Some(named) => vec!["merge", "--no-ff", "-s", named, "side"],
         None => vec!["merge", "side"],
     };
     attempt(fixture, repo.as_path(), arguments.as_slice());
     let during: String = plain(fixture, repo.as_path(), &["status", "--porcelain=v1"]);
-    assert!(during.contains("UU a.txt"), "a conflicted merge is in progress in the main worktree: {during}");
+    assert!(
+        during.contains("UU a.txt"),
+        "a conflicted merge is in progress in the main worktree: {during}"
+    );
     return repo;
 }
 
@@ -210,16 +310,32 @@ fn a_merge_abort_runs_when_the_merge_s_own_changes_are_all_there_is() {
     let contents: String = std::fs::read_to_string(linked.join("a.txt")).unwrap_or_default();
     assert_eq!(observed.code, Some(0), "{said}");
     assert!(!rejected(&observed), "{said}");
-    assert_eq!(after.trim(), "", "the worktree is back to the state before the merge: {said}");
-    assert_eq!(contents, "main\n", "the file holds the branch's own content again: {said}");
-    assert!(copies.is_empty(), "the merge's own state needs no copy: {copies:?}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge state is gone: {said}");
+    assert_eq!(
+        after.trim(),
+        "",
+        "the worktree is back to the state before the merge: {said}"
+    );
+    assert_eq!(
+        contents, "main\n",
+        "the file holds the branch's own content again: {said}"
+    );
+    assert!(
+        copies.is_empty(),
+        "the merge's own state needs no copy: {copies:?}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge state is gone: {said}"
+    );
     let common: PathBuf = common_dir(&fixture, linked.as_path());
     let audit: Vec<String> = audit_lines(common.as_path());
     let last: &String = audit.last().expect("one audit line");
     assert!(last.contains("\"outcome\":\"allowed\""), "{last}");
     assert!(last.contains("\"form\":\"AbortMerge\""), "{last}");
-    assert!(last.contains("\"dirty\":null"), "no status was read: {last}");
+    assert!(
+        last.contains("\"dirty\":null"),
+        "no status was read: {last}"
+    );
     remove(&fixture);
 }
 
@@ -236,14 +352,36 @@ fn a_merge_abort_refuses_a_hand_resolution_and_names_it() {
     let before: String = state_after(&fixture, linked.as_path(), &["a.txt"]);
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the abort would discard the resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the abort would discard the resolution: {said}"
+    );
     assert!(said.contains("git merge --abort is refused"), "{said}");
-    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
-    assert!(said.contains("Nothing was changed, and nothing was copied."), "{said}");
-    assert!(said.contains("git merge --quit"), "the way out that keeps the work: {said}");
-    assert!(said.contains("git merge --no-enforce-worktree --abort"), "the opt-out: {said}");
-    assert_eq!(state_after(&fixture, linked.as_path(), &["a.txt"]), before, "nothing was changed: {said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge still waits: {said}");
+    assert!(
+        said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"),
+        "{said}"
+    );
+    assert!(
+        said.contains("Nothing was changed, and nothing was copied."),
+        "{said}"
+    );
+    assert!(
+        said.contains("git merge --quit"),
+        "the way out that keeps the work: {said}"
+    );
+    assert!(
+        said.contains("git merge --no-enforce-worktree --abort"),
+        "the opt-out: {said}"
+    );
+    assert_eq!(
+        state_after(&fixture, linked.as_path(), &["a.txt"]),
+        before,
+        "nothing was changed: {said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge still waits: {said}"
+    );
     let copies: Vec<String> = saved_copy_names(common_dir(&fixture, linked.as_path()).as_path());
     assert!(copies.is_empty(), "nothing was copied: {copies:?}");
     let audit: Vec<String> = audit_lines(common_dir(&fixture, linked.as_path()).as_path());
@@ -262,16 +400,28 @@ fn the_opt_out_leaves_the_state_real_git_leaves() {
     let hatched: Fixture = fixture("abort-merge-hatch");
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge(&hatched);
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
-    let observed: Observed = run_wrapped(&hatched, linked.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
+    let observed: Observed = run_wrapped(
+        &hatched,
+        linked.as_path(),
+        &["merge", "--no-enforce-worktree", "--abort"],
+    );
     let said: String = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{said}");
-    assert!(!git_path_is_there(&hatched, linked.as_path(), "MERGE_HEAD"), "the merge is gone: {said}");
+    assert!(
+        !git_path_is_there(&hatched, linked.as_path(), "MERGE_HEAD"),
+        "the merge is gone: {said}"
+    );
     // The same state, built the same way, where real Git runs the abort itself.
     let oracle: Fixture = fixture("abort-merge-hatch-oracle");
     let oracle_linked: PathBuf = linked_worktree_at_a_conflicted_merge(&oracle);
     std::fs::write(oracle_linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let direct: Observed = run_direct(&oracle, oracle_linked.as_path(), &["merge", "--abort"]);
-    assert_eq!(direct.code, Some(0), "real Git runs the abort in the same state: {}", stderr_of(&direct));
+    assert_eq!(
+        direct.code,
+        Some(0),
+        "real Git runs the abort in the same state: {}",
+        stderr_of(&direct)
+    );
     assert_eq!(
         state_after(&hatched, linked.as_path(), &["a.txt", "victim.txt"]),
         state_after(&oracle, oracle_linked.as_path(), &["a.txt", "victim.txt"]),
@@ -279,7 +429,10 @@ fn the_opt_out_leaves_the_state_real_git_leaves() {
     );
     let audit: Vec<String> = audit_lines(common_dir(&hatched, linked.as_path()).as_path());
     let last: &String = audit.last().expect("one audit line");
-    assert!(last.contains("\"outcome\":\"hatch\""), "the record says the guard stepped aside: {last}");
+    assert!(
+        last.contains("\"outcome\":\"hatch\""),
+        "the record says the guard stepped aside: {last}"
+    );
     remove(&hatched);
     remove(&oracle);
 }
@@ -293,19 +446,36 @@ fn the_advice_to_quit_keeps_the_work_and_ends_the_operation() {
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge(&fixture);
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
-    assert!(rejected(&refused), "the abort is refused first: {}", stderr_of(&refused));
-    assert!(stderr_of(&refused).contains("git merge --quit"), "the refusal names the quit form");
+    assert!(
+        rejected(&refused),
+        "the abort is refused first: {}",
+        stderr_of(&refused)
+    );
+    assert!(
+        stderr_of(&refused).contains("git merge --quit"),
+        "the refusal names the quit form"
+    );
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--quit"]);
     let said: String = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{said}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is over: {said}");
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge is over: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
         "the resolution is kept: {said}"
     );
-    let staged: String = plain(&fixture, linked.as_path(), &["diff", "--cached", "--name-only"]);
-    assert!(staged.contains("a.txt") || staged.contains("something"), "the index keeps what the quit left: {staged}");
+    let staged: String = plain(
+        &fixture,
+        linked.as_path(),
+        &["diff", "--cached", "--name-only"],
+    );
+    assert!(
+        staged.contains("a.txt") || staged.contains("something"),
+        "the index keeps what the quit left: {staged}"
+    );
     remove(&fixture);
 }
 
@@ -315,19 +485,41 @@ fn the_advice_to_quit_keeps_the_work_and_ends_the_operation() {
 fn a_merge_abort_refuses_content_only_the_index_holds() {
     let fixture: Fixture = fixture("abort-merge-index-only");
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge(&fixture);
-    std::fs::write(linked.join("new.txt"), b"content that stands only in the index\n").expect("the staged file");
+    std::fs::write(
+        linked.join("new.txt"),
+        b"content that stands only in the index\n",
+    )
+    .expect("the staged file");
     git(&fixture, linked.as_path(), &["add", "--", "new.txt"]);
     std::fs::remove_file(linked.join("new.txt")).expect("the worktree file goes");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the abort would discard the staged content: {said}");
-    assert!(said.contains("new.txt (content only the index holds)"), "{said}");
+    assert!(
+        rejected(&observed),
+        "the abort would discard the staged content: {said}"
+    );
+    assert!(
+        said.contains("new.txt (content only the index holds)"),
+        "{said}"
+    );
     assert!(said.contains("git merge --quit"), "{said}");
     let copies: Vec<String> = saved_copy_names(common_dir(&fixture, linked.as_path()).as_path());
     assert!(copies.is_empty(), "nothing was copied: {copies:?}");
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
-    assert_eq!(hatched.code, Some(0), "the opt-out runs the abort: {}", stderr_of(&hatched));
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is gone");
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["merge", "--no-enforce-worktree", "--abort"],
+    );
+    assert_eq!(
+        hatched.code,
+        Some(0),
+        "the opt-out runs the abort: {}",
+        stderr_of(&hatched)
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge is gone"
+    );
     remove(&fixture);
 }
 
@@ -351,7 +543,11 @@ fn every_abort_form_is_left_to_git_where_nothing_is_in_progress() {
         let said: String = stderr_of(&observed);
         let lowered: String = said.to_lowercase();
         assert!(!rejected(&observed), "{arguments:?} is left to Git: {said}");
-        assert_ne!(observed.code, Some(0), "{arguments:?} with nothing in progress exits nonzero: {said}");
+        assert_ne!(
+            observed.code,
+            Some(0),
+            "{arguments:?} with nothing in progress exits nonzero: {said}"
+        );
         assert!(
             lowered.contains("no merge to abort")
                 || lowered.contains("no rebase in progress")
@@ -369,17 +565,34 @@ fn every_abort_form_is_left_to_git_where_nothing_is_in_progress() {
         std::fs::read(linked.join("a.txt")).expect("tracked file"),
         b"the person's own work\n"
     );
-    assert!(saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "nothing to save");
+    assert!(
+        saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(),
+        "nothing to save"
+    );
     let audit: Vec<String> = audit_lines(common_dir(&fixture, linked.as_path()).as_path());
     let left: Vec<&String> = audit.iter().rev().take(5).collect();
-    let forms: Vec<String> = ["AbortAm", "AbortPick", "AbortPick", "AbortRebase", "AbortMerge"]
-        .iter()
-        .map(|form| { return format!("\"form\":\"{form}\""); })
-        .collect();
+    let forms: Vec<String> = [
+        "AbortAm",
+        "AbortPick",
+        "AbortPick",
+        "AbortRebase",
+        "AbortMerge",
+    ]
+    .iter()
+    .map(|form| {
+        return format!("\"form\":\"{form}\"");
+    })
+    .collect();
     for (line, form) in left.iter().zip(forms.iter()) {
         assert!(line.contains("\"outcome\":\"allowed\""), "{line}");
-        assert!(line.contains(form.as_str()), "the record names {form}: {line}");
-        assert!(line.contains("\"dirty\":null"), "no status was read: {line}");
+        assert!(
+            line.contains(form.as_str()),
+            "the record names {form}: {line}"
+        );
+        assert!(
+            line.contains("\"dirty\":null"),
+            "no status was read: {line}"
+        );
     }
     remove(&fixture);
 }
@@ -396,11 +609,23 @@ fn a_rebase_abort_refuses_the_person_s_edit() {
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the rebase abort would discard the edit: {said}");
-    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
+    assert!(
+        rejected(&observed),
+        "the rebase abort would discard the edit: {said}"
+    );
+    assert!(
+        said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"),
+        "{said}"
+    );
     assert!(said.contains("git rebase --quit"), "{said}");
-    assert!(said.contains("git rebase --no-enforce-worktree --abort"), "{said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    assert!(
+        said.contains("git rebase --no-enforce-worktree --abort"),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
@@ -415,20 +640,42 @@ fn a_rebase_abort_refuses_the_person_s_edit() {
 fn a_cherry_pick_abort_refuses_the_hand_resolution() {
     let fixture: Fixture = fixture("abort-pick");
     let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
-    let side: String = plain(&fixture, linked.as_path(), &["rev-parse", "side"]).trim().to_string();
+    let side: String = plain(&fixture, linked.as_path(), &["rev-parse", "side"])
+        .trim()
+        .to_string();
     attempt(&fixture, linked.as_path(), &["cherry-pick", side.as_str()]);
     let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
     assert!(during.contains("UU a.txt"), "the pick stopped: {during}");
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the pick abort would discard the resolution: {said}");
-    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
-    assert!(said.contains("git cherry-pick --quit or git revert --quit"), "{said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"), "the pick still waits: {said}");
+    assert!(
+        rejected(&observed),
+        "the pick abort would discard the resolution: {said}"
+    );
+    assert!(
+        said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"),
+        "{said}"
+    );
+    assert!(
+        said.contains("git cherry-pick --quit or git revert --quit"),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"),
+        "the pick still waits: {said}"
+    );
     let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--quit"]);
-    assert_eq!(quit.code, Some(0), "the quit form is allowed: {}", stderr_of(&quit));
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"), "the pick is over");
+    assert_eq!(
+        quit.code,
+        Some(0),
+        "the quit form is allowed: {}",
+        stderr_of(&quit)
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"),
+        "the pick is over"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
@@ -448,37 +695,84 @@ fn an_am_abort_refuses_the_hand_resolution() {
     git(
         &fixture,
         linked.as_path(),
-        &["format-patch", "--full-index", "--output-directory", patches.to_str().expect("UTF-8 path"), "side", "--max-count=1"],
+        &[
+            "format-patch",
+            "--full-index",
+            "--output-directory",
+            patches.to_str().expect("UTF-8 path"),
+            "side",
+            "--max-count=1",
+        ],
     );
     let patch: PathBuf = std::fs::read_dir(patches.as_path())
         .expect("patch directory")
         .flatten()
-        .map(|entry| { return entry.path(); })
+        .map(|entry| {
+            return entry.path();
+        })
         .next()
         .expect("one patch");
     let before: Vec<u8> = std::fs::read(linked.join("a.txt")).expect("the file before the am");
     // `--3way` is what makes the patch conflict in the index;
     //  without it Git refuses the patch and changes neither the index nor the file.
-    attempt(&fixture, linked.as_path(), &["am", "--3way", patch.to_str().expect("UTF-8 path")]);
-    let applying: String = plain(&fixture, linked.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", "rebase-apply/applying"]);
-    assert!(Path::new(applying.trim()).exists(), "the am stopped and waits: {applying}");
+    attempt(
+        &fixture,
+        linked.as_path(),
+        &["am", "--3way", patch.to_str().expect("UTF-8 path")],
+    );
+    let applying: String = plain(
+        &fixture,
+        linked.as_path(),
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "rebase-apply/applying",
+        ],
+    );
+    assert!(
+        Path::new(applying.trim()).exists(),
+        "the am stopped and waits: {applying}"
+    );
     let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
-    assert!(during.contains("UU a.txt"), "the patch conflicted: {during}");
+    assert!(
+        during.contains("UU a.txt"),
+        "the patch conflicted: {during}"
+    );
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the am abort would discard the resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the am abort would discard the resolution: {said}"
+    );
     assert!(said.contains("git am --abort is refused"), "{said}");
     assert!(said.contains("git am --quit"), "{said}");
-    assert!(said.contains("git am --no-enforce-worktree --abort"), "{said}");
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--no-enforce-worktree", "--abort"]);
-    assert_eq!(hatched.code, Some(0), "the opt-out aborts the am: {}", stderr_of(&hatched));
+    assert!(
+        said.contains("git am --no-enforce-worktree --abort"),
+        "{said}"
+    );
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["am", "--no-enforce-worktree", "--abort"],
+    );
+    assert_eq!(
+        hatched.code,
+        Some(0),
+        "the opt-out aborts the am: {}",
+        stderr_of(&hatched)
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file after the abort"),
         before,
         "the file holds what stood before the am"
     );
-    assert_eq!(plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]).trim(), "", "the am is undone");
+    assert_eq!(
+        plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]).trim(),
+        "",
+        "the am is undone"
+    );
     remove(&fixture);
 }
 
@@ -487,38 +781,97 @@ fn an_am_abort_refuses_the_hand_resolution() {
 ///  so `git rebase --rebase-merges main` replays the merge and stops at it.
 ///  `local_env` adds a commit after the merge that tracks `local.env`,
 ///  which the replayed merge step is reached before.
-fn linked_worktree_whose_rebase_recreates_a_merge(fixture: &Fixture, local_env: bool) -> PathBuf {
+fn linked_worktree_whose_rebase_recreates_a_merge(
+    fixture: &Fixture,
+    local_env: bool,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=c0"]);
-    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "feature"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=c0"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "feature"],
+    );
     std::fs::write(repo.join("a.txt"), b"feature\n").expect("feature edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=c1"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=c1"],
+    );
     git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), b"mainline\n").expect("mainline edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=c2"]);
-    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "integration"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=c2"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "integration"],
+    );
     attempt(fixture, repo.as_path(), &["merge", "feature"]);
     std::fs::write(repo.join("a.txt"), b"merged\n").expect("the merge's resolution");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=c3-merge"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=c3-merge"],
+    );
     if local_env {
         std::fs::write(repo.join("local.env"), b"tracked\n").expect("the tracked local.env");
         git(fixture, repo.as_path(), &["add", "--", "local.env"]);
-        git(fixture, repo.as_path(), &["commit", "--quiet", "--message=c5-adds-local.env"]);
+        git(
+            fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=c5-adds-local.env"],
+        );
     }
     git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), b"newmain\n").expect("newmain edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=c4"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=c4"],
+    );
     let linked: PathBuf = fixture.root.join("work");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "work", "../work", "integration"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "work",
+            "../work",
+            "integration",
+        ],
+    );
     return linked;
 }
 
 /// Whether a path inside a worktree's Git directory is there.
-fn git_path_is_there(fixture: &Fixture, directory: &Path, name: &str) -> bool {
-    return Path::new(plain(fixture, directory, &["rev-parse", "--path-format=absolute", "--git-path", name]).trim()).exists();
+fn git_path_is_there(
+    fixture: &Fixture,
+    directory: &Path,
+    name: &str,
+) -> bool {
+    return Path::new(
+        plain(
+            fixture,
+            directory,
+            &["rev-parse", "--path-format=absolute", "--git-path", name],
+        )
+        .trim(),
+    )
+    .exists();
 }
 
 /// A rebase that replays a merge is still the operation `git rebase --abort` ends,
@@ -528,17 +881,39 @@ fn git_path_is_there(fixture: &Fixture, directory: &Path, name: &str) -> bool {
 fn a_rebase_abort_at_a_rebase_merges_merge_step_refuses_the_hand_resolution() {
     let fixture: Fixture = fixture("abort-rebase-merges-step");
     let linked: PathBuf = linked_worktree_whose_rebase_recreates_a_merge(&fixture, false);
-    attempt(&fixture, linked.as_path(), &["rebase", "--rebase-merges", "main"]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge step waits");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase waits");
+    attempt(
+        &fixture,
+        linked.as_path(),
+        &["rebase", "--rebase-merges", "main"],
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge step waits"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase waits"
+    );
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the hand resolution is refused before the rebase goes: {said}");
+    assert!(
+        rejected(&observed),
+        "the hand resolution is refused before the rebase goes: {said}"
+    );
     assert!(said.contains("a.txt"), "the refusal names the file: {said}");
-    assert!(said.contains("the rebase in progress still waits"), "{said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
-    assert!(saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "nothing was copied");
+    assert!(
+        said.contains("the rebase in progress still waits"),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase still waits: {said}"
+    );
+    assert!(
+        saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(),
+        "nothing was copied"
+    );
     let audit: Vec<String> = audit_lines(common_dir(&fixture, linked.as_path()).as_path());
     let last: &String = audit.last().expect("one audit line");
     assert!(last.contains("\"form\":\"AbortRebase\""), "{last}");
@@ -553,17 +928,44 @@ fn an_am_abort_during_an_apply_backend_rebase_refuses_the_hand_resolution() {
     let fixture: Fixture = fixture("abort-am-ends-rebase");
     let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
     attempt(&fixture, linked.as_path(), &["rebase", "--apply", "side"]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-apply/rebasing"), "the rebase waits");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-apply/rebasing"),
+        "the rebase waits"
+    );
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the hand resolution is refused: {said}");
-    assert!(said.contains("git am --abort is refused"), "the command is named as typed: {said}");
-    assert!(said.contains("rebase in progress still waits"), "the operation it ends is named: {said}");
-    assert!(!said.contains("the am in progress"), "no sentence calls the rebase an am: {said}");
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--no-enforce-worktree", "--abort"]);
-    assert_eq!(hatched.code, Some(0), "the opt-out aborts the rebase: {}", stderr_of(&hatched));
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-apply/rebasing"), "the rebase is gone");
+    assert!(
+        rejected(&observed),
+        "the hand resolution is refused: {said}"
+    );
+    assert!(
+        said.contains("git am --abort is refused"),
+        "the command is named as typed: {said}"
+    );
+    assert!(
+        said.contains("rebase in progress still waits"),
+        "the operation it ends is named: {said}"
+    );
+    assert!(
+        !said.contains("the am in progress"),
+        "no sentence calls the rebase an am: {said}"
+    );
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["am", "--no-enforce-worktree", "--abort"],
+    );
+    assert_eq!(
+        hatched.code,
+        Some(0),
+        "the opt-out aborts the rebase: {}",
+        stderr_of(&hatched)
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "rebase-apply/rebasing"),
+        "the rebase is gone"
+    );
     remove(&fixture);
 }
 
@@ -576,42 +978,102 @@ fn a_pick_abort_checks_the_ignored_files_of_the_tree_the_sequence_restores() {
     let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
     git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=c0"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=c0"],
+    );
     let linked: PathBuf = fixture.root.join("work");
-    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "work", "../work", "main"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree", "add", "--quiet", "-b", "work", "../work", "main",
+        ],
+    );
     // The worktree's own commits track `local.env`, while `ORIG_HEAD` still names the worktree's creation commit.
     std::fs::write(linked.join("local.env"), b"tracked\n").expect("the tracked local.env");
     git(&fixture, linked.as_path(), &["add", "--", "local.env"]);
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--message=w1-adds-local.env"]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--message=w1-adds-local.env"],
+    );
     std::fs::write(linked.join("a.txt"), b"work\n").expect("the worktree's edit");
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--all", "--message=w2"]);
-    let tracks_local_env: String = plain(&fixture, linked.as_path(), &["ls-tree", "HEAD", "local.env"]);
-    assert!(tracks_local_env.contains("local.env"), "the worktree's HEAD tracks local.env: {tracks_local_env}");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--all", "--message=w2"],
+    );
+    let tracks_local_env: String = plain(
+        &fixture,
+        linked.as_path(),
+        &["ls-tree", "HEAD", "local.env"],
+    );
+    assert!(
+        tracks_local_env.contains("local.env"),
+        "the worktree's HEAD tracks local.env: {tracks_local_env}"
+    );
     // A branch from the commit that added `local.env`: one pick deletes it, the next conflicts on `a.txt`.
-    git(&fixture, linked.as_path(), &["checkout", "--quiet", "-b", "removal", "work~1"]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["checkout", "--quiet", "-b", "removal", "work~1"],
+    );
     git(&fixture, linked.as_path(), &["rm", "--quiet", "local.env"]);
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--message=r1-deletes-local.env"]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--message=r1-deletes-local.env"],
+    );
     std::fs::write(linked.join("a.txt"), b"removal\n").expect("the removal's edit");
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--all", "--message=r2"]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--all", "--message=r2"],
+    );
     git(&fixture, linked.as_path(), &["checkout", "--quiet", "work"]);
     std::fs::write(repo.join(".git/info/exclude"), b"local.env\n").expect("the exclude pattern");
-    attempt(&fixture, linked.as_path(), &["cherry-pick", "removal~1", "removal"]);
+    attempt(
+        &fixture,
+        linked.as_path(),
+        &["cherry-pick", "removal~1", "removal"],
+    );
     let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
-    assert!(during.contains("UU a.txt"), "the second pick stopped: {during}");
-    let orig_head: String = plain(&fixture, linked.as_path(), &["ls-tree", "ORIG_HEAD", "local.env"]);
-    assert!(!orig_head.contains("local.env"), "ORIG_HEAD does not track local.env, so reading it is what loses the file: {orig_head}");
+    assert!(
+        during.contains("UU a.txt"),
+        "the second pick stopped: {during}"
+    );
+    let orig_head: String = plain(
+        &fixture,
+        linked.as_path(),
+        &["ls-tree", "ORIG_HEAD", "local.env"],
+    );
+    assert!(
+        !orig_head.contains("local.env"),
+        "ORIG_HEAD does not track local.env, so reading it is what loses the file: {orig_head}"
+    );
     // The person's own content, in a file the exclude pattern makes ignored.
     std::fs::write(linked.join("local.env"), b"my secret\n").expect("the person's file");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the ignored file at a path the sequence's tree tracks keeps the refusal: {said}");
-    assert!(said.contains("local.env"), "the refusal names the file: {said}");
+    assert!(
+        rejected(&observed),
+        "the ignored file at a path the sequence's tree tracks keeps the refusal: {said}"
+    );
+    assert!(
+        said.contains("local.env"),
+        "the refusal names the file: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("local.env")).expect("the person's file"),
         b"my secret\n",
         "nothing was written over the ignored file: {said}"
     );
-    assert!(saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "nothing was copied because nothing ran");
+    assert!(
+        saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(),
+        "nothing was copied because nothing ran"
+    );
     remove(&fixture);
 }
 
@@ -623,14 +1085,32 @@ fn a_pick_abort_checks_the_ignored_files_of_the_tree_the_sequence_restores() {
 fn a_rebase_abort_checks_the_ignored_files_of_the_original_head_it_restores() {
     let fixture: Fixture = fixture("abort-rebase-orig-head-ignored");
     let linked: PathBuf = linked_worktree_whose_rebase_recreates_a_merge(&fixture, true);
-    std::fs::write(common_dir(&fixture, linked.as_path()).join("info/exclude"), b"local.env\n").expect("the exclude pattern");
-    attempt(&fixture, linked.as_path(), &["rebase", "--rebase-merges", "main"]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase waits");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "at its merge step");
+    std::fs::write(
+        common_dir(&fixture, linked.as_path()).join("info/exclude"),
+        b"local.env\n",
+    )
+    .expect("the exclude pattern");
+    attempt(
+        &fixture,
+        linked.as_path(),
+        &["rebase", "--rebase-merges", "main"],
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase waits"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "at its merge step"
+    );
     let merge_abort: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let merge_said: String = stderr_of(&merge_abort);
     assert_eq!(merge_abort.code, Some(0), "{merge_said}");
-    let rewritten: String = plain(&fixture, linked.as_path(), &["ls-tree", "ORIG_HEAD", "local.env"]);
+    let rewritten: String = plain(
+        &fixture,
+        linked.as_path(),
+        &["ls-tree", "ORIG_HEAD", "local.env"],
+    );
     assert!(
         !rewritten.contains("local.env"),
         "the merge abort rewrote ORIG_HEAD to a tree that does not track local.env: {rewritten}"
@@ -638,8 +1118,14 @@ fn a_rebase_abort_checks_the_ignored_files_of_the_original_head_it_restores() {
     std::fs::write(linked.join("local.env"), b"my secret\n").expect("the person's file");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the ignored file at a path the rebase's record tracks keeps the refusal: {said}");
-    assert!(said.contains("local.env"), "the refusal names the file: {said}");
+    assert!(
+        rejected(&observed),
+        "the ignored file at a path the rebase's record tracks keeps the refusal: {said}"
+    );
+    assert!(
+        said.contains("local.env"),
+        "the refusal names the file: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("local.env")).expect("the person's file"),
         b"my secret\n",
@@ -661,20 +1147,40 @@ fn a_rebase_skip_refuses_the_hand_resolution() {
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--skip"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the skip would discard the resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the skip would discard the resolution: {said}"
+    );
     assert!(said.contains("git rebase --skip is refused"), "{said}");
-    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
+    assert!(
+        said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"),
+        "{said}"
+    );
     assert!(said.contains("git rebase --quit"), "{said}");
-    assert!(said.contains("git rebase --no-enforce-worktree --skip"), "{said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    assert!(
+        said.contains("git rebase --no-enforce-worktree --skip"),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
         "nothing was changed: {said}"
     );
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--no-enforce-worktree", "--skip"]);
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["rebase", "--no-enforce-worktree", "--skip"],
+    );
     let hatched_said: String = stderr_of(&hatched);
-    assert_ne!(hatched.code, Some(1), "the opt-out does not refuse: {hatched_said}");
+    assert_ne!(
+        hatched.code,
+        Some(1),
+        "the opt-out does not refuse: {hatched_said}"
+    );
     assert!(!hatched_said.contains("is refused:"), "{hatched_said}");
     remove(&fixture);
 }
@@ -688,21 +1194,44 @@ fn a_skip_that_discards_nothing_runs_in_the_main_worktree() {
     let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
     git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "side"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "side"],
+    );
     std::fs::write(repo.join("a.txt"), b"side\n").expect("side edit");
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=side"],
+    );
     git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join("a.txt"), b"main\n").expect("main edit");
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=main"],
+    );
     attempt(&fixture, repo.as_path(), &["rebase", "side"]);
     let during: String = plain(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert!(during.contains("UU a.txt"), "the rebase stopped: {during}");
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["rebase", "--skip"]);
     let said: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(0), "the skip discards nothing the person made: {said}");
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the skip discards nothing the person made: {said}"
+    );
     assert!(!rejected(&observed), "{said}");
-    assert!(saved_copy_names(common_dir(&fixture, repo.as_path()).as_path()).is_empty(), "nothing was copied");
+    assert!(
+        saved_copy_names(common_dir(&fixture, repo.as_path()).as_path()).is_empty(),
+        "nothing was copied"
+    );
     remove(&fixture);
 }
 
@@ -716,7 +1245,12 @@ fn a_skip_that_discards_nothing_runs_in_the_main_worktree() {
 ///  so the paused start is the first one of the second measurement itself.
 ///  Every other invocation is real Git,
 /// unchanged.
-fn pausing_real_git(fixture: &Fixture, marker: &Path, paused: &Path, release: &Path) -> PathBuf {
+fn pausing_real_git(
+    fixture: &Fixture,
+    marker: &Path,
+    paused: &Path,
+    release: &Path,
+) -> PathBuf {
     let directory: PathBuf = fixture.root.join("shim");
     std::fs::create_dir(directory.as_path()).expect("shim directory");
     let shim: PathBuf = directory.join("git");
@@ -751,12 +1285,20 @@ const PAUSED_COMMAND_SECONDS: &str = "60";
 
 /// The wrapper of `fixture`,
 /// with the pausing stand-in for real Git and no `/usr/bin` before it.
-fn wrapper_paused_at_real_git(fixture: &Fixture, shim: &Path) -> Command {
+fn wrapper_paused_at_real_git(
+    fixture: &Fixture,
+    shim: &Path,
+) -> Command {
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":");
     path.push(shim.parent().expect("the shim's directory").as_os_str());
     path.push(":/bin");
-    return bounded_for(fixture, fixture.root.join("bin/git").as_path(), path.as_os_str(), PAUSED_COMMAND_SECONDS);
+    return bounded_for(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        path.as_os_str(),
+        PAUSED_COMMAND_SECONDS,
+    );
 }
 
 /// Starts the paused wrapper for `git merge --abort` in `linked`
@@ -766,7 +1308,13 @@ fn wrapper_paused_at_real_git(fixture: &Fixture, shim: &Path) -> Command {
 /// Why:
 ///   Both controls of the window need the same steps,
 ///  and a control that waited differently could reach the pause after it had released it.
-fn start_at_the_pause(fixture: &Fixture, linked: &Path, marker: &Path, paused: &Path, release: &Path) -> std::process::Child {
+fn start_at_the_pause(
+    fixture: &Fixture,
+    linked: &Path,
+    marker: &Path,
+    paused: &Path,
+    release: &Path,
+) -> std::process::Child {
     let shim: PathBuf = pausing_real_git(fixture, marker, paused, release);
     let mut command: Command = wrapper_paused_at_real_git(fixture, shim.as_path());
     let mut child: std::process::Child = command
@@ -805,25 +1353,56 @@ fn an_edit_written_between_the_measurement_and_git_s_start_is_refused() {
     let marker: PathBuf = common.join("monochromatic-git-policy-cli-audit.jsonl");
     let paused: PathBuf = fixture.root.join("shim-paused");
     let release: PathBuf = fixture.root.join("shim-release");
-    let child: std::process::Child = start_at_the_pause(&fixture, linked.as_path(), marker.as_path(), paused.as_path(), release.as_path());
+    let child: std::process::Child = start_at_the_pause(
+        &fixture,
+        linked.as_path(),
+        marker.as_path(),
+        paused.as_path(),
+        release.as_path(),
+    );
     // The edit the first measurement could not see, written while the second one waits.
-    std::fs::write(linked.join("a.txt"), b"resolution written after the measurement\n").expect("the later resolution");
+    std::fs::write(
+        linked.join("a.txt"),
+        b"resolution written after the measurement\n",
+    )
+    .expect("the later resolution");
     std::fs::write(release.as_path(), b"go").expect("the release");
     let output: std::process::Output = child.wait_with_output().expect("the wrapper finishes");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
-    assert_eq!(output.status.code(), Some(1), "the second measurement refuses the command: {said}");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the second measurement refuses the command: {said}"
+    );
     assert!(said.contains("git merge --abort is refused"), "{said}");
-    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
-    assert!(said.contains("This work appeared between the wrapper's measurement and Git's start."), "{said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "nothing was changed: {said}");
+    assert!(
+        said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"),
+        "{said}"
+    );
+    assert!(
+        said.contains("This work appeared between the wrapper's measurement and Git's start."),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "nothing was changed: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolution written after the measurement\n",
         "the edit is still there: {said}"
     );
-    assert!(saved_copy_names(common.as_path()).is_empty(), "nothing was copied");
+    assert!(
+        saved_copy_names(common.as_path()).is_empty(),
+        "nothing was copied"
+    );
     let audit: Vec<String> = audit_lines(common.as_path());
-    assert!(audit.iter().any(|line| { return line.contains("\"outcome\":\"rejected\""); }), "{audit:?}");
+    assert!(
+        audit.iter().any(|line| {
+            return line.contains("\"outcome\":\"rejected\"");
+        }),
+        "{audit:?}"
+    );
     remove(&fixture);
 }
 
@@ -837,12 +1416,21 @@ fn the_same_pause_with_no_edit_lets_the_abort_run() {
     let marker: PathBuf = common.join("monochromatic-git-policy-cli-audit.jsonl");
     let paused: PathBuf = fixture.root.join("shim-paused");
     let release: PathBuf = fixture.root.join("shim-release");
-    let child: std::process::Child = start_at_the_pause(&fixture, linked.as_path(), marker.as_path(), paused.as_path(), release.as_path());
+    let child: std::process::Child = start_at_the_pause(
+        &fixture,
+        linked.as_path(),
+        marker.as_path(),
+        paused.as_path(),
+        release.as_path(),
+    );
     std::fs::write(release.as_path(), b"go").expect("the release");
     let output: std::process::Output = child.wait_with_output().expect("the wrapper finishes");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert_eq!(output.status.code(), Some(0), "the abort ran: {said}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is gone: {said}");
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge is gone: {said}"
+    );
     remove(&fixture);
 }
 
@@ -860,33 +1448,68 @@ fn the_same_pause_with_no_edit_lets_the_abort_run() {
 /// ```ts
 /// const work = stopAtAnEditStep(fixture, false);
 /// ```
-fn worktree_stopped_at_an_edit_step(fixture: &Fixture, local_env: bool) -> PathBuf {
+fn worktree_stopped_at_an_edit_step(
+    fixture: &Fixture,
+    local_env: bool,
+) -> PathBuf {
     let editor: PathBuf = fixture.root.join("todo-editor.sh");
-    executable(editor.as_path(), b"#!/bin/sh\nsed -i -e 's/^pick /edit /' -- \"$1\"\n");
+    executable(
+        editor.as_path(),
+        b"#!/bin/sh\nsed -i -e 's/^pick /edit /' -- \"$1\"\n",
+    );
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
     std::fs::write(repo.join("other.txt"), b"other\n").expect("tracked file");
-    git(fixture, repo.as_path(), &["add", "--", "a.txt", "other.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["add", "--", "a.txt", "other.txt"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     let linked: PathBuf = fixture.root.join("work");
-    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "work", "../work", "main"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &[
+            "worktree", "add", "--quiet", "-b", "work", "../work", "main",
+        ],
+    );
     let mut first: Command = direct(fixture);
-    first.current_dir(linked.as_path()).args(["commit", "--quiet", "--allow-empty", "--message=T0"]);
+    first.current_dir(linked.as_path()).args([
+        "commit",
+        "--quiet",
+        "--allow-empty",
+        "--message=T0",
+    ]);
     let _made = first.output().expect("native Git starts");
     // A commit the stop never applies: its tree is the one `rebase-merge/orig-head` records.
     if local_env {
         std::fs::write(linked.join("local.env"), b"tracked\n").expect("the tracked local.env");
         git(fixture, linked.as_path(), &["add", "--", "local.env"]);
-        git(fixture, linked.as_path(), &["commit", "--quiet", "--message=adds-local.env"]);
+        git(
+            fixture,
+            linked.as_path(),
+            &["commit", "--quiet", "--message=adds-local.env"],
+        );
     }
     git(fixture, linked.as_path(), &["branch", "side", "main"]);
     let mut side: Command = direct(fixture);
-    side.current_dir(repo.as_path()).args(["switch", "--quiet", "side"]);
+    side.current_dir(repo.as_path())
+        .args(["switch", "--quiet", "side"]);
     let _switched = side.output().expect("native Git starts");
     std::fs::write(repo.join("a.txt"), b"side change\n").expect("side edit");
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side changes a"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--all", "--message=side changes a"],
+    );
     let mut back: Command = direct(fixture);
-    back.current_dir(repo.as_path()).args(["switch", "--quiet", "main"]);
+    back.current_dir(repo.as_path())
+        .args(["switch", "--quiet", "main"]);
     let _back = back.output().expect("native Git starts");
     let mut stopped: Command = direct(fixture);
     stopped
@@ -905,21 +1528,46 @@ fn worktree_stopped_at_an_edit_step(fixture: &Fixture, local_env: bool) -> PathB
 fn a_rebase_abort_inside_an_edit_step_refuses_the_hand_resolution_and_the_unstaged_edit() {
     let fixture: Fixture = fixture("abort-rebase-edit-step-merge");
     let linked: PathBuf = worktree_stopped_at_an_edit_step(&fixture, false);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the edit step waits");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the edit step waits"
+    );
     // A commit made at the stop, which the merge then conflicts with.
-    std::fs::write(linked.join("a.txt"), b"edited where the stop landed\n").expect("the stop's own change");
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--all", "--message=the stop changes a"]);
+    std::fs::write(linked.join("a.txt"), b"edited where the stop landed\n")
+        .expect("the stop's own change");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--all", "--message=the stop changes a"],
+    );
     attempt(&fixture, linked.as_path(), &["merge", "side"]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge waits beside the rebase");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "and the rebase still waits");
-    std::fs::write(linked.join("a.txt"), b"hand resolution of the merge\n").expect("the resolution");
-    std::fs::write(linked.join("other.txt"), b"an edit outside the merge\n").expect("the unstaged edit");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge waits beside the rebase"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "and the rebase still waits"
+    );
+    std::fs::write(linked.join("a.txt"), b"hand resolution of the merge\n")
+        .expect("the resolution");
+    std::fs::write(linked.join("other.txt"), b"an edit outside the merge\n")
+        .expect("the unstaged edit");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&observed);
     assert!(rejected(&observed), "the abort would discard both: {said}");
-    assert!(said.contains("a.txt"), "the hand resolution is named: {said}");
-    assert!(said.contains("other.txt"), "the unstaged edit is named: {said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    assert!(
+        said.contains("a.txt"),
+        "the hand resolution is named: {said}"
+    );
+    assert!(
+        said.contains("other.txt"),
+        "the unstaged edit is named: {said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("other.txt")).expect("the file"),
         b"an edit outside the merge\n",
@@ -934,18 +1582,38 @@ fn a_rebase_abort_inside_an_edit_step_refuses_the_hand_resolution_and_the_unstag
 fn a_cherry_pick_abort_inside_an_edit_step_refuses_the_hand_resolution() {
     let fixture: Fixture = fixture("abort-pick-inside-edit-step");
     let linked: PathBuf = worktree_stopped_at_an_edit_step(&fixture, false);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the edit step waits");
-    std::fs::write(linked.join("a.txt"), b"edited where the stop landed\n").expect("the stop's own change");
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--all", "--message=the stop changes a"]);
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the edit step waits"
+    );
+    std::fs::write(linked.join("a.txt"), b"edited where the stop landed\n")
+        .expect("the stop's own change");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--all", "--message=the stop changes a"],
+    );
     attempt(&fixture, linked.as_path(), &["cherry-pick", "side"]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"), "the pick waits beside the rebase");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "and the rebase still waits");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"),
+        "the pick waits beside the rebase"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "and the rebase still waits"
+    );
     std::fs::write(linked.join("a.txt"), b"hand resolution of the pick\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the pick abort would discard the resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the pick abort would discard the resolution: {said}"
+    );
     assert!(said.contains("a.txt"), "the refusal names the file: {said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"), "the pick still waits: {said}");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"),
+        "the pick still waits: {said}"
+    );
     remove(&fixture);
 }
 
@@ -956,24 +1624,61 @@ fn a_cherry_pick_abort_inside_an_edit_step_refuses_the_hand_resolution() {
 fn a_rebase_abort_after_a_reset_at_an_edit_step_reads_the_rebases_own_record() {
     let fixture: Fixture = fixture("abort-rebase-orig-head-moved");
     let linked: PathBuf = worktree_stopped_at_an_edit_step(&fixture, true);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the edit step waits");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the edit step waits"
+    );
     let record: String = std::fs::read_to_string(Path::new(
-        plain(&fixture, linked.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", "rebase-merge/orig-head"]).trim(),
+        plain(
+            &fixture,
+            linked.as_path(),
+            &[
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-path",
+                "rebase-merge/orig-head",
+            ],
+        )
+        .trim(),
     ))
     .expect("the rebase's own record");
     let recorded: &str = record.trim();
-    let tracks: String = plain(&fixture, linked.as_path(), &["ls-tree", recorded, "local.env"]);
-    assert!(tracks.contains("local.env"), "the rebase's record tracks local.env: {tracks}");
+    let tracks: String = plain(
+        &fixture,
+        linked.as_path(),
+        &["ls-tree", recorded, "local.env"],
+    );
+    assert!(
+        tracks.contains("local.env"),
+        "the rebase's record tracks local.env: {tracks}"
+    );
     // The split-commit step a person takes at an edit stop.
     attempt(&fixture, linked.as_path(), &["reset", "--quiet", "HEAD^"]);
-    let moved: String = plain(&fixture, linked.as_path(), &["ls-tree", "ORIG_HEAD", "local.env"]);
-    assert!(!moved.contains("local.env"), "the reset moved ORIG_HEAD to a tree that does not track it: {moved}");
-    std::fs::write(common_dir(&fixture, linked.as_path()).join("info/exclude"), b"local.env\n").expect("the exclude pattern");
+    let moved: String = plain(
+        &fixture,
+        linked.as_path(),
+        &["ls-tree", "ORIG_HEAD", "local.env"],
+    );
+    assert!(
+        !moved.contains("local.env"),
+        "the reset moved ORIG_HEAD to a tree that does not track it: {moved}"
+    );
+    std::fs::write(
+        common_dir(&fixture, linked.as_path()).join("info/exclude"),
+        b"local.env\n",
+    )
+    .expect("the exclude pattern");
     std::fs::write(linked.join("local.env"), b"my secret\n").expect("the person's ignored file");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the ignored file the record tracks keeps the refusal: {said}");
-    assert!(said.contains("local.env"), "the refusal names the file: {said}");
+    assert!(
+        rejected(&observed),
+        "the ignored file the record tracks keeps the refusal: {said}"
+    );
+    assert!(
+        said.contains("local.env"),
+        "the refusal names the file: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("local.env")).expect("the person's ignored file"),
         b"my secret\n",
@@ -991,23 +1696,45 @@ fn an_untracked_file_in_the_way_is_named_as_gits_own_refusal() {
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge(&fixture);
     // The path stays on disk and leaves the index, so the worktree holds it as an untracked file
     //  while the tree the abort restores still tracks it.
-    git(&fixture, linked.as_path(), &["rm", "--cached", "--quiet", "--", "victim.txt"]);
-    std::fs::write(linked.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["rm", "--cached", "--quiet", "--", "victim.txt"],
+    );
+    std::fs::write(linked.join("victim.txt"), b"the person's own file\n")
+        .expect("the untracked file");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
     assert!(rejected(&observed), "Git would refuse this abort: {said}");
-    assert!(said.contains("Git itself refuses it here"), "the words say it is Git that refuses: {said}");
-    assert!(said.contains("victim.txt"), "the refusal names the file: {said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge still waits: {said}");
+    assert!(
+        said.contains("Git itself refuses it here"),
+        "the words say it is Git that refuses: {said}"
+    );
+    assert!(
+        said.contains("victim.txt"),
+        "the refusal names the file: {said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("victim.txt")).expect("the person's file"),
         b"the person's own file\n",
         "nothing was written over it: {said}"
     );
     // With the guard's opt-out the command reaches Git, which refuses it in its own words.
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["merge", "--no-enforce-worktree", "--abort"],
+    );
     let hatched_said: String = stderr_of(&hatched);
-    assert_ne!(hatched.code, Some(0), "Git refuses the abort itself: {hatched_said}");
+    assert_ne!(
+        hatched.code,
+        Some(0),
+        "Git refuses the abort itself: {hatched_said}"
+    );
     assert!(
         hatched_said.to_lowercase().contains("would be overwritten"),
         "Git's own words name the file it will not overwrite: {hatched_said}"
@@ -1026,23 +1753,45 @@ fn a_skip_is_refused_for_an_untracked_file_gits_own_reset_will_not_write_over() 
     attempt(&fixture, linked.as_path(), &["rebase", "side"]);
     let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
     assert!(during.contains("UU a.txt"), "the rebase stopped: {during}");
-    git(&fixture, linked.as_path(), &["rm", "--cached", "--quiet", "--", "victim.txt"]);
-    std::fs::write(linked.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["rm", "--cached", "--quiet", "--", "victim.txt"],
+    );
+    std::fs::write(linked.join("victim.txt"), b"the person's own file\n")
+        .expect("the untracked file");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--skip"]);
     let said: String = stderr_of(&observed);
     assert!(rejected(&observed), "Git refuses this skip itself: {said}");
-    assert!(said.contains("git rebase --skip is refused because Git itself refuses it here"), "{said}");
-    assert!(said.contains("victim.txt"), "the refusal names the file: {said}");
+    assert!(
+        said.contains("git rebase --skip is refused because Git itself refuses it here"),
+        "{said}"
+    );
+    assert!(
+        said.contains("victim.txt"),
+        "the refusal names the file: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("victim.txt")).expect("the person's file"),
         b"the person's own file\n",
         "nothing was written over it: {said}"
     );
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase still waits: {said}"
+    );
     // The same command with the guard's opt-out reaches Git, which refuses it in its own words.
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--no-enforce-worktree", "--skip"]);
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["rebase", "--no-enforce-worktree", "--skip"],
+    );
     let hatched_said: String = stderr_of(&hatched);
-    assert_ne!(hatched.code, Some(0), "Git refuses the skip itself: {hatched_said}");
+    assert_ne!(
+        hatched.code,
+        Some(0),
+        "Git refuses the skip itself: {hatched_said}"
+    );
     assert!(
         hatched_said.to_lowercase().contains("would be overwritten"),
         "Git's own words name the file it will not overwrite: {hatched_said}"
@@ -1071,11 +1820,21 @@ fn the_advice_to_quit_ends_a_rebase_and_keeps_the_work() {
     let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&refused);
     assert!(rejected(&refused), "{said}");
-    assert!(said.contains("git rebase --quit"), "the refusal names the quit form: {said}");
+    assert!(
+        said.contains("git rebase --quit"),
+        "the refusal names the quit form: {said}"
+    );
     let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--quit"]);
     let quit_said: String = stderr_of(&quit);
-    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {quit_said}");
+    assert_eq!(
+        quit.code,
+        Some(0),
+        "the quit form the refusal named is allowed: {quit_said}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase is over: {quit_said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
@@ -1094,25 +1853,51 @@ fn the_advice_to_quit_ends_an_am_and_keeps_the_work() {
     git(
         &fixture,
         linked.as_path(),
-        &["format-patch", "--full-index", "--output-directory", patches.to_str().expect("UTF-8 path"), "side", "--max-count=1"],
+        &[
+            "format-patch",
+            "--full-index",
+            "--output-directory",
+            patches.to_str().expect("UTF-8 path"),
+            "side",
+            "--max-count=1",
+        ],
     );
     let patch: PathBuf = std::fs::read_dir(patches.as_path())
         .expect("patch directory")
         .flatten()
-        .map(|entry| { return entry.path(); })
+        .map(|entry| {
+            return entry.path();
+        })
         .next()
         .expect("one patch");
-    attempt(&fixture, linked.as_path(), &["am", "--3way", patch.to_str().expect("UTF-8 path")]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-apply/applying"), "the am waits");
+    attempt(
+        &fixture,
+        linked.as_path(),
+        &["am", "--3way", patch.to_str().expect("UTF-8 path")],
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-apply/applying"),
+        "the am waits"
+    );
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--abort"]);
     let said: String = stderr_of(&refused);
     assert!(rejected(&refused), "{said}");
-    assert!(said.contains("git am --quit"), "the refusal names the quit form: {said}");
+    assert!(
+        said.contains("git am --quit"),
+        "the refusal names the quit form: {said}"
+    );
     let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--quit"]);
     let quit_said: String = stderr_of(&quit);
-    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-apply/applying"), "the am is over: {quit_said}");
+    assert_eq!(
+        quit.code,
+        Some(0),
+        "the quit form the refusal named is allowed: {quit_said}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "rebase-apply/applying"),
+        "the am is over: {quit_said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
@@ -1127,20 +1912,39 @@ fn the_advice_to_quit_ends_an_am_and_keeps_the_work() {
 fn the_advice_to_move_the_untracked_file_away_gets_the_person_out() {
     let fixture: Fixture = fixture("abort-untracked-moved-away");
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge(&fixture);
-    git(&fixture, linked.as_path(), &["rm", "--cached", "--quiet", "--", "victim.txt"]);
-    std::fs::write(linked.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["rm", "--cached", "--quiet", "--", "victim.txt"],
+    );
+    std::fs::write(linked.join("victim.txt"), b"the person's own file\n")
+        .expect("the untracked file");
     let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&refused);
     assert!(rejected(&refused), "{said}");
-    assert!(said.contains("victim.txt"), "the refusal names the file: {said}");
-    assert!(said.contains("mv <path> <somewhere else>"), "the refusal gives the move as the way out: {said}");
+    assert!(
+        said.contains("victim.txt"),
+        "the refusal names the file: {said}"
+    );
+    assert!(
+        said.contains("mv <path> <somewhere else>"),
+        "the refusal gives the move as the way out: {said}"
+    );
     // The advice, run as printed: the file leaves the worktree and keeps its content.
     let elsewhere: PathBuf = fixture.root.join("victim.moved-away");
-    std::fs::rename(linked.join("victim.txt"), elsewhere.as_path()).expect("the file moves out of the worktree");
+    std::fs::rename(linked.join("victim.txt"), elsewhere.as_path())
+        .expect("the file moves out of the worktree");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let after: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(0), "the abort goes through once the file is out of the way: {after}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is gone: {after}");
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the abort goes through once the file is out of the way: {after}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge is gone: {after}"
+    );
     assert_eq!(
         std::fs::read(elsewhere.as_path()).expect("the moved file"),
         b"the person's own file\n",
@@ -1156,18 +1960,34 @@ fn the_advice_to_move_the_untracked_file_away_lets_a_skip_go_on() {
     let fixture: Fixture = fixture("skip-untracked-moved-away");
     let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
     attempt(&fixture, linked.as_path(), &["rebase", "side"]);
-    git(&fixture, linked.as_path(), &["rm", "--cached", "--quiet", "--", "victim.txt"]);
-    std::fs::write(linked.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    git(
+        &fixture,
+        linked.as_path(),
+        &["rm", "--cached", "--quiet", "--", "victim.txt"],
+    );
+    std::fs::write(linked.join("victim.txt"), b"the person's own file\n")
+        .expect("the untracked file");
     let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--skip"]);
     let said: String = stderr_of(&refused);
     assert!(rejected(&refused), "{said}");
-    assert!(said.contains("mv <path> <somewhere else>"), "the refusal gives the move as the way out: {said}");
+    assert!(
+        said.contains("mv <path> <somewhere else>"),
+        "the refusal gives the move as the way out: {said}"
+    );
     let elsewhere: PathBuf = fixture.root.join("victim.moved-away");
-    std::fs::rename(linked.join("victim.txt"), elsewhere.as_path()).expect("the file moves out of the worktree");
+    std::fs::rename(linked.join("victim.txt"), elsewhere.as_path())
+        .expect("the file moves out of the worktree");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--skip"]);
     let after: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(0), "the skip goes on once the file is out of the way: {after}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {after}");
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the skip goes on once the file is out of the way: {after}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase is over: {after}"
+    );
     assert_eq!(
         std::fs::read(elsewhere.as_path()).expect("the moved file"),
         b"the person's own file\n",
@@ -1187,25 +2007,60 @@ fn a_rebase_abort_whose_record_is_a_pipe_answers_and_the_advice_ends_it() {
     let fixture: Fixture = fixture("abort-record-is-a-pipe");
     let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
     attempt(&fixture, linked.as_path(), &["rebase", "side"]);
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase waits");
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase waits"
+    );
     let record: PathBuf = PathBuf::from(
-        plain(&fixture, linked.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", "rebase-merge/orig-head"]).trim(),
+        plain(
+            &fixture,
+            linked.as_path(),
+            &[
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-path",
+                "rebase-merge/orig-head",
+            ],
+        )
+        .trim(),
     );
     std::fs::remove_file(record.as_path()).expect("the record goes");
-    let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(record.as_path()).status().expect("mkfifo runs");
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo")
+        .arg(record.as_path())
+        .status()
+        .expect("mkfifo runs");
     assert!(made.success(), "mkfifo must create {}", record.display());
     // The shared bound of every fixture command ends a command that waits, so an answer is the only way to pass.
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the pipe is named rather than read: {said}");
-    assert!(said.contains("not a regular file"), "the refusal says what stands at the path: {said}");
-    assert!(said.contains("rebase-merge/orig-head"), "the refusal names the path: {said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    assert!(
+        rejected(&observed),
+        "the pipe is named rather than read: {said}"
+    );
+    assert!(
+        said.contains("not a regular file"),
+        "the refusal says what stands at the path: {said}"
+    );
+    assert!(
+        said.contains("rebase-merge/orig-head"),
+        "the refusal names the path: {said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase still waits: {said}"
+    );
     // The advice it printed, run as printed.
     let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--quit"]);
     let quit_said: String = stderr_of(&quit);
-    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase is over: {quit_said}");
+    assert_eq!(
+        quit.code,
+        Some(0),
+        "the quit form the refusal named is allowed: {quit_said}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "rebase-merge"),
+        "the rebase is over: {quit_said}"
+    );
     remove(&fixture);
 }
 
@@ -1220,7 +2075,10 @@ fn a_rebase_abort_whose_record_is_a_pipe_answers_and_the_advice_ends_it() {
 /// ```ts
 /// const recorded = plain(fixture, where, ['rev-parse', '--verify', '--quiet', 'AUTO_MERGE']).trim().length > 0;
 /// ```
-fn merge_result_recorded(fixture: &Fixture, directory: &Path) -> bool {
+fn merge_result_recorded(
+    fixture: &Fixture,
+    directory: &Path,
+) -> bool {
     return git_path_is_there(fixture, directory, "AUTO_MERGE");
 }
 
@@ -1232,29 +2090,66 @@ fn merge_result_recorded(fixture: &Fixture, directory: &Path) -> bool {
 fn a_merge_that_records_no_result_refuses_an_unstaged_resolution() {
     let fixture: Fixture = fixture("abort-merge-resolve-resolution");
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge_with(&fixture, Some("resolve"));
-    assert!(!merge_result_recorded(&fixture, linked.as_path()), "the resolve strategy records no result");
-    std::fs::write(linked.join("a.txt"), b"HAND RESOLUTION written by the person\n").expect("the resolution");
+    assert!(
+        !merge_result_recorded(&fixture, linked.as_path()),
+        "the resolve strategy records no result"
+    );
+    std::fs::write(
+        linked.join("a.txt"),
+        b"HAND RESOLUTION written by the person\n",
+    )
+    .expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the abort would discard the resolution: {said}");
-    assert!(said.contains("a.txt (a conflicted path)"), "the path is named as one the wrapper cannot judge: {said}");
+    assert!(
+        rejected(&observed),
+        "the abort would discard the resolution: {said}"
+    );
+    assert!(
+        said.contains("a.txt (a conflicted path)"),
+        "the path is named as one the wrapper cannot judge: {said}"
+    );
     assert!(
         said.contains("Git recorded no result for the conflict it stopped at"),
         "the refusal says why it could not tell the resolution from Git's text: {said}"
     );
-    assert!(said.contains("git merge --quit"), "the way out that keeps the work: {said}");
-    assert!(said.contains("git merge --no-enforce-worktree --abort"), "the opt-out: {said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge still waits: {said}");
+    assert!(
+        said.contains("git merge --quit"),
+        "the way out that keeps the work: {said}"
+    );
+    assert!(
+        said.contains("git merge --no-enforce-worktree --abort"),
+        "the opt-out: {said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"HAND RESOLUTION written by the person\n",
         "nothing was changed: {said}"
     );
-    assert!(saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "nothing was copied");
+    assert!(
+        saved_copy_names(common_dir(&fixture, linked.as_path()).as_path()).is_empty(),
+        "nothing was copied"
+    );
     // The opt-out runs the abort as real Git runs it, which is the loss the refusal named.
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
-    assert_eq!(hatched.code, Some(0), "the opt-out aborts the merge: {}", stderr_of(&hatched));
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is gone");
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["merge", "--no-enforce-worktree", "--abort"],
+    );
+    assert_eq!(
+        hatched.code,
+        Some(0),
+        "the opt-out aborts the merge: {}",
+        stderr_of(&hatched)
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge is gone"
+    );
     remove(&fixture);
 }
 
@@ -1264,26 +2159,60 @@ fn a_merge_that_records_no_result_refuses_an_unstaged_resolution() {
 fn a_cherry_pick_that_records_no_result_refuses_an_unstaged_resolution() {
     let fixture: Fixture = fixture("skip-pick-resolve-resolution");
     let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
-    let side: String = plain(&fixture, linked.as_path(), &["rev-parse", "side"]).trim().to_string();
-    attempt(&fixture, linked.as_path(), &["cherry-pick", "--strategy=resolve", side.as_str()]);
+    let side: String = plain(&fixture, linked.as_path(), &["rev-parse", "side"])
+        .trim()
+        .to_string();
+    attempt(
+        &fixture,
+        linked.as_path(),
+        &["cherry-pick", "--strategy=resolve", side.as_str()],
+    );
     let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
     assert!(during.contains("UU a.txt"), "the pick stopped: {during}");
-    assert!(!merge_result_recorded(&fixture, linked.as_path()), "the resolve strategy records no result");
-    std::fs::write(linked.join("a.txt"), b"HAND RESOLUTION written by the person\n").expect("the resolution");
+    assert!(
+        !merge_result_recorded(&fixture, linked.as_path()),
+        "the resolve strategy records no result"
+    );
+    std::fs::write(
+        linked.join("a.txt"),
+        b"HAND RESOLUTION written by the person\n",
+    )
+    .expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--skip"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the skip would discard the resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the skip would discard the resolution: {said}"
+    );
     assert!(said.contains("a.txt (a conflicted path)"), "{said}");
-    assert!(said.contains("git cherry-pick --quit or git revert --quit"), "{said}");
-    assert!(said.contains("git cherry-pick --no-enforce-worktree --skip"), "{said}");
-    assert!(git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"), "the pick still waits: {said}");
+    assert!(
+        said.contains("git cherry-pick --quit or git revert --quit"),
+        "{said}"
+    );
+    assert!(
+        said.contains("git cherry-pick --no-enforce-worktree --skip"),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&fixture, linked.as_path(), "CHERRY_PICK_HEAD"),
+        "the pick still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         b"HAND RESOLUTION written by the person\n",
         "nothing was changed: {said}"
     );
-    let hatched: Observed = run_wrapped(&fixture, linked.as_path(), &["cherry-pick", "--no-enforce-worktree", "--skip"]);
-    assert_ne!(hatched.code, Some(1), "the opt-out lets the skip go on: {}", stderr_of(&hatched));
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["cherry-pick", "--no-enforce-worktree", "--skip"],
+    );
+    assert_ne!(
+        hatched.code,
+        Some(1),
+        "the opt-out lets the skip go on: {}",
+        stderr_of(&hatched)
+    );
     remove(&fixture);
 }
 
@@ -1297,12 +2226,22 @@ fn a_conflicted_path_left_as_git_wrote_it_is_refused_where_no_result_is_recorded
     let fixture: Fixture = fixture("abort-merge-resolve-untouched");
     let linked: PathBuf = linked_worktree_at_a_conflicted_merge_with(&fixture, Some("resolve"));
     let before: Vec<u8> = std::fs::read(linked.join("a.txt")).expect("the conflicted file");
-    assert!(String::from_utf8_lossy(before.as_slice()).contains("<<<<<<<"), "Git wrote conflict markers: {}", String::from_utf8_lossy(before.as_slice()));
+    assert!(
+        String::from_utf8_lossy(before.as_slice()).contains("<<<<<<<"),
+        "Git wrote conflict markers: {}",
+        String::from_utf8_lossy(before.as_slice())
+    );
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the conflicted path cannot be told from a resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the conflicted path cannot be told from a resolution: {said}"
+    );
     assert!(said.contains("a.txt (a conflicted path)"), "{said}");
-    assert!(said.contains("Git recorded no result for the conflict it stopped at"), "{said}");
+    assert!(
+        said.contains("Git recorded no result for the conflict it stopped at"),
+        "{said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file"),
         before,
@@ -1311,8 +2250,15 @@ fn a_conflicted_path_left_as_git_wrote_it_is_refused_where_no_result_is_recorded
     // The advice, run as printed: the quit form ends the merge and keeps the file as it is.
     let quit: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--quit"]);
     let quit_said: String = stderr_of(&quit);
-    assert_eq!(quit.code, Some(0), "the quit form the refusal named is allowed: {quit_said}");
-    assert!(!git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"), "the merge is over: {quit_said}");
+    assert_eq!(
+        quit.code,
+        Some(0),
+        "the quit form the refusal named is allowed: {quit_said}"
+    );
+    assert!(
+        !git_path_is_there(&fixture, linked.as_path(), "MERGE_HEAD"),
+        "the merge is over: {quit_said}"
+    );
     assert_eq!(
         std::fs::read(linked.join("a.txt")).expect("the file after the quit"),
         before,
@@ -1329,15 +2275,25 @@ fn an_abort_in_the_main_worktree_runs_when_it_discards_nothing() {
     let repo: PathBuf = main_worktree_at_a_conflicted_merge(&fixture, None);
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert_eq!(observed.code, Some(0), "the abort discards nothing the person made: {said}");
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the abort discards nothing the person made: {said}"
+    );
     assert!(!rejected(&observed), "{said}");
-    assert!(!git_path_is_there(&fixture, repo.as_path(), "MERGE_HEAD"), "the merge is gone: {said}");
+    assert!(
+        !git_path_is_there(&fixture, repo.as_path(), "MERGE_HEAD"),
+        "the merge is gone: {said}"
+    );
     assert_eq!(
         plain(&fixture, repo.as_path(), &["status", "--porcelain=v1"]).trim(),
         "",
         "the worktree is back to the state before the merge: {said}"
     );
-    assert!(saved_copy_names(common_dir(&fixture, repo.as_path()).as_path()).is_empty(), "nothing was copied");
+    assert!(
+        saved_copy_names(common_dir(&fixture, repo.as_path()).as_path()).is_empty(),
+        "nothing was copied"
+    );
     remove(&fixture);
 }
 
@@ -1351,27 +2307,59 @@ fn an_abort_in_the_main_worktree_refuses_a_hand_resolution() {
     std::fs::write(repo.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&hatched_fixture, repo.as_path(), &["merge", "--abort"]);
     let said: String = stderr_of(&observed);
-    assert!(rejected(&observed), "the abort would discard the resolution: {said}");
+    assert!(
+        rejected(&observed),
+        "the abort would discard the resolution: {said}"
+    );
     assert!(said.contains("git merge --abort is refused"), "{said}");
-    assert!(said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"), "{said}");
-    assert!(!said.contains("main git worktree"), "the older rule's words are gone: {said}");
+    assert!(
+        said.contains("a.txt (a resolution or edit you made since Git stopped at the conflict)"),
+        "{said}"
+    );
+    assert!(
+        !said.contains("main git worktree"),
+        "the older rule's words are gone: {said}"
+    );
     assert!(said.contains("git merge --quit"), "{said}");
-    assert!(said.contains("git merge --no-enforce-worktree --abort"), "{said}");
-    assert!(git_path_is_there(&hatched_fixture, repo.as_path(), "MERGE_HEAD"), "the merge still waits: {said}");
+    assert!(
+        said.contains("git merge --no-enforce-worktree --abort"),
+        "{said}"
+    );
+    assert!(
+        git_path_is_there(&hatched_fixture, repo.as_path(), "MERGE_HEAD"),
+        "the merge still waits: {said}"
+    );
     assert_eq!(
         std::fs::read(repo.join("a.txt")).expect("the file"),
         b"resolved by hand\n",
         "nothing was changed: {said}"
     );
-    let hatched: Observed = run_wrapped(&hatched_fixture, repo.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
-    assert_eq!(hatched.code, Some(0), "the opt-out aborts the merge: {}", stderr_of(&hatched));
-    assert!(!git_path_is_there(&hatched_fixture, repo.as_path(), "MERGE_HEAD"), "the merge is gone");
+    let hatched: Observed = run_wrapped(
+        &hatched_fixture,
+        repo.as_path(),
+        &["merge", "--no-enforce-worktree", "--abort"],
+    );
+    assert_eq!(
+        hatched.code,
+        Some(0),
+        "the opt-out aborts the merge: {}",
+        stderr_of(&hatched)
+    );
+    assert!(
+        !git_path_is_there(&hatched_fixture, repo.as_path(), "MERGE_HEAD"),
+        "the merge is gone"
+    );
     // The same state, built the same way, where real Git runs the abort itself.
     let oracle: Fixture = fixture("abort-main-worktree-resolution-oracle");
     let oracle_repo: PathBuf = main_worktree_at_a_conflicted_merge(&oracle, None);
     std::fs::write(oracle_repo.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let direct: Observed = run_direct(&oracle, oracle_repo.as_path(), &["merge", "--abort"]);
-    assert_eq!(direct.code, Some(0), "real Git runs the abort in the same state: {}", stderr_of(&direct));
+    assert_eq!(
+        direct.code,
+        Some(0),
+        "real Git runs the abort in the same state: {}",
+        stderr_of(&direct)
+    );
     assert_eq!(
         state_after(&hatched_fixture, repo.as_path(), &["a.txt"]),
         state_after(&oracle, oracle_repo.as_path(), &["a.txt"]),

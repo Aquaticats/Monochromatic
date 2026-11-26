@@ -22,11 +22,14 @@
 //! const fixture = await mkdtemp(...); await symlink(wrapper, join(fixture, "bin/git"));
 //! ```
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
 use crate::support_fixture_service::Fixture;
 use crate::support_program_names_and_time_bound::WRAPPER;
 use crate::support_resource_limits::ServiceLaunch;
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::Command;
 
 /// What:
 ///  The shared fixture helpers this file used to define,
@@ -41,8 +44,17 @@ use crate::support_resource_limits::ServiceLaunch;
 /// export * from '../shared/fixture-support.ts';
 /// ```
 pub(crate) use crate::fixture_support_shared_by_both_test_targets::{
-    FIXTURE_ROOT_VARIABLE, REMOVAL_PAUSE, REMOVAL_TRIES, forbid_core_dumps, fixture_root, made_fixture_folder,
-    missing_fixture_root_report, remove_patiently, run_fixture_root, settle_fixture, system_temporary_directories,
+    FIXTURE_ROOT_VARIABLE,
+    REMOVAL_PAUSE,
+    REMOVAL_TRIES,
+    fixture_root,
+    forbid_core_dumps,
+    made_fixture_folder,
+    missing_fixture_root_report,
+    remove_patiently,
+    run_fixture_root,
+    settle_fixture,
+    system_temporary_directories,
 };
 
 /// What:
@@ -62,9 +74,14 @@ pub fn warm_wrapper(linked: &Path) {
     static WARMED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     WARMED.get_or_init(|| {
         use std::io::Read;
-        let mut file: std::fs::File = std::fs::File::open(linked).expect("open the fixture wrapper");
+        let mut file: std::fs::File =
+            std::fs::File::open(linked).expect("open the fixture wrapper");
         let mut chunk: Vec<u8> = vec![0; 1 << 20];
-        while file.read(chunk.as_mut_slice()).expect("read the built wrapper") > 0 {}
+        while file
+            .read(chunk.as_mut_slice())
+            .expect("read the built wrapper")
+            > 0
+        {}
     });
 }
 
@@ -89,7 +106,11 @@ pub fn warm_wrapper(linked: &Path) {
 ///  (`fixture_in`).
 ///  169 fixtures that each copied wrote about 3.7 GB (169 times 21.9 MB) in one wave
 ///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
-pub fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
+pub fn link_built_wrapper(
+    built: &Path,
+    to: &Path,
+    store_root: &Path,
+) {
     if let Err(error) = std::fs::hard_link(built, to) {
         let stored: std::io::Result<()> = if error.raw_os_error() == Some(libc::EXDEV) {
             super::wrapper_store::link_stored(built, store_root, to, &mut |_| {})
@@ -97,7 +118,11 @@ pub fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
             Err(error)
         };
         if let Err(reason) = stored {
-            eprintln!("fixture wrapper: no hard link of {} at {} ({reason}); copying it instead", built.display(), to.display());
+            eprintln!(
+                "fixture wrapper: no hard link of {} at {} ({reason}); copying it instead",
+                built.display(),
+                to.display()
+            );
             copy_executable(built, to);
         }
     }
@@ -131,7 +156,10 @@ pub fn fixture(name: &str) -> Fixture {
 /// if (!inAFixtureRootTakingAnyName('event_path::events_carry_the_exact_bytes_of_a_name_that_is_not_utf8')) return;
 /// ```
 pub fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
-    return crate::fixture_root_taking_any_name::in_a_root_taking_any_name(fixture_root().as_path(), test);
+    return crate::fixture_root_taking_any_name::in_a_root_taking_any_name(
+        fixture_root().as_path(),
+        test,
+    );
 }
 
 /// What:
@@ -156,7 +184,11 @@ pub fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
 /// const root = madeFixtureFolder(directory, 'native-binary', name);
 /// linkBuiltWrapper(WRAPPER, join(root, 'wrapper', 'monochromatic-git-policy-cli'), storeRoot);
 /// ```
-pub fn fixture_in(directory: &Path, store_root: &Path, name: &str) -> Fixture {
+pub fn fixture_in(
+    directory: &Path,
+    store_root: &Path,
+    name: &str,
+) -> Fixture {
     forbid_core_dumps();
     let root: PathBuf = made_fixture_folder(directory, "native-binary", name);
     for subdirectory in ["wrapper", "bin", "home"] {
@@ -171,13 +203,23 @@ pub fn fixture_in(directory: &Path, store_root: &Path, name: &str) -> Fixture {
         service: std::sync::Mutex::new(None),
         service_environment: std::sync::Mutex::new(Vec::new()),
         service_launch: std::sync::Mutex::new(ServiceLaunch::default()),
-        socket_folders: std::sync::Mutex::new(crate::support_socket_folders::SocketFolders::default()),
+        socket_folders: std::sync::Mutex::new(
+            crate::support_socket_folders::SocketFolders::default(),
+        ),
     };
 }
 
 /// Remove only the fixture directory a control created.
 pub fn remove(fixture: &Fixture) {
-    remove_patiently(&fixture.root, &|root| { return std::fs::remove_dir_all(root); }, REMOVAL_TRIES, REMOVAL_PAUSE).expect("remove only the fixture");
+    remove_patiently(
+        &fixture.root,
+        &|root| {
+            return std::fs::remove_dir_all(root);
+        },
+        REMOVAL_TRIES,
+        REMOVAL_PAUSE,
+    )
+    .expect("remove only the fixture");
 }
 
 /// The one writer of executable fixture files,
@@ -215,7 +257,10 @@ pub use fixture_executable::executable;
 /// ```ts
 /// spawnSync('cp', ['--reflink=never', '--', from, to]);
 /// ```
-pub fn copy_executable(from: &Path, to: &Path) {
+pub fn copy_executable(
+    from: &Path,
+    to: &Path,
+) {
     let copied: bool = Command::new("cp")
         .arg("--reflink=never")
         .arg("--")

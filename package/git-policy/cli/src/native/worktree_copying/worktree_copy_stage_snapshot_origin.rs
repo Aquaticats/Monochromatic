@@ -74,15 +74,28 @@ pub struct SnapshotOrigin {
 /// function originOfTheSource(sourceRoot: string, commonDir: string): SnapshotOrigin | undefined { try { return { parent: subvolumeInfo(sourceRoot).uuid, after: subvolumeInfo(journalRoot(commonDir)).generation }; } catch { return undefined; } }
 /// ```
 #[cfg(target_os = "linux")]
-pub fn origin_of_the_source(source_root: &Path, common_dir: &Path) -> Option<SnapshotOrigin> {
-    let source: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(source_root).ok()?;
-    let journal: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(crate::worktree_copy_journal::journal_root(common_dir).as_path()).ok()?;
-    return Some(SnapshotOrigin { parent: source.uuid, after: journal.generation });
+pub fn origin_of_the_source(
+    source_root: &Path,
+    common_dir: &Path,
+) -> Option<SnapshotOrigin> {
+    let source: crate::fs_btrfs_ioctl::SubvolumeInfo =
+        crate::fs_btrfs_ioctl::subvolume_info(source_root).ok()?;
+    let journal: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(
+        crate::worktree_copy_journal::journal_root(common_dir).as_path(),
+    )
+    .ok()?;
+    return Some(SnapshotOrigin {
+        parent: source.uuid,
+        after: journal.generation,
+    });
 }
 
 /// `origin_of_the_source` where btrfs ioctls are not built.
 #[cfg(not(target_os = "linux"))]
-pub fn origin_of_the_source(_source_root: &Path, _common_dir: &Path) -> Option<SnapshotOrigin> {
+pub fn origin_of_the_source(
+    _source_root: &Path,
+    _common_dir: &Path,
+) -> Option<SnapshotOrigin> {
     return None;
 }
 
@@ -122,13 +135,18 @@ fn words_for_an_unreadable_snapshot(error: crate::fs_primitive_error::PrimitiveE
 /// function provedCreatedAfterTheRecord(container: string, origin: SnapshotOrigin): void { if (!isSubvolumeRoot(container)) throw '...'; const info = subvolumeInfo(container); if (info.parentUuid !== origin.parent) throw '...'; if (info.transidAtCreation <= origin.after) throw '...'; }
 /// ```
 #[cfg(target_os = "linux")]
-pub fn proved_created_after_the_record(container: &Path, origin: &SnapshotOrigin) -> Result<(), String> {
+pub fn proved_created_after_the_record(
+    container: &Path,
+    origin: &SnapshotOrigin,
+) -> Result<(), String> {
     if !crate::fs_kind::is_subvolume_root(container).unwrap_or(false) {
         return Err(String::from(
             "the folder there now is not a btrfs subvolume root, and the record of the object its creation made names no object",
         ));
     }
-    let made: crate::fs_btrfs_ioctl::SubvolumeInfo = crate::fs_btrfs_ioctl::subvolume_info(container).map_err(words_for_an_unreadable_snapshot)?;
+    let made: crate::fs_btrfs_ioctl::SubvolumeInfo =
+        crate::fs_btrfs_ioctl::subvolume_info(container)
+            .map_err(words_for_an_unreadable_snapshot)?;
     if made.parent_uuid != origin.parent {
         return Err(String::from(
             "the snapshot there now was not taken from the source this command copied, and the record of the object its creation made names no object",
@@ -145,8 +163,13 @@ pub fn proved_created_after_the_record(container: &Path, origin: &SnapshotOrigin
 
 /// `proved_created_after_the_record` where btrfs ioctls are not built.
 #[cfg(not(target_os = "linux"))]
-pub fn proved_created_after_the_record(_container: &Path, _origin: &SnapshotOrigin) -> Result<(), String> {
-    return Err(String::from("this build cannot read when the folder was made, so nothing in it was removed"));
+pub fn proved_created_after_the_record(
+    _container: &Path,
+    _origin: &SnapshotOrigin,
+) -> Result<(), String> {
+    return Err(String::from(
+        "this build cannot read when the folder was made, so nothing in it was removed",
+    ));
 }
 
 /// Snapshot origin controls stay out of the release executable.

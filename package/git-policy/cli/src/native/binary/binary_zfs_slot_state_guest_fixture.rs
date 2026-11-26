@@ -18,20 +18,46 @@
 //! publish(place, Phase.Filled, sbin, 'one');
 //! ```
 
-use super::zfs_sweep_guest::{NONCE, ORIGIN_PREFIX, zfs};
-use git_policy_cli::worktree_clone_binding_record::binding_encoding::{FolderIdentity, Request};
+use super::zfs_sweep_guest::{
+    NONCE,
+    ORIGIN_PREFIX,
+    zfs,
+};
+use git_policy_cli::worktree_clone_binding_record::binding_encoding::{
+    FolderIdentity,
+    Request,
+};
 use git_policy_cli::worktree_clone_binding_record::binding_record::BindingRecord;
-use git_policy_cli::worktree_clone_binding_record::binding_words::{Phase, RequestForm};
+use git_policy_cli::worktree_clone_binding_record::binding_words::{
+    Phase,
+    RequestForm,
+};
 use git_policy_cli::worktree_clone_binding_record::record_publication::write_binding;
 use git_policy_cli::worktree_clone_binding_record::registration_home::open_or_create_home;
-use git_policy_cli::worktree_clone_mount_protocol::{DatasetGuid, RequestNonce};
+use git_policy_cli::worktree_clone_mount_protocol::{
+    DatasetGuid,
+    RequestNonce,
+};
 use git_policy_cli::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
-use git_policy_cli::worktree_clone_slot_state::slot_state_live_read::{GatedCloneIntentReads, SlotReadingSources, read_slot};
-use git_policy_cli::worktree_clone_slot_state::slot_state_readings::{IntentFacts, SlotReadings};
+use git_policy_cli::worktree_clone_slot_state::slot_state_live_read::{
+    GatedCloneIntentReads,
+    SlotReadingSources,
+    read_slot,
+};
+use git_policy_cli::worktree_clone_slot_state::slot_state_readings::{
+    IntentFacts,
+    SlotReadings,
+};
 use git_policy_cli::zfs_compatibility_gate::gate_verdict::LiveGate;
 use git_policy_cli::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// Where one arm's slot and clone stand.
 pub(super) struct Place {
@@ -57,28 +83,56 @@ pub(super) struct Place {
 }
 
 /// One property of one dataset as `zfs get` prints it.
-fn value_of(sbin: &str, dataset: &str, property: &str) -> String {
-    let (ok, said, error) = zfs(sbin, "zfs", &["get", "-H", "-p", "-o", "value", property, dataset], None);
+fn value_of(
+    sbin: &str,
+    dataset: &str,
+    property: &str,
+) -> String {
+    let (ok, said, error) = zfs(
+        sbin,
+        "zfs",
+        &["get", "-H", "-p", "-o", "value", property, dataset],
+        None,
+    );
     assert!(ok, "`{property}` of `{dataset}` is read: {said}{error}");
     return said.trim().to_string();
 }
 
 /// One dataset's canonical GUID.
-pub(super) fn guid_of(sbin: &str, dataset: &str) -> DatasetGuid {
-    return DatasetGuid::parse(value_of(sbin, dataset, "guid").as_str()).expect("the dataset's GUID reads");
+pub(super) fn guid_of(
+    sbin: &str,
+    dataset: &str,
+) -> DatasetGuid {
+    return DatasetGuid::parse(value_of(sbin, dataset, "guid").as_str())
+        .expect("the dataset's GUID reads");
 }
 
 /// One binding record of one phase,
 /// with every field that phase proves,
 /// read from the guest's own pool.
-fn record_at(phase: Phase, place: &Place, sbin: &str) -> BindingRecord {
-    let common_identity: FolderIdentity = FolderIdentity::of_folder(place.common.as_path()).expect("the common directory's identity reads");
-    let registration_identity: FolderIdentity = FolderIdentity::of_folder(place.registration.as_path()).expect("the registration's identity reads");
+fn record_at(
+    phase: Phase,
+    place: &Place,
+    sbin: &str,
+) -> BindingRecord {
+    let common_identity: FolderIdentity = FolderIdentity::of_folder(place.common.as_path())
+        .expect("the common directory's identity reads");
+    let registration_identity: FolderIdentity =
+        FolderIdentity::of_folder(place.registration.as_path())
+            .expect("the registration's identity reads");
     let snapshot: String = format!("{}@{ORIGIN_PREFIX}{NONCE}", place.checkout_dataset);
     let pointer: Vec<u8> = place.pointer.clone();
-    let with_clone: bool = matches!(phase, Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling);
-    let clone_guid: Option<DatasetGuid> = with_clone.then(|| return guid_of(sbin, place.clone_dataset.as_str()));
-    let clone_createtxg: Option<u64> = with_clone.then(|| return value_of(sbin, place.clone_dataset.as_str(), "createtxg").parse().expect("the clone's createtxg reads"));
+    let with_clone: bool = matches!(
+        phase,
+        Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling
+    );
+    let clone_guid: Option<DatasetGuid> =
+        with_clone.then(|| return guid_of(sbin, place.clone_dataset.as_str()));
+    let clone_createtxg: Option<u64> = with_clone.then(|| {
+        return value_of(sbin, place.clone_dataset.as_str(), "createtxg")
+            .parse()
+            .expect("the clone's createtxg reads");
+    });
     return BindingRecord {
         claim: 1,
         nonce: RequestNonce::parse(NONCE).expect("the arm's nonce reads"),
@@ -97,7 +151,11 @@ fn record_at(phase: Phase, place: &Place, sbin: &str) -> BindingRecord {
         pool_guid: guid_of(sbin, place.pool.as_str()),
         origin_snapshot: snapshot.clone(),
         origin_snapshot_guid: Some(guid_of(sbin, snapshot.as_str())),
-        origin_snapshot_createtxg: Some(value_of(sbin, snapshot.as_str(), "createtxg").parse().expect("the snapshot's createtxg reads")),
+        origin_snapshot_createtxg: Some(
+            value_of(sbin, snapshot.as_str(), "createtxg")
+                .parse()
+                .expect("the snapshot's createtxg reads"),
+        ),
         origin_dataset: Some(place.checkout_dataset.clone()),
         origin_dataset_guid: Some(guid_of(sbin, place.checkout_dataset.as_str())),
         clone_dataset: place.clone_dataset.clone(),
@@ -108,18 +166,31 @@ fn record_at(phase: Phase, place: &Place, sbin: &str) -> BindingRecord {
 }
 
 /// Publish one record under a slot's name in the checkout's record home.
-pub(super) fn publish(place: &Place, phase: Phase, sbin: &str, slot: &str) {
-    let home: std::fs::File = open_or_create_home(place.common.as_path()).expect("the record home opens");
+pub(super) fn publish(
+    place: &Place,
+    phase: Phase,
+    sbin: &str,
+    slot: &str,
+) {
+    let home: std::fs::File =
+        open_or_create_home(place.common.as_path()).expect("the record home opens");
     write_binding(&home, slot, &record_at(phase, place, sbin)).expect("the record writes");
 }
 
 /// The facts one slot's state is read from,
 /// with the live mount table and the gated intent read.
-pub(super) fn readings_of(place: &Place, slot: &str, slot_path: &Path) -> SlotReadings {
+pub(super) fn readings_of(
+    place: &Place,
+    slot: &str,
+    slot_path: &Path,
+) -> SlotReadings {
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
-    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts: &mounts, intents: &intents };
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
     return read_slot(place.common.as_path(), slot, slot_path, &sources);
 }
 
@@ -128,10 +199,18 @@ pub(super) fn intent_word(facts: &IntentFacts) -> &'static str {
     return match facts {
         IntentFacts::Unasked => "unasked",
         IntentFacts::Absent => "none",
-        IntentFacts::Mounting { .. } => "mount-requested",
-        IntentFacts::Unmounting { .. } => "unmount-requested",
-        IntentFacts::Inherited { .. } => "inherited",
-        IntentFacts::Unreadable { .. } => "unreadable",
+        IntentFacts::Mounting {
+            ..
+        } => "mount-requested",
+        IntentFacts::Unmounting {
+            ..
+        } => "unmount-requested",
+        IntentFacts::Inherited {
+            ..
+        } => "inherited",
+        IntentFacts::Unreadable {
+            ..
+        } => "unreadable",
     };
 }
 
@@ -141,7 +220,10 @@ pub(super) fn class_of(state: &SlotRouteState) -> &'static str {
 }
 
 /// Run one Git command in the checkout and hand back its answer.
-pub(super) fn git(checkout: &Path, arguments: &[&str]) -> Output {
+pub(super) fn git(
+    checkout: &Path,
+    arguments: &[&str],
+) -> Output {
     return Command::new("git")
         .arg("-C")
         .arg(checkout)

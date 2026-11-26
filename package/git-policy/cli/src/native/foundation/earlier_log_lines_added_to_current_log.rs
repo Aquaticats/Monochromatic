@@ -80,14 +80,32 @@
 //! await foldLog(gitDir, COMMIT_TIMING_LOG); // cli-git-commit-timing.jsonl is gone, its lines end the new log
 //! ```
 
-use crate::earlier_log_lines_journal_held_and_recorded::{HeldJournal, Round, hold_journal};
-use crate::file_open_for_write_by_any_process::{WriterCheck, writer_check};
+use crate::earlier_log_lines_journal_held_and_recorded::{
+    HeldJournal,
+    Round,
+    hold_journal,
+};
+use crate::file_open_for_write_by_any_process::{
+    WriterCheck,
+    writer_check,
+};
 use crate::private_storage::sync_directory;
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::wrapper_names_old_and_new::RenamedName;
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::fs::{
+    File,
+    OpenOptions,
+};
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The end of the name the earlier log is moved to while its bytes are added:
 /// the name of the current log with this after it.
@@ -129,14 +147,20 @@ pub trait FoldSteps {
     /// Called as a fold reaches `step`;
     /// `false` ends the fold there,
     /// leaving the disk as a kill at that instant would.
-    fn may_continue(&mut self, step: &'static str) -> bool;
+    fn may_continue(
+        &mut self,
+        step: &'static str,
+    ) -> bool;
 }
 
 /// The steps of a fold that is never stopped.
 pub struct NeverStopped;
 
 impl FoldSteps for NeverStopped {
-    fn may_continue(&mut self, _step: &'static str) -> bool {
+    fn may_continue(
+        &mut self,
+        _step: &'static str,
+    ) -> bool {
         return true;
     }
 }
@@ -171,7 +195,11 @@ fn present(path: &Path) -> bool {
 }
 
 /// The bytes of a file from `from` to `to`.
-fn read_range(path: &Path, from: u64, to: u64) -> std::io::Result<Vec<u8>> {
+fn read_range(
+    path: &Path,
+    from: u64,
+    to: u64,
+) -> std::io::Result<Vec<u8>> {
     let mut file: File = File::open(path)?;
     file.seek(SeekFrom::Start(from))?;
     let wanted: usize = usize::try_from(to - from).map_err(std::io::Error::other)?;
@@ -196,7 +224,11 @@ fn first_newline_in(bytes: &[u8]) -> Option<usize> {
 ///  Only line starts are compared,
 /// so a long block costs one comparison per line,
 /// not one per byte.
-fn block_starts_a_line(haystack: &[u8], from: usize, block: &[u8]) -> bool {
+fn block_starts_a_line(
+    haystack: &[u8],
+    from: usize,
+    block: &[u8],
+) -> bool {
     let mut start: usize = from.min(haystack.len());
     loop {
         if haystack.get(start..start + block.len()) == Some(block) {
@@ -211,7 +243,11 @@ fn block_starts_a_line(haystack: &[u8], from: usize, block: &[u8]) -> bool {
 
 /// Whether the file at `path` holds `block` at a line start at or after `from`;
 /// a missing file holds nothing.
-fn file_holds_block(path: &Path, from: u64, block: &[u8]) -> std::io::Result<bool> {
+fn file_holds_block(
+    path: &Path,
+    from: u64,
+    block: &[u8],
+) -> std::io::Result<bool> {
     let bytes: Vec<u8> = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
@@ -229,7 +265,10 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 /// The numbered older copies of `current` that exist (`<current>.1`,
 /// `<current>.2`,
 /// ...).
-pub fn numbered_copies(parent: &Path, current: &str) -> Vec<PathBuf> {
+pub fn numbered_copies(
+    parent: &Path,
+    current: &str,
+) -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(parent) else {
         return Vec::new();
     };
@@ -250,7 +289,12 @@ pub fn numbered_copies(parent: &Path, current: &str) -> Vec<PathBuf> {
 /// Whether the bytes of a round are already in the current log at or after the recorded place,
 /// or in an older copy that the
 ///  log's rotation made of it since.
-fn round_already_added(parent: &Path, current: &str, round: Round, bytes: &[u8]) -> std::io::Result<bool> {
+fn round_already_added(
+    parent: &Path,
+    current: &str,
+    round: Round,
+    bytes: &[u8],
+) -> std::io::Result<bool> {
     if file_holds_block(parent.join(current).as_path(), round.offset, bytes)? {
         return Ok(true);
     }
@@ -277,7 +321,10 @@ fn round_already_added(parent: &Path, current: &str, round: Round, bytes: &[u8])
 /// ```ts
 /// await appendFile(current, lead + bytes + trail); await sync(current);
 /// ```
-fn append_block(current: &Path, bytes: &[u8]) -> std::io::Result<()> {
+fn append_block(
+    current: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let mut file: File = OpenOptions::new().append(true).create(true).open(current)?;
     let length: u64 = file.metadata()?.len();
     let mut block: Vec<u8> = Vec::with_capacity(bytes.len() + 2);
@@ -314,7 +361,10 @@ fn length_of(path: &Path) -> std::io::Result<Option<u64>> {
 
 /// Whether the moved log is longer than the bytes already added;
 /// a log that is shorter counts as not grown.
-fn grown_past(path: &Path, from: u64) -> std::io::Result<bool> {
+fn grown_past(
+    path: &Path,
+    from: u64,
+) -> std::io::Result<bool> {
     return match length_of(path)? {
         Some(length) => Ok(length > from),
         None => Ok(false),
@@ -337,14 +387,23 @@ fn grown_past(path: &Path, from: u64) -> std::io::Result<bool> {
 /// ```ts
 /// function leaveForALaterCommand(held: HeldJournal, last: Round | undefined, from: number): LogFold;
 /// ```
-fn leave_for_a_later_command(held: &mut HeldJournal, last: Option<Round>, from: u64, current: &Path) -> std::io::Result<LogFold> {
+fn leave_for_a_later_command(
+    held: &mut HeldJournal,
+    last: Option<Round>,
+    from: u64,
+    current: &Path,
+) -> std::io::Result<LogFold> {
     let said: bool = match last {
         Some(round) => round.from == from && round.to == from,
         None => false,
     };
     if !said {
         let offset: u64 = length_of(current)?.unwrap_or(0);
-        held.record(Round { offset, from, to: from })?;
+        held.record(Round {
+            offset,
+            from,
+            to: from,
+        })?;
     }
     return Ok(LogFold::LeftForALaterCommand);
 }
@@ -374,7 +433,11 @@ fn leave_for_a_later_command(held: &mut HeldJournal, last: Option<Round>, from: 
 /// earlier log or the moved log,
 /// and the journal,
 /// are left for the next attempt.
-pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> std::io::Result<LogFold> {
+pub fn fold_log(
+    parent: &Path,
+    name: RenamedName,
+    steps: &mut dyn FoldSteps,
+) -> std::io::Result<LogFold> {
     let earlier: PathBuf = parent.join(name.earlier);
     let current: PathBuf = parent.join(name.current);
     let waiting: PathBuf = parent.join(format!("{}{WAITING_SUFFIX}", name.current));
@@ -424,7 +487,11 @@ pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> 
             None => {
                 let to: u64 = length_of(waiting.as_path())?.unwrap_or(from);
                 let offset: u64 = length_of(current.as_path())?.unwrap_or(0);
-                let fresh: Round = Round { offset, from, to };
+                let fresh: Round = Round {
+                    offset,
+                    from,
+                    to,
+                };
                 if !steps.may_continue("before-journal-record") {
                     return Ok(LogFold::Stopped("before-journal-record"));
                 }
@@ -434,7 +501,8 @@ pub fn fold_log(parent: &Path, name: RenamedName, steps: &mut dyn FoldSteps) -> 
             }
         };
         let bytes: Vec<u8> = read_range(waiting.as_path(), round.from, round.to)?;
-        if !bytes.is_empty() && !round_already_added(parent, name.current, round, bytes.as_slice())? {
+        if !bytes.is_empty() && !round_already_added(parent, name.current, round, bytes.as_slice())?
+        {
             if !steps.may_continue("before-append") {
                 return Ok(LogFold::Stopped("before-append"));
             }

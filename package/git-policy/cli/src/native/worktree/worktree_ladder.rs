@@ -22,7 +22,12 @@
 //! ```
 
 #[cfg(target_os = "linux")]
-pub use crate::worktree_ladder_run::{Ladder, LadderResult, begin_ladder, begin_ladder_holding};
+pub use crate::worktree_ladder_run::{
+    Ladder,
+    LadderResult,
+    begin_ladder,
+    begin_ladder_holding,
+};
 
 /// What:
 ///  The ladder on a system without btrfs subvolumes and snapshots:
@@ -39,7 +44,11 @@ pub use crate::worktree_ladder_run::{Ladder, LadderResult, begin_ladder, begin_l
 mod other {
     use crate::transaction_git::GitContext;
     use crate::worktree_add_plan::AddPlan;
-    use crate::worktree_copy::{GitRunner, GitStatus, GitStep};
+    use crate::worktree_copy::{
+        GitRunner,
+        GitStatus,
+        GitStep,
+    };
     use crate::worktree_copy_stage_claim::StageClaim;
     use crate::worktree_identity::WorktreeIdentity;
     use std::io::Write;
@@ -60,13 +69,22 @@ mod other {
     }
 
     /// Prepare nothing.
-    pub fn begin_ladder(_plan: Option<&AddPlan>, _context: &GitContext, _identity: &WorktreeIdentity) -> Ladder {
+    pub fn begin_ladder(
+        _plan: Option<&AddPlan>,
+        _context: &GitContext,
+        _identity: &WorktreeIdentity,
+    ) -> Ladder {
         return Ladder;
     }
 
     /// Prepare nothing,
     /// and leave the caller's record to the copy.
-    pub fn begin_ladder_holding(_plan: Option<&AddPlan>, _held: &mut Option<StageClaim>, _context: &GitContext, _identity: &WorktreeIdentity) -> Ladder {
+    pub fn begin_ladder_holding(
+        _plan: Option<&AddPlan>,
+        _held: &mut Option<StageClaim>,
+        _context: &GitContext,
+        _identity: &WorktreeIdentity,
+    ) -> Ladder {
         return Ladder;
     }
 
@@ -83,11 +101,27 @@ mod other {
         }
 
         /// Settle nothing.
-        pub fn finish(self, git: GitStatus, __run_git: &mut dyn GitRunner, _context: &GitContext, _out: &mut dyn Write) -> LadderResult {
-            return LadderResult { git, carried: None, placed: None, claim: None };
+        pub fn finish(
+            self,
+            git: GitStatus,
+            __run_git: &mut dyn GitRunner,
+            _context: &GitContext,
+            _out: &mut dyn Write,
+        ) -> LadderResult {
+            return LadderResult {
+                git,
+                carried: None,
+                placed: None,
+                claim: None,
+            };
         }
     }
 }
 
 #[cfg(not(target_os = "linux"))]
-pub use other::{Ladder, LadderResult, begin_ladder, begin_ladder_holding};
+pub use other::{
+    Ladder,
+    LadderResult,
+    begin_ladder,
+    begin_ladder_holding,
+};

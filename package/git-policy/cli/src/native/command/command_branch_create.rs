@@ -39,11 +39,27 @@
 use crate::command_branch_mode::branch_creates;
 use crate::command_branch_table::BRANCH_TABLE;
 use crate::command_branch_target::{
-    checkout_target, creates_explicitly, guess_allowed, switch_target,
+    checkout_target,
+    creates_explicitly,
+    guess_allowed,
+    switch_target,
 };
-use crate::command_checkout_table::{CHECKOUT_TABLE, SWITCH_TABLE};
-use crate::command_options::{DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options};
-use crate::command_options_query::{WrapperFlags, positional_tokens, split_wrapper_flags};
+use crate::command_checkout_table::{
+    CHECKOUT_TABLE,
+    SWITCH_TABLE,
+};
+use crate::command_options::{
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    parse_options,
+};
+use crate::command_options_query::{
+    WrapperFlags,
+    positional_tokens,
+    split_wrapper_flags,
+};
 use crate::escape_hatch::BRANCH_WORKTREE_ESCAPE_HATCH;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;

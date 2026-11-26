@@ -25,7 +25,12 @@
 //! const outcome = check_holders({ clone, holders, incomplete }); // pass | finding('holder') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use std::path::PathBuf;
 
 /// What:
@@ -95,18 +100,40 @@ pub fn check_holders(facts: &HolderFacts) -> CheckOutcome {
         let described: Vec<String> = facts
             .holders
             .iter()
-            .map(|holder| return format!("{} (task {}) mounts {} at {}", holder.namespace, holder.representative_pid, holder.source, holder.mount_point.display()))
+            .map(|holder| {
+                return format!(
+                    "{} (task {}) mounts {} at {}",
+                    holder.namespace,
+                    holder.representative_pid,
+                    holder.source,
+                    holder.mount_point.display()
+                );
+            })
             .collect();
-        let mut detail: String = format!("{} namespace(s) hold `{clone}`: {}", facts.holders.len(), described.join("; "));
+        let mut detail: String = format!(
+            "{} namespace(s) hold `{clone}`: {}",
+            facts.holders.len(),
+            described.join("; ")
+        );
         if !facts.incomplete.is_empty() {
-            detail.push_str(&format!("; {} further read(s) could not be completed ({})", facts.incomplete.len(), facts.incomplete.join("; ")));
+            detail.push_str(&format!(
+                "; {} further read(s) could not be completed ({})",
+                facts.incomplete.len(),
+                facts.incomplete.join("; ")
+            ));
         }
         return finding("holder", detail);
     }
     if !facts.incomplete.is_empty() {
-        return unknown(format!("the scan found no holder of `{clone}` and could not read {} task(s) or table(s) ({}), so absence in every namespace is unproved", facts.incomplete.len(), facts.incomplete.join("; ")));
+        return unknown(format!(
+            "the scan found no holder of `{clone}` and could not read {} task(s) or table(s) ({}), so absence in every namespace is unproved",
+            facts.incomplete.len(),
+            facts.incomplete.join("; ")
+        ));
     }
-    return pass(format!("no namespace holds `{clone}`, and the scan completed every read"));
+    return pass(format!(
+        "no namespace holds `{clone}`, and the scan completed every read"
+    ));
 }
 
 /// Controls stay out of the release executable.

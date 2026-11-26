@@ -26,7 +26,10 @@
 
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{CloneAbsence, the_clone_absence};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
+    CloneAbsence,
+    the_clone_absence,
+};
 
 /// What:
 ///  The four answers a pool gives about one recorded clone.
@@ -76,12 +79,19 @@ pub enum TheClonesPresence {
 impl TheClonesPresence {
     /// Whether this answer proves the recorded clone may stand.
     pub fn stops(&self) -> bool {
-        return matches!(self, TheClonesPresence::Stands { .. } | TheClonesPresence::TheNameHoldsAnother { .. } | TheClonesPresence::AnswersElsewhere { .. });
+        return matches!(
+            self,
+            TheClonesPresence::Stands { .. }
+                | TheClonesPresence::TheNameHoldsAnother { .. }
+                | TheClonesPresence::AnswersElsewhere { .. }
+        );
     }
 
     /// The sentence a line prints for a stop,
     /// or nothing for an answer the run goes on from.
-    pub fn stop_sentence(&self) -> Option<crate::worktree_clone_record_settling::settling_refusal::SettlingStop> {
+    pub fn stop_sentence(
+        &self
+    ) -> Option<crate::worktree_clone_record_settling::settling_refusal::SettlingStop> {
         return match self {
             TheClonesPresence::Stands { name, guid } => Some(crate::worktree_clone_record_settling::settling_refusal::SettlingStop::TheCloneStillStands { clone: name.clone(), guid: guid.file_name() }),
             TheClonesPresence::TheNameHoldsAnother { name, guid } => {
@@ -105,15 +115,34 @@ impl TheClonesPresence {
 /// ```ts
 /// const presence = theClonesPresence(probe, clone, guid);
 /// ```
-pub fn the_clones_presence(probe: &dyn DatasetReader, clone_dataset: &str, clone_guid: DatasetGuid) -> TheClonesPresence {
+pub fn the_clones_presence(
+    probe: &dyn DatasetReader,
+    clone_dataset: &str,
+    clone_guid: DatasetGuid,
+) -> TheClonesPresence {
     return match the_clone_absence(probe, clone_dataset, clone_guid) {
-        Ok(CloneAbsence::There { name, guid }) => match name == clone_dataset {
-            true => TheClonesPresence::Stands { name, guid },
-            false => TheClonesPresence::AnswersElsewhere { found: name },
+        Ok(CloneAbsence::There {
+            name,
+            guid,
+        }) => match name == clone_dataset {
+            true => TheClonesPresence::Stands {
+                name,
+                guid,
+            },
+            false => TheClonesPresence::AnswersElsewhere {
+                found: name,
+            },
         },
-        Ok(CloneAbsence::Reused { guid }) => TheClonesPresence::TheNameHoldsAnother { name: String::from(clone_dataset), guid },
+        Ok(CloneAbsence::Reused {
+            guid,
+        }) => TheClonesPresence::TheNameHoldsAnother {
+            name: String::from(clone_dataset),
+            guid,
+        },
         Ok(CloneAbsence::Gone) => TheClonesPresence::ProvedGone,
-        Err(stop) => TheClonesPresence::Unprovable { evidence: stop.message() },
+        Err(stop) => TheClonesPresence::Unprovable {
+            evidence: stop.message(),
+        },
     };
 }
 

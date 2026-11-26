@@ -53,9 +53,17 @@ const A_CEILING_NO_READ_REACHES: Duration = Duration::from_secs(3_600);
 /// ```ts
 /// const [retries, watch] = startedWithin(PATIENCE, () => restoredWithin(ceiling, plan, watchDir, instance));
 /// ```
-fn started_within(ceiling: Duration, plan: &std::path::Path, watch: &std::path::Path, instance: Option<String>) -> Option<(PushRetries, ClaimWatch)> {
-    let (plan_of_the_read, watch_of_the_read): (std::path::PathBuf, std::path::PathBuf) = (plan.to_path_buf(), watch.to_path_buf());
-    return crate::test_support::finished_within_at(PATIENCE, move || { return restored_within(ceiling, plan_of_the_read, watch_of_the_read, instance); });
+fn started_within(
+    ceiling: Duration,
+    plan: &std::path::Path,
+    watch: &std::path::Path,
+    instance: Option<String>,
+) -> Option<(PushRetries, ClaimWatch)> {
+    let (plan_of_the_read, watch_of_the_read): (std::path::PathBuf, std::path::PathBuf) =
+        (plan.to_path_buf(), watch.to_path_buf());
+    return crate::test_support::finished_within_at(PATIENCE, move || {
+        return restored_within(ceiling, plan_of_the_read, watch_of_the_read, instance);
+    });
 }
 
 /// What:
@@ -70,7 +78,9 @@ fn started_within(ceiling: Duration, plan: &std::path::Path, watch: &std::path::
 /// const reached = await reachedWithin(PATIENCE, reachedWait);
 /// ```
 fn the_read_was_reached(reached: tokio::sync::oneshot::Receiver<()>) -> Option<bool> {
-    return crate::test_support::finished_within_at(PATIENCE, move || { return reached.blocking_recv().is_ok(); });
+    return crate::test_support::finished_within_at(PATIENCE, move || {
+        return reached.blocking_recv().is_ok();
+    });
 }
 
 /// What:
@@ -113,30 +123,81 @@ fn a_read_that_gives_no_answer_within_its_ceiling_leaves_both_directories_and_re
     // A service that stopped left the plan of a push it was still trying.
     let mut previous: PushRetries = PushRetries::restored(Duration::from_secs(1), plan.as_path());
     let _pause: Duration = previous.schedule(here.as_path(), &item, 1, Instant::now());
-    crate::push_retry_store::save(plan.as_path(), &crate::push_retry_store::StoredPlan { git_dir: here.clone(), item: item.clone(), attempt: 1 })
-        .expect("the earlier service's plan file");
+    crate::push_retry_store::save(
+        plan.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: here.clone(),
+            item: item.clone(),
+            attempt: 1,
+        },
+    )
+    .expect("the earlier service's plan file");
     drop(previous);
-    assert_eq!(crate::push_retry_store::load(plan.as_path()).len(), 1, "the earlier service's plan is on disk");
+    assert_eq!(
+        crate::push_retry_store::load(plan.as_path()).len(),
+        1,
+        "the earlier service's plan is on disk"
+    );
     let (reached, let_go) = crate::service_fault::hooks::hold_the_point(THE_READ_AT_A_START);
-    let started: Option<(PushRetries, ClaimWatch)> = started_within(SHORT_CEILING, plan.as_path(), watch.as_path(), Some(String::from("instance")));
-    assert_eq!(the_read_was_reached(reached), Some(true), "the journal's read reached the point this control holds, so what the start answered is its ceiling and not a read that finished");
+    let started: Option<(PushRetries, ClaimWatch)> = started_within(
+        SHORT_CEILING,
+        plan.as_path(),
+        watch.as_path(),
+        Some(String::from("instance")),
+    );
+    assert_eq!(
+        the_read_was_reached(reached),
+        Some(true),
+        "the journal's read reached the point this control holds, so what the start answered is its ceiling and not a read that finished"
+    );
     let (mut retries, mut notes): (PushRetries, ClaimWatch) = started.expect("the start of a service whose journal gives no answer answers at its ceiling, so the service starts without its journal");
-    assert!(retries.directories().is_empty(), "the held read found no push, so this service has no push to retry yet");
-    assert_eq!(retries.plans(), Some(plan.as_path()), "the plan's directory is kept, so a push this service promises is written where the next start reads it");
-    assert!(retries.needs_restore(), "the plan the start could not read is read again after a pause");
-    assert_eq!(notes.key(), Some(watch.clone()), "the notes' directory is kept too, so the repositories this service looks at are kept for the next start");
-    assert!(notes.needs_retry(), "the notes the start could not read are read again after a pause");
+    assert!(
+        retries.directories().is_empty(),
+        "the held read found no push, so this service has no push to retry yet"
+    );
+    assert_eq!(
+        retries.plans(),
+        Some(plan.as_path()),
+        "the plan's directory is kept, so a push this service promises is written where the next start reads it"
+    );
+    assert!(
+        retries.needs_restore(),
+        "the plan the start could not read is read again after a pause"
+    );
+    assert_eq!(
+        notes.key(),
+        Some(watch.clone()),
+        "the notes' directory is kept too, so the repositories this service looks at are kept for the next start"
+    );
+    assert!(
+        notes.needs_retry(),
+        "the notes the start could not read are read again after a pause"
+    );
     // The read is let go, so the thread the ceiling left behind ends instead of standing in the kernel for the life of the test
     //  process, and the reads this service owes are made again: the push the earlier service left is due, and a notes directory
     //  with no note owes nothing more.
     let _let_go = let_go.send(());
     let found: Vec<std::path::PathBuf> = retries.restore();
-    assert_eq!(found, vec![here.clone()], "the read names the repository whose push waits");
+    assert_eq!(
+        found,
+        vec![here.clone()],
+        "the read names the repository whose push waits"
+    );
     assert!(!retries.needs_restore(), "the journal was read");
-    assert!(retries.next_wait(here.as_path(), Instant::now()).is_some(), "the push the earlier service promised a retry for is due again");
-    assert_eq!(retries.directories(), vec![here], "the loop has the repository to drain for it");
+    assert!(
+        retries.next_wait(here.as_path(), Instant::now()).is_some(),
+        "the push the earlier service promised a retry for is due again"
+    );
+    assert_eq!(
+        retries.directories(),
+        vec![here],
+        "the loop has the repository to drain for it"
+    );
     let _nothing_found: Vec<std::path::PathBuf> = notes.retry();
-    assert!(!notes.needs_retry(), "the notes were read again and hold no note, so nothing of them is owed");
+    assert!(
+        !notes.needs_retry(),
+        "the notes were read again and hold no note, so nothing of them is owed"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -179,26 +240,59 @@ fn a_journal_a_service_could_not_list_at_its_start_is_read_again_and_tried() {
     // A service that stopped left the plan of a push it was still trying.
     let mut previous: PushRetries = PushRetries::restored(Duration::from_secs(1), plan.as_path());
     let _pause: Duration = previous.schedule(here.as_path(), &item, 1, Instant::now());
-    crate::push_retry_store::save(plan.as_path(), &crate::push_retry_store::StoredPlan { git_dir: here.clone(), item: item.clone(), attempt: 1 })
-        .expect("the earlier service's plan file");
+    crate::push_retry_store::save(
+        plan.as_path(),
+        &crate::push_retry_store::StoredPlan {
+            git_dir: here.clone(),
+            item: item.clone(),
+            attempt: 1,
+        },
+    )
+    .expect("the earlier service's plan file");
     drop(previous);
-    assert_eq!(crate::push_retry_store::load(plan.as_path()).len(), 1, "the earlier service's plan is on disk");
+    assert_eq!(
+        crate::push_retry_store::load(plan.as_path()).len(),
+        1,
+        "the earlier service's plan is on disk"
+    );
     // A file stands where the journal's directory belongs, so the next start's listing of it answers an error.
     let moved: std::path::PathBuf = root.join("push-retries-moved-aside");
-    std::fs::rename(plan.as_path(), moved.as_path()).expect("the earlier service's journal is moved aside");
+    std::fs::rename(plan.as_path(), moved.as_path())
+        .expect("the earlier service's journal is moved aside");
     std::fs::write(plan.as_path(), b"").expect("a file where the journal's directory belongs");
-    let started: Option<(PushRetries, ClaimWatch)> = started_within(SHORT_CEILING, plan.as_path(), watch.as_path(), None);
-    let (mut retries, _notes): (PushRetries, ClaimWatch) = started.expect("a journal that could not be listed answers the start, which keeps what it read");
-    assert!(retries.directories().is_empty(), "a journal that could not be listed leaves this service with no push to retry yet");
-    assert!(retries.needs_restore(), "the plan the earlier service kept is still to be read");
+    let started: Option<(PushRetries, ClaimWatch)> =
+        started_within(SHORT_CEILING, plan.as_path(), watch.as_path(), None);
+    let (mut retries, _notes): (PushRetries, ClaimWatch) = started
+        .expect("a journal that could not be listed answers the start, which keeps what it read");
+    assert!(
+        retries.directories().is_empty(),
+        "a journal that could not be listed leaves this service with no push to retry yet"
+    );
+    assert!(
+        retries.needs_restore(),
+        "the plan the earlier service kept is still to be read"
+    );
     // The journal stands again with its plan in it, and the read that was owed finds the push.
-    std::fs::remove_file(plan.as_path()).expect("removing the file that stood where the journal's directory belongs");
-    std::fs::rename(moved.as_path(), plan.as_path()).expect("the earlier service's journal stands again");
+    std::fs::remove_file(plan.as_path())
+        .expect("removing the file that stood where the journal's directory belongs");
+    std::fs::rename(moved.as_path(), plan.as_path())
+        .expect("the earlier service's journal stands again");
     let found: Vec<std::path::PathBuf> = retries.restore();
-    assert_eq!(found, vec![here.clone()], "the read names the repository whose push waits");
+    assert_eq!(
+        found,
+        vec![here.clone()],
+        "the read names the repository whose push waits"
+    );
     assert!(!retries.needs_restore(), "the journal was read");
-    assert!(retries.next_wait(here.as_path(), Instant::now()).is_some(), "the push the earlier service promised a retry for is due again");
-    assert_eq!(retries.directories(), vec![here], "the loop has the repository to drain for it");
+    assert!(
+        retries.next_wait(here.as_path(), Instant::now()).is_some(),
+        "the push the earlier service promised a retry for is due again"
+    );
+    assert_eq!(
+        retries.directories(),
+        vec![here],
+        "the loop has the repository to drain for it"
+    );
     crate::test_support::remove(root.as_path());
 }
 
@@ -234,19 +328,53 @@ fn a_pipe_at_a_plans_name_is_answered_at_once_and_left_alone() {
     std::fs::create_dir_all(plan.as_path()).expect("the plan's directory");
     std::fs::create_dir_all(watch.as_path()).expect("the watch's directory");
     let stalled: std::path::PathBuf = plan.join("a-push-waiting.plan");
-    let text: std::ffi::CString = std::ffi::CString::new(stalled.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
+    let text: std::ffi::CString = std::ffi::CString::new(stalled.as_os_str().as_encoded_bytes())
+        .expect("a path without a zero byte");
     // SAFETY: `mkfifo` reads the path it is given and writes only the file it makes.
     let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "the pipe must stand where a plan file would be: {}", std::io::Error::last_os_error());
-    let started: Option<(PushRetries, ClaimWatch)> = started_within(A_CEILING_NO_READ_REACHES, plan.as_path(), watch.as_path(), Some(String::from("instance")));
-    let (retries, notes): (PushRetries, ClaimWatch) = started.expect("a pipe at a plan's name is answered rather than waited on, so the start answers");
-    assert!(retries.directories().is_empty(), "a pipe holds no plan, so the service starts with no push to retry yet");
-    assert_eq!(retries.plans(), Some(plan.as_path()), "the plan's directory is kept although a pipe stood in it, so what this service writes is read by the next one");
-    assert!(!retries.needs_restore(), "a name that holds no plan is not read again after a pause, because a second read of it answers the same");
-    let pipe: std::fs::FileType = std::fs::symlink_metadata(stalled.as_path()).expect("the pipe is still there").file_type();
-    assert!(pipe.is_fifo(), "a pipe at a plan's name is left alone: it holds no plan, and nothing of this read takes it away");
-    assert_eq!(notes.key(), Some(watch), "the notes' directory is kept too, so the notes this service makes are read by the next one");
-    assert!(!notes.needs_retry(), "the notes were listed, so nothing of them is owed again");
+    assert_eq!(
+        made,
+        0,
+        "the pipe must stand where a plan file would be: {}",
+        std::io::Error::last_os_error()
+    );
+    let started: Option<(PushRetries, ClaimWatch)> = started_within(
+        A_CEILING_NO_READ_REACHES,
+        plan.as_path(),
+        watch.as_path(),
+        Some(String::from("instance")),
+    );
+    let (retries, notes): (PushRetries, ClaimWatch) = started
+        .expect("a pipe at a plan's name is answered rather than waited on, so the start answers");
+    assert!(
+        retries.directories().is_empty(),
+        "a pipe holds no plan, so the service starts with no push to retry yet"
+    );
+    assert_eq!(
+        retries.plans(),
+        Some(plan.as_path()),
+        "the plan's directory is kept although a pipe stood in it, so what this service writes is read by the next one"
+    );
+    assert!(
+        !retries.needs_restore(),
+        "a name that holds no plan is not read again after a pause, because a second read of it answers the same"
+    );
+    let pipe: std::fs::FileType = std::fs::symlink_metadata(stalled.as_path())
+        .expect("the pipe is still there")
+        .file_type();
+    assert!(
+        pipe.is_fifo(),
+        "a pipe at a plan's name is left alone: it holds no plan, and nothing of this read takes it away"
+    );
+    assert_eq!(
+        notes.key(),
+        Some(watch),
+        "the notes' directory is kept too, so the notes this service makes are read by the next one"
+    );
+    assert!(
+        !notes.needs_retry(),
+        "the notes were listed, so nothing of them is owed again"
+    );
     std::fs::remove_file(stalled.as_path()).expect("removing the pipe");
     crate::test_support::remove(root.as_path());
 }

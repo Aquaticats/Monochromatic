@@ -15,15 +15,30 @@
 /// The parser,
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
-use super::{CommitRegion, FixupKind, parse_commit_region};
+use super::{
+    CommitRegion,
+    FixupKind,
+    parse_commit_region,
+};
 use crate::command_commit_table::COMMIT_TABLE;
 use crate::command_options::OptionErrorKind;
-use crate::command_test_completion::{git_completion, render_completion};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
 use crate::command_test_support::{
-    assert_table_invariants, git, git_status, os_arguments, output_text, remove,
+    assert_table_invariants,
+    git,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
     repository_with_tracked_file,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// Number of commits reachable from `HEAD`.

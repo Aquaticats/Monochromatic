@@ -9,7 +9,9 @@ use super::*;
 fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
     return pairs
         .iter()
-        .map(|(name, value)| { return (OsString::from(name), OsString::from(value)); })
+        .map(|(name, value)| {
+            return (OsString::from(name), OsString::from(value));
+        })
         .collect();
 }
 
@@ -32,13 +34,25 @@ fn the_carried_list_is_the_shells_own_programs() {
     assert_eq!(
         programs.variables,
         vec![
-            (String::from("PATH"), String::from("/home/a/.local/share/mise/shims:/usr/bin")),
-            (String::from("GIT_EXEC_PATH"), String::from("/usr/lib/git-core")),
-            (String::from("GIT_SSH_COMMAND"), String::from("ssh -i /home/a/.ssh/id_work")),
+            (
+                String::from("PATH"),
+                String::from("/home/a/.local/share/mise/shims:/usr/bin")
+            ),
+            (
+                String::from("GIT_EXEC_PATH"),
+                String::from("/usr/lib/git-core")
+            ),
+            (
+                String::from("GIT_SSH_COMMAND"),
+                String::from("ssh -i /home/a/.ssh/id_work")
+            ),
         ],
         "the search list and the programs a variable names travel, nothing else"
     );
-    assert!(programs.transport, "the command chose its transport with GIT_SSH_COMMAND");
+    assert!(
+        programs.transport,
+        "the command chose its transport with GIT_SSH_COMMAND"
+    );
 }
 
 /// What:
@@ -49,7 +63,10 @@ fn the_carried_list_is_the_shells_own_programs() {
 /// so a push that carried the first would run a program the person's own Git would not.
 #[test]
 fn the_last_value_of_a_name_is_the_one_that_travels() {
-    let shell: Vec<(OsString, OsString)> = environment(&[("PATH", "/first/bin:/usr/bin"), ("PATH", "/second/bin:/usr/bin")]);
+    let shell: Vec<(OsString, OsString)> = environment(&[
+        ("PATH", "/first/bin:/usr/bin"),
+        ("PATH", "/second/bin:/usr/bin"),
+    ]);
     assert_eq!(
         of(shell.as_slice()).variables,
         vec![(String::from("PATH"), String::from("/second/bin:/usr/bin"))],
@@ -72,12 +89,26 @@ fn a_value_that_is_not_text_does_not_travel_but_its_name_and_its_transport_do() 
     use std::os::unix::ffi::OsStringExt;
     let shell: Vec<(OsString, OsString)> = vec![
         (OsString::from("PATH"), OsString::from("/a/bin:/usr/bin")),
-        (OsString::from("GIT_SSH_COMMAND"), OsString::from_vec(b"ssh -i /home/a/not-text-\xff".to_vec())),
+        (
+            OsString::from("GIT_SSH_COMMAND"),
+            OsString::from_vec(b"ssh -i /home/a/not-text-\xff".to_vec()),
+        ),
     ];
     let programs: PushPrograms = of(shell.as_slice());
-    assert_eq!(programs.variables, vec![(String::from("PATH"), String::from("/a/bin:/usr/bin"))], "only the readable value travels");
-    assert_eq!(programs.not_text, vec![String::from("GIT_SSH_COMMAND")], "the name of the value that could not travel travels in its place");
-    assert!(programs.transport, "the transport the person set is still marked as one they chose");
+    assert_eq!(
+        programs.variables,
+        vec![(String::from("PATH"), String::from("/a/bin:/usr/bin"))],
+        "only the readable value travels"
+    );
+    assert_eq!(
+        programs.not_text,
+        vec![String::from("GIT_SSH_COMMAND")],
+        "the name of the value that could not travel travels in its place"
+    );
+    assert!(
+        programs.transport,
+        "the transport the person set is still marked as one they chose"
+    );
 }
 
 /// What:
@@ -91,8 +122,16 @@ fn a_value_that_is_not_text_does_not_travel_but_its_name_and_its_transport_do() 
 fn a_name_the_command_left_unset_carries_nothing() {
     let shell: Vec<(OsString, OsString)> = environment(&[("PATH", "/a/bin:/usr/bin")]);
     let programs: PushPrograms = of(shell.as_slice());
-    assert_eq!(programs.variables, vec![(String::from("PATH"), String::from("/a/bin:/usr/bin"))], "the readable value travels");
-    assert!(programs.not_text.is_empty(), "no name is carried as one whose value could not travel: {:?}", programs.not_text);
+    assert_eq!(
+        programs.variables,
+        vec![(String::from("PATH"), String::from("/a/bin:/usr/bin"))],
+        "the readable value travels"
+    );
+    assert!(
+        programs.not_text.is_empty(),
+        "no name is carried as one whose value could not travel: {:?}",
+        programs.not_text
+    );
 }
 
 /// What:
@@ -103,11 +142,19 @@ fn a_name_the_command_left_unset_carries_nothing() {
 /// and a mark that was always set would stop every push a restart has to try again.
 #[test]
 fn only_the_variables_that_name_a_transport_mark_one() {
-    let plain: Vec<(OsString, OsString)> = environment(&[("PATH", "/usr/bin"), ("GIT_EXEC_PATH", "/usr/lib/git-core")]);
-    assert!(!of(plain.as_slice()).transport, "a list and an exec path name no transport");
+    let plain: Vec<(OsString, OsString)> =
+        environment(&[("PATH", "/usr/bin"), ("GIT_EXEC_PATH", "/usr/lib/git-core")]);
+    assert!(
+        !of(plain.as_slice()).transport,
+        "a list and an exec path name no transport"
+    );
     for name in TRANSPORT {
-        let set: Vec<(OsString, OsString)> = environment(&[("PATH", "/usr/bin"), (name, "/usr/bin/ssh")]);
-        assert!(of(set.as_slice()).transport, "{name} names the transport a push speaks through");
+        let set: Vec<(OsString, OsString)> =
+            environment(&[("PATH", "/usr/bin"), (name, "/usr/bin/ssh")]);
+        assert!(
+            of(set.as_slice()).transport,
+            "{name} names the transport a push speaks through"
+        );
     }
 }
 
@@ -121,14 +168,27 @@ fn only_the_variables_that_name_a_transport_mark_one() {
 /// one owner per item).
 #[test]
 fn a_value_is_taken_by_its_own_record_only() {
-    let git_dir: PathBuf = crate::test_support::fixture_with_prefix("native-push-programs", "one-record");
+    let git_dir: PathBuf =
+        crate::test_support::fixture_with_prefix("native-push-programs", "one-record");
     let first: PushPrograms = of(environment(&[("PATH", "/first/bin")]).as_slice());
     let second: PushPrograms = of(environment(&[("PATH", "/second/bin")]).as_slice());
     remember(git_dir.as_path(), "push-aaa-b", first.clone());
     remember(git_dir.as_path(), "push-bbb-b", second.clone());
-    assert_eq!(held(git_dir.as_path(), "push-aaa-b"), Some(first), "the first record keeps the first command's list");
-    assert_eq!(held(git_dir.as_path(), "push-bbb-b"), Some(second), "the second record keeps the second command's list");
-    assert_eq!(held(git_dir.as_path(), "push-ccc-b"), None, "a record nobody held values for has none");
+    assert_eq!(
+        held(git_dir.as_path(), "push-aaa-b"),
+        Some(first),
+        "the first record keeps the first command's list"
+    );
+    assert_eq!(
+        held(git_dir.as_path(), "push-bbb-b"),
+        Some(second),
+        "the second record keeps the second command's list"
+    );
+    assert_eq!(
+        held(git_dir.as_path(), "push-ccc-b"),
+        None,
+        "a record nobody held values for has none"
+    );
 }
 
 /// What:
@@ -139,14 +199,23 @@ fn a_value_is_taken_by_its_own_record_only() {
 /// and a finished push must not keep a credential in the service's memory.
 #[test]
 fn a_record_held_again_takes_the_newer_values_and_forgetting_removes_them() {
-    let git_dir: PathBuf = crate::test_support::fixture_with_prefix("native-push-programs", "held-again");
+    let git_dir: PathBuf =
+        crate::test_support::fixture_with_prefix("native-push-programs", "held-again");
     let older: PushPrograms = of(environment(&[("PATH", "/older/bin")]).as_slice());
     let newer: PushPrograms = of(environment(&[("PATH", "/newer/bin")]).as_slice());
     remember(git_dir.as_path(), "push-aaa-b", older);
     remember(git_dir.as_path(), "push-aaa-b", newer.clone());
-    assert_eq!(held(git_dir.as_path(), "push-aaa-b"), Some(newer), "the landing that holds the record last is the one that asked for its push");
+    assert_eq!(
+        held(git_dir.as_path(), "push-aaa-b"),
+        Some(newer),
+        "the landing that holds the record last is the one that asked for its push"
+    );
     forget(git_dir.as_path(), "push-aaa-b");
-    assert_eq!(held(git_dir.as_path(), "push-aaa-b"), None, "a settled record keeps nothing");
+    assert_eq!(
+        held(git_dir.as_path(), "push-aaa-b"),
+        None,
+        "a settled record keeps nothing"
+    );
 }
 
 /// What:
@@ -162,8 +231,16 @@ fn giving_up_a_worktree_gives_up_its_own_values_only() {
     remember(gone.as_path(), "push-aaa-b", programs.clone());
     remember(kept.as_path(), "push-aaa-b", programs.clone());
     forget_every(gone.as_path());
-    assert_eq!(held(gone.as_path(), "push-aaa-b"), None, "the worktree that is gone keeps nothing");
-    assert_eq!(held(kept.as_path(), "push-aaa-b"), Some(programs), "the worktree beside it keeps its own list");
+    assert_eq!(
+        held(gone.as_path(), "push-aaa-b"),
+        None,
+        "the worktree that is gone keeps nothing"
+    );
+    assert_eq!(
+        held(kept.as_path(), "push-aaa-b"),
+        Some(programs),
+        "the worktree beside it keeps its own list"
+    );
     forget_every(kept.as_path());
 }
 
@@ -175,14 +252,21 @@ fn giving_up_a_worktree_gives_up_its_own_values_only() {
 /// and a name the list does not hold must keep the service's own value.
 #[test]
 fn the_pairs_are_the_list_and_the_list_says_which_names_it_holds() {
-    let programs: PushPrograms = of(environment(&[("PATH", "/usr/bin"), ("GIT_SSH", "/usr/bin/ssh")]).as_slice());
+    let programs: PushPrograms =
+        of(environment(&[("PATH", "/usr/bin"), ("GIT_SSH", "/usr/bin/ssh")]).as_slice());
     assert_eq!(
         programs.as_pairs(),
-        vec![(OsString::from("PATH"), OsString::from("/usr/bin")), (OsString::from("GIT_SSH"), OsString::from("/usr/bin/ssh"))],
+        vec![
+            (OsString::from("PATH"), OsString::from("/usr/bin")),
+            (OsString::from("GIT_SSH"), OsString::from("/usr/bin/ssh"))
+        ],
         "the list is what the push's children receive"
     );
     assert!(programs.holds("GIT_SSH"), "the command named its ssh");
-    assert!(!programs.holds("GIT_PROXY_COMMAND"), "and named no proxy command");
+    assert!(
+        !programs.holds("GIT_PROXY_COMMAND"),
+        "and named no proxy command"
+    );
 }
 
 /// What:
@@ -201,18 +285,35 @@ fn the_pairs_are_the_list_and_the_list_says_which_names_it_holds() {
 #[test]
 fn the_debug_output_of_a_list_names_the_variables_and_never_a_value() {
     const SECRET: &str = "ssh -i /nowhere/A-VALUE-NOBODY-MAY-PRINT";
-    let programs: PushPrograms = of(environment(&[("PATH", "/usr/bin"), ("GIT_SSH_COMMAND", SECRET)]).as_slice());
+    let programs: PushPrograms =
+        of(environment(&[("PATH", "/usr/bin"), ("GIT_SSH_COMMAND", SECRET)]).as_slice());
     let shown: String = format!("{programs:?}");
-    assert!(shown.contains("GIT_SSH_COMMAND") && shown.contains("PATH"), "the names say which variables travel: {shown}");
-    assert!(!shown.contains("A-VALUE-NOBODY-MAY-PRINT"), "no value reaches debug output: {shown}");
-    let message: crate::service_protocol::ClientMessage = crate::service_protocol::ClientMessage::Work {
-        git_dir: PathBuf::from("/srv/repo/.git"),
-        review_key: None,
-        push_programs: vec![(String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"), programs.clone())],
-    };
+    assert!(
+        shown.contains("GIT_SSH_COMMAND") && shown.contains("PATH"),
+        "the names say which variables travel: {shown}"
+    );
+    assert!(
+        !shown.contains("A-VALUE-NOBODY-MAY-PRINT"),
+        "no value reaches debug output: {shown}"
+    );
+    let message: crate::service_protocol::ClientMessage =
+        crate::service_protocol::ClientMessage::Work {
+            git_dir: PathBuf::from("/srv/repo/.git"),
+            review_key: None,
+            push_programs: vec![(
+                String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"),
+                programs.clone(),
+            )],
+        };
     let shown_message: String = format!("{message:?}");
-    assert!(shown_message.contains("pushPrograms") || shown_message.contains("Work"), "the message is named: {shown_message}");
-    assert!(!shown_message.contains("A-VALUE-NOBODY-MAY-PRINT"), "no value reaches the message's debug output: {shown_message}");
+    assert!(
+        shown_message.contains("pushPrograms") || shown_message.contains("Work"),
+        "the message is named: {shown_message}"
+    );
+    assert!(
+        !shown_message.contains("A-VALUE-NOBODY-MAY-PRINT"),
+        "no value reaches the message's debug output: {shown_message}"
+    );
     let request: crate::service_protocol::CommitRequest = crate::service_protocol::CommitRequest {
         id: String::from("0a1b2c3d-4e5f"),
         repository: PathBuf::from("/work/repo"),
@@ -229,13 +330,21 @@ fn the_debug_output_of_a_list_names_the_variables_and_never_a_value() {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/work/repo/.git/index"),
-        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0"),
+        scratch: PathBuf::from(
+            "/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0",
+        ),
         shadow: None,
         captured: 0,
         holder: String::new(),
         programs: Some(programs),
     };
     let shown_request: String = format!("{request:?}");
-    assert!(shown_request.contains("GIT_SSH_COMMAND"), "the request's debug output names the variables: {shown_request}");
-    assert!(!shown_request.contains("A-VALUE-NOBODY-MAY-PRINT"), "no value reaches the request's debug output: {shown_request}");
+    assert!(
+        shown_request.contains("GIT_SSH_COMMAND"),
+        "the request's debug output names the variables: {shown_request}"
+    );
+    assert!(
+        !shown_request.contains("A-VALUE-NOBODY-MAY-PRINT"),
+        "no value reaches the request's debug output: {shown_request}"
+    );
 }

@@ -111,7 +111,10 @@ pub fn printable(bytes: &[u8]) -> String {
 /// ```
 pub fn program_of(first_word: Option<&[u8]>) -> String {
     let word: &[u8] = first_word.unwrap_or_default();
-    let end: usize = word.iter().position(u8::is_ascii_whitespace).unwrap_or(word.len());
+    let end: usize = word
+        .iter()
+        .position(u8::is_ascii_whitespace)
+        .unwrap_or(word.len());
     return printable(&word[..end]);
 }
 

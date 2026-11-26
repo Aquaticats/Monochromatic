@@ -38,7 +38,10 @@
 use crate::auto_push_dirty_paths::listed;
 use crate::merge_isolation_changes::worktree_path;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Every path of `paths` whose worktree entry is a named pipe,
@@ -57,7 +60,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function aSpecialFileTheMergeChanges(root, paths) { return paths.filter((p) => holdsNoBytes(join(root, p))); }
 /// ```
-pub fn a_special_file_the_merge_changes(root: &Path, paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
+pub fn a_special_file_the_merge_changes(
+    root: &Path,
+    paths: &[Vec<u8>],
+) -> Vec<Vec<u8>> {
     let mut found: Vec<Vec<u8>> = Vec::new();
     for path in paths {
         let location: PathBuf = worktree_path(root, path.as_slice());
@@ -108,7 +114,10 @@ fn holds_no_bytes(location: &Path) -> bool {
 /// ```ts
 /// `git merge ${reference}: the worktree holds ${listed(found)} where this merge writes or deletes a path, ...`;
 /// ```
-pub fn the_line(reference: &str, found: &[Vec<u8>]) -> String {
+pub fn the_line(
+    reference: &str,
+    found: &[Vec<u8>],
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: the worktree holds {} where this merge writes or deletes a path, and a \
          named pipe, a socket or a device holds no bytes a merge can carry, so the merge was not made and nothing in the worktree, \

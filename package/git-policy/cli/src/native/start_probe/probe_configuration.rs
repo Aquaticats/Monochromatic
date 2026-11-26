@@ -32,12 +32,28 @@
 //! const source = sourceName(textOrNone, configurationPath, liveMountedDatasets, checkout);
 //! ```
 
-use super::probe_configuration_refusal::{CheckoutRefusal, SourceRefusal};
-use super::probe_source_name::{ProbeSource, check_dataset_name};
-use crate::jsonc_member_text::{MemberReading, text_of_member};
+use super::probe_configuration_refusal::{
+    CheckoutRefusal,
+    SourceRefusal,
+};
+use super::probe_source_name::{
+    ProbeSource,
+    check_dataset_name,
+};
+use crate::jsonc_member_text::{
+    MemberReading,
+    text_of_member,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{the_checkout_dataset_at, the_designs_probe_dataset_under, the_one_mounted_checkout};
-use std::path::{Path, PathBuf};
+use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{
+    the_checkout_dataset_at,
+    the_designs_probe_dataset_under,
+    the_one_mounted_checkout,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The one object the project answered holds both names.
 pub const START_PROBE_KEY: &str = crate::handler_configuration_keys::START_PROBE_KEY;
@@ -75,7 +91,10 @@ pub const PARENT_KEY: &str = crate::handler_configuration_keys::PARENT_KEY;
 /// ```ts
 /// const text = textAtKey(document, 'dataset'); // undefined when absent or not text
 /// ```
-fn text_at_key(configuration: &str, key: &str) -> MemberReading {
+fn text_at_key(
+    configuration: &str,
+    key: &str,
+) -> MemberReading {
     return text_of_member(configuration, START_PROBE_KEY, key);
 }
 
@@ -122,14 +141,24 @@ pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> 
     return match crate::file_only_root_may_write::read_file_only_root_may_write(path) {
         // A file that is there and holds nothing is refused rather than read as a file that names nothing:
         // the project's answer of 2026-11-22 says an empty file is not the same as no file.
-        Ok(Some(text)) if text.trim().is_empty() => Err(SourceRefusal::ConfigurationEmpty { path: path.to_path_buf() }),
+        Ok(Some(text)) if text.trim().is_empty() => Err(SourceRefusal::ConfigurationEmpty {
+            path: path.to_path_buf(),
+        }),
         Ok(text) => Ok(text),
         // A file that could not be opened or read at all is a read failure and keeps that word; a file that is there
         // and fails a term of root control answers which term, so a record never says one for the other.
-        Err(refusal @ crate::file_only_root_may_write::FileControlRefusal::Open { .. }) => {
-            Err(SourceRefusal::ConfigurationUnreadable { path: path.to_path_buf(), reason: refusal.reason() })
-        }
-        Err(refusal) => Err(SourceRefusal::ConfigurationNotUnderRootControl { path: path.to_path_buf(), reason: refusal.reason() }),
+        Err(
+            refusal @ crate::file_only_root_may_write::FileControlRefusal::Open {
+                ..
+            },
+        ) => Err(SourceRefusal::ConfigurationUnreadable {
+            path: path.to_path_buf(),
+            reason: refusal.reason(),
+        }),
+        Err(refusal) => Err(SourceRefusal::ConfigurationNotUnderRootControl {
+            path: path.to_path_buf(),
+            reason: refusal.reason(),
+        }),
     };
 }
 
@@ -180,7 +209,10 @@ pub struct ProbeCheckout {
 /// the key is not text,
 /// a path is not absolute,
 /// or the design's name matched none or several.
-pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Result<ProbeCheckout, CheckoutRefusal> {
+pub fn checkout_path(
+    document: Option<&str>,
+    mounts: &dyn MountedDatasets,
+) -> Result<ProbeCheckout, CheckoutRefusal> {
     let Some(held) = document else {
         return found_checkout(mounts, None);
     };
@@ -191,7 +223,10 @@ pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Re
         MemberReading::Text(text) => {
             let checkout: PathBuf = PathBuf::from(text);
             if checkout.is_absolute() {
-                Ok(ProbeCheckout { path: checkout, dataset: None })
+                Ok(ProbeCheckout {
+                    path: checkout,
+                    dataset: None,
+                })
             } else {
                 Err(CheckoutRefusal::NotAbsolute)
             }
@@ -223,10 +258,22 @@ pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Re
 /// The table could not be read,
 /// no row is an instance of the design's dataset,
 /// or more than one row is.
-fn found_checkout(mounts: &dyn MountedDatasets, container_in_use: Option<&str>) -> Result<ProbeCheckout, CheckoutRefusal> {
+fn found_checkout(
+    mounts: &dyn MountedDatasets,
+    container_in_use: Option<&str>,
+) -> Result<ProbeCheckout, CheckoutRefusal> {
     return the_one_mounted_checkout(mounts, container_in_use)
-        .map(|one| return ProbeCheckout { path: one.mount_point, dataset: Some(one.dataset) })
-        .map_err(|refusal| return CheckoutRefusal::NotFound { refusal });
+        .map(|one| {
+            return ProbeCheckout {
+                path: one.mount_point,
+                dataset: Some(one.dataset),
+            };
+        })
+        .map_err(|refusal| {
+            return CheckoutRefusal::NotFound {
+                refusal,
+            };
+        });
 }
 
 /// What:
@@ -244,7 +291,12 @@ fn found_checkout(mounts: &dyn MountedDatasets, container_in_use: Option<&str>) 
 /// the key is not text,
 /// the text is not a dataset name,
 /// or the checkout's dataset and pool could not be told.
-pub fn source_name(document: Option<&str>, path: &Path, mounts: &dyn MountedDatasets, checkout: Option<&ProbeCheckout>) -> Result<ProbeSource, SourceRefusal> {
+pub fn source_name(
+    document: Option<&str>,
+    path: &Path,
+    mounts: &dyn MountedDatasets,
+    checkout: Option<&ProbeCheckout>,
+) -> Result<ProbeSource, SourceRefusal> {
     let reading: MemberReading = match document {
         Some(text) => text_at_key(text, DATASET_KEY),
         None => MemberReading::Absent,
@@ -252,13 +304,23 @@ pub fn source_name(document: Option<&str>, path: &Path, mounts: &dyn MountedData
     return match reading {
         MemberReading::Text(name) => {
             if let Err(why) = check_dataset_name(name.as_str()) {
-                return Err(SourceRefusal::NameRefused { name, why });
+                return Err(SourceRefusal::NameRefused {
+                    name,
+                    why,
+                });
             }
-            Ok(ProbeSource { dataset: name })
+            Ok(ProbeSource {
+                dataset: name,
+            })
         }
         MemberReading::Absent => found_source(mounts, checkout, path),
-        MemberReading::NotText => Err(SourceRefusal::NameNotText { path: path.to_path_buf() }),
-        MemberReading::DocumentNotJsonc => Err(SourceRefusal::ConfigurationUnparsable { path: path.to_path_buf(), reason: String::from("the document did not parse") }),
+        MemberReading::NotText => Err(SourceRefusal::NameNotText {
+            path: path.to_path_buf(),
+        }),
+        MemberReading::DocumentNotJsonc => Err(SourceRefusal::ConfigurationUnparsable {
+            path: path.to_path_buf(),
+            reason: String::from("the document did not parse"),
+        }),
     };
 }
 
@@ -274,18 +336,34 @@ pub fn source_name(document: Option<&str>, path: &Path, mounts: &dyn MountedData
 /// # Errors
 /// The checkout's dataset could not be told,
 /// or its name has no pool component.
-fn found_source(mounts: &dyn MountedDatasets, checkout: Option<&ProbeCheckout>, path: &Path) -> Result<ProbeSource, SourceRefusal> {
+fn found_source(
+    mounts: &dyn MountedDatasets,
+    checkout: Option<&ProbeCheckout>,
+    path: &Path,
+) -> Result<ProbeSource, SourceRefusal> {
     let Some(told) = checkout else {
-        return Err(SourceRefusal::CheckoutNotFound { path: path.to_path_buf() });
+        return Err(SourceRefusal::CheckoutNotFound {
+            path: path.to_path_buf(),
+        });
     };
     // The row that carried the path also carried the dataset, and the look-up that found it already checked the design's leaf name,
     // so only a path the file named has a table answer still owed.
     let dataset: String = match told.dataset.as_deref() {
         Some(named) => String::from(named),
-        None => the_checkout_dataset_at(told.path.as_path(), mounts).map_err(|refusal| return SourceRefusal::Checkout { refusal })?,
+        None => the_checkout_dataset_at(told.path.as_path(), mounts).map_err(|refusal| {
+            return SourceRefusal::Checkout {
+                refusal,
+            };
+        })?,
     };
-    let probe: String = the_designs_probe_dataset_under(dataset.as_str()).map_err(|refusal| return SourceRefusal::Checkout { refusal })?;
-    return Ok(ProbeSource { dataset: probe });
+    let probe: String = the_designs_probe_dataset_under(dataset.as_str()).map_err(|refusal| {
+        return SourceRefusal::Checkout {
+            refusal,
+        };
+    })?;
+    return Ok(ProbeSource {
+        dataset: probe,
+    });
 }
 
 /// Controls stay out of the release executable.

@@ -32,7 +32,10 @@
 
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One reading of the entry at the checkout path and of its parent.
@@ -110,15 +113,23 @@ impl EntryReadRefusal {
     /// naming the path and what to inspect.
     pub fn message(&self) -> String {
         return match self {
-            EntryReadRefusal::PathNotText { path } => format!(
+            EntryReadRefusal::PathNotText {
+                path,
+            } => format!(
                 "the checkout path `{}` is not text or holds a NUL byte, so the kernel facts that decide the covered entry's protection cannot be read. Nothing was attached, mounted or changed. Ways forward: give the checkout path as UTF-8 text.",
                 path.display()
             ),
-            EntryReadRefusal::NoParent { path } => format!(
+            EntryReadRefusal::NoParent {
+                path,
+            } => format!(
                 "the checkout path `{}` has no parent, so the read cannot tell a covered entry from a mount at the path. Nothing was attached, mounted or changed. Ways forward: name the folder the checkout is mounted at, not a filesystem root.",
                 path.display()
             ),
-            EntryReadRefusal::Call { what, path, reason } => format!(
+            EntryReadRefusal::Call {
+                what,
+                path,
+                reason,
+            } => format!(
                 "{what} of `{}` could not be read ({reason}), so whether the checkout's underlay is protected is unknown. Nothing was attached, mounted or changed. Ways forward: read the path by hand as root with `stat --format='%d %i %u %a %A'` and confirm it exists and is reachable; a path that is gone needs the migration or a restore before it is served.",
                 path.display()
             ),
@@ -143,7 +154,10 @@ pub trait EntryReader {
     /// The path is not text,
     /// has no parent,
     /// or the kernel refused a read.
-    fn read(&self, path: &Path) -> Result<CoveredEntryFacts, EntryReadRefusal>;
+    fn read(
+        &self,
+        path: &Path,
+    ) -> Result<CoveredEntryFacts, EntryReadRefusal>;
 }
 
 /// The read the release boot makes.
@@ -155,10 +169,18 @@ pub trait EntryReader {
 pub struct LiveEntryReader;
 
 impl EntryReader for LiveEntryReader {
-    fn read(&self, path: &Path) -> Result<CoveredEntryFacts, EntryReadRefusal> {
-        let parent: &Path = path.parent().filter(|one| return !one.as_os_str().is_empty()).ok_or_else(|| {
-            return EntryReadRefusal::NoParent { path: path.to_path_buf() };
-        })?;
+    fn read(
+        &self,
+        path: &Path,
+    ) -> Result<CoveredEntryFacts, EntryReadRefusal> {
+        let parent: &Path = path
+            .parent()
+            .filter(|one| return !one.as_os_str().is_empty())
+            .ok_or_else(|| {
+                return EntryReadRefusal::NoParent {
+                    path: path.to_path_buf(),
+                };
+            })?;
         let entry: libc::statx = statx_one("the entry", path, libc::AT_SYMLINK_NOFOLLOW)?;
         let above: libc::statx = statx_one("its parent", parent, 0)?;
         let mode: u32 = u32::from(entry.stx_mode);
@@ -196,14 +218,34 @@ fn device_number(facts: &libc::statx) -> u64 {
 /// Why:
 ///  one call shape serves both the entry and its parent,
 ///  so the two answers are comparable field by field.
-fn statx_one(what: &'static str, path: &Path, flags: libc::c_int) -> Result<libc::statx, EntryReadRefusal> {
-    let text: CString = CString::new(path.as_os_str().as_bytes()).map_err(|_nul| return EntryReadRefusal::PathNotText { path: path.to_path_buf() })?;
+fn statx_one(
+    what: &'static str,
+    path: &Path,
+    flags: libc::c_int,
+) -> Result<libc::statx, EntryReadRefusal> {
+    let text: CString = CString::new(path.as_os_str().as_bytes()).map_err(|_nul| {
+        return EntryReadRefusal::PathNotText {
+            path: path.to_path_buf(),
+        };
+    })?;
     let mut facts: libc::statx = unsafe { std::mem::zeroed() };
     // SAFETY: the path is a NUL-terminated string that outlives the call, the flags are the two the read names, and the
     // answer is written into `facts`, which this function owns.
-    let answered: libc::c_int = unsafe { libc::statx(libc::AT_FDCWD, text.as_ptr(), flags, libc::STATX_BASIC_STATS, &mut facts) };
+    let answered: libc::c_int = unsafe {
+        libc::statx(
+            libc::AT_FDCWD,
+            text.as_ptr(),
+            flags,
+            libc::STATX_BASIC_STATS,
+            &mut facts,
+        )
+    };
     if answered != 0 {
-        return Err(EntryReadRefusal::Call { what, path: path.to_path_buf(), reason: std::io::Error::last_os_error().to_string() });
+        return Err(EntryReadRefusal::Call {
+            what,
+            path: path.to_path_buf(),
+            reason: std::io::Error::last_os_error().to_string(),
+        });
     }
     return Ok(facts);
 }

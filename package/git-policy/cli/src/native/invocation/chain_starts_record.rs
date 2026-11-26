@@ -204,7 +204,10 @@ pub fn remember_marker(marker: &OsStr) {
 /// writeMarkerForControls(fd, markerText) // what the wrapper does before it starts its Git
 /// ```
 #[cfg(test)]
-pub fn write_marker_for_controls(descriptor: i32, marker: &str) -> bool {
+pub fn write_marker_for_controls(
+    descriptor: i32,
+    marker: &str,
+) -> bool {
     return write_part(descriptor, MARKER_OFFSET, MARKER_ROOM, OsStr::new(marker));
 }
 
@@ -261,11 +264,18 @@ impl Drop for ChainRecord {
 /// ```
 pub fn for_this_start_with(inherited: impl Fn() -> Option<i32>) -> Option<ChainRecord> {
     let Some(descriptor) = inherited().or_else(create_descriptor) else {
-        debug(TAG, "no chain record could be made, so a launcher that clears the environment and execs the wrapper is not counted");
+        debug(
+            TAG,
+            "no chain record could be made, so a launcher that clears the environment and execs the wrapper is not counted",
+        );
         return None;
     };
     let (marker, chosen): (Option<String>, Option<String>) = read_parts(descriptor);
-    return Some(ChainRecord { descriptor, marker, chosen });
+    return Some(ChainRecord {
+        descriptor,
+        marker,
+        chosen,
+    });
 }
 
 /// What:
@@ -314,7 +324,9 @@ pub fn inherited_descriptor_in(directory: &std::path::Path) -> Option<i32> {
         let Some(number) = entry.file_name().to_str().and_then(descriptor_number) else {
             continue;
         };
-        let Ok(target) = std::fs::read_link(entry.path()) else { continue };
+        let Ok(target) = std::fs::read_link(entry.path()) else {
+            continue;
+        };
         if carries_record_name(target.as_path()) {
             return Some(number);
         }
@@ -360,9 +372,17 @@ pub fn create_descriptor() -> Option<i32> {
     let name: std::ffi::CString = std::ffi::CString::new(RECORD_NAME).ok()?;
     // SAFETY: `memfd_create` takes a pointer to a NUL-terminated name this call keeps alive and a flags word of zero;
     //  it returns a descriptor or -1 and touches no memory of this process.
-    let descriptor: libc::c_int = unsafe { libc::syscall(libc::SYS_memfd_create, name.as_ptr(), 0u32) } as libc::c_int;
+    let descriptor: libc::c_int =
+        unsafe { libc::syscall(libc::SYS_memfd_create, name.as_ptr(), 0u32) } as libc::c_int;
     if descriptor < 0 {
-        debug(TAG, format!("a chain record cannot be made: {}", std::io::Error::last_os_error()).as_str());
+        debug(
+            TAG,
+            format!(
+                "a chain record cannot be made: {}",
+                std::io::Error::last_os_error()
+            )
+            .as_str(),
+        );
         return None;
     }
     return above_the_standard_streams(descriptor);
@@ -403,13 +423,21 @@ fn above_the_standard_streams(descriptor: libc::c_int) -> Option<libc::c_int> {
     }
     // SAFETY: `fcntl(F_DUPFD, ..)` duplicates this process's descriptor to the lowest free number at or above the one
     //  asked for, touches no memory, and returns the new descriptor or -1.
-    let moved: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_DUPFD, FIRST_RECORD_DESCRIPTOR) };
+    let moved: libc::c_int =
+        unsafe { libc::fcntl(descriptor, libc::F_DUPFD, FIRST_RECORD_DESCRIPTOR) };
     // The number the kernel gave is closed either way: nothing else holds this memory file, and a stream that was closed
     //  must stay closed for the child.
     // SAFETY: `close` takes a descriptor this process owns and touches no memory.
     let _closed = unsafe { libc::close(descriptor) };
     if moved < FIRST_RECORD_DESCRIPTOR {
-        debug(TAG, format!("a chain record cannot be moved above the standard streams: {}", std::io::Error::last_os_error()).as_str());
+        debug(
+            TAG,
+            format!(
+                "a chain record cannot be moved above the standard streams: {}",
+                std::io::Error::last_os_error()
+            )
+            .as_str(),
+        );
         return None;
     }
     return Some(moved);
@@ -435,7 +463,9 @@ pub fn read_parts(descriptor: i32) -> (Option<String>, Option<String>) {
     // SAFETY: `pread` reads into the buffer this call owns for its whole length, at an offset that exists or not, and
     //  returns how much it read or -1.
     let read: isize = unsafe { libc::pread(descriptor, bytes.as_mut_ptr().cast(), bytes.len(), 0) };
-    let Ok(read_bytes) = usize::try_from(read) else { return (None, None) };
+    let Ok(read_bytes) = usize::try_from(read) else {
+        return (None, None);
+    };
     let marker: Option<String> = text_of(&bytes, 0, MARKER_ROOM.min(read_bytes));
     let chosen: Option<String> = text_of(&bytes, MARKER_ROOM.min(read_bytes), read_bytes);
     return (marker, chosen);
@@ -453,7 +483,11 @@ pub fn read_parts(descriptor: i32) -> (Option<String>, Option<String>) {
 /// const text = buffer.subarray(from, to).toString('utf8').replace(/\0.*$/s, ''); return text || undefined;
 /// ```
 #[cfg(unix)]
-fn text_of(bytes: &[u8], from: usize, to: usize) -> Option<String> {
+fn text_of(
+    bytes: &[u8],
+    from: usize,
+    to: usize,
+) -> Option<String> {
     let part: &[u8] = bytes.get(from..to)?;
     let end: usize = part.iter().position(is_padding).unwrap_or(part.len());
     let text: &[u8] = &part[..end];
@@ -484,7 +518,12 @@ fn text_of(bytes: &[u8], from: usize, to: usize) -> Option<String> {
 /// writeAt(fd, offset, Buffer.concat([Buffer.from(text.slice(0, room - 1)), Buffer.alloc(1)]));
 /// ```
 #[cfg(unix)]
-fn write_part(descriptor: i32, offset: i32, room: usize, text: &OsStr) -> bool {
+fn write_part(
+    descriptor: i32,
+    offset: i32,
+    room: usize,
+    text: &OsStr,
+) -> bool {
     use std::os::unix::ffi::OsStrExt;
     // `mut` allows the ending NUL to be added after the text.
     let mut bytes: Vec<u8> = text.as_bytes().to_vec();
@@ -492,7 +531,14 @@ fn write_part(descriptor: i32, offset: i32, room: usize, text: &OsStr) -> bool {
     bytes.push(PADDING);
     // SAFETY: `pwrite` writes the bytes this call owns at an offset that exists or not, and returns how much it wrote
     //  or -1.
-    let written: isize = unsafe { libc::pwrite(descriptor, bytes.as_ptr().cast(), bytes.len(), offset.into()) };
+    let written: isize = unsafe {
+        libc::pwrite(
+            descriptor,
+            bytes.as_ptr().cast(),
+            bytes.len(),
+            offset.into(),
+        )
+    };
     return written == isize::try_from(bytes.len()).unwrap_or(-1);
 }
 
@@ -510,7 +556,12 @@ pub fn read_parts(_descriptor: i32) -> (Option<String>, Option<String>) {
 
 /// Without a descriptor there is nothing to write.
 #[cfg(not(unix))]
-fn write_part(_descriptor: i32, _offset: i32, _room: usize, _text: &OsStr) -> bool {
+fn write_part(
+    _descriptor: i32,
+    _offset: i32,
+    _room: usize,
+    _text: &OsStr,
+) -> bool {
     return false;
 }
 

@@ -19,21 +19,40 @@
 //! ```
 
 use super::adopt_worktree_parent_mode;
-use super::attaching_sweep_mode::{self, SweepPlaces};
-use super::boot_reconcile_mode::{self, ReconcilePlaces};
-use super::handler_mode_arguments::{self, MODE_WORDS, HandlerMode};
+use super::attaching_sweep_mode::{
+    self,
+    SweepPlaces,
+};
+use super::boot_reconcile_mode::{
+    self,
+    ReconcilePlaces,
+};
+use super::handler_install_paths::CONFIGURATION_PATH;
+use super::handler_mode_arguments::{
+    self,
+    HandlerMode,
+    MODE_WORDS,
+};
+use super::holder_scan_mode;
 use super::mount_path_descendant_mode;
 use super::record_checkout_mode;
-use super::root_mode_names::RootModeMisuse;
-use super::holder_scan_mode;
 use super::root_mode_caller::NotRootRefusal;
+use super::root_mode_names::RootModeMisuse;
 use super::shutdown_unmount_mode;
 use crate::diagnostic_lines_off_the_calling_thread::write;
-use super::handler_install_paths::CONFIGURATION_PATH;
-use crate::start_probe::{FingerprintPaths, ProbeMode, RecordPlace, skip_after_gate_refusal};
+use crate::start_probe::{
+    FingerprintPaths,
+    ProbeMode,
+    RecordPlace,
+    skip_after_gate_refusal,
+};
 use crate::worktree_clone_mount_protocol::ReadinessFile;
 use crate::zfs_compatibility_gate::gate_verdict::Verdict;
-use crate::zfs_compatibility_gate::{BeforeRequests, LiveGate, verdict_line};
+use crate::zfs_compatibility_gate::{
+    BeforeRequests,
+    LiveGate,
+    verdict_line,
+};
 use rustix::process::geteuid;
 use std::ffi::OsString;
 use std::io::Write;
@@ -201,9 +220,19 @@ fn behind_the_gate(
 /// The place and the configuration path are arguments,
 /// so a control runs the refused branch against a fixture directory and never
 /// writes under `/run`.
-fn behind_the_gate_for_the_probe(gate: &dyn BeforeRequests, place: &RecordPlace, configuration: &std::path::Path) -> Result<String, String> {
+fn behind_the_gate_for_the_probe(
+    gate: &dyn BeforeRequests,
+    place: &RecordPlace,
+    configuration: &std::path::Path,
+) -> Result<String, String> {
     let effective_user = geteuid();
-    return behind_the_gate_for_the_probe_as(gate, place, configuration, effective_user.is_root(), effective_user.as_raw());
+    return behind_the_gate_for_the_probe_as(
+        gate,
+        place,
+        configuration,
+        effective_user.is_root(),
+        effective_user.as_raw(),
+    );
 }
 
 /// What:
@@ -247,8 +276,12 @@ fn behind_the_gate_for_the_probe_as(
     let verdict: Verdict = gate.verdict();
     let line: String = verdict_line(&verdict);
     if let Verdict::Refused(refusal) = &verdict {
-        let skipped: Result<String, String> = skip_after_gate_refusal(place, &FingerprintPaths::live(), refusal.step.as_str());
-        return Ok(format!("{line}\n{}", skipped.unwrap_or_else(|refusal_line| return refusal_line)));
+        let skipped: Result<String, String> =
+            skip_after_gate_refusal(place, &FingerprintPaths::live(), refusal.step.as_str());
+        return Ok(format!(
+            "{line}\n{}",
+            skipped.unwrap_or_else(|refusal_line| return refusal_line)
+        ));
     }
     let mode: ProbeMode = ProbeMode::new(place, configuration);
     return match mode.run() {
@@ -362,7 +395,10 @@ pub fn run(arguments: &[OsString]) -> i32 {
 /// ```ts
 /// const status = runBehind(gate, argv);
 /// ```
-pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
+pub fn run_behind(
+    gate: &dyn BeforeRequests,
+    arguments: &[OsString],
+) -> i32 {
     return run_behind_at(gate, &DispatchPlaces::installed(), arguments);
 }
 
@@ -380,7 +416,11 @@ pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
 /// ```ts
 /// const status = runBehindAt(gate, places, argv);
 /// ```
-pub fn run_behind_at(gate: &dyn BeforeRequests, places: &DispatchPlaces, arguments: &[OsString]) -> i32 {
+pub fn run_behind_at(
+    gate: &dyn BeforeRequests,
+    places: &DispatchPlaces,
+    arguments: &[OsString],
+) -> i32 {
     let mode: HandlerMode = match handler_mode_arguments::parse(arguments) {
         Ok(mode) => mode,
         Err(refusal) => {
@@ -398,16 +438,33 @@ pub fn run_behind_at(gate: &dyn BeforeRequests, places: &DispatchPlaces, argumen
             report_line(super::handler_install_paths::version_line().as_str());
             EXIT_DONE
         }
-        HandlerMode::AttachingSweep => report(behind_the_gate(gate, || return attaching_sweep_mode::run_at(&places.sweep))),
-        HandlerMode::BootReconcile => report(behind_the_gate(gate, || return boot_reconcile_mode::run_at(&places.reconcile, &places.readiness))),
-        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate, &places.probe, places.probe_configuration.as_path())),
+        HandlerMode::AttachingSweep => report(behind_the_gate(gate, || {
+            return attaching_sweep_mode::run_at(&places.sweep);
+        })),
+        HandlerMode::BootReconcile => report(behind_the_gate(gate, || {
+            return boot_reconcile_mode::run_at(&places.reconcile, &places.readiness);
+        })),
+        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(
+            gate,
+            &places.probe,
+            places.probe_configuration.as_path(),
+        )),
         HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
             return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());
         })),
-        HandlerMode::HolderScan(invocation) => report(behind_the_gate(gate, || return holder_scan_mode::run(&invocation))),
-        HandlerMode::AdoptWorktreeParent(request) => report(adopt_worktree_parent_mode::run(&request).map_err(|failure| return failure.message())),
-        HandlerMode::RecordCheckout(request) => report(behind_the_gate(gate, || return record_checkout_mode::run(&request).map_err(|failure| return failure.message()))),
-        HandlerMode::MountPathDescendant(request) => report(behind_the_gate(gate, || return mount_path_descendant_mode::run(&request).map_err(|failure| return failure.message()))),
+        HandlerMode::HolderScan(invocation) => report(behind_the_gate(gate, || {
+            return holder_scan_mode::run(&invocation);
+        })),
+        HandlerMode::AdoptWorktreeParent(request) => report(
+            adopt_worktree_parent_mode::run(&request).map_err(|failure| return failure.message()),
+        ),
+        HandlerMode::RecordCheckout(request) => report(behind_the_gate(gate, || {
+            return record_checkout_mode::run(&request).map_err(|failure| return failure.message());
+        })),
+        HandlerMode::MountPathDescendant(request) => report(behind_the_gate(gate, || {
+            return mount_path_descendant_mode::run(&request)
+                .map_err(|failure| return failure.message());
+        })),
     };
 }
 

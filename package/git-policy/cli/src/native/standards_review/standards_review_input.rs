@@ -20,8 +20,15 @@
 //! const plan = classify(names); const input = buildReviewInput({ commit });
 //! ```
 
-use crate::standards_review_patch::{NewSpan, is_line_feed_byte, new_spans};
-use crate::standards_review_text::{utf16_length, utf16_prefix};
+use crate::standards_review_patch::{
+    NewSpan,
+    is_line_feed_byte,
+    new_spans,
+};
+use crate::standards_review_text::{
+    utf16_length,
+    utf16_prefix,
+};
 use std::collections::BTreeMap;
 
 /// What:
@@ -53,7 +60,9 @@ pub struct ChangedPath {
 impl ChangedPath {
     /// A path from the bytes Git printed for it.
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        return Self { bytes };
+        return Self {
+            bytes,
+        };
     }
 
     /// The bytes Git printed for it,
@@ -64,7 +73,10 @@ impl ChangedPath {
 
     /// Whether the path ends with `suffix`,
     /// as the code-name test asks.
-    pub fn ends_with(&self, suffix: &str) -> bool {
+    pub fn ends_with(
+        &self,
+        suffix: &str,
+    ) -> bool {
         return self.bytes.ends_with(suffix.as_bytes());
     }
 
@@ -80,7 +92,10 @@ impl ChangedPath {
     /// ```ts
     /// equals(other: ChangedPath) { return bytesEqual(this.bytes, other.bytes) }
     /// ```
-    pub fn is(&self, other: &str) -> bool {
+    pub fn is(
+        &self,
+        other: &str,
+    ) -> bool {
         return self.bytes.as_slice() == other.as_bytes();
     }
 }
@@ -99,7 +114,10 @@ impl ChangedPath {
 /// new TextDecoder().decode(this.bytes) // lossy
 /// ```
 impl std::fmt::Display for ChangedPath {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(String::from_utf8_lossy(self.bytes.as_slice()).as_ref());
     }
 }
@@ -317,7 +335,11 @@ pub struct ReviewInput {
 /// ```ts
 /// excerptParts.push(`// candidate excerpt of ${name}, lines ${from} to ${to} of ${fileLines.length}`);
 /// ```
-fn excerpt(name: &ChangedPath, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
+fn excerpt(
+    name: &ChangedPath,
+    content: &str,
+    spans: &[NewSpan],
+) -> (Vec<String>, i64) {
     let file_lines: Vec<&str> = content.split('\n').collect();
     let total: i64 = i64::try_from(file_lines.len()).unwrap_or(i64::MAX);
     let mut first_changed: Option<i64> = None;
@@ -335,13 +357,20 @@ fn excerpt(name: &ChangedPath, content: &str, spans: &[NewSpan]) -> (Vec<String>
         };
     }
     let (from, to) = match (first_changed, last_changed) {
-        (Some(first), Some(last)) => (1.max(first.saturating_sub(EXCERPT_CONTEXT)), total.min(last.saturating_add(EXCERPT_CONTEXT))),
+        (Some(first), Some(last)) => (
+            1.max(first.saturating_sub(EXCERPT_CONTEXT)),
+            total.min(last.saturating_add(EXCERPT_CONTEXT)),
+        ),
         _ => (1, total.min(HEAD_WINDOW)),
     };
     let header: String = format!("// candidate excerpt of {name}, lines {from} to {to} of {total}");
     let begin: usize = usize::try_from(from - 1).unwrap_or(0);
     let end: usize = usize::try_from(to).unwrap_or(0);
-    let body: String = if begin < end { file_lines[begin..end].join("\n") } else { String::new() };
+    let body: String = if begin < end {
+        file_lines[begin..end].join("\n")
+    } else {
+        String::new()
+    };
     return (vec![header, body], to - from + 1);
 }
 
@@ -358,7 +387,10 @@ fn excerpt(name: &ChangedPath, content: &str, spans: &[NewSpan]) -> (Vec<String>
 /// ```ts
 /// const lunaInput = (lines.slice(0, capLines).join('\n') + '\n\n' + excerptParts.join('\n\n')).slice(0, 24000);
 /// ```
-pub fn build_input(commit: &LandedCommit, code_files: &[ChangedPath]) -> ReviewInput {
+pub fn build_input(
+    commit: &LandedCommit,
+    code_files: &[ChangedPath],
+) -> ReviewInput {
     let lines: Vec<&[u8]> = commit.patch.split(is_line_feed_byte).collect();
     let kept: &[&[u8]] = &lines[..lines.len().min(CAP_LINES)];
     let mut parts: Vec<String> = Vec::new();

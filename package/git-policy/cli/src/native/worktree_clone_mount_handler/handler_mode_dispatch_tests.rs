@@ -21,16 +21,35 @@
 //! expect(run(['--help'])).toBe(0); expect(runBehindAt(gate, fixtures, [])).toBe(2);
 //! ```
 
-use super::{
-    DispatchPlaces, EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, behind_the_gate_for_the_probe_as, boot_reconcile_mode, opening_with_the_words, report,
-    run_behind, run_behind_at, shutdown_unmount_mode,
+use super::handler_mode_arguments::{
+    self,
+    HandlerMode,
 };
-use super::handler_mode_arguments::{self, HandlerMode};
+use super::{
+    DispatchPlaces,
+    EXIT_DONE,
+    EXIT_REFUSED,
+    attaching_sweep_mode,
+    behind_the_gate,
+    behind_the_gate_for_the_probe_as,
+    boot_reconcile_mode,
+    opening_with_the_words,
+    report,
+    run_behind,
+    run_behind_at,
+    shutdown_unmount_mode,
+};
 use crate::start_probe::RecordPlace;
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::ReadinessFile;
-use crate::zfs_compatibility_gate::gate_verdict::{Facts, Verdict};
-use crate::zfs_compatibility_gate::{BeforeRequests, gate_words::TESTED_MODULE_VERSION};
+use crate::zfs_compatibility_gate::gate_verdict::{
+    Facts,
+    Verdict,
+};
+use crate::zfs_compatibility_gate::{
+    BeforeRequests,
+    gate_words::TESTED_MODULE_VERSION,
+};
 use rustix::process::geteuid;
 use std::cell::Cell;
 use std::ffi::OsString;
@@ -61,11 +80,13 @@ struct RefusingGate;
 
 impl BeforeRequests for RefusingGate {
     fn verdict(&self) -> Verdict {
-        return Verdict::Refused(monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityRefusal {
-            step: monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityStep::Device,
-            file: None,
-            detail: String::from("it is absent"),
-        });
+        return Verdict::Refused(
+            monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityRefusal {
+                step: monochromatic_zfs_request_to_openzfs_kernel_device::CompatibilityStep::Device,
+                file: None,
+                detail: String::from("it is absent"),
+            },
+        );
     }
 }
 
@@ -82,7 +103,10 @@ fn run(words: &[OsString]) -> i32 {
 /// The arguments of one invocation,
 /// as the kernel hands them over.
 fn arguments(words: &[&str]) -> Vec<OsString> {
-    return words.iter().map(|word| return OsString::from(*word)).collect();
+    return words
+        .iter()
+        .map(|word| return OsString::from(*word))
+        .collect();
 }
 
 /// What:
@@ -113,7 +137,10 @@ fn fixture_places(label: &str) -> DispatchPlaces {
 /// so no two lines run together.
 #[test]
 fn one_line_carries_its_own_newline() {
-    assert_eq!(super::line_to_write("monochromatic-git-policy-cli zfs-root 0.6.1-alpha.44"), "monochromatic-git-policy-cli zfs-root 0.6.1-alpha.44\n");
+    assert_eq!(
+        super::line_to_write("monochromatic-git-policy-cli zfs-root 0.6.1-alpha.44"),
+        "monochromatic-git-policy-cli zfs-root 0.6.1-alpha.44\n"
+    );
 }
 
 /// The two statuses are zero and the wrapper's own refusal status.
@@ -135,8 +162,20 @@ fn the_help_and_version_words_answer_zero() {
 #[test]
 fn every_gated_mode_word_answers_the_refusal_status() {
     let places: DispatchPlaces = fixture_places("dispatch-gated-statuses");
-    for words in [Vec::<&str>::new(), vec!["boot-reconcile"], vec!["shutdown-unmount"]] {
-        assert_eq!(run_behind_at(&PassingGate, &places, arguments(words.as_slice()).as_slice()), EXIT_REFUSED, "{words:?}");
+    for words in [
+        Vec::<&str>::new(),
+        vec!["boot-reconcile"],
+        vec!["shutdown-unmount"],
+    ] {
+        assert_eq!(
+            run_behind_at(
+                &PassingGate,
+                &places,
+                arguments(words.as_slice()).as_slice()
+            ),
+            EXIT_REFUSED,
+            "{words:?}"
+        );
     }
 }
 
@@ -145,8 +184,21 @@ fn every_gated_mode_word_answers_the_refusal_status() {
 #[test]
 fn an_unreadable_invocation_answers_the_refusal_status() {
     let places: DispatchPlaces = fixture_places("dispatch-unreadable");
-    for words in [vec!["sweep"], vec!["boot-reconcile", "--force"], vec!["adopt-worktree-parent"], vec!["adopt-worktree-parent", "--checkout"]] {
-        assert_eq!(run_behind_at(&PassingGate, &places, arguments(words.as_slice()).as_slice()), EXIT_REFUSED, "{words:?}");
+    for words in [
+        vec!["sweep"],
+        vec!["boot-reconcile", "--force"],
+        vec!["adopt-worktree-parent"],
+        vec!["adopt-worktree-parent", "--checkout"],
+    ] {
+        assert_eq!(
+            run_behind_at(
+                &PassingGate,
+                &places,
+                arguments(words.as_slice()).as_slice()
+            ),
+            EXIT_REFUSED,
+            "{words:?}"
+        );
     }
 }
 
@@ -178,13 +230,21 @@ fn a_refused_gate_keeps_the_mode_unentered_and_says_so() {
 /// ties it to the modes.
 #[test]
 fn a_refused_gate_opens_with_the_words() {
-    let named: String = crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
-    let answer: Result<String, String> = behind_the_gate(&RefusingGate, || return Ok(String::new()));
+    let named: String =
+        crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
+    let answer: Result<String, String> =
+        behind_the_gate(&RefusingGate, || return Ok(String::new()));
     let Err(line): Result<String, String> = answer else {
         panic!("a refused gate ran the mode");
     };
-    assert!(line.starts_with(&format!("{named}: ")), "the gate's refusal opens with the words: {line}");
-    assert!(line.contains("the start-time ZFS compatibility gate refused"), "the gate's own line stays: {line}");
+    assert!(
+        line.starts_with(&format!("{named}: ")),
+        "the gate's refusal opens with the words: {line}"
+    );
+    assert!(
+        line.contains("the start-time ZFS compatibility gate refused"),
+        "the gate's own line stays: {line}"
+    );
 }
 
 /// A refusal a mode answers gains the words exactly once,
@@ -196,16 +256,40 @@ fn a_refused_gate_opens_with_the_words() {
 /// the one place every refusal is printed adds them where they are missing.
 #[test]
 fn a_refusal_a_mode_answers_opens_with_the_words_exactly_once() {
-    let named: String = crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
+    let named: String =
+        crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
     let opening: String = format!("{named}: ");
-    let bare: String = opening_with_the_words(String::from("the clone-mount configuration is empty"));
-    assert!(bare.starts_with(opening.as_str()), "a sentence with no words gains them: {bare}");
-    assert!(bare.ends_with("the clone-mount configuration is empty"), "the mode's own sentence stays: {bare}");
-    let said: String = format!("{named}: checkout-record-differs: the record's GUID is 1 and the kernel shows 2.");
-    assert_eq!(opening_with_the_words(said.clone()), said, "a sentence that opens with the words keeps them once");
-    assert_eq!(opening_with_the_words(said.clone()).matches(named.as_str()).count(), 1, "the words are printed once: {said}");
-    let gate: String = format!("{named}: the start-time ZFS compatibility gate refused: it is absent");
-    assert_eq!(opening_with_the_words(gate.clone()), gate, "the gate's line keeps one opening");
+    let bare: String =
+        opening_with_the_words(String::from("the clone-mount configuration is empty"));
+    assert!(
+        bare.starts_with(opening.as_str()),
+        "a sentence with no words gains them: {bare}"
+    );
+    assert!(
+        bare.ends_with("the clone-mount configuration is empty"),
+        "the mode's own sentence stays: {bare}"
+    );
+    let said: String =
+        format!("{named}: checkout-record-differs: the record's GUID is 1 and the kernel shows 2.");
+    assert_eq!(
+        opening_with_the_words(said.clone()),
+        said,
+        "a sentence that opens with the words keeps them once"
+    );
+    assert_eq!(
+        opening_with_the_words(said.clone())
+            .matches(named.as_str())
+            .count(),
+        1,
+        "the words are printed once: {said}"
+    );
+    let gate: String =
+        format!("{named}: the start-time ZFS compatibility gate refused: it is absent");
+    assert_eq!(
+        opening_with_the_words(gate.clone()),
+        gate,
+        "the gate's line keeps one opening"
+    );
 }
 
 /// A refused gate answers the refusal status,
@@ -219,13 +303,21 @@ fn a_refused_gate_answers_the_refusal_status_and_runs_no_mode() {
         ran.set(true);
         return Ok(String::new());
     };
-    assert_eq!(report(behind_the_gate(&RefusingGate, outcome)), EXIT_REFUSED, "a refused gate answered a status other than the refusal status");
+    assert_eq!(
+        report(behind_the_gate(&RefusingGate, outcome)),
+        EXIT_REFUSED,
+        "a refused gate answered a status other than the refusal status"
+    );
     assert!(!ran.get(), "the refused gate called the mode's own work");
     let passed = || {
         ran.set(true);
         return Ok(String::new());
     };
-    assert_eq!(report(behind_the_gate(&PassingGate, passed)), EXIT_DONE, "a passing gate did not answer the mode's own status");
+    assert_eq!(
+        report(behind_the_gate(&PassingGate, passed)),
+        EXIT_DONE,
+        "a passing gate did not answer the mode's own status"
+    );
     assert!(ran.get(), "a passing gate did not call the mode's own work");
 }
 
@@ -239,9 +331,15 @@ fn a_refused_gate_answers_the_refusal_status_and_runs_no_mode() {
 #[test]
 fn the_unbuilt_mode_names_the_unit_that_runs_it() {
     let invocation: Vec<OsString> = arguments(&["shutdown-unmount"]);
-    assert_eq!(handler_mode_arguments::parse(invocation.as_slice()), Ok(HandlerMode::ShutdownUnmount));
+    assert_eq!(
+        handler_mode_arguments::parse(invocation.as_slice()),
+        Ok(HandlerMode::ShutdownUnmount)
+    );
     let message: String = shutdown_unmount_mode::AWAITING.message();
-    assert!(message.contains(shutdown_unmount_mode::AWAITING.arrives_with), "the refusal names the unit that runs the mode: {message}");
+    assert!(
+        message.contains(shutdown_unmount_mode::AWAITING.arrives_with),
+        "the refusal names the unit that runs the mode: {message}"
+    );
     let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
         return shutdown_unmount_mode::run().map_err(|refused| return refused.message());
     });
@@ -268,14 +366,27 @@ fn the_sweep_and_the_boot_reconciliation_answer_their_own_work_on_fixture_places
     let Err(said): Result<String, String> = sweep else {
         panic!("the sweep answered a configuration that holds nothing");
     };
-    assert!(said.contains("is empty"), "the sweep answered its own refusal: {said}");
-    assert!(!said.contains("is not built yet"), "a built mode must not answer as one whose step has not landed: {said}");
-    let boot: Result<String, String> = boot_reconcile_mode::run_at(&places.reconcile, &places.readiness);
+    assert!(
+        said.contains("is empty"),
+        "the sweep answered its own refusal: {said}"
+    );
+    assert!(
+        !said.contains("is not built yet"),
+        "a built mode must not answer as one whose step has not landed: {said}"
+    );
+    let boot: Result<String, String> =
+        boot_reconcile_mode::run_at(&places.reconcile, &places.readiness);
     let Err(boot_said): Result<String, String> = boot else {
         panic!("the boot reconciliation answered a configuration that holds nothing");
     };
-    assert!(boot_said.contains("is empty"), "the boot reconciliation answered its own refusal: {boot_said}");
-    assert!(!boot_said.contains("is not built yet"), "a built mode must not answer as one whose step has not landed: {boot_said}");
+    assert!(
+        boot_said.contains("is empty"),
+        "the boot reconciliation answered its own refusal: {boot_said}"
+    );
+    assert!(
+        !boot_said.contains("is not built yet"),
+        "a built mode must not answer as one whose step has not landed: {boot_said}"
+    );
 }
 
 /// The probe's own gate refusal writes a skipped record in the place it is
@@ -288,11 +399,13 @@ fn the_probes_gate_refusal_writes_a_skipped_record_in_the_given_place() {
     let place: RecordPlace = RecordPlace::at(root.join("records"));
     let configuration: PathBuf = root.join("handler.jsonc");
     std::fs::write(&configuration, "{}").expect("the fixture configuration is written");
-    let answer: Result<String, String> = behind_the_gate_for_the_probe_as(&RefusingGate, &place, configuration.as_path(), true, 0);
+    let answer: Result<String, String> =
+        behind_the_gate_for_the_probe_as(&RefusingGate, &place, configuration.as_path(), true, 0);
     let line: String = answer.expect("a skipped probe is a verdict, not a refusal");
     assert!(line.contains("start probe skipped"), "{line}");
     assert!(line.contains("device"), "{line}");
-    let text: String = std::fs::read_to_string(place.result()).expect("the skipped record is written");
+    let text: String =
+        std::fs::read_to_string(place.result()).expect("the skipped record is written");
     assert!(text.contains("verdict skipped"), "{text}");
     assert!(text.contains("skip-reason device"), "{text}");
 }
@@ -308,11 +421,18 @@ fn the_probes_gate_refusal_writes_a_skipped_record_in_the_given_place() {
 #[test]
 fn a_start_probe_that_is_not_root_is_refused_before_the_gate_or_any_write() {
     let root: PathBuf = fixture("start-probe-not-root");
-    let named: String = crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
+    let named: String =
+        crate::worktree_clone_mount_handler::handler_install_paths::root_modes_name();
     let place: RecordPlace = RecordPlace::at(root.join("records"));
     let configuration: PathBuf = root.join("handler.jsonc");
     std::fs::write(&configuration, "{}").expect("the fixture configuration is written");
-    let answer: Result<String, String> = behind_the_gate_for_the_probe_as(&RefusingGate, &place, configuration.as_path(), false, 1000);
+    let answer: Result<String, String> = behind_the_gate_for_the_probe_as(
+        &RefusingGate,
+        &place,
+        configuration.as_path(),
+        false,
+        1000,
+    );
     let Err(line): Result<String, String> = answer else {
         panic!("a caller that is not root started the probe: {answer:?}");
     };
@@ -322,6 +442,12 @@ fn a_start_probe_that_is_not_root_is_refused_before_the_gate_or_any_write() {
         "the caller's refusal opens with the words every root-mode refusal opens with: {line}"
     );
     assert!(line.contains("effective user is 1000"), "{line}");
-    assert!(!line.contains("compatibility gate"), "the refusal is the caller's, not the gate's: {line}");
-    assert!(!place.result().exists(), "the refused caller wrote a record");
+    assert!(
+        !line.contains("compatibility gate"),
+        "the refusal is the caller's, not the gate's: {line}"
+    );
+    assert!(
+        !place.result().exists(),
+        "the refused caller wrote a record"
+    );
 }

@@ -5,14 +5,37 @@
 
 use super::*;
 use crate::fs_beneath::ObjectId;
-use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
+use crate::test_support::{
+    dead_copy_owner,
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_journal::{create_journal_for, ensure_journal_root};
+use crate::worktree_copy_journal::{
+    create_journal_for,
+    ensure_journal_root,
+};
 use crate::worktree_copy_journal_encoding_and_validation::PendingJournal;
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner};
-use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX};
-use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
-use crate::worktree_copy_stage_claim::{StageClaim, claim_stage, claim_stage_for_add_as};
+use crate::worktree_copy_owner::{
+    CopyOwner,
+    current_copy_owner,
+};
+use crate::worktree_copy_selection::{
+    CopySelection,
+    STAGE_PREFIX,
+};
+use crate::worktree_copy_stage::{
+    new_stage_container,
+    stage_ignored_snapshot,
+};
+use crate::worktree_copy_stage_claim::{
+    StageClaim,
+    claim_stage,
+    claim_stage_for_add_as,
+};
 use crate::worktree_copy_unfilled_record::remember_unfilled;
 
 /// A repository with an ignored `cache` directory and one linked worktree `source`,
@@ -24,7 +47,17 @@ fn repository_with_a_source(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     std::fs::create_dir_all(main.join("cache")).expect("cache");
     std::fs::write(main.join("cache/data"), b"payload").expect("data");
     let source: PathBuf = root.join("source");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "source", source.to_str().expect("utf8")]);
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "source",
+            source.to_str().expect("utf8"),
+        ],
+    );
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     return (
         std::fs::canonicalize(source).expect("canonical source"),
@@ -35,11 +68,18 @@ fn repository_with_a_source(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
 
 /// A staged journal that names `destination` and `owner`,
 /// as a copy that stopped after staging leaves it.
-fn journal_of(common: &Path, main: &Path, destination: &Path, owner: &CopyOwner) -> PendingJournal {
+fn journal_of(
+    common: &Path,
+    main: &Path,
+    destination: &Path,
+    owner: &CopyOwner,
+) -> PendingJournal {
     let snapshot = stage_ignored_snapshot(
         &git_context(),
         main,
-        new_stage_container(destination).expect("container").as_path(),
+        new_stage_container(destination)
+            .expect("container")
+            .as_path(),
         &[],
         &CopySelection::MainCheckout,
     )
@@ -49,7 +89,11 @@ fn journal_of(common: &Path, main: &Path, destination: &Path, owner: &CopyOwner)
 
 /// An add's claim on `destination`,
 /// which reserves a stage name and records the destination beside it.
-fn add_claim_of(common: &Path, destination: &Path, owner: &CopyOwner) -> StageClaim {
+fn add_claim_of(
+    common: &Path,
+    destination: &Path,
+    owner: &CopyOwner,
+) -> StageClaim {
     return claim_stage_for_add_as(common, destination, owner).expect("claim");
 }
 
@@ -68,12 +112,20 @@ fn only_claim(common: &Path) -> PathBuf {
 fn a_journals_live_owner_makes_the_source_busy() {
     let root: PathBuf = fixture("source-readiness-live-journal");
     let (source, main, common) = repository_with_a_source(root.as_path());
-    let journal: PendingJournal = journal_of(common.as_path(), main.as_path(), source.as_path(), &current_copy_owner().expect("owner"));
+    let journal: PendingJournal = journal_of(
+        common.as_path(),
+        main.as_path(),
+        source.as_path(),
+        &current_copy_owner().expect("owner"),
+    );
     assert_eq!(
         source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
         Some(UnfinishedCopy::Running)
     );
-    assert!(journal.path.exists(), "the running copy's journal is left whole");
+    assert!(
+        journal.path.exists(),
+        "the running copy's journal is left whole"
+    );
     remove(root.as_path());
 }
 
@@ -84,12 +136,23 @@ fn a_journals_live_owner_makes_the_source_busy() {
 fn an_adds_claim_of_a_live_owner_makes_the_source_busy() {
     let root: PathBuf = fixture("source-readiness-live-claim");
     let (source, _main, common) = repository_with_a_source(root.as_path());
-    let claim: StageClaim = add_claim_of(common.as_path(), source.as_path(), &current_copy_owner().expect("owner"));
+    let claim: StageClaim = add_claim_of(
+        common.as_path(),
+        source.as_path(),
+        &current_copy_owner().expect("owner"),
+    );
     assert_eq!(
         source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
         Some(UnfinishedCopy::Running)
     );
-    assert!(claim.container().file_name().expect("name").to_string_lossy().starts_with(STAGE_PREFIX));
+    assert!(
+        claim
+            .container()
+            .file_name()
+            .expect("name")
+            .to_string_lossy()
+            .starts_with(STAGE_PREFIX)
+    );
     remove(root.as_path());
 }
 
@@ -101,7 +164,12 @@ fn an_adds_claim_of_a_live_owner_makes_the_source_busy() {
 fn a_journals_dead_owner_makes_the_source_busy() {
     let root: PathBuf = fixture("source-readiness-dead-journal");
     let (source, main, common) = repository_with_a_source(root.as_path());
-    journal_of(common.as_path(), main.as_path(), source.as_path(), &dead_copy_owner());
+    journal_of(
+        common.as_path(),
+        main.as_path(),
+        source.as_path(),
+        &dead_copy_owner(),
+    );
     assert_eq!(
         source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
         Some(UnfinishedCopy::Interrupted)
@@ -133,20 +201,50 @@ fn an_adds_claim_of_a_dead_owner_makes_the_source_busy() {
 fn a_copy_that_hands_over_between_the_two_scans_is_still_seen() {
     let root: PathBuf = fixture("source-readiness-handoff");
     let (source, main, common) = repository_with_a_source(root.as_path());
-    let mut held: Option<StageClaim> = Some(add_claim_of(common.as_path(), source.as_path(), &current_copy_owner().expect("owner")));
+    let mut held: Option<StageClaim> = Some(add_claim_of(
+        common.as_path(),
+        source.as_path(),
+        &current_copy_owner().expect("owner"),
+    ));
     let mut handed_over: bool = false;
-    let judged = source_is_still_being_filled_around(common.as_path(), source.as_path(), &mut || {
-        // The writer's own order: the journal names the stage before the claim goes. The reader listed the claim names
-        // before this runs, so the claim it is about to read is gone and only the journal can be seen.
-        let _published: PendingJournal = journal_of(common.as_path(), main.as_path(), source.as_path(), &current_copy_owner().expect("owner"));
-        held.take().expect("the claim is still this reader's").release().expect("released");
-        handed_over = true;
-    })
-    .expect("judged");
-    assert!(handed_over, "the handoff ran between the listing of the claims and the reading of them");
-    assert_eq!(judged, Some(UnfinishedCopy::Running), "the handoff leaves the source busy");
-    assert_eq!(claim_names(journal_root(common.as_path()).as_path()).expect("claims"), Vec::<String>::new(), "the claim is gone");
-    assert_eq!(read_pending_journals(common.as_path()).expect("journals").len(), 1, "the journal is the record that is left");
+    let judged =
+        source_is_still_being_filled_around(common.as_path(), source.as_path(), &mut || {
+            // The writer's own order: the journal names the stage before the claim goes. The reader listed the claim names
+            // before this runs, so the claim it is about to read is gone and only the journal can be seen.
+            let _published: PendingJournal = journal_of(
+                common.as_path(),
+                main.as_path(),
+                source.as_path(),
+                &current_copy_owner().expect("owner"),
+            );
+            held.take()
+                .expect("the claim is still this reader's")
+                .release()
+                .expect("released");
+            handed_over = true;
+        })
+        .expect("judged");
+    assert!(
+        handed_over,
+        "the handoff ran between the listing of the claims and the reading of them"
+    );
+    assert_eq!(
+        judged,
+        Some(UnfinishedCopy::Running),
+        "the handoff leaves the source busy"
+    );
+    assert_eq!(
+        claim_names(journal_root(common.as_path()).as_path()).expect("claims"),
+        Vec::<String>::new(),
+        "the claim is gone"
+    );
+    assert_eq!(
+        read_pending_journals(common.as_path())
+            .expect("journals")
+            .len(),
+        1,
+        "the journal is the record that is left"
+    );
     remove(root.as_path());
 }
 
@@ -158,11 +256,33 @@ fn a_copy_into_another_worktree_does_not_make_this_source_busy() {
     let root: PathBuf = fixture("source-readiness-other-destination");
     let (source, main, common) = repository_with_a_source(root.as_path());
     let other: PathBuf = root.join("other");
-    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "other", other.to_str().expect("utf8")]);
+    git(
+        main.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            "-b",
+            "other",
+            other.to_str().expect("utf8"),
+        ],
+    );
     let other_canonical: PathBuf = std::fs::canonicalize(other).expect("canonical other");
-    journal_of(common.as_path(), main.as_path(), other_canonical.as_path(), &current_copy_owner().expect("owner"));
-    add_claim_of(common.as_path(), other_canonical.as_path(), &current_copy_owner().expect("owner"));
-    assert_eq!(source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"), None);
+    journal_of(
+        common.as_path(),
+        main.as_path(),
+        other_canonical.as_path(),
+        &current_copy_owner().expect("owner"),
+    );
+    add_claim_of(
+        common.as_path(),
+        other_canonical.as_path(),
+        &current_copy_owner().expect("owner"),
+    );
+    assert_eq!(
+        source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
+        None
+    );
     assert_eq!(
         source_is_still_being_filled(common.as_path(), other_canonical.as_path()).expect("judged"),
         Some(UnfinishedCopy::Running)
@@ -178,7 +298,10 @@ fn a_copys_own_claim_never_makes_a_source_busy() {
     let root: PathBuf = fixture("source-readiness-copy-claim");
     let (source, _main, common) = repository_with_a_source(root.as_path());
     claim_stage(common.as_path(), source.as_path()).expect("claim");
-    assert_eq!(source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"), None);
+    assert_eq!(
+        source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -192,13 +315,24 @@ fn the_bound_record_names_the_destination_too() {
     claim
         .record_binding(&Binding {
             destination: source.clone(),
-            destination_id: ObjectId { device: 1, inode: 2, birth: None },
+            destination_id: ObjectId {
+                device: 1,
+                inode: 2,
+                birth: None,
+            },
             admin: common.join("worktrees/source"),
-            admin_id: ObjectId { device: 3, inode: 4, birth: None },
+            admin_id: ObjectId {
+                device: 3,
+                inode: 4,
+                birth: None,
+            },
             pointer: b"gitdir: elsewhere\n".to_vec(),
         })
         .expect("bound record");
-    assert_eq!(claim_destination(only_claim(common.as_path()).as_path()), Some(source));
+    assert_eq!(
+        claim_destination(only_claim(common.as_path()).as_path()),
+        Some(source)
+    );
     remove(root.as_path());
 }
 
@@ -212,10 +346,20 @@ fn the_bound_record_names_the_destination_too() {
 fn a_source_a_copy_ended_unfilled_is_not_staged_from() {
     let root: PathBuf = fixture("source-readiness-unfilled");
     let (source, _main, common) = repository_with_a_source(root.as_path());
-    let journal: PathBuf = ensure_journal_root(common.as_path()).expect("journal root").join("0123456789abcdef.json");
-    let identity: ObjectId = crate::worktree_add_binding::path_identity(source.as_path()).expect("the source's identity");
+    let journal: PathBuf = ensure_journal_root(common.as_path())
+        .expect("journal root")
+        .join("0123456789abcdef.json");
+    let identity: ObjectId = crate::worktree_add_binding::path_identity(source.as_path())
+        .expect("the source's identity");
     let owner: String = dead_copy_owner().token();
-    remember_unfilled(journal.as_path(), source.as_path(), identity, Path::new("/elsewhere/main"), Some(owner.as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        source.as_path(),
+        identity,
+        Path::new("/elsewhere/main"),
+        Some(owner.as_str()),
+    )
+    .expect("remembered");
     assert_eq!(
         source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
         Some(UnfinishedCopy::LeftUnfilled),
@@ -233,10 +377,20 @@ fn a_source_a_copy_ended_unfilled_is_not_staged_from() {
 fn a_moved_source_a_copy_ended_in_is_not_staged_from() {
     let root: PathBuf = fixture("source-readiness-unfilled-moved");
     let (source, main, common) = repository_with_a_source(root.as_path());
-    let journal: PathBuf = ensure_journal_root(common.as_path()).expect("journal root").join("0123456789abcdef.json");
-    let identity: ObjectId = crate::worktree_add_binding::path_identity(source.as_path()).expect("the source's identity");
+    let journal: PathBuf = ensure_journal_root(common.as_path())
+        .expect("journal root")
+        .join("0123456789abcdef.json");
+    let identity: ObjectId = crate::worktree_add_binding::path_identity(source.as_path())
+        .expect("the source's identity");
     let owner: String = dead_copy_owner().token();
-    remember_unfilled(journal.as_path(), source.as_path(), identity, Path::new("/elsewhere/main"), Some(owner.as_str())).expect("remembered");
+    remember_unfilled(
+        journal.as_path(),
+        source.as_path(),
+        identity,
+        Path::new("/elsewhere/main"),
+        Some(owner.as_str()),
+    )
+    .expect("remembered");
     let moved: PathBuf = root.join("moved");
     git(
         main.as_path(),
@@ -266,11 +420,27 @@ fn a_moved_source_a_copy_ended_in_is_not_staged_from() {
 fn a_record_of_a_replaced_worktree_does_not_make_the_source_busy() {
     let root: PathBuf = fixture("source-readiness-unfilled-replaced");
     let (source, _main, common) = repository_with_a_source(root.as_path());
-    let journal: PathBuf = ensure_journal_root(common.as_path()).expect("journal root").join("0123456789abcdef.json");
+    let journal: PathBuf = ensure_journal_root(common.as_path())
+        .expect("journal root")
+        .join("0123456789abcdef.json");
     let owner: String = dead_copy_owner().token();
-    let replaced: ObjectId = ObjectId { device: 1, inode: 2, birth: None };
-    remember_unfilled(journal.as_path(), source.as_path(), replaced, Path::new("/elsewhere/main"), Some(owner.as_str())).expect("remembered");
-    assert_eq!(source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"), None);
+    let replaced: ObjectId = ObjectId {
+        device: 1,
+        inode: 2,
+        birth: None,
+    };
+    remember_unfilled(
+        journal.as_path(),
+        source.as_path(),
+        replaced,
+        Path::new("/elsewhere/main"),
+        Some(owner.as_str()),
+    )
+    .expect("remembered");
+    assert_eq!(
+        source_is_still_being_filled(common.as_path(), source.as_path()).expect("judged"),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -280,7 +450,11 @@ fn a_record_of_a_replaced_worktree_does_not_make_the_source_busy() {
 #[test]
 fn the_notice_names_both_worktrees_and_how_to_copy_later() {
     assert_eq!(
-        source_still_being_filled_notice(Path::new("/repo/topic"), Path::new("/repo/source"), UnfinishedCopy::Running),
+        source_still_being_filled_notice(
+            Path::new("/repo/topic"),
+            Path::new("/repo/source"),
+            UnfinishedCopy::Running
+        ),
         String::from(
             "monochromatic-git-policy-cli: \"/repo/topic\" was made, but it received no ignored-state copy, because \"/repo/source\" is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished, `git worktree remove \"/repo/topic\"` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"
         )
@@ -293,7 +467,11 @@ fn the_notice_names_both_worktrees_and_how_to_copy_later() {
 #[test]
 fn the_notice_of_a_source_a_copy_ended_in_names_the_route_that_settles_it() {
     assert_eq!(
-        source_still_being_filled_notice(Path::new("/repo/topic"), Path::new("/repo/source"), UnfinishedCopy::LeftUnfilled),
+        source_still_being_filled_notice(
+            Path::new("/repo/topic"),
+            Path::new("/repo/source"),
+            UnfinishedCopy::LeftUnfilled
+        ),
         String::from(
             "monochromatic-git-policy-cli: \"/repo/topic\" was made, but it received no ignored-state copy, because the ignored-state copy of \"/repo/source\" ended before it was whole, and \"/repo/source\" holds less than its own source ignores until the record of that copy is settled. Once that worktree is whole, `git worktree remove \"/repo/topic\"` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"
         )

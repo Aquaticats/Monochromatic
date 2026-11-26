@@ -26,7 +26,10 @@
 
 use crate::checkout_workers::is_fallback_checkout;
 use crate::transaction_git::subcommand_of;
-use crate::wait_ceilings::{LADDER_CHECKOUT_CEILING, LADDER_READ_TREE_CEILING};
+use crate::wait_ceilings::{
+    LADDER_CHECKOUT_CEILING,
+    LADDER_READ_TREE_CEILING,
+};
 use std::ffi::OsString;
 use std::time::Duration;
 

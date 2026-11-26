@@ -25,7 +25,10 @@
 //! dup2(control, 3); dup2(status, 4); closeRange(5); _exit(0);
 //! ```
 
-use super::probe_call_error::{CallError, failed};
+use super::probe_call_error::{
+    CallError,
+    failed,
+};
 use std::os::fd::RawFd;
 
 /// The lowest descriptor a child keeps after its sweep,
@@ -48,7 +51,11 @@ pub const CHILD_STATUS_DESCRIPTOR: RawFd = 4;
 pub fn join_own_process_group() -> Result<(), CallError> {
     // SAFETY: `setpgid` reads two process identifiers and touches no memory of ours.
     let set: libc::c_int = unsafe { libc::setpgid(0, 0) };
-    return if set == 0 { Ok(()) } else { Err(failed("setpgid")) };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(failed("setpgid"))
+    };
 }
 
 /// What:
@@ -63,7 +70,11 @@ pub fn join_own_process_group() -> Result<(), CallError> {
 pub fn parent_death_signal() -> Result<(), CallError> {
     // SAFETY: `prctl` reads its four words and writes nothing of ours.
     let set: libc::c_int = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
-    return if set == 0 { Ok(()) } else { Err(failed("prctl PR_SET_PDEATHSIG")) };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(failed("prctl PR_SET_PDEATHSIG"))
+    };
 }
 
 /// The process that started this one,
@@ -86,8 +97,19 @@ pub fn parent_id() -> libc::pid_t {
 /// The call refused.
 pub fn close_from(first: RawFd) -> Result<(), CallError> {
     // SAFETY: `close_range` closes descriptors this process holds and touches no memory of ours.
-    let closed: libc::c_int = unsafe { libc::syscall(libc::SYS_close_range, first as libc::c_uint, libc::c_uint::MAX, 0) as libc::c_int };
-    return if closed == 0 { Ok(()) } else { Err(failed("close_range")) };
+    let closed: libc::c_int = unsafe {
+        libc::syscall(
+            libc::SYS_close_range,
+            first as libc::c_uint,
+            libc::c_uint::MAX,
+            0,
+        ) as libc::c_int
+    };
+    return if closed == 0 {
+        Ok(())
+    } else {
+        Err(failed("close_range"))
+    };
 }
 
 /// What:
@@ -99,7 +121,10 @@ pub fn close_from(first: RawFd) -> Result<(), CallError> {
 ///
 /// # Errors
 /// The call refused.
-pub fn move_descriptor(from: RawFd, to: RawFd) -> Result<(), CallError> {
+pub fn move_descriptor(
+    from: RawFd,
+    to: RawFd,
+) -> Result<(), CallError> {
     // SAFETY: `dup2` reads two descriptor numbers and touches no memory of ours.
     let moved: libc::c_int = unsafe { libc::dup2(from, to) };
     if moved < 0 {
@@ -122,7 +147,6 @@ pub fn exit_now(status: i32) -> ! {
     // SAFETY: `_exit` ends this process and returns nothing.
     unsafe { libc::_exit(status) };
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

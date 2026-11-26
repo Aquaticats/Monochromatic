@@ -32,10 +32,18 @@
 use crate::dependent_version_bundled::bundled_development_edges;
 /// The content seam and its failures.
 use crate::dependent_version_content::{
-    PlanError, PolicyIncomplete, TrackedMode, TrackedPath, WorkspaceContent,
+    PlanError,
+    PolicyIncomplete,
+    TrackedMode,
+    TrackedPath,
+    WorkspaceContent,
 };
 /// The dependency walk and the bump plan.
-use crate::dependent_version_graph::{PlannedBump, WorkspaceNode, plan_dependent_bumps};
+use crate::dependent_version_graph::{
+    PlannedBump,
+    WorkspaceNode,
+    plan_dependent_bumps,
+};
 /// Strict decoding of the registry configuration.
 use crate::dependent_version_manifest::strict_text;
 /// The registry configuration's path.
@@ -47,7 +55,10 @@ use crate::dependent_version_release::UnsupportedVersion;
 /// Manifest states,
 /// raised names and duplicate names.
 use crate::dependent_version_states::{
-    ManifestState, bumped_names, duplicate_name, read_manifest_states,
+    ManifestState,
+    bumped_names,
+    duplicate_name,
+    read_manifest_states,
 };
 /// The byte-preserving version rewrite.
 use crate::dependent_version_text::replace_manifest_version;
@@ -187,7 +198,10 @@ fn publishable_names(
 /// ```ts
 /// const replacement = replaceManifestVersion({ path, text, from, to });
 /// ```
-fn manifest_bump(planned: PlannedBump, state: &ManifestState) -> Result<ManifestBump, PlanError> {
+fn manifest_bump(
+    planned: PlannedBump,
+    state: &ManifestState,
+) -> Result<ManifestBump, PlanError> {
     let edited: String = replace_manifest_version(
         &state.path,
         &state.text,

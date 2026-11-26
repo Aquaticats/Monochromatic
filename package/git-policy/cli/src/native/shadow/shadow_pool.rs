@@ -35,29 +35,47 @@
 //! await fill({ context, template });            // the service's work, never a commit's
 //! ```
 
+/// The build's named stretches,
+/// which the fill names its own work under
+/// and the claim names a refusal in.
+use crate::commit_build_part_durations::{
+    BuildPartClock,
+    note_build_part,
+};
 /// Private directory creation and tree removal.
-use crate::private_storage::{create_private_directory_all, remove_tree};
+use crate::private_storage::{
+    create_private_directory_all,
+    remove_tree,
+};
 /// Random member names.
 use crate::random_id::random_uuid;
 /// The facts a creation is made from,
 /// and the creation without a commit's own parts.
-use crate::shadow_create::{ShadowTemplate, create_shadow_template};
-/// What a member must be for this invocation.
-use crate::shadow_pool_member::refusal;
+use crate::shadow_create::{
+    ShadowTemplate,
+    create_shadow_template,
+};
 /// Whether a worktree's shadows can be taken from a pool at all.
 use crate::shadow_links::keeps_its_own_info;
+/// What a member must be for this invocation.
+use crate::shadow_pool_member::refusal;
 /// One Git start.
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 /// What the pool's folder is called,
 /// beside the repository scratch directory.
 use crate::wrapper_names_old_and_new::SHADOW_POOL_FOLDER;
-/// The build's named stretches,
-/// which the fill names its own work under
-/// and the claim names a refusal in.
-use crate::commit_build_part_durations::{BuildPartClock, note_build_part};
 /// Paths and time.
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// How many finished shadows are kept for one worktree.
 /// Measured:
@@ -145,8 +163,13 @@ pub fn pool_root(template: &ShadowTemplate) -> PathBuf {
 /// ```ts
 /// poolRootFor(commonDir, gitDir)
 /// ```
-pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
-    return common_dir.join(SHADOW_POOL_FOLDER).join(pool_key(common_dir, git_dir));
+pub fn pool_root_for(
+    common_dir: &Path,
+    git_dir: &Path,
+) -> PathBuf {
+    return common_dir
+        .join(SHADOW_POOL_FOLDER)
+        .join(pool_key(common_dir, git_dir));
 }
 
 /// What:
@@ -161,10 +184,16 @@ pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
 /// ```ts
 /// poolKey(commonDir, gitDir) // 'main' or 'worktree-<name>'
 /// ```
-pub(crate) fn pool_key(common_dir: &Path, git_dir: &Path) -> String {
+pub(crate) fn pool_key(
+    common_dir: &Path,
+    git_dir: &Path,
+) -> String {
     return match git_dir == common_dir {
         true => String::from(MAIN_KEY),
-        false => format!("{WORKTREE_KEY_PREFIX}{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
+        false => format!(
+            "{WORKTREE_KEY_PREFIX}{}",
+            git_dir.file_name().unwrap_or_default().to_string_lossy()
+        ),
     };
 }
 
@@ -223,7 +252,10 @@ pub(crate) fn the_pool_path_is_the_wrappers_own(root: &Path) -> bool {
 /// ```ts
 /// take(template, destination) // true when the destination is now a member
 /// ```
-pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
+pub fn take(
+    template: &ShadowTemplate,
+    destination: &Path,
+) -> bool {
     // A reftable repository's shadow is Git's own tables, which no member of this pool holds.
     if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         return false;
@@ -234,7 +266,9 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
     if !the_pool_path_is_the_wrappers_own(root.as_path()) {
         return false;
     }
-    let Ok(entries) = std::fs::read_dir(root.as_path()) else { return false };
+    let Ok(entries) = std::fs::read_dir(root.as_path()) else {
+        return false;
+    };
     let mut examined: usize = 0;
     for entry in entries.flatten() {
         if examined == CLAIM_ATTEMPTS {
@@ -286,7 +320,11 @@ fn remove_claim(path: &Path) {
     if let Err(error) = removed {
         crate::diagnostic_log::debug(
             "shadowPool",
-            format!("the refused claim {} cannot be removed: {error}", path.display()).as_str(),
+            format!(
+                "the refused claim {} cannot be removed: {error}",
+                path.display()
+            )
+            .as_str(),
         );
     }
 }
@@ -309,9 +347,15 @@ fn remove_claim(path: &Path) {
 /// ```ts
 /// noteRefusal(name, reason); // build part + debug line, no warning
 /// ```
-fn note_refusal(name: &str, reason: &str) {
+fn note_refusal(
+    name: &str,
+    reason: &str,
+) {
     note_build_part(REFUSED_PART, Duration::ZERO, Duration::ZERO);
-    crate::diagnostic_log::debug("shadowPool", format!("refused the pooled shadow {name}: {reason}").as_str());
+    crate::diagnostic_log::debug(
+        "shadowPool",
+        format!("refused the pooled shadow {name}: {reason}").as_str(),
+    );
 }
 
 /// What:
@@ -337,7 +381,10 @@ fn note_refusal(name: &str, reason: &str) {
 /// `GitFailure` when the shadow could not be created;
 /// the half-made member is removed first,
 /// so the pool never holds one.
-pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<PathBuf>, GitFailure> {
+pub fn fill(
+    context: &GitContext,
+    template: &ShadowTemplate,
+) -> Result<Option<PathBuf>, GitFailure> {
     if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         return Ok(None);
     }
@@ -350,7 +397,11 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
             );
             return Ok(None);
         }
-        Err(error) => return Err(GitFailure(format!("whether the worktree keeps its own info directory cannot be read: {error}"))),
+        Err(error) => {
+            return Err(GitFailure(format!(
+                "whether the worktree keeps its own info directory cannot be read: {error}"
+            )));
+        }
     }
     let root: PathBuf = pool_root(template);
     // A link or a file anywhere on the pool's path is nobody's pool: a member made there would land in the tree the link
@@ -358,7 +409,11 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     if !the_pool_path_is_the_wrappers_own(root.as_path()) {
         crate::diagnostic_log::debug(
             "shadowPool",
-            format!("made no member at {}: it is not a folder this wrapper's pool can be", root.display()).as_str(),
+            format!(
+                "made no member at {}: it is not a folder this wrapper's pool can be",
+                root.display()
+            )
+            .as_str(),
         );
         return Ok(None);
     }
@@ -366,26 +421,42 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
         return Ok(None);
     }
     if let Err(error) = create_private_directory_all(root.as_path()) {
-        return Err(GitFailure(format!("the shadow pool {} cannot be made: {error}", root.display())));
+        return Err(GitFailure(format!(
+            "the shadow pool {} cannot be made: {error}",
+            root.display()
+        )));
     }
     sweep_abandoned(root.as_path(), SystemTime::now());
-    let staging: PathBuf = root.join(format!("{FILLING_PREFIX}{}", random_uuid().unwrap_or_default()));
+    let staging: PathBuf = root.join(format!(
+        "{FILLING_PREFIX}{}",
+        random_uuid().unwrap_or_default()
+    ));
     // The creation names its own stretches; nothing reads them here, so they are taken and dropped rather than
     // left in the process's ledger for a record that this process never writes.
     let mut clock: BuildPartClock = BuildPartClock::begin("shadow fill");
-    let made: Result<(), GitFailure> = create_shadow_template(context, template, staging.as_path(), &mut clock);
+    let made: Result<(), GitFailure> =
+        create_shadow_template(context, template, staging.as_path(), &mut clock);
     let _parts = crate::commit_build_part_durations::drain_build_parts();
     if let Err(error) = made {
         let _removed: std::io::Result<()> = remove_tree(staging.as_path());
         return Err(error);
     }
-    let member: PathBuf = root.join(format!("{MEMBER_PREFIX}{}", random_uuid().unwrap_or_default()));
+    let member: PathBuf = root.join(format!(
+        "{MEMBER_PREFIX}{}",
+        random_uuid().unwrap_or_default()
+    ));
     // One `rename` publishes the member whole, so no claim can take a tree that is still being made.
     if let Err(error) = std::fs::rename(staging.as_path(), member.as_path()) {
         let _removed: std::io::Result<()> = remove_tree(staging.as_path());
-        return Err(GitFailure(format!("the finished shadow {} cannot be published: {error}", staging.display())));
+        return Err(GitFailure(format!(
+            "the finished shadow {} cannot be published: {error}",
+            staging.display()
+        )));
     }
-    crate::diagnostic_log::debug("shadowPool", format!("filled the shadow pool with {}", member.display()).as_str());
+    crate::diagnostic_log::debug(
+        "shadowPool",
+        format!("filled the shadow pool with {}", member.display()).as_str(),
+    );
     return Ok(Some(member));
 }
 
@@ -429,12 +500,17 @@ pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
     if !the_pool_path_is_the_wrappers_own(root.as_path()) {
         return Vec::new();
     }
-    let Ok(entries) = std::fs::read_dir(root.as_path()) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(root.as_path()) else {
+        return Vec::new();
+    };
     // The keys of the worktrees Git lists, made with the same rule the folders were named by.
     let mut listed: Vec<String> = Vec::new();
     if let Ok(worktrees) = std::fs::read_dir(common_dir.join("worktrees")) {
         for entry in worktrees.flatten() {
-            listed.push(pool_key(common_dir, &common_dir.join("worktrees").join(entry.file_name())));
+            listed.push(pool_key(
+                common_dir,
+                &common_dir.join("worktrees").join(entry.file_name()),
+            ));
         }
     }
     let mut removed: Vec<PathBuf> = Vec::new();
@@ -451,7 +527,11 @@ pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
         let folder: PathBuf = entry.path();
         match remove_tree(folder.as_path()) {
             Ok(()) => {
-                crate::diagnostic_log::debug("shadowPool", format!("removed the pool of the worktree Git no longer lists: {name}").as_str());
+                crate::diagnostic_log::debug(
+                    "shadowPool",
+                    format!("removed the pool of the worktree Git no longer lists: {name}")
+                        .as_str(),
+                );
                 removed.push(folder);
             }
             Err(error) => {
@@ -473,7 +553,9 @@ pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
 /// members(root)
 /// ```
 pub fn members(root: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(root) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
     let mut found: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
@@ -497,24 +579,34 @@ pub fn members(root: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// sweepAbandoned(root, now)
 /// ```
-fn sweep_abandoned(root: &Path, now: SystemTime) {
+fn sweep_abandoned(
+    root: &Path,
+    now: SystemTime,
+) {
     // Only the wrapper's own folder is swept.
     if !the_pool_path_is_the_wrappers_own(root) {
         return;
     }
-    let Ok(entries) = std::fs::read_dir(root) else { return };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if !name.starts_with(FILLING_PREFIX) {
             continue;
         }
         let old: bool = match entry.metadata().and_then(modification_time) {
-            Ok(modified) => now.duration_since(modified).is_ok_and(older_than_the_fill_age),
+            Ok(modified) => now
+                .duration_since(modified)
+                .is_ok_and(older_than_the_fill_age),
             Err(_) => false,
         };
         if old {
             let _removed: std::io::Result<()> = remove_tree(entry.path().as_path());
-            crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
+            crate::diagnostic_log::debug(
+                "shadowPool",
+                format!("removed the abandoned fill {name}").as_str(),
+            );
         }
     }
 }

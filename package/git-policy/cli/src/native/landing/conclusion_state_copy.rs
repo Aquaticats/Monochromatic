@@ -27,11 +27,23 @@
 //! const copy = await keepConclusionState(cleanup, journal, seq); await dropConclusionState(journal, seq);
 //! ```
 
-use crate::conclusion_cleanup::{CONCLUSION_COPY_DIRECTORY, CONCLUSION_STATE_FILES};
-use crate::private_storage::{create_private_directory_all, remove_tree};
-use crate::service_journal::{CONCLUSION_COPY_EXTENSION, batch_path};
+use crate::conclusion_cleanup::{
+    CONCLUSION_COPY_DIRECTORY,
+    CONCLUSION_STATE_FILES,
+};
+use crate::private_storage::{
+    create_private_directory_all,
+    remove_tree,
+};
+use crate::service_journal::{
+    CONCLUSION_COPY_EXTENSION,
+    batch_path,
+};
 use crate::service_protocol::Cleanup;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The extension of the folder that holds one batch's copy.
 pub const COPY_EXTENSION: &str = CONCLUSION_COPY_EXTENSION;
@@ -40,7 +52,10 @@ pub const COPY_EXTENSION: &str = CONCLUSION_COPY_EXTENSION;
 const SHADOW_FOLDER: &str = "shadow";
 
 /// The copy folder of a batch.
-pub fn path_of(journal: &Path, seq: u64) -> PathBuf {
+pub fn path_of(
+    journal: &Path,
+    seq: u64,
+) -> PathBuf {
     return batch_path(journal, seq, COPY_EXTENSION);
 }
 
@@ -56,7 +71,10 @@ pub fn path_of(journal: &Path, seq: u64) -> PathBuf {
 /// ```ts
 /// copyTree(from, to)
 /// ```
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+fn copy_tree(
+    from: &Path,
+    to: &Path,
+) -> std::io::Result<()> {
     create_private_directory_all(to)?;
     for entry in std::fs::read_dir(from)?.flatten() {
         let source: PathBuf = entry.path();
@@ -91,7 +109,12 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
 /// ```ts
 /// keepConclusionState(cleanup, journal, seq) // the folder, or nothing
 /// ```
-pub fn keep(cleanup: &Cleanup, journal: &Path, seq: u64, repository: &Path) -> Option<PathBuf> {
+pub fn keep(
+    cleanup: &Cleanup,
+    journal: &Path,
+    seq: u64,
+    repository: &Path,
+) -> Option<PathBuf> {
     if !cleanup.scratch.exists() {
         return None;
     }
@@ -127,11 +150,20 @@ pub fn keep(cleanup: &Cleanup, journal: &Path, seq: u64, repository: &Path) -> O
 /// ```ts
 /// copyInto(cleanup, kept) // null when everything was copied
 /// ```
-fn copy_into(cleanup: &Cleanup, journal: &Path, seq: u64, kept: &Path, repository: &Path) -> Option<Option<PathBuf>> {
+fn copy_into(
+    cleanup: &Cleanup,
+    journal: &Path,
+    seq: u64,
+    kept: &Path,
+    repository: &Path,
+) -> Option<Option<PathBuf>> {
     let _ = journal;
     let copies: PathBuf = cleanup.scratch.join(CONCLUSION_COPY_DIRECTORY);
     if copies.exists()
-        && let Err(error) = copy_tree(copies.as_path(), kept.join(CONCLUSION_COPY_DIRECTORY).as_path())
+        && let Err(error) = copy_tree(
+            copies.as_path(),
+            kept.join(CONCLUSION_COPY_DIRECTORY).as_path(),
+        )
     {
         crate::service_error!(
             "batch {seq} {}: the conclusion state it must remove cannot be copied into {} ({error})",
@@ -156,10 +188,10 @@ fn copy_into(cleanup: &Cleanup, journal: &Path, seq: u64, kept: &Path, repositor
         }
         if let Err(error) = std::fs::copy(source.as_path(), kept.join(SHADOW_FOLDER).join(name)) {
             crate::service_error!(
-            "batch {seq} {}: the conclusion state {name} cannot be copied into {} ({error})",
-            crate::service_timing::in_the_repository_at(repository),
-            kept.display()
-        );
+                "batch {seq} {}: the conclusion state {name} cannot be copied into {} ({error})",
+                crate::service_timing::in_the_repository_at(repository),
+                kept.display()
+            );
             return Some(None);
         }
     }
@@ -177,13 +209,21 @@ fn copy_into(cleanup: &Cleanup, journal: &Path, seq: u64, kept: &Path, repositor
 /// ```ts
 /// keepOf(cleanup, journal, seq)
 /// ```
-pub fn keep_of_intent(cleanup: Option<&Cleanup>, journal: &Path, seq: u64, repository: &Path) -> Option<PathBuf> {
+pub fn keep_of_intent(
+    cleanup: Option<&Cleanup>,
+    journal: &Path,
+    seq: u64,
+    repository: &Path,
+) -> Option<PathBuf> {
     let named: &Cleanup = cleanup?;
     return keep(named, journal, seq, repository);
 }
 
 /// Removes one batch's copy;
 /// a copy that cannot be removed stays where it is.
-pub fn remove(journal: &Path, seq: u64) {
+pub fn remove(
+    journal: &Path,
+    seq: u64,
+) {
     let _removed = remove_tree(path_of(journal, seq).as_path());
 }

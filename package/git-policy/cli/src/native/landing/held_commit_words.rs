@@ -36,7 +36,11 @@ use std::path::PathBuf;
 /// heldCount(1) // '1 held commit waits in this worktree.'
 /// ```
 pub fn counted(count: usize) -> String {
-    return if count == 1 { format!("{count} held commit waits in this worktree.") } else { format!("{count} held commits wait in this worktree.") };
+    return if count == 1 {
+        format!("{count} held commit waits in this worktree.")
+    } else {
+        format!("{count} held commits wait in this worktree.")
+    };
 }
 
 /// The branch as a person reads it,
@@ -108,7 +112,11 @@ pub fn removal(locks: &[PathBuf]) -> String {
 /// ```ts
 /// `the commit ${commit} is held: ${branch} has not moved yet, because ${locks} stands in the way ...`
 /// ```
-pub fn answer(held: &Held, commit: &str, waiting: usize) -> String {
+pub fn answer(
+    held: &Held,
+    commit: &str,
+    waiting: usize,
+) -> String {
     return format!(
         "the commit {commit} is held: {} has not moved yet, because {} stands in the way and nothing proves that a Git process still holds \
 it. The next command that finds the lock gone moves the branch. If no Git process is using this repository, remove it with `{}`; the commit \
@@ -132,7 +140,11 @@ is kept at `{}` either way. {}",
 /// `${count} held commit(s) wait in this worktree, behind a reference lock:`
 /// ```
 pub fn heading(count: usize) -> String {
-    return if count == 1 { format!("{count} held commit waits in this worktree, behind a reference lock:") } else { format!("{count} held commits wait in this worktree, behind a reference lock:") };
+    return if count == 1 {
+        format!("{count} held commit waits in this worktree, behind a reference lock:")
+    } else {
+        format!("{count} held commits wait in this worktree, behind a reference lock:")
+    };
 }
 
 /// What:
@@ -151,7 +163,11 @@ pub fn heading(count: usize) -> String {
 /// ```ts
 /// `the commit ${commit} for ${branch} is held: the branch has not moved yet, and it waits for ${standingLocks}`
 /// ```
-pub fn waiting(held: &Held, commit: &str, standing: &[PathBuf]) -> String {
+pub fn waiting(
+    held: &Held,
+    commit: &str,
+    standing: &[PathBuf],
+) -> String {
     return format!(
         "the commit {commit} for {} is held: the branch has not moved yet, and it waits for {}. The next command that finds the lock gone \
 moves the branch; if no Git process is using this repository, remove it with `{}`.",
@@ -172,7 +188,11 @@ moves the branch; if no Git process is using this repository, remove it with `{}
 /// ```ts
 /// `the commit ${commit} is held: ${branch} moved, and the change does not combine with it on ${paths}`
 /// ```
-pub fn conflicts(held: &Held, commit: &str, paths: &[Vec<u8>]) -> String {
+pub fn conflicts(
+    held: &Held,
+    commit: &str,
+    paths: &[Vec<u8>],
+) -> String {
     let mut named: Vec<String> = Vec::new();
     for path in paths {
         named.push(String::from_utf8_lossy(path).into_owned());
@@ -199,7 +219,11 @@ The commit is kept at `{}`; nothing was changed. Bring the change onto the branc
 /// ```ts
 /// `the commit ${commit} is held: ${branch} has not moved yet, and this command cannot move it, because ${because}`
 /// ```
-pub fn cannot(held: &Held, commit: &str, because: &str) -> String {
+pub fn cannot(
+    held: &Held,
+    commit: &str,
+    because: &str,
+) -> String {
     return format!(
         "the commit {commit} is held: {} has not moved yet, and this command cannot move it, because {because}. The commit is kept at \
 `{}`; nothing was changed.",
@@ -221,9 +245,17 @@ pub fn cannot(held: &Held, commit: &str, because: &str) -> String {
 /// ```ts
 /// `the held commit ${commit} landed on ${branch}: ...`
 /// ```
-pub fn landed(held: &Held, commit: &str, the_index_waits: bool) -> String {
+pub fn landed(
+    held: &Held,
+    commit: &str,
+    the_index_waits: bool,
+) -> String {
     let branch: String = branch_of(&held.reference);
-    let index: &str = if the_index_waits { "Another program wrote the index after the landing saw it, so its entries are left as that program made them and the next commit in this worktree sets them; until then `git status` shows the commit's paths. " } else { "" };
+    let index: &str = if the_index_waits {
+        "Another program wrote the index after the landing saw it, so its entries are left as that program made them and the next commit in this worktree sets them; until then `git status` shows the commit's paths. "
+    } else {
+        ""
+    };
     return format!(
         "the held commit {commit} landed on {branch}: the lock that held its branch write is gone, so the branch has moved. {index}Its push \
 was not released, because the command that made the commit had already ended and ran no post-commit gate; the next commit or push from \
@@ -242,7 +274,10 @@ was not released, because the command that made the commit had already ended and
 /// ```ts
 /// `the held commit ${commit} for ${branch} is already on the branch`
 /// ```
-pub fn already_there(held: &Held, commit: &str) -> String {
+pub fn already_there(
+    held: &Held,
+    commit: &str,
+) -> String {
     return format!(
         "the held commit {commit} for {} is already on the branch, so nothing waits any more; its record at `{}` is removed.",
         branch_of(&held.reference),
@@ -266,5 +301,8 @@ pub fn unreadable(paths: &[PathBuf]) -> String {
     for path in paths {
         names.push(format!("`{}`", path.display()));
     }
-    return format!("these held-commit records cannot be read, so nothing was done about the commits they name and they are kept: {}", names.join(", "));
+    return format!(
+        "these held-commit records cannot be read, so nothing was done about the commits they name and they are kept: {}",
+        names.join(", ")
+    );
 }

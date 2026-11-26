@@ -19,31 +19,48 @@
 //! await writeShadowRefs({ gitPath, cwd, shadowPath, capture });
 //! ```
 
+/// The operating-system name of a name given as bytes.
+use crate::path_bytes::os_from_path_bytes;
+/// Private file writes for the snapshot,
+/// published whole and not synced.
+use crate::private_storage::write_private_file_unsynced;
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
 /// One shadow Git start,
 /// one real Git start,
 /// and their failure text.
 use crate::shadow_git::shadow_request;
 /// The refs the store is written from,
 /// and how a symbolic ref's chain ends.
-use crate::shadow_refs::{RefSnapshotEntry, SnapshotSources, SYMBOLIC_REF_CHAIN_LIMIT, list_real_refs_from};
+use crate::shadow_refs::{
+    RefSnapshotEntry,
+    SYMBOLIC_REF_CHAIN_LIMIT,
+    SnapshotSources,
+    list_real_refs_from,
+};
 /// The runner every Git start of a transaction goes through.
-use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
-/// Private file writes for the snapshot,
-/// published whole and not synced.
-use crate::private_storage::write_private_file_unsynced;
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitRequest,
+    run_git_checked,
+};
 /// Journal enums:
 /// the ref backend,
 /// the base and the symbolic `HEAD` at invocation.
-use crate::transaction_journal::{Base, RefFormat, SymbolicHead};
-/// A reference name as the bytes Git printed it.
-use crate::ref_name::RefName;
+use crate::transaction_journal::{
+    Base,
+    RefFormat,
+    SymbolicHead,
+};
 /// Owned argument text,
 /// for a reference name that is bytes.
 use std::ffi::OsString;
-/// The operating-system name of a name given as bytes.
-use crate::path_bytes::os_from_path_bytes;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Header Git writes for a sorted `packed-refs` file without peeled lines.
 ///  The trailing space matches Git's own writer,
@@ -66,7 +83,10 @@ fn packed_refs_failure(error: std::io::Error) -> GitFailure {
 /// ```ts
 /// formatPackedRefs({ refs, targetRef });
 /// ```
-pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &RefName) -> Vec<u8> {
+pub fn format_packed_refs(
+    refs: &[RefSnapshotEntry],
+    target_ref: &RefName,
+) -> Vec<u8> {
     let mut text: Vec<u8> = PACKED_REFS_HEADER.as_bytes().to_vec();
     for entry in refs {
         if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.bytes()) {
@@ -134,7 +154,11 @@ fn symbolic_ref_value(target: &[u8]) -> Vec<u8> {
 /// ```ts
 /// await writeFile(join(shadow, name), bytes).catch(async (error) => { if (error.code !== 'ENOENT') throw error; await mkdir(dirname(path), { recursive: true }); await writeFile(path, bytes); });
 /// ```
-fn write_loose_ref(shadow: &Path, name: &OsString, value: &[u8]) -> std::io::Result<()> {
+fn write_loose_ref(
+    shadow: &Path,
+    name: &OsString,
+    value: &[u8],
+) -> std::io::Result<()> {
     let path: PathBuf = shadow.join(name);
     return match std::fs::write(path.as_path(), value) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -174,7 +198,10 @@ fn ref_failure(error: std::io::Error) -> GitFailure {
 /// ```ts
 /// const symbolicTargetOf = (refs, name) => refs.find((e) => e.symref && e.name === name)?.symref;
 /// ```
-fn symbolic_target_of<'refs>(refs: &'refs [RefSnapshotEntry], name: &[u8]) -> Option<&'refs [u8]> {
+fn symbolic_target_of<'refs>(
+    refs: &'refs [RefSnapshotEntry],
+    name: &[u8],
+) -> Option<&'refs [u8]> {
     for entry in refs {
         if !entry.symref.is_empty() && entry.name.as_slice() == name {
             return Some(entry.symref.as_slice());
@@ -196,7 +223,10 @@ fn symbolic_target_of<'refs>(refs: &'refs [RefSnapshotEntry], name: &[u8]) -> Op
 /// ```ts
 /// const targetOf = (refs, name) => { for (let step = 0; step < LIMIT; step++) { const symref = symbolicTargetOf(refs, name); if (!symref) return name; name = symref; } throw new GitFailure(`symbolic ref chain ${name} is too long`); };
 /// ```
-fn end_of_symbolic_chain(refs: &[RefSnapshotEntry], name: &[u8]) -> Result<Vec<u8>, GitFailure> {
+fn end_of_symbolic_chain(
+    refs: &[RefSnapshotEntry],
+    name: &[u8],
+) -> Result<Vec<u8>, GitFailure> {
     let mut current: Vec<u8> = name.to_vec();
     for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
         let Some(target) = symbolic_target_of(refs, current.as_slice()) else {
@@ -236,9 +266,19 @@ fn write_files_shadow_head(
         SymbolicHead::Branch(reference) => {
             if let Base::Commit(oid) = base {
                 let target: Vec<u8> = end_of_symbolic_chain(refs, reference.bytes())?;
-                write_loose_ref(shadow, &os_from_path_bytes(target.as_slice()), direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
+                write_loose_ref(
+                    shadow,
+                    &os_from_path_bytes(target.as_slice()),
+                    direct_ref_value(oid).as_slice(),
+                )
+                .map_err(ref_failure)?;
             }
-            write_loose_ref(shadow, &head, symbolic_ref_value(reference.bytes()).as_slice()).map_err(ref_failure)?;
+            write_loose_ref(
+                shadow,
+                &head,
+                symbolic_ref_value(reference.bytes()).as_slice(),
+            )
+            .map_err(ref_failure)?;
             return Ok(());
         }
         SymbolicHead::Detached => {
@@ -247,7 +287,8 @@ fn write_files_shadow_head(
                     "A detached HEAD has no unborn preparation base.",
                 )));
             };
-            write_loose_ref(shadow, &head, direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
+            write_loose_ref(shadow, &head, direct_ref_value(oid).as_slice())
+                .map_err(ref_failure)?;
             return Ok(());
         }
     }
@@ -279,7 +320,11 @@ fn write_shadow_head(
                     &shadow_request(
                         shadow,
                         shadow,
-                        &[OsString::from("update-ref"), reference.as_os_str().to_os_string(), OsString::from(oid)],
+                        &[
+                            OsString::from("update-ref"),
+                            reference.as_os_str().to_os_string(),
+                            OsString::from(oid),
+                        ],
                     ),
                 )?;
             }
@@ -288,7 +333,11 @@ fn write_shadow_head(
                 &shadow_request(
                     shadow,
                     shadow,
-                    &[OsString::from("symbolic-ref"), OsString::from("HEAD"), reference.as_os_str().to_os_string()],
+                    &[
+                        OsString::from("symbolic-ref"),
+                        OsString::from("HEAD"),
+                        reference.as_os_str().to_os_string(),
+                    ],
                 ),
             )?;
             return Ok(());
@@ -301,7 +350,11 @@ fn write_shadow_head(
             };
             run_git_checked(
                 context,
-                &shadow_request(shadow, shadow, &["update-ref", "--no-deref", "HEAD", oid.as_str()]),
+                &shadow_request(
+                    shadow,
+                    shadow,
+                    &["update-ref", "--no-deref", "HEAD", oid.as_str()],
+                ),
             )?;
             return Ok(());
         }
@@ -355,7 +408,8 @@ pub fn write_shadow_refs(
                 lines.extend_from_slice(entry.oid.as_bytes());
                 lines.push(b'\n');
             }
-            let mut request: GitRequest = shadow_request(shadow, shadow, &["update-ref", "--stdin"]);
+            let mut request: GitRequest =
+                shadow_request(shadow, shadow, &["update-ref", "--stdin"]);
             request.input = Some(lines);
             run_git_checked(context, &request)?;
         }

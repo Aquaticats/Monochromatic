@@ -24,12 +24,37 @@
 //! ```
 
 use super::super::commit::remove_settled;
-use super::super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository};
-use super::super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, unbounded_wrapper};
+use super::super::fault::{
+    COMMIT_ARGUMENTS,
+    Effect,
+    Injection,
+    When,
+    staged_repository,
+};
+use super::super::fault_run::{
+    end_the_pressure,
+    in_batches,
+    run_unsettled,
+    run_watched,
+    unbounded_wrapper,
+};
 use super::super::strace::strace_available_or_acknowledged;
-use super::super::support::{Fixture, ServiceLaunch, fixture};
-use super::{recovers_after_service_death, took_effect, tracer};
-use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, LOCK_CREATED_UNMARKED, LOCK_MARKED_UNSYNCED};
+use super::super::support::{
+    Fixture,
+    ServiceLaunch,
+    fixture,
+};
+use super::{
+    recovers_after_service_death,
+    took_effect,
+    tracer,
+};
+use git_policy_cli::service_fault::{
+    FAULT_POINTS,
+    FAULT_VARIABLE,
+    LOCK_CREATED_UNMARKED,
+    LOCK_MARKED_UNSYNCED,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Output;
@@ -53,49 +78,99 @@ fn kill_case(point: &str) -> Result<(), String> {
     let label: String = format!("lockless-kill-{point}");
     let fixture: Fixture = fixture(label.as_str());
     let trace: PathBuf = fixture.root.join("service-trace.txt");
-    let fault: Injection = Injection { syscall: REFUSED_CALLS, effect: Effect::Fail("EOPNOTSUPP"), when: When::FromNth(1), follow_forks: true };
+    let fault: Injection = Injection {
+        syscall: REFUSED_CALLS,
+        effect: Effect::Fail("EOPNOTSUPP"),
+        when: When::FromNth(1),
+        follow_forks: true,
+    };
     // `env` arms the service's own fault point; the tracer refuses the calls in the service and in each Git it starts.
-    let mut prefix: Vec<OsString> = vec![OsString::from("env"), OsString::from(format!("{FAULT_VARIABLE}={point}"))];
+    let mut prefix: Vec<OsString> = vec![
+        OsString::from("env"),
+        OsString::from(format!("{FAULT_VARIABLE}={point}")),
+    ];
     prefix.extend(tracer(trace.as_path(), fault.syscall, Some(&fault), true));
-    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { prefix, may_fail_to_start: true, ..ServiceLaunch::default() };
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix,
+        may_fail_to_start: true,
+        ..ServiceLaunch::default()
+    };
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
-    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let output: Output = run_watched(
+        &fixture,
+        &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+    );
+    let said: String =
+        String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat())
+            .into_owned();
     // The fault ends: the services stop and the next one starts as in production, on a filesystem that works.
     end_the_pressure(&fixture);
     let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
-    if !traced.contains("+++ killed by SIGKILL +++") || !traced.contains("(INJECTED)") || !took_effect(traced.as_str()) {
-        return Err(format!("{label}: the service was not killed after a refused call, so nothing was tested: {traced}\nthe run said: {said}"));
+    if !traced.contains("+++ killed by SIGKILL +++")
+        || !traced.contains("(INJECTED)")
+        || !took_effect(traced.as_str())
+    {
+        return Err(format!(
+            "{label}: the service was not killed after a refused call, so nothing was tested: {traced}\nthe run said: {said}"
+        ));
     }
     let lock: PathBuf = repo.join(".git/index.lock");
     if point == LOCK_CREATED_UNMARKED {
-        let left: Vec<u8> = std::fs::read(&lock).map_err(|error| { return format!("{label}: the kill between creation and marker leaves the lock: {error}"); })?;
+        let left: Vec<u8> = std::fs::read(&lock).map_err(|error| {
+            return format!(
+                "{label}: the kill between creation and marker leaves the lock: {error}"
+            );
+        })?;
         if !left.is_empty() {
-            return Err(format!("{label}: the lock must be without its marker, as plain Git leaves one: {left:?}"));
+            return Err(format!(
+                "{label}: the lock must be without its marker, as plain Git leaves one: {left:?}"
+            ));
         }
         // A wrapped `git add` meets the lock as Git does, and nothing of the wrapper removes it.
-        std::fs::write(repo.join("b.txt"), "b\n").map_err(|error| { return format!("{label}: {error}"); })?;
+        std::fs::write(repo.join("b.txt"), "b\n").map_err(|error| {
+            return format!("{label}: {error}");
+        })?;
         let added = run_unsettled(&fixture, repo.as_path(), &["add", "b.txt"]);
-        if added.code == Some(0) || !String::from_utf8_lossy(added.stderr.as_slice()).contains("index.lock") {
-            return Err(format!("{label}: `git add` must be refused by the lock as Git refuses it, exit {:?}: {}", added.code, String::from_utf8_lossy(added.stderr.as_slice())));
+        if added.code == Some(0)
+            || !String::from_utf8_lossy(added.stderr.as_slice()).contains("index.lock")
+        {
+            return Err(format!(
+                "{label}: `git add` must be refused by the lock as Git refuses it, exit {:?}: {}",
+                added.code,
+                String::from_utf8_lossy(added.stderr.as_slice())
+            ));
         }
         if !matches!(std::fs::read(&lock), Ok(still) if still.is_empty()) {
-            return Err(format!("{label}: nothing but the person may remove a lock without its marker"));
+            return Err(format!(
+                "{label}: nothing but the person may remove a lock without its marker"
+            ));
         }
         // A commit through a new service meets the lock too. The service that made it is dead, nothing holds it and it is empty,
         //  so the owner's answer applies (2026-11-07, "Service removes it"): the new service removes it and the commit lands.
-        let landed: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
+        let landed: Output = run_watched(
+            &fixture,
+            &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS),
+        );
         if landed.status.code() != Some(0) {
-            return Err(format!("{label}: a commit over an empty lock nothing holds must land, exit {:?}: {}", landed.status.code(), String::from_utf8_lossy(landed.stderr.as_slice())));
+            return Err(format!(
+                "{label}: a commit over an empty lock nothing holds must land, exit {:?}: {}",
+                landed.status.code(),
+                String::from_utf8_lossy(landed.stderr.as_slice())
+            ));
         }
         if lock.exists() {
-            return Err(format!("{label}: the service left the empty lock nothing holds"));
+            return Err(format!(
+                "{label}: the service left the empty lock nothing holds"
+            ));
         }
         end_the_pressure(&fixture);
         // The file the refused `git add` left untracked is the control's own, not the person's.
-        std::fs::remove_file(repo.join("b.txt")).map_err(|error| { return format!("{label}: {error}"); })?;
+        std::fs::remove_file(repo.join("b.txt")).map_err(|error| {
+            return format!("{label}: {error}");
+        })?;
     }
-    let verdict: Result<(), String> = recovers_after_service_death(&fixture, repo.as_path(), label.as_str(), said.as_str());
+    let verdict: Result<(), String> =
+        recovers_after_service_death(&fixture, repo.as_path(), label.as_str(), said.as_str());
     remove_settled(&fixture);
     return verdict;
 }
@@ -105,11 +180,22 @@ fn kill_case(point: &str) -> Result<(), String> {
 /// which then lands the commit;
 /// a lock with its whole marker is removed by the next landing too.
 #[test]
-fn a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository() {
-    if !strace_available_or_acknowledged("a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository") {
+fn a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository()
+{
+    if !strace_available_or_acknowledged(
+        "a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository",
+    ) {
         return;
     }
     let points: Vec<&'static str> = kill_points();
-    let failures: Vec<String> = in_batches(points.as_slice(), &|point: &&'static str| { return kill_case(point); });
-    assert!(failures.is_empty(), "{} of {} kill points left the repository unrecovered:\n{}", failures.len(), points.len(), failures.join("\n"));
+    let failures: Vec<String> = in_batches(points.as_slice(), &|point: &&'static str| {
+        return kill_case(point);
+    });
+    assert!(
+        failures.is_empty(),
+        "{} of {} kill points left the repository unrecovered:\n{}",
+        failures.len(),
+        points.len(),
+        failures.join("\n")
+    );
 }

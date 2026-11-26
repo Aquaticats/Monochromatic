@@ -31,12 +31,34 @@
 //! write('/etc/systemd/system/reconcile-…service', bootGateUnit(facts));
 //! ```
 
-use crate::checkout_boot_units::boot_unit_facts::{CheckoutBootFacts, UnitTextRefusal, path_text};
-use crate::checkout_boot_units::unit_file_text::{file_text, path_comment};
-use std::path::{Path, PathBuf};
+use crate::checkout_boot_units::boot_unit_facts::{
+    CheckoutBootFacts,
+    UnitTextRefusal,
+    path_text,
+};
 use crate::checkout_boot_units::boot_unit_names::{
-    BOOT_GATE_UNIT_NAME, BOOT_GATE_UNIT_PATH, BOOT_RECONCILE_MODE_WORD, EXECUTABLE_SYSTEMCTL, GATE_START_BOUND, GATE_STOP_BOUND, PROVIDER_DROP_IN_NAME, PROVIDER_UNIT_NAME,
-    SHUTDOWN_UNMOUNT_MODE_WORD, START_PROBE_MODE_WORD, STOP_FAILURE_DROP_IN_NAME, STOP_FAILURE_MODE_WORD, drop_in_path, root_words,
+    BOOT_GATE_UNIT_NAME,
+    BOOT_GATE_UNIT_PATH,
+    BOOT_RECONCILE_MODE_WORD,
+    EXECUTABLE_SYSTEMCTL,
+    GATE_START_BOUND,
+    GATE_STOP_BOUND,
+    PROVIDER_DROP_IN_NAME,
+    PROVIDER_UNIT_NAME,
+    SHUTDOWN_UNMOUNT_MODE_WORD,
+    START_PROBE_MODE_WORD,
+    STOP_FAILURE_DROP_IN_NAME,
+    STOP_FAILURE_MODE_WORD,
+    drop_in_path,
+    root_words,
+};
+use crate::checkout_boot_units::unit_file_text::{
+    file_text,
+    path_comment,
+};
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 /// The word before the start probe's line that keeps a failing probe from
@@ -121,7 +143,11 @@ pub fn boot_gate_unit(facts: &CheckoutBootFacts) -> Result<String, UnitTextRefus
 /// ```
 pub fn stop_failure_drop_in() -> String {
     let path: PathBuf = drop_in_path(BOOT_GATE_UNIT_NAME, STOP_FAILURE_DROP_IN_NAME);
-    return file_text(vec![path_comment(path.as_path()), String::from("[Service]"), format!("TimeoutStopFailureMode={STOP_FAILURE_MODE_WORD}")]);
+    return file_text(vec![
+        path_comment(path.as_path()),
+        String::from("[Service]"),
+        format!("TimeoutStopFailureMode={STOP_FAILURE_MODE_WORD}"),
+    ]);
 }
 
 /// What:
@@ -142,10 +168,16 @@ pub fn stop_failure_drop_in() -> String {
 /// const text = providerRestartDropIn(); // '[Service]\nExecStartPost=-/usr/bin/systemctl --no-block … reload-or-restart reconcile-…service\n'
 /// ```
 pub fn provider_restart_drop_in() -> String {
-    let request: String = format!("{EXECUTABLE_SYSTEMCTL} --no-block --no-ask-password reload-or-restart {BOOT_GATE_UNIT_NAME}");
+    let request: String = format!(
+        "{EXECUTABLE_SYSTEMCTL} --no-block --no-ask-password reload-or-restart {BOOT_GATE_UNIT_NAME}"
+    );
     let line: String = format!("{FAILURE_IGNORED_PREFIX}{request}");
     let path: PathBuf = drop_in_path(PROVIDER_UNIT_NAME, PROVIDER_DROP_IN_NAME);
-    return file_text(vec![path_comment(path.as_path()), String::from("[Service]"), format!("ExecStartPost={line}")]);
+    return file_text(vec![
+        path_comment(path.as_path()),
+        String::from("[Service]"),
+        format!("ExecStartPost={line}"),
+    ]);
 }
 
 /// Controls stay out of the release executable.

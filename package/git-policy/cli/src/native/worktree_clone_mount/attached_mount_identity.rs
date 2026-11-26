@@ -21,8 +21,15 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::fs_beneath_mount_facts::{mount_id_of, observed_path};
-use crate::fs_mount_options::{MOUNTINFO_PATH, MountFacts, parse_mount_table};
+use crate::fs_beneath_mount_facts::{
+    mount_id_of,
+    observed_path,
+};
+use crate::fs_mount_options::{
+    MOUNTINFO_PATH,
+    MountFacts,
+    parse_mount_table,
+};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
@@ -128,11 +135,16 @@ impl MountIdentityRefusal {
     /// naming the table and every way forward.
     pub fn message(&self) -> String {
         return match self {
-            MountIdentityRefusal::Unreadable { path, reason } => format!(
+            MountIdentityRefusal::Unreadable {
+                path,
+                reason,
+            } => format!(
                 "the kernel's mount facts at {} could not be read: {reason}. Nothing is attached or rolled back on a mount identity that cannot be read. Ways forward: run the command again; when the read keeps failing, the process cannot read `/proc`, and an administrator checks that mount namespace before the clone is attached.",
                 path.display()
             ),
-            MountIdentityRefusal::NoMountEntry { mount_id } => format!(
+            MountIdentityRefusal::NoMountEntry {
+                mount_id,
+            } => format!(
                 "the descriptor is on mount {mount_id}, which {} does not list. A mount this process cannot find is not one it acts on. Ways forward: run the command in the mount namespace that holds the clone's mount, and check with `findmnt --mountinfo` that the mount is listed there.",
                 MOUNTINFO_PATH
             ),
@@ -156,13 +168,20 @@ impl MountIdentityRefusal {
 /// A mount table that cannot be read,
 /// or one that lists no line for `mount_id`.
 pub fn mount_facts_of(mount_id: u64) -> Result<MountFacts, MountIdentityRefusal> {
-    let bytes: Vec<u8> = std::fs::read(MOUNTINFO_PATH).map_err(|error| return MountIdentityRefusal::Unreadable { path: PathBuf::from(MOUNTINFO_PATH), reason: error.to_string() })?;
+    let bytes: Vec<u8> = std::fs::read(MOUNTINFO_PATH).map_err(|error| {
+        return MountIdentityRefusal::Unreadable {
+            path: PathBuf::from(MOUNTINFO_PATH),
+            reason: error.to_string(),
+        };
+    })?;
     for facts in parse_mount_table(bytes.as_slice()) {
         if facts.mount_id == mount_id {
             return Ok(facts);
         }
     }
-    return Err(MountIdentityRefusal::NoMountEntry { mount_id });
+    return Err(MountIdentityRefusal::NoMountEntry {
+        mount_id,
+    });
 }
 
 /// What:
@@ -181,10 +200,25 @@ pub fn mount_facts_of(mount_id: u64) -> Result<MountFacts, MountIdentityRefusal>
 /// its mount table cannot be read,
 /// or the table lists no line for its mount.
 pub fn mount_identity_of(folder: &std::fs::File) -> Result<MountIdentity, MountIdentityRefusal> {
-    let observed: PathBuf = observed_path(folder).map_err(|error| return MountIdentityRefusal::Unreadable { path: PathBuf::from("/proc/self/fd"), reason: error.to_string() })?;
-    let mount_id: u64 = mount_id_of(folder).map_err(|error| return MountIdentityRefusal::Unreadable { path: PathBuf::from("/proc/self/fdinfo"), reason: error.to_string() })?;
+    let observed: PathBuf = observed_path(folder).map_err(|error| {
+        return MountIdentityRefusal::Unreadable {
+            path: PathBuf::from("/proc/self/fd"),
+            reason: error.to_string(),
+        };
+    })?;
+    let mount_id: u64 = mount_id_of(folder).map_err(|error| {
+        return MountIdentityRefusal::Unreadable {
+            path: PathBuf::from("/proc/self/fdinfo"),
+            reason: error.to_string(),
+        };
+    })?;
     let facts: MountFacts = mount_facts_of(mount_id)?;
-    let metadata: std::fs::Metadata = folder.metadata().map_err(|error| return MountIdentityRefusal::Unreadable { path: observed.clone(), reason: error.to_string() })?;
+    let metadata: std::fs::Metadata = folder.metadata().map_err(|error| {
+        return MountIdentityRefusal::Unreadable {
+            path: observed.clone(),
+            reason: error.to_string(),
+        };
+    })?;
     debug(TAG, "read the mount identity of one folder");
     return Ok(MountIdentity {
         mount_id,

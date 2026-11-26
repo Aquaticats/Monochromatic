@@ -38,13 +38,19 @@
 
 /// The global-option parser,
 /// to find the subcommand behind the caller's global options.
-use crate::global_arguments::{GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalOutcome,
+    global_layout,
+};
 /// Owned operating-system text for the arguments.
 use std::ffi::OsString;
-/// The switch that turns the option on for the process.
-use std::sync::atomic::{AtomicBool, Ordering};
 /// The child that gets the option.
 use std::process::Command;
+/// The switch that turns the option on for the process.
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// The `core.hooksPath` value of every start:
 /// below `/dev/null`,
@@ -208,15 +214,24 @@ pub fn activate() {
 /// ```ts
 /// [...args.slice(0, layout.prefixLen), ...hooksOffOptions, ...ownerOptions, ...args.slice(layout.prefixLen)]
 /// ```
-pub fn hooks_off_arguments(arguments: &[OsString], owner: StartOwner) -> Vec<OsString> {
+pub fn hooks_off_arguments(
+    arguments: &[OsString],
+    owner: StartOwner,
+) -> Vec<OsString> {
     if is_configuration_query(arguments) {
         return arguments.to_vec();
     }
     let layout = global_layout(arguments);
-    let split: usize = if layout.outcome == GlobalOutcome::Command { layout.prefix_len } else { 0 };
+    let split: usize = if layout.outcome == GlobalOutcome::Command {
+        layout.prefix_len
+    } else {
+        0
+    };
     let mut result: Vec<OsString> = arguments[..split].to_vec();
     result.push(OsString::from("-c"));
-    result.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    result.push(OsString::from(format!(
+        "core.hooksPath={NO_HOOKS_DIRECTORY}"
+    )));
     if owner == StartOwner::Wrapper {
         result.push(OsString::from("-c"));
         result.push(OsString::from(MONITOR_OFF_SETTING));
@@ -242,7 +257,11 @@ pub fn hooks_off_arguments(arguments: &[OsString], owner: StartOwner) -> Vec<OsS
 /// ```ts
 /// command.args(hooksOff.active ? hooksOffArguments(args, owner) : args);
 /// ```
-pub fn add_arguments(command: &mut Command, arguments: &[OsString], owner: StartOwner) {
+pub fn add_arguments(
+    command: &mut Command,
+    arguments: &[OsString],
+    owner: StartOwner,
+) {
     if ACTIVE.load(Ordering::SeqCst) {
         command.args(hooks_off_arguments(arguments, owner));
     } else {

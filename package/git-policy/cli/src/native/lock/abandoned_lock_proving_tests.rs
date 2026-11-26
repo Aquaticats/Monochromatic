@@ -25,12 +25,32 @@
 //! plantLock({ pid, identity }); expect(clearOne(...)).toBe(undefined | clearance);
 //! ```
 
-use crate::abandoned_lock_proving::{Clearance, Evidence, UNLINKED_THE_LOCK, clear_one};
-use crate::lock_holder_records::{folder_of, identity_of_birth, identity_of_process, record_text};
+use crate::abandoned_lock_proving::{
+    Clearance,
+    Evidence,
+    UNLINKED_THE_LOCK,
+    clear_one,
+};
+use crate::lock_holder_records::{
+    folder_of,
+    identity_of_birth,
+    identity_of_process,
+    record_text,
+};
 use crate::stale_ref_lock_walk::pid_file_beside;
-use crate::test_support::{fixture, remove};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use crate::test_support::{
+    fixture,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 
 /// A process of this control that holds nothing,
 /// ended when it is dropped.
@@ -72,14 +92,26 @@ fn a_git_directory(name: &str) -> PathBuf {
 /// ```ts
 /// plant({ commonDir, name: 'index.lock', pid, identities: [id] });
 /// ```
-fn plant(common_dir: &Path, name: &str, pid: i64, identities: &[String]) {
+fn plant(
+    common_dir: &Path,
+    name: &str,
+    pid: i64,
+    identities: &[String],
+) {
     let lock: PathBuf = common_dir.join(name);
     std::fs::create_dir_all(lock.parent().expect("the lock's folder")).expect("the lock's folder");
-    std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
+    std::fs::write(
+        lock.as_path(),
+        b"a half-written copy the dead holder never renamed\n",
+    )
+    .expect("the lock");
     // The clearing controls need the order the gate asks for: the PID file born strictly after the lock, which a file
     //  system of one tick cannot show for two files written at once. The helper makes it again until it can, and a file
     //  system that records no birth times fails the control naming what it said instead of testing nothing.
-    crate::lock_birth_times::tests::write_after_the_lock(lock.as_path(), format!("pid {pid}\n").as_str());
+    crate::lock_birth_times::tests::write_after_the_lock(
+        lock.as_path(),
+        format!("pid {pid}\n").as_str(),
+    );
     for (index, identity) in identities.iter().enumerate() {
         let file: PathBuf = folder_of(common_dir).join(format!("record-{name}-{index}"));
         std::fs::write(file, record_text(&[("child", pid, identity.clone())])).expect("the record");
@@ -123,9 +155,11 @@ fn dead_holder() -> (i64, String) {
 /// ```
 fn end_a_helper(mut program: Command) -> (i64, String) {
     // Quiet, because nothing reads this helper's output: it holds no stream of the run open.
-    let mut child: Child = crate::test_support::spawn_owned_quiet(&mut program).expect("a helper starts");
+    let mut child: Child =
+        crate::test_support::spawn_owned_quiet(&mut program).expect("a helper starts");
     let pid: i64 = i64::from(child.id());
-    let identity: String = identity_of_process(pid).expect("the helper's identity is readable while it waits");
+    let identity: String =
+        identity_of_process(pid).expect("the helper's identity is readable while it waits");
     let _killed = child.kill();
     child.wait().expect("the helper ends");
     return (pid, identity);
@@ -185,7 +219,11 @@ const ANOTHER_MACHINE: &str = "fedcba9876543210fedcba9876543210";
 /// ```ts
 /// withPart(identity, 1, 'a-different-boot') // fails when the text has no part 1
 /// ```
-fn with_part(identity: &str, index: usize, value: &str) -> String {
+fn with_part(
+    identity: &str,
+    index: usize,
+    value: &str,
+) -> String {
     let mut parts: Vec<String> = identity.split('#').map(String::from).collect();
     // What:     `parts.get_mut(index)` is the one part to replace, or nothing when the text is shorter than the index;
     //           the `else` ends the control naming the text instead of planting a record nothing wrote.
@@ -217,11 +255,17 @@ fn with_part(identity: &str, index: usize, value: &str) -> String {
 /// ```ts
 /// withMachine(identity, 'fedcba98…') // birth#boot#scope#machine
 /// ```
-fn with_machine(identity: &str, machine: &str) -> String {
+fn with_machine(
+    identity: &str,
+    machine: &str,
+) -> String {
     let mut parts: Vec<String> = identity.split('#').map(String::from).collect();
     // The machine stands after the birth, the boot and the PID namespace, which every Linux writer names, so those three
     //  parts are there whatever this host could read.
-    assert!(parts.len() >= MACHINE_PART, "the identity {identity} names no boot and PID namespace to put a machine after");
+    assert!(
+        parts.len() >= MACHINE_PART,
+        "the identity {identity} names no boot and PID namespace to put a machine after"
+    );
     parts.truncate(MACHINE_PART);
     parts.push(String::from(machine));
     return parts.join("#");
@@ -238,12 +282,18 @@ enum Ended {
 
 /// Run one call and say what it did,
 /// checking that a kept lock is still there and a cleared one is gone.
-fn looked(common_dir: &Path, name: &str) -> Ended {
+fn looked(
+    common_dir: &Path,
+    name: &str,
+) -> Ended {
     let lock: PathBuf = common_dir.join(name);
     return match clear_one(lock.as_path(), common_dir) {
         Some(clearance) => Ended::Cleared(clearance),
         None => {
-            assert!(lock.exists(), "{name}: a lock the proof does not cover must be left where it is");
+            assert!(
+                lock.exists(),
+                "{name}: a lock the proof does not cover must be left where it is"
+            );
             Ended::Kept
         }
     };
@@ -267,10 +317,15 @@ fn a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared() {
     let (pid, identity) = dead_holder();
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
     let ended: Ended = looked(common_dir.as_path(), "index.lock");
-    let Ended::Cleared(clearance) = ended else { panic!("a lock of a dead recorded holder must be cleared: {ended:?}"); };
+    let Ended::Cleared(clearance) = ended else {
+        panic!("a lock of a dead recorded holder must be cleared: {ended:?}");
+    };
     assert_eq!(clearance.pid, pid);
     assert_eq!(clearance.evidence, Evidence::PidFile);
-    assert!(!pid_file_beside(common_dir.join("index.lock").as_path()).exists(), "the PID file of a cleared lock goes with it");
+    assert!(
+        !pid_file_beside(common_dir.join("index.lock").as_path()).exists(),
+        "the PID file of a cleared lock goes with it"
+    );
     remove(common_dir.as_path());
 }
 
@@ -299,25 +354,57 @@ fn a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared() {
 /// ```
 #[test]
 fn equal_or_missing_birth_times_keep_the_lock() {
-    use crate::lock_birth_times::{BirthTimes, with_birth_times};
+    use crate::lock_birth_times::{
+        BirthTimes,
+        with_birth_times,
+    };
     let coarse: PathBuf = a_git_directory("coarse-birth-times");
     let (coarse_pid, coarse_identity) = dead_holder();
-    plant(coarse.as_path(), "index.lock", coarse_pid, &[coarse_identity]);
-    let kept: bool = with_birth_times(BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
-        return matches!(looked(coarse.as_path(), "index.lock"), Ended::Kept);
-    });
-    assert!(kept, "a lock and its PID file in one tick prove no order, so the lock stays");
+    plant(
+        coarse.as_path(),
+        "index.lock",
+        coarse_pid,
+        &[coarse_identity],
+    );
+    let kept: bool = with_birth_times(
+        BirthTimes::Coarse(std::time::Duration::from_secs(3600)),
+        || {
+            return matches!(looked(coarse.as_path(), "index.lock"), Ended::Kept);
+        },
+    );
+    assert!(
+        kept,
+        "a lock and its PID file in one tick prove no order, so the lock stays"
+    );
     remove(coarse.as_path());
     let hidden: PathBuf = a_git_directory("no-birth-times");
     let (hidden_pid, hidden_identity) = dead_holder();
-    plant(hidden.as_path(), "index.lock", hidden_pid, &[hidden_identity]);
-    let kept_without_times: bool = with_birth_times(BirthTimes::Hidden, || { return matches!(looked(hidden.as_path(), "index.lock"), Ended::Kept); });
-    assert!(kept_without_times, "a file system that records no birth time proves no order, so the lock stays");
+    plant(
+        hidden.as_path(),
+        "index.lock",
+        hidden_pid,
+        &[hidden_identity],
+    );
+    let kept_without_times: bool = with_birth_times(BirthTimes::Hidden, || {
+        return matches!(looked(hidden.as_path(), "index.lock"), Ended::Kept);
+    });
+    assert!(
+        kept_without_times,
+        "a file system that records no birth time proves no order, so the lock stays"
+    );
     remove(hidden.as_path());
     let recorded: PathBuf = a_git_directory("recorded-birth-times");
     let (recorded_pid, recorded_identity) = dead_holder();
-    plant(recorded.as_path(), "index.lock", recorded_pid, &[recorded_identity]);
-    assert!(matches!(looked(recorded.as_path(), "index.lock"), Ended::Cleared(_)), "the same fixture is cleared when the order is proven");
+    plant(
+        recorded.as_path(),
+        "index.lock",
+        recorded_pid,
+        &[recorded_identity],
+    );
+    assert!(
+        matches!(looked(recorded.as_path(), "index.lock"), Ended::Cleared(_)),
+        "the same fixture is cleared when the order is proven"
+    );
     remove(recorded.as_path());
 }
 
@@ -342,8 +429,16 @@ fn a_lock_whose_number_a_live_process_has_is_kept_even_when_a_dead_record_names_
     let common_dir: PathBuf = a_git_directory("reused-number");
     let (live_pid, _live_identity, _holder) = live_holder();
     let (_dead_pid, dead_identity) = dead_holder();
-    plant(common_dir.as_path(), "index.lock", live_pid, &[dead_identity]);
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a live number is never proved gone");
+    plant(
+        common_dir.as_path(),
+        "index.lock",
+        live_pid,
+        &[dead_identity],
+    );
+    assert!(
+        matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept),
+        "a live number is never proved gone"
+    );
     remove(common_dir.as_path());
 }
 
@@ -362,7 +457,10 @@ fn a_lock_whose_record_matches_the_live_process_is_kept() {
     let common_dir: PathBuf = a_git_directory("live-recorded");
     let (pid, identity, _holder) = live_holder();
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a live recorded holder keeps its lock");
+    assert!(
+        matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept),
+        "a live recorded holder keeps its lock"
+    );
     remove(common_dir.as_path());
 }
 
@@ -383,11 +481,26 @@ fn two_records_for_one_number_clear_only_when_every_one_is_gone() {
     let (pid, identity) = dead_holder();
     let (other_pid, other_identity) = dead_holder();
     let elsewhere: String = with_part(other_identity.as_str(), 2, "999999999");
-    plant(common_dir.as_path(), "index.lock", pid, &[identity.clone(), elsewhere]);
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "one record of another namespace keeps the lock");
+    plant(
+        common_dir.as_path(),
+        "index.lock",
+        pid,
+        &[identity.clone(), elsewhere],
+    );
+    assert!(
+        matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept),
+        "one record of another namespace keeps the lock"
+    );
     // With the namespace record gone from the folder, the same lock is cleared.
-    std::fs::remove_file(folder_of(common_dir.as_path()).join("record-index.lock-1")).expect("the other namespace's record");
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Cleared(_)), "both records of this boot that ended prove the writer gone");
+    std::fs::remove_file(folder_of(common_dir.as_path()).join("record-index.lock-1"))
+        .expect("the other namespace's record");
+    assert!(
+        matches!(
+            looked(common_dir.as_path(), "index.lock"),
+            Ended::Cleared(_)
+        ),
+        "both records of this boot that ended prove the writer gone"
+    );
     let _ = other_pid;
     remove(common_dir.as_path());
 }
@@ -415,12 +528,31 @@ fn two_records_for_one_number_clear_only_when_every_one_is_gone() {
 fn a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown() {
     let (pid, identity) = dead_holder();
     let earlier_boot: PathBuf = a_git_directory("another-boot");
-    plant(earlier_boot.as_path(), "index.lock", pid, &[with_part(identity.as_str(), BOOT_PART, ANOTHER_BOOT)]);
-    assert!(matches!(looked(earlier_boot.as_path(), "index.lock"), Ended::Cleared(_)), "a boot that ended ends every process in it");
+    plant(
+        earlier_boot.as_path(),
+        "index.lock",
+        pid,
+        &[with_part(identity.as_str(), BOOT_PART, ANOTHER_BOOT)],
+    );
+    assert!(
+        matches!(
+            looked(earlier_boot.as_path(), "index.lock"),
+            Ended::Cleared(_)
+        ),
+        "a boot that ended ends every process in it"
+    );
     remove(earlier_boot.as_path());
     let other_machine: PathBuf = a_git_directory("another-machine");
-    plant(other_machine.as_path(), "index.lock", pid, &[with_machine(identity.as_str(), ANOTHER_MACHINE)]);
-    assert!(matches!(looked(other_machine.as_path(), "index.lock"), Ended::Kept), "another machine's record proves nothing here");
+    plant(
+        other_machine.as_path(),
+        "index.lock",
+        pid,
+        &[with_machine(identity.as_str(), ANOTHER_MACHINE)],
+    );
+    assert!(
+        matches!(looked(other_machine.as_path(), "index.lock"), Ended::Kept),
+        "another machine's record proves nothing here"
+    );
     remove(other_machine.as_path());
 }
 
@@ -450,10 +582,16 @@ fn a_record_whose_boot_part_is_no_boot_keeps_the_lock() {
     let (pid, identity) = dead_holder();
     let parts: Vec<&str> = identity.split('#').collect();
     // The birth and the PID namespace are the two parts a writer names when it cannot read the boot ID of its host.
-    assert!(parts.len() > PID_SCOPE_PART, "the identity {identity} names no PID namespace, so this control cannot drop its boot");
+    assert!(
+        parts.len() > PID_SCOPE_PART,
+        "the identity {identity} names no PID namespace, so this control cannot drop its boot"
+    );
     let without_boot: String = format!("{}#{}", parts[BIRTH_PART], parts[PID_SCOPE_PART]);
     plant(common_dir.as_path(), "index.lock", pid, &[without_boot]);
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a text whose boot part is no boot proves nothing about its writer");
+    assert!(
+        matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept),
+        "a text whose boot part is no boot proves nothing about its writer"
+    );
     remove(common_dir.as_path());
 }
 
@@ -474,11 +612,24 @@ fn a_lock_with_no_record_or_no_pid_file_is_kept() {
     let common_dir: PathBuf = a_git_directory("no-proof");
     let (pid, _identity) = dead_holder();
     plant(common_dir.as_path(), "index.lock", pid, &[]);
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a lock no record explains is kept");
-    std::fs::remove_file(pid_file_beside(common_dir.join("index.lock").as_path())).expect("the PID file");
-    plant(common_dir.as_path(), "HEAD.lock", pid, &[identity_of_birth("linux:1")]);
-    std::fs::remove_file(pid_file_beside(common_dir.join("HEAD.lock").as_path())).expect("the PID file");
-    assert!(matches!(looked(common_dir.as_path(), "HEAD.lock"), Ended::Kept), "a lock with no PID file names nobody");
+    assert!(
+        matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept),
+        "a lock no record explains is kept"
+    );
+    std::fs::remove_file(pid_file_beside(common_dir.join("index.lock").as_path()))
+        .expect("the PID file");
+    plant(
+        common_dir.as_path(),
+        "HEAD.lock",
+        pid,
+        &[identity_of_birth("linux:1")],
+    );
+    std::fs::remove_file(pid_file_beside(common_dir.join("HEAD.lock").as_path()))
+        .expect("the PID file");
+    assert!(
+        matches!(looked(common_dir.as_path(), "HEAD.lock"), Ended::Kept),
+        "a lock with no PID file names nobody"
+    );
     remove(common_dir.as_path());
 }
 
@@ -509,7 +660,11 @@ fn a_non_dumpable_writer_holds_the_lock_for_the_control() {
     let Ok(lock) = std::env::var(HOLD_NON_DUMPABLY) else {
         return;
     };
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(lock.as_str()).expect("open the lock for writing");
+    let file: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(lock.as_str())
+        .expect("open the lock for writing");
     // SAFETY: `prctl` takes integers and touches no memory of this process.
     let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) };
     assert_eq!(refused, 0, "the holder must become non-dumpable");
@@ -543,8 +698,14 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
     let lock: PathBuf = common_dir.join("index.lock");
     let mut holder: Child = start_non_dumpable_holder(lock.as_path());
-    assert!(unreadable_holder(lock.as_path(), i64::from(holder.id())), "the holder must be non-dumpable and hold the lock open");
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a writer nobody can look into keeps the lock");
+    assert!(
+        unreadable_holder(lock.as_path(), i64::from(holder.id())),
+        "the holder must be non-dumpable and hold the lock open"
+    );
+    assert!(
+        matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept),
+        "a writer nobody can look into keeps the lock"
+    );
     let _killed = holder.kill();
     let _waited = holder.wait();
     remove(common_dir.as_path());
@@ -582,7 +743,10 @@ fn start_non_dumpable_holder(lock: &Path) -> Child {
 /// ```ts
 /// expect(fs.readdirSync(`/proc/${pid}/fd`)).toThrow(/EACCES/);
 /// ```
-fn unreadable_holder(lock: &Path, pid: i64) -> bool {
+fn unreadable_holder(
+    lock: &Path,
+    pid: i64,
+) -> bool {
     let ready: PathBuf = PathBuf::from(format!("{}.ready", lock.display()));
     let began: std::time::Instant = std::time::Instant::now();
     while began.elapsed() < std::time::Duration::from_secs(10) {
@@ -615,11 +779,23 @@ fn a_lock_only_a_reader_holds_open_is_cleared_because_a_reader_cannot_write_into
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
     let lock: PathBuf = common_dir.join("index.lock");
     let mut command: Command = Command::new("sh");
-    command.args(["-c", "exec 9<\"$1\"; exec sleep 120", "sh"]).arg(lock.as_path());
+    command
+        .args(["-c", "exec 9<\"$1\"; exec sleep 120", "sh"])
+        .arg(lock.as_path());
     // Owned, so the `sleep` behind this shell goes with the test whichever way the control ends.
-    let mut reader: Child = crate::test_support::spawn_owned_quiet(&mut command).expect("a reader starts");
-    assert!(wait_until_open(lock.as_path(), i64::from(reader.id())), "the reader must hold the lock open before the proof is asked");
-    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Cleared(_)), "a reader cannot write into the file, so its name may go");
+    let mut reader: Child =
+        crate::test_support::spawn_owned_quiet(&mut command).expect("a reader starts");
+    assert!(
+        wait_until_open(lock.as_path(), i64::from(reader.id())),
+        "the reader must hold the lock open before the proof is asked"
+    );
+    assert!(
+        matches!(
+            looked(common_dir.as_path(), "index.lock"),
+            Ended::Cleared(_)
+        ),
+        "a reader cannot write into the file, so its name may go"
+    );
     let _killed = reader.kill();
     let _waited = reader.wait();
     remove(common_dir.as_path());
@@ -767,18 +943,36 @@ fn a_freed_name_taken(fixture: FreedName) -> TakenName {
             std::fs::write(new_lock.as_path(), b"the new holder's index\n").expect("the new lock");
             match fixture.holder {
                 TheNewHolder::WritesNone => {
-                    let refused: std::io::Result<std::fs::File> = std::fs::OpenOptions::new().write(true).create_new(true).open(new_pid_file.as_path());
-                    assert!(refused.is_err(), "an exclusive create of the PID file is refused while the judged file stands");
+                    let refused: std::io::Result<std::fs::File> = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(new_pid_file.as_path());
+                    assert!(
+                        refused.is_err(),
+                        "an exclusive create of the PID file is refused while the judged file stands"
+                    );
                 }
                 TheNewHolder::ItsNumberInPlace => {
-                    std::fs::write(new_pid_file.as_path(), format!("pid {new_pid}\n").as_bytes()).expect("its number over the judged file");
+                    std::fs::write(
+                        new_pid_file.as_path(),
+                        format!("pid {new_pid}\n").as_bytes(),
+                    )
+                    .expect("its number over the judged file");
                 }
                 TheNewHolder::TheJudgedNumberInPlace => {
-                    std::fs::write(new_pid_file.as_path(), format!("pid {judged_pid}\n").as_bytes()).expect("the judged number over the judged file");
+                    std::fs::write(
+                        new_pid_file.as_path(),
+                        format!("pid {judged_pid}\n").as_bytes(),
+                    )
+                    .expect("the judged number over the judged file");
                 }
                 TheNewHolder::TheJudgedNumberInANewOne => {
                     std::fs::remove_file(new_pid_file.as_path()).expect("the judged PID file goes");
-                    std::fs::write(new_pid_file.as_path(), format!("pid {judged_pid}\n").as_bytes()).expect("the judged number in a new file");
+                    std::fs::write(
+                        new_pid_file.as_path(),
+                        format!("pid {judged_pid}\n").as_bytes(),
+                    )
+                    .expect("the judged number in a new file");
                 }
                 TheNewHolder::OtherBytesInPlace(other) => {
                     let bytes: String = match other {
@@ -787,7 +981,8 @@ fn a_freed_name_taken(fixture: FreedName) -> TakenName {
                         OtherBytes::CarriageReturn => format!("pid {judged_pid}\r\n"),
                         OtherBytes::NoNewline => format!("pid {judged_pid}"),
                     };
-                    std::fs::write(new_pid_file.as_path(), bytes.as_bytes()).expect("the judged number in other bytes over the judged file");
+                    std::fs::write(new_pid_file.as_path(), bytes.as_bytes())
+                        .expect("the judged number in other bytes over the judged file");
                 }
             }
         }),
@@ -798,9 +993,18 @@ fn a_freed_name_taken(fixture: FreedName) -> TakenName {
         every_inode_is: fixture.every_inode_is,
         later: fixture.later,
     };
-    let ended: Ended = crate::lock_metadata_arm::with_arm(arm, || { return looked(common_dir.as_path(), "index.lock"); });
+    let ended: Ended = crate::lock_metadata_arm::with_arm(arm, || {
+        return looked(common_dir.as_path(), "index.lock");
+    });
     crate::service_fault::hooks::clear();
-    return TakenName { common_dir, lock, pid_file, judged_pid, new_pid, ended };
+    return TakenName {
+        common_dir,
+        lock,
+        pid_file,
+        judged_pid,
+        new_pid,
+        ended,
+    };
 }
 
 /// What:
@@ -845,10 +1049,21 @@ fn a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone() {
         every_inode_is: Some(ONE_INODE_FOR_EVERY_FILE),
         later: None,
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
     assert!(taken.lock.exists(), "the new holder's lock stands");
-    assert!(taken.pid_file.exists(), "a PID file another program wrote over the judged one is left alone");
-    assert_eq!(crate::stopped_git_locks::pid_named_by(taken.pid_file.as_path()), i32::try_from(taken.new_pid).ok(), "the file names the writer that stands");
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file another program wrote over the judged one is left alone"
+    );
+    assert_eq!(
+        crate::stopped_git_locks::pid_named_by(taken.pid_file.as_path()),
+        i32::try_from(taken.new_pid).ok(),
+        "the file names the writer that stands"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -874,8 +1089,15 @@ fn a_pid_file_whose_number_gained_a_leading_zero_is_left_alone() {
         every_inode_is: None,
         later: None,
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
-    assert!(taken.pid_file.exists(), "a PID file whose number gained a leading zero is left alone");
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file whose number gained a leading zero is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -901,8 +1123,15 @@ fn a_pid_file_with_trailing_padding_is_left_alone() {
         every_inode_is: None,
         later: None,
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
-    assert!(taken.pid_file.exists(), "a PID file with spaces before its newline is left alone");
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file with spaces before its newline is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -928,8 +1157,15 @@ fn a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone() {
         every_inode_is: None,
         later: None,
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
-    assert!(taken.pid_file.exists(), "a PID file with a carriage return before its newline is left alone");
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file with a carriage return before its newline is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -955,8 +1191,15 @@ fn a_pid_file_with_no_newline_is_left_alone() {
         every_inode_is: None,
         later: None,
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
-    assert!(taken.pid_file.exists(), "a PID file with no newline is left alone");
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file with no newline is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -987,9 +1230,16 @@ fn a_pid_file_of_another_inode_is_left_alone() {
         every_inode_is: Some(ONE_INODE_FOR_EVERY_FILE),
         later: Some(crate::lock_metadata_arm::Changed::Inode),
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
     assert!(taken.lock.exists(), "the new holder's lock stands");
-    assert!(taken.pid_file.exists(), "a PID file of another inode is left alone");
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file of another inode is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -1021,8 +1271,15 @@ fn a_pid_file_of_another_change_time_is_left_alone() {
         every_inode_is: None,
         later: Some(crate::lock_metadata_arm::Changed::ChangeTime),
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
-    assert!(taken.pid_file.exists(), "a PID file whose change time reads another millisecond is left alone");
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file whose change time reads another millisecond is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -1051,8 +1308,15 @@ fn a_pid_file_of_another_device_is_left_alone() {
         every_inode_is: None,
         later: Some(crate::lock_metadata_arm::Changed::Device),
     });
-    assert!(matches!(taken.ended, Ended::Cleared(_)), "the abandoned lock itself is cleared: {:?}", taken.ended);
-    assert!(taken.pid_file.exists(), "a PID file of another device is left alone");
+    assert!(
+        matches!(taken.ended, Ended::Cleared(_)),
+        "the abandoned lock itself is cleared: {:?}",
+        taken.ended
+    );
+    assert!(
+        taken.pid_file.exists(),
+        "a PID file of another device is left alone"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -1093,9 +1357,14 @@ fn a_pid_file_with_the_very_bytes_it_was_judged_with_goes_with_the_lock() {
         every_inode_is: None,
         later: None,
     });
-    let Ended::Cleared(clearance) = taken.ended else { panic!("the abandoned lock itself is cleared: {:?}", taken.ended); };
+    let Ended::Cleared(clearance) = taken.ended else {
+        panic!("the abandoned lock itself is cleared: {:?}", taken.ended);
+    };
     assert_eq!(clearance.pid, taken.judged_pid);
-    assert!(!taken.pid_file.exists(), "a PID file with the very bytes it was judged with goes with the lock");
+    assert!(
+        !taken.pid_file.exists(),
+        "a PID file with the very bytes it was judged with goes with the lock"
+    );
     remove(taken.common_dir.as_path());
 }
 
@@ -1116,7 +1385,11 @@ fn an_arm_is_put_back_when_the_control_panics() {
     let root: PathBuf = a_git_directory("arm-put-back");
     let file: PathBuf = root.join("index~pid.lock");
     std::fs::write(file.as_path(), b"pid 1\n").expect("the file");
-    let recorded: crate::index_lock_evidence::LockMetadata = crate::index_lock_evidence::read_lock_metadata(file.as_path()).ok().flatten().expect("the file's metadata");
+    let recorded: crate::index_lock_evidence::LockMetadata =
+        crate::index_lock_evidence::read_lock_metadata(file.as_path())
+            .ok()
+            .flatten()
+            .expect("the file's metadata");
     let judged_change_time: i64 = recorded.ctime_ms;
     let arm: crate::lock_metadata_arm::MetadataArm = crate::lock_metadata_arm::MetadataArm {
         path: file.clone(),
@@ -1124,14 +1397,25 @@ fn an_arm_is_put_back_when_the_control_panics() {
         every_inode_is: Some(ONE_INODE_FOR_EVERY_FILE),
         later: None,
     };
-    let panicked: Result<(), Box<dyn std::any::Any + Send>> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        crate::lock_metadata_arm::with_arm(arm, || {
-            panic!("a control's own failure");
-        });
-    }));
-    assert!(panicked.is_err(), "the body must panic for this control to hold anything");
-    let afterwards: Option<crate::index_lock_evidence::LockMetadata> = crate::lock_metadata_arm::armed(file.as_path(), Some(recorded));
-    assert_eq!(afterwards.map(|found| { return found.ctime_ms; }), Some(judged_change_time), "the arm is not set any more, or the next control of this thread would read armed metadata");
+    let panicked: Result<(), Box<dyn std::any::Any + Send>> =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::lock_metadata_arm::with_arm(arm, || {
+                panic!("a control's own failure");
+            });
+        }));
+    assert!(
+        panicked.is_err(),
+        "the body must panic for this control to hold anything"
+    );
+    let afterwards: Option<crate::index_lock_evidence::LockMetadata> =
+        crate::lock_metadata_arm::armed(file.as_path(), Some(recorded));
+    assert_eq!(
+        afterwards.map(|found| {
+            return found.ctime_ms;
+        }),
+        Some(judged_change_time),
+        "the arm is not set any more, or the next control of this thread would read armed metadata"
+    );
     remove(root.as_path());
 }
 
@@ -1163,23 +1447,33 @@ fn a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock() {
         every_inode_is: None,
         later: None,
     });
-    let Ended::Cleared(clearance) = taken.ended else { panic!("the abandoned lock itself is cleared: {:?}", taken.ended); };
+    let Ended::Cleared(clearance) = taken.ended else {
+        panic!("the abandoned lock itself is cleared: {:?}", taken.ended);
+    };
     assert_eq!(clearance.pid, taken.judged_pid);
     assert!(taken.lock.exists(), "the new holder's lock stands");
-    assert!(!taken.pid_file.exists(), "the abandoned holder's PID file goes with its lock, and the new holder has none to lose");
+    assert!(
+        !taken.pid_file.exists(),
+        "the abandoned holder's PID file goes with its lock, and the new holder has none to lose"
+    );
     remove(taken.common_dir.as_path());
 }
 
 /// Wait for the child to hold `lock` open,
 /// bounded,
 /// because the child must have it before the proof is asked.
-fn wait_until_open(lock: &Path, pid: i64) -> bool {
+fn wait_until_open(
+    lock: &Path,
+    pid: i64,
+) -> bool {
     let opened: PathBuf = PathBuf::from(format!("/proc/{pid}/fd"));
     let began: std::time::Instant = std::time::Instant::now();
     while began.elapsed() < std::time::Duration::from_secs(10) {
         if let Ok(entries) = std::fs::read_dir(opened.as_path()) {
             for entry in entries.flatten() {
-                if std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock; }) {
+                if std::fs::read_link(entry.path()).is_ok_and(|target| {
+                    return target == lock;
+                }) {
                     return true;
                 }
             }

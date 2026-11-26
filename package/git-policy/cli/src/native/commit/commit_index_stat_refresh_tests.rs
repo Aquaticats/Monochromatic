@@ -6,7 +6,15 @@
 
 use super::*;
 use crate::commit_index_stat_staleness::WorktreeStaging;
-use crate::test_support::{fixture, git, git_context, git_text, remove, renew_inode, repository};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    renew_inode,
+    repository,
+};
 use crate::transaction_git::GitContext;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
@@ -34,8 +42,14 @@ fn stale_repository(root: &Path) -> PathBuf {
 
 /// Whether the real index records the inode `name` has now,
 /// as Git prints it in `ls-files --debug`.
-fn records_the_file_now(repo: &Path, name: &str) -> bool {
-    let listing: String = git_text(repo, &["--no-optional-locks", "ls-files", "--debug", "--", name]);
+fn records_the_file_now(
+    repo: &Path,
+    name: &str,
+) -> bool {
+    let listing: String = git_text(
+        repo,
+        &["--no-optional-locks", "ls-files", "--debug", "--", name],
+    );
     let inode: u64 = std::fs::metadata(repo.join(name)).expect("the file").ino();
     return listing.contains(format!("ino: {inode}").as_str());
 }
@@ -58,11 +72,19 @@ fn the_refresh_looks_at_the_entries_the_walk_named_and_no_other() {
     let index: PathBuf = repo.join(".git").join("index");
     let staged: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("a.txt")];
     assert_eq!(
-        refresh_stat_data_when_stale(&git_context(), repo.as_path(), index.as_path(), WorktreeStaging::Named(staged.as_slice())),
+        refresh_stat_data_when_stale(
+            &git_context(),
+            repo.as_path(),
+            index.as_path(),
+            WorktreeStaging::Named(staged.as_slice())
+        ),
         StatRefresh::Kept,
         "the entry the walk named is refreshed"
     );
-    assert!(records_the_file_now(repo.as_path(), "b.txt"), "the entry the walk named is refreshed in the index");
+    assert!(
+        records_the_file_now(repo.as_path(), "b.txt"),
+        "the entry the walk named is refreshed in the index"
+    );
     assert!(
         !records_the_file_now(repo.as_path(), "a.txt"),
         "the entry the commit stages from the worktree is left to `git add`, which writes its stat data there"
@@ -78,10 +100,24 @@ fn a_named_refresh_keeps_the_entry_of_a_file_the_worktree_lost() {
     let repo: PathBuf = committed_repository(root.as_path());
     std::fs::remove_file(repo.join("b.txt")).expect("the worktree loses b.txt");
     let index: PathBuf = repo.join(".git").join("index");
-    let before: String = git_text(repo.as_path(), &["--no-optional-locks", "ls-files", "--stage"]);
-    assert!(refresh_named_stat_data(&git_context(), repo.as_path(), index.as_path(), &[b"b.txt".to_vec()]), "the refresh is kept");
+    let before: String = git_text(
+        repo.as_path(),
+        &["--no-optional-locks", "ls-files", "--stage"],
+    );
+    assert!(
+        refresh_named_stat_data(
+            &git_context(),
+            repo.as_path(),
+            index.as_path(),
+            &[b"b.txt".to_vec()]
+        ),
+        "the refresh is kept"
+    );
     assert_eq!(
-        git_text(repo.as_path(), &["--no-optional-locks", "ls-files", "--stage"]),
+        git_text(
+            repo.as_path(),
+            &["--no-optional-locks", "ls-files", "--stage"]
+        ),
         before,
         "every entry is still there, the lost file's included"
     );
@@ -95,9 +131,18 @@ fn a_stale_entry_is_refreshed_in_the_index_it_names() {
     let root: PathBuf = fixture("commit-index-refresh-stale");
     let repo: PathBuf = stale_repository(root.as_path());
     let index: PathBuf = repo.join(".git").join("index");
-    assert!(!records_the_file_now(repo.as_path(), "a.txt"), "the fixture's index must be stale, or this control proves nothing");
-    assert!(refresh_stat_data(&git_context(), repo.as_path(), index.as_path()), "Git wrote the refresh");
-    assert!(records_the_file_now(repo.as_path(), "a.txt"), "the refresh is in the index it named");
+    assert!(
+        !records_the_file_now(repo.as_path(), "a.txt"),
+        "the fixture's index must be stale, or this control proves nothing"
+    );
+    assert!(
+        refresh_stat_data(&git_context(), repo.as_path(), index.as_path()),
+        "Git wrote the refresh"
+    );
+    assert!(
+        records_the_file_now(repo.as_path(), "a.txt"),
+        "the refresh is in the index it named"
+    );
     remove(root.as_path());
 }
 
@@ -110,8 +155,14 @@ fn an_unstaged_change_does_not_lose_the_refresh_of_the_other_entries() {
     let repo: PathBuf = stale_repository(root.as_path());
     std::fs::write(repo.join("b.txt"), "changed\n").expect("an unstaged change");
     let index: PathBuf = repo.join(".git").join("index");
-    assert!(refresh_stat_data(&git_context(), repo.as_path(), index.as_path()), "a path that needs an update still keeps the refresh");
-    assert!(records_the_file_now(repo.as_path(), "a.txt"), "the other entries keep the refresh");
+    assert!(
+        refresh_stat_data(&git_context(), repo.as_path(), index.as_path()),
+        "a path that needs an update still keeps the refresh"
+    );
+    assert!(
+        records_the_file_now(repo.as_path(), "a.txt"),
+        "the other entries keep the refresh"
+    );
     remove(root.as_path());
 }
 
@@ -123,9 +174,17 @@ fn an_index_another_program_has_locked_is_left_as_it_was() {
     let repo: PathBuf = stale_repository(root.as_path());
     let index: PathBuf = repo.join(".git").join("index");
     let before: Vec<u8> = std::fs::read(index.as_path()).expect("the index");
-    std::fs::write(repo.join(".git").join("index.lock"), b"").expect("a lock another program holds");
-    assert!(!refresh_stat_data(&git_context(), repo.as_path(), index.as_path()), "a locked index is not refreshed");
-    assert_eq!(std::fs::read(index.as_path()).expect("the index"), before, "the index is as it was");
+    std::fs::write(repo.join(".git").join("index.lock"), b"")
+        .expect("a lock another program holds");
+    assert!(
+        !refresh_stat_data(&git_context(), repo.as_path(), index.as_path()),
+        "a locked index is not refreshed"
+    );
+    assert_eq!(
+        std::fs::read(index.as_path()).expect("the index"),
+        before,
+        "the index is as it was"
+    );
     remove(root.as_path());
 }
 
@@ -138,7 +197,10 @@ fn a_git_that_cannot_start_is_answered_without_a_failure() {
     let index: PathBuf = repo.join(".git").join("index");
     let mut context: GitContext = git_context();
     context.real_git = PathBuf::from("/nonexistent/git");
-    assert!(!refresh_stat_data(&context, repo.as_path(), index.as_path()), "a Git that cannot start keeps nothing");
+    assert!(
+        !refresh_stat_data(&context, repo.as_path(), index.as_path()),
+        "a Git that cannot start keeps nothing"
+    );
     remove(root.as_path());
 }
 
@@ -153,7 +215,12 @@ fn an_index_that_records_the_stat_data_is_answered_without_git() {
     let mut context: GitContext = git_context();
     context.real_git = PathBuf::from("/nonexistent/git");
     assert_eq!(
-        refresh_stat_data_when_stale(&context, repo.as_path(), index.as_path(), WorktreeStaging::None),
+        refresh_stat_data_when_stale(
+            &context,
+            repo.as_path(),
+            index.as_path(),
+            WorktreeStaging::None
+        ),
         StatRefresh::NotNeeded,
         "an up-to-date index costs no Git start and takes no lock"
     );
@@ -171,7 +238,12 @@ fn an_index_that_lost_the_worktrees_stat_data_asks_git() {
     let mut context: GitContext = git_context();
     context.real_git = PathBuf::from("/nonexistent/git");
     assert_eq!(
-        refresh_stat_data_when_stale(&context, repo.as_path(), index.as_path(), WorktreeStaging::None),
+        refresh_stat_data_when_stale(
+            &context,
+            repo.as_path(),
+            index.as_path(),
+            WorktreeStaging::None
+        ),
         StatRefresh::NotKept,
         "a stale index is refreshed, so this Git was asked"
     );
@@ -190,10 +262,23 @@ fn a_refresh_that_meets_another_programs_lock_does_not_wait_for_it() {
     let lock: PathBuf = repo.join(".git").join("index.lock");
     std::fs::write(lock.as_path(), b"").expect("a lock another program holds");
     let began: Instant = Instant::now();
-    let outcome: StatRefresh = refresh_stat_data_when_stale(&git_context(), repo.as_path(), index.as_path(), WorktreeStaging::None);
+    let outcome: StatRefresh = refresh_stat_data_when_stale(
+        &git_context(),
+        repo.as_path(),
+        index.as_path(),
+        WorktreeStaging::None,
+    );
     let spent: std::time::Duration = began.elapsed();
-    assert_eq!(outcome, StatRefresh::NotKept, "a held lock is a refresh Git did not write");
-    assert_eq!(std::fs::read(index.as_path()).expect("the index"), before, "the real index is as it was");
+    assert_eq!(
+        outcome,
+        StatRefresh::NotKept,
+        "a held lock is a refresh Git did not write"
+    );
+    assert_eq!(
+        std::fs::read(index.as_path()).expect("the index"),
+        before,
+        "the real index is as it was"
+    );
     assert!(
         spent < crate::wait_ceilings::LANDING_LOCK_CEILING,
         "the refresh waited {spent:?} for a lock it never gets, where the longest a landing waits for one is {:?}",

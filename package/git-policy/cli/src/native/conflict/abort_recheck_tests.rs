@@ -13,7 +13,11 @@
 //! planTheSecondLook({ context, command: 'stash', identity, seen: [] });
 //! expect(recheckBeforeTheCommand()).toBeUndefined(); // and the slot is empty now
 //! ```
-use super::{AbortRecheckPlan, plan_the_second_look, recheck_before_the_command};
+use super::{
+    AbortRecheckPlan,
+    plan_the_second_look,
+    recheck_before_the_command,
+};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::transaction_git::GitContext;
 use crate::worktree_identity::WorktreeIdentity;
@@ -45,8 +49,16 @@ fn plan() -> AbortRecheckPlan {
 #[test]
 fn a_form_outside_the_carve_out_owes_no_measurement_and_is_taken_once() {
     plan_the_second_look(plan());
-    assert_eq!(recheck_before_the_command(), None, "a stash is not this carve-out's business");
-    assert_eq!(recheck_before_the_command(), None, "the plan was taken by the first call");
+    assert_eq!(
+        recheck_before_the_command(),
+        None,
+        "a stash is not this carve-out's business"
+    );
+    assert_eq!(
+        recheck_before_the_command(),
+        None,
+        "the plan was taken by the first call"
+    );
 }
 
 /// A process that never planned a measurement measures nothing.

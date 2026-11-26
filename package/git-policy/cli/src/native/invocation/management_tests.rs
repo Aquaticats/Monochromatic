@@ -16,18 +16,48 @@
 #![cfg(unix)]
 
 /// Import the decision under test and shared fixtures.
-use super::{Selection, plan_management, plan_management_with_section, retired_explanation, status_git_dir};
-use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
+use super::{
+    Selection,
+    plan_management,
+    plan_management_with_section,
+    retired_explanation,
+    status_git_dir,
+};
 use crate::action::Action;
 use crate::config_file::CONFIG_FILE_NAME;
-use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
+use crate::management_arguments::{
+    MANAGEMENT_HELP,
+    MANAGEMENT_USAGE,
+    RetiredCommand,
+};
 use crate::policy_registry::PolicyId;
-use crate::real_git::{Platform, ResolutionInputs};
-use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
-use crate::wrapper_controls::{Controls, no_controls};
+use crate::real_git::{
+    Platform,
+    ResolutionInputs,
+};
+use crate::service_instance::{
+    SOCKET_DIRECTORY,
+    socket_for,
+};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    git,
+    isolated_overlay,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::wrapper_controls::{
+    Controls,
+    no_controls,
+};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Direct runs that select a policy which is off,
 /// warns or blocks.
@@ -82,7 +112,11 @@ fn plan_with(
 }
 
 /// Plan management text arguments without any wrapper control before `monochromatic-git-policy-cli`.
-fn plan(values: &[&str], directory: &Path, inputs: &ResolutionInputs) -> Action {
+fn plan(
+    values: &[&str],
+    directory: &Path,
+    inputs: &ResolutionInputs,
+) -> Action {
     return plan_with(values, directory, &no_controls(), inputs);
 }
 
@@ -96,12 +130,18 @@ fn plan(values: &[&str], directory: &Path, inputs: &ResolutionInputs) -> Action 
 fn without_fsmonitor_line(stderr: &str) -> String {
     let prefix: &str = "git monochromatic-git-policy-cli doctor: Git's fsmonitor is ";
     assert!(stderr.starts_with(prefix), "{stderr}");
-    let line_end: usize = stderr.find('\n').expect("the fsmonitor line ends with a line feed");
+    let line_end: usize = stderr
+        .find('\n')
+        .expect("the fsmonitor line ends with a line feed");
     return String::from(&stderr[line_end + 1..]);
 }
 
 /// Build the expected stop action.
-fn exit(code: i32, stdout: &str, stderr: &str) -> Action {
+fn exit(
+    code: i32,
+    stdout: &str,
+    stderr: &str,
+) -> Action {
     return Action::Exit {
         code,
         stdout: String::from(stdout),
@@ -125,7 +165,11 @@ fn final_newline_warning(sequence: u64) -> String {
 /// control requires to be one `transaction-failed` event for `trigger`,
 ///  its message
 /// starting with `message`.
-fn projection_failed(action: Action, trigger: &str, message: &str) {
+fn projection_failed(
+    action: Action,
+    trigger: &str,
+    message: &str,
+) {
     match action {
         Action::Exit {
             code,
@@ -144,18 +188,33 @@ fn projection_failed(action: Action, trigger: &str, message: &str) {
             );
             assert_eq!(stdout.matches('\n').count(), 1, "{stdout}");
         }
-        Action::Forward { .. } => panic!("a direct command is never forwarded"),
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
+        Action::Forward {
+            ..
+        } => panic!("a direct command is never forwarded"),
+        Action::ForwardCoordinated {
+            ..
+        } => panic!("a coordinated forward is not expected in this control"),
+        Action::ForwardSettled {
+            ..
+        } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush {
+            ..
+        } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced {
+            ..
+        } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes {
+            ..
+        } => panic!("a report of pathnames is not expected in this control"),
     }
 }
 
 /// The require-root finding of a direct check run in `nested/` of `repo`,
 ///  as event number `sequence`.
-fn not_at_root(sequence: u64, repo: &Path) -> String {
+fn not_at_root(
+    sequence: u64,
+    repo: &Path,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"require-root\",\"severity\":\"error\",\"code\":\"require-root/not-at-root\",\"message\":\"monochromatic-git-policy-cli: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/nested. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand.\",\"fix\":\"none\"}}\n",
         root = repo.display()
@@ -190,11 +249,19 @@ fn help_and_refusals_need_no_git() {
     }
     assert_eq!(
         plan(&["check", "a.txt"], root.as_path(), &inputs),
-        exit(2, "", "git monochromatic-git-policy-cli check pathspecs must follow --.\n")
+        exit(
+            2,
+            "",
+            "git monochromatic-git-policy-cli check pathspecs must follow --.\n"
+        )
     );
     assert_eq!(
         plan(&["fix", "a.txt"], root.as_path(), &inputs),
-        exit(2, "", "git monochromatic-git-policy-cli fix pathspecs must follow --.\n")
+        exit(
+            2,
+            "",
+            "git monochromatic-git-policy-cli fix pathspecs must follow --.\n"
+        )
     );
     assert_eq!(
         plan(&["check"], root.as_path(), &inputs),
@@ -313,13 +380,7 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
     // nothing left to do.
     assert_eq!(
         plan(
-            &[
-                "fix",
-                "--policy",
-                "final-newline",
-                "--",
-                "a.txt"
-            ],
+            &["fix", "--policy", "final-newline", "--", "a.txt"],
             repo.as_path(),
             &inputs
         ),
@@ -372,12 +433,20 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
         vec!["fix", "--all", "--policy", "require-root"],
         vec!["fix", "--all", "--policy", "add-explicit"],
     ] {
-        let Action::Exit { code, stdout, stderr } = plan(arguments.as_slice(), repo.as_path(), &inputs) else {
+        let Action::Exit {
+            code,
+            stdout,
+            stderr,
+        } = plan(arguments.as_slice(), repo.as_path(), &inputs)
+        else {
             panic!("a direct command ends in an exit action");
         };
         assert_eq!((code, stderr.as_str()), (2, ""), "{arguments:?}");
         assert!(stdout.contains("\"code\":\"config-invalid\""), "{stdout}");
-        assert!(stdout.contains("would check nothing and exit clean"), "{stdout}");
+        assert!(
+            stdout.contains("would check nothing and exit clean"),
+            "{stdout}"
+        );
     }
     // ... and a finding on standard output, with exit status 1, below the top level.
     assert_eq!(
@@ -389,7 +458,15 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
         exit(1, not_at_root(0, repo.as_path()).as_str(), "")
     );
     // A direct fix has no require-root policy to run, wherever it is typed, and says so.
-    let Action::Exit { code: fix_code, .. } = plan(&["fix", "--all", "--policy", "require-root"], nested.as_path(), &inputs) else {
+    let Action::Exit {
+        code: fix_code,
+        ..
+    } = plan(
+        &["fix", "--all", "--policy", "require-root"],
+        nested.as_path(),
+        &inputs,
+    )
+    else {
         panic!("a direct command ends in an exit action");
     };
     assert_eq!(fix_code, 2);
@@ -544,10 +621,16 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
     let inputs: ResolutionInputs = with_git(root.as_path());
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
     let id: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
-    std::fs::create_dir_all(registry.join(id)).expect("a transaction directory an earlier release left");
+    std::fs::create_dir_all(registry.join(id))
+        .expect("a transaction directory an earlier release left");
     // An interrupted worktree copy does not concern a direct command.
-    std::fs::create_dir_all(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1")).expect("journals");
-    std::fs::write(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1/id.json"), b"{}").expect("journal");
+    std::fs::create_dir_all(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1"))
+        .expect("journals");
+    std::fs::write(
+        repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1/id.json"),
+        b"{}",
+    )
+    .expect("journal");
     for (arguments, command) in [
         (
             vec!["check", "--all", "--policy", "require-root"],
@@ -559,7 +642,11 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
         ),
     ] {
         // A transaction an earlier release left does not stop a direct command.
-        let Action::Exit { stderr, .. } = plan(arguments.as_slice(), repo.as_path(), &inputs) else {
+        let Action::Exit {
+            stderr,
+            ..
+        } = plan(arguments.as_slice(), repo.as_path(), &inputs)
+        else {
             panic!("{command} is answered by the wrapper, never forwarded");
         };
         assert!(
@@ -575,19 +662,37 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
         repo.as_path(),
         &inputs,
     ) {
-        Action::Exit { code, stderr, .. } => {
+        Action::Exit {
+            code,
+            stderr,
+            ..
+        } => {
             assert_eq!(code, 2);
             assert!(
-                stderr.contains("holds a commit journal in a format this executable does not recover"),
+                stderr.contains(
+                    "holds a commit journal in a format this executable does not recover"
+                ),
                 "{stderr}"
             );
         }
-        Action::Forward { .. } => panic!("a direct command never forwards"),
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
+        Action::Forward {
+            ..
+        } => panic!("a direct command never forwards"),
+        Action::ForwardCoordinated {
+            ..
+        } => panic!("a coordinated forward is not expected in this control"),
+        Action::ForwardSettled {
+            ..
+        } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush {
+            ..
+        } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced {
+            ..
+        } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes {
+            ..
+        } => panic!("a report of pathnames is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -600,7 +705,14 @@ fn direct_commands_report_git_failures() {
     let root: PathBuf = fixture("management-git-failure");
     // The evidence is long (every candidate and every remedy); the head names the counts and the PATH it read.
     let stopped: Action = plan(&["check", "--all"], root.as_path(), &no_git(root.as_path()));
-    let Action::Exit { code: stop_code, stdout: stop_out, stderr: stop_err } = stopped else { panic!("expected a stop") };
+    let Action::Exit {
+        code: stop_code,
+        stdout: stop_out,
+        stderr: stop_err,
+    } = stopped
+    else {
+        panic!("expected a stop")
+    };
     assert_eq!(stop_code, 2);
     assert_eq!(stop_out, "");
     assert!(
@@ -631,12 +743,24 @@ fn direct_commands_report_git_failures() {
                 "{stderr}"
             );
         }
-        Action::Forward { .. } => panic!("a direct command is never forwarded"),
-        Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
-        Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
-        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
-        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
-        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
+        Action::Forward {
+            ..
+        } => panic!("a direct command is never forwarded"),
+        Action::ForwardCoordinated {
+            ..
+        } => panic!("a coordinated forward is not expected in this control"),
+        Action::ForwardSettled {
+            ..
+        } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush {
+            ..
+        } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced {
+            ..
+        } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes {
+            ..
+        } => panic!("a report of pathnames is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -645,8 +769,16 @@ fn direct_commands_report_git_failures() {
 /// standard output and standard error.
 fn exit_parts(action: Action) -> (i32, String, String) {
     return match action {
-        Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
-        Action::ExitBytes { code, stdout, stderr } => (
+        Action::Exit {
+            code,
+            stdout,
+            stderr,
+        } => (code, stdout, stderr),
+        Action::ExitBytes {
+            code,
+            stdout,
+            stderr,
+        } => (
             code,
             String::from_utf8(stdout).expect("a report of text paths"),
             String::from_utf8(stderr).expect("an explanation of text paths"),
@@ -666,13 +798,27 @@ fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(CONFIG_FILE_NAME), b"{ not valid").expect("a broken configuration");
     let inputs: ResolutionInputs = with_git(root.as_path());
-    let (quiet_code, quiet_stdout, quiet_stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
-    assert_eq!((quiet_code, quiet_stdout.as_str(), without_fsmonitor_line(quiet_stderr.as_str()).as_str()), (0, "", ""));
+    let (quiet_code, quiet_stdout, quiet_stderr) =
+        exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
+    assert_eq!(
+        (
+            quiet_code,
+            quiet_stdout.as_str(),
+            without_fsmonitor_line(quiet_stderr.as_str()).as_str()
+        ),
+        (0, "", "")
+    );
     executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
     assert_eq!(code, 1);
-    assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("never run through monochromatic-git-policy-cli"), "{stderr}");
+    assert_eq!(
+        stdout,
+        format!("{}\n", repo.join(".git/hooks/pre-commit").display())
+    );
+    assert!(
+        stderr.contains("never run through monochromatic-git-policy-cli"),
+        "{stderr}"
+    );
     remove(root.as_path());
 }
 
@@ -683,7 +829,10 @@ fn doctor_outside_a_repository_fails_with_status_two() {
     let inputs: ResolutionInputs = with_git(root.as_path());
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], root.as_path(), &inputs));
     assert_eq!((code, stdout.as_str()), (2, ""));
-    assert!(stderr.starts_with("git monochromatic-git-policy-cli doctor: "), "{stderr}");
+    assert!(
+        stderr.starts_with("git monochromatic-git-policy-cli doctor: "),
+        "{stderr}"
+    );
     remove(root.as_path());
 }
 
@@ -699,15 +848,49 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
     let asked: std::cell::RefCell<Vec<PathBuf>> = std::cell::RefCell::new(Vec::new());
     let supplier = |viewpoint: &crate::doctor::CheckoutViewpoint<'_>| -> String {
-        asked.borrow_mut().push(viewpoint.checkout.map(Path::to_path_buf).unwrap_or_default());
+        asked.borrow_mut().push(
+            viewpoint
+                .checkout
+                .map(Path::to_path_buf)
+                .unwrap_or_default(),
+        );
         return String::from("section text\n");
     };
-    let doctor: Action = plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), &[], &inputs, &supplier, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()));
+    let doctor: Action = plan_management_with_section(
+        &[OsString::from("doctor")],
+        global.as_slice(),
+        &no_controls(),
+        &[],
+        &inputs,
+        &supplier,
+        &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()),
+    );
     let (code, stdout, stderr) = exit_parts(doctor);
-    assert_eq!((code, stdout.as_str(), without_fsmonitor_line(stderr.as_str()).as_str()), (0, "", "section text\n"));
+    assert_eq!(
+        (
+            code,
+            stdout.as_str(),
+            without_fsmonitor_line(stderr.as_str()).as_str()
+        ),
+        (0, "", "section text\n")
+    );
     assert_eq!(*asked.borrow(), vec![repo.clone()]);
-    let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()));
-    assert!(matches!(help, Action::Exit { code: 0, .. }));
+    let help: Action = plan_management_with_section(
+        &[OsString::from("--help")],
+        global.as_slice(),
+        &no_controls(),
+        &[],
+        &inputs,
+        &supplier,
+        &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()),
+    );
+    assert!(matches!(
+        help,
+        Action::Exit {
+            code: 0,
+            ..
+        }
+    ));
     assert_eq!(asked.borrow().len(), 1, "help does not ask for the section");
     remove(root.as_path());
 }
@@ -726,16 +909,34 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
     let inputs: ResolutionInputs = with_git(root.as_path());
     let state: PathBuf = root.join("state");
     let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
-    environment.push((OsString::from("XDG_STATE_HOME"), state.as_os_str().to_os_string()));
+    environment.push((
+        OsString::from("XDG_STATE_HOME"),
+        state.as_os_str().to_os_string(),
+    ));
     let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
     let doctor = || -> (i32, String, String) {
-        return exit_parts(plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), environment.as_slice(), &inputs, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path())));
+        return exit_parts(plan_management_with_section(
+            &[OsString::from("doctor")],
+            global.as_slice(),
+            &no_controls(),
+            environment.as_slice(),
+            &inputs,
+            &|_: &crate::doctor::CheckoutViewpoint<'_>| {
+                return String::new();
+            },
+            &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()),
+        ));
     };
     let (quiet_code, _, quiet_stderr) = doctor();
     assert_eq!(quiet_code, 0);
-    assert!(!quiet_stderr.contains("settle-earlier-batches"), "{quiet_stderr}");
+    assert!(
+        !quiet_stderr.contains("settle-earlier-batches"),
+        "{quiet_stderr}"
+    );
     let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("git directory");
-    let journal: PathBuf = state.join("cli-git/service").join(crate::service_instance::instance_of(git_dir.as_path()));
+    let journal: PathBuf = state
+        .join("cli-git/service")
+        .join(crate::service_instance::instance_of(git_dir.as_path()));
     std::fs::create_dir_all(&journal).expect("the earlier journal");
     let intent = crate::service_journal::Intent {
         seq: 1,
@@ -757,8 +958,20 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
     crate::service_journal::write_intent(journal.as_path(), &intent).expect("an open batch");
     let (code, stdout, stderr) = doctor();
     assert_eq!((code, stdout.as_str()), (0, ""));
-    assert!(stderr.contains("1 batch") && stderr.contains("git monochromatic-git-policy-cli service settle-earlier-batches"), "{stderr}");
-    assert!(crate::service_journal::batch_path(journal.as_path(), 1, crate::service_journal::OPEN_EXTENSION).exists(), "the doctor changed nothing");
+    assert!(
+        stderr.contains("1 batch")
+            && stderr.contains("git monochromatic-git-policy-cli service settle-earlier-batches"),
+        "{stderr}"
+    );
+    assert!(
+        crate::service_journal::batch_path(
+            journal.as_path(),
+            1,
+            crate::service_journal::OPEN_EXTENSION
+        )
+        .exists(),
+        "the doctor changed nothing"
+    );
     remove(root.as_path());
 }
 
@@ -766,13 +979,21 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
 /// with the system configuration file left in play:
 /// the reader then
 /// learns that file's path from the real Git it is told about.
-fn user_environment(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
+fn user_environment(
+    file: &Path,
+    settings: &str,
+) -> Vec<(OsString, OsString)> {
     std::fs::write(file, settings).expect("user configuration");
     let mut environment: Vec<(OsString, OsString)> = isolated_overlay()
         .into_iter()
-        .filter(|(name, _)| { return name != "GIT_CONFIG_GLOBAL" && name != "GIT_CONFIG_NOSYSTEM"; })
+        .filter(|(name, _)| {
+            return name != "GIT_CONFIG_GLOBAL" && name != "GIT_CONFIG_NOSYSTEM";
+        })
         .collect();
-    environment.push((OsString::from("GIT_CONFIG_GLOBAL"), file.as_os_str().to_os_string()));
+    environment.push((
+        OsString::from("GIT_CONFIG_GLOBAL"),
+        file.as_os_str().to_os_string(),
+    ));
     return environment;
 }
 
@@ -792,9 +1013,22 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
     let root: PathBuf = fixture("management-status-user");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let expected: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("git directory");
-    for settings in ["[core]\n\tfsmonitor = true\n", "[diff]\n\tdirstat = changes\n", "[core]\n\tfilemode = maybe\n"] {
-        let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), settings);
-        assert_eq!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Selection::Found(expected.clone()), "{settings:?}");
+    for settings in [
+        "[core]\n\tfsmonitor = true\n",
+        "[diff]\n\tdirstat = changes\n",
+        "[core]\n\tfilemode = maybe\n",
+    ] {
+        let environment: Vec<(OsString, OsString)> =
+            user_environment(root.join("user.gitconfig").as_path(), settings);
+        assert_eq!(
+            status_git_dir(
+                in_directory(repo.as_path()).as_slice(),
+                environment.as_slice(),
+                Some(Path::new(REAL_GIT))
+            ),
+            Selection::Found(expected.clone()),
+            "{settings:?}"
+        );
     }
     remove(root.as_path());
 }
@@ -808,19 +1042,34 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
 ///  "the Git directory cannot be resolved".
 #[test]
 fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("invocation::management::tests::a_status_asked_of_git_keeps_a_git_directory_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "invocation::management::tests::a_status_asked_of_git_keeps_a_git_directory_that_is_not_text",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("management-status-not-utf8");
     let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    let environment: Vec<(OsString, OsString)> = user_environment(
+        root.join("user.gitconfig").as_path(),
+        "[user]\n\tname = Someone\n",
+    );
     // `--git-dir` is a selection the in-process reader leaves to Git, so this asks Git itself.
-    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), repo.join(".git").into_os_string()];
+    let selected: Vec<OsString> = vec![
+        OsString::from("--git-dir"),
+        repo.join(".git").into_os_string(),
+    ];
     assert_eq!(
-        status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+        status_git_dir(
+            selected.as_slice(),
+            environment.as_slice(),
+            Some(Path::new(REAL_GIT))
+        ),
         Selection::Found(std::fs::canonicalize(repo.join(".git")).expect("git directory")),
         "the Git directory keeps the bytes Git printed"
     );
@@ -836,7 +1085,10 @@ fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
 #[test]
 fn a_status_asked_of_git_keeps_a_trailing_space_or_line_feed() {
     let root: PathBuf = fixture("management-status-trailing-whitespace");
-    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    let environment: Vec<(OsString, OsString)> = user_environment(
+        root.join("user.gitconfig").as_path(),
+        "[user]\n\tname = Someone\n",
+    );
     for (label, name) in [("space", "metadata "), ("line-feed", "metadata\n")] {
         let worktree: PathBuf = root.join(format!("worktree-{label}"));
         std::fs::create_dir(worktree.as_path()).expect("worktree directory");
@@ -852,9 +1104,16 @@ fn a_status_asked_of_git_keeps_a_trailing_space_or_line_feed() {
                 worktree.to_str().expect("UTF-8 fixture path"),
             ],
         );
-        let selected: Vec<OsString> = vec![OsString::from("--git-dir"), metadata.clone().into_os_string()];
+        let selected: Vec<OsString> = vec![
+            OsString::from("--git-dir"),
+            metadata.clone().into_os_string(),
+        ];
         assert_eq!(
-            status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+            status_git_dir(
+                selected.as_slice(),
+                environment.as_slice(),
+                Some(Path::new(REAL_GIT))
+            ),
             Selection::Found(std::fs::canonicalize(metadata.as_path()).expect("git directory")),
             "{label}: the Git directory keeps every byte of its name"
         );
@@ -870,9 +1129,29 @@ fn a_status_asked_of_git_keeps_a_trailing_space_or_line_feed() {
 fn the_status_needs_the_real_git_to_name_the_worktree() {
     let root: PathBuf = fixture("management-status-nameless");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
-    assert!(matches!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Selection::Found(_)));
-    assert!(matches!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), None), Selection::Unresolved(_)), "no real Git, no answer, and not \"outside a repository\"");
+    let environment: Vec<(OsString, OsString)> = user_environment(
+        root.join("user.gitconfig").as_path(),
+        "[user]\n\tname = Someone\n",
+    );
+    assert!(matches!(
+        status_git_dir(
+            in_directory(repo.as_path()).as_slice(),
+            environment.as_slice(),
+            Some(Path::new(REAL_GIT))
+        ),
+        Selection::Found(_)
+    ));
+    assert!(
+        matches!(
+            status_git_dir(
+                in_directory(repo.as_path()).as_slice(),
+                environment.as_slice(),
+                None
+            ),
+            Selection::Unresolved(_)
+        ),
+        "no real Git, no answer, and not \"outside a repository\""
+    );
     remove(root.as_path());
 }
 
@@ -913,14 +1192,19 @@ impl GreetingService {
     fn at(socket: &Path) -> Self {
         let listener: std::os::unix::net::UnixListener =
             std::os::unix::net::UnixListener::bind(socket).expect("the fixture's service socket");
-        listener.set_nonblocking(true).expect("a listener the service polls");
-        let stopped: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        listener
+            .set_nonblocking(true)
+            .expect("a listener the service polls");
+        let stopped: std::sync::Arc<std::sync::atomic::AtomicBool> =
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let seen: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&stopped);
         let serving: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-            let mut greeting: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome {
-                version: crate::service_protocol::PROTOCOL_VERSION,
-                release: Some(String::from("the release this control stands in for")),
-            });
+            let mut greeting: String = crate::service_protocol::encode_service(
+                &crate::service_protocol::ServiceMessage::Welcome {
+                    version: crate::service_protocol::PROTOCOL_VERSION,
+                    release: Some(String::from("the release this control stands in for")),
+                },
+            );
             greeting.push('\n');
             while !seen.load(std::sync::atomic::Ordering::SeqCst) {
                 let Ok((mut stream, _address)) = listener.accept() else {
@@ -930,12 +1214,16 @@ impl GreetingService {
                 let _greeted = std::io::Write::write_all(&mut stream, greeting.as_bytes());
             }
         });
-        return Self { stopped, serving };
+        return Self {
+            stopped,
+            serving,
+        };
     }
 
     /// Stop serving and wait for the thread.
     fn stop(self) {
-        self.stopped.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.stopped
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         let _joined = self.serving.join();
     }
 }
@@ -952,59 +1240,140 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     // A socket path holds about a hundred bytes,
     // which a fixture root could use up,
     // so the runtime directory is short.
-    let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join(format!("temp/agent/ms-{}", std::process::id()));
+    let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
+        .join(format!("temp/agent/ms-{}", std::process::id()));
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("runtime directory");
-    let second_git_dir: PathBuf = std::fs::canonicalize(second.join(".git")).expect("git directory");
+    let second_git_dir: PathBuf =
+        std::fs::canonicalize(second.join(".git")).expect("git directory");
     // The service of the second worktree runs: it takes a connection and greets it, which is what a status asks of it.
-    let service: GreetingService = GreetingService::at(socket_for(runtime.as_path(), second_git_dir.as_path()).as_path());
+    let service: GreetingService =
+        GreetingService::at(socket_for(runtime.as_path(), second_git_dir.as_path()).as_path());
     let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
-    environment.push((OsString::from("XDG_RUNTIME_DIR"), runtime.as_os_str().to_os_string()));
+    environment.push((
+        OsString::from("XDG_RUNTIME_DIR"),
+        runtime.as_os_str().to_os_string(),
+    ));
     let inputs: ResolutionInputs = with_git(root.as_path());
-    let ceiling: (OsString, OsString) = (OsString::from("GIT_CEILING_DIRECTORIES"), root.as_os_str().to_os_string());
-    let status_in = |global: &[OsString], extra: &[(OsString, OsString)]| -> (i32, String, String) {
-        let mut seen: Vec<(OsString, OsString)> = environment.clone();
-        seen.extend(extra.iter().cloned());
-        let planned: Action = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), seen.as_slice(), &inputs, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }, &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()));
-        let Action::Exit { code, stdout, stderr } = planned else {
-            panic!("the status exits");
+    let ceiling: (OsString, OsString) = (
+        OsString::from("GIT_CEILING_DIRECTORIES"),
+        root.as_os_str().to_os_string(),
+    );
+    let status_in =
+        |global: &[OsString], extra: &[(OsString, OsString)]| -> (i32, String, String) {
+            let mut seen: Vec<(OsString, OsString)> = environment.clone();
+            seen.extend(extra.iter().cloned());
+            let planned: Action = plan_management_with_section(
+                &[OsString::from("service"), OsString::from("status")],
+                global,
+                &no_controls(),
+                seen.as_slice(),
+                &inputs,
+                &|_: &crate::doctor::CheckoutViewpoint<'_>| {
+                    return String::new();
+                },
+                &crate::start_directory::StartDirectory::at(inputs.current_directory.as_path()),
+            );
+            let Action::Exit {
+                code,
+                stdout,
+                stderr,
+            } = planned
+            else {
+                panic!("the status exits");
+            };
+            return (code, stdout, stderr);
         };
-        return (code, stdout, stderr);
+    let status = |global: &[OsString]| -> (i32, String, String) {
+        return status_in(global, &[]);
     };
-    let status = |global: &[OsString]| -> (i32, String, String) { return status_in(global, &[]); };
     let (second_code, second_out, _) = status(in_directory(second.as_path()).as_slice());
-    assert_eq!((second_code, second_out.starts_with(THIS_WORKTREE)), (0, true), "-C names the worktree that has a service: {second_out}");
+    assert_eq!(
+        (second_code, second_out.starts_with(THIS_WORKTREE)),
+        (0, true),
+        "-C names the worktree that has a service: {second_out}"
+    );
     let (first_code, _, first_err) = status(in_directory(first.as_path()).as_slice());
-    assert_eq!((first_code, first_err.starts_with(THIS_WORKTREE)), (1, true), "-C names the worktree that has none: {first_err}");
-    let mut with_config: Vec<OsString> = vec![OsString::from("-c"), OsString::from("user.name=Someone")];
+    assert_eq!(
+        (first_code, first_err.starts_with(THIS_WORKTREE)),
+        (1, true),
+        "-C names the worktree that has none: {first_err}"
+    );
+    let mut with_config: Vec<OsString> =
+        vec![OsString::from("-c"), OsString::from("user.name=Someone")];
     with_config.extend(in_directory(second.as_path()));
     let (config_code, config_out, _) = status(with_config.as_slice());
-    assert_eq!((config_code, config_out.starts_with(THIS_WORKTREE)), (0, true), "-c does not change the worktree: {config_out}");
+    assert_eq!(
+        (config_code, config_out.starts_with(THIS_WORKTREE)),
+        (0, true),
+        "-c does not change the worktree: {config_out}"
+    );
     // `--git-dir` is not resolved by the reader,
     // so Git is asked:
     // it names the repository the option selects,
     // not any service.
-    let git_dir_option: Vec<OsString> = vec![OsString::from("--git-dir"), second.join(".git").into_os_string()];
+    let git_dir_option: Vec<OsString> = vec![
+        OsString::from("--git-dir"),
+        second.join(".git").into_os_string(),
+    ];
     let (named_code, named_out, _) = status(git_dir_option.as_slice());
-    assert_eq!((named_code, named_out.starts_with(THIS_WORKTREE)), (0, true), "--git-dir names the worktree that has a service: {named_out}");
+    assert_eq!(
+        (named_code, named_out.starts_with(THIS_WORKTREE)),
+        (0, true),
+        "--git-dir names the worktree that has a service: {named_out}"
+    );
     let mut elsewhere: Vec<OsString> = in_directory(first.as_path());
     elsewhere.extend([OsString::from("--git-dir"), OsString::from(".git")]);
     let (none_code, _, none_err) = status(elsewhere.as_slice());
-    assert_eq!((none_code, none_err.starts_with(THIS_WORKTREE)), (1, true), "-C and --git-dir select the repository without a service, and another repository's service is not counted: {none_err}");
+    assert_eq!(
+        (none_code, none_err.starts_with(THIS_WORKTREE)),
+        (1, true),
+        "-C and --git-dir select the repository without a service, and another repository's service is not counted: {none_err}"
+    );
     // Outside a repository the answer counts any service.
     // The ceiling keeps Git from finding the repository this test is in.
     let outside: PathBuf = root.join("outside");
     std::fs::create_dir(&outside).expect("a directory outside any repository");
-    let (any_code, any_out, _) = status_in(in_directory(outside.as_path()).as_slice(), std::slice::from_ref(&ceiling));
-    assert_eq!((any_code, any_out.starts_with("A commit service")), (0, true), "outside a repository any service counts: {any_out}");
+    let (any_code, any_out, _) = status_in(
+        in_directory(outside.as_path()).as_slice(),
+        std::slice::from_ref(&ceiling),
+    );
+    assert_eq!(
+        (any_code, any_out.starts_with("A commit service")),
+        (0, true),
+        "outside a repository any service counts: {any_out}"
+    );
     // With no real Git to ask,
     // an invocation the reader does not resolve is unresolved,
     // never counted as any service.
     let nameless: ResolutionInputs = no_git(root.as_path());
-    let unresolved = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], git_dir_option.as_slice(), &no_controls(), environment.as_slice(), &nameless, &|_: &crate::doctor::CheckoutViewpoint<'_>| { return String::new(); }, &crate::start_directory::StartDirectory::at(nameless.current_directory.as_path()));
-    let Action::Exit { code: unresolved_code, stdout: unresolved_out, stderr: unresolved_err } = unresolved else {
+    let unresolved = plan_management_with_section(
+        &[OsString::from("service"), OsString::from("status")],
+        git_dir_option.as_slice(),
+        &no_controls(),
+        environment.as_slice(),
+        &nameless,
+        &|_: &crate::doctor::CheckoutViewpoint<'_>| {
+            return String::new();
+        },
+        &crate::start_directory::StartDirectory::at(nameless.current_directory.as_path()),
+    );
+    let Action::Exit {
+        code: unresolved_code,
+        stdout: unresolved_out,
+        stderr: unresolved_err,
+    } = unresolved
+    else {
         panic!("the status exits");
     };
-    assert_eq!((unresolved_code, unresolved_out.is_empty(), unresolved_err.contains("no service was counted")), (1, true, true), "{unresolved_err}");
+    assert_eq!(
+        (
+            unresolved_code,
+            unresolved_out.is_empty(),
+            unresolved_err.contains("no service was counted")
+        ),
+        (1, true, true),
+        "{unresolved_err}"
+    );
     service.stop();
     std::fs::remove_dir_all(runtime).expect("runtime directory");
     remove(root.as_path());
@@ -1018,10 +1387,23 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
 fn a_selection_git_fails_on_is_unresolved_and_not_outside_a_repository() {
     let root: PathBuf = fixture("management-status-git-fails");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[core]\n\tfilemode = maybe\n");
-    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), repo.join(".git").into_os_string()];
-    let found: Selection = status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT)));
-    assert!(matches!(&found, Selection::Unresolved(reason) if reason.contains("filemode")), "{found:?}");
+    let environment: Vec<(OsString, OsString)> = user_environment(
+        root.join("user.gitconfig").as_path(),
+        "[core]\n\tfilemode = maybe\n",
+    );
+    let selected: Vec<OsString> = vec![
+        OsString::from("--git-dir"),
+        repo.join(".git").into_os_string(),
+    ];
+    let found: Selection = status_git_dir(
+        selected.as_slice(),
+        environment.as_slice(),
+        Some(Path::new(REAL_GIT)),
+    );
+    assert!(
+        matches!(&found, Selection::Unresolved(reason) if reason.contains("filemode")),
+        "{found:?}"
+    );
     remove(root.as_path());
 }
 
@@ -1031,7 +1413,9 @@ fn a_selection_git_fails_on_is_unresolved_and_not_outside_a_repository() {
 #[test]
 fn the_doctors_host_section_carries_the_link_line_only_with_an_identity_file() {
     use super::filesystem_section_with_link_line;
-    let root: PathBuf = fixture("doctor-host-section-link").canonicalize().expect("root");
+    let root: PathBuf = fixture("doctor-host-section-link")
+        .canonicalize()
+        .expect("root");
     let home: PathBuf = root.join("home");
     let not_a_mount: PathBuf = root.join("not-a-mount");
     std::fs::create_dir_all(&not_a_mount).expect("mount point stand-in");
@@ -1042,7 +1426,11 @@ fn the_doctors_host_section_carries_the_link_line_only_with_an_identity_file() {
         layout: crate::checkout_layout::CheckoutLayout::Main,
         home: Some(home.as_path()),
     };
-    assert_eq!(filesystem_section_with_link_line(&nowhere), "", "no checkout and no identity file, no line");
+    assert_eq!(
+        filesystem_section_with_link_line(&nowhere),
+        "",
+        "no checkout and no identity file, no line"
+    );
     let identity: PathBuf = home.join(".config/monochromatic-dev/repository-link.json");
     std::fs::create_dir_all(identity.parent().expect("parent")).expect("config folder");
     std::fs::write(
@@ -1057,7 +1445,10 @@ fn the_doctors_host_section_carries_the_link_line_only_with_an_identity_file() {
     )
     .expect("identity file");
     let section: String = filesystem_section_with_link_line(&nowhere);
-    assert!(section.starts_with("repository link: the 860 drive is not mounted yet ("), "{section}");
+    assert!(
+        section.starts_with("repository link: the 860 drive is not mounted yet ("),
+        "{section}"
+    );
     assert!(section.ends_with("run this again\n"), "{section}");
     remove(root.as_path());
 }
@@ -1070,7 +1461,9 @@ fn the_doctors_host_section_carries_the_link_line_only_with_an_identity_file() {
 #[test]
 fn the_doctors_link_line_reads_the_home_the_invocation_names() {
     use super::host_filesystem_section;
-    let root: PathBuf = fixture("doctor-invocation-home").canonicalize().expect("root");
+    let root: PathBuf = fixture("doctor-invocation-home")
+        .canonicalize()
+        .expect("root");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let inputs: ResolutionInputs = with_git(root.as_path());
     let home: PathBuf = root.join("home");
@@ -1106,6 +1499,9 @@ fn the_doctors_link_line_reads_the_home_the_invocation_names() {
     );
     let (code, _stdout, stderr) = exit_parts(action);
     assert_eq!(code, 0, "{stderr}");
-    assert!(stderr.contains("repository link: the 860 drive is not mounted yet ("), "{stderr}");
+    assert!(
+        stderr.contains("repository link: the 860 drive is not mounted yet ("),
+        "{stderr}"
+    );
     remove(root.as_path());
 }

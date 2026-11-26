@@ -48,7 +48,10 @@ pub(super) fn acl_words(acl: Option<&[u8]>) -> String {
 /// or `-` for none.
 pub(super) fn acl_token(acl: Option<&[u8]>) -> String {
     return match acl {
-        Some(bytes) if !bytes.is_empty() => bytes.iter().map(|byte| { return format!("{byte:02x}") }).collect::<String>(),
+        Some(bytes) if !bytes.is_empty() => bytes
+            .iter()
+            .map(|byte| return format!("{byte:02x}"))
+            .collect::<String>(),
         _ => String::from("-"),
     };
 }
@@ -127,11 +130,22 @@ fn tokens_is_lowercase_hex(digits: &[u8]) -> Result<(), ()> {
 /// # Errors
 /// The read failure,
 /// or a refusal naming `field` when its value is larger than the bound.
-pub(super) fn read_acl(folder: &std::fs::File, attribute: &[u8], field: &str) -> std::io::Result<Option<Vec<u8>>> {
+pub(super) fn read_acl(
+    folder: &std::fs::File,
+    attribute: &[u8],
+    field: &str,
+) -> std::io::Result<Option<Vec<u8>>> {
     let descriptor: libc::c_int = folder.as_raw_fd();
     // SAFETY: `attribute` is a NUL-terminated string that outlives the call, `descriptor` is an open file, and a null
     // value pointer asks the kernel for the value's size.
-    let size: libc::ssize_t = unsafe { libc::fgetxattr(descriptor, attribute.as_ptr().cast::<libc::c_char>(), std::ptr::null_mut(), 0) };
+    let size: libc::ssize_t = unsafe {
+        libc::fgetxattr(
+            descriptor,
+            attribute.as_ptr().cast::<libc::c_char>(),
+            std::ptr::null_mut(),
+            0,
+        )
+    };
     if size < 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         return match error.raw_os_error() {
@@ -139,9 +153,19 @@ pub(super) fn read_acl(folder: &std::fs::File, attribute: &[u8], field: &str) ->
             _ => Err(error),
         };
     }
-    let length: usize = usize::try_from(size).map_err(|_error| return std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the {field} is {size} bytes, which does not fit")))?;
+    let length: usize = usize::try_from(size).map_err(|_error| {
+        return std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("the {field} is {size} bytes, which does not fit"),
+        );
+    })?;
     if length > MAXIMUM_ACL_BYTES {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the {field} is {length} bytes, larger than the {MAXIMUM_ACL_BYTES} bytes a read accepts")));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "the {field} is {length} bytes, larger than the {MAXIMUM_ACL_BYTES} bytes a read accepts"
+            ),
+        ));
     }
     if length == 0 {
         return Ok(None);
@@ -149,7 +173,14 @@ pub(super) fn read_acl(folder: &std::fs::File, attribute: &[u8], field: &str) ->
     let mut bytes: Vec<u8> = vec![0; length];
     // SAFETY: `attribute` is NUL-terminated and outlives the call, `bytes` holds the `length` bytes the call may write,
     // and `descriptor` is an open file.
-    let read: libc::ssize_t = unsafe { libc::fgetxattr(descriptor, attribute.as_ptr().cast::<libc::c_char>(), bytes.as_mut_ptr().cast::<libc::c_void>(), length) };
+    let read: libc::ssize_t = unsafe {
+        libc::fgetxattr(
+            descriptor,
+            attribute.as_ptr().cast::<libc::c_char>(),
+            bytes.as_mut_ptr().cast::<libc::c_void>(),
+            length,
+        )
+    };
     if read < 0 {
         return Err(std::io::Error::last_os_error());
     }

@@ -48,7 +48,10 @@ const NAMES_A_PATHSPEC: &[u8] = b"pathspec '";
 ///  and `git commit` says "file(s) known to git".
 ///  Both are recognized,
 /// because the pathspec may reach either of them.
-const REFUSAL_ENDINGS: [&[u8]; 2] = [b"' did not match any files", b"' did not match any file(s) known to git"];
+const REFUSAL_ENDINGS: [&[u8]; 2] = [
+    b"' did not match any files",
+    b"' did not match any file(s) known to git",
+];
 
 /// What:
 ///  The pathspecs one staging start carries,
@@ -89,7 +92,10 @@ pub enum WrittenPathspecs<'written> {
 /// ```ts
 /// const refused = written.kind === 'elements' ? refusedElements(stderr, written.elements) : namedRefusals(stderr); return refused.length ? refused : null;
 /// ```
-pub fn pathspec_matching_nothing(stderr: &[u8], written: WrittenPathspecs<'_>) -> Option<Vec<Vec<u8>>> {
+pub fn pathspec_matching_nothing(
+    stderr: &[u8],
+    written: WrittenPathspecs<'_>,
+) -> Option<Vec<Vec<u8>>> {
     let refused: Vec<Vec<u8>> = match written {
         WrittenPathspecs::Elements(elements) => refused_elements(stderr, elements),
         WrittenPathspecs::FromTheCallersFile => named_refusals(stderr),
@@ -118,17 +124,23 @@ pub fn pathspec_matching_nothing(stderr: &[u8], written: WrittenPathspecs<'_>) -
 /// ```ts
 /// elements.map((token) => ENDINGS.map((ending) => at(stderr, `pathspec '${token}'${ending}`))).filter(found).sort(byPosition)
 /// ```
-fn refused_elements(stderr: &[u8], elements: &[&OsString]) -> Vec<Vec<u8>> {
+fn refused_elements(
+    stderr: &[u8],
+    elements: &[&OsString],
+) -> Vec<Vec<u8>> {
     let mut named: Vec<(usize, Vec<u8>)> = Vec::new();
     for element in elements {
         let token: &[u8] = element.as_encoded_bytes();
         let mut nearest: Option<usize> = None;
         for ending in REFUSAL_ENDINGS {
-            let mut needle: Vec<u8> = Vec::with_capacity(NAMES_A_PATHSPEC.len() + token.len() + ending.len());
+            let mut needle: Vec<u8> =
+                Vec::with_capacity(NAMES_A_PATHSPEC.len() + token.len() + ending.len());
             needle.extend_from_slice(NAMES_A_PATHSPEC);
             needle.extend_from_slice(token);
             needle.extend_from_slice(ending);
-            let Some(found) = find_closing_a_line(stderr, needle.as_slice(), 0) else { continue };
+            let Some(found) = find_closing_a_line(stderr, needle.as_slice(), 0) else {
+                continue;
+            };
             nearest = Some(match nearest {
                 Some(known) => known.min(found),
                 None => found,
@@ -209,10 +221,15 @@ fn named_refusals(stderr: &[u8]) -> Vec<Vec<u8>> {
 /// ```ts
 /// const ends = ENDINGS.map((ending) => atLineEnd(stderr, ending, start)).filter((at) => at >= 0); return Math.min(...ends);
 /// ```
-fn refusal_end(stderr: &[u8], start: usize) -> Option<usize> {
+fn refusal_end(
+    stderr: &[u8],
+    start: usize,
+) -> Option<usize> {
     let mut nearest: Option<usize> = None;
     for ending in REFUSAL_ENDINGS {
-        let Some(found) = find_closing_a_line(stderr, ending, start) else { continue };
+        let Some(found) = find_closing_a_line(stderr, ending, start) else {
+            continue;
+        };
         nearest = Some(match nearest {
             Some(known) => known.min(found),
             None => found,
@@ -235,7 +252,11 @@ fn refusal_end(stderr: &[u8], start: usize) -> Option<usize> {
 /// ```ts
 /// let at = from; while ((at = haystack.indexOf(needle, at)) >= 0) { if (closesALine(haystack, at + needle.length)) return at; at += 1; } return null;
 /// ```
-fn find_closing_a_line(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+fn find_closing_a_line(
+    haystack: &[u8],
+    needle: &[u8],
+    from: usize,
+) -> Option<usize> {
     let mut at: usize = from;
     while let Some(found) = find(haystack, needle, at) {
         if closes_a_line(haystack, found + needle.len()) {
@@ -259,7 +280,10 @@ fn find_closing_a_line(haystack: &[u8], needle: &[u8], from: usize) -> Option<us
 /// ```ts
 /// at >= haystack.length || haystack[at] === 0x0a
 /// ```
-fn closes_a_line(haystack: &[u8], at: usize) -> bool {
+fn closes_a_line(
+    haystack: &[u8],
+    at: usize,
+) -> bool {
     return match haystack.get(at) {
         None => true,
         Some(byte) => *byte == b'\n',
@@ -278,7 +302,11 @@ fn closes_a_line(haystack: &[u8], at: usize) -> bool {
 /// ```ts
 /// const at = haystack.indexOf(needle, from); return at < 0 ? null : at;
 /// ```
-fn find(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+fn find(
+    haystack: &[u8],
+    needle: &[u8],
+    from: usize,
+) -> Option<usize> {
     let rest: &[u8] = haystack.get(from..)?;
     let mut at: usize = 0;
     while at + needle.len() <= rest.len() {

@@ -16,7 +16,12 @@
 //! const sizes = parseSizes(output.stdout);
 //! ```
 
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
@@ -48,8 +53,15 @@ pub type BlobSizes = HashMap<Vec<u8>, u64>;
 /// ```ts
 /// const reason = (what, output) => `${what} ended with ${output.code} (${output.stderr.trim()})`;
 /// ```
-pub(crate) fn run_reason(what: &str, output: &GitOutput) -> String {
-    return format!("{what} ended with {:?} ({})", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim());
+pub(crate) fn run_reason(
+    what: &str,
+    output: &GitOutput,
+) -> String {
+    return format!(
+        "{what} ended with {:?} ({})",
+        output.code,
+        String::from_utf8_lossy(output.stderr.as_slice()).trim()
+    );
 }
 
 /// What:
@@ -64,7 +76,10 @@ pub(crate) fn run_reason(what: &str, output: &GitOutput) -> String {
 /// const unreadable = (output) => `the sizes of the committed blobs cannot be read: ${runReason('`git ls-tree`', output)}`;
 /// ```
 pub(crate) fn unreadable_sizes(output: &GitOutput) -> String {
-    return format!("the sizes of the committed blobs cannot be read: {}", run_reason("`git ls-tree`", output));
+    return format!(
+        "the sizes of the committed blobs cannot be read: {}",
+        run_reason("`git ls-tree`", output)
+    );
 }
 
 /// What:
@@ -98,7 +113,13 @@ pub(crate) fn a_git_run_that_did_not_answer(error: &std::io::Error) -> String {
 /// ```ts
 /// function runIn(context, cwd, arguments, input, environment): GitOutput;
 /// ```
-pub(crate) fn run_in(context: &GitContext, cwd: &Path, arguments: &[OsString], input: Option<Vec<u8>>, environment: Vec<(OsString, OsString)>) -> Result<GitOutput, String> {
+pub(crate) fn run_in(
+    context: &GitContext,
+    cwd: &Path,
+    arguments: &[OsString],
+    input: Option<Vec<u8>>,
+    environment: Vec<(OsString, OsString)>,
+) -> Result<GitOutput, String> {
     let request: GitRequest = GitRequest {
         cwd: cwd.to_path_buf(),
         arguments: arguments.to_vec(),
@@ -107,7 +128,8 @@ pub(crate) fn run_in(context: &GitContext, cwd: &Path, arguments: &[OsString], i
         input,
         ..GitRequest::default()
     };
-    return run_git(context, &request).map_err(|error| return a_git_run_that_did_not_answer(&error));
+    return run_git(context, &request)
+        .map_err(|error| return a_git_run_that_did_not_answer(&error));
 }
 
 /// What:
@@ -121,7 +143,10 @@ pub(crate) fn run_in(context: &GitContext, cwd: &Path, arguments: &[OsString], i
 /// const words = (list: string[]) => list.map((word) => word);
 /// ```
 pub(crate) fn words(list: &[&str]) -> Vec<OsString> {
-    return list.iter().map(|word| return OsString::from(word)).collect();
+    return list
+        .iter()
+        .map(|word| return OsString::from(word))
+        .collect();
 }
 
 /// What:
@@ -138,8 +163,18 @@ pub(crate) fn words(list: &[&str]) -> Vec<OsString> {
 /// ```ts
 /// function blobSizes(context, root, commit): Map<string, number>;
 /// ```
-pub(crate) fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<BlobSizes, String> {
-    let output: GitOutput = run_in(context, root, &words(&["ls-tree", "-r", "-l", "-z", commit]), None, Vec::new())?;
+pub(crate) fn blob_sizes(
+    context: &GitContext,
+    root: &Path,
+    commit: &str,
+) -> Result<BlobSizes, String> {
+    let output: GitOutput = run_in(
+        context,
+        root,
+        &words(&["ls-tree", "-r", "-l", "-z", commit]),
+        None,
+        Vec::new(),
+    )?;
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
@@ -163,12 +198,24 @@ pub(crate) fn parse_sizes(stdout: &[u8]) -> BlobSizes {
     let mut sizes: BlobSizes = HashMap::new();
     for record in stdout.split(|byte| return *byte == 0) {
         // `mode SP type SP object SP size TAB path`
-        let Some(tab) = record.iter().position(|byte| return *byte == b'\t') else { continue };
+        let Some(tab) = record.iter().position(|byte| return *byte == b'\t') else {
+            continue;
+        };
         // The size is right-aligned, so the words between the spaces hold empty ones that are not fields.
-        let mut fields = record[..tab].split(|byte| return *byte == b' ').filter(|word| return !word.is_empty());
-        let (Some(_mode), Some(_kind), Some(_object), Some(size)) = (fields.next(), fields.next(), fields.next(), fields.next()) else { continue };
-        let Ok(size_text) = std::str::from_utf8(size) else { continue };
-        let Ok(size_value) = size_text.parse::<u64>() else { continue };
+        let mut fields = record[..tab]
+            .split(|byte| return *byte == b' ')
+            .filter(|word| return !word.is_empty());
+        let (Some(_mode), Some(_kind), Some(_object), Some(size)) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        let Ok(size_text) = std::str::from_utf8(size) else {
+            continue;
+        };
+        let Ok(size_value) = size_text.parse::<u64>() else {
+            continue;
+        };
         sizes.insert(record[tab + 1..].to_vec(), size_value);
     }
     return sizes;

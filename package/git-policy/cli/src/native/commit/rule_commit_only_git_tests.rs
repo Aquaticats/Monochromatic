@@ -16,17 +16,33 @@
 /// The decision,
 ///  the fact mappings and the real-Git fixture helpers.
 use crate::command_test_support::{
-    git, git_output, git_status, os_arguments, output_text, remove, repository_with_tracked_file,
+    git,
+    git_output,
+    git_status,
+    os_arguments,
+    output_text,
+    remove,
+    repository_with_tracked_file,
     start_conflicted_merge,
 };
-use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
+use crate::rule_commit_index::{
+    IndexVsHead,
+    index_query_arguments,
+    index_state_from_exit,
+};
 use crate::rule_commit_only::{
-    CommitOnlyDecision, PendingInjection, decide_commit_only, resolve_index_state,
+    CommitOnlyDecision,
+    PendingInjection,
+    decide_commit_only,
+    resolve_index_state,
     resolve_sequencer_state,
 };
 use crate::rule_commit_sequencer::SequencerState;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// Decide and return the rewritten argument list.

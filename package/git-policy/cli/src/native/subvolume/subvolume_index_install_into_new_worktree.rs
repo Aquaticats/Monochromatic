@@ -18,7 +18,13 @@
 //! ```
 
 use crate::subvolume_file_write_steps::write_all_then_sync;
-use crate::subvolume_index::{AcceptEveryStat, IndexOutcome, RewriteContext, StatLookup, rewrite_index_stat_with};
+use crate::subvolume_index::{
+    AcceptEveryStat,
+    IndexOutcome,
+    RewriteContext,
+    StatLookup,
+    rewrite_index_stat_with,
+};
 use std::ffi::OsStr;
 
 /// The call the install makes at a seam when no control wants one:
@@ -50,8 +56,22 @@ fn do_nothing() {}
 /// ```ts
 /// installIndexIn(admin, seed, stats, hashLength); // throws a reason
 /// ```
-pub fn install_index_in(admin: &std::fs::File, seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize) -> Result<String, String> {
-    return install_index_in_with(admin, seed, stats, hash_length, &mut InstallSeams { before_publish: &mut do_nothing, after_publish: &mut do_nothing });
+pub fn install_index_in(
+    admin: &std::fs::File,
+    seed: &[u8],
+    stats: &mut dyn StatLookup,
+    hash_length: usize,
+) -> Result<String, String> {
+    return install_index_in_with(
+        admin,
+        seed,
+        stats,
+        hash_length,
+        &mut InstallSeams {
+            before_publish: &mut do_nothing,
+            after_publish: &mut do_nothing,
+        },
+    );
 }
 
 /// The moments of an index install at which the controls move the tree.
@@ -63,13 +83,28 @@ pub struct InstallSeams<'a> {
 }
 
 /// `install_index_in` with the moments at which a control may move the tree.
-pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
-    use crate::fs_beneath::{create_file_at, entry_metadata_at, identity_of, link_open_file_at};
+pub fn install_index_in_with(
+    admin: &std::fs::File,
+    seed: &[u8],
+    stats: &mut dyn StatLookup,
+    hash_length: usize,
+    seams: &mut InstallSeams<'_>,
+) -> Result<String, String> {
+    use crate::fs_beneath::{
+        create_file_at,
+        entry_metadata_at,
+        identity_of,
+        link_open_file_at,
+    };
     let lock: &OsStr = OsStr::new("index.lock");
     let index: &OsStr = OsStr::new("index");
     let mut created: std::fs::File = match create_file_at(admin, lock, 0o600) {
         Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(String::from("index.lock exists: a Git command is running there")),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(String::from(
+                "index.lock exists: a Git command is running there",
+            ));
+        }
         Err(error) => return Err(format!("the lock cannot be created ({error})")),
     };
     let ours = match identity_of(&created) {
@@ -78,21 +113,45 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
     };
     match entry_metadata_at(admin, index) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return give_up(admin, lock, ours, format!("the index cannot be examined ({error})")),
-        Ok(_) => return give_up(admin, lock, ours, String::from("an index appeared in the new worktree while it was made")),
+        Err(error) => {
+            return give_up(
+                admin,
+                lock,
+                ours,
+                format!("the index cannot be examined ({error})"),
+            );
+        }
+        Ok(_) => {
+            return give_up(
+                admin,
+                lock,
+                ours,
+                String::from("an index appeared in the new worktree while it was made"),
+            );
+        }
     }
     let (rewritten, report): (Vec<u8>, String) = match rewritten_seed(seed, stats, hash_length) {
         Ok(found) => found,
         Err(reason) => return give_up(admin, lock, ours, reason),
     };
     if let Err(error) = write_all_then_sync(&mut created, rewritten.as_slice()) {
-        return give_up(admin, lock, ours, format!("the new index cannot be written ({error})"));
+        return give_up(
+            admin,
+            lock,
+            ours,
+            format!("the new index cannot be written ({error})"),
+        );
     }
     (seams.before_publish)();
     // The open file is linked under the name of the index, which fails if the name exists: what is published is the file
     // written here, whatever the lock name refers to by now. The lock stays until the index has its name.
     if let Err(error) = link_open_file_at(&created, admin, index) {
-        return give_up(admin, lock, ours, format!("the new index cannot be put in place ({error})"));
+        return give_up(
+            admin,
+            lock,
+            ours,
+            format!("the new index cannot be put in place ({error})"),
+        );
     }
     (seams.after_publish)();
     // The lock name and the index are the same file now; the lock is released only if the name still holds it, so the lock
@@ -113,11 +172,24 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
 /// ```ts
 /// const [bytes, report] = rewrittenSeed(seed, stats, hashLength); // throws a reason
 /// ```
-fn rewritten_seed(seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize) -> Result<(Vec<u8>, String), String> {
-    let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    let context: RewriteContext = RewriteContext { hash_length: Some(hash_length), index_mtime: Some((now.as_secs() as u32, now.subsec_nanos())) };
+fn rewritten_seed(
+    seed: &[u8],
+    stats: &mut dyn StatLookup,
+    hash_length: usize,
+) -> Result<(Vec<u8>, String), String> {
+    let now: std::time::Duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let context: RewriteContext = RewriteContext {
+        hash_length: Some(hash_length),
+        index_mtime: Some((now.as_secs() as u32, now.subsec_nanos())),
+    };
     return match rewrite_index_stat_with(seed, &context, stats, &mut AcceptEveryStat) {
-        IndexOutcome::Rewritten { bytes, updated, total } => Ok((bytes, format!("{updated} of {total} entries refreshed"))),
+        IndexOutcome::Rewritten {
+            bytes,
+            updated,
+            total,
+        } => Ok((bytes, format!("{updated} of {total} entries refreshed"))),
         IndexOutcome::Skipped(reason) => Err(format!("the index cannot be refreshed ({reason})")),
     };
 }
@@ -147,12 +219,27 @@ fn rewritten_seed(seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize) -
 /// ```ts
 /// const [held, report] = writeIndexUnderAName(admin, seed, stats, hashLength, 'index.pending'); // throws a reason
 /// ```
-pub fn write_index_under_a_name(admin: &std::fs::File, seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize, name: &OsStr) -> Result<(std::fs::File, String), String> {
-    use crate::fs_beneath::{create_file_at, entry_metadata_at, identity_of};
+pub fn write_index_under_a_name(
+    admin: &std::fs::File,
+    seed: &[u8],
+    stats: &mut dyn StatLookup,
+    hash_length: usize,
+    name: &OsStr,
+) -> Result<(std::fs::File, String), String> {
+    use crate::fs_beneath::{
+        create_file_at,
+        entry_metadata_at,
+        identity_of,
+    };
     let index: &OsStr = OsStr::new("index");
     let mut created: std::fs::File = match create_file_at(admin, name, 0o600) {
         Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(format!("{} exists: an interrupted run left its index there, and this one will not replace it", name.to_string_lossy())),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(format!(
+                "{} exists: an interrupted run left its index there, and this one will not replace it",
+                name.to_string_lossy()
+            ));
+        }
         Err(error) => return Err(format!("the index's own name cannot be created ({error})")),
     };
     let ours = match identity_of(&created) {
@@ -161,15 +248,34 @@ pub fn write_index_under_a_name(admin: &std::fs::File, seed: &[u8], stats: &mut 
     };
     match entry_metadata_at(admin, index) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return give_up(admin, name, ours, format!("the index cannot be examined ({error})")),
-        Ok(_) => return give_up(admin, name, ours, String::from("an index appeared in the new worktree while it was made")),
+        Err(error) => {
+            return give_up(
+                admin,
+                name,
+                ours,
+                format!("the index cannot be examined ({error})"),
+            );
+        }
+        Ok(_) => {
+            return give_up(
+                admin,
+                name,
+                ours,
+                String::from("an index appeared in the new worktree while it was made"),
+            );
+        }
     }
     let (rewritten, report): (Vec<u8>, String) = match rewritten_seed(seed, stats, hash_length) {
         Ok(found) => found,
         Err(reason) => return give_up(admin, name, ours, reason),
     };
     if let Err(error) = write_all_then_sync(&mut created, rewritten.as_slice()) {
-        return give_up(admin, name, ours, format!("the new index cannot be written ({error})"));
+        return give_up(
+            admin,
+            name,
+            ours,
+            format!("the new index cannot be written ({error})"),
+        );
     }
     return Ok((created, report));
 }
@@ -187,13 +293,25 @@ pub fn write_index_under_a_name(admin: &std::fs::File, seed: &[u8], stats: &mut 
 /// ```ts
 /// publishIndexUnderAName(admin, held, 'index.pending'); // throws a reason
 /// ```
-pub fn publish_index_under_a_name(admin: &std::fs::File, held: &std::fs::File, name: &OsStr) -> Result<(), String> {
-    use crate::fs_beneath::{entry_metadata_at, identity_of, rename_at};
+pub fn publish_index_under_a_name(
+    admin: &std::fs::File,
+    held: &std::fs::File,
+    name: &OsStr,
+) -> Result<(), String> {
+    use crate::fs_beneath::{
+        entry_metadata_at,
+        identity_of,
+        rename_at,
+    };
     let index: &OsStr = OsStr::new("index");
     match entry_metadata_at(admin, index) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("the index cannot be examined ({error})")),
-        Ok(_) => return Err(String::from("an index appeared in the new worktree while it was made")),
+        Ok(_) => {
+            return Err(String::from(
+                "an index appeared in the new worktree while it was made",
+            ));
+        }
     }
     if let Err(error) = rename_at(admin, name, admin, index, false) {
         return Err(format!("the new index cannot be put in place ({error})"));
@@ -220,15 +338,26 @@ pub fn publish_index_under_a_name(admin: &std::fs::File, held: &std::fs::File, n
 /// ```ts
 /// discardIndexUnderAName(admin, held, 'index.pending');
 /// ```
-pub fn discard_index_under_a_name(admin: &std::fs::File, held: &std::fs::File, name: &OsStr) {
-    let Ok(ours) = crate::fs_beneath::identity_of(held) else { return };
+pub fn discard_index_under_a_name(
+    admin: &std::fs::File,
+    held: &std::fs::File,
+    name: &OsStr,
+) {
+    let Ok(ours) = crate::fs_beneath::identity_of(held) else {
+        return;
+    };
     let _removed = crate::fs_beneath::remove_if_identical(admin, name, ours);
 }
 
 /// On a failure the name this install made is ours to remove,
 /// but only if it still holds the file made here;
 /// the error is `reason`.
-fn give_up<T>(admin: &std::fs::File, name: &OsStr, ours: crate::fs_beneath::ObjectId, reason: String) -> Result<T, String> {
+fn give_up<T>(
+    admin: &std::fs::File,
+    name: &OsStr,
+    ours: crate::fs_beneath::ObjectId,
+    reason: String,
+) -> Result<T, String> {
     let _kept = crate::fs_beneath::remove_if_identical(admin, name, ours);
     return Err(reason);
 }

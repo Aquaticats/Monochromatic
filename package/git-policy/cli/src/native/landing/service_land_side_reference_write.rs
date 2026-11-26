@@ -33,24 +33,54 @@
 //! expect(await keepOnASideRef(git, repo, name, tip)).toBeUndefined()
 //! ```
 
-use crate::child_watch::{is_ceiling, is_ended_by_stop, is_not_known};
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
-use crate::service_index_lock::{Announce, Announcer};
+use crate::child_watch::{
+    is_ceiling,
+    is_ended_by_stop,
+    is_not_known,
+};
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
 use crate::service_land_context::LandContext;
-use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, value_of, value_of_awaiting};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
+use crate::service_protocol::{
+    CommitRequest,
+    FailureCode,
+};
+use crate::service_scratch_ref_of_a_dropped_batch::{
+    RefValue,
+    kept_ref,
+    value_of,
+    value_of_awaiting,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    NO_REFLOG_SETTING,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
 /// Keeps the sentence of a step that was ended at its ceiling,
 /// for the landing that answers it.
-pub(crate) fn keep_the_ceiling_step(state: &LandingState, sentence: String) {
+pub(crate) fn keep_the_ceiling_step(
+    state: &LandingState,
+    sentence: String,
+) {
     *state.ceiling_step.borrow_mut() = Some(sentence);
 }
 
 /// Takes the sentence of the step that was ended at its ceiling out of the landing's state.
-fn take_the_ceiling_step(state: &LandingState, (): ()) -> Option<String> {
+fn take_the_ceiling_step(
+    state: &LandingState,
+    (): (),
+) -> Option<String> {
     return state.ceiling_step.take();
 }
 
@@ -119,7 +149,10 @@ pub(crate) enum StepAnswer {
 /// ```ts
 /// function answering(git, request): StepAnswer { try { return { answered: await runGit(git, request) } } catch (error) { if (isNotKnown(error)) return 'left-running'; if (isCeiling(error) || isEndedByStop(error)) { rememberCeilingStep(error.message); return { ended: 'StepTooSlow' } } return { ended: 'Unavailable' } } }
 /// ```
-pub(crate) fn answering(git: &GitContext, request: GitRequest) -> StepAnswer {
+pub(crate) fn answering(
+    git: &GitContext,
+    request: GitRequest,
+) -> StepAnswer {
     return match run_git(git, &request) {
         Ok(output) => StepAnswer::Answered(output),
         Err(error) if is_not_known(&error) => StepAnswer::LeftRunning,
@@ -149,8 +182,17 @@ pub(crate) fn answering(git: &GitContext, request: GitRequest) -> StepAnswer {
 /// ```ts
 /// async function answeringAwaiting(git, request): StepAnswer { try { return { answered: await runGitAwaiting(git, request) } } catch (error) { if (isNotKnown(error)) return 'left-running'; if (isCeiling(error) || isEndedByStop(error)) { rememberCeilingStep(error.message); return { ended: 'StepTooSlow' } } return { ended: 'Unavailable' } } }
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn answering_awaiting(git: &GitContext, request: GitRequest) -> StepAnswer {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn answering_awaiting(
+    git: &GitContext,
+    request: GitRequest,
+) -> StepAnswer {
     return match run_git_awaiting(git, &request).await {
         Ok(output) => StepAnswer::Answered(output),
         Err(error) if is_not_known(&error) => StepAnswer::LeftRunning,
@@ -179,7 +221,12 @@ pub(crate) async fn answering_awaiting(git: &GitContext, request: GitRequest) ->
 /// ```ts
 /// const theReferenceItselfNames = (git, repository, name, tip) => valueOf(git, repository, name).names === tip
 /// ```
-pub(crate) fn the_batch_reference_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+pub(crate) fn the_batch_reference_names(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> bool {
     return matches!(value_of(git, repository, name), RefValue::Names(named) if named == tip);
 }
 
@@ -230,11 +277,30 @@ pub(crate) fn the_batch_reference_names(git: &GitContext, repository: &Path, nam
 /// ```ts
 /// for (let attempt = 0; attempt < 2; attempt++) { const made = await writeRefOnlyIfFree(name, tip); if (made.succeeded) return 'written'; if (await valueOf(name).names === tip) return 'written'; if (made.answered) return { refused: wordsOf(made) }; leftRunning = !made.answered } return leftRunning ? 'left-running' : { refused: words }
 /// ```
-fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> ASideRefWrite {
+fn write_until_the_reference_names(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> ASideRefWrite {
     for _attempt in 0..SIDE_REF_WRITE_ATTEMPTS {
         // The empty old value is Git's way to refuse when the name exists at all, so a reference another command wrote is never
         //  replaced (`keep_on_a_side_ref`).
-        let made: StepAnswer = answering(git, GitRequest::new(repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip, ""]));
+        let made: StepAnswer = answering(
+            git,
+            GitRequest::new(
+                repository,
+                &[
+                    "-c",
+                    NO_REFLOG_SETTING,
+                    "update-ref",
+                    "--no-deref",
+                    name,
+                    tip,
+                    "",
+                ],
+            ),
+        );
         if matches!(&made, StepAnswer::Answered(output) if output.succeeded()) {
             return ASideRefWrite::Written;
         }
@@ -245,7 +311,9 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
         }
         match made {
             // Git answered, so the same value at the same name is refused the same way.
-            StepAnswer::Answered(output) => return ASideRefWrite::Refused(refused_words_of(&output)),
+            StepAnswer::Answered(output) => {
+                return ASideRefWrite::Refused(refused_words_of(&output));
+            }
             // The wait ended without an answer: the step is left running, and the reference did not show its write, so it is written
             //  once more.
             StepAnswer::LeftRunning => {}
@@ -272,10 +340,36 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
 /// ```ts
 /// for (let attempt = 0; attempt < 2; attempt++) { const made = await writeRefOnlyIfFreeAwaiting(name, tip); if (made.succeeded) return 'written'; if (await valueOfAwaiting(name).names === tip) return 'written'; if (made.answered) return { refused: wordsOf(made) }; leftRunning = !made.answered } return leftRunning ? 'left-running' : { refused: words }
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-async fn write_until_the_reference_names_awaiting(git: &GitContext, repository: &Path, name: &str, tip: &str) -> ASideRefWrite {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+async fn write_until_the_reference_names_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> ASideRefWrite {
     for _attempt in 0..SIDE_REF_WRITE_ATTEMPTS {
-        let made: StepAnswer = answering_awaiting(git, GitRequest::new(repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip, ""])).await;
+        let made: StepAnswer = answering_awaiting(
+            git,
+            GitRequest::new(
+                repository,
+                &[
+                    "-c",
+                    NO_REFLOG_SETTING,
+                    "update-ref",
+                    "--no-deref",
+                    name,
+                    tip,
+                    "",
+                ],
+            ),
+        )
+        .await;
         if matches!(&made, StepAnswer::Answered(output) if output.succeeded()) {
             return ASideRefWrite::Written;
         }
@@ -283,7 +377,9 @@ async fn write_until_the_reference_names_awaiting(git: &GitContext, repository: 
             return ASideRefWrite::Written;
         }
         match made {
-            StepAnswer::Answered(output) => return ASideRefWrite::Refused(refused_words_of(&output)),
+            StepAnswer::Answered(output) => {
+                return ASideRefWrite::Refused(refused_words_of(&output));
+            }
             StepAnswer::LeftRunning => {}
             StepAnswer::Ended(code) => return ASideRefWrite::Ended(code),
         }
@@ -303,7 +399,12 @@ async fn write_until_the_reference_names_awaiting(git: &GitContext, repository: 
 /// ```ts
 /// const theReferenceItselfNamesAwaiting = async (git, repository, name, tip) => (await valueOfAwaiting(git, repository, name)).names === tip
 /// ```
-async fn the_reference_itself_names_awaiting(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+async fn the_reference_itself_names_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> bool {
     return matches!(value_of_awaiting(git, repository, name).await, RefValue::Names(named) if named == tip);
 }
 
@@ -352,7 +453,9 @@ impl ASideRefWrite {
         return match self {
             Self::Written => None,
             Self::Refused(words) => Some(words.clone()),
-            Self::LeftRunning => Some(String::from("the write was still running when this command stopped waiting for it, so whether the reference names the commit is not known")),
+            Self::LeftRunning => Some(String::from(
+                "the write was still running when this command stopped waiting for it, so whether the reference names the commit is not known",
+            )),
             Self::Ended(code) => Some(format!("Git could not be run ({code:?})")),
         };
     }
@@ -375,7 +478,12 @@ impl ASideRefWrite {
 /// ```ts
 /// expect(await keepTheBatchesCommit(git, repo, 1, tip)).toBeUndefined()
 /// ```
-pub(crate) fn keep_the_batches_commit(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
+pub(crate) fn keep_the_batches_commit(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+    tip: &str,
+) -> Option<String> {
     return keep_on_a_side_ref(git, repository, kept_ref(seq).as_str(), tip);
 }
 
@@ -392,8 +500,19 @@ pub(crate) fn keep_the_batches_commit(git: &GitContext, repository: &Path, seq: 
 /// ```ts
 /// expect(await keepTheBatchesCommitAwaiting(git, repo, 1, tip)).toBeUndefined()
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn keep_the_batches_commit_awaiting(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn keep_the_batches_commit_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+    tip: &str,
+) -> Option<String> {
     return keep_on_a_side_ref_awaiting(git, repository, kept_ref(seq).as_str(), tip).await;
 }
 
@@ -412,7 +531,12 @@ pub(crate) async fn keep_the_batches_commit_awaiting(git: &GitContext, repositor
 /// ```ts
 /// expect(await keepOnTheScratchReference(git, repo, scratchRef(seq), tip)).toEqual('written')
 /// ```
-pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> ASideRefWrite {
+pub(crate) fn keep_on_the_scratch_reference(
+    git: &GitContext,
+    repository: &Path,
+    scratch: &str,
+    tip: &str,
+) -> ASideRefWrite {
     return write_until_the_reference_names(git, repository, scratch, tip);
 }
 
@@ -431,8 +555,19 @@ pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path,
 /// ```ts
 /// expect(await keepOnTheScratchReferenceAwaiting(git, repo, scratchRef(seq), tip)).toEqual('written')
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn keep_on_the_scratch_reference_awaiting(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> ASideRefWrite {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn keep_on_the_scratch_reference_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    scratch: &str,
+    tip: &str,
+) -> ASideRefWrite {
     return write_until_the_reference_names_awaiting(git, repository, scratch, tip).await;
 }
 
@@ -456,7 +591,12 @@ pub(crate) async fn keep_on_the_scratch_reference_awaiting(git: &GitContext, rep
 /// ```ts
 /// expect(await keepOnASideRef(git, repo, name, tip)).toBeUndefined()
 /// ```
-pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
+pub(crate) fn keep_on_a_side_ref(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> Option<String> {
     return write_until_the_reference_names(git, repository, name, tip).refusal();
 }
 
@@ -475,9 +615,22 @@ pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, name: &str
 /// ```ts
 /// const refusal = await keepOnASideRefAwaiting(git, repo, name, tip);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn keep_on_a_side_ref_awaiting(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
-    return write_until_the_reference_names_awaiting(git, repository, name, tip).await.refusal();
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn keep_on_a_side_ref_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> Option<String> {
+    return write_until_the_reference_names_awaiting(git, repository, name, tip)
+        .await
+        .refusal();
 }
 
 /// What:
@@ -518,7 +671,9 @@ pub(crate) fn the_refusal_line_of(output: &GitOutput) -> String {
 /// const refusedWordsOf = (output) => output.stderr.trim() || `git update-ref ended with ${output.code ?? 'no exit status'}`
 /// ```
 pub(crate) fn refused_words_of(output: &GitOutput) -> String {
-    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
+    let words: String = String::from_utf8_lossy(output.stderr.as_slice())
+        .trim()
+        .to_string();
     if !words.is_empty() {
         return words;
     }
@@ -572,7 +727,13 @@ pub(crate) struct AKeptCommit {
 /// ```ts
 /// const kept = keepOnASideRef(git, repository, seq, tip); return { named: !kept, line: kept ? `could not be kept on a side ref (${kept}), so it stays at ${scratchRef(seq)}` : `kept at refs/cli-git/kept/${seq}` }
 /// ```
-pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str) -> AKeptCommit {
+pub(crate) fn keep_unlanded(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+    held: &str,
+    tip: &str,
+) -> AKeptCommit {
     let name: String = kept_ref(seq);
     let Some(words) = keep_the_batches_commit(git, repository, seq, tip) else {
         return AKeptCommit {
@@ -609,8 +770,20 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, held:
 /// ```ts
 /// const line = await keepUnlandedAwaiting(git, repository, seq, tip);
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str) -> AKeptCommit {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn keep_unlanded_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+    held: &str,
+    tip: &str,
+) -> AKeptCommit {
     let name: String = kept_ref(seq);
     let Some(words) = keep_the_batches_commit_awaiting(git, repository, seq, tip).await else {
         return AKeptCommit {
@@ -653,7 +826,14 @@ pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, 
 /// ```ts
 /// const kept = keepUnlanded(git, repository, seq, tip); announce(kept.line); if (kept.named) await updateRefDelete(scratchRef(seq), tip);
 /// ```
-pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str, announce: &dyn Announcer) -> AKeptCommit {
+pub(crate) fn keep_an_unlanded_commit(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+    held: &str,
+    tip: &str,
+    announce: &dyn Announcer,
+) -> AKeptCommit {
     let kept: AKeptCommit = keep_unlanded(git, repository, seq, held, tip);
     announce.announce(Announce::Waiting(kept.line.clone()));
     if !kept.named {
@@ -662,7 +842,10 @@ pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: 
     if let_go_of_a_reference_only_while_it_names(git, repository, held, tip) {
         return kept;
     }
-    crate::service_warn!("batch {seq} {}: the commit {tip} is kept, and its scratch reference {held} was left as it is: it does not name that commit any more, or it could not be removed", crate::service_timing::in_the_repository_at(repository));
+    crate::service_warn!(
+        "batch {seq} {}: the commit {tip} is kept, and its scratch reference {held} was left as it is: it does not name that commit any more, or it could not be removed",
+        crate::service_timing::in_the_repository_at(repository)
+    );
     return kept;
 }
 
@@ -680,7 +863,12 @@ pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: 
 /// ```ts
 /// const removed = await git(['-c', 'core.logAllRefUpdates=false', 'update-ref', '-d', '--no-deref', name, tip]); return removed.ok
 /// ```
-pub(crate) fn let_go_of_a_reference_only_while_it_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+pub(crate) fn let_go_of_a_reference_only_while_it_names(
+    git: &GitContext,
+    repository: &Path,
+    name: &str,
+    tip: &str,
+) -> bool {
     return matches!(
         answering(git, GitRequest::new(repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", name, tip])),
         StepAnswer::Answered(output) if output.succeeded()
@@ -702,8 +890,17 @@ pub(crate) fn let_go_of_a_reference_only_while_it_names(git: &GitContext, reposi
 /// ```ts
 /// landingState.unprovenSideRef = { tip, why }
 /// ```
-pub(crate) fn remember_the_tip_a_side_reference_does_not_hold(tip: &str, why: String) {
-    on_the_landing_state(UnheldTip { tip: tip.to_string(), why }, keep_the_unheld_tip);
+pub(crate) fn remember_the_tip_a_side_reference_does_not_hold(
+    tip: &str,
+    why: String,
+) {
+    on_the_landing_state(
+        UnheldTip {
+            tip: tip.to_string(),
+            why,
+        },
+        keep_the_unheld_tip,
+    );
 }
 
 /// One tip a batch built whose side reference did not keep it,
@@ -716,7 +913,10 @@ struct UnheldTip {
     why: String,
 }
 
-fn keep_the_unheld_tip(state: &LandingState, unheld: UnheldTip) {
+fn keep_the_unheld_tip(
+    state: &LandingState,
+    unheld: UnheldTip,
+) {
     *state.unproven_side_ref_tip.borrow_mut() = Some((unheld.tip, unheld.why));
 }
 
@@ -726,7 +926,10 @@ fn take_the_tip_a_side_reference_does_not_hold() -> Option<(String, String)> {
     return on_the_landing_state((), take_the_unheld_tip);
 }
 
-fn take_the_unheld_tip(state: &LandingState, (): ()) -> Option<(String, String)> {
+fn take_the_unheld_tip(
+    state: &LandingState,
+    (): (),
+) -> Option<(String, String)> {
     return state.unproven_side_ref_tip.take();
 }
 
@@ -748,14 +951,33 @@ fn take_the_unheld_tip(state: &LandingState, (): ()) -> Option<(String, String)>
 /// ```ts
 /// const unheld = takeTheUnheldTip(); if (unheld) { announce(`the write of this batch's own side reference did not keep the commit Git built (${unheld.why}), so this commit was not made.`); announce(keepTheBatchesCommit(git, repo, seq, unheld.tip)) }
 /// ```
-pub(crate) fn keep_what_a_side_reference_write_left(context: &LandContext, announce: &dyn Announcer, requests: &[CommitRequest], seq: u64) {
-    let Some((tip, why)) = take_the_tip_a_side_reference_does_not_hold() else { return };
-    let Some(first) = requests.first() else { return };
+pub(crate) fn keep_what_a_side_reference_write_left(
+    context: &LandContext,
+    announce: &dyn Announcer,
+    requests: &[CommitRequest],
+    seq: u64,
+) {
+    let Some((tip, why)) = take_the_tip_a_side_reference_does_not_hold() else {
+        return;
+    };
+    let Some(first) = requests.first() else {
+        return;
+    };
     announce.announce(Announce::Waiting(format!(
         "monochromatic-git-policy-cli: the write of this batch's own side reference did not keep the commit Git built ({why}), so this commit was not made.\n"
     )));
-    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-    announce.announce(Announce::Waiting(keep_the_tip_a_side_reference_did_not_hold(&git, first.repository.as_path(), seq, tip.as_str())));
+    let git: GitContext = GitContext {
+        common_dir: Some(first.common_dir.clone()),
+        ..context.git.clone()
+    };
+    announce.announce(Announce::Waiting(
+        keep_the_tip_a_side_reference_did_not_hold(
+            &git,
+            first.repository.as_path(),
+            seq,
+            tip.as_str(),
+        ),
+    ));
 }
 
 /// What:
@@ -770,7 +992,12 @@ pub(crate) fn keep_what_a_side_reference_write_left(context: &LandContext, annou
 ///  and the one thing this landing can still give the person is the object's own name,
 ///  with what to do with it before a maintenance that drops what no reference names takes it
 ///  (the owner's rule "never discard user data").
-fn keep_the_tip_a_side_reference_did_not_hold(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+fn keep_the_tip_a_side_reference_did_not_hold(
+    git: &GitContext,
+    repository: &Path,
+    seq: u64,
+    tip: &str,
+) -> String {
     let name: String = kept_ref(seq);
     let refused: Option<String> = keep_the_batches_commit(git, repository, seq, tip);
     let Some(words) = refused else {

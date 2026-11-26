@@ -26,7 +26,16 @@ use super::binding_words::INVENTORY_HEADER;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 
 ///The inventory grammar's keys, in the order it writes them.
-pub const INVENTORY_KEYS_IN_ORDER: [&str; 8] = ["kind", "poolGuid", "dataset", "datasetGuid", "bounds", "boundsGuid", "boundsCreatetxg", "entries"];
+pub const INVENTORY_KEYS_IN_ORDER: [&str; 8] = [
+    "kind",
+    "poolGuid",
+    "dataset",
+    "datasetGuid",
+    "bounds",
+    "boundsGuid",
+    "boundsCreatetxg",
+    "entries",
+];
 
 /// What:
 ///  Which of the two inventories a file is.
@@ -178,7 +187,16 @@ impl InventoryRecord {
         text.push_str(format!("boundsCreatetxg={}\n", self.bounds_createtxg).as_str());
         text.push_str(format!("entries={}\n", self.entries.len()).as_str());
         for entry in &self.entries {
-            text.push_str(format!("entry={} {} {} {}\n", entry.kind.word(), entry.guid.file_name(), entry.createtxg, entry.name).as_str());
+            text.push_str(
+                format!(
+                    "entry={} {} {} {}\n",
+                    entry.kind.word(),
+                    entry.guid.file_name(),
+                    entry.createtxg,
+                    entry.name
+                )
+                .as_str(),
+            );
         }
         return text.into_bytes();
     }

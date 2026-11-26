@@ -30,7 +30,11 @@ use crate::config_schema::RulesFileEntry;
 /// Import the rules selection the adapter loads.
 use crate::scanner_adapter::RulesSource;
 /// Import the scanner's rules-list entry and the one parser of the variable's list grammar.
-use forbidden_strings::{RulesEntry, RulesListError, parse_rules_list};
+use forbidden_strings::{
+    RulesEntry,
+    RulesListError,
+    parse_rules_list,
+};
 /// `OsStr` is borrowed operating-system text of raw OS bytes (sibling `str` must be UTF-8).
 use std::ffi::OsStr;
 /// What:
@@ -48,7 +52,11 @@ use std::ffi::OsStr;
 /// ```ts
 /// import { resolve, relative } from 'node:path';
 /// ```
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The environment variable naming the runtime rules list.
@@ -135,7 +143,10 @@ pub fn rules_source(
                 optional: file.optional,
             });
         }
-        return Ok(RulesSource { entries, explicit: true });
+        return Ok(RulesSource {
+            entries,
+            explicit: true,
+        });
     }
     // `match` on the optional value: `Some(value)` is "present", `None` is "absent".
     match configured {
@@ -145,7 +156,10 @@ pub fn rules_source(
             // so it stays one required path, as it was before lists existed.
             let Some(text) = value.to_str() else {
                 return Ok(RulesSource {
-                    entries: vec![RulesEntry { path: repository_root.join(value), optional: false }],
+                    entries: vec![RulesEntry {
+                        path: repository_root.join(value),
+                        optional: false,
+                    }],
                     explicit: true,
                 });
             };
@@ -154,7 +168,10 @@ pub fn rules_source(
                 // `.join(..)` keeps an absolute entry as it is.
                 entry.path = repository_root.join(entry.path.as_path());
             }
-            return Ok(RulesSource { entries, explicit: true });
+            return Ok(RulesSource {
+                entries,
+                explicit: true,
+            });
         }
         None => {
             return Ok(RulesSource {
@@ -181,7 +198,10 @@ pub fn rules_source(
 /// ```ts
 /// const rulesCandidatePaths = (rules: RulesSource, root: string) => rules.entries.flatMap(e => rulesCandidatePath(e.path, root) ?? []);
 /// ```
-pub fn rules_candidate_paths(rules: &RulesSource, repository_root: &Path) -> Vec<Vec<u8>> {
+pub fn rules_candidate_paths(
+    rules: &RulesSource,
+    repository_root: &Path,
+) -> Vec<Vec<u8>> {
     let mut paths: Vec<Vec<u8>> = Vec::with_capacity(rules.entries.len());
     for entry in &rules.entries {
         if let Some(found) = rules_candidate_path(entry.path.as_path(), repository_root) {
@@ -276,7 +296,10 @@ fn git_path_bytes(relative: &Path) -> Vec<u8> {
 /// ```ts
 /// function rulesCandidatePath(rulesPath: string, repositoryRoot: string): string | undefined;
 /// ```
-pub fn rules_candidate_path(rules_path: &Path, repository_root: &Path) -> Option<Vec<u8>> {
+pub fn rules_candidate_path(
+    rules_path: &Path,
+    repository_root: &Path,
+) -> Option<Vec<u8>> {
     let normalized: PathBuf = lexically_normalized(rules_path);
     // What: `.strip_prefix(root)` is `Ok(rest)` when the path starts with the root's
     //       names; `.ok()?` turns a failure into `None` and returns it.
@@ -310,7 +333,10 @@ pub fn rules_candidate_path(rules_path: &Path, repository_root: &Path) -> Option
 /// ```ts
 /// function isScannable(candidate: Candidate, rulesPath?: string): boolean;
 /// ```
-pub fn is_scannable(candidate: &Candidate, rules_paths: &[Vec<u8>]) -> bool {
+pub fn is_scannable(
+    candidate: &Candidate,
+    rules_paths: &[Vec<u8>],
+) -> bool {
     if candidate.change == CandidateChange::Deleted {
         return false;
     }

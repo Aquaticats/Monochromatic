@@ -16,27 +16,47 @@
 
 /// Names and helpers the landing side already uses.
 use crate::conclusion_cleanup::{
-    CONCLUSION_COPY_DIRECTORY, CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY, STORE_RECORD_FILENAME,
-    is_store_held, resolve_pseudoref, store_names_conclusions,
+    CONCLUSION_COPY_DIRECTORY,
+    CONCLUSION_STATE_FILES,
+    SEQUENCER_DIRECTORY,
+    STORE_RECORD_FILENAME,
+    is_store_held,
+    resolve_pseudoref,
+    store_names_conclusions,
 };
+/// JSON object writer for the store-held record.
+use crate::json_record::ObjectWriter;
 /// Private file writes and directory creation.
 ///  A conclusion copy is written without a flush:
 /// nothing recovers it from this directory.
-use crate::private_storage::{create_private_directory, write_private_file, write_private_file_unsynced};
-/// Optional reads that treat a missing entry as absent.
-use crate::recovery_files::{path_present, read_optional};
+use crate::private_storage::{
+    create_private_directory,
+    write_private_file,
+    write_private_file_unsynced,
+};
 /// The error of a recovery-file read,
 /// whose text becomes a Git failure.
 use crate::recovery_error::RecoveryError;
-/// JSON object writer for the store-held record.
-use crate::json_record::ObjectWriter;
+/// Optional reads that treat a missing entry as absent.
+use crate::recovery_files::{
+    path_present,
+    read_optional,
+};
 /// The shadow ref helper and the process context.
 use crate::shadow_git::shadow_request;
-use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitRequest,
+    run_git_checked,
+};
 /// Ref storage backend.
 use crate::transaction_journal::RefFormat;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Turns the result of one filesystem step into a Git failure that names the step.
@@ -51,7 +71,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function ioStep<T>(step: string, attempt: () => T): T; // throws GitFailure(`${step} failed: ${error}`)
 /// ```
-fn io_step<T>(step: &str, result: std::io::Result<T>) -> Result<T, GitFailure> {
+fn io_step<T>(
+    step: &str,
+    result: std::io::Result<T>,
+) -> Result<T, GitFailure> {
     return match result {
         Ok(value) => Ok(value),
         Err(error) => Err(GitFailure(format!("{step} failed: {error}"))),
@@ -86,7 +109,10 @@ fn recovery_step<T>(result: Result<T, RecoveryError>) -> Result<T, GitFailure> {
 /// ```ts
 /// await cp(source, destination, { recursive: true });
 /// ```
-fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
+fn copy_tree(
+    source: &Path,
+    destination: &Path,
+) -> std::io::Result<()> {
     create_private_directory(destination)?;
     for entry_result in std::fs::read_dir(source)? {
         let entry: std::fs::DirEntry = entry_result?;
@@ -118,11 +144,16 @@ fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
 /// ```ts
 /// await resolvePseudoref({ gitPath, cwd, name });
 /// ```
-fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<String> {
+fn owning_pseudoref(
+    context: &GitContext,
+    cwd: &Path,
+    name: &str,
+) -> Option<String> {
     let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--verify", "--quiet", name]);
     request.without_prefix = true;
     // The value is read in the caller's repository, which a Git directory beside its work tree only names.
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    request.repository_selection =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     return resolve_pseudoref(context, request);
 }
 
@@ -187,7 +218,10 @@ pub fn copy_conclusion_state(
     if entries.is_empty() && record.is_none() && !sequencer_present {
         return Ok(());
     }
-    io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
+    io_step(
+        "creating the conclusion copies",
+        create_private_directory(copies.as_path()),
+    )?;
     // Why no copy is flushed, and what that removal was worth: the shadow's copy is read by this process's own
     // `git commit` immediately after it is written, and the comparison copy by the landing this same command asks for.
     // The service copies what the cleanup compares into the batch's journal before the branch moves
@@ -210,16 +244,25 @@ pub fn copy_conclusion_state(
         )?;
     }
     if let Some(text) = record {
-        io_step("writing the store-held record", write_store_record(copies.as_path(), text.as_str(), ref_format))?;
+        io_step(
+            "writing the store-held record",
+            write_store_record(copies.as_path(), text.as_str(), ref_format),
+        )?;
     }
     if sequencer_present {
         io_step(
             "copying the sequencer into the shadow",
-            copy_tree(sequencer.as_path(), shadow.join(SEQUENCER_DIRECTORY).as_path()),
+            copy_tree(
+                sequencer.as_path(),
+                shadow.join(SEQUENCER_DIRECTORY).as_path(),
+            ),
         )?;
         io_step(
             "copying the sequencer for comparison",
-            copy_tree(sequencer.as_path(), copies.join(SEQUENCER_DIRECTORY).as_path()),
+            copy_tree(
+                sequencer.as_path(),
+                copies.join(SEQUENCER_DIRECTORY).as_path(),
+            ),
         )?;
     }
     return Ok(());
@@ -241,7 +284,11 @@ pub fn copy_conclusion_state(
 /// ```ts
 /// await writeStoreRecord(copies, text, format);
 /// ```
-fn write_store_record(copies: &Path, text: &str, format: RefFormat) -> std::io::Result<()> {
+fn write_store_record(
+    copies: &Path,
+    text: &str,
+    format: RefFormat,
+) -> std::io::Result<()> {
     let path: PathBuf = copies.join(STORE_RECORD_FILENAME);
     let bytes: String = format!("{text}\n");
     return if store_names_conclusions(format) {
@@ -275,7 +322,12 @@ pub const CONCLUSION_HEAD_NAMES: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", 
 /// # Errors
 ///
 /// `GitFailure` when an entry that exists cannot be read.
-pub fn conclusion_state_text(context: &GitContext, cwd: &Path, git_dir: &Path, ref_format: RefFormat) -> Result<String, GitFailure> {
+pub fn conclusion_state_text(
+    context: &GitContext,
+    cwd: &Path,
+    git_dir: &Path,
+    ref_format: RefFormat,
+) -> Result<String, GitFailure> {
     // `mut` collects one line per head,
     // in the order a person's own `git status` names them.
     let mut text: String = String::new();
@@ -283,9 +335,14 @@ pub fn conclusion_state_text(context: &GitContext, cwd: &Path, git_dir: &Path, r
         text.push_str(name);
         text.push('=');
         if is_store_held(ref_format, name) {
-            text.push_str(owning_pseudoref(context, cwd, name).unwrap_or_default().as_str());
+            text.push_str(
+                owning_pseudoref(context, cwd, name)
+                    .unwrap_or_default()
+                    .as_str(),
+            );
         } else {
-            let bytes: Vec<u8> = recovery_step(read_optional(git_dir.join(name).as_path()))?.unwrap_or_default();
+            let bytes: Vec<u8> =
+                recovery_step(read_optional(git_dir.join(name).as_path()))?.unwrap_or_default();
             text.push_str(String::from_utf8_lossy(bytes.as_slice()).as_ref());
         }
         text.push('\n');
@@ -316,10 +373,13 @@ pub fn the_state_of_a_conclusion(
     conclusion: crate::transaction_journal::Conclusion,
 ) -> Result<Option<String>, GitFailure> {
     return match conclusion {
-        crate::transaction_journal::Conclusion::Merge | crate::transaction_journal::Conclusion::CherryPick | crate::transaction_journal::Conclusion::Revert => {
-            Ok(Some(conclusion_state_text(context, cwd, git_dir, ref_format)?))
-        }
-        crate::transaction_journal::Conclusion::None | crate::transaction_journal::Conclusion::Amend => Ok(None),
+        crate::transaction_journal::Conclusion::Merge
+        | crate::transaction_journal::Conclusion::CherryPick
+        | crate::transaction_journal::Conclusion::Revert => Ok(Some(conclusion_state_text(
+            context, cwd, git_dir, ref_format,
+        )?)),
+        crate::transaction_journal::Conclusion::None
+        | crate::transaction_journal::Conclusion::Amend => Ok(None),
     };
 }
 

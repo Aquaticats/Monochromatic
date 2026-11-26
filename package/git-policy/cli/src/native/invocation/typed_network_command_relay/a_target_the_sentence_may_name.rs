@@ -64,7 +64,10 @@ pub fn target_of(url: &str) -> Option<Target> {
         }
     };
     let (user_part, host_part): (Option<&str>, &str) = match authority.rfind('@') {
-        Some(at) => (authority.get(..at), authority.get(at.saturating_add(1)..).unwrap_or("")),
+        Some(at) => (
+            authority.get(..at),
+            authority.get(at.saturating_add(1)..).unwrap_or(""),
+        ),
         None => (None, authority),
     };
     // What: `?` returns nothing from this function when the host is not a plain word a sentence may print.
@@ -84,7 +87,9 @@ pub fn target_of(url: &str) -> Option<Target> {
     // const port = portInUrl && /^[0-9]{1,5}$/.test(portInUrl) && Number(portInUrl) !== 22 ? portInUrl : undefined;
     // ```
     let port: Option<&str> = port_in_url.filter(|text| {
-        return text.len() <= 5 && text.bytes().all(|byte| return byte.is_ascii_digit()) && *text != "22";
+        return text.len() <= 5
+            && text.bytes().all(|byte| return byte.is_ascii_digit())
+            && *text != "22";
     });
     let user: Option<String> = match user_part {
         Some(named) => Some(printable_user(named)?),
@@ -110,7 +115,10 @@ pub fn target_of(url: &str) -> Option<Target> {
     // ```ts
     // return { host, connect };
     // ```
-    return Some(Target { host, connect });
+    return Some(Target {
+        host,
+        connect,
+    });
 }
 
 /// What:
@@ -130,7 +138,9 @@ fn split_the_port(authority: &str) -> (&str, Option<&str>) {
         let Some(close) = rest.find(']') else {
             return (authority, None);
         };
-        let host: &str = authority.get(..close.saturating_add(2)).unwrap_or(authority);
+        let host: &str = authority
+            .get(..close.saturating_add(2))
+            .unwrap_or(authority);
         let after: &str = authority.get(close.saturating_add(2)..).unwrap_or("");
         return (host, after.strip_prefix(':'));
     }
@@ -155,7 +165,10 @@ fn printable_host(host: &str) -> Option<String> {
     if host.is_empty() {
         return None;
     }
-    if !host.chars().all(|character| return character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | ':' | '%' | '-')) {
+    if !host.chars().all(|character| {
+        return character.is_ascii_alphanumeric()
+            || matches!(character, '.' | '_' | ':' | '%' | '-');
+    }) {
         return None;
     }
     // What: `to_owned` copies the text into an owned `String`, which outlives the URL it was read from; the sibling `&str` would
@@ -182,7 +195,9 @@ fn printable_user(user: &str) -> Option<String> {
     if user.is_empty() {
         return None;
     }
-    if !user.chars().all(|character| return character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')) {
+    if !user.chars().all(|character| {
+        return character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-');
+    }) {
         return None;
     }
     return Some(user.to_owned());

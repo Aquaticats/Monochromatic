@@ -39,7 +39,10 @@ use crate::service_client_settings_and_watches::ClientConfig;
 /// ```ts
 /// import { positionNotice, unplacedNotice } from './service-messages.ts';
 /// ```
-use crate::service_messages::{position_notice, unplaced_notice};
+use crate::service_messages::{
+    position_notice,
+    unplaced_notice,
+};
 use std::io::Write;
 use std::time::Instant;
 
@@ -78,7 +81,13 @@ pub(crate) fn place_number(place: (usize, usize)) -> usize {
 /// ```ts
 /// sayWhereItStands(notices, config, parked, place, told)
 /// ```
-pub(crate) fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, place: Option<(usize, usize)>, told: &mut Option<Option<usize>>) {
+pub(crate) fn say_where_it_stands(
+    notices: &mut dyn Write,
+    config: &ClientConfig,
+    parked: Option<Instant>,
+    place: Option<(usize, usize)>,
+    told: &mut Option<Option<usize>>,
+) {
     let Some(since) = parked else {
         return;
     };
@@ -120,7 +129,13 @@ pub(crate) fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig
 /// ```ts
 /// sayTheWriteItIsInside(notices, config, parked, words, told)
 /// ```
-pub(crate) fn say_the_write_it_is_inside(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, words: Option<&str>, told: &mut Option<String>) {
+pub(crate) fn say_the_write_it_is_inside(
+    notices: &mut dyn Write,
+    config: &ClientConfig,
+    parked: Option<Instant>,
+    words: Option<&str>,
+    told: &mut Option<String>,
+) {
     let Some(text) = words else {
         return;
     };

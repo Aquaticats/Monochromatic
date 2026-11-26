@@ -32,22 +32,29 @@
 //! const standing = await waitOutTheReferenceLocks(roots, deadline); // { gone: true } | { blocked: words }
 //! ```
 
-/// The reference locks of the repository,
-/// judged and cleared by the one module that owns the proofs.
-use crate::stale_ref_locks::{Judge, clear_stale_ref_locks, clear_stale_ref_locks_of};
-/// The files that are candidates at all,
-/// so a wait knows whether anything stands,
-/// and which of them a caller names when it knows what can refuse its own write.
-use crate::stale_ref_lock_walk::{Candidate, ref_lock_candidates};
 /// What a pass over the locks found,
 /// and how one of them was judged.
 use crate::stale_ref_lock_found::Outcome;
 use crate::stale_ref_lock_judge::Verdict;
 /// The shell quoting the notice gives the command that clears a lock.
 use crate::stale_ref_lock_message::shell_quote;
+/// The files that are candidates at all,
+/// so a wait knows whether anything stands,
+/// and which of them a caller names when it knows what can refuse its own write.
+use crate::stale_ref_lock_walk::{
+    Candidate,
+    ref_lock_candidates,
+};
+/// The reference locks of the repository,
+/// judged and cleared by the one module that owns the proofs.
+use crate::stale_ref_locks::{
+    Judge,
+    clear_stale_ref_locks,
+    clear_stale_ref_locks_of,
+};
+use std::path::PathBuf;
 /// How often the wait looks again while a lock stands.
 use std::time::Duration;
-use std::path::PathBuf;
 use std::time::Instant;
 
 /// How often the wait looks at the locks again.
@@ -100,9 +107,16 @@ pub(crate) enum Waiting {
 ///   sleep(POLL);
 /// }
 /// ```
-pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, deadline: Instant) -> Waiting {
+pub(crate) fn wait_out_the_reference_locks(
+    roots: &[PathBuf],
+    judge: &Judge,
+    deadline: Instant,
+) -> Waiting {
     loop {
-        let standing: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(the_lock_of).collect();
+        let standing: Vec<PathBuf> = ref_lock_candidates(roots)
+            .into_iter()
+            .map(the_lock_of)
+            .collect();
         if standing.is_empty() {
             return Waiting::Gone;
         }
@@ -111,7 +125,10 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
             return Waiting::Gone;
         }
         if !outcome.left.is_empty() || !outcome.displaced.is_empty() {
-            return Waiting::Blocked { words: words_of(&outcome, standing.as_slice()), locks: standing };
+            return Waiting::Blocked {
+                words: words_of(&outcome, standing.as_slice()),
+                locks: standing,
+            };
         }
         // Every lock standing is younger than the margin, so a live holder may still be at work: look again.
         if Instant::now() >= deadline {
@@ -119,8 +136,14 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
             if !last.cleared.is_empty() {
                 return Waiting::Gone;
             }
-            let left: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(the_lock_of).collect();
-            return Waiting::Blocked { words: words_of(&last, left.as_slice()), locks: left };
+            let left: Vec<PathBuf> = ref_lock_candidates(roots)
+                .into_iter()
+                .map(the_lock_of)
+                .collect();
+            return Waiting::Blocked {
+                words: words_of(&last, left.as_slice()),
+                locks: left,
+            };
         }
         std::thread::sleep(REFERENCE_LOCK_POLL);
     }
@@ -141,7 +164,11 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
 /// ```ts
 /// while (true) { const standing = candidates.filter(exists); if (!standing.length) return { gone: true }; const outcome = clearStaleRefLocksOf(candidates, judge); if (outcome.cleared.length) return { gone: true }; if (outcome.left.length || outcome.displaced.length) return { blocked: wordsOf(outcome) }; if (now() >= deadline) { ... } await sleep(POLL) }
 /// ```
-pub(crate) fn wait_out_the_reference_locks_of(candidates: &[Candidate], judge: &Judge, deadline: Instant) -> Waiting {
+pub(crate) fn wait_out_the_reference_locks_of(
+    candidates: &[Candidate],
+    judge: &Judge,
+    deadline: Instant,
+) -> Waiting {
     loop {
         let standing: Vec<PathBuf> = the_locks_that_stand(candidates);
         if standing.is_empty() {
@@ -152,7 +179,10 @@ pub(crate) fn wait_out_the_reference_locks_of(candidates: &[Candidate], judge: &
             return Waiting::Gone;
         }
         if !outcome.left.is_empty() || !outcome.displaced.is_empty() {
-            return Waiting::Blocked { words: words_of(&outcome, standing.as_slice()), locks: standing };
+            return Waiting::Blocked {
+                words: words_of(&outcome, standing.as_slice()),
+                locks: standing,
+            };
         }
         // Every lock standing is younger than the margin, so a live holder may still be at work: look again.
         if Instant::now() >= deadline {
@@ -161,7 +191,10 @@ pub(crate) fn wait_out_the_reference_locks_of(candidates: &[Candidate], judge: &
                 return Waiting::Gone;
             }
             let left: Vec<PathBuf> = the_locks_that_stand(candidates);
-            return Waiting::Blocked { words: words_of(&last, left.as_slice()), locks: left };
+            return Waiting::Blocked {
+                words: words_of(&last, left.as_slice()),
+                locks: left,
+            };
         }
         std::thread::sleep(REFERENCE_LOCK_POLL);
     }
@@ -203,7 +236,10 @@ fn the_locks_that_stand(candidates: &[Candidate]) -> Vec<PathBuf> {
 /// ```ts
 /// const words = `A program is using ${locksNamed(held)}. Nothing proves that a Git process still holds ${locksNamed(unproven)}. If no Git process is running in this repository, remove them with \`rm -- ${quotedList(unproven)}\`.`;
 /// ```
-fn words_of(outcome: &Outcome, standing: &[PathBuf]) -> String {
+fn words_of(
+    outcome: &Outcome,
+    standing: &[PathBuf],
+) -> String {
     let mut held: Vec<(PathBuf, String)> = Vec::new();
     let mut unproven: Vec<PathBuf> = Vec::new();
     for found in &outcome.left {
@@ -220,11 +256,21 @@ fn words_of(outcome: &Outcome, standing: &[PathBuf]) -> String {
     }
     let mut sentences: Vec<String> = Vec::new();
     for (lock, who) in &held {
-        sentences.push(format!("A program is using {}: {who}.", locks_named(std::slice::from_ref(lock))));
+        sentences.push(format!(
+            "A program is using {}: {who}.",
+            locks_named(std::slice::from_ref(lock))
+        ));
     }
     if !unproven.is_empty() {
-        sentences.push(format!("Nothing proves that a Git process still holds {}.", locks_named(unproven.as_slice())));
-        sentences.push(format!("If no Git process is running in this repository, remove {} with `rm -- {}`.", if unproven.len() == 1 { "it" } else { "them" }, quoted_list(unproven.as_slice())));
+        sentences.push(format!(
+            "Nothing proves that a Git process still holds {}.",
+            locks_named(unproven.as_slice())
+        ));
+        sentences.push(format!(
+            "If no Git process is running in this repository, remove {} with `rm -- {}`.",
+            if unproven.len() == 1 { "it" } else { "them" },
+            quoted_list(unproven.as_slice())
+        ));
     }
     return sentences.join(" ");
 }

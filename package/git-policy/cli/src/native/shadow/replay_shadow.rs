@@ -16,11 +16,20 @@
 
 /// Shadow selection and the transaction Git runner.
 use crate::shadow_git::shadow_request;
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
 /// `OsString` names environment entries and arguments.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Runs one shadow Git command and requires success.
@@ -60,7 +69,10 @@ pub fn run_shadow_checked(
 /// ```ts
 /// join(directory, `replay-base-${replay}.index`)
 /// ```
-pub fn replay_base_index(directory: &Path, replay: u64) -> PathBuf {
+pub fn replay_base_index(
+    directory: &Path,
+    replay: u64,
+) -> PathBuf {
     return directory.join(format!("replay-base-{replay}.index"));
 }
 

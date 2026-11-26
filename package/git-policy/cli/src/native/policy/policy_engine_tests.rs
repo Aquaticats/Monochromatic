@@ -218,23 +218,49 @@ fn a_read_that_was_ended_carries_its_own_hint() {
     let generic: &str = crate::event_hints::engine_failure_hint("content-unavailable")
         .expect("a hint for content-unavailable");
     assert!(generic.contains("shallow history"), "{generic}");
-    assert!(!crate::policy_events::STOPPED_READ_HINT.contains("fetch"), "{}", crate::policy_events::STOPPED_READ_HINT);
+    assert!(
+        !crate::policy_events::STOPPED_READ_HINT.contains("fetch"),
+        "{}",
+        crate::policy_events::STOPPED_READ_HINT
+    );
 }
 
 /// The stage under test and the types it reads and produces.
 use super::{
-    BLOCKED_EXIT_CODE, PolicyChecks, PolicyFinding, PolicyNote, PolicyOutcome, StageEnd,
-    StageRequest, StageResult, Unavailable, any_policy_applies, pass_exit_code, run_policy_stage,
+    BLOCKED_EXIT_CODE,
+    PolicyChecks,
+    PolicyFinding,
+    PolicyNote,
+    PolicyOutcome,
+    StageEnd,
+    StageRequest,
+    StageResult,
+    Unavailable,
+    any_policy_applies,
+    pass_exit_code,
+    run_policy_stage,
 };
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
 /// The event form of a pathname.
 use crate::event_path::EventPath;
-use crate::policy_events::{FindingEvent, FindingLocation, PolicyEvent};
-use crate::policy_registry::{POLICY_REGISTRY, PolicyId, Severity, policy_descriptor};
+use crate::policy_events::{
+    FindingEvent,
+    FindingLocation,
+    PolicyEvent,
+};
+use crate::policy_registry::{
+    POLICY_REGISTRY,
+    PolicyId,
+    Severity,
+    policy_descriptor,
+};
 use crate::policy_trigger::Trigger;
-use crate::wrapper_controls::{Controls, no_controls};
+use crate::wrapper_controls::{
+    Controls,
+    no_controls,
+};
 
 /// A provider that answers from a script and records every check it was asked for.
 struct Scripted {
@@ -246,7 +272,11 @@ struct Scripted {
 }
 
 impl PolicyChecks for Scripted {
-    fn check(&mut self, policy: PolicyId, trigger: Trigger) -> PolicyOutcome {
+    fn check(
+        &mut self,
+        policy: PolicyId,
+        trigger: Trigger,
+    ) -> PolicyOutcome {
         self.calls.push((policy, trigger));
         for (scripted, outcome) in &self.outcomes {
             if *scripted == policy {
@@ -301,7 +331,11 @@ fn all_listed() -> PolicyConfig {
 }
 
 /// A copy of `config` with one policy's severity replaced.
-fn with_severity(config: &PolicyConfig, policy: PolicyId, severity: Severity) -> PolicyConfig {
+fn with_severity(
+    config: &PolicyConfig,
+    policy: PolicyId,
+    severity: Severity,
+) -> PolicyConfig {
     let mut changed: PolicyConfig = config.clone();
     for setting in &mut changed.settings {
         if setting.id == policy {
@@ -771,7 +805,11 @@ fn unavailable_policy_ends_the_pass_without_a_clean_result() {
 
 /// A manual-push request over the given settings,
 ///  controls and filter.
-fn manual_push(config: &PolicyConfig, controls: &Controls, selected: &[PolicyId]) -> StageRequest {
+fn manual_push(
+    config: &PolicyConfig,
+    controls: &Controls,
+    selected: &[PolicyId],
+) -> StageRequest {
     return StageRequest {
         trigger: Trigger::ManualPush,
         config: config.clone(),

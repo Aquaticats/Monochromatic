@@ -25,13 +25,23 @@ use crate::candidate_object::CandidateMode;
 /// Import the candidate's change kinds.
 use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
-use crate::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the lifecycle's candidates and the correction a fix applies.
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
+};
 /// Import the finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// Import the lifecycle points;
 ///  only a direct fix corrects.
 use crate::policy_trigger::Trigger;
@@ -194,7 +204,10 @@ fn is_checked(candidate: &Candidate) -> bool {
 /// ```ts
 /// const finding = { code: 'noncanonical-final-newline', message, path: candidate.path, patch };
 /// ```
-fn finding(candidate: &Candidate, fix_available: bool) -> PolicyFinding {
+fn finding(
+    candidate: &Candidate,
+    fix_available: bool,
+) -> PolicyFinding {
     return PolicyFinding {
         code: FINAL_NEWLINE_CODE,
         message: String::from(FINAL_NEWLINE_MESSAGE),

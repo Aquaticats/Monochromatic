@@ -27,8 +27,17 @@
 //! const finding = findRegistrations({ entries, slot, slotPath, nonce, otherSlots });
 //! ```
 
-use super::registration_finder::{EntryFacts, EntryRow, candidate_names, owned_by_another_slot};
-use super::lock_words::{LockStanding, is_a_prefix_of_the_sentence, lock_standing_of};
+use super::lock_words::{
+    LockStanding,
+    is_a_prefix_of_the_sentence,
+    lock_standing_of,
+};
+use super::registration_finder::{
+    EntryFacts,
+    EntryRow,
+    candidate_names,
+    owned_by_another_slot,
+};
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use std::path::Path;
 
@@ -116,7 +125,10 @@ fn slot_pointer_path(slot_path: &Path) -> std::path::PathBuf {
 /// Whether one entry attributes itself to this add,
 /// which is what the two-match refusal counts.
 fn attributes_itself(decision: &EntryDecision) -> bool {
-    return matches!(decision, EntryDecision::Adopt | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. });
+    return matches!(
+        decision,
+        EntryDecision::Adopt | EntryDecision::Clear { .. } | EntryDecision::Refuse { .. }
+    );
 }
 
 /// What:
@@ -134,55 +146,96 @@ fn attributes_itself(decision: &EntryDecision) -> bool {
 /// ```ts
 /// const decision = decide(entry, slot, slotPath, nonce, otherSlots);
 /// ```
-pub fn decide(entry: &EntryFacts, slot: &str, slot_path: &Path, nonce: &RequestNonce, other_slots: &[String]) -> EntryDecision {
-    if !candidate_names(slot).iter().any(|candidate| return candidate == &entry.name) {
-        return EntryDecision::Leave { row: EntryRow::NotACandidate };
+pub fn decide(
+    entry: &EntryFacts,
+    slot: &str,
+    slot_path: &Path,
+    nonce: &RequestNonce,
+    other_slots: &[String],
+) -> EntryDecision {
+    if !candidate_names(slot)
+        .iter()
+        .any(|candidate| return candidate == &entry.name)
+    {
+        return EntryDecision::Leave {
+            row: EntryRow::NotACandidate,
+        };
     }
     if owned_by_another_slot(entry.name.as_str(), slot, other_slots) {
-        return EntryDecision::Leave { row: EntryRow::OwnedByAnotherSlot };
+        return EntryDecision::Leave {
+            row: EntryRow::OwnedByAnotherSlot,
+        };
     }
-    if entry.gitdir.as_deref().is_some_and(|gitdir| return gitdir != slot_pointer_path(slot_path)) {
-        return EntryDecision::Leave { row: EntryRow::AnotherSlotsRegistration };
+    if entry
+        .gitdir
+        .as_deref()
+        .is_some_and(|gitdir| return gitdir != slot_pointer_path(slot_path))
+    {
+        return EntryDecision::Leave {
+            row: EntryRow::AnotherSlotsRegistration,
+        };
     }
-    let pointer_stands: bool = entry.slot_git_pointer.as_deref().is_some_and(|bytes| return !bytes.is_empty());
+    let pointer_stands: bool = entry
+        .slot_git_pointer
+        .as_deref()
+        .is_some_and(|bytes| return !bytes.is_empty());
     if entry.gitdir.is_some() && entry.commondir && entry.head && pointer_stands {
         return EntryDecision::Adopt;
     }
     let foreign: bool = entry.locked.as_deref().is_some_and(|bytes| {
-        return lock_standing_of(bytes, nonce) == LockStanding::Foreign && !is_a_prefix_of_the_sentence(bytes, nonce);
+        return lock_standing_of(bytes, nonce) == LockStanding::Foreign
+            && !is_a_prefix_of_the_sentence(bytes, nonce);
     });
     if foreign {
         let first_line: String = entry
             .locked
             .as_deref()
-            .map(|bytes| return String::from_utf8_lossy(bytes).lines().next().unwrap_or("").to_string())
+            .map(|bytes| {
+                return String::from_utf8_lossy(bytes)
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+            })
             .unwrap_or_default();
         return EntryDecision::Refuse {
             row: EntryRow::ForeignLock,
             sentence: format!(
-                "the registration at `worktrees/{}` is this slot's and its lock holds words this add did not write (`{first_line}`), so a person's lock stands on it. Nothing was removed or rewritten. Ways forward: run `git worktree unlock {slot}` if the worktree is to be resumed, or remove it with `git worktree remove {slot}`.", entry.name
+                "the registration at `worktrees/{}` is this slot's and its lock holds words this add did not write (`{first_line}`), so a person's lock stands on it. Nothing was removed or rewritten. Ways forward: run `git worktree unlock {slot}` if the worktree is to be resumed, or remove it with `git worktree remove {slot}`.",
+                entry.name
             ),
         };
     }
     if entry.gitdir.is_none() && entry.slot_git_pointer.is_none() && entry.slot_other_entries == 0 {
         return match entry.locked.is_some() {
-            true => EntryDecision::Clear { row: EntryRow::LockOnly },
-            false => EntryDecision::Clear { row: EntryRow::Bare },
+            true => EntryDecision::Clear {
+                row: EntryRow::LockOnly,
+            },
+            false => EntryDecision::Clear {
+                row: EntryRow::Bare,
+            },
         };
     }
     if entry.gitdir.is_some() && entry.slot_git_pointer.is_none() {
-        return EntryDecision::Clear { row: EntryRow::GitdirOnly };
+        return EntryDecision::Clear {
+            row: EntryRow::GitdirOnly,
+        };
     }
     if pointer_stands && !entry.commondir {
-        return EntryDecision::Clear { row: EntryRow::PointerOnly };
+        return EntryDecision::Clear {
+            row: EntryRow::PointerOnly,
+        };
     }
     if entry.commondir && !entry.head {
-        return EntryDecision::Clear { row: EntryRow::Commondir };
+        return EntryDecision::Clear {
+            row: EntryRow::Commondir,
+        };
     }
     return EntryDecision::Refuse {
         row: EntryRow::NotACandidate,
         sentence: format!(
-            "the entry at `worktrees/{}` answers none of the states this add's resume knows, and nothing here proves it wrote the files that stand. Nothing was removed. Ways forward: inspect the entry and the slot, then remove by hand what is not a worktree.", entry.name
+            "the entry at `worktrees/{}` answers none of the states this add's resume knows, and nothing here proves it wrote the files that stand. Nothing was removed. Ways forward: inspect the entry and the slot, then remove by hand what is not a worktree.",
+            entry.name
         ),
     };
 }
@@ -199,8 +252,18 @@ pub fn decide(entry: &EntryFacts, slot: &str, slot_path: &Path, nonce: &RequestN
 /// ```ts
 /// const finding = findRegistrations({ entries, slot, slotPath, nonce, otherSlots, slotPointer });
 /// ```
-pub fn find_registrations(entries: &[EntryFacts], slot: &str, slot_path: &Path, nonce: &RequestNonce, other_slots: &[String], slot_has_a_git_pointer: bool) -> Finding {
-    let names_seen: Vec<String> = entries.iter().map(|entry| return entry.name.clone()).collect();
+pub fn find_registrations(
+    entries: &[EntryFacts],
+    slot: &str,
+    slot_path: &Path,
+    nonce: &RequestNonce,
+    other_slots: &[String],
+    slot_has_a_git_pointer: bool,
+) -> Finding {
+    let names_seen: Vec<String> = entries
+        .iter()
+        .map(|entry| return entry.name.clone())
+        .collect();
     let mut attributing: Vec<(String, EntryDecision)> = Vec::new();
     for entry in entries {
         let decision: EntryDecision = decide(entry, slot, slot_path, nonce, other_slots);
@@ -209,21 +272,31 @@ pub fn find_registrations(entries: &[EntryFacts], slot: &str, slot_path: &Path, 
         }
     }
     if attributing.len() > 1 {
-        let names: Vec<String> = attributing.iter().map(|(name, _)| return name.clone()).collect();
+        let names: Vec<String> = attributing
+            .iter()
+            .map(|(name, _)| return name.clone())
+            .collect();
         return Finding {
             decision: ListingDecision::Refuse {
                 sentence: format!(
-                    "two registrations attribute themselves to this add ({}), and only a copy of the lock sentence could make two. Nothing was removed or rewritten. Ways forward: inspect both entries and remove by hand the one that is not this add's."
-                , names.join("`, `")),
+                    "two registrations attribute themselves to this add ({}), and only a copy of the lock sentence could make two. Nothing was removed or rewritten. Ways forward: inspect both entries and remove by hand the one that is not this add's.",
+                    names.join("`, `")
+                ),
             },
             names_seen,
         };
     }
     if let Some((_, decision)) = attributing.pop() {
-        return Finding { decision: ListingDecision::Entry(decision), names_seen };
+        return Finding {
+            decision: ListingDecision::Entry(decision),
+            names_seen,
+        };
     }
     if !slot_has_a_git_pointer {
-        return Finding { decision: ListingDecision::RerunTheGitAdd, names_seen };
+        return Finding {
+            decision: ListingDecision::RerunTheGitAdd,
+            names_seen,
+        };
     }
     return Finding {
         decision: ListingDecision::Refuse {

@@ -23,8 +23,16 @@
 //! ```
 
 use crate::inner_git_words::record_words;
-use crate::service_protocol::{FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::service_protocol::{
+    FailureCode,
+    is_zero_object,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
@@ -61,7 +69,12 @@ pub enum IndexPaths<'a> {
 /// ```ts
 /// const request = { ...new GitRequest(repository, arguments), ownPathspecs: true, input, index };
 /// ```
-fn request_of(repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> GitRequest {
+fn request_of(
+    repository: &Path,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+    index: Option<&Path>,
+) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(repository, arguments).own_pathspecs();
     request.input = input;
     request.index = index.map(Path::to_path_buf);
@@ -88,8 +101,17 @@ fn run_answered(answered: std::io::Result<GitOutput>) -> Result<GitOutput, Failu
     };
 }
 
-fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    return run_answered(run_git(git, &request_of(repository, arguments, input, index)));
+fn run(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+    index: Option<&Path>,
+) -> Result<GitOutput, FailureCode> {
+    return run_answered(run_git(
+        git,
+        &request_of(repository, arguments, input, index),
+    ));
 }
 
 /// What:
@@ -107,8 +129,16 @@ fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Ve
 /// ```ts
 /// const output = await runAwaiting(git, repository, arguments, input, index);
 /// ```
-async fn run_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    return run_answered(run_git_awaiting(git, &request_of(repository, arguments, input, index)).await);
+async fn run_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+    index: Option<&Path>,
+) -> Result<GitOutput, FailureCode> {
+    return run_answered(
+        run_git_awaiting(git, &request_of(repository, arguments, input, index)).await,
+    );
 }
 
 /// The failure a Git step that did not succeed stands for.
@@ -138,8 +168,19 @@ fn literal(path: &[u8]) -> Vec<u8> {
 
 /// The names (bytes,
 /// NUL-separated) of the paths that differ between `old` and `new`.
-pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
-    let output: GitOutput = run(git, repository, &derived_names_arguments(old, new), None, None)?;
+pub(crate) fn derived_names(
+    git: &GitContext,
+    repository: &Path,
+    old: &str,
+    new: &str,
+) -> Result<Vec<u8>, FailureCode> {
+    let output: GitOutput = run(
+        git,
+        repository,
+        &derived_names_arguments(old, new),
+        None,
+        None,
+    )?;
     if !output.succeeded() {
         return Err(classify(&output));
     }
@@ -160,8 +201,20 @@ pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new:
 /// ```ts
 /// const names = await derivedNamesAwaiting(git, repository, old, new);
 /// ```
-pub(crate) async fn derived_names_awaiting(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
-    let output: GitOutput = run_awaiting(git, repository, &derived_names_arguments(old, new), None, None).await?;
+pub(crate) async fn derived_names_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    old: &str,
+    new: &str,
+) -> Result<Vec<u8>, FailureCode> {
+    let output: GitOutput = run_awaiting(
+        git,
+        repository,
+        &derived_names_arguments(old, new),
+        None,
+        None,
+    )
+    .await?;
     if !output.succeeded() {
         return Err(classify(&output));
     }
@@ -169,7 +222,10 @@ pub(crate) async fn derived_names_awaiting(git: &GitContext, repository: &Path, 
 }
 
 /// The arguments of the question `derived_names` asks Git.
-fn derived_names_arguments<'a>(old: &'a str, new: &'a str) -> Vec<&'a str> {
+fn derived_names_arguments<'a>(
+    old: &'a str,
+    new: &'a str,
+) -> Vec<&'a str> {
     let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
     if is_zero_object(old) {
         // A branch that did not exist: the commit is a root commit, and `--root` lists everything it holds.
@@ -232,7 +288,13 @@ fn pathspec_input(names: &[u8]) -> Vec<u8> {
 }
 
 /// One try of the index update.
-pub(super) fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
+pub(super) fn reset_once(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    index: Option<&Path>,
+) -> Result<(), FailureCode> {
     return match reset_once_asked(git, repository, new, paths, index)? {
         Some(output) => reset_answered(output),
         // No path to reset: the index is left as it is and no step ran.
@@ -242,7 +304,13 @@ pub(super) fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: 
 
 /// One try of the index update,
 /// with its Git child awaited on the runtime.
-pub(super) async fn reset_once_awaiting(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
+pub(super) async fn reset_once_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    index: Option<&Path>,
+) -> Result<(), FailureCode> {
     return match reset_once_asked_awaiting(git, repository, new, paths, index).await? {
         Some(output) => reset_answered(output),
         // No path to reset: the index is left as it is and no step ran.
@@ -289,7 +357,13 @@ fn reset_answered(output: GitOutput) -> Result<(), FailureCode> {
 /// ```ts
 /// async function resetOnceAsked(git, repository, new, paths, index): Promise<GitOutput>
 /// ```
-fn reset_once_asked(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<Option<GitOutput>, FailureCode> {
+fn reset_once_asked(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    index: Option<&Path>,
+) -> Result<Option<GitOutput>, FailureCode> {
     return match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
@@ -308,26 +382,63 @@ fn reset_once_asked(git: &GitContext, repository: &Path, new: &str, paths: Index
             if input.is_empty() {
                 return Ok(None);
             }
-            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index).map(Some)
+            run(
+                git,
+                repository,
+                &[
+                    "reset",
+                    "--no-refresh",
+                    new,
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                ],
+                Some(input),
+                index,
+            )
+            .map(Some)
         }
-        IndexPaths::Derived { old } => {
-            let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
+        IndexPaths::Derived {
+            old,
+        } => {
+            let input: Vec<u8> =
+                pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(None);
             }
-            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index).map(Some)
+            run(
+                git,
+                repository,
+                &[
+                    "reset",
+                    "--no-refresh",
+                    new,
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                ],
+                Some(input),
+                index,
+            )
+            .map(Some)
         }
     };
 }
 
 /// `reset_once_asked` with its Git child awaited on the runtime.
-async fn reset_once_asked_awaiting(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<Option<GitOutput>, FailureCode> {
+async fn reset_once_asked_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    new: &str,
+    paths: IndexPaths<'_>,
+    index: Option<&Path>,
+) -> Result<Option<GitOutput>, FailureCode> {
     return match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
             let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
-            run_awaiting(git, repository, &arguments, None, index).await.map(Some)
+            run_awaiting(git, repository, &arguments, None, index)
+                .await
+                .map(Some)
         }
         IndexPaths::Named(names) => {
             // Each name followed by a NUL, as `--pathspec-file-nul` reads them.
@@ -340,14 +451,48 @@ async fn reset_once_asked_awaiting(git: &GitContext, repository: &Path, new: &st
             if input.is_empty() {
                 return Ok(None);
             }
-            run_awaiting(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index).await.map(Some)
+            run_awaiting(
+                git,
+                repository,
+                &[
+                    "reset",
+                    "--no-refresh",
+                    new,
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                ],
+                Some(input),
+                index,
+            )
+            .await
+            .map(Some)
         }
-        IndexPaths::Derived { old } => {
-            let input: Vec<u8> = pathspec_input(derived_names_awaiting(git, repository, old, new).await?.as_slice());
+        IndexPaths::Derived {
+            old,
+        } => {
+            let input: Vec<u8> = pathspec_input(
+                derived_names_awaiting(git, repository, old, new)
+                    .await?
+                    .as_slice(),
+            );
             if input.is_empty() {
                 return Ok(None);
             }
-            run_awaiting(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index).await.map(Some)
+            run_awaiting(
+                git,
+                repository,
+                &[
+                    "reset",
+                    "--no-refresh",
+                    new,
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                ],
+                Some(input),
+                index,
+            )
+            .await
+            .map(Some)
         }
     };
 }
@@ -368,7 +513,13 @@ async fn reset_once_asked_awaiting(git: &GitContext, repository: &Path, new: &st
 /// # Errors
 ///
 /// The failure code of the `reset` that was refused.
-pub fn reset_entries(git: &GitContext, repository: &Path, index: Option<&Path>, new: &str, names: &[Vec<u8>]) -> Result<(), FailureCode> {
+pub fn reset_entries(
+    git: &GitContext,
+    repository: &Path,
+    index: Option<&Path>,
+    new: &str,
+    names: &[Vec<u8>],
+) -> Result<(), FailureCode> {
     if names.is_empty() {
         return Ok(());
     }
@@ -390,7 +541,13 @@ pub fn reset_entries(git: &GitContext, repository: &Path, index: Option<&Path>, 
 /// ```ts
 /// await resetEntriesAwaiting(git, repository, index, newCommit, names);
 /// ```
-pub async fn reset_entries_awaiting(git: &GitContext, repository: &Path, index: Option<&Path>, new: &str, names: &[Vec<u8>]) -> Result<(), FailureCode> {
+pub async fn reset_entries_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    index: Option<&Path>,
+    new: &str,
+    names: &[Vec<u8>],
+) -> Result<(), FailureCode> {
     if names.is_empty() {
         return Ok(());
     }

@@ -186,7 +186,12 @@ mod add_route_issues_no_destroy_tests;
 ///  A needle and a pinned anchor are about the code,
 ///  and Rust's meaning does not change with the blanks between its tokens.
 pub(super) fn squeezed(text: &str) -> String {
-    return text.chars().filter(|character| { return !character.is_whitespace(); }).collect();
+    return text
+        .chars()
+        .filter(|character| {
+            return !character.is_whitespace();
+        })
+        .collect();
 }
 
 /// What:
@@ -197,22 +202,41 @@ pub(super) fn squeezed(text: &str) -> String {
 ///  which the assertion below checks,
 ///  so cutting at a leading `//` is exact and no lexer decides what a line is.
 ///  Every byte of every literal stays, because a module's constants and its format text are behaviour.
-pub(super) fn pinned_code_lines(source: &str, what: &str) -> Vec<String> {
+pub(super) fn pinned_code_lines(
+    source: &str,
+    what: &str,
+) -> Vec<String> {
     assert_whole_line_comments_only(what, source);
-    return source.lines().map(|line| {
-        let trimmed: &str = line.trim();
-        return if trimmed.starts_with("//") { String::new() } else { String::from(trimmed) };
-    }).collect();
+    return source
+        .lines()
+        .map(|line| {
+            let trimmed: &str = line.trim();
+            return if trimmed.starts_with("//") {
+                String::new()
+            } else {
+                String::from(trimmed)
+            };
+        })
+        .collect();
 }
 
 /// Every `//` in the source begins its own line,
 /// so cutting a line at the first one hides nothing,
 /// and no block comment spans lines a reader would have to reconstruct.
-pub(super) fn assert_whole_line_comments_only(what: &str, source: &str) {
-    assert!(!source.contains("/*"), "{what} holds a block comment, which no line-at-a-time reader can cut exactly");
+pub(super) fn assert_whole_line_comments_only(
+    what: &str,
+    source: &str,
+) {
+    assert!(
+        !source.contains("/*"),
+        "{what} holds a block comment, which no line-at-a-time reader can cut exactly"
+    );
     for line in source.lines() {
         if let Some(at) = line.find("//") {
-            assert!(line[..at].trim().is_empty(), "a comment starts after code in {what}, and a line-at-a-time reader would cut what follows it: {line}");
+            assert!(
+                line[..at].trim().is_empty(),
+                "a comment starts after code in {what}, and a line-at-a-time reader would cut what follows it: {line}"
+            );
         }
     }
 }
@@ -229,7 +253,10 @@ pub(super) fn assert_whole_line_comments_only(what: &str, source: &str) {
 ///  test sidecars, binary-level controls and support that only tests compile
 ///  are told apart by the declarations that reach them, never by file name,
 ///  and a tree that cannot be fully classified is an error.
-pub(super) fn release_sources_in(root: &std::path::Path, roots: &[source_scan_tests::CrateRoot]) -> Result<Vec<String>, String> {
+pub(super) fn release_sources_in(
+    root: &std::path::Path,
+    roots: &[source_scan_tests::CrateRoot],
+) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
     for file in source_scan_tests::classified_sources(root, roots)? {
         if !file.test_only {

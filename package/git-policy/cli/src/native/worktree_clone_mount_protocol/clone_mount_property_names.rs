@@ -55,7 +55,8 @@ pub const FIELD_SEPARATOR: char = ':';
 /// `v1:<32 hex digits>:unmount`,
 /// in bytes.
 /// A longer value is refused before any field is split.
-pub const MAXIMUM_INTENT_BYTES: usize = VALUE_VERSION.len() + 1 + NONCE_HEX_DIGITS + 1 + UNMOUNT_WORD.len();
+pub const MAXIMUM_INTENT_BYTES: usize =
+    VALUE_VERSION.len() + 1 + NONCE_HEX_DIGITS + 1 + UNMOUNT_WORD.len();
 
 /// The property the reply's `source` key carries,
 /// whose value is the name of the dataset the property is set on.

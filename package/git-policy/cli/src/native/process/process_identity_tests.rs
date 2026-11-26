@@ -8,7 +8,10 @@ use super::*;
 
 /// A `/proc/<pid>/stat` line with the given command and state,
 ///  start tick 8423337.
-fn stat_line(command: &str, state: &str) -> String {
+fn stat_line(
+    command: &str,
+    state: &str,
+) -> String {
     return format!(
         "4242 ({command}) {state} 1 4242 4242 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 8423337 \
          1000 100 18446744073709551615 1 1 0 0 0 0 0 0 0 0 0 0 17 3 0 0 0 0 0\n"
@@ -170,8 +173,9 @@ fn the_current_process_has_a_stable_identity() {
 #[cfg(target_os = "linux")]
 #[test]
 fn children_lose_their_identity_when_they_exit() {
-    let mut running: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30"))
-        .expect("start sleep");
+    let mut running: std::process::Child =
+        crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30"))
+            .expect("start sleep");
     let pid: i64 = i64::from(running.id());
     let identity: String = process_birth_identity(pid)
         .expect("probe running")
@@ -234,7 +238,10 @@ fn missing_records_are_absent() {
 #[test]
 fn failures_are_described() {
     assert_eq!(
-        ProcessIdentityError::MalformedStat { pid: 7 }.to_string(),
+        ProcessIdentityError::MalformedStat {
+            pid: 7
+        }
+        .to_string(),
         "the Linux process record of PID 7 is malformed"
     );
     assert_eq!(
@@ -264,13 +271,31 @@ fn failures_are_described() {
 #[test]
 fn only_a_missing_record_or_an_exit_during_the_read_says_the_process_is_gone() {
     use super::record_is_gone;
-    assert!(record_is_gone(&std::io::Error::from(std::io::ErrorKind::NotFound)));
-    assert!(record_is_gone(&std::io::Error::from_raw_os_error(libc::ENOENT)));
-    assert!(record_is_gone(&std::io::Error::from_raw_os_error(libc::ESRCH)));
-    for refusal in [libc::EACCES, libc::EPERM, libc::EISDIR, libc::EIO, libc::EMFILE, libc::EINTR] {
-        assert!(!record_is_gone(&std::io::Error::from_raw_os_error(refusal)), "errno {refusal} says nothing about the process");
+    assert!(record_is_gone(&std::io::Error::from(
+        std::io::ErrorKind::NotFound
+    )));
+    assert!(record_is_gone(&std::io::Error::from_raw_os_error(
+        libc::ENOENT
+    )));
+    assert!(record_is_gone(&std::io::Error::from_raw_os_error(
+        libc::ESRCH
+    )));
+    for refusal in [
+        libc::EACCES,
+        libc::EPERM,
+        libc::EISDIR,
+        libc::EIO,
+        libc::EMFILE,
+        libc::EINTR,
+    ] {
+        assert!(
+            !record_is_gone(&std::io::Error::from_raw_os_error(refusal)),
+            "errno {refusal} says nothing about the process"
+        );
     }
-    assert!(!record_is_gone(&std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
+    assert!(!record_is_gone(&std::io::Error::from(
+        std::io::ErrorKind::PermissionDenied
+    )));
     assert!(!record_is_gone(&std::io::Error::other("something else")));
 }
 
@@ -282,15 +307,28 @@ fn only_a_missing_record_or_an_exit_during_the_read_says_the_process_is_gone() {
 #[test]
 fn a_failure_to_read_the_record_is_an_exit_only_when_it_says_so() {
     use super::linux_identity_read_by;
-    let failing = |code: i32| { return move |_: String| -> std::io::Result<Vec<u8>> { return Err(std::io::Error::from_raw_os_error(code)); }; };
-    assert_eq!(linux_identity_read_by(4242, failing(libc::ENOENT)).expect("gone is not an error"), None);
-    assert_eq!(linux_identity_read_by(4242, failing(libc::ESRCH)).expect("gone is not an error"), None);
+    let failing = |code: i32| {
+        return move |_: String| -> std::io::Result<Vec<u8>> {
+            return Err(std::io::Error::from_raw_os_error(code));
+        };
+    };
+    assert_eq!(
+        linux_identity_read_by(4242, failing(libc::ENOENT)).expect("gone is not an error"),
+        None
+    );
+    assert_eq!(
+        linux_identity_read_by(4242, failing(libc::ESRCH)).expect("gone is not an error"),
+        None
+    );
     for code in [libc::EACCES, libc::EIO, libc::EISDIR] {
         match linux_identity_read_by(4242, failing(code)) {
-            Err(ProcessIdentityError::Io { pid, error }) => {
+            Err(ProcessIdentityError::Io {
+                pid,
+                error,
+            }) => {
                 assert_eq!(pid, 4242);
                 assert_eq!(error.raw_os_error(), Some(code));
-            },
+            }
             other => panic!("errno {code} must be an error naming the process, got {other:?}"),
         }
     }
@@ -299,6 +337,9 @@ fn a_failure_to_read_the_record_is_an_exit_only_when_it_says_so() {
         *seen_path.borrow_mut() = path;
         return Ok(stat_line("git", "S").into_bytes());
     });
-    assert_eq!(read.expect("a record that reads"), Some(String::from("linux:8423337")));
+    assert_eq!(
+        read.expect("a record that reads"),
+        Some(String::from("linux:8423337"))
+    );
     assert_eq!(seen_path.borrow().as_str(), "/proc/4242/stat");
 }

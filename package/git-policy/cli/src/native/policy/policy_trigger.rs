@@ -158,7 +158,10 @@ pub fn policy_triggers(id: PolicyId) -> &'static [Trigger] {
 /// ```ts
 /// const runs = policy.triggers.includes(trigger);
 /// ```
-pub fn policy_runs_on(id: PolicyId, trigger: Trigger) -> bool {
+pub fn policy_runs_on(
+    id: PolicyId,
+    trigger: Trigger,
+) -> bool {
     // `.contains(&trigger)` borrows the trigger for the lookup.
     return policy_triggers(id).contains(&trigger);
 }

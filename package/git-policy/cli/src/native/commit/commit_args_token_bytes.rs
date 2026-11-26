@@ -18,9 +18,15 @@
 
 /// The argument bytes of one token,
 /// and the operating-system string they came from.
-use crate::path_bytes::{argument_bytes, os_from_path_bytes};
+use crate::path_bytes::{
+    argument_bytes,
+    os_from_path_bytes,
+};
 /// A command line is made of operating-system strings.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// Short-value options whose clustered form can carry the value in the same token.
 const SHORT_VALUE_OPTIONS: [&str; 6] = ["-m", "-F", "-C", "-c", "-t", "-U"];
@@ -41,7 +47,10 @@ pub(crate) const OPTIONAL_VALUE_LETTERS: &[u8] = b"Su";
 /// ```ts
 /// options.some((option) => token.equals(Buffer.from(option)))
 /// ```
-pub(crate) fn is_one_of(token: &[u8], options: &[&str]) -> bool {
+pub(crate) fn is_one_of(
+    token: &[u8],
+    options: &[&str],
+) -> bool {
     for option in options {
         if option.as_bytes() == token {
             return true;

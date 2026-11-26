@@ -18,41 +18,66 @@
 //! ```
 
 use crate::auto_push_single_flight::PushGit;
-use crate::child_environment::environment_with_overlay;
-/// `git add` asks for what it would stage.
-use crate::candidate_prediction::CandidateRequest;
-use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
-/// The form word an audit line carries.
-use crate::discard_audit_record::DecidedForm;
-use crate::manual_push_cause::ManualPushCause;
-use crate::manual_push_lifecycle::manual_push_scope_with_destination;
-use crate::policy_checks::ShippedChecks;
-/// What the command offers its content policies.
-use crate::policy_content::LifecycleContent;
-use crate::policy_registry::PolicyId;
-use crate::landed_summary::short_name;
-use crate::held_push_commit_on_the_remote::GitRemoteRecord;
 /// The questions about a branch's history that decide whether a verdict holds it back,
 /// and the lines a command prints from the answers.
-use crate::blocked_commit_questions::{ContextHistory, held_back_lines};
-use crate::transaction_git::GitContext;
-use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
-use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
-use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
-use crate::worktree_trash_unaccounted::name_unaccounted_trash;
-use crate::rule_linked_worktree::LinkedWorktreeDecision;
-/// The two forms that are recorded and never refused.
-use crate::policy_audited::record_audited;
-/// The guarded decision about the command Git will run,
-///  resolved once with the guard and the transforms.
-use crate::policy_checks::guarded_forwarded;
+use crate::blocked_commit_questions::{
+    ContextHistory,
+    held_back_lines,
+};
+/// `git add` asks for what it would stage.
+use crate::candidate_prediction::CandidateRequest;
+use crate::child_environment::environment_with_overlay;
+use crate::discard_audit::{
+    AuditOutcome,
+    record_audit_with_facts,
+};
+/// The form word an audit line carries.
+use crate::discard_audit_record::DecidedForm;
 /// The expansion an alias names,
 ///  which the guard decided on.
 use crate::guarded_forwarded_command::GuardedForwarded;
+use crate::held_push_commit_on_the_remote::GitRemoteRecord;
+use crate::landed_summary::short_name;
+use crate::manual_push_cause::ManualPushCause;
+use crate::manual_push_lifecycle::manual_push_scope_with_destination;
+/// The two forms that are recorded and never refused.
+use crate::policy_audited::record_audited;
+use crate::policy_checks::ShippedChecks;
+/// The guarded decision about the command Git will run,
+///  resolved once with the guard and the transforms.
+use crate::policy_checks::guarded_forwarded;
+/// What the command offers its content policies.
+use crate::policy_content::LifecycleContent;
+use crate::policy_registry::PolicyId;
+use crate::push_failure_notice::{
+    CommitNamer,
+    Notice,
+    ORPHAN_NOTICE_DIRECTORY,
+    is_machine_read,
+    notice_directory,
+    orphaned_push_failures,
+    push_failures_for,
+};
 use crate::repository_facts::RepositoryFacts;
-use crate::worktree_identity::{WorktreeIdentity, common_directory, worktree_root};
+use crate::rule_linked_worktree::LinkedWorktreeDecision;
+use crate::transaction_git::GitContext;
+use crate::worktree_identity::{
+    WorktreeIdentity,
+    common_directory,
+    worktree_root,
+};
+use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
+use crate::worktree_removal_rescue::{
+    settle_removals,
+    snapshot_linked_worktrees,
+};
+use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use crate::wrapper_controls::is_escaped;
-use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word};
+use crate::wrapper_invocation::{
+    StrippedInvocation,
+    command_region,
+    command_word,
+};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might
@@ -69,7 +94,10 @@ use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word
 use std::ffi::OsString;
 use std::io::Write;
 /// Paths of the probe's working directory.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 ///  Record a guarded command form that runs because the invocation carries the escape for the linked-worktree-only
 ///  policy.
@@ -83,7 +111,10 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// recordEscapeUse(stripped, checks);
 /// ```
-pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+pub(crate) fn record_escape_use<F: RepositoryFacts>(
+    stripped: &StrippedInvocation,
+    checks: &mut ShippedChecks<F>,
+) {
     if !is_escaped(&stripped.controls, PolicyId::LinkedWorktreeOnly) {
         return;
     }
@@ -92,9 +123,8 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
     let seen: &[OsString] = forwarded.arguments.as_slice();
     let form: DecidedForm = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return,
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => {
-            DecidedForm::Guarded(*command)
-        }
+        LinkedWorktreeDecision::NeedsEffectiveTarget(command)
+        | LinkedWorktreeDecision::WhenDirty(command) => DecidedForm::Guarded(*command),
         // A write to the settings every worktree shares runs under the hatch, and this line is what a later reader
         //  uses to attribute the change to the command that made it.
         LinkedWorktreeDecision::SharedRemote(_) => DecidedForm::SharedRemote,
@@ -102,13 +132,26 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
         //  the hatch: the line is written here instead, with the same facts a run without the hatch would carry.
         LinkedWorktreeDecision::Audited(audited) => {
             if let Ok(location) = checks.facts.location() {
-                record_audited(&mut checks.facts, seen, *audited, &location, checks.start_directory.path());
+                record_audited(
+                    &mut checks.facts,
+                    seen,
+                    *audited,
+                    &location,
+                    checks.start_directory.path(),
+                );
             }
             return;
         }
     };
     if let Ok(location) = checks.facts.location() {
-        record_audit_with_facts(&location.identity, form, AuditOutcome::Hatch, seen, None, &[]);
+        record_audit_with_facts(
+            &location.identity,
+            form,
+            AuditOutcome::Hatch,
+            seen,
+            None,
+            &[],
+        );
     }
 }
 
@@ -140,7 +183,10 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
 /// ```ts
 /// settleHeldPushes(gitDir); if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
 /// ```
-pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+pub(crate) fn show_push_failures<F: RepositoryFacts>(
+    stripped: &StrippedInvocation,
+    checks: &mut ShippedChecks<F>,
+) {
     // What: The record a wrapper of an unreleased branch wrote here holds command lines that can carry a password, and this is the
     //  first command that meets it.
     // Why:  Nothing writes or reads it any more (`earlier_push_programs_record`), so removing it is the only way it leaves the disk;
@@ -152,7 +198,9 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     //  notice, and the state they settle is not the command's to keep from the repository.
     let silent: bool = is_machine_read(command_word(stripped), command_region(stripped));
     // The records are the worktree's own, so a notice shows in the worktree whose push failed.
-    let Some(git_dir) = checks.facts.known_git_dir() else { return };
+    let Some(git_dir) = checks.facts.known_git_dir() else {
+        return;
+    };
     // Without a known common directory, the worktree's own Git directory stands in.
     let common_dir: PathBuf = match checks.facts.known_common_dir() {
         Some(known) => known,
@@ -189,7 +237,8 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names(common_dir.as_path());
     if leavings.queued {
         // The wake is the hand-over's own: a record this command queued must not wait for a command nobody runs.
-        let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
+        let _woken: Result<(), String> =
+            crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
     }
     for line in leavings.said {
         // A closed terminal is not a reason to stop the command the person asked for.
@@ -198,9 +247,13 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // A removal a merge handed over that a commit service of an earlier release refused for good is queued once more,
     // because that service could not read the record and nothing else would ever look at it again. The wake is the one
     // a hand-over makes: a record this command queued must not wait for a command nobody runs.
-    let requeued: Vec<String> = crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(common_dir.as_path());
+    let requeued: Vec<String> =
+        crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(
+            common_dir.as_path(),
+        );
     if !requeued.is_empty() {
-        let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
+        let _woken: Result<(), String> =
+            crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
     }
     for line in requeued {
         // A closed terminal is not a reason to stop the command the person asked for.
@@ -215,7 +268,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr, &crate::held_push_release_wakes_the_service::AskTheService { context: &context });
+        name_unaccounted_trash(
+            common_dir.as_path(),
+            worktree,
+            &mut stderr,
+            &crate::held_push_release_wakes_the_service::AskTheService {
+                context: &context,
+            },
+        );
     }
     // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
     //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
@@ -228,7 +288,10 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // A branch whose commit a post-commit policy kept local is named here, and the line stands while the commit is on the branch's
     //  way out: the automatic push sends nothing past it, so the person must know which commit holds the branch back and why. Once
     //  the commit is off the way out, or Git already holds it in the branch's remote, the line goes and the push runs whole again.
-    let history: ContextHistory<'_> = ContextHistory { context: &context, cwd: cwd.as_path() };
+    let history: ContextHistory<'_> = ContextHistory {
+        context: &context,
+        cwd: cwd.as_path(),
+    };
     for line in held_back_lines(git_dir.as_path(), &history) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
@@ -237,12 +300,17 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     //  killed before it could, or the service went away before it looked. The record is where that statement lives, and a record
     //  whose commit Git already holds in the branch's remote is settled here instead of named, because the person's own push
     //  may have made it after the record was left.
-    let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
+    let record: GitRemoteRecord<'_> = GitRemoteRecord {
+        context: &context,
+        cwd: cwd.as_path(),
+    };
     for line in crate::service_handoff::queued_push_notices(
         git_dir.as_path(),
         std::time::SystemTime::now(),
         &record,
-        &crate::held_push_release_wakes_the_service::AskTheService { context: &context },
+        &crate::held_push_release_wakes_the_service::AskTheService {
+            context: &context,
+        },
     ) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
@@ -255,7 +323,11 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     }
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
-    let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
+    let abbreviate: GitShortName<'_> = GitShortName {
+        context: &context,
+        cwd: cwd.as_path(),
+        objects: objects.as_path(),
+    };
     for notice in &push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
@@ -273,7 +345,9 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // A worktree a removal went around is gone from Git's records while what someone else put inside it still stands at the
     //  path, so no later command in that worktree would ever show anything: the record is the only thing that says the path is
     //  still taken and what frees it, and this is the command that shows it.
-    for notice in &crate::worktree_removal_goes_around_a_foreign_volume::left_in_place_notices(common_dir.as_path()) {
+    for notice in &crate::worktree_removal_goes_around_a_foreign_volume::left_in_place_notices(
+        common_dir.as_path(),
+    ) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
@@ -292,9 +366,22 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 /// ```ts
 /// heldPushLines(gitDir, context, cwd) // heldPushNotices with the repository's record and the service's wake
 /// ```
-fn held_push_lines(git_dir: &Path, context: &GitContext, cwd: &Path) -> Vec<String> {
-    let record: GitRemoteRecord<'_> = GitRemoteRecord { context, cwd };
-    return crate::service_handoff::held_push_notices(git_dir, &record, &crate::held_push_release_wakes_the_service::AskTheService { context });
+fn held_push_lines(
+    git_dir: &Path,
+    context: &GitContext,
+    cwd: &Path,
+) -> Vec<String> {
+    let record: GitRemoteRecord<'_> = GitRemoteRecord {
+        context,
+        cwd,
+    };
+    return crate::service_handoff::held_push_notices(
+        git_dir,
+        &record,
+        &crate::held_push_release_wakes_the_service::AskTheService {
+            context,
+        },
+    );
 }
 
 /// What:
@@ -320,10 +407,19 @@ fn held_push_lines(git_dir: &Path, context: &GitContext, cwd: &Path) -> Vec<Stri
 /// ```ts
 /// for (const [held, settled] of settleHeldCommits(gitDir)) if (!machineRead) console.error(lineOf(held, settled));
 /// ```
-pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
-    let Some(git_dir) = checks.facts.known_git_dir() else { return };
+pub(crate) fn show_held_commits<F: RepositoryFacts>(
+    stripped: &StrippedInvocation,
+    checks: &mut ShippedChecks<F>,
+) {
+    let Some(git_dir) = checks.facts.known_git_dir() else {
+        return;
+    };
     let context: GitContext = checks.facts.transaction_context();
-    let (settled, damaged) = crate::held_commit_settle::all(&context, git_dir.as_path(), crate::held_commit_settle::Clearing::Never);
+    let (settled, damaged) = crate::held_commit_settle::all(
+        &context,
+        git_dir.as_path(),
+        crate::held_commit_settle::Clearing::Never,
+    );
     if settled.is_empty() && damaged.is_empty() {
         return;
     }
@@ -332,16 +428,40 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocatio
     let mut waiting: Vec<String> = Vec::new();
     for (held, outcome) in &settled {
         match outcome {
-            crate::held_commit_settle::Settled::Landed { commit } => lines.push(crate::held_commit_words::landed(held, commit, false)),
-            crate::held_commit_settle::Settled::LandedTheIndexWaits { commit } => lines.push(crate::held_commit_words::landed(held, commit, true)),
-            crate::held_commit_settle::Settled::AlreadyThere { commit } => lines.push(crate::held_commit_words::already_there(held, commit)),
+            crate::held_commit_settle::Settled::Landed {
+                commit,
+            } => lines.push(crate::held_commit_words::landed(held, commit, false)),
+            crate::held_commit_settle::Settled::LandedTheIndexWaits {
+                commit,
+            } => lines.push(crate::held_commit_words::landed(held, commit, true)),
+            crate::held_commit_settle::Settled::AlreadyThere {
+                commit,
+            } => lines.push(crate::held_commit_words::already_there(held, commit)),
             crate::held_commit_settle::Settled::WaitsForLocks(standing) => {
                 // The settlement names the locks that stand now and can refuse this batch's branch write: a line worded from the
                 //  record would name the lock that held the commit, which is often gone by the time this command prints it.
-                waiting.push(crate::held_commit_words::waiting(held, commit_name_of(&context, held).as_str(), standing.as_slice()));
+                waiting.push(crate::held_commit_words::waiting(
+                    held,
+                    commit_name_of(&context, held).as_str(),
+                    standing.as_slice(),
+                ));
             }
-            crate::held_commit_settle::Settled::Conflicts { commit, paths } => waiting.push(crate::held_commit_words::conflicts(held, commit, paths.as_slice())),
-            crate::held_commit_settle::Settled::Cannot { commit, because } => waiting.push(crate::held_commit_words::cannot(held, commit, because.as_str())),
+            crate::held_commit_settle::Settled::Conflicts {
+                commit,
+                paths,
+            } => waiting.push(crate::held_commit_words::conflicts(
+                held,
+                commit,
+                paths.as_slice(),
+            )),
+            crate::held_commit_settle::Settled::Cannot {
+                commit,
+                because,
+            } => waiting.push(crate::held_commit_words::cannot(
+                held,
+                commit,
+                because.as_str(),
+            )),
         }
     }
     if !waiting.is_empty() {
@@ -355,14 +475,27 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocatio
         return;
     }
     for line in lines {
-        let _written = writeln!(std::io::stderr(), "{}: {line}", crate::wrapper_names_old_and_new::PROGRAM.current);
+        let _written = writeln!(
+            std::io::stderr(),
+            "{}: {line}",
+            crate::wrapper_names_old_and_new::PROGRAM.current
+        );
     }
 }
 
 /// The name Git gives the held commit in this repository as it is now.
-fn commit_name_of(context: &GitContext, held: &crate::held_commit_record::Held) -> String {
+fn commit_name_of(
+    context: &GitContext,
+    held: &crate::held_commit_record::Held,
+) -> String {
     let objects: std::path::PathBuf = held.common_dir.join("objects");
-    return crate::landed_summary::short_name(context, held.repository.as_path(), objects.as_path(), None, held.new.as_str());
+    return crate::landed_summary::short_name(
+        context,
+        held.repository.as_path(),
+        objects.as_path(),
+        None,
+        held.new.as_str(),
+    );
 }
 
 /// What:
@@ -376,7 +509,11 @@ fn commit_name_of(context: &GitContext, held: &crate::held_commit_record::Held) 
 /// ```ts
 /// pushNoticesFor(gitDir, commonDir) // take the notices
 /// ```
-pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+pub(crate) fn push_notices_for(
+    git_dir: &Path,
+    common_dir: &Path,
+    abbreviate: &dyn CommitNamer,
+) -> Vec<Notice> {
     let own: bool = notice_directory(git_dir).is_dir();
     let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
     if !own && !orphaned {
@@ -410,7 +547,10 @@ struct GitShortName<'a> {
 }
 
 impl CommitNamer for GitShortName<'_> {
-    fn name_of(&self, commit: &str) -> String {
+    fn name_of(
+        &self,
+        commit: &str,
+    ) -> String {
         return short_name(self.context, self.cwd, self.objects, None, commit);
     }
 }
@@ -438,7 +578,10 @@ impl CommitNamer for GitShortName<'_> {
 /// ```ts
 /// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) return await snapshotThenKeep(commonDir);
 /// ```
-pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) -> Option<String> {
+pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(
+    stripped: &StrippedInvocation,
+    checks: &mut ShippedChecks<F>,
+) -> Option<String> {
     if command_word(stripped) != b"worktree" {
         return None;
     }
@@ -459,15 +602,26 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
         //  per-worktree reference, both of which the removal deletes; it is kept where a removal cannot reach it, and the person
         //  is told, before Git runs (`worktree_removal_held_commits.rs`).
         let context: GitContext = checks.facts.transaction_context();
-        let kept: crate::worktree_removal_held_commits::KeptCommits = crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context);
+        let kept: crate::worktree_removal_held_commits::KeptCommits =
+            crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context);
         for said in kept.said {
-            let _written = writeln!(std::io::stderr(), "{}: {said}", crate::wrapper_names_old_and_new::PROGRAM.current);
+            let _written = writeln!(
+                std::io::stderr(),
+                "{}: {said}",
+                crate::wrapper_names_old_and_new::PROGRAM.current
+            );
         }
         if !kept.refused.is_empty() {
             // A command that must stop names what it kept and where, whatever the terminal does with the words.
             let mut stderr: String = String::new();
             for refused in kept.refused {
-                stderr.push_str(format!("{}: {refused}\n", crate::wrapper_names_old_and_new::PROGRAM.current).as_str());
+                stderr.push_str(
+                    format!(
+                        "{}: {refused}\n",
+                        crate::wrapper_names_old_and_new::PROGRAM.current
+                    )
+                    .as_str(),
+                );
             }
             return Some(stderr);
         }
@@ -500,14 +654,19 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 /// ```ts
 /// sweepShadowPoolsOfGoneWorktrees(checks); // unknown folders and live worktrees stay
 /// ```
-pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) {
-    let Some(common_dir) = checks.facts.known_common_dir() else { return };
+pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(
+    checks: &mut ShippedChecks<F>
+) {
+    let Some(common_dir) = checks.facts.known_common_dir() else {
+        return;
+    };
     let _removed: Vec<PathBuf> = crate::shadow_pool::sweep_gone_worktrees(common_dir.as_path());
     // What: The finished shadows the service drew ahead of commits and nothing renewed are collected by their age.
     // Why:  A command killed after it was handed one leaves a tree no other rule reaches: a drawn tree is used where it
     //       stands, and the pool's own removal takes the pool's folder and never this one. The command is the named event
     //       that collects it, and a command whose repository has none pays one `read_dir` that finds nothing.
-    let _swept: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn(common_dir.as_path(), std::time::SystemTime::now());
+    let _swept: Vec<PathBuf> =
+        crate::shadow_drawn::sweep_drawn(common_dir.as_path(), std::time::SystemTime::now());
 }
 
 /// What:
@@ -559,7 +718,12 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
 ) -> Result<(), crate::manual_push_lifecycle::ManualPushFailure> {
     let repository: Option<PathBuf> = match checks.facts.location() {
         Ok(location) => manual_push_directory(&location.identity).map(Path::to_path_buf),
-        Err(message) => return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, message)),
+        Err(message) => {
+            return Err(crate::manual_push_lifecycle::ManualPushFailure::step(
+                ManualPushCause::SelfExplained,
+                message,
+            ));
+        }
     };
     let context = checks.facts.transaction_context();
     let cwd = match repository {
@@ -567,10 +731,16 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
         None => match checks.start_directory.path() {
             Some(directory) => directory.to_path_buf(),
             None => {
-                return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
-                    "the working directory could not be read: {}",
-                    checks.start_directory.reason().unwrap_or("the caller named none")
-                )));
+                return Err(crate::manual_push_lifecycle::ManualPushFailure::step(
+                    ManualPushCause::SelfExplained,
+                    format!(
+                        "the working directory could not be read: {}",
+                        checks
+                            .start_directory
+                            .reason()
+                            .unwrap_or("the caller named none")
+                    ),
+                ));
             }
         },
     };
@@ -581,7 +751,11 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
         // The scope probe is a dry-run push; an upload during it would run before any policy has decided.
         lfs: false,
     };
-    let scope = manual_push_scope_with_destination(&git, context.global_prefix.as_slice(), post_subcommand)?;
+    let scope = manual_push_scope_with_destination(
+        &git,
+        context.global_prefix.as_slice(),
+        post_subcommand,
+    )?;
     let (pushed, destination) = scope;
     checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(pushed));
     checks.push_destination = destination;

@@ -14,7 +14,11 @@
 /// The ceiling every read carries,
 ///  and the watch that ends a read which reaches it.
 use crate::child_class::ChildClass;
-use crate::child_watch::{StepBound, WatchTerms, output_watched_within};
+use crate::child_watch::{
+    StepBound,
+    WatchTerms,
+    output_watched_within,
+};
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 /// Who a real-Git start runs for:
@@ -27,7 +31,12 @@ use crate::start_retry::RetryStart;
 /// The read of a step's output through pipes,
 /// which carries a step's ceiling when nothing else ends it.
 use crate::step_output_read_whole_through_pipes::{
-    CarriedCeiling, CeilingWhy, StepPipes, attach_pipes, carried_by, release_write_ends,
+    CarriedCeiling,
+    CeilingWhy,
+    StepPipes,
+    attach_pipes,
+    carried_by,
+    release_write_ends,
 };
 /// The longest a read of a check runs.
 use crate::wait_ceilings::PLUMBING_STEP_CEILING;
@@ -43,7 +52,10 @@ use crate::wait_ceilings::PLUMBING_STEP_CEILING;
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// `Stdio` selects where a child's stream is connected.
 use std::process::Stdio;
 /// The ceiling value and the sentence a failed read is reported with.
@@ -123,7 +135,10 @@ pub const READ_CEILING: Duration = PLUMBING_STEP_CEILING;
 /// ```ts
 /// const subject = `${git} ${word}`; // word: /^[a-z][a-z-]*$/, past the values of the global options
 /// ```
-fn read_subject(real_git: &Path, arguments: &[OsString]) -> String {
+fn read_subject(
+    real_git: &Path,
+    arguments: &[OsString],
+) -> String {
     // `while let` visits each argument in order and lets an option's value be stepped over, so the first word
     //  that names a subcommand is the one that is named.
     let mut remaining: std::slice::Iter<'_, OsString> = arguments.iter();
@@ -196,7 +211,10 @@ fn takes_the_next_word(argument: &OsString) -> bool {
 /// ```ts
 /// const stopped = error.code === 'ETIMEDOUT' ? `stopped waiting for the Git read of ${fact}: ${error}` : undefined;
 /// ```
-pub fn read_stopped_text(fact: &str, error: &std::io::Error) -> Option<String> {
+pub fn read_stopped_text(
+    fact: &str,
+    error: &std::io::Error,
+) -> Option<String> {
     if error.kind() != std::io::ErrorKind::TimedOut {
         return None;
     }
@@ -247,7 +265,14 @@ pub fn run_metadata_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
-    return run_a_metadata_read(real_git, arguments, overlay, &[], READ_CEILING, ReadEnding::Watched);
+    return run_a_metadata_read(
+        real_git,
+        arguments,
+        overlay,
+        &[],
+        READ_CEILING,
+        ReadEnding::Watched,
+    );
 }
 
 /// What:
@@ -266,7 +291,14 @@ pub fn run_metadata_git_without(
     overlay: &[(OsString, OsString)],
     remove: &[&str],
 ) -> std::io::Result<MetadataOutput> {
-    return run_a_metadata_read(real_git, arguments, overlay, remove, READ_CEILING, ReadEnding::Watched);
+    return run_a_metadata_read(
+        real_git,
+        arguments,
+        overlay,
+        remove,
+        READ_CEILING,
+        ReadEnding::Watched,
+    );
 }
 
 /// What:
@@ -314,7 +346,14 @@ pub fn run_metadata_git_without_within(
     remove: &[&str],
     ceiling: Duration,
 ) -> std::io::Result<MetadataOutput> {
-    return run_a_metadata_read(real_git, arguments, overlay, remove, ceiling, ReadEnding::Carried);
+    return run_a_metadata_read(
+        real_git,
+        arguments,
+        overlay,
+        remove,
+        ceiling,
+        ReadEnding::Carried,
+    );
 }
 
 /// What:
@@ -375,7 +414,10 @@ fn run_a_metadata_read(
     //  whatever this start removes: they read the pathspec magic of the names the wrapper wrote and no pathspec mode at
     //  all, so a mode that reaches the start is the one case where their answer would differ from Git's.
     if !crate::conflict_side_modes::a_mode_reaches_the_start(overlay, remove)
-        && let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice())
+        && let Some(answered) = try_metadata(
+            arguments,
+            crate::git_system_config::with_real_git(overlay, real_git).as_slice(),
+        )
     {
         return Ok(answered);
     }
@@ -389,7 +431,8 @@ fn run_a_metadata_read(
     // ```ts
     // const output = await watchedOrCarried(command, { waitingFor: subject, ceiling, ending });
     // ```
-    let mut command: std::process::Command = git_command(real_git, arguments, overlay, StartOwner::Wrapper);
+    let mut command: std::process::Command =
+        git_command(real_git, arguments, overlay, StartOwner::Wrapper);
     for name in remove {
         command.env_remove(name);
     }
@@ -407,7 +450,10 @@ fn run_a_metadata_read(
     // The wrapper reads the repository itself here, with the output captured and the input closed, so nothing of the
     //  person's runs under this start and a wrapper that arrives as its Git came from the file that Git is
     //  (`started_as_git.rs`).
-    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Query);
+    crate::started_as_git::mark_real_git_start(
+        &mut command,
+        crate::started_as_git::StartMode::Query,
+    );
     command.stdin(Stdio::null());
     // What: The clock of the child this read starts, kept as the step the commit's timing record lists.
     // Why:  A read the in-process readers decline is a Git process, and a commit that waits seconds on one showed that
@@ -421,7 +467,14 @@ fn run_a_metadata_read(
     let read: std::io::Result<std::process::Output> = match ending {
         ReadEnding::Watched => {
             let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
-            output_watched_within(&mut command, subject.as_str(), subject.as_str(), terms, true, StepBound::EndAt(ceiling))
+            output_watched_within(
+                &mut command,
+                subject.as_str(),
+                subject.as_str(),
+                terms,
+                true,
+                StepBound::EndAt(ceiling),
+            )
         }
         ReadEnding::Carried => output_of_a_read_within(&mut command, subject.as_str(), ceiling),
     };
@@ -442,7 +495,9 @@ fn run_a_metadata_read(
         Ok(captured) => captured,
         // A read the wait ended at the caller's ceiling already says so in its own sentence, which names the read and the
         //  ceiling it passed; only a read a watch ended is worded here.
-        Err(error) if ending == ReadEnding::Watched && error.kind() == std::io::ErrorKind::TimedOut => {
+        Err(error)
+            if ending == ReadEnding::Watched && error.kind() == std::io::ErrorKind::TimedOut =>
+        {
             let quiet: Duration = ChildClass::Plumbing.limit();
             return Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,

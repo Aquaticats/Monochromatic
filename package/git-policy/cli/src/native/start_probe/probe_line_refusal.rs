@@ -100,38 +100,60 @@ impl LineRefusal {
     /// naming the line and what to change.
     pub fn message(&self) -> String {
         return match self {
-            LineRefusal::NotAStatusLine { text } => format!(
+            LineRefusal::NotAStatusLine {
+                text,
+            } => format!(
                 "the line `{text}` on a probe status pipe does not begin with `{STATUS_PREFIX}`, so it is not a step outcome and the child's answer cannot be read. The add refuses the managed attach as unproven."
             ),
-            LineRefusal::UnknownKey { word } => format!(
+            LineRefusal::UnknownKey {
+                word,
+            } => format!(
                 "the status line's field `{word}` is not one this build writes. Ways forward: nothing on this host changes it; report the line and the build that wrote it, because a child of another build wrote it."
             ),
-            LineRefusal::RepeatedKey { key } => format!(
+            LineRefusal::RepeatedKey {
+                key,
+            } => format!(
                 "the status line's field `{key}` was given more than once, so two values would compete. The child's answer cannot be read."
             ),
-            LineRefusal::MissingKey { key } => format!(
+            LineRefusal::MissingKey {
+                key,
+            } => format!(
                 "the status line has no `{key}` field, which its answer needs. The child's answer cannot be read."
             ),
-            LineRefusal::UnknownStep { word } => format!(
+            LineRefusal::UnknownStep {
+                word,
+            } => format!(
                 "the status line's step `{word}` is none of this build's steps. Ways forward: nothing on this host changes it; report the word and the build that wrote it."
             ),
-            LineRefusal::UnknownAnswer { word } => format!(
+            LineRefusal::UnknownAnswer {
+                word,
+            } => format!(
                 "the status line's answer `{word}` is none of `passed`, `failed` and `not-exercised`. The child's answer cannot be read."
             ),
-            LineRefusal::UnknownErrno { word } => format!(
+            LineRefusal::UnknownErrno {
+                word,
+            } => format!(
                 "the status line's errno `{word}` is no name this build knows. The child's answer cannot be read."
             ),
-            LineRefusal::UnknownReason { word } => format!(
+            LineRefusal::UnknownReason {
+                word,
+            } => format!(
                 "the status line's reason `{word}` is no cause this build writes. The child's answer cannot be read."
             ),
-            LineRefusal::WrongArm { expected, word } => format!(
+            LineRefusal::WrongArm {
+                expected,
+                word,
+            } => format!(
                 "the status line's arm `{word}` is not the arm `{expected}` its step belongs to, so the line disagrees with this build. The child's answer cannot be read."
             ),
-            LineRefusal::ValueNotOneWord { key } => format!("the status line's `{key}` value is empty or holds a space, and this line carries words only."),
+            LineRefusal::ValueNotOneWord {
+                key,
+            } => format!(
+                "the status line's `{key}` value is empty or holds a space, and this line carries words only."
+            ),
         };
     }
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

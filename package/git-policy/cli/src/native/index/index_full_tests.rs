@@ -15,11 +15,24 @@ fn checksum(data: &[u8]) -> Vec<u8> {
 #[test]
 fn git_written_indexes_round_trip_in_versions_two_and_four() {
     for version in ["2", "4"] {
-        let bytes: Vec<u8> = index_with_extensions(format!("index-full-round-trip-{version}").as_str(), version);
+        let bytes: Vec<u8> =
+            index_with_extensions(format!("index-full-round-trip-{version}").as_str(), version);
         let index: FullIndex = parse_full_index(bytes.as_slice(), 20).expect("read");
-        assert!(index.cache_tree.is_some() && index.untracked.is_some(), "version {version} fixture has the extensions");
-        assert!(index.entries.iter().any(|entry| { return entry.stat.mtime_sec != 0 && entry.stat.size != 0; }), "the entries carry stat data");
-        assert_eq!(write_full_index(&index, &checksum, crate::index_full_write::Trailer::Hashed), Some(bytes), "version {version}");
+        assert!(
+            index.cache_tree.is_some() && index.untracked.is_some(),
+            "version {version} fixture has the extensions"
+        );
+        assert!(
+            index.entries.iter().any(|entry| {
+                return entry.stat.mtime_sec != 0 && entry.stat.size != 0;
+            }),
+            "the entries carry stat data"
+        );
+        assert_eq!(
+            write_full_index(&index, &checksum, crate::index_full_write::Trailer::Hashed),
+            Some(bytes),
+            "version {version}"
+        );
     }
 }
 

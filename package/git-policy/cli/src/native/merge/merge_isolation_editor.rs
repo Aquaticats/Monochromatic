@@ -30,22 +30,28 @@
 //! const message = await editMergeMessage({ session, gitDir, message }); // throws EditorRefusal
 //! ```
 
-/// The questions an isolated merge asks Git.
-use crate::merge_isolation_git_reads::Session;
-/// Real Git.
-use crate::transaction_git::GitOutput;
-/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
 /// The words of the editor command,
 /// which no shell makes.
 use crate::merge_isolation_editor_words::editor_words;
-/// The editor runs as the person's own program,
-/// with the terminal and the streams they gave this command.
-use std::process::{Command, ExitStatus};
+/// The questions an isolated merge asks Git.
+use crate::merge_isolation_git_reads::Session;
 /// The start that rides out a refused start of a child.
 use crate::start_retry::RetryStart;
+/// Real Git.
+use crate::transaction_git::GitOutput;
 /// Owned operating-system text of raw bytes.
 use std::ffi::OsString;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// The editor runs as the person's own program,
+/// with the terminal and the streams they gave this command.
+use std::process::{
+    Command,
+    ExitStatus,
+};
 
 /// What:
 ///  The help lines Git writes under the merge message when the editor opens,
@@ -139,7 +145,9 @@ pub fn editor_command(session: &Session) -> Option<String> {
     if !output.succeeded() {
         return None;
     }
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
     if text.is_empty() {
         return None;
     }
@@ -156,7 +164,10 @@ pub fn editor_command(session: &Session) -> Option<String> {
 /// ```ts
 /// const message = editMergeMessage({ session, gitDir, message }); // throws EditorRefusal
 /// ```
-pub fn edit_message(place: &EditorPlace<'_>, message: &[u8]) -> Result<Vec<u8>, EditorRefusal> {
+pub fn edit_message(
+    place: &EditorPlace<'_>,
+    message: &[u8],
+) -> Result<Vec<u8>, EditorRefusal> {
     let Some(editor) = editor_command(place.session) else {
         return Err(EditorRefusal::NoEditor);
     };
@@ -179,7 +190,11 @@ pub fn edit_message(place: &EditorPlace<'_>, message: &[u8]) -> Result<Vec<u8>, 
 /// ```ts
 /// function askedOnce(kept, place, message): Uint8Array; // throws EditorRefusal
 /// ```
-pub fn asked_once(kept: &mut Option<Vec<u8>>, place: &EditorPlace<'_>, message: &[u8]) -> Result<Vec<u8>, EditorRefusal> {
+pub fn asked_once(
+    kept: &mut Option<Vec<u8>>,
+    place: &EditorPlace<'_>,
+    message: &[u8],
+) -> Result<Vec<u8>, EditorRefusal> {
     if let Some(written) = kept {
         return Ok(written.clone());
     }
@@ -200,14 +215,21 @@ pub fn asked_once(kept: &mut Option<Vec<u8>>, place: &EditorPlace<'_>, message: 
 /// ```ts
 /// const message = editWith({ session, gitDir }, message, words); // throws EditorRefusal
 /// ```
-pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], words: &[OsString]) -> Result<Vec<u8>, EditorRefusal> {
+pub fn edit_with(
+    place: &EditorPlace<'_>,
+    message: &[u8],
+    words: &[OsString],
+) -> Result<Vec<u8>, EditorRefusal> {
     let path: PathBuf = place.git_dir.join("MERGE_MSG");
     let mut template: Vec<u8> = message.to_vec();
     if let Some(lines) = help_lines(place.session) {
         template.extend_from_slice(lines.as_bytes());
     }
     if let Err(error) = std::fs::write(path.as_path(), template.as_slice()) {
-        return Err(EditorRefusal::Stopped(format!("the merge message file {} could not be written: {error}", path.display())));
+        return Err(EditorRefusal::Stopped(format!(
+            "the merge message file {} could not be written: {error}",
+            path.display()
+        )));
     }
     let ended: Result<ExitStatus, String> = launch(words, path.as_path());
     // The message file is this command's while the merge is unfinished: Git keeps `MERGE_MSG` for the length of the
@@ -219,11 +241,19 @@ pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], words: &[OsString]) ->
         Err(detail) => return Err(EditorRefusal::Stopped(detail)),
     };
     if !status.success() {
-        return Err(EditorRefusal::Stopped(format!("there was a problem with the editor {} ({status})", words[0].to_string_lossy())));
+        return Err(EditorRefusal::Stopped(format!(
+            "there was a problem with the editor {} ({status})",
+            words[0].to_string_lossy()
+        )));
     }
     let written: Vec<u8> = match left {
         Ok(bytes) => bytes,
-        Err(error) => return Err(EditorRefusal::Stopped(format!("the message the editor left in {} could not be read: {error}", path.display()))),
+        Err(error) => {
+            return Err(EditorRefusal::Stopped(format!(
+                "the message the editor left in {} could not be read: {error}",
+                path.display()
+            )));
+        }
     };
     let cleaned: Vec<u8> = clean_edited(place.session, written.as_slice())?;
     if cleaned.is_empty() {
@@ -249,7 +279,10 @@ pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], words: &[OsString]) ->
 /// ```ts
 /// spawn(words[0], [...words.slice(1), path], { stdio: 'inherit' }).status
 /// ```
-fn launch(words: &[OsString], path: &Path) -> Result<ExitStatus, String> {
+fn launch(
+    words: &[OsString],
+    path: &Path,
+) -> Result<ExitStatus, String> {
     let Some(program) = words.first() else {
         return Err(String::from("the editor command holds no program"));
     };
@@ -257,7 +290,10 @@ fn launch(words: &[OsString], path: &Path) -> Result<ExitStatus, String> {
     command.args(&words[1..]).arg(path);
     return match command.status_retrying() {
         Ok(status) => Ok(status),
-        Err(error) => Err(format!("the editor {} could not be started: {error}", program.to_string_lossy())),
+        Err(error) => Err(format!(
+            "the editor {} could not be started: {error}",
+            program.to_string_lossy()
+        )),
     };
 }
 
@@ -275,13 +311,20 @@ fn launch(words: &[OsString], path: &Path) -> Result<ExitStatus, String> {
 /// ```ts
 /// const cleaned = await git(['stripspace', '--strip-comments'], written);
 /// ```
-fn clean_edited(session: &Session, written: &[u8]) -> Result<Vec<u8>, EditorRefusal> {
-    let cleaned: GitOutput = match session.run_with_input(&["stripspace", "--strip-comments"], written.to_vec()) {
-        Ok(output) => output,
-        Err(reason) => return Err(EditorRefusal::Stopped(reason)),
-    };
+fn clean_edited(
+    session: &Session,
+    written: &[u8],
+) -> Result<Vec<u8>, EditorRefusal> {
+    let cleaned: GitOutput =
+        match session.run_with_input(&["stripspace", "--strip-comments"], written.to_vec()) {
+            Ok(output) => output,
+            Err(reason) => return Err(EditorRefusal::Stopped(reason)),
+        };
     if !cleaned.succeeded() {
-        return Err(EditorRefusal::Stopped(format!("git stripspace --strip-comments failed: {}", cleaned.error_text())));
+        return Err(EditorRefusal::Stopped(format!(
+            "git stripspace --strip-comments failed: {}",
+            cleaned.error_text()
+        )));
     }
     return Ok(cleaned.stdout);
 }
@@ -307,7 +350,9 @@ fn help_lines(session: &Session) -> Option<&'static str> {
         if !named.succeeded() {
             continue;
         }
-        let text: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+        let text: String = String::from_utf8_lossy(named.stdout.as_slice())
+            .trim()
+            .to_owned();
         return if text == "#" { Some(HELP_LINES) } else { None };
     }
     return Some(HELP_LINES);

@@ -5,14 +5,34 @@
 //!  and that creating it leaves the real refs and index unchanged.
 
 use super::*;
-use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
+use crate::capture_invocation::{
+    capture_invocation_base,
+    capture_invocation_layout,
+};
 use crate::path_bytes::path_bytes_of;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::shadow_git::shadow_request;
-use crate::shadow_init_attempts::{clear_the_planted_cut, cut_the_first_init_attempt_at, init_attempts, note_init_attempt, reset_init_attempts};
-use crate::transaction_git::{GitRequest, GitOutput, run_git_checked};
-use crate::transaction_journal::RefFormat;
+use crate::shadow_init_attempts::{
+    clear_the_planted_cut,
+    cut_the_first_init_attempt_at,
+    init_attempts,
+    note_init_attempt,
+    reset_init_attempts,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::transaction_git::{
+    GitOutput,
+    GitRequest,
+    run_git_checked,
+};
+use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
 
 /// Captures the invocation of a repository's working directory,
@@ -25,14 +45,24 @@ fn capture_of(repo: &Path) -> InvocationCapture {
 /// Reads one shadow answer,
 /// through the shadow request,
 /// with the variables stripped.
-fn shadow_text(shadow: &Path, arguments: &[&str]) -> String {
+fn shadow_text(
+    shadow: &Path,
+    arguments: &[&str],
+) -> String {
     let output = run_git_checked(&git_context(), &shadow_request(shadow, shadow, arguments))
         .expect("shadow answer");
-    return String::from_utf8(output.stdout).expect("UTF-8").trim().to_string();
+    return String::from_utf8(output.stdout)
+        .expect("UTF-8")
+        .trim()
+        .to_string();
 }
 
 /// Creates the shadow of a fixture transaction and returns the shadow path and the transaction directory.
-fn create(repo: &Path, root: &Path, transaction_id: &str) -> (PathBuf, PathBuf, InvocationCapture) {
+fn create(
+    repo: &Path,
+    root: &Path,
+    transaction_id: &str,
+) -> (PathBuf, PathBuf, InvocationCapture) {
     let capture: InvocationCapture = capture_of(repo);
     let transaction: PathBuf = root.join(format!("transaction-{transaction_id}"));
     std::fs::create_dir_all(&transaction).expect("transaction directory");
@@ -58,23 +88,52 @@ fn shadow_answers_head_base_and_upstream_like_the_real_repository() {
     let root: PathBuf = fixture("shadow-create-answers");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    git(repo.as_path(), &["remote", "add", "origin", "https://example.invalid/repo.git"]);
-    git(repo.as_path(), &["update-ref", "refs/remotes/origin/main", head.as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://example.invalid/repo.git",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["update-ref", "refs/remotes/origin/main", head.as_str()],
+    );
     git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
-    git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    git(
+        repo.as_path(),
+        &["config", "branch.main.merge", "refs/heads/main"],
+    );
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
-    assert_eq!(shadow, repo.join(".git").join("monochromatic-git-policy-cli").join("shadow").join(TRANSACTION));
-    assert_eq!(shadow_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
+    assert_eq!(
+        shadow,
+        repo.join(".git")
+            .join("monochromatic-git-policy-cli")
+            .join("shadow")
+            .join(TRANSACTION)
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["symbolic-ref", "HEAD"]),
+        "refs/heads/main"
+    );
     assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
     assert_eq!(
-        shadow_text(shadow.as_path(), &["rev-parse", "--abbrev-ref", "@{upstream}"]),
+        shadow_text(
+            shadow.as_path(),
+            &["rev-parse", "--abbrev-ref", "@{upstream}"]
+        ),
         "origin/main"
     );
     assert_eq!(
         shadow_text(shadow.as_path(), &["config", "--get", "core.worktree"]),
         repo.display().to_string()
     );
-    assert_eq!(shadow_text(shadow.as_path(), &["config", "--get", "gc.auto"]), "0");
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["config", "--get", "gc.auto"]),
+        "0"
+    );
     remove(root.as_path());
 }
 
@@ -83,7 +142,11 @@ fn shadow_answers_head_base_and_upstream_like_the_real_repository() {
 fn include_if_onbranch_reads_the_shadow_head() {
     let root: PathBuf = fixture("shadow-create-onbranch");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    std::fs::write(repo.join(".git").join("branch.config"), "[x]\n\tv = onbranch\n").expect("include");
+    std::fs::write(
+        repo.join(".git").join("branch.config"),
+        "[x]\n\tv = onbranch\n",
+    )
+    .expect("include");
     std::fs::OpenOptions::new()
         .append(true)
         .open(repo.join(".git").join("config"))
@@ -93,7 +156,10 @@ fn include_if_onbranch_reads_the_shadow_head() {
         })
         .expect("append include");
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
-    assert_eq!(shadow_text(shadow.as_path(), &["config", "--get", "x.v"]), "onbranch");
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["config", "--get", "x.v"]),
+        "onbranch"
+    );
     remove(root.as_path());
 }
 
@@ -106,11 +172,17 @@ fn detached_repository_gives_a_detached_shadow() {
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
-    assert!(run_git_checked(
-        &git_context(),
-        &shadow_request(shadow.as_path(), shadow.as_path(), &["symbolic-ref", "-q", "HEAD"]),
-    )
-    .is_err());
+    assert!(
+        run_git_checked(
+            &git_context(),
+            &shadow_request(
+                shadow.as_path(),
+                shadow.as_path(),
+                &["symbolic-ref", "-q", "HEAD"]
+            ),
+        )
+        .is_err()
+    );
     remove(root.as_path());
 }
 
@@ -127,7 +199,8 @@ fn shadow_links_shared_entries_and_keeps_private_ones_out() {
     );
     assert!(std::fs::symlink_metadata(shadow.join("index")).is_err());
     assert_eq!(
-        std::fs::read_to_string(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        std::fs::read_to_string(shadow.join("objects").join("info").join("alternates"))
+            .expect("alternates"),
         format!("{}\n", repo.join(".git").join("objects").display())
     );
     remove(root.as_path());
@@ -142,15 +215,23 @@ fn shadow_links_shared_entries_and_keeps_private_ones_out() {
 ///  so the alternate named a directory that does not exist and the shadow's Git called the shadow no repository.
 #[test]
 fn the_alternates_keep_a_path_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("shadow::shadow_create::tests::the_alternates_keep_a_path_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "shadow::shadow_create::tests::the_alternates_keep_a_path_that_is_not_text",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("shadow-create-not-utf8");
     let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     let mut expected: Vec<u8> = path_bytes_of(repo.join(".git").join("objects").as_path()).to_vec();
     expected.push(b'\n');
@@ -182,8 +263,14 @@ fn the_alternates_quote_a_path_a_line_feed_would_split() {
     let root: PathBuf = fixture("shadow-create-line-feed");
     let repo: PathBuf = root.join(OsString::from_vec(b"a\nb".to_vec()));
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     let mut expected: Vec<u8> = vec![b'"'];
     expected.extend_from_slice(path_bytes_of(root.as_path()));
@@ -212,8 +299,14 @@ fn a_quoted_alternate_keeps_a_quote_and_a_backslash_in_one_pathname() {
     let root: PathBuf = fixture("shadow-create-quoted-name");
     let repo: PathBuf = root.join(OsString::from_vec(b"q\"b\\s\nf".to_vec()));
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     let mut expected: Vec<u8> = vec![b'"'];
     expected.extend_from_slice(path_bytes_of(root.as_path()));
@@ -243,8 +336,14 @@ fn creating_the_shadow_leaves_real_state_unchanged() {
     let index_before: Vec<u8> = std::fs::read(repo.join(".git").join("index")).expect("index");
     let (_shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     assert_eq!(git_text(repo.as_path(), &["for-each-ref"]), refs_before);
-    assert_eq!(std::fs::read(repo.join(".git").join("index")).expect("index"), index_before);
-    assert_eq!(std::fs::read_to_string(repo.join("a.txt")).expect("worktree"), "a\n");
+    assert_eq!(
+        std::fs::read(repo.join(".git").join("index")).expect("index"),
+        index_before
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("a.txt")).expect("worktree"),
+        "a\n"
+    );
     remove(root.as_path());
 }
 
@@ -258,7 +357,10 @@ fn a_merge_in_progress_is_copied_to_the_shadow() {
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), format!("{head}\n")).expect("merge head");
     std::fs::write(repo.join(".git").join("MERGE_MSG"), "Merge\n").expect("merge msg");
     let (shadow, transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
-    assert_eq!(std::fs::read_to_string(shadow.join("MERGE_MSG")).expect("shadow msg"), "Merge\n");
+    assert_eq!(
+        std::fs::read_to_string(shadow.join("MERGE_MSG")).expect("shadow msg"),
+        "Merge\n"
+    );
     assert_eq!(
         std::fs::read_to_string(transaction.join("conclusion").join("MERGE_HEAD")).expect("copy"),
         format!("{head}\n")
@@ -277,21 +379,57 @@ fn sha256_and_reftable_repositories_get_matching_shadows() {
     let root: PathBuf = fixture("shadow-create-formats");
     let sha256: PathBuf = root.join("sha256");
     std::fs::create_dir(&sha256).expect("sha256 directory");
-    git(sha256.as_path(), &["init", "--quiet", "--object-format=sha256", "--initial-branch=main"]);
-    git(sha256.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        sha256.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--object-format=sha256",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        sha256.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let sha256_head: String = git_text(sha256.as_path(), &["rev-parse", "HEAD"]);
-    let (shadow, _transaction, capture) = create(sha256.as_path(), sha256.parent().expect("fixture"), "11111111-1111-4111-8111-111111111111");
+    let (shadow, _transaction, capture) = create(
+        sha256.as_path(),
+        sha256.parent().expect("fixture"),
+        "11111111-1111-4111-8111-111111111111",
+    );
     assert_eq!(capture.layout.object_format, "sha256");
-    assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), sha256_head);
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        sha256_head
+    );
 
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("reftable directory");
-    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        reftable.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        reftable.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let reftable_head: String = git_text(reftable.as_path(), &["rev-parse", "HEAD"]);
-    let (reftable_shadow, _reftable_transaction, reftable_capture) = create(reftable.as_path(), reftable.parent().expect("fixture"), "22222222-2222-4222-8222-222222222222");
+    let (reftable_shadow, _reftable_transaction, reftable_capture) = create(
+        reftable.as_path(),
+        reftable.parent().expect("fixture"),
+        "22222222-2222-4222-8222-222222222222",
+    );
     assert_eq!(reftable_capture.layout.ref_format, RefFormat::Reftable);
-    assert_eq!(shadow_text(reftable_shadow.as_path(), &["rev-parse", "HEAD"]), reftable_head);
+    assert_eq!(
+        shadow_text(reftable_shadow.as_path(), &["rev-parse", "HEAD"]),
+        reftable_head
+    );
     remove(root.as_path());
 }
 
@@ -308,15 +446,28 @@ fn sha256_and_reftable_repositories_get_matching_shadows() {
 ///  so the commit could not be prepared and a stray shadow stayed under the replacement-character name.
 #[test]
 fn a_reftable_shadow_is_made_at_a_path_that_is_not_text() {
-    if !in_a_fixture_root_taking_any_name("shadow::shadow_create::tests::a_reftable_shadow_is_made_at_a_path_that_is_not_text") {
+    if !in_a_fixture_root_taking_any_name(
+        "shadow::shadow_create::tests::a_reftable_shadow_is_made_at_a_path_that_is_not_text",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("shadow-create-reftable-not-utf8");
     let repo: PathBuf = root.join(OsString::from_vec(b"reftable-\xef".to_vec()));
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        repo.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let (shadow, _transaction, capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     assert_eq!(capture.layout.ref_format, RefFormat::Reftable);
@@ -326,7 +477,11 @@ fn a_reftable_shadow_is_made_at_a_path_that_is_not_text() {
         "the shadow's Git reads the real reftable refs through the shadow's own path"
     );
     let stray: PathBuf = root.join(OsString::from_vec("reftable-\u{fffd}".as_bytes().to_vec()));
-    assert!(!stray.exists(), "no shadow is made at a spelling of the repository's path: {}", stray.display());
+    assert!(
+        !stray.exists(),
+        "no shadow is made at a spelling of the repository's path: {}",
+        stray.display()
+    );
     remove(root.as_path());
 }
 
@@ -342,9 +497,18 @@ fn shadow_and_its_parents_are_private() {
     for directory in [
         shadow.clone(),
         shadow.parent().expect("parent").to_path_buf(),
-        shadow.parent().expect("parent").parent().expect("grandparent").to_path_buf(),
+        shadow
+            .parent()
+            .expect("parent")
+            .parent()
+            .expect("grandparent")
+            .to_path_buf(),
     ] {
-        let mode: u32 = std::fs::metadata(&directory).expect("metadata").permissions().mode() & 0o777;
+        let mode: u32 = std::fs::metadata(&directory)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
         assert_eq!(mode, 0o700, "{}", directory.display());
     }
     remove(root.as_path());
@@ -358,8 +522,15 @@ fn overwritten_shadow_files_are_private() {
     let root: PathBuf = fixture("shadow-create-file-modes");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
-    for file in [shadow.join("config"), shadow.join("objects").join("info").join("alternates")] {
-        let mode: u32 = std::fs::metadata(&file).expect("metadata").permissions().mode() & 0o777;
+    for file in [
+        shadow.join("config"),
+        shadow.join("objects").join("info").join("alternates"),
+    ] {
+        let mode: u32 = std::fs::metadata(&file)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
         assert_eq!(mode, 0o600, "{}", file.display());
     }
     remove(root.as_path());
@@ -371,9 +542,17 @@ fn config_starts(trace: &Path) -> Vec<String> {
     return std::fs::read_to_string(trace)
         .unwrap_or_default()
         .lines()
-        .filter(|line| { return line.contains("| start "); })
-        .filter_map(|line| { return line.rsplit_once("| ").map(|(_head, command)| { return command.to_string(); }); })
-        .filter(|command| { return command.split(' ').nth(1) == Some("config"); })
+        .filter(|line| {
+            return line.contains("| start ");
+        })
+        .filter_map(|line| {
+            return line.rsplit_once("| ").map(|(_head, command)| {
+                return command.to_string();
+            });
+        })
+        .filter(|command| {
+            return command.split(' ').nth(1) == Some("config");
+        })
         .collect();
 }
 
@@ -386,8 +565,14 @@ fn the_repository_format_comes_from_the_snapshot_unless_the_configuration_includ
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace2.txt");
     let mut overlay = crate::test_support::isolated_overlay();
-    overlay.push((std::ffi::OsString::from("GIT_TRACE2_PERF"), trace.clone().into_os_string()));
-    let context: GitContext = GitContext { overlay, ..git_context() };
+    overlay.push((
+        std::ffi::OsString::from("GIT_TRACE2_PERF"),
+        trace.clone().into_os_string(),
+    ));
+    let context: GitContext = GitContext {
+        overlay,
+        ..git_context()
+    };
     for (name, include, transaction_id) in [
         ("plain", false, TRANSACTION),
         ("included", true, "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a11"),
@@ -397,16 +582,26 @@ fn the_repository_format_comes_from_the_snapshot_unless_the_configuration_includ
             git(repo.as_path(), &["config", "include.path", "extra"]);
         }
         let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-        let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+        let capture: InvocationCapture =
+            capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
         let transaction: PathBuf = root.join(format!("transaction-{name}"));
         std::fs::create_dir_all(&transaction).expect("transaction directory");
         let _ = std::fs::remove_file(trace.as_path());
-        create_shadow_repository(&context, repo.as_path(), &capture, transaction_id, transaction.as_path())
-            .expect("shadow");
+        create_shadow_repository(
+            &context,
+            repo.as_path(),
+            &capture,
+            transaction_id,
+            transaction.as_path(),
+        )
+        .expect("shadow");
         let started: Vec<String> = config_starts(trace.as_path());
         if include {
             assert_eq!(started.len(), 1, "{started:?}");
-            assert!(started[0].ends_with("config --file config --null --list"), "{started:?}");
+            assert!(
+                started[0].ends_with("config --file config --null --list"),
+                "{started:?}"
+            );
         } else {
             assert!(started.is_empty(), "{started:?}");
         }
@@ -437,11 +632,16 @@ fn concurrent_creators_of_the_shared_parents_all_succeed() {
     let workers: Vec<std::thread::JoinHandle<std::io::Result<()>>> = (0..16)
         .map(|_| {
             let target: PathBuf = shadow.clone();
-            return std::thread::spawn(move || { return create_parent(target.as_path()); });
+            return std::thread::spawn(move || {
+                return create_parent(target.as_path());
+            });
         })
         .collect();
     for worker in workers {
-        worker.join().expect("worker").expect("every creator succeeds");
+        worker
+            .join()
+            .expect("worker")
+            .expect("every creator succeeds");
     }
     assert!(root.join("monochromatic-git-policy-cli/shadow").is_dir());
     remove(root.as_path());
@@ -466,8 +666,19 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
     let root: PathBuf = fixture("shadow-create-init-no-quiet");
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("reftable directory");
-    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        reftable.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        reftable.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let capture: InvocationCapture = capture_of(reftable.as_path());
     assert_eq!(capture.layout.ref_format, RefFormat::Reftable);
     let (mut context, log) = crate::recording_git::recording_context(root.as_path());
@@ -475,10 +686,30 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
     context.common_dir = Some(reftable.join(".git"));
     let transaction: PathBuf = root.join("transaction-init-no-quiet");
     std::fs::create_dir_all(&transaction).expect("transaction directory");
-    create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path()).expect("shadow");
-    let inits: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("init "); }).collect();
-    assert_eq!(inits.len(), 1, "the shadow is made by one start of init: {inits:?}");
-    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    create_shadow_repository(
+        &context,
+        reftable.as_path(),
+        &capture,
+        TRANSACTION,
+        transaction.as_path(),
+    )
+    .expect("shadow");
+    let inits: Vec<String> = crate::recording_git::recorded_starts(log.as_path())
+        .into_iter()
+        .filter(|start| {
+            return start.starts_with("init ");
+        })
+        .collect();
+    assert_eq!(
+        inits.len(),
+        1,
+        "the shadow is made by one start of init: {inits:?}"
+    );
+    assert_eq!(
+        crate::recording_git::quiet_starts(log.as_path()),
+        Vec::<String>::new(),
+        "no start carries --quiet or -q"
+    );
     remove(root.as_path());
 }
 
@@ -532,11 +763,25 @@ const _: () = assert!(
 /// and the start made after it is still the second.
 /// The controls count the starts themselves with `init_attempts`,
 /// which is the wrapper's own count of the attempts it made.
-fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, InvocationCapture, PathBuf) {
+fn reftable_with_hanging_init(
+    root: &Path,
+    hang: u32,
+) -> (GitContext, PathBuf, InvocationCapture, PathBuf) {
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("reftable directory");
-    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
-    git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        reftable.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--ref-format=reftable",
+            "--initial-branch=main",
+        ],
+    );
+    git(
+        reftable.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     let capture: InvocationCapture = capture_of(reftable.as_path());
     let shim: PathBuf = root.join("hanging-init-git");
     crate::test_support::executable(
@@ -548,7 +793,10 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
         )
         .as_bytes(),
     );
-    let mut context: GitContext = GitContext { real_git: shim, ..git_context() };
+    let mut context: GitContext = GitContext {
+        real_git: shim,
+        ..git_context()
+    };
     context.common_dir = Some(reftable.join(".git"));
     let transaction: PathBuf = root.join("transaction-hanging-init");
     std::fs::create_dir_all(&transaction).expect("transaction directory");
@@ -575,12 +823,28 @@ fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1);
     reset_init_attempts();
     cut_the_first_init_attempt_at(THE_FIRST_START_IS_CUT_AT);
-    let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
+    let made = create_shadow_repository(
+        &context,
+        reftable.as_path(),
+        &capture,
+        TRANSACTION,
+        transaction.as_path(),
+    );
     clear_the_planted_cut();
     let shadow: PathBuf = made.expect("the second start made the shadow");
-    assert_eq!(init_attempts(), SHADOW_CREATION_ATTEMPTS, "init was started twice");
-    assert!(!shadow.join("PARTIAL").exists(), "nothing of the cut start is left in the shadow");
-    assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), git_text(reftable.as_path(), &["rev-parse", "HEAD"]));
+    assert_eq!(
+        init_attempts(),
+        SHADOW_CREATION_ATTEMPTS,
+        "init was started twice"
+    );
+    assert!(
+        !shadow.join("PARTIAL").exists(),
+        "nothing of the cut start is left in the shadow"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(reftable.as_path(), &["rev-parse", "HEAD"])
+    );
     remove(root.as_path());
 }
 
@@ -608,15 +872,26 @@ fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
 #[test]
 fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing() {
     let root: PathBuf = fixture("shadow-create-init-cut-always");
-    let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1000);
+    let (context, reftable, capture, transaction) =
+        reftable_with_hanging_init(root.as_path(), 1000);
     // Every start of this control hangs, so each attempt is waited for this ceiling and no shorter.
     let ceiling: std::time::Duration = std::time::Duration::from_millis(500);
     reset_init_attempts();
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ceiling)); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(Some(ceiling));
+    });
     let began: std::time::Instant = std::time::Instant::now();
-    let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
+    let made = create_shadow_repository(
+        &context,
+        reftable.as_path(),
+        &capture,
+        TRANSACTION,
+        transaction.as_path(),
+    );
     let waited: std::time::Duration = began.elapsed();
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
     let failure: GitFailure = made.expect_err("every start was cut");
     assert!(failure.0.contains("init"), "{failure:?}");
     assert_eq!(init_attempts(), SHADOW_CREATION_ATTEMPTS, "{failure:?}");
@@ -625,7 +900,8 @@ fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_not
         "an attempt ended before its ceiling, which a cut of this control's plant cannot do: {waited:?}"
     );
     assert!(waited < std::time::Duration::from_secs(60), "{waited:?}");
-    let shadow: PathBuf = crate::shadow_git::shadow_repository_path(reftable.join(".git").as_path(), TRANSACTION);
+    let shadow: PathBuf =
+        crate::shadow_git::shadow_repository_path(reftable.join(".git").as_path(), TRANSACTION);
     assert!(!shadow.exists(), "the partial directory is discarded");
     remove(root.as_path());
 }
@@ -641,15 +917,45 @@ fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_not
 /// and neither is a finished command.
 #[test]
 fn only_a_cut_or_refused_start_of_init_is_retried() {
-    let refused_text = b"fatal: unable to create thread: Resource temporarily unavailable\n".to_vec();
-    let finished = |code: i32, stderr: Vec<u8>| -> std::io::Result<GitOutput> { return Ok(GitOutput { code: Some(code), stdout: Vec::new(), stderr }); };
-    assert!(start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::TimedOut))), "ended at the ceiling");
-    assert!(start_was_cut_or_refused(&Err(std::io::Error::from_raw_os_error(libc::EAGAIN))), "the system refused the process before it ran");
-    assert!(start_was_cut_or_refused(&finished(128, refused_text)), "Git reported the refusal");
-    assert!(!start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::NotFound))), "no such program");
-    assert!(!start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))), "not an executable");
-    assert!(!start_was_cut_or_refused(&finished(128, b"fatal: not a repository\n".to_vec())), "a failure of another kind");
-    assert!(!start_was_cut_or_refused(&finished(0, Vec::new())), "a start that worked");
+    let refused_text =
+        b"fatal: unable to create thread: Resource temporarily unavailable\n".to_vec();
+    let finished = |code: i32, stderr: Vec<u8>| -> std::io::Result<GitOutput> {
+        return Ok(GitOutput {
+            code: Some(code),
+            stdout: Vec::new(),
+            stderr,
+        });
+    };
+    assert!(
+        start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::TimedOut))),
+        "ended at the ceiling"
+    );
+    assert!(
+        start_was_cut_or_refused(&Err(std::io::Error::from_raw_os_error(libc::EAGAIN))),
+        "the system refused the process before it ran"
+    );
+    assert!(
+        start_was_cut_or_refused(&finished(128, refused_text)),
+        "Git reported the refusal"
+    );
+    assert!(
+        !start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::NotFound))),
+        "no such program"
+    );
+    assert!(
+        !start_was_cut_or_refused(&Err(std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied
+        ))),
+        "not an executable"
+    );
+    assert!(
+        !start_was_cut_or_refused(&finished(128, b"fatal: not a repository\n".to_vec())),
+        "a failure of another kind"
+    );
+    assert!(
+        !start_was_cut_or_refused(&finished(0, Vec::new())),
+        "a start that worked"
+    );
 }
 
 /// A valid reference whose name is not text,
@@ -659,25 +965,55 @@ fn only_a_cut_or_refused_start_of_init_is_retried() {
 /// and the commit the wrapper builds needs the same repository.
 #[test]
 fn a_ref_name_that_is_not_text_does_not_stop_the_shadow() {
-    if !in_a_fixture_root_taking_any_name("shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow") {
+    if !in_a_fixture_root_taking_any_name(
+        "shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow",
+    ) {
         return;
     }
     let root: PathBuf = fixture("shadow-create-non-utf8-ref");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let tag: std::ffi::OsString = crate::path_bytes::os_from_path_bytes(b"refs/tags/nonutf-\xff");
-    git(repo.as_path(), &[std::ffi::OsStr::new("update-ref"), tag.as_os_str(), std::ffi::OsStr::new(head.as_str())]);
+    git(
+        repo.as_path(),
+        &[
+            std::ffi::OsStr::new("update-ref"),
+            tag.as_os_str(),
+            std::ffi::OsStr::new(head.as_str()),
+        ],
+    );
     // The positive control: real Git accepts this repository and its refs and commits in it.
-    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=native control"]);
+    git(
+        repo.as_path(),
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message=native control",
+        ],
+    );
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
     // The snapshot carries the name as the bytes it is, so the shadow's Git sees the same ref.
     let listed = run_git_checked(
         &git_context(),
-        &shadow_request(shadow.as_path(), shadow.as_path(), &["for-each-ref", "--format=%(refname)"]),
+        &shadow_request(
+            shadow.as_path(),
+            shadow.as_path(),
+            &["for-each-ref", "--format=%(refname)"],
+        ),
     )
     .expect("the shadow lists its refs");
-    let names: Vec<&[u8]> = listed.stdout.split(|byte| { return *byte == b'\n'; }).collect();
-    assert!(names.contains(&b"refs/tags/nonutf-\xff".as_slice()), "{}", String::from_utf8_lossy(listed.stdout.as_slice()));
+    let names: Vec<&[u8]> = listed
+        .stdout
+        .split(|byte| {
+            return *byte == b'\n';
+        })
+        .collect();
+    assert!(
+        names.contains(&b"refs/tags/nonutf-\xff".as_slice()),
+        "{}",
+        String::from_utf8_lossy(listed.stdout.as_slice())
+    );
     remove(root.as_path());
 }
 

@@ -3,16 +3,38 @@
 //! and a seeded differential run against
 //!  `git apply --reverse --check` on the same real repository bytes.
 
+use super::test_support_batch::{
+    ReverseCase,
+    git_verdicts,
+    patches_between_all,
+};
 use super::*;
-use crate::replay_patch::{PatchHunk, PatchLine, parse_indexed_patch, split_keeping_newlines};
-use crate::test_support::{fixture, git, remove, repository};
-use super::test_support_batch::{ReverseCase, git_verdicts, patches_between_all};
+use crate::replay_patch::{
+    PatchHunk,
+    PatchLine,
+    parse_indexed_patch,
+    split_keeping_newlines,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Writes `base` then `landed` as entry `0` of a repository in `directory` and returns the raw patch
 ///  `git diff-tree -p --text` prints between their trees.
-fn patch_between(directory: &Path, base: &[u8], landed: &[u8], context: u32) -> Vec<u8> {
+fn patch_between(
+    directory: &Path,
+    base: &[u8],
+    landed: &[u8],
+    context: u32,
+) -> Vec<u8> {
     let repo: PathBuf = repository(directory, "repo");
     std::fs::write(repo.join("0"), base).expect("base entry");
     git(repo.as_path(), &["add", "--", "0"]);
@@ -42,7 +64,12 @@ fn patch_between(directory: &Path, base: &[u8], landed: &[u8], context: u32) -> 
 
 /// Hunks of entry `0` for one change,
 /// parsed as replay parses them.
-fn hunks_between(name: &str, base: &[u8], landed: &[u8], context: u32) -> Vec<PatchHunk> {
+fn hunks_between(
+    name: &str,
+    base: &[u8],
+    landed: &[u8],
+    context: u32,
+) -> Vec<PatchHunk> {
     let root: PathBuf = fixture(name);
     let patch: Vec<u8> = patch_between(root.as_path(), base, landed, context);
     remove(root.as_path());
@@ -70,16 +97,26 @@ fn no_hunks_always_reverse() {
 ///  so the strict check with full context rejects it.
 #[test]
 fn an_adjacent_own_edit_is_rejected_by_strict_context() {
-    let hunks: Vec<PatchHunk> = hunks_between("reverse-adjacent", b"a\nb\nc\nd\n", b"a\nB\nc\nd\n", 3);
+    let hunks: Vec<PatchHunk> =
+        hunks_between("reverse-adjacent", b"a\nb\nc\nd\n", b"a\nB\nc\nd\n", 3);
     assert!(!reverse_applies(&hunks, b"a\nB\nC\nd\n"));
 }
 
 /// A far-apart own edit leaves the landed hunk's context intact and reverses.
 #[test]
 fn a_far_apart_own_edit_reverses() {
-    let base: Vec<u8> = (1..=12).map(|number| { return format!("line {number}\n"); }).collect::<String>().into_bytes();
-    let landed: Vec<u8> = String::from_utf8_lossy(&base).replace("line 2\n", "LANDED\n").into_bytes();
-    let prepared: Vec<u8> = String::from_utf8_lossy(&landed).replace("line 11\n", "OWN\n").into_bytes();
+    let base: Vec<u8> = (1..=12)
+        .map(|number| {
+            return format!("line {number}\n");
+        })
+        .collect::<String>()
+        .into_bytes();
+    let landed: Vec<u8> = String::from_utf8_lossy(&base)
+        .replace("line 2\n", "LANDED\n")
+        .into_bytes();
+    let prepared: Vec<u8> = String::from_utf8_lossy(&landed)
+        .replace("line 11\n", "OWN\n")
+        .into_bytes();
     let hunks: Vec<PatchHunk> = hunks_between("reverse-far-apart", &base, &landed, 3);
     assert!(reverse_applies(&hunks, &prepared));
     assert!(!reverse_applies(&hunks, &base));
@@ -158,7 +195,10 @@ impl Seeded {
 
     /// A number below `bound`,
     /// which is at least one.
-    fn below(&mut self, bound: usize) -> usize {
+    fn below(
+        &mut self,
+        bound: usize,
+    ) -> usize {
         let modulus: u64 = u64::try_from(bound.max(1)).unwrap_or(1);
         return usize::try_from(self.next_value() % modulus).unwrap_or(0);
     }
@@ -172,7 +212,10 @@ impl Seeded {
 const ALPHABET: [&[u8]; 6] = [b"a\n", b"b\n", b"\n", b" b\n", b"a", b"c\n"];
 
 /// Random text of up to `limit` lines drawn from the alphabet.
-fn random_text(random: &mut Seeded, limit: usize) -> Vec<u8> {
+fn random_text(
+    random: &mut Seeded,
+    limit: usize,
+) -> Vec<u8> {
     let count: usize = 1 + random.below(limit);
     let mut text: Vec<u8> = Vec::new();
     for _ in 0..count {
@@ -182,7 +225,10 @@ fn random_text(random: &mut Seeded, limit: usize) -> Vec<u8> {
 }
 
 /// A text made from `base` by one or two random line edits.
-fn edit_lines(random: &mut Seeded, base: &[u8]) -> Vec<u8> {
+fn edit_lines(
+    random: &mut Seeded,
+    base: &[u8],
+) -> Vec<u8> {
     // `mut` lets each edit change the lines in turn.
     let mut lines: Vec<Vec<u8>> = split_keeping_newlines(base);
     for _ in 0..(1 + random.below(2)) {
@@ -228,10 +274,20 @@ fn strict_reverse_agrees_with_git_apply_on_seeded_cases() {
         } else {
             edit_lines(&mut random, &landed)
         };
-        cases.push(ReverseCase { number, base, landed, prepared });
+        cases.push(ReverseCase {
+            number,
+            base,
+            landed,
+            prepared,
+        });
     }
     let root: PathBuf = fixture("reverse-differential");
-    let pairs: Vec<(&[u8], &[u8])> = cases.iter().map(|case| { return (case.base.as_slice(), case.landed.as_slice()); }).collect();
+    let pairs: Vec<(&[u8], &[u8])> = cases
+        .iter()
+        .map(|case| {
+            return (case.base.as_slice(), case.landed.as_slice());
+        })
+        .collect();
     let patches: Vec<Vec<u8>> = patches_between_all(root.as_path(), &pairs, 3);
     let verdicts: Vec<bool> = git_verdicts(root.as_path(), &cases, &patches);
     for ((case, patch), git_says) in cases.iter().zip(&patches).zip(verdicts) {
@@ -254,7 +310,10 @@ fn strict_reverse_agrees_with_git_apply_on_seeded_cases() {
         }
     }
     remove(root.as_path());
-    assert!(applied > 0 && rejected > 0, "applied {applied}, rejected {rejected}");
+    assert!(
+        applied > 0 && rejected > 0,
+        "applied {applied}, rejected {rejected}"
+    );
 }
 
 /// An incomplete preimage line does not match an image line that merely starts with it:
@@ -273,13 +332,28 @@ fn a_hunk_is_found_by_walking_forward_past_the_expected_line() {
         old_start: 1,
         new_start: 2,
         lines: vec![
-            PatchLine { op: b' ', text: b"a\n".to_vec() },
-            PatchLine { op: b'+', text: b"b\n".to_vec() },
-            PatchLine { op: b' ', text: b"c\n".to_vec() },
+            PatchLine {
+                op: b' ',
+                text: b"a\n".to_vec(),
+            },
+            PatchLine {
+                op: b'+',
+                text: b"b\n".to_vec(),
+            },
+            PatchLine {
+                op: b' ',
+                text: b"c\n".to_vec(),
+            },
         ],
     };
-    assert!(reverse_applies(std::slice::from_ref(&hunk), b"z\na\nb\nc\n"));
-    assert!(!reverse_applies(std::slice::from_ref(&hunk), b"z\na\nb\nd\n"));
+    assert!(reverse_applies(
+        std::slice::from_ref(&hunk),
+        b"z\na\nb\nc\n"
+    ));
+    assert!(!reverse_applies(
+        std::slice::from_ref(&hunk),
+        b"z\na\nb\nd\n"
+    ));
 }
 
 /// An image of unpatched lines,
@@ -287,25 +361,44 @@ fn a_hunk_is_found_by_walking_forward_past_the_expected_line() {
 fn image_of(lines: &[&str]) -> Vec<ImageLine> {
     return lines
         .iter()
-        .map(|line| { return ImageLine { text: line.as_bytes().to_vec(), patched: false }; })
+        .map(|line| {
+            return ImageLine {
+                text: line.as_bytes().to_vec(),
+                patched: false,
+            };
+        })
         .collect();
 }
 
 /// The text of every line of an image,
 /// to compare whole results.
 fn texts_of(image: &[ImageLine]) -> Vec<String> {
-    return image.iter().map(|line| { return String::from_utf8_lossy(&line.text).into_owned(); }).collect();
+    return image
+        .iter()
+        .map(|line| {
+            return String::from_utf8_lossy(&line.text).into_owned();
+        })
+        .collect();
 }
 
 /// A hunk from `(marker, text)` lines,
 /// each text with its newline unless it is an incomplete last line.
-fn hunk_of(old_start: i64, new_start: i64, lines: &[(u8, &str)]) -> PatchHunk {
+fn hunk_of(
+    old_start: i64,
+    new_start: i64,
+    lines: &[(u8, &str)],
+) -> PatchHunk {
     return PatchHunk {
         old_start,
         new_start,
         lines: lines
             .iter()
-            .map(|(op, text)| { return PatchLine { op: *op, text: text.as_bytes().to_vec() }; })
+            .map(|(op, text)| {
+                return PatchLine {
+                    op: *op,
+                    text: text.as_bytes().to_vec(),
+                };
+            })
             .collect(),
     };
 }
@@ -329,7 +422,8 @@ fn the_search_looks_backwards_from_the_expected_line() {
 fn a_removal_only_hunk_reverses_by_restoring_its_lines_at_the_end() {
     let image: Vec<ImageLine> = image_of(&["x\n", "y\n", "z\n"]);
     let hunk: PatchHunk = hunk_of(5, 4, &[(b'-', "a\n"), (b'-', "b\n")]);
-    let rebuilt: Vec<ImageLine> = reverse_hunk(&image, &hunk).expect("an empty preimage matches at the end");
+    let rebuilt: Vec<ImageLine> =
+        reverse_hunk(&image, &hunk).expect("an empty preimage matches at the end");
     assert_eq!(texts_of(&rebuilt), ["x\n", "y\n", "z\n", "a\n", "b\n"]);
     assert!(reverse_applies(&[hunk], b"x\ny\nz\n"));
 }
@@ -339,7 +433,11 @@ fn a_removal_only_hunk_reverses_by_restoring_its_lines_at_the_end() {
 #[test]
 fn reversing_a_hunk_restores_the_removed_lines_and_drops_the_added_ones() {
     let image: Vec<ImageLine> = image_of(&["a\n", "c\n", "d\n"]);
-    let hunk: PatchHunk = hunk_of(1, 1, &[(b' ', "a\n"), (b'-', "b\n"), (b'+', "c\n"), (b' ', "d\n")]);
+    let hunk: PatchHunk = hunk_of(
+        1,
+        1,
+        &[(b' ', "a\n"), (b'-', "b\n"), (b'+', "c\n"), (b' ', "d\n")],
+    );
     let rebuilt: Vec<ImageLine> = reverse_hunk(&image, &hunk).expect("the new side is present");
     assert_eq!(texts_of(&rebuilt), ["a\n", "b\n", "d\n"]);
 }
@@ -348,14 +446,22 @@ fn reversing_a_hunk_restores_the_removed_lines_and_drops_the_added_ones() {
 /// so of two equal matches the one at that line wins.
 #[test]
 fn the_search_starts_at_the_hunks_old_line() {
-    let hunk_at = |old_start: i64| -> PatchHunk { return hunk_of(old_start, old_start, &[(b'+', "a\n"), (b' ', "z\n")]); };
+    let hunk_at = |old_start: i64| -> PatchHunk {
+        return hunk_of(old_start, old_start, &[(b'+', "a\n"), (b' ', "z\n")]);
+    };
     let first: Vec<ImageLine> = image_of(&["p\n", "a\n", "z\n", "q\n", "a\n", "z\n"]);
     let rebuilt_first: Vec<ImageLine> = reverse_hunk(&first, &hunk_at(5)).expect("two matches");
-    assert_eq!(texts_of(&rebuilt_first), ["p\n", "a\n", "z\n", "q\n", "z\n"]);
+    assert_eq!(
+        texts_of(&rebuilt_first),
+        ["p\n", "a\n", "z\n", "q\n", "z\n"]
+    );
     // Matches at 3 and 5 with the expected line 3: starting one or two lines later would pick the one at 5.
     let second: Vec<ImageLine> = image_of(&["x\n", "x\n", "x\n", "a\n", "z\n", "a\n", "z\n"]);
     let rebuilt_second: Vec<ImageLine> = reverse_hunk(&second, &hunk_at(4)).expect("two matches");
-    assert_eq!(texts_of(&rebuilt_second), ["x\n", "x\n", "x\n", "z\n", "a\n", "z\n"]);
+    assert_eq!(
+        texts_of(&rebuilt_second),
+        ["x\n", "x\n", "x\n", "z\n", "a\n", "z\n"]
+    );
 }
 
 /// Only a hunk's last preimage line may be an incomplete line,

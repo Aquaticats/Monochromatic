@@ -21,11 +21,32 @@
 //! ```
 
 use super::support::{
-    Fixture, fixture, hermetic, kept_stderr_pipe, remove, repository, service_command, service_executable, service_log, short_runtime_directory, spawn_owned, wrapped,
+    Fixture,
+    fixture,
+    hermetic,
+    kept_stderr_pipe,
+    remove,
+    repository,
+    service_command,
+    service_executable,
+    service_log,
+    short_runtime_directory,
+    spawn_owned,
+    wrapped,
 };
-use std::path::{Path, PathBuf};
-use std::process::{Child, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Output,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for a start to end:
 /// far beyond what a refusal needs,
@@ -64,21 +85,59 @@ fn finished(mut child: Child) -> Output {
 fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
     let fixture: Fixture = fixture("service-mode-no-socket");
     let journal: PathBuf = fixture.root.join("journal-not-made");
-    for (label, listen_pid, listen_fds) in [("no variables", None, None), ("a socket for another process", Some("1"), Some("1")), ("a count of none", Some("1"), Some("0"))] {
+    for (label, listen_pid, listen_fds) in [
+        ("no variables", None, None),
+        ("a socket for another process", Some("1"), Some("1")),
+        ("a count of none", Some("1"), Some("0")),
+    ] {
         let mut command = wrapped(&fixture);
-        command.args(["monochromatic-git-policy-cli", "service", "run", "--journal"]).arg(&journal);
+        command
+            .args([
+                "monochromatic-git-policy-cli",
+                "service",
+                "run",
+                "--journal",
+            ])
+            .arg(&journal);
         if let (Some(pid), Some(fds)) = (listen_pid.as_ref(), listen_fds.as_ref()) {
             command.env("LISTEN_PID", pid).env("LISTEN_FDS", fds);
         }
-        let output: Output = finished(command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the wrapper starts"));
+        let output: Output = finished(
+            command
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("the wrapper starts"),
+        );
         let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
-        assert_eq!(output.status.code(), Some(git_policy_cli::service_main::EXIT_NOT_LISTENING), "{label}: {stderr}");
-        assert!(stderr.contains("started by the service manager") && stderr.contains("--path <socket>"), "{label}: {stderr}");
-        assert!(!journal.exists(), "{label}: a refused start left a directory");
+        assert_eq!(
+            output.status.code(),
+            Some(git_policy_cli::service_main::EXIT_NOT_LISTENING),
+            "{label}: {stderr}"
+        );
+        assert!(
+            stderr.contains("started by the service manager") && stderr.contains("--path <socket>"),
+            "{label}: {stderr}"
+        );
+        assert!(
+            !journal.exists(),
+            "{label}: a refused start left a directory"
+        );
     }
     // Also without any option: the refusal names the manager, not a missing option.
-    let bare: Output = finished(wrapped(&fixture).args(["monochromatic-git-policy-cli", "service", "run"]).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the wrapper starts"));
-    assert!(String::from_utf8_lossy(&bare.stderr).contains("started by the service manager"), "{}", String::from_utf8_lossy(&bare.stderr));
+    let bare: Output = finished(
+        wrapped(&fixture)
+            .args(["monochromatic-git-policy-cli", "service", "run"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the wrapper starts"),
+    );
+    assert!(
+        String::from_utf8_lossy(&bare.stderr).contains("started by the service manager"),
+        "{}",
+        String::from_utf8_lossy(&bare.stderr)
+    );
     remove(&fixture);
 }
 
@@ -96,7 +155,12 @@ fn the_words_behind_a_global_option_start_no_server() {
         wrapped(&fixture)
             .arg("-C")
             .arg(&repo)
-            .args(["monochromatic-git-policy-cli", "service", "run", "--journal"])
+            .args([
+                "monochromatic-git-policy-cli",
+                "service",
+                "run",
+                "--journal",
+            ])
             .arg(fixture.root.join("journal-not-made"))
             .arg("--path")
             .arg(&socket)
@@ -105,8 +169,16 @@ fn the_words_behind_a_global_option_start_no_server() {
             .spawn()
             .expect("the wrapper starts"),
     );
-    assert!(!output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("Usage: git monochromatic-git-policy-cli"), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        !output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("Usage: git monochromatic-git-policy-cli"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     std::thread::sleep(SETTLE);
     assert!(!socket.exists(), "a socket appeared");
     assert!(!fixture.root.join("journal-not-made").exists());
@@ -116,7 +188,11 @@ fn the_words_behind_a_global_option_start_no_server() {
 /// Starts the service mode with `--git` set to `git`,
 /// on a path socket of the fixture,
 /// and gives its end.
-fn run_with_git(fixture: &Fixture, git: &Path, label: &str) -> (Output, PathBuf) {
+fn run_with_git(
+    fixture: &Fixture,
+    git: &Path,
+    label: &str,
+) -> (Output, PathBuf) {
     let socket: PathBuf = fixture.root.join(format!("{label}.sock"));
     let output: Output = finished(
         service_command()
@@ -155,8 +231,16 @@ fn a_git_that_is_the_wrapper_is_refused() {
     ] {
         let (output, socket) = run_with_git(&fixture, git.as_path(), label);
         let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
-        assert_eq!(output.status.code(), Some(git_policy_cli::service_main::EXIT_REFUSED), "{label}: {stderr}");
-        assert!(stderr.contains("would start monochromatic-git-policy-cli again") && stderr.contains("/usr/bin/git"), "{label}: {stderr}");
+        assert_eq!(
+            output.status.code(),
+            Some(git_policy_cli::service_main::EXIT_REFUSED),
+            "{label}: {stderr}"
+        );
+        assert!(
+            stderr.contains("would start monochromatic-git-policy-cli again")
+                && stderr.contains("/usr/bin/git"),
+            "{label}: {stderr}"
+        );
         assert!(!socket.exists(), "{label}: a refused start listened");
     }
     remove(&fixture);
@@ -175,7 +259,11 @@ fn the_same_start_with_the_real_git_listens() {
     let (kept_log, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
         kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log");
     let mut command = service_command();
-    hermetic(&mut command, &fixture, std::ffi::OsStr::new("/usr/bin:/bin"));
+    hermetic(
+        &mut command,
+        &fixture,
+        std::ffi::OsStr::new("/usr/bin:/bin"),
+    );
     let mut child: Child = spawn_owned(
         command
             .arg("--journal")
@@ -194,7 +282,8 @@ fn the_same_start_with_the_real_git_listens() {
         if ended.is_some() {
             // The service's own end closed its stream, so the copy of it ends; the message waits for that instead of
             //  racing the thread that carries what it said.
-            let _waited: Result<(), std::sync::mpsc::RecvTimeoutError> = when_the_copy_ends.recv_timeout(super::support::SERVICE_LOG_END_BOUND);
+            let _waited: Result<(), std::sync::mpsc::RecvTimeoutError> =
+                when_the_copy_ends.recv_timeout(super::support::SERVICE_LOG_END_BOUND);
         }
         assert!(
             ended.is_none(),
@@ -202,7 +291,12 @@ fn the_same_start_with_the_real_git_listens() {
             socket.display(),
             service_log(fixture.root.as_path())
         );
-        assert!(began.elapsed() < PATIENCE, "the service never listened at {}; {}", socket.display(), service_log(fixture.root.as_path()));
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the service never listened at {}; {}",
+            socket.display(),
+            service_log(fixture.root.as_path())
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     let _killed = child.kill();

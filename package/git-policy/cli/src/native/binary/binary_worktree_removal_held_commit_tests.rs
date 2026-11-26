@@ -21,12 +21,35 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::wrapped_commit;
-use super::support::{Fixture, Observed, fixture, git, observe, remove, run_direct, run_wrapped, stderr_of, work_listing};
-use git_policy_cli::held_commit_record::{Held, write};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    remove,
+    run_direct,
+    run_wrapped,
+    stderr_of,
+    work_listing,
+};
+use git_policy_cli::held_commit_record::{
+    Held,
+    write,
+};
 use git_policy_cli::service_work::work_directory;
-use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, PENDING, RECOVERING};
+use git_policy_cli::work_item::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    PENDING,
+    RECOVERING,
+};
 use git_policy_cli::worktree_added_by_the_wrapper::record;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The branch the linked worktree has checked out.
 const BRANCH: &str = "feature";
@@ -61,9 +84,15 @@ const RECORD_KIND: &str = "subvolume-delete-";
 /// Why:
 ///  A control compares the reference name real Git reports,
 /// and the binary harness has no reader of a direct command's standard output.
-fn git_said(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
+fn git_said(
+    fixture: &Fixture,
+    directory: &Path,
+    arguments: &[&str],
+) -> String {
     let output: std::process::Output = git(fixture, directory, arguments);
-    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    return String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string();
 }
 
 /// What one fixture holds:
@@ -96,9 +125,13 @@ impl HeldScene {
 
     /// Plant the lock file an update of `name` refused,
     /// as a killed or a concurrent Git leaves it.
-    fn plant_lock(&self, name: &str) {
+    fn plant_lock(
+        &self,
+        name: &str,
+    ) {
         let lock: PathBuf = self.common.join(format!("{name}.lock"));
-        std::fs::create_dir_all(lock.parent().expect("the directory of the lock")).expect("the lock's directory");
+        std::fs::create_dir_all(lock.parent().expect("the directory of the lock"))
+            .expect("the lock's directory");
         std::fs::write(lock.as_path(), b"").expect("the lock file");
     }
 
@@ -107,13 +140,30 @@ impl HeldScene {
     /// or nothing when no object holds it any more.
     fn object_type_after_maintenance(&self) -> String {
         git(&self.fixture, self.repo.as_path(), &["gc", "--prune=now"]);
-        let asked: Observed = run_direct(&self.fixture, self.repo.as_path(), &["cat-file", "-t", self.held.as_str()]);
-        return String::from_utf8_lossy(asked.stdout.as_slice()).trim().to_string();
+        let asked: Observed = run_direct(
+            &self.fixture,
+            self.repo.as_path(),
+            &["cat-file", "-t", self.held.as_str()],
+        );
+        return String::from_utf8_lossy(asked.stdout.as_slice())
+            .trim()
+            .to_string();
     }
 
     /// Every reference of the common Git directory that names the held commit.
     fn holders(&self) -> String {
-        return git_said(&self.fixture, &self.repo, &["for-each-ref", "--contains", self.held.as_str(), "--format=%(refname)"]).trim().to_string();
+        return git_said(
+            &self.fixture,
+            &self.repo,
+            &[
+                "for-each-ref",
+                "--contains",
+                self.held.as_str(),
+                "--format=%(refname)",
+            ],
+        )
+        .trim()
+        .to_string();
     }
 }
 
@@ -126,21 +176,63 @@ fn a_held_commit(label: &str) -> HeldScene {
     let repo: PathBuf = fixture.root.join("repo");
     let linked: PathBuf = fixture.root.join("linked");
     std::fs::create_dir(repo.as_path()).expect("the repository directory");
-    git(&fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     std::fs::write(repo.join("base.txt"), b"base\n").expect("the base file");
     git(&fixture, repo.as_path(), &["add", "--", "base.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     let linked_text: String = linked.display().to_string();
-    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", linked_text.as_str(), "-b", BRANCH]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            linked_text.as_str(),
+            "-b",
+            BRANCH,
+        ],
+    );
     std::fs::write(linked.join(EDITED), b"the edit\n").expect("the edit");
     git(&fixture, linked.as_path(), &["add", "--", EDITED]);
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--message=the held edit"]);
-    let held: String = git_said(&fixture, &linked, &["rev-parse", "HEAD"]).trim().to_string();
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--message=the held edit"],
+    );
+    let held: String = git_said(&fixture, &linked, &["rev-parse", "HEAD"])
+        .trim()
+        .to_string();
     // The reference lock refused the branch write, so the branch still names the commit before it, and no reflog names the
     //  commit either: it was never on the branch, so the worktree's own reference is the only thing holding it.
-    git(&fixture, linked.as_path(), &["reset", "--hard", "--quiet", "HEAD~1"]);
-    git(&fixture, repo.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
-    git(&fixture, linked.as_path(), &["update-ref", "--no-deref", format!("refs/worktree/cli-git-service/{SEQ}").as_str(), held.as_str()]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["reset", "--hard", "--quiet", "HEAD~1"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["reflog", "expire", "--expire=now", "--all"],
+    );
+    git(
+        &fixture,
+        linked.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            format!("refs/worktree/cli-git-service/{SEQ}").as_str(),
+            held.as_str(),
+        ],
+    );
     let common: PathBuf = repo.join(".git");
     let worktree_git_dir: PathBuf = common.join("worktrees/linked");
     let record: Held = Held {
@@ -149,8 +241,12 @@ fn a_held_commit(label: &str) -> HeldScene {
         repository: linked.clone(),
         common_dir: common.clone(),
         git_dir: worktree_git_dir.clone(),
-        reference: git_policy_cli::ref_name::RefName::from_text(format!("refs/heads/{BRANCH}").as_str()),
-        old: git_said(&fixture, &linked, &["rev-parse", "HEAD"]).trim().to_string(),
+        reference: git_policy_cli::ref_name::RefName::from_text(
+            format!("refs/heads/{BRANCH}").as_str(),
+        ),
+        old: git_said(&fixture, &linked, &["rev-parse", "HEAD"])
+            .trim()
+            .to_string(),
         new: held.clone(),
         commits: vec![held.clone()],
         index: worktree_git_dir.join("index"),
@@ -159,7 +255,13 @@ fn a_held_commit(label: &str) -> HeldScene {
         created: String::from("2026-01-01T00:00:00+00:00"),
     };
     write(worktree_git_dir.as_path(), &record).expect("the record of the hold");
-    return HeldScene { fixture, repo, linked, common, held };
+    return HeldScene {
+        fixture,
+        repo,
+        linked,
+        common,
+        held,
+    };
 }
 
 /// What:
@@ -191,7 +293,10 @@ fn a_held_commit(label: &str) -> HeldScene {
 /// ```ts
 /// await waitForTheHandedOverRemoval(scene, sweepLine); // throws with the reason when the worktree stays
 /// ```
-fn the_handed_over_removal_finishes(scene: &HeldScene, said: &str) -> Result<(), String> {
+fn the_handed_over_removal_finishes(
+    scene: &HeldScene,
+    said: &str,
+) -> Result<(), String> {
     let began: std::time::Instant = std::time::Instant::now();
     let registration: PathBuf = scene.common.join(LINKED_REGISTRATION);
     while began.elapsed() < HANDOVER_PATIENCE {
@@ -200,8 +305,16 @@ fn the_handed_over_removal_finishes(scene: &HeldScene, said: &str) -> Result<(),
         }
         std::thread::sleep(HANDOVER_STEP);
     }
-    let notices: Vec<String> = match std::fs::read_dir(git_policy_cli::worktree_kept_notices::kept_notice_directory(scene.common.as_path()).as_path()) {
-        Ok(listing) => listing.flatten().filter_map(|entry| { return std::fs::read_to_string(entry.path()).ok(); }).collect(),
+    let notices: Vec<String> = match std::fs::read_dir(
+        git_policy_cli::worktree_kept_notices::kept_notice_directory(scene.common.as_path())
+            .as_path(),
+    ) {
+        Ok(listing) => listing
+            .flatten()
+            .filter_map(|entry| {
+                return std::fs::read_to_string(entry.path()).ok();
+            })
+            .collect(),
         Err(_unreadable) => Vec::new(),
     };
     let state: &str = match scene.linked.exists() {
@@ -241,7 +354,12 @@ fn what_the_queue_says(work: &Path) -> String {
         .map(|state| {
             return std::fs::read_dir(work.join(state))
                 .map(|entries| {
-                    return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().starts_with(RECORD_KIND); }).count();
+                    return entries
+                        .flatten()
+                        .filter(|entry| {
+                            return entry.file_name().to_string_lossy().starts_with(RECORD_KIND);
+                        })
+                        .count();
                 })
                 .unwrap_or(0);
         })
@@ -275,23 +393,71 @@ fn a_held_commit_a_merge_lands(label: &str) -> HeldScene {
     let repo: PathBuf = fixture.root.join("repo");
     let linked: PathBuf = fixture.root.join("linked");
     std::fs::create_dir(repo.as_path()).expect("the repository directory");
-    git(&fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     std::fs::write(repo.join("base.txt"), b"base\n").expect("the base file");
     git(&fixture, repo.as_path(), &["add", "--", "base.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     let linked_text: String = linked.display().to_string();
-    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", linked_text.as_str(), "-b", BRANCH]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "worktree",
+            "add",
+            "--quiet",
+            linked_text.as_str(),
+            "-b",
+            BRANCH,
+        ],
+    );
     // The record a `git worktree add` of this program leaves, which is what lets the sweep remove it by itself.
-    record(repo.join(".git").as_path(), linked.as_path()).expect("the record of a worktree this program made");
+    record(repo.join(".git").as_path(), linked.as_path())
+        .expect("the record of a worktree this program made");
     std::fs::write(linked.join(LANDED), b"the landed work\n").expect("the landed edit");
     git(&fixture, linked.as_path(), &["add", "--", LANDED]);
-    git(&fixture, linked.as_path(), &["commit", "--quiet", "--message=the landed work"]);
+    git(
+        &fixture,
+        linked.as_path(),
+        &["commit", "--quiet", "--message=the landed work"],
+    );
     // The held commit: a child of the branch's own commit that no branch names, held only by the per-worktree
     //  reference and by the record beside it, exactly as a commit that met a reference lock leaves it.
     let tree: String = git_said(&fixture, &linked, &["rev-parse", "HEAD^{tree}"]);
-    let held: String = git_said(&fixture, &linked, &["commit-tree", tree.as_str(), "-p", "HEAD", "-m", "the held edit"]);
-    git(&fixture, linked.as_path(), &["update-ref", "--no-deref", format!("refs/worktree/cli-git-service/{SEQ}").as_str(), held.as_str()]);
-    git(&fixture, repo.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+    let held: String = git_said(
+        &fixture,
+        &linked,
+        &[
+            "commit-tree",
+            tree.as_str(),
+            "-p",
+            "HEAD",
+            "-m",
+            "the held edit",
+        ],
+    );
+    git(
+        &fixture,
+        linked.as_path(),
+        &[
+            "update-ref",
+            "--no-deref",
+            format!("refs/worktree/cli-git-service/{SEQ}").as_str(),
+            held.as_str(),
+        ],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["reflog", "expire", "--expire=now", "--all"],
+    );
     let common: PathBuf = repo.join(".git");
     let worktree_git_dir: PathBuf = common.join(LINKED_REGISTRATION);
     let record_of_the_hold: Held = Held {
@@ -300,8 +466,12 @@ fn a_held_commit_a_merge_lands(label: &str) -> HeldScene {
         repository: linked.clone(),
         common_dir: common.clone(),
         git_dir: worktree_git_dir.clone(),
-        reference: git_policy_cli::ref_name::RefName::from_text(format!("refs/heads/{BRANCH}").as_str()),
-        old: git_said(&fixture, &linked, &["rev-parse", "HEAD"]).trim().to_string(),
+        reference: git_policy_cli::ref_name::RefName::from_text(
+            format!("refs/heads/{BRANCH}").as_str(),
+        ),
+        old: git_said(&fixture, &linked, &["rev-parse", "HEAD"])
+            .trim()
+            .to_string(),
         new: held.clone(),
         commits: vec![held.clone()],
         index: worktree_git_dir.join("index"),
@@ -313,8 +483,18 @@ fn a_held_commit_a_merge_lands(label: &str) -> HeldScene {
     // Meanwhile main moves on its own, so the merge is a merge and the commit it lands is the linked worktree's.
     std::fs::write(repo.join("main.txt"), b"the main work\n").expect("the main work");
     git(&fixture, repo.as_path(), &["add", "--", "main.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=the main work"]);
-    return HeldScene { fixture, repo, linked, common, held };
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=the main work"],
+    );
+    return HeldScene {
+        fixture,
+        repo,
+        linked,
+        common,
+        held,
+    };
 }
 
 /// What:
@@ -337,11 +517,33 @@ fn a_prune_keeps_the_held_commit_of_a_checkout_that_is_gone() {
     let ran: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "prune"]);
     assert_eq!(ran.code, Some(0), "the prune ran: {}", stderr_of(&ran));
     let said: String = stderr_of(&ran);
-    assert!(said.contains(scene.kept_name().as_str()), "the person is told where the commit is kept: {said}");
-    assert!(said.contains(BRANCH), "the person is told which branch stays where it is: {said}");
-    assert_eq!(git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(), scene.held, "the kept reference names the held commit");
-    assert!(!scene.common.join("worktrees/linked").exists(), "the prune took the registration of the deleted checkout");
-    assert_eq!(scene.object_type_after_maintenance(), "commit", "the commit is not lost with the registration");
+    assert!(
+        said.contains(scene.kept_name().as_str()),
+        "the person is told where the commit is kept: {said}"
+    );
+    assert!(
+        said.contains(BRANCH),
+        "the person is told which branch stays where it is: {said}"
+    );
+    assert_eq!(
+        git_said(
+            &scene.fixture,
+            &scene.repo,
+            &["rev-parse", scene.kept_name().as_str()]
+        )
+        .trim(),
+        scene.held,
+        "the kept reference names the held commit"
+    );
+    assert!(
+        !scene.common.join("worktrees/linked").exists(),
+        "the prune took the registration of the deleted checkout"
+    );
+    assert_eq!(
+        scene.object_type_after_maintenance(),
+        "commit",
+        "the commit is not lost with the registration"
+    );
     remove(&scene.fixture);
 }
 
@@ -360,18 +562,46 @@ fn a_forced_removal_keeps_the_held_commit_beside_a_locked_kept_reference() {
     let scene: HeldScene = a_held_commit("binary-removal-held-kept-locked");
     scene.plant_lock(scene.kept_name().as_str());
     let linked_text: String = scene.linked.display().to_string();
-    let ran: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", "--force", linked_text.as_str()]);
-    assert_eq!(ran.code, Some(0), "the removal the person asked for ran: {}", stderr_of(&ran));
-    let said: String = stderr_of(&ran);
-    assert!(said.contains(scene.rescue_name().as_str()), "the person is told the reference the commit is kept at: {said}");
-    assert!(!scene.linked.exists(), "Git removed the worktree the person asked to remove");
+    let ran: Observed = run_wrapped(
+        &scene.fixture,
+        scene.repo.as_path(),
+        &["worktree", "remove", "--force", linked_text.as_str()],
+    );
     assert_eq!(
-        git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.rescue_name().as_str()]).trim(),
+        ran.code,
+        Some(0),
+        "the removal the person asked for ran: {}",
+        stderr_of(&ran)
+    );
+    let said: String = stderr_of(&ran);
+    assert!(
+        said.contains(scene.rescue_name().as_str()),
+        "the person is told the reference the commit is kept at: {said}"
+    );
+    assert!(
+        !scene.linked.exists(),
+        "Git removed the worktree the person asked to remove"
+    );
+    assert_eq!(
+        git_said(
+            &scene.fixture,
+            &scene.repo,
+            &["rev-parse", scene.rescue_name().as_str()]
+        )
+        .trim(),
         scene.held,
         "the reference beside the locked one names the held commit"
     );
-    assert_eq!(scene.object_type_after_maintenance(), "commit", "the commit is not lost with the worktree");
-    assert_eq!(scene.holders(), scene.rescue_name(), "the reference beside the locked one is the one holder left");
+    assert_eq!(
+        scene.object_type_after_maintenance(),
+        "commit",
+        "the commit is not lost with the worktree"
+    );
+    assert_eq!(
+        scene.holders(),
+        scene.rescue_name(),
+        "the reference beside the locked one is the one holder left"
+    );
     remove(&scene.fixture);
 }
 
@@ -394,32 +624,104 @@ fn a_forced_removal_stops_when_no_reference_can_hold_the_held_commit() {
     scene.plant_lock(scene.kept_name().as_str());
     scene.plant_lock(scene.rescue_name().as_str());
     let linked_text: String = scene.linked.display().to_string();
-    let ran: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", "--force", linked_text.as_str()]);
+    let ran: Observed = run_wrapped(
+        &scene.fixture,
+        scene.repo.as_path(),
+        &["worktree", "remove", "--force", linked_text.as_str()],
+    );
     let said: String = stderr_of(&ran);
-    assert_eq!(ran.code, Some(2), "the command that must stop exits 2: {said}");
-    assert!(said.contains(scene.held.as_str()), "the answer names the commit: {said}");
-    assert!(said.contains(scene.kept_name().as_str()), "the answer names the reference tried first: {said}");
-    assert!(said.contains(scene.rescue_name().as_str()), "the answer names the reference tried beside it: {said}");
-    assert!(said.contains("nothing was removed"), "the answer says nothing changed: {said}");
-    assert!(said.contains(format!("{}.lock", scene.kept_name()).as_str()), "the answer names the lock that stands there: {said}");
-    assert!(said.contains("rm -- "), "the answer gives the command that removes a lock nothing holds: {said}");
-    assert!(scene.linked.is_dir(), "Git never ran, so the worktree is where it was");
-    assert!(scene.common.join("worktrees/linked").is_dir(), "the registration the prune would have taken is where it was");
     assert_eq!(
-        git_said(&scene.fixture, &scene.linked, &["for-each-ref", "--contains", scene.held.as_str(), "--format=%(refname)"]).trim(),
+        ran.code,
+        Some(2),
+        "the command that must stop exits 2: {said}"
+    );
+    assert!(
+        said.contains(scene.held.as_str()),
+        "the answer names the commit: {said}"
+    );
+    assert!(
+        said.contains(scene.kept_name().as_str()),
+        "the answer names the reference tried first: {said}"
+    );
+    assert!(
+        said.contains(scene.rescue_name().as_str()),
+        "the answer names the reference tried beside it: {said}"
+    );
+    assert!(
+        said.contains("nothing was removed"),
+        "the answer says nothing changed: {said}"
+    );
+    assert!(
+        said.contains(format!("{}.lock", scene.kept_name()).as_str()),
+        "the answer names the lock that stands there: {said}"
+    );
+    assert!(
+        said.contains("rm -- "),
+        "the answer gives the command that removes a lock nothing holds: {said}"
+    );
+    assert!(
+        scene.linked.is_dir(),
+        "Git never ran, so the worktree is where it was"
+    );
+    assert!(
+        scene.common.join("worktrees/linked").is_dir(),
+        "the registration the prune would have taken is where it was"
+    );
+    assert_eq!(
+        git_said(
+            &scene.fixture,
+            &scene.linked,
+            &[
+                "for-each-ref",
+                "--contains",
+                scene.held.as_str(),
+                "--format=%(refname)"
+            ]
+        )
+        .trim(),
         format!("refs/worktree/cli-git-service/{SEQ}"),
         "the worktree's own reference still names the commit the answer kept"
     );
     // The person removes the two locks nothing holds and runs the same command again, which is what the answer asks for.
-    std::fs::remove_file(scene.common.join(format!("{}.lock", scene.kept_name()))).expect("the lock on the batch's kept name");
-    std::fs::remove_file(scene.common.join(format!("{}.lock", scene.rescue_name()))).expect("the lock on the name beside it");
-    let again: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", "--force", linked_text.as_str()]);
-    assert_eq!(again.code, Some(0), "the same command keeps the commit once the locks are gone: {}", stderr_of(&again));
+    std::fs::remove_file(scene.common.join(format!("{}.lock", scene.kept_name())))
+        .expect("the lock on the batch's kept name");
+    std::fs::remove_file(scene.common.join(format!("{}.lock", scene.rescue_name())))
+        .expect("the lock on the name beside it");
+    let again: Observed = run_wrapped(
+        &scene.fixture,
+        scene.repo.as_path(),
+        &["worktree", "remove", "--force", linked_text.as_str()],
+    );
+    assert_eq!(
+        again.code,
+        Some(0),
+        "the same command keeps the commit once the locks are gone: {}",
+        stderr_of(&again)
+    );
     let said_again: String = stderr_of(&again);
-    assert!(said_again.contains(scene.kept_name().as_str()), "the second answer names the reference the commit is kept at: {said_again}");
-    assert!(!scene.linked.exists(), "the removal the person asked for ran the second time");
-    assert_eq!(git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(), scene.held, "the kept reference names the held commit");
-    assert_eq!(scene.object_type_after_maintenance(), "commit", "the commit survives the maintenance the answer made room for");
+    assert!(
+        said_again.contains(scene.kept_name().as_str()),
+        "the second answer names the reference the commit is kept at: {said_again}"
+    );
+    assert!(
+        !scene.linked.exists(),
+        "the removal the person asked for ran the second time"
+    );
+    assert_eq!(
+        git_said(
+            &scene.fixture,
+            &scene.repo,
+            &["rev-parse", scene.kept_name().as_str()]
+        )
+        .trim(),
+        scene.held,
+        "the kept reference names the held commit"
+    );
+    assert_eq!(
+        scene.object_type_after_maintenance(),
+        "commit",
+        "the commit survives the maintenance the answer made room for"
+    );
     remove(&scene.fixture);
 }
 
@@ -441,36 +743,95 @@ fn a_forced_removal_stops_when_no_reference_can_hold_the_held_commit() {
 #[test]
 fn a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes() {
     let scene: HeldScene = a_held_commit_a_merge_lands("binary-removal-held-landed-sweep");
-    let branch_tip: String = git_said(&scene.fixture, &scene.repo, &["rev-parse", format!("refs/heads/{BRANCH}").as_str()]).trim().to_string();
+    let branch_tip: String = git_said(
+        &scene.fixture,
+        &scene.repo,
+        &["rev-parse", format!("refs/heads/{BRANCH}").as_str()],
+    )
+    .trim()
+    .to_string();
     assert_eq!(
-        git_said(&scene.fixture, &scene.repo, &["rev-parse", format!("{}^", scene.held).as_str()]).trim(),
+        git_said(
+            &scene.fixture,
+            &scene.repo,
+            &["rev-parse", format!("{}^", scene.held).as_str()]
+        )
+        .trim(),
         branch_tip,
         "the held commit is the child of the commit the branch kept, so the branch did not land it"
     );
     assert_eq!(
-        git_said(&scene.fixture, &scene.linked, &["for-each-ref", "--contains", scene.held.as_str(), "--format=%(refname)"]).trim(),
+        git_said(
+            &scene.fixture,
+            &scene.linked,
+            &[
+                "for-each-ref",
+                "--contains",
+                scene.held.as_str(),
+                "--format=%(refname)"
+            ]
+        )
+        .trim(),
         format!("refs/worktree/cli-git-service/{SEQ}"),
         "the worktree's own reference is the only thing that names the commit the removal would take"
     );
     let ran: Observed = observe(
-        &mut wrapped_commit(&scene.fixture, scene.repo.as_path(), &["merge", "--no-edit", "--no-ff", "--message=land the feature", BRANCH]),
+        &mut wrapped_commit(
+            &scene.fixture,
+            scene.repo.as_path(),
+            &[
+                "merge",
+                "--no-edit",
+                "--no-ff",
+                "--message=land the feature",
+                BRANCH,
+            ],
+        ),
         b"",
     );
     let said: String = stderr_of(&ran);
     assert_eq!(ran.code, Some(0), "the merge ran: {said}");
-    assert!(said.contains(scene.kept_name().as_str()), "the person is told where the commit is kept: {said}");
+    assert!(
+        said.contains(scene.kept_name().as_str()),
+        "the person is told where the commit is kept: {said}"
+    );
     // The merge records the removal for the commit service and returns, so the worktree stands until that service has
     // run Git there: the control waits for the outcome the merge named instead of reading the state the merge may
     // leave (issue 6345), and a worktree that stays is the product's own answer, with its words below.
-    the_handed_over_removal_finishes(&scene, said.as_str()).expect("the removal the merge handed over finished");
-    assert!(!scene.linked.exists(), "the sweep removed the worktree whose branch landed: {said}");
-    assert!(!scene.common.join(LINKED_REGISTRATION).exists(), "the removal took the worktree's registration: {said}");
-    assert_eq!(git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(), scene.held, "the kept reference names the held commit");
+    the_handed_over_removal_finishes(&scene, said.as_str())
+        .expect("the removal the merge handed over finished");
+    assert!(
+        !scene.linked.exists(),
+        "the sweep removed the worktree whose branch landed: {said}"
+    );
+    assert!(
+        !scene.common.join(LINKED_REGISTRATION).exists(),
+        "the removal took the worktree's registration: {said}"
+    );
     assert_eq!(
-        git_said(&scene.fixture, &scene.repo, &["rev-parse", format!("refs/heads/{BRANCH}").as_str()]).trim(),
+        git_said(
+            &scene.fixture,
+            &scene.repo,
+            &["rev-parse", scene.kept_name().as_str()]
+        )
+        .trim(),
+        scene.held,
+        "the kept reference names the held commit"
+    );
+    assert_eq!(
+        git_said(
+            &scene.fixture,
+            &scene.repo,
+            &["rev-parse", format!("refs/heads/{BRANCH}").as_str()]
+        )
+        .trim(),
         branch_tip,
         "the branch the person has to move by hand stays where the lock left it"
     );
-    assert_eq!(scene.object_type_after_maintenance(), "commit", "the commit is not lost with the worktree the merge removed");
+    assert_eq!(
+        scene.object_type_after_maintenance(),
+        "commit",
+        "the commit is not lost with the worktree the merge removed"
+    );
     remove(&scene.fixture);
 }

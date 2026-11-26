@@ -90,20 +90,39 @@ pub mod holder_scan_acceptance;
 
 /// One mount of the dataset.
 pub use held_mounts::HeldMount;
-/// One namespace and its mounts of the dataset.
-pub use namespace_holder::NamespaceHolder;
-/// Every read the scan could not complete.
-pub use incomplete_reads::IncompleteRead;
 /// The scan,
 /// its request,
 /// its bounds and its value.
-pub use holder_scan::{HolderScan, HolderScanRequest, MAXIMUM_DETAIL_LINES, MAXIMUM_MOUNTS_PER_NAMESPACE, MAXIMUM_MOUNT_NAMESPACES, MAXIMUM_REASON_BYTES, scan_holders};
+pub use holder_scan::{
+    HolderScan,
+    HolderScanRequest,
+    MAXIMUM_DETAIL_LINES,
+    MAXIMUM_MOUNT_NAMESPACES,
+    MAXIMUM_MOUNTS_PER_NAMESPACE,
+    MAXIMUM_REASON_BYTES,
+    scan_holders,
+};
+/// Whether a result answers the request at hand.
+pub use holder_scan_acceptance::{
+    ScanExpectation,
+    StaleResult,
+};
+/// Reading that text back.
+pub use holder_scan_parse::parse_holder_scan;
 /// Why a text is not a result.
 pub use holder_scan_refusals::HolderScanRefusal;
 /// The result's text,
 /// its escaping and its bound.
-pub use holder_scan_text::{MAXIMUM_RESULT_BYTES, RESULT_KIND, RESULT_VERSION, escape_path, escape_text, unescape_path, unescape_text};
-/// Reading that text back.
-pub use holder_scan_parse::parse_holder_scan;
-/// Whether a result answers the request at hand.
-pub use holder_scan_acceptance::{ScanExpectation, StaleResult};
+pub use holder_scan_text::{
+    MAXIMUM_RESULT_BYTES,
+    RESULT_KIND,
+    RESULT_VERSION,
+    escape_path,
+    escape_text,
+    unescape_path,
+    unescape_text,
+};
+/// Every read the scan could not complete.
+pub use incomplete_reads::IncompleteRead;
+/// One namespace and its mounts of the dataset.
+pub use namespace_holder::NamespaceHolder;

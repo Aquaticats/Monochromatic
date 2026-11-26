@@ -28,7 +28,12 @@ use super::repository_facts_ignored_files::tree_paths;
 /// The captured-query runner's output type.
 use crate::git_metadata::MetadataOutput;
 /// The readings of one `git ls-files --others` answer over the asked paths.
-use crate::rule_worktree_dirty::{nul_separated_paths, replaced_answers, untracked_paths_queries, with_ancestors};
+use crate::rule_worktree_dirty::{
+    nul_separated_paths,
+    replaced_answers,
+    untracked_paths_queries,
+    with_ancestors,
+};
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
 
@@ -49,7 +54,10 @@ use std::ffi::OsStr;
 /// ```ts
 /// async function untrackedFilesTheTreeTracks(facts: GitFacts, revision: string): Promise<string[]>;
 /// ```
-pub(super) fn untracked_files_the_tree_tracks(facts: &mut GitFacts, revision: &OsStr) -> Result<Vec<String>, String> {
+pub(super) fn untracked_files_the_tree_tracks(
+    facts: &mut GitFacts,
+    revision: &OsStr,
+) -> Result<Vec<String>, String> {
     let Some(tracked) = tree_paths(facts, revision)? else {
         return Err(format!(
             "monochromatic-git-policy-cli could not read the tree of {} , so the worktree's untracked files cannot be compared with the tree this command writes into.",
@@ -73,7 +81,11 @@ pub(super) fn untracked_files_the_tree_tracks(facts: &mut GitFacts, revision: &O
                 .to_string();
             return Err(format!("Git could not read the untracked files: {detail}"));
         }
-        for path in replaced_answers(asked.as_slice(), tracked.as_slice(), nul_separated_paths(output.stdout.as_slice()).as_slice()) {
+        for path in replaced_answers(
+            asked.as_slice(),
+            tracked.as_slice(),
+            nul_separated_paths(output.stdout.as_slice()).as_slice(),
+        ) {
             shared.push(String::from_utf8_lossy(path.as_slice()).into_owned());
         }
     }

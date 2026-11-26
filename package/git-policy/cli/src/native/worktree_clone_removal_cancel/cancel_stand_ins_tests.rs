@@ -22,22 +22,56 @@
 
 use crate::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
-use crate::worktree_clone_mount_handler::sweep_dataset_reader::{DatasetReader, ListedChild, ReadFailure};
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation, intent_text};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::{
+    DatasetReader,
+    ListedChild,
+    ReadFailure,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    MountOperation,
+    intent_text,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_SNAPSHOT, RemovalFixture, ScriptedPool, SLOT, guid, the_stats};
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::the_removal_claim::{HeldClaim, TheRemovalClaim};
-use crate::worktree_clone_removal_cancel::the_reversing_request::{MountAnswer, MountIdentity, TheMountRequest};
-use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, NvList};
+use crate::worktree_clone_removal_cancel::the_removal_claim::{
+    HeldClaim,
+    TheRemovalClaim,
+};
+use crate::worktree_clone_removal_cancel::the_reversing_request::{
+    MountAnswer,
+    MountIdentity,
+    TheMountRequest,
+};
+use crate::worktree_clone_removal_cancel::the_staged_state::{
+    StagedSettlement,
+    TheStagedFolder,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
+    CLONE,
+    CLONE_CREATETXG,
+    CLONE_GUID,
+    ORIGIN_SNAPSHOT,
+    RemovalFixture,
+    SLOT,
+    ScriptedPool,
+    guid,
+    the_stats,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    NvList,
+};
 use std::cell::RefCell;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// What one seam was asked for,
@@ -100,11 +134,16 @@ pub fn a_recorded_binding() -> RecordedBinding {
 /// ```ts
 /// const path = aPlanThatStands(common, plan);
 /// ```
-pub fn a_plan_that_stands(common: &Path, plan: &DestructionPlan) -> PathBuf {
+pub fn a_plan_that_stands(
+    common: &Path,
+    plan: &DestructionPlan,
+) -> PathBuf {
     let folder: PathBuf = plans_folder(common);
-    crate::private_storage::create_private_directory_all(folder.as_path()).expect("the plan folder");
+    crate::private_storage::create_private_directory_all(folder.as_path())
+        .expect("the plan folder");
     let path: PathBuf = folder.join(plan.facts.clone_guid.file_name());
-    std::fs::write(path.as_path(), plan.encode().expect("the plan encodes")).expect("the plan file");
+    std::fs::write(path.as_path(), plan.encode().expect("the plan encodes"))
+        .expect("the plan file");
     return path;
 }
 
@@ -122,9 +161,17 @@ pub fn a_plan_that_stands(common: &Path, plan: &DestructionPlan) -> PathBuf {
 /// ```
 pub fn a_repository_with_its_pointer(name: &str) -> (RemovalFixture, PathBuf) {
     let fixture: RemovalFixture = RemovalFixture::healthy(name);
-    let checkout: PathBuf = fixture.common_dir.parent().expect("the common directory is inside the checkout").to_path_buf();
+    let checkout: PathBuf = fixture
+        .common_dir
+        .parent()
+        .expect("the common directory is inside the checkout")
+        .to_path_buf();
     let registration: PathBuf = checkout.join(".git").join("worktrees").join(SLOT);
-    std::fs::write(fixture.slot_path.join(".git").as_path(), format!("gitdir: {}\n", registration.display())).expect("the slot's pointer");
+    std::fs::write(
+        fixture.slot_path.join(".git").as_path(),
+        format!("gitdir: {}\n", registration.display()),
+    )
+    .expect("the slot's pointer");
     return (fixture, checkout);
 }
 
@@ -143,7 +190,10 @@ pub fn a_repository_with_its_pointer(name: &str) -> (RemovalFixture, PathBuf) {
 /// ```
 pub fn an_intent_property(intent: &MountIntent) -> NvList {
     let mut inner: NvList = NvList::new();
-    inner.add_str("value", intent_text(intent.operation, &intent.nonce).as_str());
+    inner.add_str(
+        "value",
+        intent_text(intent.operation, &intent.nonce).as_str(),
+    );
     inner.add_str("source", CLONE);
     let mut properties: NvList = NvList::new();
     properties.add_nvlist(DESIRED_STATE_PROPERTY, inner);
@@ -151,11 +201,21 @@ pub fn an_intent_property(intent: &MountIntent) -> NvList {
 }
 
 /// One clone's own request as the pool's reply.
-pub fn a_pool_carrying(fixture: &RemovalFixture, operation: MountOperation) -> ScriptedPool {
-    let intent: MountIntent = MountIntent { operation, nonce: a_nonce() };
-    return fixture
-        .healthy_pool()
-        .with(CLONE, DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT), properties: an_intent_property(&intent) });
+pub fn a_pool_carrying(
+    fixture: &RemovalFixture,
+    operation: MountOperation,
+) -> ScriptedPool {
+    let intent: MountIntent = MountIntent {
+        operation,
+        nonce: a_nonce(),
+    };
+    return fixture.healthy_pool().with(
+        CLONE,
+        DatasetIdentity {
+            stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT),
+            properties: an_intent_property(&intent),
+        },
+    );
 }
 
 /// What:
@@ -169,13 +229,20 @@ pub fn a_pool_carrying(fixture: &RemovalFixture, operation: MountOperation) -> S
 /// ```ts
 /// const answer = anWholeAnswer(slotPath, 11);
 /// ```
-pub fn an_whole_answer(slot_path: &Path, mount_id: u64) -> MountAnswer {
+pub fn an_whole_answer(
+    slot_path: &Path,
+    mount_id: u64,
+) -> MountAnswer {
     return MountAnswer {
         dataset: guid(CLONE_GUID),
         operation: MountOperation::Mount,
         nonce: a_nonce(),
         outcome: ReceiptOutcome::Done,
-        mount: Some(MountIdentity { mount_id, source: String::from(CLONE), canonical_path: slot_path.display().to_string() }),
+        mount: Some(MountIdentity {
+            mount_id,
+            source: String::from(CLONE),
+            canonical_path: slot_path.display().to_string(),
+        }),
         failed_step: None,
         errno: None,
     };
@@ -190,11 +257,21 @@ pub fn an_whole_answer(slot_path: &Path, mount_id: u64) -> MountAnswer {
 pub struct NeverRead;
 
 impl DatasetReader for NeverRead {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
-        return Err(ReadFailure { said: format!("the control does not read `{dataset}`"), errno: None });
+    fn identity(
+        &self,
+        dataset: &str,
+    ) -> Result<DatasetIdentity, ReadFailure> {
+        return Err(ReadFailure {
+            said: format!("the control does not read `{dataset}`"),
+            errno: None,
+        });
     }
 
-    fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+    fn next_child(
+        &self,
+        _parent: &str,
+        _cursor: u64,
+    ) -> Result<Option<ListedChild>, String> {
         return Err(String::from("the control does not walk the parent"));
     }
 }
@@ -213,11 +290,21 @@ pub struct RecordingMountRequest {
 }
 
 impl TheMountRequest for RecordingMountRequest {
-    fn request_the_mount(&self, intent: &MountIntent) -> Result<MountAnswer, CancelRefusal> {
-        self.order.borrow_mut().push(format!("request:{}:{}", intent.operation.word(), intent.nonce.as_str()));
+    fn request_the_mount(
+        &self,
+        intent: &MountIntent,
+    ) -> Result<MountAnswer, CancelRefusal> {
+        self.order.borrow_mut().push(format!(
+            "request:{}:{}",
+            intent.operation.word(),
+            intent.nonce.as_str()
+        ));
         return match &self.answer {
             // A handler answers under the request's own nonce, so the stand-in does too.
-            Ok(answer) => Ok(MountAnswer { nonce: intent.nonce.clone(), ..answer.clone() }),
+            Ok(answer) => Ok(MountAnswer {
+                nonce: intent.nonce.clone(),
+                ..answer.clone()
+            }),
             Err(refusal) => Err(refusal.clone()),
         };
     }
@@ -236,7 +323,10 @@ pub struct ScriptedStaged {
 }
 
 impl TheStagedFolder for ScriptedStaged {
-    fn settle(&self, _clone_guid: DatasetGuid) -> StagedSettlement {
+    fn settle(
+        &self,
+        _clone_guid: DatasetGuid,
+    ) -> StagedSettlement {
         self.order.borrow_mut().push(String::from("staged"));
         return self.settlement.clone();
     }
@@ -256,7 +346,10 @@ pub struct ScriptedClaim {
 }
 
 impl TheRemovalClaim for ScriptedClaim {
-    fn take(&self, slot: &str) -> Result<HeldClaim, CancelRefusal> {
+    fn take(
+        &self,
+        slot: &str,
+    ) -> Result<HeldClaim, CancelRefusal> {
         self.order.borrow_mut().push(format!("claim:{slot}"));
         return match &self.refusal {
             Some(refusal) => Err(refusal.clone()),

@@ -13,14 +13,42 @@
 //! (`testing/real_git_lfs_the_run_requires.rs`).
 
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, fixture, git, observe, repository, stderr_of};
+use super::support::{
+    Fixture,
+    Observed,
+    REAL_GIT,
+    decline_in_process_lfs_scan,
+    direct,
+    fixture,
+    git,
+    observe,
+    repository,
+    stderr_of,
+};
 use std::ffi::OsStr;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{
+    BufRead,
+    BufReader,
+    Read,
+    Write,
+};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
 use std::os::unix::fs::PermissionsExt;
-use std::net::{TcpListener, TcpStream};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -82,8 +110,14 @@ fn origin_main(origin: &Path) -> String {
         .args(["rev-parse", "--verify", "--quiet", "refs/heads/main"])
         .output()
         .expect("rev-parse starts");
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return if text.is_empty() { String::from("absent") } else { text };
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
+    return if text.is_empty() {
+        String::from("absent")
+    } else {
+        text
+    };
 }
 
 /// Read one request:
@@ -113,7 +147,11 @@ fn read_request(stream: &TcpStream) -> Option<(String, Vec<u8>)> {
 }
 
 /// Write one response with a body and close the connection.
-fn respond(stream: &TcpStream, status: &str, body: &str) {
+fn respond(
+    stream: &TcpStream,
+    status: &str,
+    body: &str,
+) {
     return respond_with(stream, status, "", body);
 }
 
@@ -121,7 +159,12 @@ fn respond(stream: &TcpStream, status: &str, body: &str) {
 /// the headers `extra` adds
 /// (each line terminated by `\r\n`)
 /// and a closed connection.
-fn respond_with(mut stream: &TcpStream, status: &str, extra: &str, body: &str) {
+fn respond_with(
+    mut stream: &TcpStream,
+    status: &str,
+    extra: &str,
+    body: &str,
+) {
     let text: String = format!(
         "HTTP/1.1 {status}\r\nContent-Type: application/vnd.git-lfs+json\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
@@ -132,7 +175,12 @@ fn respond_with(mut stream: &TcpStream, status: &str, extra: &str, body: &str) {
 
 /// Answer one request of the batch API,
 /// the lock-verification endpoint or the basic upload.
-fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState>) {
+fn serve(
+    stream: &TcpStream,
+    port: u16,
+    origin: &Path,
+    state: &Mutex<ServerState>,
+) {
     let Some((request_line, body)) = read_request(stream) else {
         return;
     };
@@ -158,7 +206,11 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
             return;
         }
         if state.lock().expect("state").refuse_batch {
-            respond(stream, "403 Forbidden", "{\"message\":\"the fixture server refuses every batch\"}");
+            respond(
+                stream,
+                "403 Forbidden",
+                "{\"message\":\"the fixture server refuses every batch\"}",
+            );
             return;
         }
         let asked: serde_json::Value = serde_json::from_slice(body.as_slice()).unwrap_or_default();
@@ -167,10 +219,20 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
             .cloned()
             .unwrap_or_default()
             .iter()
-            .map(|object| { return object["oid"].as_str().unwrap_or_default().to_owned(); })
+            .map(|object| {
+                return object["oid"].as_str().unwrap_or_default().to_owned();
+            })
             .collect();
         state.lock().expect("state").asked.extend(asked_names);
-        let known: Vec<String> = state.lock().expect("state").uploads.iter().map(|upload| { return upload.oid.clone(); }).collect();
+        let known: Vec<String> = state
+            .lock()
+            .expect("state")
+            .uploads
+            .iter()
+            .map(|upload| {
+                return upload.oid.clone();
+            })
+            .collect();
         // Built as text: the objects only carry hexadecimal names and whole numbers.
         let objects: Vec<String> = asked["objects"]
             .as_array()
@@ -188,16 +250,32 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
                 );
             })
             .collect();
-        respond(stream, "200 OK", format!("{{\"transfer\":\"basic\",\"objects\":[{}]}}", objects.join(",")).as_str());
+        respond(
+            stream,
+            "200 OK",
+            format!(
+                "{{\"transfer\":\"basic\",\"objects\":[{}]}}",
+                objects.join(",")
+            )
+            .as_str(),
+        );
     } else if request_line.starts_with("POST /lfs/locks/verify ") {
         respond(stream, "200 OK", "{\"ours\":[],\"theirs\":[]}");
     } else if let Some(rest) = request_line.strip_prefix("PUT /lfs/objects/") {
         let oid: String = rest.split(' ').next().unwrap_or_default().to_owned();
         let seen: String = origin_main(origin);
-        state.lock().expect("state").uploads.push(Upload { oid, bytes: body, origin_main: seen });
+        state.lock().expect("state").uploads.push(Upload {
+            oid,
+            bytes: body,
+            origin_main: seen,
+        });
         respond(stream, "200 OK", "{}");
     } else {
-        respond(stream, "404 Not Found", "{\"message\":\"unknown endpoint\"}");
+        respond(
+            stream,
+            "404 Not Found",
+            "{\"message\":\"unknown endpoint\"}",
+        );
     }
 }
 
@@ -223,7 +301,13 @@ impl LfsServer {
                 serve(&stream, port, origin.as_path(), &thread_state);
             }
         });
-        return Self { port, state, stop, thread: Some(thread), hooks: None };
+        return Self {
+            port,
+            state,
+            stop,
+            thread: Some(thread),
+            hooks: None,
+        };
     }
 
     /// The uploads so far.
@@ -253,7 +337,9 @@ impl Drop for LfsServer {
 /// The real `git-lfs` on the test process's PATH,
 /// or nothing with the line that says the real upload was not exercised.
 fn real_lfs_program() -> Option<PathBuf> {
-    return super::real_git_lfs_the_run_requires::required("the real LFS upload against the server of this file");
+    return super::real_git_lfs_the_run_requires::required(
+        "the real LFS upload against the server of this file",
+    );
 }
 
 /// A repository wired to the real `git-lfs` and the server,
@@ -264,8 +350,22 @@ fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)
     std::os::unix::fs::symlink(program, fixture.root.join("bin/git-lfs")).expect("git-lfs link");
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
-    git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
-    git(fixture, repo.as_path(), &["remote", "add", "origin", origin.to_str().expect("UTF-8")]);
+    git(
+        fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "origin.git",
+        ],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", origin.to_str().expect("UTF-8")],
+    );
     let mut server: LfsServer = LfsServer::start(origin.clone());
     let settings: [(&str, String); 7] = [
         ("filter.lfs.clean", String::from("git-lfs clean -- %f")),
@@ -279,12 +379,24 @@ fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)
     for (key, value) in settings {
         git(fixture, repo.as_path(), &["config", key, value.as_str()]);
     }
-    std::fs::write(repo.join(".gitattributes"), b"*.bin filter=lfs diff=lfs merge=lfs -text\n").expect("attributes");
-    let content: Vec<u8> = (0..4096_u32).map(|index| { return u8::try_from(index % 251).expect("below 256"); }).collect();
+    std::fs::write(
+        repo.join(".gitattributes"),
+        b"*.bin filter=lfs diff=lfs merge=lfs -text\n",
+    )
+    .expect("attributes");
+    let content: Vec<u8> = (0..4096_u32)
+        .map(|index| {
+            return u8::try_from(index % 251).expect("below 256");
+        })
+        .collect();
     std::fs::write(repo.join("big.bin"), content.as_slice()).expect("big.bin");
     // `git add` runs the clean filter, which needs `git-lfs` on PATH; the direct helper's PATH has none.
     let added: Observed = observe(
-        &mut super::commit::wrapped_commit(fixture, repo.as_path(), &["add", "--", ".gitattributes", "big.bin"]),
+        &mut super::commit::wrapped_commit(
+            fixture,
+            repo.as_path(),
+            &["add", "--", ".gitattributes", "big.bin"],
+        ),
         b"",
     );
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
@@ -297,7 +409,11 @@ fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)
         .args(["commit", "--quiet", "--message=lfs"])
         .output()
         .expect("commit starts");
-    assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(committed.stderr.as_slice())
+    );
     // `git-lfs` writes its four hook shims into the repository whenever its filter runs, which would make the real
     //  program upload through a traditional hook and hide a missing wrapper hook. The shims go, and the directory
     //  stays read-only until the server is dropped, so the upload under test can only come from the wrapper.
@@ -306,7 +422,8 @@ fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)
         // A shim that was never written needs no removal.
         let _removed = std::fs::remove_file(hooks.join(shim));
     }
-    std::fs::set_permissions(&hooks, std::fs::Permissions::from_mode(0o555)).expect("read-only hooks directory");
+    std::fs::set_permissions(&hooks, std::fs::Permissions::from_mode(0o555))
+        .expect("read-only hooks directory");
     server.hooks = Some(hooks);
     return Some((repo, origin, server, content));
 }
@@ -333,29 +450,47 @@ fn the_real_upload_fails_where_the_run_requires_the_program_and_path_finds_none(
 }
 
 /// The object name a pointer file at `rev:path` records.
-fn pointer_oid_at(fixture: &Fixture, repo: &Path, rev_path: &str) -> String {
+fn pointer_oid_at(
+    fixture: &Fixture,
+    repo: &Path,
+    rev_path: &str,
+) -> String {
     let pointer: String = super::commit::git_text(fixture, repo, &["cat-file", "blob", rev_path]);
     return pointer
         .lines()
-        .find_map(|line| { return line.strip_prefix("oid sha256:"); })
+        .find_map(|line| {
+            return line.strip_prefix("oid sha256:");
+        })
         .expect("a pointer file has an oid line")
         .to_owned();
 }
 
 /// The object name the pointer file at `HEAD:big.bin` records.
-fn pointer_oid(fixture: &Fixture, repo: &Path) -> String {
+fn pointer_oid(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     return pointer_oid_at(fixture, repo, "HEAD:big.bin");
 }
 
 /// The origin's `main` seen from outside.
-fn published_main(fixture: &Fixture, origin: &Path) -> String {
+fn published_main(
+    fixture: &Fixture,
+    origin: &Path,
+) -> String {
     let output = direct(fixture)
         .current_dir(origin)
         .args(["rev-parse", "--verify", "--quiet", "refs/heads/main"])
         .output()
         .expect("rev-parse starts");
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return if text.is_empty() { String::from("absent") } else { text };
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
+    return if text.is_empty() {
+        String::from("absent")
+    } else {
+        text
+    };
 }
 
 /// The object reaches the server before the ref reaches the origin,
@@ -375,9 +510,19 @@ fn the_real_upload_delivers_the_object_before_the_ref() {
     let uploads: Vec<Upload> = server.uploads();
     assert_eq!(uploads.len(), 1, "one object was uploaded: {stderr}");
     assert_eq!(uploads[0].oid, pointer_oid(&fixture, repo.as_path()));
-    assert_eq!(uploads[0].bytes, content, "the server holds the file's bytes");
-    assert_eq!(uploads[0].origin_main, "absent", "the object arrived before the ref moved");
-    assert_ne!(published_main(&fixture, origin.as_path()), "absent", "the ref moved after the upload: {stderr}");
+    assert_eq!(
+        uploads[0].bytes, content,
+        "the server holds the file's bytes"
+    );
+    assert_eq!(
+        uploads[0].origin_main, "absent",
+        "the object arrived before the ref moved"
+    );
+    assert_ne!(
+        published_main(&fixture, origin.as_path()),
+        "absent",
+        "the ref moved after the upload: {stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -397,11 +542,22 @@ fn a_refused_upload_publishes_no_pointer() {
     );
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
-    assert!(stderr.contains("`git-lfs push` exited with status"), "{stderr}");
+    assert!(
+        stderr.contains("`git-lfs push` exited with status"),
+        "{stderr}"
+    );
     assert!(stderr.contains("nothing was published"), "{stderr}");
-    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
+    assert_eq!(
+        published_main(&fixture, origin.as_path()),
+        "absent",
+        "{stderr}"
+    );
     assert!(server.uploads().is_empty());
-    assert_eq!(batches(&server), 1, "a refused credential is asked once, never retried: {stderr}");
+    assert_eq!(
+        batches(&server),
+        1,
+        "a refused credential is asked once, never retried: {stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -414,23 +570,44 @@ fn the_real_upload_precedes_the_auto_push_of_a_commit() {
     let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
         return;
     };
-    std::fs::write(repo.join("second.bin"), [content.as_slice(), b"second"].concat()).expect("second.bin");
+    std::fs::write(
+        repo.join("second.bin"),
+        [content.as_slice(), b"second"].concat(),
+    )
+    .expect("second.bin");
     let added: Observed = observe(
         &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["add", "--", "second.bin"]),
         b"",
     );
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let landed: Observed = observe(
-        &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "second.bin"]),
+        &mut super::commit::wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=second", "--", "second.bin"],
+        ),
         b"",
     );
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "{stderr}");
     assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
     let uploads: Vec<Upload> = server.uploads();
-    assert_eq!(uploads.len(), 2, "both LFS objects of the branch were uploaded: {stderr}");
-    assert!(uploads.iter().all(|upload| { return upload.origin_main == "absent"; }), "{uploads:?}");
-    assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
+    assert_eq!(
+        uploads.len(),
+        2,
+        "both LFS objects of the branch were uploaded: {stderr}"
+    );
+    assert!(
+        uploads.iter().all(|upload| {
+            return upload.origin_main == "absent";
+        }),
+        "{uploads:?}"
+    );
+    assert_ne!(
+        published_main(&fixture, origin.as_path()),
+        "absent",
+        "{stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -447,7 +624,11 @@ fn asked_objects(server: &LfsServer) -> Vec<String> {
 }
 
 /// A wrapped `git push origin main` with extra environment variables.
-fn push_main(fixture: &Fixture, repo: &Path, variables: &[(&str, &str)]) -> Observed {
+fn push_main(
+    fixture: &Fixture,
+    repo: &Path,
+    variables: &[(&str, &str)],
+) -> Observed {
     let mut command = super::commit::wrapped_commit(fixture, repo, &["push", "origin", "main"]);
     command.envs(variables.iter().copied());
     return observe(&mut command, b"");
@@ -455,21 +636,37 @@ fn push_main(fixture: &Fixture, repo: &Path, variables: &[(&str, &str)]) -> Obse
 
 /// A commit that adds no file,
 /// made by real Git so that no auto-push runs.
-fn empty_commit(fixture: &Fixture, repo: &Path) {
+fn empty_commit(
+    fixture: &Fixture,
+    repo: &Path,
+) {
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
     let committed = direct(fixture)
         .current_dir(repo)
         .env("PATH", path)
-        .args(["commit", "--quiet", "--allow-empty", "--message=no new object"])
+        .args([
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message=no new object",
+        ])
         .output()
         .expect("commit starts");
-    assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(committed.stderr.as_slice())
+    );
 }
 
 /// Point the clone at the server through a URL that carries a user and a token,
 /// as the incident's `lfs.url` did.
-fn use_credentialed_url(fixture: &Fixture, repo: &Path, server: &LfsServer) {
+fn use_credentialed_url(
+    fixture: &Fixture,
+    repo: &Path,
+    server: &LfsServer,
+) {
     let url: String = format!("http://user:secret@127.0.0.1:{}/lfs", server.port);
     git(fixture, repo, &["config", "lfs.url", url.as_str()]);
 }
@@ -485,14 +682,24 @@ fn a_push_that_adds_no_object_sends_no_batch_request() {
     let first: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let after_first: usize = batches(&server);
-    assert!(after_first >= 1, "the first push uploaded its object through the batch API");
+    assert!(
+        after_first >= 1,
+        "the first push uploaded its object through the batch API"
+    );
     empty_commit(&fixture, repo.as_path());
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&second);
     assert_eq!(second.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), after_first, "the second push added no object, so no batch request: {stderr}");
+    assert_eq!(
+        batches(&server),
+        after_first,
+        "the second push added no object, so no batch request: {stderr}"
+    );
     assert_eq!(server.uploads().len(), 1);
-    assert_eq!(published_main(&fixture, origin.as_path()), super::commit::git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim());
+    assert_eq!(
+        published_main(&fixture, origin.as_path()),
+        super::commit::git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim()
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -505,11 +712,24 @@ fn a_push_that_adds_no_object_sends_no_batch_request() {
 /// the destination reports `other` at
 ///  another commit,
 /// so only the tracking ref of the pushed branch describes the destination.
-fn stale_tracking_ref_for_another_branch(fixture: &Fixture, repo: &Path, origin: &Path) {
+fn stale_tracking_ref_for_another_branch(
+    fixture: &Fixture,
+    repo: &Path,
+    origin: &Path,
+) {
     let tip: String = super::commit::git_text(fixture, repo, &["rev-parse", "refs/heads/main"]);
-    let behind: String = super::commit::git_text(fixture, repo, &["rev-parse", "refs/heads/main~1"]);
-    git(fixture, origin, &["update-ref", "refs/heads/other", tip.trim()]);
-    git(fixture, repo, &["update-ref", "refs/remotes/origin/other", behind.trim()]);
+    let behind: String =
+        super::commit::git_text(fixture, repo, &["rev-parse", "refs/heads/main~1"]);
+    git(
+        fixture,
+        origin,
+        &["update-ref", "refs/heads/other", tip.trim()],
+    );
+    git(
+        fixture,
+        repo,
+        &["update-ref", "refs/remotes/origin/other", behind.trim()],
+    );
 }
 
 /// What:
@@ -532,22 +752,52 @@ fn a_stale_tracking_ref_drops_only_itself() {
     };
     let first: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
-    let known: String = commit_lfs_file(&fixture, repo.as_path(), "second.bin", [content.as_slice(), b"second"].concat().as_slice());
+    let known: String = commit_lfs_file(
+        &fixture,
+        repo.as_path(),
+        "second.bin",
+        [content.as_slice(), b"second"].concat().as_slice(),
+    );
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
     let log: PathBuf = record_git_lfs(&fixture);
     stale_tracking_ref_for_another_branch(&fixture, repo.as_path(), origin.as_path());
-    let added: String = commit_lfs_file(&fixture, repo.as_path(), "third.bin", [content.as_slice(), b"third"].concat().as_slice());
+    let added: String = commit_lfs_file(
+        &fixture,
+        repo.as_path(),
+        "third.bin",
+        [content.as_slice(), b"third"].concat().as_slice(),
+    );
     let after_second: usize = batches(&server);
     let asked_before: usize = asked_objects(&server).len();
     let third: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&third);
     assert_eq!(third.code, Some(0), "{stderr}");
-    assert_eq!(recorded_runs(log.as_path()), vec![format!("push --object-id origin {added}")], "only the object this push adds is named: {stderr}");
-    let asked: Vec<String> = asked_objects(&server).into_iter().skip(asked_before).collect();
-    assert_eq!(asked, vec![added.clone()], "the server is asked about one object, as `main` asks: {stderr}");
-    assert_eq!(batches(&server), after_second + 1, "one batch request, as `main` sends: {stderr}");
-    assert!(server.uploads().iter().any(|upload| { return upload.oid == known; }), "the object the earlier push sent reached the server");
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        vec![format!("push --object-id origin {added}")],
+        "only the object this push adds is named: {stderr}"
+    );
+    let asked: Vec<String> = asked_objects(&server)
+        .into_iter()
+        .skip(asked_before)
+        .collect();
+    assert_eq!(
+        asked,
+        vec![added.clone()],
+        "the server is asked about one object, as `main` asks: {stderr}"
+    );
+    assert_eq!(
+        batches(&server),
+        after_second + 1,
+        "one batch request, as `main` sends: {stderr}"
+    );
+    assert!(
+        server.uploads().iter().any(|upload| {
+            return upload.oid == known;
+        }),
+        "the object the earlier push sent reached the server"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -563,7 +813,15 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
     let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
         return;
     };
-    git(&fixture, repo.as_path(), &["config", "remote.origin.pushurl", origin.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "config",
+            "remote.origin.pushurl",
+            origin.to_str().expect("UTF-8"),
+        ],
+    );
     let first: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let after_first: usize = batches(&server);
@@ -571,8 +829,16 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&second);
     assert_eq!(second.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), after_first + 1, "the full scan asked about the known object again: {stderr}");
-    assert_eq!(server.uploads().len(), 1, "an object the server has is not sent twice");
+    assert_eq!(
+        batches(&server),
+        after_first + 1,
+        "the full scan asked about the known object again: {stderr}"
+    );
+    assert_eq!(
+        server.uploads().len(),
+        1,
+        "an object the server has is not sent twice"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -584,12 +850,42 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
 ///   `git remote set-url` leaves this clone's tracking refs describing the server it fetched from,
 /// and a push that
 ///  takes them as what the new server holds publishes pointers whose objects never travelled.
-fn move_origin(fixture: &Fixture, repo: &Path) -> (PathBuf, LfsServer) {
+fn move_origin(
+    fixture: &Fixture,
+    repo: &Path,
+) -> (PathBuf, LfsServer) {
     let origin: PathBuf = fixture.root.join("second.git");
-    git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "second.git"]);
+    git(
+        fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "second.git",
+        ],
+    );
     let server: LfsServer = LfsServer::start(origin.clone());
-    git(fixture, repo, &["config", "lfs.url", format!("http://127.0.0.1:{}/lfs", server.port).as_str()]);
-    git(fixture, repo, &["remote", "set-url", "origin", origin.to_str().expect("UTF-8")]);
+    git(
+        fixture,
+        repo,
+        &[
+            "config",
+            "lfs.url",
+            format!("http://127.0.0.1:{}/lfs", server.port).as_str(),
+        ],
+    );
+    git(
+        fixture,
+        repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            origin.to_str().expect("UTF-8"),
+        ],
+    );
     return (origin, server);
 }
 
@@ -601,7 +897,10 @@ fn move_origin(fixture: &Fixture, repo: &Path) -> (PathBuf, LfsServer) {
 ///   Switching branches and committing run the clean and smudge filters,
 /// and the hermetic `PATH` of the plain
 ///  helper has no `git-lfs`.
-fn real_git_with_lfs(fixture: &Fixture, repo: &Path) -> std::process::Command {
+fn real_git_with_lfs(
+    fixture: &Fixture,
+    repo: &Path,
+) -> std::process::Command {
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
     let mut command: std::process::Command = direct(fixture);
@@ -613,12 +912,20 @@ fn real_git_with_lfs(fixture: &Fixture, repo: &Path) -> std::process::Command {
 /// made by real Git so that no auto-push runs,
 /// leaving the
 ///  worktree on `main`.
-fn side_branch_with_a_pointer(fixture: &Fixture, repo: &Path, content: &[u8]) -> String {
+fn side_branch_with_a_pointer(
+    fixture: &Fixture,
+    repo: &Path,
+    content: &[u8],
+) -> String {
     let switched = real_git_with_lfs(fixture, repo)
         .args(["switch", "--quiet", "--create", "side"])
         .output()
         .expect("switch starts");
-    assert!(switched.status.success(), "{}", String::from_utf8_lossy(switched.stderr.as_slice()));
+    assert!(
+        switched.status.success(),
+        "{}",
+        String::from_utf8_lossy(switched.stderr.as_slice())
+    );
     std::fs::write(repo.join("side.bin"), content).expect("side.bin");
     let added: Observed = observe(
         &mut super::commit::wrapped_commit(fixture, repo, &["add", "--", "side.bin"]),
@@ -629,13 +936,21 @@ fn side_branch_with_a_pointer(fixture: &Fixture, repo: &Path, content: &[u8]) ->
         .args(["commit", "--quiet", "--message=side"])
         .output()
         .expect("commit starts");
-    assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(committed.stderr.as_slice())
+    );
     let oid: String = pointer_oid_at(fixture, repo, "side:side.bin");
     let back = real_git_with_lfs(fixture, repo)
         .args(["switch", "--quiet", "main"])
         .output()
         .expect("switch starts");
-    assert!(back.status.success(), "{}", String::from_utf8_lossy(back.stderr.as_slice()));
+    assert!(
+        back.status.success(),
+        "{}",
+        String::from_utf8_lossy(back.stderr.as_slice())
+    );
     return oid;
 }
 
@@ -654,15 +969,31 @@ fn a_remote_whose_url_moved_uploads_its_objects_to_the_new_server() {
     };
     let pushed: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
-    assert_eq!(first.uploads().len(), 1, "the first server holds the object: {}", stderr_of(&pushed));
+    assert_eq!(
+        first.uploads().len(),
+        1,
+        "the first server holds the object: {}",
+        stderr_of(&pushed)
+    );
     let (second_origin, second): (PathBuf, LfsServer) = move_origin(&fixture, repo.as_path());
     let moved: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&moved);
     assert_eq!(moved.code, Some(0), "{stderr}");
-    assert_ne!(published_main(&fixture, second_origin.as_path()), "absent", "the ref moved on the new server: {stderr}");
+    assert_ne!(
+        published_main(&fixture, second_origin.as_path()),
+        "absent",
+        "the ref moved on the new server: {stderr}"
+    );
     let uploads: Vec<Upload> = second.uploads();
-    assert_eq!(uploads.len(), 1, "the object reached the server the push went to: {stderr}");
-    assert_eq!(uploads[0].bytes, content, "and it is the object's content: {stderr}");
+    assert_eq!(
+        uploads.len(),
+        1,
+        "the object reached the server the push went to: {stderr}"
+    );
+    assert_eq!(
+        uploads[0].bytes, content,
+        "and it is the object's content: {stderr}"
+    );
     drop(second);
     drop(first);
     remove_settled(&fixture);
@@ -681,11 +1012,26 @@ fn a_numeric_mirror_uploads_the_objects_of_every_branch_it_publishes() {
     let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
         return;
     };
-    let side_oid: String = side_branch_with_a_pointer(&fixture, repo.as_path(), [content.as_slice(), b"side"].concat().as_slice());
-    git(&fixture, repo.as_path(), &["config", "remote.origin.mirror", "2"]);
-    let read: String = super::commit::git_text(&fixture, repo.as_path(), &["config", "--type=bool", "--get", "remote.origin.mirror"]);
+    let side_oid: String = side_branch_with_a_pointer(
+        &fixture,
+        repo.as_path(),
+        [content.as_slice(), b"side"].concat().as_slice(),
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "remote.origin.mirror", "2"],
+    );
+    let read: String = super::commit::git_text(
+        &fixture,
+        repo.as_path(),
+        &["config", "--type=bool", "--get", "remote.origin.mirror"],
+    );
     assert_eq!(read.trim(), "true", "Git reads the fixture's value as true");
-    let pushed: Observed = observe(&mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["push", "origin"]), b"");
+    let pushed: Observed = observe(
+        &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["push", "origin"]),
+        b"",
+    );
     let stderr: String = stderr_of(&pushed);
     assert_eq!(pushed.code, Some(0), "{stderr}");
     let side_published = direct(&fixture)
@@ -693,11 +1039,26 @@ fn a_numeric_mirror_uploads_the_objects_of_every_branch_it_publishes() {
         .args(["rev-parse", "--verify", "--quiet", "refs/heads/side"])
         .output()
         .expect("rev-parse starts");
-    assert!(side_published.status.success(), "the mirror published the side branch: {stderr}");
+    assert!(
+        side_published.status.success(),
+        "the mirror published the side branch: {stderr}"
+    );
     let uploads: Vec<Upload> = server.uploads();
-    let names: Vec<&str> = uploads.iter().map(|upload| { return upload.oid.as_str(); }).collect();
-    assert!(names.contains(&side_oid.as_str()), "the side branch's object was uploaded: {names:?} {stderr}");
-    assert_eq!(uploads.len(), 2, "both objects travelled once: {names:?} {stderr}");
+    let names: Vec<&str> = uploads
+        .iter()
+        .map(|upload| {
+            return upload.oid.as_str();
+        })
+        .collect();
+    assert!(
+        names.contains(&side_oid.as_str()),
+        "the side branch's object was uploaded: {names:?} {stderr}"
+    );
+    assert_eq!(
+        uploads.len(),
+        2,
+        "both objects travelled once: {names:?} {stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -725,11 +1086,22 @@ fn a_server_error_ends_a_typed_push_at_once() {
     let pushed: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), 1, "one refused batch request and no second run: {stderr}");
+    assert_eq!(
+        batches(&server),
+        1,
+        "one refused batch request and no second run: {stderr}"
+    );
     assert!(!stderr.contains("retry 1"), "{stderr}");
-    assert!(stderr.contains("from HTTP 503") && stderr.contains("nothing was published"), "{stderr}");
+    assert!(
+        stderr.contains("from HTTP 503") && stderr.contains("nothing was published"),
+        "{stderr}"
+    );
     assert!(!stderr.contains("secret"), "{stderr}");
-    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
+    assert_eq!(
+        published_main(&fixture, origin.as_path()),
+        "absent",
+        "{stderr}"
+    );
     assert!(server.uploads().is_empty());
     drop(server);
     remove_settled(&fixture);
@@ -742,28 +1114,54 @@ fn a_server_error_ends_a_typed_push_at_once() {
 #[test]
 fn an_auto_push_that_meets_a_server_error_is_left_to_the_services_retry_plan() {
     let fixture: Fixture = fixture("lfs-real-auto-plan");
-    super::support::give_service_environment(&fixture, "CLI_GIT_PUSH_RETRY_SECONDS", NO_NEW_TRY_SECONDS);
+    super::support::give_service_environment(
+        &fixture,
+        "CLI_GIT_PUSH_RETRY_SECONDS",
+        NO_NEW_TRY_SECONDS,
+    );
     let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
         return;
     };
     use_credentialed_url(&fixture, repo.as_path(), &server);
-    std::fs::write(repo.join("second.bin"), [content.as_slice(), b"second"].concat()).expect("second.bin");
+    std::fs::write(
+        repo.join("second.bin"),
+        [content.as_slice(), b"second"].concat(),
+    )
+    .expect("second.bin");
     let added: Observed = observe(
         &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["add", "--", "second.bin"]),
         b"",
     );
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     server.state.lock().expect("state").fail_batches = 1;
-    let mut commit = super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "second.bin"]);
+    let mut commit = super::commit::wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=second", "--", "second.bin"],
+    );
     let landed: Observed = observe(&mut commit, b"");
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "the commit stays saved: {stderr}");
     let report: String = super::support::push_report(repo.as_path(), &stderr);
-    assert_eq!(batches(&server), 1, "one refused batch request, and the new try is the plan's, far off: {report}");
-    assert!(report.contains("tries this push again by itself"), "{report}");
-    assert!(report.contains("http://<credentials>@127.0.0.1"), "{report}");
+    assert_eq!(
+        batches(&server),
+        1,
+        "one refused batch request, and the new try is the plan's, far off: {report}"
+    );
+    assert!(
+        report.contains("tries this push again by itself"),
+        "{report}"
+    );
+    assert!(
+        report.contains("http://<credentials>@127.0.0.1"),
+        "{report}"
+    );
     assert!(!report.contains("secret"), "{report}");
-    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{report}");
+    assert_eq!(
+        published_main(&fixture, origin.as_path()),
+        "absent",
+        "{report}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -778,7 +1176,11 @@ fn record_git_lfs(fixture: &Fixture) -> PathBuf {
     let real: PathBuf = std::fs::read_link(&link).expect("the link to the real program");
     std::fs::remove_file(&link).expect("link removed");
     let log: PathBuf = fixture.root.join("git-lfs-runs.txt");
-    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec '{}' \"$@\"\n", log.display(), real.display());
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec '{}' \"$@\"\n",
+        log.display(),
+        real.display()
+    );
     super::support::executable(link.as_path(), script.as_bytes());
     return log;
 }
@@ -791,7 +1193,9 @@ fn recorded_runs(log: &Path) -> Vec<String> {
     return std::fs::read_to_string(log)
         .unwrap_or_default()
         .lines()
-        .filter(|line| { return line.starts_with("push"); })
+        .filter(|line| {
+            return line.starts_with("push");
+        })
         .map(str::to_owned)
         .collect();
 }
@@ -800,21 +1204,49 @@ fn recorded_runs(log: &Path) -> Vec<String> {
 ///  real Git,
 /// so that no auto-push runs;
 /// the object name its pointer holds.
-fn commit_lfs_file(fixture: &Fixture, repo: &Path, name: &str, content: &[u8]) -> String {
+fn commit_lfs_file(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+    content: &[u8],
+) -> String {
     std::fs::write(repo.join(name), content).expect("lfs file");
-    let added: Observed = observe(&mut super::commit::wrapped_commit(fixture, repo, &["add", "--", name]), b"");
+    let added: Observed = observe(
+        &mut super::commit::wrapped_commit(fixture, repo, &["add", "--", name]),
+        b"",
+    );
     assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
     let committed = direct(fixture)
         .current_dir(repo)
         .env("PATH", path)
-        .args(["commit", "--quiet", &format!("--message={name}"), "--", name])
+        .args([
+            "commit",
+            "--quiet",
+            &format!("--message={name}"),
+            "--",
+            name,
+        ])
         .output()
         .expect("commit starts");
-    assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
-    let pointer: String = super::commit::git_text(fixture, repo, &["cat-file", "blob", &format!("HEAD:{name}")]);
-    return pointer.lines().find_map(|line| { return line.strip_prefix("oid sha256:"); }).expect("an oid line").to_owned();
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(committed.stderr.as_slice())
+    );
+    let pointer: String = super::commit::git_text(
+        fixture,
+        repo,
+        &["cat-file", "blob", &format!("HEAD:{name}")],
+    );
+    return pointer
+        .lines()
+        .find_map(|line| {
+            return line.strip_prefix("oid sha256:");
+        })
+        .expect("an oid line")
+        .to_owned();
 }
 
 /// A push of commits that add no pointer starts no `git-lfs` at all and makes no request to the LFS server.
@@ -831,8 +1263,16 @@ fn a_push_without_a_new_pointer_starts_no_git_lfs() {
     empty_commit(&fixture, repo.as_path());
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
-    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started");
-    assert_eq!(batches(&server), after_first, "and no request reached the server");
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        Vec::<String>::new(),
+        "git-lfs was not started"
+    );
+    assert_eq!(
+        batches(&server),
+        after_first,
+        "and no request reached the server"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -855,12 +1295,24 @@ fn a_value_the_typed_proof_refuses_does_not_send_the_scan_to_git_lfs() {
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
     let after_first: usize = batches(&server);
-    git(&fixture, repo.as_path(), &["config", "diff.dirstat", "changes"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "diff.dirstat", "changes"],
+    );
     empty_commit(&fixture, repo.as_path());
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
-    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started");
-    assert_eq!(batches(&server), after_first, "and no request reached the server");
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        Vec::<String>::new(),
+        "git-lfs was not started"
+    );
+    assert_eq!(
+        batches(&server),
+        after_first,
+        "and no request reached the server"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -880,13 +1332,32 @@ fn an_auto_push_with_a_value_the_typed_proof_refuses_starts_no_git_lfs() {
     let first: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
-    git(&fixture, repo.as_path(), &["config", "diff.dirstat", "changes"]);
-    let landed: Observed = observe(&mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=second"]), b"");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["config", "diff.dirstat", "changes"],
+    );
+    let landed: Observed = observe(
+        &mut super::commit::wrapped_commit(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--allow-empty", "--message=second"],
+        ),
+        b"",
+    );
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "{stderr}");
     assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
-    assert_eq!(published_main(&fixture, origin.as_path()), super::commit::git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(), "{stderr}");
-    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started: {stderr}");
+    assert_eq!(
+        published_main(&fixture, origin.as_path()),
+        super::commit::git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim(),
+        "{stderr}"
+    );
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        Vec::<String>::new(),
+        "git-lfs was not started: {stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -903,11 +1374,20 @@ fn a_push_that_adds_one_pointer_uploads_exactly_that_object() {
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
     let after_first: usize = batches(&server);
-    let added: String = commit_lfs_file(&fixture, repo.as_path(), "second.bin", [content.as_slice(), b"second"].concat().as_slice());
+    let added: String = commit_lfs_file(
+        &fixture,
+        repo.as_path(),
+        "second.bin",
+        [content.as_slice(), b"second"].concat().as_slice(),
+    );
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&second);
     assert_eq!(second.code, Some(0), "{stderr}");
-    assert_eq!(recorded_runs(log.as_path()), vec![format!("push --object-id origin {added}")], "{stderr}");
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        vec![format!("push --object-id origin {added}")],
+        "{stderr}"
+    );
     assert_eq!(batches(&server), after_first + 1, "{stderr}");
     let uploads: Vec<Upload> = server.uploads();
     assert_eq!(uploads.len(), 2, "{stderr}");
@@ -928,19 +1408,51 @@ fn a_pointer_added_and_removed_between_pushes_is_still_uploaded() {
     let first: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
-    let transient: String = commit_lfs_file(&fixture, repo.as_path(), "transient.bin", [content.as_slice(), b"transient"].concat().as_slice());
+    let transient: String = commit_lfs_file(
+        &fixture,
+        repo.as_path(),
+        "transient.bin",
+        [content.as_slice(), b"transient"].concat().as_slice(),
+    );
     let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
-    for arguments in [["rm", "--quiet", "--", "transient.bin"], ["commit", "--quiet", "--message=remove it again", ""]] {
-        let kept: Vec<&str> = arguments.iter().copied().filter(|word| { return !word.is_empty(); }).collect();
-        let ran = direct(&fixture).current_dir(repo.as_path()).env("PATH", &path).args(kept).output().expect("starts");
-        assert!(ran.status.success(), "{}", String::from_utf8_lossy(ran.stderr.as_slice()));
+    for arguments in [
+        ["rm", "--quiet", "--", "transient.bin"],
+        ["commit", "--quiet", "--message=remove it again", ""],
+    ] {
+        let kept: Vec<&str> = arguments
+            .iter()
+            .copied()
+            .filter(|word| {
+                return !word.is_empty();
+            })
+            .collect();
+        let ran = direct(&fixture)
+            .current_dir(repo.as_path())
+            .env("PATH", &path)
+            .args(kept)
+            .output()
+            .expect("starts");
+        assert!(
+            ran.status.success(),
+            "{}",
+            String::from_utf8_lossy(ran.stderr.as_slice())
+        );
     }
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&second);
     assert_eq!(second.code, Some(0), "{stderr}");
-    assert_eq!(recorded_runs(log.as_path()), vec![format!("push --object-id origin {transient}")], "{stderr}");
-    assert!(server.uploads().iter().any(|upload| { return upload.oid == transient; }), "{stderr}");
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        vec![format!("push --object-id origin {transient}")],
+        "{stderr}"
+    );
+    assert!(
+        server.uploads().iter().any(|upload| {
+            return upload.oid == transient;
+        }),
+        "{stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -956,7 +1468,15 @@ fn an_untrusted_destination_names_every_pointer_of_the_history() {
     let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
         return;
     };
-    git(&fixture, repo.as_path(), &["config", "remote.origin.pushurl", origin.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            "config",
+            "remote.origin.pushurl",
+            origin.to_str().expect("UTF-8"),
+        ],
+    );
     let first: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
@@ -966,8 +1486,16 @@ fn an_untrusted_destination_names_every_pointer_of_the_history() {
     assert_eq!(second.code, Some(0), "{stderr}");
     let runs: Vec<String> = recorded_runs(log.as_path());
     assert_eq!(runs.len(), 1, "{runs:?}");
-    assert!(runs[0].starts_with("push --object-id origin ") && runs[0].len() == "push --object-id origin ".len() + 64, "{runs:?}");
-    assert_eq!(server.uploads().len(), 1, "an object the server has is not sent twice");
+    assert!(
+        runs[0].starts_with("push --object-id origin ")
+            && runs[0].len() == "push --object-id origin ".len() + 64,
+        "{runs:?}"
+    );
+    assert_eq!(
+        server.uploads().len(),
+        1,
+        "an object the server has is not sent twice"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -988,7 +1516,10 @@ fn a_repository_the_readers_decline_is_scanned_by_git_lfs() {
     empty_commit(&fixture, repo.as_path());
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
-    assert_eq!(recorded_runs(log.as_path()), vec![String::from("push origin main")]);
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        vec![String::from("push origin main")]
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -1006,12 +1537,23 @@ fn a_submodule_push_without_a_new_pointer_still_gets_the_notice() {
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
     empty_commit(&fixture, repo.as_path());
-    let mut command = super::commit::wrapped_commit(&fixture, repo.as_path(), &["push", "--recurse-submodules=on-demand", "origin", "main"]);
+    let mut command = super::commit::wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["push", "--recurse-submodules=on-demand", "origin", "main"],
+    );
     let second: Observed = observe(&mut command, b"");
     let stderr: String = stderr_of(&second);
     assert_eq!(second.code, Some(0), "{stderr}");
-    assert!(stderr.contains("this push also pushes submodules"), "{stderr}");
-    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started");
+    assert!(
+        stderr.contains("this push also pushes submodules"),
+        "{stderr}"
+    );
+    assert_eq!(
+        recorded_runs(log.as_path()),
+        Vec::<String>::new(),
+        "git-lfs was not started"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -1043,15 +1585,25 @@ const ASKPASS_PROBE_BOUND_SECONDS: &str = "60";
 fn recording_askpass(fixture: &Fixture) -> Recorder {
     let program: PathBuf = fixture.root.join("askpass");
     let log: PathBuf = fixture.root.join("askpass-questions.txt");
-    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nprintf 'someone\\n'\n", log = log.display());
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nprintf 'someone\\n'\n",
+        log = log.display()
+    );
     super::support::executable(program.as_path(), script.as_bytes());
-    return Recorder { program, log };
+    return Recorder {
+        program,
+        log,
+    };
 }
 
 /// Every question the stand-in password program was asked,
 /// in order.
 fn questions(log: &Path) -> Vec<String> {
-    return std::fs::read_to_string(log).unwrap_or_default().lines().map(str::to_owned).collect();
+    return std::fs::read_to_string(log)
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_owned)
+        .collect();
 }
 
 /// What:
@@ -1075,7 +1627,11 @@ fn questions(log: &Path) -> Vec<String> {
 /// execFileSync(gitLfs, ['push', '--object-id', 'origin', oid], { cwd: repo, env: { GIT_ASKPASS: recorder } });
 /// expect(questions(log)).not.toBeEmpty();
 /// ```
-fn the_recording_program_logs_its_question(fixture: &Fixture, repo: &Path, recorder: &Recorder) {
+fn the_recording_program_logs_its_question(
+    fixture: &Fixture,
+    repo: &Path,
+    recorder: &Recorder,
+) {
     let oid: String = pointer_oid_at(fixture, repo, "HEAD:big.bin");
     // The real Git, never the wrapper: `git-lfs` runs `git` itself, and a PATH that led it to the wrapper would have the
     //  push tested here ask the wrapper instead.
@@ -1133,7 +1689,10 @@ fn terminal() -> Terminal {
         .custom_flags(libc::O_NOCTTY)
         .open(name.to_str().expect("a UTF-8 terminal name"))
         .expect("the slave opens");
-    return Terminal { _master: master, slave };
+    return Terminal {
+        _master: master,
+        slave,
+    };
 }
 
 /// What:
@@ -1145,13 +1704,25 @@ fn terminal() -> Terminal {
 ///   The incident's push came from a session with no controlling terminal,
 /// and a control that inherited this host's terminal would exercise the other route;
 /// the new session makes the control's meaning the same wherever the suite runs.
-fn observe_push(fixture: &Fixture, repo: &Path, arguments: &[&str], variables: &[(&str, &str)], at: Option<&std::fs::File>) -> Observed {
+fn observe_push(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+    variables: &[(&str, &str)],
+    at: Option<&std::fs::File>,
+) -> Observed {
     use std::os::unix::process::CommandExt;
-    let mut command: std::process::Command = super::commit::wrapped_commit(fixture, repo, arguments);
-    command.envs(variables.iter().copied()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    let mut command: std::process::Command =
+        super::commit::wrapped_commit(fixture, repo, arguments);
+    command
+        .envs(variables.iter().copied())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     match at {
         Some(slave) => {
-            command.stdin(std::process::Stdio::from(slave.try_clone().expect("duplicate the terminal")));
+            command.stdin(std::process::Stdio::from(
+                slave.try_clone().expect("duplicate the terminal"),
+            ));
         }
         None => {
             command.stdin(std::process::Stdio::null());
@@ -1176,7 +1747,11 @@ fn observe_push(fixture: &Fixture, repo: &Path, arguments: &[&str], variables: &
         Some(super::support::TIMED_OUT_SIGNAL),
         "the push hit the fixture's wall-clock bound: {arguments:?}"
     );
-    return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+    return Observed {
+        code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    };
 }
 
 /// The programs still running whose working directory is inside the fixture,
@@ -1189,7 +1764,8 @@ fn processes_under(root: &Path) -> Vec<String> {
         // What: A system with no `/proc` makes this check fail instead of passing with nothing looked at.
         // Why:  The control's point is that the run left no program behind, and a walk that cannot look would assert exactly
         //  the sentence it was meant to test.
-        let entries: std::fs::ReadDir = std::fs::read_dir("/proc").expect("this control needs /proc to look for leftover programs");
+        let entries: std::fs::ReadDir = std::fs::read_dir("/proc")
+            .expect("this control needs /proc to look for leftover programs");
         for entry in entries.flatten() {
             let process: PathBuf = entry.path();
             let Ok(cwd) = std::fs::read_link(process.join("cwd")) else {
@@ -1200,8 +1776,12 @@ fn processes_under(root: &Path) -> Vec<String> {
             }
             let command: String = std::fs::read(process.join("cmdline"))
                 .unwrap_or_default()
-                .split(|byte| { return *byte == 0; })
-                .map(|word| { return String::from_utf8_lossy(word).into_owned(); })
+                .split(|byte| {
+                    return *byte == 0;
+                })
+                .map(|word| {
+                    return String::from_utf8_lossy(word).into_owned();
+                })
                 .collect::<Vec<String>>()
                 .join(" ");
             found.push(format!("{}:{command}", entry.file_name().to_string_lossy()));
@@ -1218,14 +1798,23 @@ fn processes_under(root: &Path) -> Vec<String> {
 const URL_FORM_DESTINATION: &str = "refs/heads/fixture-url-form";
 
 /// The ref a push in the incident's form publishes.
-fn published_url_form(fixture: &Fixture, origin: &Path) -> String {
+fn published_url_form(
+    fixture: &Fixture,
+    origin: &Path,
+) -> String {
     let output = direct(fixture)
         .current_dir(origin)
         .args(["rev-parse", "--verify", "--quiet", URL_FORM_DESTINATION])
         .output()
         .expect("rev-parse starts");
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return if text.is_empty() { String::from("absent") } else { text };
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_owned();
+    return if text.is_empty() {
+        String::from("absent")
+    } else {
+        text
+    };
 }
 
 /// A push nobody typed does not open the desktop password dialog:
@@ -1244,7 +1833,8 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
     server.state.lock().expect("state").login_required = true;
     let recorder: Recorder = recording_askpass(&fixture);
     the_recording_program_logs_its_question(&fixture, repo.as_path(), &recorder);
-    std::fs::remove_file(recorder.log.as_path()).expect("the arm's log goes before the control reads it");
+    std::fs::remove_file(recorder.log.as_path())
+        .expect("the arm's log goes before the control reads it");
     let askpass: String = recorder.program.to_string_lossy().into_owned();
     let destination: String = format!("file://{}", origin.display());
     let refspec: String = format!("HEAD:{URL_FORM_DESTINATION}");
@@ -1256,17 +1846,45 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
         None,
     );
     let stderr: String = stderr_of(&pushed);
-    assert!(!recorder.log.exists(), "the desktop password program was started: {:?}", questions(recorder.log.as_path()));
-    assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
-    assert_eq!(published_url_form(&fixture, origin.as_path()), "absent", "nothing was published: {stderr}");
+    assert!(
+        !recorder.log.exists(),
+        "the desktop password program was started: {:?}",
+        questions(recorder.log.as_path())
+    );
+    assert_ne!(
+        pushed.code,
+        Some(0),
+        "a login the caller does not have is a failure: {stderr}"
+    );
+    assert_eq!(
+        published_url_form(&fixture, origin.as_path()),
+        "absent",
+        "nothing was published: {stderr}"
+    );
     assert!(server.uploads().is_empty(), "{stderr}");
-    assert_eq!(processes_under(fixture.root.as_path()), Vec::<String>::new(), "the run left a program behind");
+    assert_eq!(
+        processes_under(fixture.root.as_path()),
+        Vec::<String>::new(),
+        "the run left a program behind"
+    );
     // The refusal names the server that asked, from the program's own words, and says how to give it a login.
     let asked: String = format!("the server `127.0.0.1:{}`", server.port);
-    assert!(stderr.contains(asked.as_str()), "the server that asked is named: {stderr}");
-    assert!(stderr.contains("never lets a command ask") && stderr.contains("credential.helper"), "{stderr}");
-    assert!(stderr.contains("doc/troubleshooting/lfs-credential-in-url.md"), "{stderr}");
-    assert!(stderr.contains("`git-lfs push` exited with status"), "the program's own status is kept: {stderr}");
+    assert!(
+        stderr.contains(asked.as_str()),
+        "the server that asked is named: {stderr}"
+    );
+    assert!(
+        stderr.contains("never lets a command ask") && stderr.contains("credential.helper"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("doc/troubleshooting/lfs-credential-in-url.md"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("`git-lfs push` exited with status"),
+        "the program's own status is kept: {stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }
@@ -1286,7 +1904,8 @@ fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
     server.state.lock().expect("state").login_required = true;
     let recorder: Recorder = recording_askpass(&fixture);
     the_recording_program_logs_its_question(&fixture, repo.as_path(), &recorder);
-    std::fs::remove_file(recorder.log.as_path()).expect("the arm's log goes before the control reads it");
+    std::fs::remove_file(recorder.log.as_path())
+        .expect("the arm's log goes before the control reads it");
     let at: Terminal = terminal();
     let askpass: String = recorder.program.to_string_lossy().into_owned();
     let destination: String = format!("file://{}", origin.display());
@@ -1299,9 +1918,20 @@ fn a_push_with_a_controlling_terminal_never_opens_the_password_dialog() {
         Some(&at.slave),
     );
     let stderr: String = stderr_of(&pushed);
-    assert!(!recorder.log.exists(), "the desktop password program was started at a terminal: {:?}", questions(recorder.log.as_path()));
-    assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
-    assert!(stderr.contains("never lets a command ask"), "the refusal says the wrapper never asks: {stderr}");
+    assert!(
+        !recorder.log.exists(),
+        "the desktop password program was started at a terminal: {:?}",
+        questions(recorder.log.as_path())
+    );
+    assert_ne!(
+        pushed.code,
+        Some(0),
+        "a login the caller does not have is a failure: {stderr}"
+    );
+    assert!(
+        stderr.contains("never lets a command ask"),
+        "the refusal says the wrapper never asks: {stderr}"
+    );
     drop(server);
     remove_settled(&fixture);
 }

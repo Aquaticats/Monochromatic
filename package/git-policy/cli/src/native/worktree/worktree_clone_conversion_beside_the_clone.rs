@@ -45,17 +45,30 @@
 //! pending.publish(admin);
 //! ```
 
-use crate::add_timing::{begin_work, end_work};
+use crate::add_timing::{
+    begin_work,
+    end_work,
+};
 use crate::side_by_side_on_the_runtime::AJob;
 use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::with_zeroed_stat;
 use crate::transaction_git::GitContext;
-use crate::worktree_clone_conversion_fence::{AttributeFence, Fence, decide_the_paths};
-use crate::worktree_clone_index::{PendingIndex, install_the_index_beside_the_write};
 #[cfg(test)]
 use crate::worktree_clone_conversion_fence::fence_the_clone;
+use crate::worktree_clone_conversion_fence::{
+    AttributeFence,
+    Fence,
+    decide_the_paths,
+};
+use crate::worktree_clone_index::{
+    PendingIndex,
+    install_the_index_beside_the_write,
+};
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// The name the fence's own duration is noted under in the add's record,
 /// where it runs on a thread the join waits for.
@@ -119,14 +132,24 @@ pub enum CloneFence {
 /// ```ts
 /// function theFenceOfThisBuild(source, context, held): CloneFence; // throws the reason the rung cannot be proven
 /// ```
-pub fn the_fence_of_this_build(source: &SnapshotSource, context: &GitContext, held: AttributeFence) -> Result<CloneFence, String> {
+pub fn the_fence_of_this_build(
+    source: &SnapshotSource,
+    context: &GitContext,
+    held: AttributeFence,
+) -> Result<CloneFence, String> {
     #[cfg(feature = "measurement-routes")]
-    if let Some(decided) = crate::worktree_clone_conversion_fence_measurement_routes::fence_of_the_measurement_route(source) {
+    if let Some(decided) =
+        crate::worktree_clone_conversion_fence_measurement_routes::fence_of_the_measurement_route(
+            source,
+        )
+    {
         return Ok(CloneFence::BeforeTheClone(decided?));
     }
     #[cfg(feature = "measurement-routes")]
     if std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default() == "beforeclone" {
-        return Ok(CloneFence::BeforeTheClone(decide_the_paths(source, context, held)?));
+        return Ok(CloneFence::BeforeTheClone(decide_the_paths(
+            source, context, held,
+        )?));
     }
     // The source and the context are what the measurement shapes read; the shipped shape decides from the attributes
     // this call was handed.
@@ -150,7 +173,11 @@ pub fn the_fence_of_this_build(source: &SnapshotSource, context: &GitContext, he
 /// ```ts
 /// const job = fenceBesideTheClone(source, context, held); // [state, decideTheRest]
 /// ```
-pub fn fence_beside_the_clone(source: &SnapshotSource, context: &GitContext, held: AttributeFence) -> AJob<(SnapshotSource, GitContext, AttributeFence), Result<Fence, String>> {
+pub fn fence_beside_the_clone(
+    source: &SnapshotSource,
+    context: &GitContext,
+    held: AttributeFence,
+) -> AJob<(SnapshotSource, GitContext, AttributeFence), Result<Fence, String>> {
     return ((source.clone(), context.clone(), held), run_the_fence);
 }
 
@@ -191,7 +218,10 @@ fn run_the_fence(state: (SnapshotSource, GitContext, AttributeFence)) -> Result<
 /// ```ts
 /// const seed = seedWithoutStat(source, fence); // throws the reason the rung cannot be proven
 /// ```
-pub fn seed_without_stat(source: &SnapshotSource, fence: &Fence) -> Result<Vec<u8>, String> {
+pub fn seed_without_stat(
+    source: &SnapshotSource,
+    fence: &Fence,
+) -> Result<Vec<u8>, String> {
     let written: HashSet<Vec<u8>> = fence.git_writes.iter().cloned().collect();
     return with_zeroed_stat(source.clean.index_bytes.as_slice(), &written, source.clean.hash_length).ok_or_else(|| {
         return String::from("the source's index has a layout the reader does not know, so the paths Git must write cannot be installed without stat data");
@@ -214,10 +244,21 @@ pub fn seed_without_stat(source: &SnapshotSource, fence: &Fence) -> Result<Vec<u
 /// ```ts
 /// const pending = installBesideTheClone([admin, adminPath], source, fence, cloned.stats); // throws the reason the rung cannot be proven
 /// ```
-pub(crate) fn install_beside_the_clone((admin, admin_path): (&std::fs::File, &std::path::Path), source: &SnapshotSource, fence: &Fence, stats: &HashMap<Vec<u8>, StatFields>) -> Result<PendingIndex, String> {
+pub(crate) fn install_beside_the_clone(
+    (admin, admin_path): (&std::fs::File, &std::path::Path),
+    source: &SnapshotSource,
+    fence: &Fence,
+    stats: &HashMap<Vec<u8>, StatFields>,
+) -> Result<PendingIndex, String> {
     let seed: Vec<u8> = seed_without_stat(source, fence)?;
     let written: HashSet<Vec<u8>> = fence.git_writes.iter().cloned().collect();
-    return install_the_index_beside_the_write((admin, admin_path), seed.as_slice(), stats, &written, source.clean.hash_length);
+    return install_the_index_beside_the_write(
+        (admin, admin_path),
+        seed.as_slice(),
+        stats,
+        &written,
+        source.clean.hash_length,
+    );
 }
 
 /// Fence-beside-the-clone controls stay out of the release executable.

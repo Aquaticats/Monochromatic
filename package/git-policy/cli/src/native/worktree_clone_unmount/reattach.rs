@@ -23,12 +23,18 @@
 //! const result = rollBackToSlot(request); // { kind: 'reattached' } | { kind: 'refused' }
 //! ```
 
-use super::staged_folder_identity::{StagedFolderField, StagedFolderIdentity};
 use super::slot_walk_calls::SlotWalk;
+use super::staged_folder_identity::{
+    StagedFolderField,
+    StagedFolderIdentity,
+};
 use super::staging_calls::StagingCalls;
 use super::unmount_checks::ZFS_FILE_SYSTEM_TYPE;
 use crate::fs_mount_options::MountFacts;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The slot a clone is moved back to,
@@ -98,14 +104,22 @@ impl ReattachResult {
     /// The word a receipt carries.
     pub fn word(&self) -> &'static str {
         return match self {
-            ReattachResult::Reattached { .. } => "reattached",
-            ReattachResult::Refused { .. } => "refused",
+            ReattachResult::Reattached {
+                ..
+            } => "reattached",
+            ReattachResult::Refused {
+                ..
+            } => "refused",
         };
     }
 }
 
 /// One field's mismatch.
-fn field(fields: &[StagedFolderField], recorded: &StagedFolderIdentity, found: &StagedFolderIdentity) -> String {
+fn field(
+    fields: &[StagedFolderField],
+    recorded: &StagedFolderIdentity,
+    found: &StagedFolderIdentity,
+) -> String {
     return format!(
         "the slot's folder differs from the recorded identity in the {}; the record says {} and the folder reads {}",
         StagedFolderIdentity::field_names(fields),
@@ -127,27 +141,59 @@ fn field(fields: &[StagedFolderField], recorded: &StagedFolderIdentity, found: &
 /// const result = rollBackToSlot(request);
 /// ```
 pub fn roll_back_to_slot(request: &ReattachRequest<'_>) -> ReattachResult {
-    let slot: std::fs::File = match request.walk.open_the_slot_uncrossed(request.checkout, request.slot) {
+    let slot: std::fs::File = match request
+        .walk
+        .open_the_slot_uncrossed(request.checkout, request.slot)
+    {
         Ok(slot) => slot,
-        Err(refusal) => return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's destination could not be opened without crossing a mount") },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message(
+                    "the rollback's destination could not be opened without crossing a mount",
+                ),
+            };
+        }
     };
     let found: StagedFolderIdentity = match StagedFolderIdentity::of(&slot) {
         Ok(found) => found,
-        Err(refusal) => return ReattachResult::Refused { step: String::from("slot-identity"), said: refusal.message() },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from("slot-identity"),
+                said: refusal.message(),
+            };
+        }
     };
     let moved: Vec<StagedFolderField> = found.differences(request.slot_identity);
     if !moved.is_empty() {
-        return ReattachResult::Refused { step: String::from("slot-identity"), said: field(moved.as_slice(), request.slot_identity, &found) };
+        return ReattachResult::Refused {
+            step: String::from("slot-identity"),
+            said: field(moved.as_slice(), request.slot_identity, &found),
+        };
     }
     let parent_mount: u64 = match request.calls.mount_id(&slot) {
         Ok(read) => read,
-        Err(refusal) => return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's destination mount could not be read") },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the rollback's destination mount could not be read"),
+            };
+        }
     };
     if parent_mount != request.slot_parent_mount_id {
-        return ReattachResult::Refused { step: String::from("slot-parent"), said: format!("the rollback's destination is on mount {parent_mount}, and the recorded slot's parent is mount {}", request.slot_parent_mount_id) };
+        return ReattachResult::Refused {
+            step: String::from("slot-parent"),
+            said: format!(
+                "the rollback's destination is on mount {parent_mount}, and the recorded slot's parent is mount {}",
+                request.slot_parent_mount_id
+            ),
+        };
     }
     if let Err(refusal) = request.calls.move_clone(request.clone_at_staging, &slot) {
-        return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's move refused") };
+        return ReattachResult::Refused {
+            step: String::from(refusal.call.word()),
+            said: refusal.message("the rollback's move refused"),
+        };
     }
     return prove_the_slot(request);
 }
@@ -156,36 +202,86 @@ pub fn roll_back_to_slot(request: &ReattachRequest<'_>) -> ReattachResult {
 fn prove_the_slot(request: &ReattachRequest<'_>) -> ReattachResult {
     let slot: std::fs::File = match request.walk.open_the_slot(request.checkout, request.slot) {
         Ok(slot) => slot,
-        Err(refusal) => return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's proof could not walk the canonical slot") },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the rollback's proof could not walk the canonical slot"),
+            };
+        }
     };
     let mount_id: u64 = match request.calls.mount_id(&slot) {
         Ok(mount_id) => mount_id,
-        Err(refusal) => return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's proof could not read the slot's mount") },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the rollback's proof could not read the slot's mount"),
+            };
+        }
     };
     if mount_id != request.clone_mount_id {
-        return ReattachResult::Refused { step: String::from("post-move-check"), said: format!("the slot's topmost mount is {mount_id}, and the clone's mount is {}", request.clone_mount_id) };
+        return ReattachResult::Refused {
+            step: String::from("post-move-check"),
+            said: format!(
+                "the slot's topmost mount is {mount_id}, and the clone's mount is {}",
+                request.clone_mount_id
+            ),
+        };
     }
     let row: MountFacts = match request.calls.mount_facts(mount_id) {
         Ok(row) => row,
-        Err(refusal) => return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's proof could not read the slot's row") },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the rollback's proof could not read the slot's row"),
+            };
+        }
     };
-    if row.source != request.clone_source || row.filesystem_type != ZFS_FILE_SYSTEM_TYPE || row.root != Path::new("/") {
+    if row.source != request.clone_source
+        || row.filesystem_type != ZFS_FILE_SYSTEM_TYPE
+        || row.root != Path::new("/")
+    {
         return ReattachResult::Refused {
             step: String::from("post-move-check"),
-            said: format!("the slot's topmost row is source `{}`, type `{}` and root {}, and the clone is `{}` of type `{ZFS_FILE_SYSTEM_TYPE}` at root `/`", row.source, row.filesystem_type, row.root.display(), request.clone_source),
+            said: format!(
+                "the slot's topmost row is source `{}`, type `{}` and root {}, and the clone is `{}` of type `{ZFS_FILE_SYSTEM_TYPE}` at root `/`",
+                row.source,
+                row.filesystem_type,
+                row.root.display(),
+                request.clone_source
+            ),
         };
     }
     if row.parent_id != request.slot_parent_mount_id {
-        return ReattachResult::Refused { step: String::from("post-move-check"), said: format!("the slot's topmost row hangs on mount {}, and the slot's parent is mount {}", row.parent_id, request.slot_parent_mount_id) };
+        return ReattachResult::Refused {
+            step: String::from("post-move-check"),
+            said: format!(
+                "the slot's topmost row hangs on mount {}, and the slot's parent is mount {}",
+                row.parent_id, request.slot_parent_mount_id
+            ),
+        };
     }
     let again: u64 = match request.walk.look_again(request.checkout, request.slot) {
         Ok(again) => again,
-        Err(refusal) => return ReattachResult::Refused { step: String::from(refusal.call.word()), said: refusal.message("the rollback's fresh walk refused") },
+        Err(refusal) => {
+            return ReattachResult::Refused {
+                step: String::from(refusal.call.word()),
+                said: refusal.message("the rollback's fresh walk refused"),
+            };
+        }
     };
     if again != request.clone_mount_id {
-        return ReattachResult::Refused { step: String::from("post-move-check"), said: format!("a fresh walk of the canonical slot reaches mount {again}, and the moved clone is mount {}", request.clone_mount_id) };
+        return ReattachResult::Refused {
+            step: String::from("post-move-check"),
+            said: format!(
+                "a fresh walk of the canonical slot reaches mount {again}, and the moved clone is mount {}",
+                request.clone_mount_id
+            ),
+        };
     }
-    return ReattachResult::Reattached { mount_id, slot: row.mount_point };
+    return ReattachResult::Reattached {
+        mount_id,
+        slot: row.mount_point,
+    };
 }
 
 /// The step a move back failure names.

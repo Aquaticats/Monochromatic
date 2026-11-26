@@ -15,42 +15,93 @@
 //! // const action = planInvocation(args, env, inputs); perform(action);
 //! ```
 
-/// Import the sibling modules the decision combines.
-use crate::entry_forward_action_planning::forward_action;
-use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
-use crate::exit_report_written::write_exit;
-use crate::entry_run_forwarded_actions::{finish_forwarded, run_announced, run_coordinated_action, write_stream};
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, REJECTED_EXIT_CODE, failure, with_leading_notice};
 /// The second measurement of an abort or a skip,
 /// owed immediately before Git starts.
 use crate::abort_recheck::recheck_before_the_command;
-use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement};
-use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+    REJECTED_EXIT_CODE,
+    failure,
+    with_leading_notice,
+};
+use crate::announced_query::{
+    WRAPPER_VERSION,
+    announced_query,
+    announcement,
+};
 use crate::child_environment::{
-    FORWARD_TARGET_VARIABLE, environment_value, invocation_overlay,
+    FORWARD_TARGET_VARIABLE,
+    environment_value,
+    invocation_overlay,
 };
 use crate::effective_target::default_allowed_worktree_dirs;
+/// Import the sibling modules the decision combines.
+use crate::entry_forward_action_planning::forward_action;
+use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
+use crate::entry_repository_link_stop::repository_link_stop;
+use crate::entry_run_forwarded_actions::{
+    finish_forwarded,
+    run_announced,
+    run_coordinated_action,
+    write_stream,
+};
+use crate::exit_report_written::write_exit;
 use crate::forwarding::replace_process_with_real_git;
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use crate::management::{host_filesystem_section, plan_management_with_section};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
+use crate::management::{
+    host_filesystem_section,
+    plan_management_with_section,
+};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
-use crate::policy_checks::{ShippedChecks, shipped_checks};
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
 /// A forwarded command starts with no candidate content.
 use crate::policy_content::LifecycleContent;
-use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
-use crate::started_as_git::refusal_when_started_as_git;
+use crate::push_stacking::{
+    STACKED_PUSH_MARKER,
+    run_stacked_push,
+};
+use crate::real_git::{
+    ResolutionInputs,
+    ResolvedGit,
+    process_resolution_inputs,
+    resolve_real_git,
+};
 use crate::real_git_candidate::same_file;
-use crate::repository_facts::{GitFacts, git_facts};
-use crate::entry_repository_link_stop::repository_link_stop;
-use crate::rule_require_root::{RequireRootDecision, decide_require_root};
+use crate::repository_facts::{
+    GitFacts,
+    git_facts,
+};
+use crate::rule_require_root::{
+    RequireRootDecision,
+    decide_require_root,
+};
 /// The variable that names the forbidden-strings rules list.
 use crate::scanner_selection::RULES_VARIABLE;
-use crate::wrapped_command::{WrappedOutcome, run_wrapped_command};
-use crate::wrapper_controls::{Controls, no_controls, strip_global_controls};
-use crate::wrapper_names_old_and_new::COMMAND_WORD;
+use crate::started_as_git::refusal_when_started_as_git;
 use crate::worktree_copy_forward::run_forwarded_git;
-use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
+use crate::wrapped_command::{
+    WrappedOutcome,
+    run_wrapped_command,
+};
+use crate::wrapper_controls::{
+    Controls,
+    no_controls,
+    strip_global_controls,
+};
+use crate::wrapper_invocation::{
+    StrippedInvocation,
+    strip_wrapper_controls,
+};
+use crate::wrapper_names_old_and_new::COMMAND_WORD;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -63,7 +114,10 @@ use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
 /// ```
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The management namespace:
 ///  `git monochromatic-git-policy-cli ...` is handled by the wrapper,
@@ -177,7 +231,8 @@ pub fn plan_invocation(
     // const earlier = words[prefixLen] === COMMAND_WORD.earlier;
     // ```
     if layout.outcome == GlobalOutcome::Command
-        && (global_clean[layout.prefix_len] == MANAGEMENT_COMMAND || global_clean[layout.prefix_len] == COMMAND_WORD.earlier)
+        && (global_clean[layout.prefix_len] == MANAGEMENT_COMMAND
+            || global_clean[layout.prefix_len] == COMMAND_WORD.earlier)
     {
         let earlier_spelling: bool = global_clean[layout.prefix_len] == COMMAND_WORD.earlier;
         // `&list[a..]` borrows from index `a` on; `&list[..a]` borrows up to it.
@@ -197,7 +252,12 @@ pub fn plan_invocation(
     }
     // A command that names the repository through a link to the 860 drive that does not resolve stops here with the plain
     // message, before Git prints its own; with no identity file the cost is one failed open.
-    if let Some(stop) = repository_link_stop(global_clean.as_slice(), &layout, environment, inputs.current_directory.as_path()) {
+    if let Some(stop) = repository_link_stop(
+        global_clean.as_slice(),
+        &layout,
+        environment,
+        inputs.current_directory.as_path(),
+    ) {
         return stop;
     }
     // What: `match` on the resolver's `Result`: keep the selection or stop with its message.
@@ -321,7 +381,10 @@ fn plan_with_real_git(
             );
             return stack_if_push(action, environment, checks.push_destination.clone(), start);
         }
-        WrappedOutcome::Exit { code, stderr } => {
+        WrappedOutcome::Exit {
+            code,
+            stderr,
+        } => {
             return Action::Exit {
                 code,
                 // `String::new()` is empty owned text: wrapped commands report on standard error.
@@ -371,10 +434,12 @@ pub fn run_process(
     crate::abandoned_locks::meet_the_locks_of_the_working_directory(environment, start);
     let action: Action = match process_resolution_inputs(environment, start) {
         // A monochromatic-git-policy-cli executable that a wrapper started as Git stops before it plans anything or starts anything.
-        Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
-            Some(refusal) => failure(refusal.as_str()),
-            None => plan_invocation(arguments, environment, &inputs),
-        },
+        Ok(inputs) => {
+            match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
+                Some(refusal) => failure(refusal.as_str()),
+                None => plan_invocation(arguments, environment, &inputs),
+            }
+        }
         Err(error) => failure(
             format!(
                 "cannot determine this executable or the current directory, so real Git \
@@ -452,7 +517,10 @@ pub fn run_process(
             cannot_start(&error);
             return ENGINE_FAILURE_EXIT_CODE;
         }
-        Action::ForwardCoordinated { forward, stderr } => {
+        Action::ForwardCoordinated {
+            forward,
+            stderr,
+        } => {
             write_stream(&mut std::io::stderr(), stderr.as_str());
             return run_coordinated_action(&forward);
         }
@@ -486,14 +554,25 @@ pub fn run_process(
                 Some(&*copy),
             ));
         }
-        Action::ForwardPush { forward, stderr } => {
+        Action::ForwardPush {
+            forward,
+            stderr,
+        } => {
             write_stream(&mut std::io::stderr(), stderr.as_str());
             return run_stacked_push(&forward);
         }
-        Action::Exit { code, stdout, stderr } => {
+        Action::Exit {
+            code,
+            stdout,
+            stderr,
+        } => {
             return write_exit(code, stdout.as_bytes(), stderr.as_bytes());
         }
-        Action::ExitBytes { code, stdout, stderr } => {
+        Action::ExitBytes {
+            code,
+            stdout,
+            stderr,
+        } => {
             return write_exit(code, stdout.as_slice(), stderr.as_slice());
         }
     }
@@ -514,8 +593,12 @@ pub fn run_process(
 /// ```ts
 /// function runNestedProcess(args: string[], environment: [string, string][]): number;
 /// ```
-pub fn run_nested_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
-    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::read_from_the_process();
+pub fn run_nested_process(
+    arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+) -> i32 {
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::read_from_the_process();
     return run_process(arguments, environment, &start);
 }
 

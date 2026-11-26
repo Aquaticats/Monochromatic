@@ -38,11 +38,23 @@
 //! const address = socketAddressOf(runtimeDir, instance); // { path } | { abstractName }
 //! ```
 
-use crate::earlier_unix_sockets_that_listen::{ListeningSockets, listening_sockets_exactly};
-use crate::service_instance::{LONGEST_SOCKET_PATH, SOCKET_DIRECTORY, digest_of_bytes, socket_path};
+use crate::earlier_unix_sockets_that_listen::{
+    ListeningSockets,
+    listening_sockets_exactly,
+};
+use crate::service_instance::{
+    LONGEST_SOCKET_PATH,
+    SOCKET_DIRECTORY,
+    digest_of_bytes,
+    socket_path,
+};
 use crate::service_server::Bind;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// Whether an abstract name can be used at all:
 /// the kernel of Linux carries one,
@@ -103,8 +115,14 @@ fn the_place_a_directory_names(directory: &Path) -> PathBuf {
         }
         // A relative spelling has its deepest directory in this process's working directory, which is what a relative
         // socket path is resolved against as well.
-        let deepest: &Path = if above.as_os_str().is_empty() { Path::new(".") } else { above.as_path() };
-        let Ok(resolved) = std::fs::canonicalize(deepest) else { continue };
+        let deepest: &Path = if above.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            above.as_path()
+        };
+        let Ok(resolved) = std::fs::canonicalize(deepest) else {
+            continue;
+        };
         let mut built: PathBuf = resolved;
         for component in &spelled[take..] {
             match component {
@@ -141,7 +159,10 @@ fn the_place_a_directory_names(directory: &Path) -> PathBuf {
 /// ```ts
 /// abstractNameOf('/home/u/temp/agent/some-long-scratch-folder/run', '3f9a…') // 'monochromatic-git-policy-cli/1000/0123456789abcdef/3f9a…'
 /// ```
-pub fn abstract_name_of(runtime_dir: &Path, instance: &str) -> String {
+pub fn abstract_name_of(
+    runtime_dir: &Path,
+    instance: &str,
+) -> String {
     return format!("{}/{instance}", abstract_name_prefix_of(runtime_dir));
 }
 
@@ -160,7 +181,9 @@ fn abstract_name_prefix_of(runtime_dir: &Path) -> String {
     let place: PathBuf = the_place_a_directory_names(runtime_dir);
     let digest: String = digest_of_bytes(place.as_os_str().as_bytes());
     let account: u32 = rustix::process::geteuid().as_raw();
-    let kept: &str = digest.get(..DIGEST_DIGITS_IN_AN_ABSTRACT_NAME).unwrap_or(digest.as_str());
+    let kept: &str = digest
+        .get(..DIGEST_DIGITS_IN_AN_ABSTRACT_NAME)
+        .unwrap_or(digest.as_str());
     return format!("{SOCKET_DIRECTORY}/{account}/{kept}");
 }
 
@@ -180,7 +203,10 @@ fn abstract_name_prefix_of(runtime_dir: &Path) -> String {
 /// ```ts
 /// socketAddressOf('/run/user/1000', '3f9a…') // { path: '/run/user/1000/monochromatic-git-policy-cli/3f9a….sock' }
 /// ```
-pub fn socket_address_of(runtime_dir: &Path, instance: &str) -> Bind {
+pub fn socket_address_of(
+    runtime_dir: &Path,
+    instance: &str,
+) -> Bind {
     let path: PathBuf = socket_path(runtime_dir, instance);
     if !AN_ABSTRACT_NAME_IS_AVAILABLE || path.as_os_str().len() <= LONGEST_SOCKET_PATH {
         return Bind::Path(path);
@@ -204,8 +230,14 @@ pub fn socket_address_of(runtime_dir: &Path, instance: &str) -> Bind {
 /// ```ts
 /// listenStreamOf('/run/user/1000', '3f9a…') // '%t/monochromatic-git-policy-cli/%i.sock'
 /// ```
-pub fn listen_stream_of(runtime_dir: &Path, instance: &str) -> String {
-    if matches!(socket_address_of(runtime_dir, instance), Bind::Abstract(_name)) {
+pub fn listen_stream_of(
+    runtime_dir: &Path,
+    instance: &str,
+) -> String {
+    if matches!(
+        socket_address_of(runtime_dir, instance),
+        Bind::Abstract(_name)
+    ) {
         return format!("@{}/%i", abstract_name_prefix_of(runtime_dir));
     }
     return format!("%t/{SOCKET_DIRECTORY}/%i.sock");
@@ -235,10 +267,16 @@ pub fn the_address_is_there(address: &Bind) -> bool {
 }
 
 /// `the_address_is_there` with the table of unix sockets to read.
-pub fn the_address_is_in(proc_root: &Path, address: &Bind) -> bool {
+pub fn the_address_is_in(
+    proc_root: &Path,
+    address: &Bind,
+) -> bool {
     return match address {
         Bind::Path(path) => path.exists(),
-        Bind::Abstract(name) => listening_sockets_exactly(proc_root, &[abstract_name_column(name)]) != ListeningSockets::None,
+        Bind::Abstract(name) => {
+            listening_sockets_exactly(proc_root, &[abstract_name_column(name)])
+                != ListeningSockets::None
+        }
         Bind::Inherited => false,
     };
 }
@@ -269,12 +307,20 @@ pub fn abstract_name_column(name: &str) -> Vec<u8> {
 /// ```ts
 /// listeningNamesOf('/home/u/run') // ['monochromatic-git-policy-cli/1000/0123456789abcdef/3f9a…']
 /// ```
-pub fn listening_names_of(runtime_dir: &Path, proc_root: &Path) -> Vec<String> {
+pub fn listening_names_of(
+    runtime_dir: &Path,
+    proc_root: &Path,
+) -> Vec<String> {
     let prefix: String = format!("@{}/", abstract_name_prefix_of(runtime_dir));
-    return crate::earlier_unix_sockets_that_listen::listening_names_starting_with(proc_root, prefix.as_bytes())
-        .into_iter()
-        .map(|column| { return String::from(column.trim_start_matches('@')); })
-        .collect();
+    return crate::earlier_unix_sockets_that_listen::listening_names_starting_with(
+        proc_root,
+        prefix.as_bytes(),
+    )
+    .into_iter()
+    .map(|column| {
+        return String::from(column.trim_start_matches('@'));
+    })
+    .collect();
 }
 
 /// Address controls stay out of the release executable.

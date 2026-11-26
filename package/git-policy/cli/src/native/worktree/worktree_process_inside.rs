@@ -154,11 +154,16 @@ impl WorkingProcess {
     /// ```
     pub fn why(&self) -> String {
         if self.folder == WorkingFolder::Inside && self.pid == std::process::id() {
-            return String::from("this command is working in it, because it was started in that folder");
+            return String::from(
+                "this command is working in it, because it was started in that folder",
+            );
         }
         return match self.folder {
             WorkingFolder::Inside => format!("process {} is working in it", self.pid),
-            WorkingFolder::OpenFile => format!("process {} has a file open in it, though its working folder is elsewhere", self.pid),
+            WorkingFolder::OpenFile => format!(
+                "process {} has a file open in it, though its working folder is elsewhere",
+                self.pid
+            ),
             WorkingFolder::Unreadable => format!(
                 "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
                 self.pid
@@ -191,7 +196,12 @@ impl WorkingProcess {
 /// ```ts
 /// processWorkingInside(root, procRoot, worktreeAge) // WorkingProcess | undefined
 /// ```
-pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
+pub fn process_working_inside(
+    root: &Path,
+    git_dir: &Path,
+    proc_root: &Path,
+    worktree_age: Option<Duration>,
+) -> Option<WorkingProcess> {
     let listing = std::fs::read_dir(proc_root).ok()?;
     let uptime: Option<Duration> = uptime_of(proc_root);
     for entry in listing.flatten() {
@@ -200,11 +210,21 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
             continue;
         };
         match std::fs::read_link(entry.path().join("cwd")) {
-            Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
+            Ok(working) if working.starts_with(root) => {
+                return Some(WorkingProcess {
+                    pid,
+                    folder: WorkingFolder::Inside,
+                });
+            }
             Ok(_elsewhere) => {
                 // A folder outside the worktree can still hold a file open in it, and that process is working there.
                 match open_files_in(entry.path().as_path(), root, git_dir) {
-                    OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
+                    OpenFiles::Inside => {
+                        return Some(WorkingProcess {
+                            pid,
+                            folder: WorkingFolder::OpenFile,
+                        });
+                    }
                     OpenFiles::Outside => {}
                     // A descriptor table this account may not read hides what the process holds, so the age of the
                     // process decides it as it decides a hidden working folder: one younger than the worktree keeps
@@ -212,8 +232,17 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
                     // and an older one that opened a file there after the worktree was made is the miss the module
                     // doc names.
                     OpenFiles::Unreadable => {
-                        if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
-                            return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
+                        if could_be_working_inside(
+                            entry.path().as_path(),
+                            proc_root,
+                            pid,
+                            uptime,
+                            worktree_age,
+                        ) {
+                            return Some(WorkingProcess {
+                                pid,
+                                folder: WorkingFolder::OpenFilesUnreadable,
+                            });
                         }
                     }
                 }
@@ -221,8 +250,17 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
             // The process went while it was being read, so it cannot be working in the worktree any more.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_refused) => {
-                if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
-                    return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
+                if could_be_working_inside(
+                    entry.path().as_path(),
+                    proc_root,
+                    pid,
+                    uptime,
+                    worktree_age,
+                ) {
+                    return Some(WorkingProcess {
+                        pid,
+                        folder: WorkingFolder::Unreadable,
+                    });
                 }
             }
         }
@@ -261,7 +299,13 @@ enum OpenFiles {
 /// ```ts
 /// couldBeWorkingInside(entry, procRoot, pid, uptime, worktreeAge) // boolean
 /// ```
-fn could_be_working_inside(entry: &Path, proc_root: &Path, pid: u32, uptime: Option<Duration>, worktree_age: Option<Duration>) -> bool {
+fn could_be_working_inside(
+    entry: &Path,
+    proc_root: &Path,
+    pid: u32,
+    uptime: Option<Duration>,
+    worktree_age: Option<Duration>,
+) -> bool {
     if !owned_by_this_account(entry) {
         return false;
     }
@@ -291,7 +335,11 @@ fn could_be_working_inside(entry: &Path, proc_root: &Path, pid: u32, uptime: Opt
 /// ```ts
 /// openFilesIn(entry, worktree, gitDir) // 'inside' | 'outside' | 'unreadable'
 /// ```
-fn open_files_in(entry: &Path, worktree: &Path, git_dir: &Path) -> OpenFiles {
+fn open_files_in(
+    entry: &Path,
+    worktree: &Path,
+    git_dir: &Path,
+) -> OpenFiles {
     let descriptors: std::fs::ReadDir = match std::fs::read_dir(entry.join("fd")) {
         Ok(found) => found,
         // The process went while it was being read, and its descriptors went with it.
@@ -358,7 +406,10 @@ const DELETED_SUFFIX: &str = " (deleted)";
 /// ```ts
 /// startedBefore(processAge, worktreeAge) // boolean
 /// ```
-fn started_before(process_age: Option<Duration>, worktree_age: Option<Duration>) -> bool {
+fn started_before(
+    process_age: Option<Duration>,
+    worktree_age: Option<Duration>,
+) -> bool {
     // `match` on both ages: only two ages can decide it, and every other pair keeps the worktree.
     let (Some(aged_process), Some(aged_folder)) = (process_age, worktree_age) else {
         return false;
@@ -390,7 +441,11 @@ fn uptime_of(proc_root: &Path) -> Option<Duration> {
 fn ticks_per_second() -> f64 {
     // SAFETY: `sysconf` reads one system constant and touches no memory of this process.
     let ticks: libc::c_long = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
-    return if ticks > 0 { f64::from(i32::try_from(ticks).unwrap_or(100)) } else { 100.0 };
+    return if ticks > 0 {
+        f64::from(i32::try_from(ticks).unwrap_or(100))
+    } else {
+        100.0
+    };
 }
 
 /// No clock ticks to read on a platform without Unix processes.
@@ -417,9 +472,14 @@ fn ticks_per_second() -> f64 {
 /// ```ts
 /// startedAgo(procRoot, pid, uptime) // Duration | undefined
 /// ```
-fn started_ago(proc_root: &Path, pid: u32, uptime: Option<Duration>) -> Option<Duration> {
+fn started_ago(
+    proc_root: &Path,
+    pid: u32,
+    uptime: Option<Duration>,
+) -> Option<Duration> {
     let up: Duration = uptime?;
-    let stat: String = std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")).ok()?;
+    let stat: String =
+        std::fs::read_to_string(proc_root.join(pid.to_string()).join("stat")).ok()?;
     // The second field is the program's name in parentheses and may hold spaces and parentheses, so the fields after it
     // are counted from the last closing parenthesis: the start time is the twentieth of those.
     let after_name: &str = stat.rsplit_once(')')?.1;

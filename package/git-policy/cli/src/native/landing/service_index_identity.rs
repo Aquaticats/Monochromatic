@@ -35,8 +35,18 @@
 /// A boot ID without its dashes and in its one spelling,
 /// a PID namespace number and a machine ID,
 /// the kinds of text the parts after the birth stand for.
-use crate::claim_time::{current_boot_id, current_machine_id, is_boot_id, is_machine_id};
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, is_birth_identity, process_birth_identity};
+use crate::claim_time::{
+    current_boot_id,
+    current_machine_id,
+    is_boot_id,
+    is_machine_id,
+};
+use crate::process_identity::{
+    ProcessIdentityError,
+    current_birth_identity,
+    is_birth_identity,
+    process_birth_identity,
+};
 use crate::service_index_marker::marker_of;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -120,15 +130,16 @@ pub fn scope_of_link(text: &str) -> Option<String> {
 /// once.
 pub fn current_pid_scope() -> Option<&'static str> {
     static SCOPE: OnceLock<Option<String>> = OnceLock::new();
-    return SCOPE
-        .get_or_init(read_pid_scope)
-        .as_deref();
+    return SCOPE.get_or_init(read_pid_scope).as_deref();
 }
 
 /// Whether the record `read` returned from `/proc/self/stat` numbers the process `own` as the operating system does:
 /// a record that could not be read,
 /// one that names no PID and one that names another PID do not.
-pub fn procfs_agrees_with(read: std::io::Result<Vec<u8>>, own: u32) -> bool {
+pub fn procfs_agrees_with(
+    read: std::io::Result<Vec<u8>>,
+    own: u32,
+) -> bool {
     let Ok(stat) = read else { return false };
     return check_procfs_view(stat.as_slice(), own).is_ok();
 }
@@ -150,7 +161,12 @@ fn read_procfs_agreement() -> bool {
 impl ReaderView<'static> {
     /// What this process can say now.
     pub fn current() -> ReaderView<'static> {
-        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), machine: non_empty(current_machine_id()), procfs_agrees: current_procfs_agrees() };
+        return ReaderView {
+            boot: current_boot_id(),
+            scope: current_pid_scope(),
+            machine: non_empty(current_machine_id()),
+            procfs_agrees: current_procfs_agrees(),
+        };
     }
 }
 
@@ -245,11 +261,22 @@ pub fn own_identity() -> Result<String, ProcessIdentityError> {
     #[cfg(target_os = "linux")]
     let stat: Vec<u8> = match std::fs::read("/proc/self/stat") {
         Ok(bytes) => bytes,
-        Err(error) => return Err(ProcessIdentityError::Io { pid: i64::from(own), error }),
+        Err(error) => {
+            return Err(ProcessIdentityError::Io {
+                pid: i64::from(own),
+                error,
+            });
+        }
     };
     #[cfg(not(target_os = "linux"))]
     let stat: Vec<u8> = format!("{own} ").into_bytes();
-    return identity_in_view_on(stat.as_slice(), own, current_boot_id(), current_pid_scope(), non_empty(current_machine_id()));
+    return identity_in_view_on(
+        stat.as_slice(),
+        own,
+        current_boot_id(),
+        current_pid_scope(),
+        non_empty(current_machine_id()),
+    );
 }
 
 /// `own_identity` for the process `own`,
@@ -261,7 +288,12 @@ pub fn own_identity() -> Result<String, ProcessIdentityError> {
 /// As `own_identity`;
 /// `ProcMismatch` when `stat` names another PID than `own`,
 /// `BootUnavailable` and `ScopeUnavailable` on Linux when the boot or the namespace is not known.
-pub fn identity_in_view(stat: &[u8], own: u32, boot: &str, scope: Option<&str>) -> Result<String, ProcessIdentityError> {
+pub fn identity_in_view(
+    stat: &[u8],
+    own: u32,
+    boot: &str,
+    scope: Option<&str>,
+) -> Result<String, ProcessIdentityError> {
     return identity_in_view_on(stat, own, boot, scope, None);
 }
 
@@ -270,7 +302,13 @@ pub fn identity_in_view(stat: &[u8], own: u32, boot: &str, scope: Option<&str>) 
 /// # Errors
 ///
 /// As `identity_in_view`.
-pub fn identity_in_view_on(stat: &[u8], own: u32, boot: &str, scope: Option<&str>, machine: Option<&str>) -> Result<String, ProcessIdentityError> {
+pub fn identity_in_view_on(
+    stat: &[u8],
+    own: u32,
+    boot: &str,
+    scope: Option<&str>,
+    machine: Option<&str>,
+) -> Result<String, ProcessIdentityError> {
     check_procfs_view(stat, own)?;
     let birth: String = current_birth_identity()?;
     #[cfg(target_os = "linux")]
@@ -304,10 +342,18 @@ pub fn identity_in_view_on(stat: &[u8], own: u32, boot: &str, scope: Option<&str
 ///
 /// `ProcMismatch` naming both numbers when `/proc` belongs to another PID namespace,
 /// and `MalformedStat` when the record names no PID.
-pub fn check_procfs_view(stat: &[u8], own: u32) -> Result<(), ProcessIdentityError> {
-    let procfs: i64 = pid_of_self_stat(stat).ok_or(ProcessIdentityError::MalformedStat { pid: i64::from(own) })?;
+pub fn check_procfs_view(
+    stat: &[u8],
+    own: u32,
+) -> Result<(), ProcessIdentityError> {
+    let procfs: i64 = pid_of_self_stat(stat).ok_or(ProcessIdentityError::MalformedStat {
+        pid: i64::from(own),
+    })?;
     if procfs != i64::from(own) {
-        return Err(ProcessIdentityError::ProcMismatch { procfs, own });
+        return Err(ProcessIdentityError::ProcMismatch {
+            procfs,
+            own,
+        });
     }
     return Ok(());
 }
@@ -348,7 +394,9 @@ pub fn holder_state_in(
 ) -> HolderState {
     // A marker that names no process (an earlier release's) is no evidence of anything: it could be a dead instance's or a live
     //  service's on another machine, so it is never read as gone.
-    let Some((pid, birth)) = holder else { return HolderState::Unknown };
+    let Some((pid, birth)) = holder else {
+        return HolderState::Unknown;
+    };
     let (identity, boot, scope, machine) = split_birth(birth.as_str());
     // A part of an identity stands for one value in one spelling, so a part written another way is no part this reader
     //  can compare: two spellings of one boot read as two boots, and a text read as another boot or another process is
@@ -413,12 +461,20 @@ pub fn holder_state_in(
 ///  that is not this reader's (or none is valid),
 /// or it names none and a boot other than this one,
 /// or it names no process at all.
-pub fn holder_is_elsewhere_in(holder: Option<&(i64, String)>, view: &ReaderView) -> bool {
-    let Some((_, birth)) = holder else { return true };
+pub fn holder_is_elsewhere_in(
+    holder: Option<&(i64, String)>,
+    view: &ReaderView,
+) -> bool {
+    let Some((_, birth)) = holder else {
+        return true;
+    };
     let (_, boot, _, machine) = split_birth(birth.as_str());
     return match machine {
         Some(recorded) => !is_machine_id(recorded) || view.machine != Some(recorded),
-        None => view.machine.is_some() && matches!(boot, Some(recorded) if !view.boot.is_empty() && recorded != view.boot),
+        None => {
+            view.machine.is_some()
+                && matches!(boot, Some(recorded) if !view.boot.is_empty() && recorded != view.boot)
+        }
     };
 }
 

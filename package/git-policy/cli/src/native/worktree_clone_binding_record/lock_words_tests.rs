@@ -8,7 +8,8 @@ use crate::worktree_clone_mount_protocol::RequestNonce;
 
 /// The fixture's nonce.
 fn nonce() -> RequestNonce {
-    return RequestNonce::parse("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f").expect("the fixture nonce reads");
+    return RequestNonce::parse("9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f")
+        .expect("the fixture nonce reads");
 }
 
 /// The sentence is the fixed parts around the nonce,
@@ -16,7 +17,10 @@ fn nonce() -> RequestNonce {
 #[test]
 fn the_sentence_is_the_fixed_parts_and_the_nonce() {
     let sentence: String = lock_words(&nonce());
-    assert_eq!(sentence, format!("{LOCK_WORDS_PREFIX}{}{LOCK_WORDS_SUFFIX}", nonce().as_str()));
+    assert_eq!(
+        sentence,
+        format!("{LOCK_WORDS_PREFIX}{}{LOCK_WORDS_SUFFIX}", nonce().as_str())
+    );
     assert!(sentence.ends_with("git worktree remove"));
     let bytes: Vec<u8> = lock_file_bytes(&nonce());
     assert_eq!(bytes.len() as u64, LOCK_WORDS_MAXIMUM_BYTES);
@@ -26,10 +30,16 @@ fn the_sentence_is_the_fixed_parts_and_the_nonce() {
 /// The whole sentence is the only verified arm.
 #[test]
 fn the_whole_sentence_is_verified() {
-    assert_eq!(lock_standing_of(lock_file_bytes(&nonce()).as_slice(), &nonce()), LockStanding::Verified);
+    assert_eq!(
+        lock_standing_of(lock_file_bytes(&nonce()).as_slice(), &nonce()),
+        LockStanding::Verified
+    );
     let mut longer: Vec<u8> = lock_file_bytes(&nonce());
     longer.push(b'x');
-    assert_eq!(lock_standing_of(longer.as_slice(), &nonce()), LockStanding::Foreign);
+    assert_eq!(
+        lock_standing_of(longer.as_slice(), &nonce()),
+        LockStanding::Foreign
+    );
 }
 
 /// A proper prefix that covers the fixed part and the whole nonce is a cut-short write,
@@ -39,7 +49,12 @@ fn a_prefix_attributes_only_when_it_covers_the_nonce() {
     let expected: Vec<u8> = lock_file_bytes(&nonce());
     let covering: usize = LOCK_WORDS_PREFIX.len() + 32 + 1;
     let cut: &[u8] = &expected[..covering];
-    assert_eq!(lock_standing_of(cut, &nonce()), LockStanding::CutShort { at: covering as u64 });
+    assert_eq!(
+        lock_standing_of(cut, &nonce()),
+        LockStanding::CutShort {
+            at: covering as u64
+        }
+    );
     let short: &[u8] = &expected[..(LOCK_WORDS_PREFIX.len() + 32) as usize];
     assert_eq!(lock_standing_of(short, &nonce()), LockStanding::Foreign);
     assert!(is_unattributable_prefix(short));
@@ -51,7 +66,10 @@ fn a_prefix_attributes_only_when_it_covers_the_nonce() {
 #[test]
 fn an_empty_file_and_a_persons_words_are_foreign() {
     assert_eq!(lock_standing_of(b"", &nonce()), LockStanding::Foreign);
-    assert_eq!(lock_standing_of(b"initializing\n", &nonce()), LockStanding::Foreign);
+    assert_eq!(
+        lock_standing_of(b"initializing\n", &nonce()),
+        LockStanding::Foreign
+    );
     assert_eq!(lock_standing_of(b"held\n", &nonce()), LockStanding::Foreign);
 }
 
@@ -59,6 +77,10 @@ fn an_empty_file_and_a_persons_words_are_foreign() {
 /// because the nonce in it is another's.
 #[test]
 fn another_nonce_is_foreign() {
-    let other: RequestNonce = RequestNonce::parse("00000000000000000000000000000000").expect("the other nonce reads");
-    assert_eq!(lock_standing_of(lock_file_bytes(&other).as_slice(), &nonce()), LockStanding::Foreign);
+    let other: RequestNonce =
+        RequestNonce::parse("00000000000000000000000000000000").expect("the other nonce reads");
+    assert_eq!(
+        lock_standing_of(lock_file_bytes(&other).as_slice(), &nonce()),
+        LockStanding::Foreign
+    );
 }

@@ -72,7 +72,10 @@ pub struct MeasuredTree {
 /// ```ts
 /// child.startsWith(`${ancestor}/`);
 /// ```
-pub fn is_under(child: &str, ancestor: &str) -> bool {
+pub fn is_under(
+    child: &str,
+    ancestor: &str,
+) -> bool {
     let Some(rest) = child.strip_prefix(ancestor) else {
         return false;
     };
@@ -100,14 +103,27 @@ pub fn has_path_mountpoint(mountpoint: Option<&str>) -> bool {
 
 impl MeasuredTree {
     /// One dataset's facts.
-    pub fn dataset(&self, name: &str) -> Option<&MeasuredDataset> {
-        return self.datasets.iter().find(|dataset| return dataset.name == name);
+    pub fn dataset(
+        &self,
+        name: &str,
+    ) -> Option<&MeasuredDataset> {
+        return self
+            .datasets
+            .iter()
+            .find(|dataset| return dataset.name == name);
     }
 
     /// Every dataset under one name,
     /// sorted by name so two reports of one machine read the same.
-    pub fn datasets_under(&self, ancestor: &str) -> Vec<&MeasuredDataset> {
-        let mut found: Vec<&MeasuredDataset> = self.datasets.iter().filter(|dataset| return is_under(dataset.name.as_str(), ancestor)).collect();
+    pub fn datasets_under(
+        &self,
+        ancestor: &str,
+    ) -> Vec<&MeasuredDataset> {
+        let mut found: Vec<&MeasuredDataset> = self
+            .datasets
+            .iter()
+            .filter(|dataset| return is_under(dataset.name.as_str(), ancestor))
+            .collect();
         found.sort_by(|left, right| return left.name.cmp(&right.name));
         return found;
     }
@@ -116,8 +132,15 @@ impl MeasuredTree {
     /// the nearest first,
     /// which is the order sanoid's section reading cares about least but a
     /// report reads best.
-    pub fn ancestors(&self, name: &str) -> Vec<&MeasuredDataset> {
-        let mut found: Vec<&MeasuredDataset> = self.datasets.iter().filter(|dataset| return is_under(name, dataset.name.as_str())).collect();
+    pub fn ancestors(
+        &self,
+        name: &str,
+    ) -> Vec<&MeasuredDataset> {
+        let mut found: Vec<&MeasuredDataset> = self
+            .datasets
+            .iter()
+            .filter(|dataset| return is_under(name, dataset.name.as_str()))
+            .collect();
         found.sort_by(|left, right| return right.name.len().cmp(&left.name.len()));
         return found;
     }
@@ -133,7 +156,10 @@ impl MeasuredTree {
     /// ```ts
     /// tree.holdingDataset('/fixture/home/.local/share/pnpm/store'); // 'tank/home'
     /// ```
-    pub fn holding_dataset(&self, path: &str) -> Option<&str> {
+    pub fn holding_dataset(
+        &self,
+        path: &str,
+    ) -> Option<&str> {
         let mut best: Option<(&MeasuredDataset, usize)> = None;
         for dataset in &self.datasets {
             let Some(mounted) = dataset.mountpoint.as_deref() else {
@@ -142,7 +168,10 @@ impl MeasuredTree {
             if !has_path_mountpoint(Some(mounted)) {
                 continue;
             }
-            let covers: bool = path == mounted || path.strip_prefix(mounted).is_some_and(|rest| return rest.starts_with('/'));
+            let covers: bool = path == mounted
+                || path
+                    .strip_prefix(mounted)
+                    .is_some_and(|rest| return rest.starts_with('/'));
             if !covers {
                 continue;
             }

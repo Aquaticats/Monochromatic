@@ -38,7 +38,10 @@ use std::time::Duration;
 /// ```ts
 /// `${waitingFor} showed no sign of work for ${limit} seconds and was stopped ...`
 /// ```
-pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
+pub fn watched_timeout_text(
+    waiting_for: &str,
+    limit: Duration,
+) -> String {
     return format!(
         "{waiting_for} showed no sign of work for {} seconds and was stopped ({CHILD_WAIT_VARIABLE} changes this). \
          If the step belonged to a commit, the next Git command of this wrapper finishes or undoes that commit, so \
@@ -125,7 +128,10 @@ pub struct CeilingReached(
 );
 
 impl std::fmt::Display for CeilingReached {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.0.as_str());
     }
 }
@@ -134,18 +140,30 @@ impl std::error::Error for CeilingReached {}
 
 /// The output of a step that ended:
 /// its status and what it wrote to the captured files.
-pub(crate) fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
+pub(crate) fn output_of(
+    status: std::process::ExitStatus,
+    captured: Option<&Capture>,
+) -> Output {
     let Some(files) = captured else {
-        return Output { status, stdout: Vec::new(), stderr: Vec::new() };
+        return Output {
+            status,
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        };
     };
-    let shown: crate::output_capture::Captured = files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    let shown: crate::output_capture::Captured =
+        files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
     let mut stderr: Vec<u8> = shown.stderr;
     for note in &shown.notes {
         stderr.extend_from_slice(format!("\nmonochromatic-git-policy-cli: {note}\n").as_bytes());
     }
     // Read once, and a descendant that keeps the files open must not keep the pages of what was read.
     files.discard();
-    return Output { status, stdout: shown.stdout, stderr };
+    return Output {
+        status,
+        stdout: shown.stdout,
+        stderr,
+    };
 }
 
 /// What:
@@ -165,7 +183,11 @@ pub(crate) fn output_of(status: std::process::ExitStatus, captured: Option<&Capt
 /// ```ts
 /// `${waitingFor} was still running ${after + extra} seconds after it began, and was left running ...`
 /// ```
-pub fn not_known_text(waiting_for: &str, after: Duration, extra: Duration) -> String {
+pub fn not_known_text(
+    waiting_for: &str,
+    after: Duration,
+    extra: Duration,
+) -> String {
     return format!(
         "{waiting_for} was still running {} seconds after it began (its bound of {} seconds and {} more for the write it started), so it \
          was left running and not ended: it is not known whether it finished. Check what it changes with `git status` and `git log -1`, \
@@ -188,7 +210,10 @@ pub struct NotKnown(
 );
 
 impl std::fmt::Display for NotKnown {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.0.as_str());
     }
 }
@@ -231,7 +256,10 @@ pub struct EndedByStop(
 );
 
 impl std::fmt::Display for EndedByStop {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.0.as_str());
     }
 }
@@ -249,7 +277,12 @@ impl std::error::Error for EndedByStop {}
 /// throw new EndedByStop(`${waitingFor} was ended because the service was stopped`);
 /// ```
 pub fn ended_by_the_stop(waiting_for: &str) -> std::io::Error {
-    return std::io::Error::new(std::io::ErrorKind::Interrupted, EndedByStop(format!("{waiting_for} was ended because the service was stopped")));
+    return std::io::Error::new(
+        std::io::ErrorKind::Interrupted,
+        EndedByStop(format!(
+            "{waiting_for} was ended because the service was stopped"
+        )),
+    );
 }
 
 /// What:
@@ -262,8 +295,13 @@ pub fn ended_by_the_stop(waiting_for: &str) -> std::io::Error {
 /// ```ts
 /// throw new EndedByStop(refusal.message);
 /// ```
-pub fn refused_while_stopping(refusal: &crate::stop_of_the_service_noticed_by_its_children::RefusedWhileStopping) -> std::io::Error {
-    return std::io::Error::new(std::io::ErrorKind::Interrupted, EndedByStop(refusal.to_string()));
+pub fn refused_while_stopping(
+    refusal: &crate::stop_of_the_service_noticed_by_its_children::RefusedWhileStopping
+) -> std::io::Error {
+    return std::io::Error::new(
+        std::io::ErrorKind::Interrupted,
+        EndedByStop(refusal.to_string()),
+    );
 }
 
 /// Whether an error is a step the service's stop ended or refused.
@@ -325,13 +363,20 @@ pub(crate) struct Outlived {
 /// ```ts
 /// `${waitingFor} ran for ${seconds} seconds, the longest the wrapper lets one step run, ${leftRunning ? 'and could not be ended, so it was left running' : 'and was ended'}`
 /// ```
-pub fn step_ended_at_its_ceiling_text(waiting_for: &str, ceiling: Duration, left_running: bool) -> String {
+pub fn step_ended_at_its_ceiling_text(
+    waiting_for: &str,
+    ceiling: Duration,
+    left_running: bool,
+) -> String {
     let ending: &str = if left_running {
         "and could not be ended, so it was left running, and the system collects it when its call returns"
     } else {
         "and was ended"
     };
-    return format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}", ceiling.as_secs());
+    return format!(
+        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}",
+        ceiling.as_secs()
+    );
 }
 
 /// What:
@@ -361,8 +406,18 @@ pub fn step_ended_at_its_ceiling_text(waiting_for: &str, ceiling: Duration, left
 /// if (outlived.expired) return watchedTimeout(waitingFor, outlived.limit);
 /// return undefined;
 /// ```
-pub(crate) fn ending_of_a_watched_step(waiting_for: &str, outlived: Outlived) -> Option<std::io::Error> {
-    let Outlived { ended_by_the_stop: ended, ceiling, ceiling_hit, the_watch_could_end_it, expired, limit } = outlived;
+pub(crate) fn ending_of_a_watched_step(
+    waiting_for: &str,
+    outlived: Outlived,
+) -> Option<std::io::Error> {
+    let Outlived {
+        ended_by_the_stop: ended,
+        ceiling,
+        ceiling_hit,
+        the_watch_could_end_it,
+        expired,
+        limit,
+    } = outlived;
     if ended {
         return Some(ended_by_the_stop(waiting_for));
     }
@@ -380,7 +435,10 @@ pub(crate) fn ending_of_a_watched_step(waiting_for: &str, outlived: Outlived) ->
         ));
     }
     if expired {
-        return Some(std::io::Error::new(std::io::ErrorKind::TimedOut, watched_timeout_text(waiting_for, limit)));
+        return Some(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            watched_timeout_text(waiting_for, limit),
+        ));
     }
     return None;
 }

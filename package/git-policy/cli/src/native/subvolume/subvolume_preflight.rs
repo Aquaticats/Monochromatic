@@ -23,15 +23,21 @@
 //! const refusals: { cause: string; remedy: string }[] = preflight({ platform, layout, journal });
 //! ```
 
-use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::fs_kind::FilesystemKind;
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::single_owner_claim::live_owner_of;
 use crate::subvolume_entry_count::count_entries;
 use crate::subvolume_journal::Journal;
-use crate::subvolume_lock::{is_ours, token_of};
+use crate::subvolume_lock::{
+    is_ours,
+    token_of,
+};
 use crate::subvolume_platform::Platform;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The metadata the copy writes for one entry,
 /// in bytes of the filesystem's own accounting:
@@ -100,7 +106,8 @@ pub const IN_PROGRESS_NAMES: [&str; 13] = [
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
     "REVERT_HEAD",
-    "BISECT_START", "BISECT_LOG",
+    "BISECT_START",
+    "BISECT_LOG",
     "rebase-merge",
     "rebase-apply",
     "sequencer",
@@ -156,7 +163,11 @@ pub struct Layout {
 
 /// `parent/<name><suffix>`:
 /// the name of a file kept beside the root under a fixed suffix.
-fn with_suffix(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
+fn with_suffix(
+    parent: &Path,
+    name: &std::ffi::OsStr,
+    suffix: &str,
+) -> PathBuf {
     let mut text: std::ffi::OsString = name.to_os_string();
     text.push(suffix);
     return parent.join(text);
@@ -164,7 +175,11 @@ fn with_suffix(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
 
 /// `parent/.cli-git-migrate-<name><suffix>`:
 /// the name of a hidden file kept beside the root under a fixed suffix.
-fn dotted(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
+fn dotted(
+    parent: &Path,
+    name: &std::ffi::OsStr,
+    suffix: &str,
+) -> PathBuf {
     let mut text: std::ffi::OsString = std::ffi::OsString::from(".cli-git-migrate-");
     text.push(name);
     text.push(suffix);
@@ -194,7 +209,10 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
         journal_path: dotted(parent, name, ".journal.json"),
         unreadable_path: dotted(parent, name, ".unreadable.txt"),
         left_out_path: dotted(parent, name, ".left-out.txt"),
-        claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
+        claim_prefix: dotted(parent, name, ".owner")
+            .file_name()
+            .unwrap_or_default()
+            .to_os_string(),
     });
 }
 
@@ -218,8 +236,14 @@ pub struct Refusal {
 }
 
 /// Shorthand for building a refusal from two texts.
-fn refuse(cause: String, remedy: &str) -> Refusal {
-    return Refusal { cause, remedy: remedy.to_string() };
+fn refuse(
+    cause: String,
+    remedy: &str,
+) -> Refusal {
+    return Refusal {
+        cause,
+        remedy: remedy.to_string(),
+    };
 }
 
 /// What:
@@ -237,18 +261,31 @@ fn refuse(cause: String, remedy: &str) -> Refusal {
 /// ```ts
 /// const refusals = migrateRefusals(platform, layout, journal);
 /// ```
-pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -> Vec<Refusal> {
+pub fn migrate_refusals(
+    platform: &dyn Platform,
+    layout: &Layout,
+    journal: &Journal,
+) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
     let root: &Path = layout.root.as_path();
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(root) {
         Ok(read) => read,
         Err(error) => {
-            found.push(refuse(format!("{} cannot be examined: {error}", root.display()), "Run the command inside the repository's main checkout, or check the path."));
+            found.push(refuse(
+                format!("{} cannot be examined: {error}", root.display()),
+                "Run the command inside the repository's main checkout, or check the path.",
+            ));
             return found;
         }
     };
     if !metadata.is_dir() {
-        found.push(refuse(format!("{} is not a directory (it is a symbolic link or a file)", root.display()), "Run the command from the real path of the main checkout."));
+        found.push(refuse(
+            format!(
+                "{} is not a directory (it is a symbolic link or a file)",
+                root.display()
+            ),
+            "Run the command from the real path of the main checkout.",
+        ));
         return found;
     }
     match platform.filesystem_facts(root) {
@@ -260,7 +297,10 @@ pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Jour
         Err(error) => found.push(refuse(format!("the filesystem of {} cannot be identified: {error}", root.display()), "Check that the path exists and that this user can read it.")),
     }
     // The need is the metadata of btrfs, so the tree is counted and the space compared only where the checkout is on btrfs.
-    let on_btrfs: bool = matches!(platform.filesystem_facts(root), Ok((FilesystemKind::Btrfs, _)));
+    let on_btrfs: bool = matches!(
+        platform.filesystem_facts(root),
+        Ok((FilesystemKind::Btrfs, _))
+    );
     if on_btrfs && let Ok((_, free)) = platform.filesystem_facts(layout.parent.as_path()) {
         // Counting reads directory listings only; it is the one walk of the tree this check makes.
         let entries: u64 = count_entries(root);
@@ -276,9 +316,16 @@ pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Jour
             ));
         }
     }
-    if let Ok(parent_metadata) = std::fs::metadata(layout.parent.as_path()) && parent_metadata.dev() != metadata.dev() && !platform.is_subvolume_root(root).unwrap_or(false) {
+    if let Ok(parent_metadata) = std::fs::metadata(layout.parent.as_path())
+        && parent_metadata.dev() != metadata.dev()
+        && !platform.is_subvolume_root(root).unwrap_or(false)
+    {
         found.push(refuse(
-            format!("{} and its parent {} are on different devices, so the two cannot be swapped", root.display(), layout.parent.display()),
+            format!(
+                "{} and its parent {} are on different devices, so the two cannot be swapped",
+                root.display(),
+                layout.parent.display()
+            ),
             "Run the command for a checkout that is not itself a mount point.",
         ));
     }
@@ -296,12 +343,21 @@ pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Jour
 /// The refusals about what an earlier run,
 /// or someone else,
 /// left beside the checkout.
-fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -> Vec<Refusal> {
+fn state_refusals(
+    platform: &dyn Platform,
+    layout: &Layout,
+    journal: &Journal,
+) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
-    let is_root_subvolume: bool = platform.is_subvolume_root(layout.root.as_path()).unwrap_or(false);
+    let is_root_subvolume: bool = platform
+        .is_subvolume_root(layout.root.as_path())
+        .unwrap_or(false);
     if is_root_subvolume && !journal.has_begun("exchange") {
         found.push(refuse(
-            format!("{} is already a subvolume (inode 256) and no migration of it is recorded", layout.root.display()),
+            format!(
+                "{} is already a subvolume (inode 256) and no migration of it is recorded",
+                layout.root.display()
+            ),
             "Nothing to do.",
         ));
     }
@@ -338,7 +394,9 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
 /// a listing that fails answers `false`,
 /// so nothing is adopted that cannot be shown empty.
 fn holds_no_entry(path: &Path) -> bool {
-    let Ok(mut entries) = std::fs::read_dir(path) else { return false };
+    let Ok(mut entries) = std::fs::read_dir(path) else {
+        return false;
+    };
     return entries.next().is_none();
 }
 
@@ -362,23 +420,46 @@ fn holds_no_entry(path: &Path) -> bool {
 /// ```ts
 /// const refusal = stageIdentityRefusal(platform, layout, journal);
 /// ```
-fn stage_identity_refusal(platform: &dyn Platform, layout: &Layout, journal: &Journal) -> Option<Refusal> {
+fn stage_identity_refusal(
+    platform: &dyn Platform,
+    layout: &Layout,
+    journal: &Journal,
+) -> Option<Refusal> {
     let new_path: &Path = layout.new_path.as_path();
-    let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(new_path);
+    let found: Option<crate::fs_beneath::ObjectId> =
+        crate::worktree_convert_phases::identity_of_path(new_path);
     return match (journal.stage_identity(), found) {
-        (Some(recorded), Some(named)) if crate::worktree_convert_journal::is_recorded_object(&recorded, &named) => None,
+        (Some(recorded), Some(named))
+            if crate::worktree_convert_journal::is_recorded_object(&recorded, &named) =>
+        {
+            None
+        }
         (Some(_), Some(_)) => Some(refuse(
-            format!("{} is not the subvolume this migration created (the journal records another identity), so nothing is copied into it or deleted from it", new_path.display()),
+            format!(
+                "{} is not the subvolume this migration created (the journal records another identity), so nothing is copied into it or deleted from it",
+                new_path.display()
+            ),
             "If the subvolume is yours, move it away and run the command again; if it is the migration's own stage, move it back to that name.",
         )),
         (Some(_), None) => Some(refuse(
-            format!("{} was created by this migration and is gone, so the copy has nowhere to go", new_path.display()),
+            format!(
+                "{} was created by this migration and is gone, so the copy has nowhere to go",
+                new_path.display()
+            ),
             "If it was moved, move it back to that path. Otherwise run `git monochromatic-git-policy-cli migrate-to-subvolume --rollback` to clear the journal, then run the migration again.",
         )),
         (None, None) => None,
-        (None, Some(_)) if platform.is_subvolume_root(new_path).unwrap_or(false) && holds_no_entry(new_path) => None,
+        (None, Some(_))
+            if platform.is_subvolume_root(new_path).unwrap_or(false)
+                && holds_no_entry(new_path) =>
+        {
+            None
+        }
         (None, Some(_)) => Some(refuse(
-            format!("{} holds something the journal records no identity for, so it cannot be shown to be the subvolume this migration made; nothing is copied into it or deleted from it", new_path.display()),
+            format!(
+                "{} holds something the journal records no identity for, so it cannot be shown to be the subvolume this migration made; nothing is copied into it or deleted from it",
+                new_path.display()
+            ),
             "If it is yours, move it away and run the command again; if it is the migration's own stage, run `git monochromatic-git-policy-cli migrate-to-subvolume --rollback` to clear the journal, then run the migration again.",
         )),
     };
@@ -387,21 +468,35 @@ fn stage_identity_refusal(platform: &dyn Platform, layout: &Layout, journal: &Jo
 /// The refusal for a conversion of the linked worktree whose administrative directory this is,
 /// when its command is running.
 fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
-    return match live_owner_of(administrative, std::ffi::OsStr::new(crate::worktree_convert_journal::CLAIM_PREFIX)) {
+    return match live_owner_of(
+        administrative,
+        std::ffi::OsStr::new(crate::worktree_convert_journal::CLAIM_PREFIX),
+    ) {
         Ok(None) => None,
         Ok(Some(owner)) => Some(refuse(
-            format!("process {} is converting the linked worktree registered in {} to a subvolume (it owns {})", owner.pid, administrative.display(), owner.path.display()),
+            format!(
+                "process {} is converting the linked worktree registered in {} to a subvolume (it owns {})",
+                owner.pid,
+                administrative.display(),
+                owner.path.display()
+            ),
             "Wait for `git monochromatic-git-policy-cli convert-worktree-to-subvolume` to finish, then run the command again.",
         )),
         Err(error) => Some(refuse(
-            format!("whether the linked worktree registered in {} is being converted cannot be decided ({error})", administrative.display()),
+            format!(
+                "whether the linked worktree registered in {} is being converted cannot be decided ({error})",
+                administrative.display()
+            ),
             "Look at the claim file the message names; if no monochromatic-git-policy-cli command is running, remove it, then run the command again.",
         )),
     };
 }
 
 /// The refusals about Git's own state in the checkout.
-fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
+fn git_state_refusals(
+    layout: &Layout,
+    journal: &Journal,
+) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
     let git_directory: PathBuf = layout.root.join(".git");
     if !git_directory.is_dir() {
@@ -421,7 +516,8 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     directories.sort();
     for directory in &directories {
         for name in IN_PROGRESS_NAMES {
-            let own_lock: bool = name == "index.lock" && is_ours(directory.join(name).as_path(), token.as_str());
+            let own_lock: bool =
+                name == "index.lock" && is_ours(directory.join(name).as_path(), token.as_str());
             if directory.join(name).exists() && !own_lock {
                 found.push(refuse(
                     format!("Git is in the middle of an operation: {} exists", directory.join(name).display()),
@@ -433,7 +529,9 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
             found.push(refusal);
         }
         for queue in ["pending", "claimed"] {
-            let path: PathBuf = path_for_reading(directory.as_path(), "monochromatic-git-policy-cli/work").join(queue);
+            let path: PathBuf =
+                path_for_reading(directory.as_path(), "monochromatic-git-policy-cli/work")
+                    .join(queue);
             if let Ok(mut entries) = std::fs::read_dir(&path)
                 && entries.next().is_some()
             {
@@ -488,7 +586,10 @@ pub fn installed_identity(path: &Path) -> Option<String> {
 /// ```ts
 /// const refusal = wrongRootRefusal(layout, journal); // undefined when the checkout is the installed one
 /// ```
-pub fn wrong_root_refusal(layout: &Layout, journal: &Journal) -> Option<Refusal> {
+pub fn wrong_root_refusal(
+    layout: &Layout,
+    journal: &Journal,
+) -> Option<Refusal> {
     let recorded: &str = journal.value(INSTALLED_ROOT)?;
     let now: String = installed_identity(layout.root.as_path())?;
     if now == recorded {
@@ -514,10 +615,16 @@ pub fn wrong_root_refusal(layout: &Layout, journal: &Journal) -> Option<Refusal>
 /// ```ts
 /// const refusals = rollbackRefusals(layout, journal);
 /// ```
-pub fn rollback_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
+pub fn rollback_refusals(
+    layout: &Layout,
+    journal: &Journal,
+) -> Vec<Refusal> {
     if !journal.is_persisted() {
         return vec![refuse(
-            format!("there is no migration journal at {}, so there is nothing recorded to undo", layout.journal_path.display()),
+            format!(
+                "there is no migration journal at {}, so there is nothing recorded to undo",
+                layout.journal_path.display()
+            ),
             "If a migration was started by hand, undo it by hand: exchange the directories again with `mv --exchange` and delete the new subvolume.",
         )];
     }
@@ -545,7 +652,10 @@ pub fn rollback_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
 /// ```ts
 /// const refusals = removeOldRefusals(layout, journal);
 /// ```
-pub fn remove_old_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
+pub fn remove_old_refusals(
+    layout: &Layout,
+    journal: &Journal,
+) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
     if !journal.is_done("verify") {
         found.push(refuse(

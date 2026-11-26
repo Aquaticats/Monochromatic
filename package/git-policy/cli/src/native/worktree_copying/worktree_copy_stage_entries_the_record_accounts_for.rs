@@ -25,7 +25,10 @@
 //! ```
 
 use crate::worktree_copy_repository_path::shown_repository_path;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::SystemTime;
 
 /// The relative path of the directory a snapshot's leave-out moves its set-aside directories into.
@@ -136,7 +139,10 @@ fn words_for(relative: &Path) -> String {
 /// ```ts
 /// `nothing shows what ${shown} is (${reason}), so nothing below it was examined`
 /// ```
-fn words_for_unexamined(relative: &Path, error: &std::io::Error) -> String {
+fn words_for_unexamined(
+    relative: &Path,
+    error: &std::io::Error,
+) -> String {
     use std::os::unix::ffi::OsStrExt as _;
     return format!(
         "nothing shows what {} is ({error}), so nothing below it was examined and none of it was removed",
@@ -164,7 +170,10 @@ fn words_for_unexamined(relative: &Path, error: &std::io::Error) -> String {
 /// ```ts
 /// const unaccounted = firstEntryTheRecordDoesNotAccountFor(container, written);
 /// ```
-pub fn unaccounted_entry(container: &Path, written: SystemTime) -> Option<String> {
+pub fn unaccounted_entry(
+    container: &Path,
+    written: SystemTime,
+) -> Option<String> {
     let mut pending: Vec<(PathBuf, PathBuf)> = vec![(container.to_path_buf(), PathBuf::new())];
     while let Some((directory, relative)) = pending.pop() {
         let listing = match std::fs::read_dir(directory.as_path()) {

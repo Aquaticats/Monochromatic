@@ -18,7 +18,10 @@
 use crate::service_instance::service_unit_instance;
 use crate::service_provision_host_and_manager::Manager;
 use crate::wait_ceilings::SERVICE_GONE_AFTER_A_STOP;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How often the manager is asked whether a stopped service's processes are gone.
 /// Why:
@@ -40,7 +43,10 @@ const SERVICE_GONE_POLL: Duration = Duration::from_millis(50);
 /// ```ts
 /// await serviceIsGone(manager, instance) // true only when the manager reports no process
 /// ```
-pub(crate) fn service_is_gone(manager: &mut dyn Manager, instance: &str) -> bool {
+pub(crate) fn service_is_gone(
+    manager: &mut dyn Manager,
+    instance: &str,
+) -> bool {
     let deadline: Instant = Instant::now() + SERVICE_GONE_AFTER_A_STOP;
     let unit: String = service_unit_instance(instance);
     loop {

@@ -26,7 +26,10 @@
 use crate::process_tree::TreeMember;
 /// The member's record,
 /// read so that a record that could not be read is not mistaken for a gone process.
-use crate::process_tree::{MemberRead, member_read};
+use crate::process_tree::{
+    MemberRead,
+    member_read,
+};
 
 /// What:
 ///  What a signal came to.
@@ -122,7 +125,9 @@ thread_local! {
 /// Refuse the next `count` descriptors the kernel would make.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) fn refuse_the_next_descriptors(count: usize) {
-    DESCRIPTOR_REFUSALS.with(|left| { left.set(count); });
+    DESCRIPTOR_REFUSALS.with(|left| {
+        left.set(count);
+    });
 }
 
 /// Take one refusal,
@@ -133,7 +138,9 @@ fn a_descriptor_is_refused() -> bool {
     if left == 0 {
         return false;
     }
-    DESCRIPTOR_REFUSALS.with(|armed| { armed.set(armed.get().saturating_sub(1)); });
+    DESCRIPTOR_REFUSALS.with(|armed| {
+        armed.set(armed.get().saturating_sub(1));
+    });
     return true;
 }
 
@@ -152,7 +159,9 @@ thread_local! {
 /// Make the next signal answer `errno`.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) fn refuse_the_next_signal_with(errno: i32) {
-    SIGNAL_REFUSALS.with(|armed| { armed.set(Some(errno)); });
+    SIGNAL_REFUSALS.with(|armed| {
+        armed.set(Some(errno));
+    });
 }
 
 /// Take the control's refusal,
@@ -198,8 +207,13 @@ enum Proven {
 #[cfg(target_os = "linux")]
 fn prove(member: &TreeMember) -> Proven {
     return match member_read(member.pid) {
-        MemberRead::Found { member: found, .. } if found.started == member.started => Proven::Still,
-        MemberRead::Found { .. } => Proven::Gone,
+        MemberRead::Found {
+            member: found,
+            ..
+        } if found.started == member.started => Proven::Still,
+        MemberRead::Found {
+            ..
+        } => Proven::Gone,
         MemberRead::Gone => Proven::Gone,
         MemberRead::Unreadable => Proven::Unreadable,
     };
@@ -237,7 +251,11 @@ impl PinnedMember {
         };
         // The number named the member before and after the descriptor was made, so the descriptor is that process's.
         match prove(member) {
-            Proven::Still => return Pinned::Held(Self { descriptor }),
+            Proven::Still => {
+                return Pinned::Held(Self {
+                    descriptor,
+                });
+            }
             Proven::Gone => return Pinned::Gone,
             Proven::Unreadable => return Pinned::Unproven,
         }
@@ -261,7 +279,10 @@ impl PinnedMember {
 
     /// Send `signal` to the pinned process,
     /// and to no other.
-    pub fn signal(&self, signal: i32) -> Delivered {
+    pub fn signal(
+        &self,
+        signal: i32,
+    ) -> Delivered {
         return signal_through(&self.descriptor, signal);
     }
 }
@@ -279,7 +300,10 @@ impl PinnedMember {
 /// signalThrough(descriptor, 'SIGKILL');
 /// ```
 #[cfg(target_os = "linux")]
-pub fn signal_through(descriptor: &std::os::fd::OwnedFd, signal: i32) -> Delivered {
+pub fn signal_through(
+    descriptor: &std::os::fd::OwnedFd,
+    signal: i32,
+) -> Delivered {
     #[cfg(test)]
     if let Some(refused) = a_signal_is_refused() {
         return a_refusal_means(Some(refused));
@@ -308,7 +332,11 @@ pub fn signal_through(descriptor: &std::os::fd::OwnedFd, signal: i32) -> Deliver
 /// const aRefusalMeans = (errno) => errno === 'ESRCH' ? 'gone' : 'unproven';
 /// ```
 fn a_refusal_means(errno: Option<i32>) -> Delivered {
-    return if errno == Some(libc::ESRCH) { Delivered::Gone } else { Delivered::Unproven };
+    return if errno == Some(libc::ESRCH) {
+        Delivered::Gone
+    } else {
+        Delivered::Unproven
+    };
 }
 
 /// What:
@@ -324,7 +352,11 @@ fn a_refusal_means(errno: Option<i32>) -> Delivered {
 #[cfg(target_os = "linux")]
 pub fn has_ended(descriptor: &std::os::fd::OwnedFd) -> bool {
     use std::os::fd::AsRawFd;
-    let mut ask: libc::pollfd = libc::pollfd { fd: descriptor.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+    let mut ask: libc::pollfd = libc::pollfd {
+        fd: descriptor.as_raw_fd(),
+        events: libc::POLLIN,
+        revents: 0,
+    };
     // SAFETY: `ask` is one valid `pollfd` and the count says so; a zero timeout makes the call return at once.
     let ready: libc::c_int = unsafe { libc::poll(&raw mut ask, 1, 0) };
     return ready > 0;
@@ -344,7 +376,10 @@ pub fn has_ended(descriptor: &std::os::fd::OwnedFd) -> bool {
 /// for (const member of tree) member.signal('SIGKILL');
 /// ```
 #[cfg(target_os = "linux")]
-pub fn signal_members(members: &[TreeMember], signal: i32) -> Vec<Delivered> {
+pub fn signal_members(
+    members: &[TreeMember],
+    signal: i32,
+) -> Vec<Delivered> {
     let mut reported: Vec<Delivered> = Vec::with_capacity(members.len());
     for member in members {
         let delivered: Delivered = match PinnedMember::open(member) {
@@ -366,14 +401,20 @@ pub fn signal_members(members: &[TreeMember], signal: i32) -> Vec<Delivered> {
 /// "Ignore Win and mac until I say so."
 // UNTESTED: no gate compiles or runs this branch, and the owner keeps macOS and Windows out of scope.
 #[cfg(all(unix, not(target_os = "linux")))]
-pub fn signal_members(members: &[TreeMember], _signal: i32) -> Vec<Delivered> {
+pub fn signal_members(
+    members: &[TreeMember],
+    _signal: i32,
+) -> Vec<Delivered> {
     return vec![Delivered::Unproven; members.len()];
 }
 
 /// Platforms without signals stop only the root.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub fn signal_members(_members: &[TreeMember], _signal: i32) -> Vec<Delivered> {
+pub fn signal_members(
+    _members: &[TreeMember],
+    _signal: i32,
+) -> Vec<Delivered> {
     return Vec::new();
 }
 

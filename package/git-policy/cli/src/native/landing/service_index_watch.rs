@@ -19,7 +19,10 @@
 //! ```
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a wait that has no watch sleeps between two looks at the lock.
 ///  This is a poll pace,
@@ -71,7 +74,9 @@ pub fn wakes_by_the_timer_on_this_thread() -> usize {
 /// Records for the controls that a wait on a watch ended at its timer.
 #[cfg(test)]
 fn note_a_wake_at_the_timer() {
-    WAKES_BY_THE_TIMER_ON_THIS_THREAD.with(|count| { count.set(count.get() + 1); });
+    WAKES_BY_THE_TIMER_ON_THIS_THREAD.with(|count| {
+        count.set(count.get() + 1);
+    });
 }
 
 /// Does nothing in the release executable.
@@ -96,7 +101,11 @@ pub struct Watch {
 /// const fieldAt = (buffer: Buffer, at: number, offset: number) => buffer.readUInt32LE(at + offset);
 /// ```
 #[cfg(target_os = "linux")]
-fn field_at(buffer: &[u8], at: usize, offset: usize) -> u32 {
+fn field_at(
+    buffer: &[u8],
+    at: usize,
+    offset: usize,
+) -> u32 {
     let mut bytes: [u8; 4] = [0; 4];
     bytes.copy_from_slice(&buffer[at + offset..at + offset + 4]);
     return u32::from_ne_bytes(bytes);
@@ -200,7 +209,10 @@ pub fn events_end_watch(buffer: &[u8]) -> bool {
 /// events.some((event) => event.overflow || event.unmount || event.ignored || event.name === wanted)
 /// ```
 #[cfg(target_os = "linux")]
-pub fn events_name(buffer: &[u8], wanted: &[u8]) -> bool {
+pub fn events_name(
+    buffer: &[u8],
+    wanted: &[u8],
+) -> bool {
     if events_end_watch(buffer) {
         return true;
     }
@@ -223,15 +235,25 @@ impl Watch {
             return None;
         }
         // SAFETY: `path` is a valid NUL-terminated string for the call.
-        let added: i32 = unsafe { libc::inotify_add_watch(descriptor, path.as_ptr(), libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_MOVE_SELF) };
+        let added: i32 = unsafe {
+            libc::inotify_add_watch(
+                descriptor,
+                path.as_ptr(),
+                libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_MOVE_SELF,
+            )
+        };
         if added < 0 {
             // SAFETY: the descriptor was just opened and nothing else owns it.
             unsafe { libc::close(descriptor) };
             return None;
         }
         #[cfg(test)]
-        LIVE_ON_THIS_THREAD.with(|count| { count.set(count.get() + 1); });
-        return Some(Watch { descriptor });
+        LIVE_ON_THIS_THREAD.with(|count| {
+            count.set(count.get() + 1);
+        });
+        return Some(Watch {
+            descriptor,
+        });
     }
 
     /// Blocks until the file `name` in the directory was removed or moved away,
@@ -241,7 +263,11 @@ impl Watch {
     /// False when the watch has ended (the directory was unmounted,
     /// removed or moved),
     /// so the caller sets a new one before it waits again.
-    pub fn wait(&self, timeout: Duration, name: &std::ffi::OsStr) -> bool {
+    pub fn wait(
+        &self,
+        timeout: Duration,
+        name: &std::ffi::OsStr,
+    ) -> bool {
         use std::os::unix::ffi::OsStrExt;
         let deadline: Instant = Instant::now() + timeout;
         loop {
@@ -250,7 +276,11 @@ impl Watch {
                 note_a_wake_at_the_timer();
                 return true;
             }
-            let mut entry = libc::pollfd { fd: self.descriptor, events: libc::POLLIN, revents: 0 };
+            let mut entry = libc::pollfd {
+                fd: self.descriptor,
+                events: libc::POLLIN,
+                revents: 0,
+            };
             let milliseconds: i32 = i32::try_from(left.as_millis()).unwrap_or(i32::MAX).max(1);
             // SAFETY: `entry` is valid for the one descriptor named by the count.
             let ready: i32 = unsafe { libc::poll(&raw mut entry, 1, milliseconds) };
@@ -260,7 +290,8 @@ impl Watch {
             }
             let mut buffer: [u8; 4096] = [0; 4096];
             // SAFETY: the buffer is valid for its length.
-            let read: isize = unsafe { libc::read(self.descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
+            let read: isize =
+                unsafe { libc::read(self.descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
             let Ok(count) = usize::try_from(read) else {
                 note_a_wake_at_the_timer();
                 return true;
@@ -280,7 +311,9 @@ impl Watch {
 impl Drop for Watch {
     fn drop(&mut self) {
         #[cfg(test)]
-        LIVE_ON_THIS_THREAD.with(|count| { count.set(count.get().saturating_sub(1)); });
+        LIVE_ON_THIS_THREAD.with(|count| {
+            count.set(count.get().saturating_sub(1));
+        });
         // SAFETY: the descriptor belongs to this watch and is closed once.
         unsafe { libc::close(self.descriptor) };
     }
@@ -292,7 +325,11 @@ impl Watch {
         return None;
     }
 
-    pub fn wait(&self, _timeout: Duration, _name: &std::ffi::OsStr) -> bool {
+    pub fn wait(
+        &self,
+        _timeout: Duration,
+        _name: &std::ffi::OsStr,
+    ) -> bool {
         return true;
     }
 }

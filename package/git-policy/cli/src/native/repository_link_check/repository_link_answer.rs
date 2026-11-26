@@ -112,8 +112,15 @@ impl LinkAnswer {
     /// ```ts
     /// refusal({ kind, message })
     /// ```
-    pub fn refusal(kind: AnswerKind, message: String) -> LinkAnswer {
-        return LinkAnswer { kind, ready: false, message };
+    pub fn refusal(
+        kind: AnswerKind,
+        message: String,
+    ) -> LinkAnswer {
+        return LinkAnswer {
+            kind,
+            ready: false,
+            message,
+        };
     }
 
     /// What:
@@ -126,7 +133,14 @@ impl LinkAnswer {
     /// ```ts
     /// { kind, ready: true, message }
     /// ```
-    pub fn ready(kind: AnswerKind, message: String) -> LinkAnswer {
-        return LinkAnswer { kind, ready: true, message };
+    pub fn ready(
+        kind: AnswerKind,
+        message: String,
+    ) -> LinkAnswer {
+        return LinkAnswer {
+            kind,
+            ready: true,
+            message,
+        };
     }
 }

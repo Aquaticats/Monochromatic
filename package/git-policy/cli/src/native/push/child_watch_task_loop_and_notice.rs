@@ -14,14 +14,32 @@
 //! ```
 
 use crate::bounded_push::StopCause;
-use crate::child_watch_clock_marks_and_stopping::{Mark, Marks, SHORTEST_SLEEP, WatchFlags, WatchTerms, stop_process};
-use crate::push_progress::{Clock, SAMPLE_INTERVAL};
+use crate::child_watch_clock_marks_and_stopping::{
+    Mark,
+    Marks,
+    SHORTEST_SLEEP,
+    WatchFlags,
+    WatchTerms,
+    stop_process,
+};
+use crate::push_progress::{
+    Clock,
+    SAMPLE_INTERVAL,
+};
 use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 use crate::stopped_git_locks::LockLedger;
-use crate::wait_progress::{ChildWaitFacts, Ticker, child_wait_line};
+use crate::wait_progress::{
+    ChildWaitFacts,
+    Ticker,
+    child_wait_line,
+};
 use std::io::Write;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -64,7 +82,15 @@ pub(crate) async fn watch_loop(
     let longest: Arc<AtomicU64> = Arc::clone(&flags.longest);
     let (limit, cadence): (Duration, crate::wait_progress::Cadence) = (terms.limit, terms.cadence);
     let mut notices: Option<Box<dyn Write + Send>> = Some(terms.notices);
-    let mut marks: Marks = Marks { since: None, ticker: Ticker::new(cadence), printed: 0, clock: None, pid, window: limit, longest };
+    let mut marks: Marks = Marks {
+        since: None,
+        ticker: Ticker::new(cadence),
+        printed: 0,
+        clock: None,
+        pid,
+        window: limit,
+        longest,
+    };
     loop {
         let Some(since) = marks.since else {
             match incoming.recv().await {
@@ -84,7 +110,9 @@ pub(crate) async fn watch_loop(
                 limit_note: " (CLI_GIT_CHILD_WAIT_SECONDS changes this)",
                 repeat: marks.printed > 0,
                 ends_when_quiet: stoppable.load(Ordering::Acquire),
-                left_running_after: left_running_after(flags.left_running_after.load(Ordering::Acquire)),
+                left_running_after: left_running_after(
+                    flags.left_running_after.load(Ordering::Acquire),
+                ),
             });
             marks.printed += 1;
             if let Some(sink) = notices.take() {
@@ -92,7 +120,15 @@ pub(crate) async fn watch_loop(
                     Some(kept) => notices = kept,
                     None => {
                         stop = None;
-                        end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming, &root_pin).await;
+                        end_for_the_stop(
+                            &mut marks,
+                            flags.stopped.as_ref(),
+                            pid,
+                            &locks,
+                            &mut incoming,
+                            &root_pin,
+                        )
+                        .await;
                         continue;
                     }
                 }
@@ -145,15 +181,28 @@ pub(crate) async fn watch_loop(
             continue;
         }
         let until_notice: Duration = marks.ticker.next_in(since.elapsed());
-        let until_ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire)).saturating_sub(since.elapsed());
-        let sleep: Duration = until_notice.min(SAMPLE_INTERVAL).min(limit).min(until_ceiling).max(SHORTEST_SLEEP);
+        let until_ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire))
+            .saturating_sub(since.elapsed());
+        let sleep: Duration = until_notice
+            .min(SAMPLE_INTERVAL)
+            .min(limit)
+            .min(until_ceiling)
+            .max(SHORTEST_SLEEP);
         match or_the_stop(&mut stop, tokio::time::timeout(sleep, incoming.recv())).await {
             Some(Ok(Some(mark))) => marks.apply(mark, cadence),
             Some(Ok(None)) => return,
             Some(Err(_slept)) => {}
             None => {
                 stop = None;
-                end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming, &root_pin).await;
+                end_for_the_stop(
+                    &mut marks,
+                    flags.stopped.as_ref(),
+                    pid,
+                    &locks,
+                    &mut incoming,
+                    &root_pin,
+                )
+                .await;
             }
         }
     }
@@ -198,7 +247,10 @@ fn left_running_after(micros: u64) -> Option<Duration> {
 /// ```ts
 /// const sink = await runBlockingJob(() => { sink.write(line + '\n'); return sink; }).catch(() => undefined);
 /// ```
-async fn write_notice(mut sink: Box<dyn Write + Send>, line: String) -> Option<Box<dyn Write + Send>> {
+async fn write_notice(
+    mut sink: Box<dyn Write + Send>,
+    line: String,
+) -> Option<Box<dyn Write + Send>> {
     return match crate::blocking_job::run_blocking_job(move || {
         // Terminal output error: a notice is advisory; a failed write must not stop the watch.
         let _written = writeln!(sink, "{line}");
@@ -208,7 +260,10 @@ async fn write_notice(mut sink: Box<dyn Write + Send>, line: String) -> Option<B
     {
         Ok(kept) => Some(kept),
         Err(error) => {
-            crate::diagnostic_log::debug("childWatch", format!("a notice was not written: {error}").as_str());
+            crate::diagnostic_log::debug(
+                "childWatch",
+                format!("a notice was not written: {error}").as_str(),
+            );
             None
         }
     };
@@ -228,7 +283,10 @@ async fn write_notice(mut sink: Box<dyn Write + Send>, line: String) -> Option<B
 /// ```ts
 /// return arm ? await Promise.race([work, arm.stopTold().then(() => undefined)]) : await work;
 /// ```
-async fn or_the_stop<T>(stop: &mut Option<StopArm>, work: impl std::future::Future<Output = T>) -> Option<T> {
+async fn or_the_stop<T>(
+    stop: &mut Option<StopArm>,
+    work: impl std::future::Future<Output = T>,
+) -> Option<T> {
     let Some(arm) = stop.as_mut() else {
         return Some(work.await);
     };

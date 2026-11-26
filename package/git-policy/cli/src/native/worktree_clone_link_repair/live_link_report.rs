@@ -27,16 +27,48 @@
 //! ```
 
 use crate::worktree_clone_binding_record::record_publication::read_binding;
-use crate::worktree_clone_binding_record::registration_home::{home_folder, slot_of};
-use crate::worktree_clone_link_repair::repair_report::{LinkRepair, LinkRepairReport, class_of, link_report_of};
-use crate::worktree_clone_prune_pointer::link_facts::{LinkFacts, link_facts_of, recorded_link_of};
-use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
-use crate::worktree_clone_slot_state::slot_state_live_read::{CloneIntentReads, GatedCloneIntentReads, SlotReadingSources, read_slot};
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, clone_mount_of, read_mount_rows, slot_mount_of};
+use crate::worktree_clone_binding_record::registration_home::{
+    home_folder,
+    slot_of,
+};
+use crate::worktree_clone_link_repair::repair_report::{
+    LinkRepair,
+    LinkRepairReport,
+    class_of,
+    link_report_of,
+};
+use crate::worktree_clone_prune_pointer::link_facts::{
+    LinkFacts,
+    link_facts_of,
+    recorded_link_of,
+};
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    SlotRouteState,
+    classify_slot,
+};
+use crate::worktree_clone_slot_state::slot_state_live_read::{
+    CloneIntentReads,
+    GatedCloneIntentReads,
+    SlotReadingSources,
+    read_slot,
+};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    MountRows,
+    clone_mount_of,
+    read_mount_rows,
+    slot_mount_of,
+};
 use crate::worktree_clone_slot_state::slot_state_readings::SlotReadings;
-use crate::worktree_clone_slot_state::slot_state_report::{SlotStateReport, report_of as slot_report_of};
+use crate::worktree_clone_slot_state::slot_state_report::{
+    SlotStateReport,
+    report_of as slot_report_of,
+};
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{LiveMountedDatasets, MountedDatasets};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    LiveMountedDatasets,
+    MountedDatasets,
+};
 use std::path::Path;
 
 /// What:
@@ -97,7 +129,11 @@ impl SlotAtTheCommand {
 /// ```ts
 /// const slot = theSlotAt(commonDir, slot, slotPath);
 /// ```
-pub fn the_slot_at(common_dir: &Path, slot: &str, slot_path: &Path) -> SlotAtTheCommand {
+pub fn the_slot_at(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+) -> SlotAtTheCommand {
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let gate: LiveGate = LiveGate;
     let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
@@ -117,13 +153,26 @@ pub fn the_slot_at(common_dir: &Path, slot: &str, slot_path: &Path) -> SlotAtThe
 /// ```ts
 /// const slot = theSlotAtWith(commonDir, slot, slotPath, mounts, intents);
 /// ```
-pub fn the_slot_at_with(common_dir: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets, intents: &dyn CloneIntentReads) -> SlotAtTheCommand {
-    let sources: SlotReadingSources<'_> = SlotReadingSources { mounts, intents };
+pub fn the_slot_at_with(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+    mounts: &dyn MountedDatasets,
+    intents: &dyn CloneIntentReads,
+) -> SlotAtTheCommand {
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts,
+        intents,
+    };
     let readings: SlotReadings = read_slot(common_dir, slot, slot_path, &sources);
     let state: SlotRouteState = classify_slot(&readings);
     let report: SlotStateReport = slot_report_of(&readings);
     let link: Option<LinkRepairReport> = the_links_report_of(common_dir, slot, slot_path, mounts);
-    return SlotAtTheCommand { state, report, link };
+    return SlotAtTheCommand {
+        state,
+        report,
+        link,
+    };
 }
 
 /// What:
@@ -139,14 +188,24 @@ pub fn the_slot_at_with(common_dir: &Path, slot: &str, slot_path: &Path, mounts:
 /// ```ts
 /// const link = theLinksReportOf(commonDir, slot, slotPath, mounts, readings);
 /// ```
-fn the_links_report_of(common_dir: &Path, slot: &str, slot_path: &Path, mounts: &dyn MountedDatasets) -> Option<LinkRepairReport> {
+fn the_links_report_of(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+    mounts: &dyn MountedDatasets,
+) -> Option<LinkRepairReport> {
     let record = read_binding(home_folder(common_dir).as_path(), slot).ok()?;
     // The record is keyed by the slot's last name, so a record naming another path is not this worktree's to report on.
     if !names_the_same_slot(record.slot_path().as_deref()?, slot_path) {
         return None;
     }
     let rows: MountRows = read_mount_rows(mounts);
-    let mount: CloneMount = clone_mount_of(&rows, &slot_mount_of(mounts, slot_path), record.clone_dataset.as_str(), slot_path);
+    let mount: CloneMount = clone_mount_of(
+        &rows,
+        &slot_mount_of(mounts, slot_path),
+        record.clone_dataset.as_str(),
+        slot_path,
+    );
     let link = recorded_link_of(&record);
     let facts: LinkFacts = link_facts_of(slot, &link, &mount);
     // An intact link is nothing a person must read.
@@ -168,7 +227,11 @@ fn the_links_report_of(common_dir: &Path, slot: &str, slot_path: &Path, mounts: 
 /// ```ts
 /// const report = theLinksReport(commonDir, slotPath, mounts);
 /// ```
-pub fn the_links_report(common_dir: &Path, slot_path: &Path, mounts: &dyn crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets) -> Option<LinkRepairReport> {
+pub fn the_links_report(
+    common_dir: &Path,
+    slot_path: &Path,
+    mounts: &dyn crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets,
+) -> Option<LinkRepairReport> {
     let slot: String = slot_of(slot_path).ok()?;
     let record = read_binding(home_folder(common_dir).as_path(), slot.as_str()).ok()?;
     // The record is keyed by the slot's last name, so a record naming another path is not this worktree's to report on:
@@ -177,7 +240,12 @@ pub fn the_links_report(common_dir: &Path, slot_path: &Path, mounts: &dyn crate:
         return None;
     }
     let rows: MountRows = read_mount_rows(mounts);
-    let mount: CloneMount = clone_mount_of(&rows, &slot_mount_of(mounts, slot_path), record.clone_dataset.as_str(), slot_path);
+    let mount: CloneMount = clone_mount_of(
+        &rows,
+        &slot_mount_of(mounts, slot_path),
+        record.clone_dataset.as_str(),
+        slot_path,
+    );
     let link = recorded_link_of(&record);
     let facts: LinkFacts = link_facts_of(slot.as_str(), &link, &mount);
     return Some(link_report_of(&facts));
@@ -199,11 +267,17 @@ pub fn the_links_report(common_dir: &Path, slot_path: &Path, mounts: &dyn crate:
 /// ```ts
 /// const same = namesTheSameSlot(record.slotPath, operand);
 /// ```
-fn names_the_same_slot(recorded: &Path, operand: &Path) -> bool {
+fn names_the_same_slot(
+    recorded: &Path,
+    operand: &Path,
+) -> bool {
     if recorded == operand {
         return true;
     }
-    return match (std::fs::canonicalize(recorded), std::fs::canonicalize(operand)) {
+    return match (
+        std::fs::canonicalize(recorded),
+        std::fs::canonicalize(operand),
+    ) {
         (Ok(one), Ok(other)) => one == other,
         _ => false,
     };
@@ -220,7 +294,12 @@ fn names_the_same_slot(recorded: &Path, operand: &Path) -> bool {
 /// ```ts
 /// const paths = repairPaths(['worktree', 'repair', 'topic'], 0, cwd, commonDir);
 /// ```
-pub fn repair_paths(arguments: &[std::ffi::OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Vec<std::path::PathBuf> {
+pub fn repair_paths(
+    arguments: &[std::ffi::OsString],
+    subcommand_index: usize,
+    start: &Path,
+    common_dir: Option<&Path>,
+) -> Vec<std::path::PathBuf> {
     let Some(word) = arguments.get(subcommand_index) else {
         return Vec::new();
     };
@@ -242,7 +321,10 @@ pub fn repair_paths(arguments: &[std::ffi::OsString], subcommand_index: usize, s
             continue;
         }
         if let Some(common) = common_dir
-            && let Some(found) = crate::worktree_remove_registry::path_git_picks_for_operand(common, token.as_os_str())
+            && let Some(found) = crate::worktree_remove_registry::path_git_picks_for_operand(
+                common,
+                token.as_os_str(),
+            )
         {
             paths.push(found);
             continue;

@@ -26,8 +26,14 @@
 use crate::iso_time::format_iso_milliseconds;
 use crate::kept_reference_limits::KeptReferenceLimits;
 use crate::kept_reference_log::why_words;
-use crate::kept_reference_pass_answers::{ThePass, WhyNotPruned};
-use crate::kept_reference_words::{age_words, span_words};
+use crate::kept_reference_pass_answers::{
+    ThePass,
+    WhyNotPruned,
+};
+use crate::kept_reference_words::{
+    age_words,
+    span_words,
+};
 
 /// The sentence a listing prints for a reference the next pass prunes,
 /// which a control matches to know what that pass will take.
@@ -47,14 +53,31 @@ pub const KEPT_NEXT: &str = "the next pass keeps it:";
 /// ```ts
 /// const keptWords = (why, limits) => ({...})[why];
 /// ```
-pub fn kept_words(why: WhyNotPruned, limits: KeptReferenceLimits) -> String {
+pub fn kept_words(
+    why: WhyNotPruned,
+    limits: KeptReferenceLimits,
+) -> String {
     return match why {
-        WhyNotPruned::YoungerThanTheLimit => format!("it is younger than the age limit of {}", span_words(limits.max_age)),
-        WhyNotPruned::UnderTheSizeLimit => format!("the objects only kept references reach weigh less than the {} bytes the size limit allows", limits.max_bytes),
-        WhyNotPruned::ThisPassReachedItsCap => String::from("the pass that read it had reached the most removals one pass makes, so a later pass takes it"),
-        WhyNotPruned::TheRemovalWasRefused => String::from("this pass planned to remove it and Git refused, because the reference moved or another pass removed it first"),
-        WhyNotPruned::ThePassRanOutOfTime => String::from("this pass reached the time it may spend and left it to the next pass"),
-        WhyNotPruned::TheBranchMovedOffIt => String::from("a branch reached its commit when this pass listed the repository and reaches it no more, so it holds the commit until the age limit takes it"),
+        WhyNotPruned::YoungerThanTheLimit => format!(
+            "it is younger than the age limit of {}",
+            span_words(limits.max_age)
+        ),
+        WhyNotPruned::UnderTheSizeLimit => format!(
+            "the objects only kept references reach weigh less than the {} bytes the size limit allows",
+            limits.max_bytes
+        ),
+        WhyNotPruned::ThisPassReachedItsCap => String::from(
+            "the pass that read it had reached the most removals one pass makes, so a later pass takes it",
+        ),
+        WhyNotPruned::TheRemovalWasRefused => String::from(
+            "this pass planned to remove it and Git refused, because the reference moved or another pass removed it first",
+        ),
+        WhyNotPruned::ThePassRanOutOfTime => {
+            String::from("this pass reached the time it may spend and left it to the next pass")
+        }
+        WhyNotPruned::TheBranchMovedOffIt => String::from(
+            "a branch reached its commit when this pass listed the repository and reaches it no more, so it holds the commit until the age limit takes it",
+        ),
     };
 }
 
@@ -89,8 +112,21 @@ pub const NOT_RECORDED: &str = "not recorded";
 /// ```ts
 /// const linesOf = (one, pruned, limits) => [name, `  commit ...`, ..., verdict];
 /// ```
-fn lines_of_one(reference: &str, commit: &str, rescued: bool, kept_at_ms: u128, age_ms: u128, batch: u64, worktree: Option<&str>, verdict: String) -> String {
-    let own: &str = if rescued { ", the name beside the batch's own" } else { "" };
+fn lines_of_one(
+    reference: &str,
+    commit: &str,
+    rescued: bool,
+    kept_at_ms: u128,
+    age_ms: u128,
+    batch: u64,
+    worktree: Option<&str>,
+    verdict: String,
+) -> String {
+    let own: &str = if rescued {
+        ", the name beside the batch's own"
+    } else {
+        ""
+    };
     return format!(
         "{reference}\n  commit {commit}\n  kept {} ({} ago), batch {batch}{own}\n  worktree {}\n  {verdict}\n",
         format_iso_milliseconds(i64::try_from(kept_at_ms).unwrap_or(i64::MAX)),
@@ -112,9 +148,16 @@ fn lines_of_one(reference: &str, commit: &str, rescued: bool, kept_at_ms: u128, 
 /// ```ts
 /// const summary = (pass, limits) => `${pass.kept.length + pass.pruned.length} kept references ...`;
 /// ```
-pub fn summary_of(pass: &ThePass, limits: KeptReferenceLimits) -> String {
+pub fn summary_of(
+    pass: &ThePass,
+    limits: KeptReferenceLimits,
+) -> String {
     let count: usize = pass.kept.len() + pass.pruned.len();
-    let references: String = if count == 1 { String::from("1 kept reference") } else { format!("{count} kept references") };
+    let references: String = if count == 1 {
+        String::from("1 kept reference")
+    } else {
+        format!("{count} kept references")
+    };
     return format!(
         "{references} hold objects only they reach, {bytes} bytes on disk.\nThe limits are {age} of age and {max_bytes} bytes, and a reference younger than {floor} is never pruned for its size.\n",
         bytes = pass.bytes_before,
@@ -137,19 +180,25 @@ pub fn summary_of(pass: &ThePass, limits: KeptReferenceLimits) -> String {
 /// ```ts
 /// const theListing = (pass, limits) => summary + blocks + closing;
 /// ```
-pub fn the_listing(pass: &ThePass, limits: KeptReferenceLimits) -> String {
+pub fn the_listing(
+    pass: &ThePass,
+    limits: KeptReferenceLimits,
+) -> String {
     let mut text: String = summary_of(pass, limits);
     for one in &pass.kept {
-        text.push_str(lines_of_one(
-            one.reference.as_str(),
-            one.commit.as_str(),
-            one.rescued,
-            one.kept_at_ms,
-            one.age_ms,
-            one.batch,
-            one.worktree.as_deref(),
-            format!("{KEPT_NEXT} {}", kept_words(one.why_not, limits)),
-        ).as_str());
+        text.push_str(
+            lines_of_one(
+                one.reference.as_str(),
+                one.commit.as_str(),
+                one.rescued,
+                one.kept_at_ms,
+                one.age_ms,
+                one.batch,
+                one.worktree.as_deref(),
+                format!("{KEPT_NEXT} {}", kept_words(one.why_not, limits)),
+            )
+            .as_str(),
+        );
     }
     for one in &pass.pruned {
         let kept_at_ms: u128 = one.kept_at_ms;
@@ -184,15 +233,25 @@ pub fn the_listing(pass: &ThePass, limits: KeptReferenceLimits) -> String {
 pub fn closing_of(pass: &ThePass) -> String {
     let count: usize = pass.pruned.len();
     if count == 0 {
-        return format!("The next pass prunes nothing, so the objects only kept references reach stay at {} bytes.\n", pass.bytes_before);
+        return format!(
+            "The next pass prunes nothing, so the objects only kept references reach stay at {} bytes.\n",
+            pass.bytes_before
+        );
     }
-    let references: String = if count == 1 { String::from("1 of them") } else { format!("{count} of them") };
+    let references: String = if count == 1 {
+        String::from("1 of them")
+    } else {
+        format!("{count} of them")
+    };
     let cap: &str = if pass.stopped_early {
         " It stopped at the most removals one pass makes; a later pass takes the rest."
     } else {
         ""
     };
-    return format!("The next pass prunes {references}, leaving {} bytes.{cap}\n", pass.bytes_after);
+    return format!(
+        "The next pass prunes {references}, leaving {} bytes.{cap}\n",
+        pass.bytes_after
+    );
 }
 
 /// What:
@@ -208,14 +267,24 @@ pub fn closing_of(pass: &ThePass) -> String {
 /// ```ts
 /// const pruningReport = (pass, limits, logPath) => lines + closing;
 /// ```
-pub fn the_pruning_report(pass: &ThePass, limits: KeptReferenceLimits, log: &std::path::Path) -> String {
+pub fn the_pruning_report(
+    pass: &ThePass,
+    limits: KeptReferenceLimits,
+    log: &std::path::Path,
+) -> String {
     let mut text: String = String::new();
     if pass.pruned.is_empty() {
         text.push_str(&format!("No kept reference was pruned, so nothing was given back; the objects only kept references reach weigh {} bytes.\n", pass.bytes_before));
         return text;
     }
     for one in &pass.pruned {
-        text.push_str(&format!("pruned {} (commit {}, {} ago): {}\n", one.reference, one.commit, age_words(one.age_ms), why_words(one.why, limits)));
+        text.push_str(&format!(
+            "pruned {} (commit {}, {} ago): {}\n",
+            one.reference,
+            one.commit,
+            age_words(one.age_ms),
+            why_words(one.why, limits)
+        ));
     }
     text.push_str(&format!("The objects only kept references reach weigh {} bytes now.\nThe line about each one is in {}.\n", pass.bytes_after, log.display()));
     return text;

@@ -78,16 +78,45 @@
 //! const reader = await reachCurrent(config, notices, announced, trace, serviceSeen);
 //! ```
 
-use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, ManagerAnswer, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
 use crate::commit_timing::ReachTrace;
-use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
-use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
-use crate::service_protocol::{
-    PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire,
+use crate::service_client_listen_and_ask_to_retire::{
+    Heard,
+    Reached,
+    listen,
 };
-use std::io::{BufReader, Write};
+use crate::service_client_settings_and_watches::{
+    Activation,
+    CONNECT_PAUSE,
+    ClientConfig,
+    ManagerAnswer,
+    START_NOTICE_GRACE,
+};
+use crate::service_messages::{
+    ClientFailure,
+    UPDATING_NOTICE,
+    replacing_notice,
+    restarting_notice,
+    starting_notice,
+};
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{
+    ManagerLastWords,
+    RequestedStart,
+};
+use crate::service_protocol::{
+    PROTOCOL_VERSION,
+    RELEASE,
+    ServiceMessage,
+    encode_retire,
+};
+use std::io::{
+    BufReader,
+    Write,
+};
 use std::os::unix::net::UnixStream;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 /// What:
 ///  Connects,
 /// waiting for a start the operating system performs,
@@ -155,8 +184,13 @@ pub(crate) fn reach(
                 let _timeout = stream.set_read_timeout(Some(patience));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
                 match listen(&mut reader) {
-                    Heard::Message(ServiceMessage::Welcome { version, release }) => {
-                        let _widened = reader.get_ref().set_read_timeout(Some(config.heartbeat_silence));
+                    Heard::Message(ServiceMessage::Welcome {
+                        version,
+                        release,
+                    }) => {
+                        let _widened = reader
+                            .get_ref()
+                            .set_read_timeout(Some(config.heartbeat_silence));
                         trace.saw_release(release.as_deref());
                         if refused_here {
                             trace.start_waited += started.elapsed();
@@ -178,7 +212,9 @@ pub(crate) fn reach(
             //       out the start would send this commit's request to that process or tell the person nothing.
             Reached::OtherAccount => return Err(ClientFailure::OtherAccount),
             Reached::Nothing => match config.activation {
-                Activation::Unsupported(platform) => return Err(ClientFailure::NoActivation(platform)),
+                Activation::Unsupported(platform) => {
+                    return Err(ClientFailure::NoActivation(platform));
+                }
                 Activation::Managed => {
                     trace.refused += 1;
                     refused_here = true;
@@ -243,13 +279,18 @@ pub(crate) fn reach(
                 repairs += 1;
                 // The service unit requires the socket unit, so one start covers both and both states are forgotten.
                 let _forgotten = (watch.reset)(watch.bus.as_path(), watch.unit.as_str());
-                let _socket_forgotten = (watch.reset)(watch.bus.as_path(), watch.socket_unit.as_str());
+                let _socket_forgotten =
+                    (watch.reset)(watch.bus.as_path(), watch.socket_unit.as_str());
                 let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
                 last_start_request = Some(Instant::now());
                 requested = RequestedStart::ResetAndStart;
                 failed_answers = 0;
             }
-            failed_answers = if answer.state() == Some("failed") { failed_answers + 1 } else { 0 };
+            failed_answers = if answer.state() == Some("failed") {
+                failed_answers + 1
+            } else {
+                0
+            };
         }
         // What: The wait says what it waits for and on whom, once it has lasted long enough to matter.
         // Why:  A commit with a service that answers nothing printed nothing for ten seconds and then named a cause that was
@@ -266,12 +307,27 @@ pub(crate) fn reach(
             let address: String = crate::service_server::address_text(&config.address);
             let who: String = match (&config.start_watch, last_answer.as_ref()) {
                 (None, _) => String::from("and no service manager can be asked to start it"),
-                (Some(watch), Some(ManagerAnswer::State(state))) => format!("the service manager says {} is {state}", watch.unit),
-                (Some(watch), Some(ManagerAnswer::NotHeld)) => format!("and the service manager holds no {}, so it was asked to start it", watch.unit),
-                (Some(watch), Some(ManagerAnswer::Unreachable)) => format!("and the service manager could not be asked about {}", watch.unit),
-                (Some(watch), None) => format!("and the service manager gave no answer about {} yet", watch.unit),
+                (Some(watch), Some(ManagerAnswer::State(state))) => {
+                    format!("the service manager says {} is {state}", watch.unit)
+                }
+                (Some(watch), Some(ManagerAnswer::NotHeld)) => format!(
+                    "and the service manager holds no {}, so it was asked to start it",
+                    watch.unit
+                ),
+                (Some(watch), Some(ManagerAnswer::Unreachable)) => format!(
+                    "and the service manager could not be asked about {}",
+                    watch.unit
+                ),
+                (Some(watch), None) => format!(
+                    "and the service manager gave no answer about {} yet",
+                    watch.unit
+                ),
             };
-            let _written = writeln!(notices, "{}", starting_notice(address.as_str(), who.as_str()));
+            let _written = writeln!(
+                notices,
+                "{}",
+                starting_notice(address.as_str(), who.as_str())
+            );
         }
         // What: A unit the manager reports as running that has greeted nothing for the whole start ceiling is asked to
         //       restart, once.
@@ -299,7 +355,11 @@ pub(crate) fn reach(
             restarts += 1;
             let _restarted = (watch.restart)(watch.bus.as_path(), watch.unit.as_str());
             last_start_request = Some(Instant::now());
-            let _written = writeln!(notices, "{}", restarting_notice(watch.unit.as_str(), started.elapsed()));
+            let _written = writeln!(
+                notices,
+                "{}",
+                restarting_notice(watch.unit.as_str(), started.elapsed())
+            );
             started = Instant::now();
             last_answer = None;
             requested = RequestedStart::Restart;
@@ -312,7 +372,11 @@ pub(crate) fn reach(
             //  The failure carries which unit the manager was asked about and what it last said, because "the commit service did
             //  not start" alone said nothing about the wait that ended: a start that was never asked for leaves the service's own
             //  log empty, and that is what left the merges of 2026-11-14T20:51-05:00 unexplained.
-            Some(watch) if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling => {
+            Some(watch)
+                if failed_answers >= 2
+                    || (cannot_ask && started.elapsed() >= config.start_wait)
+                    || started.elapsed() >= config.start_ceiling =>
+            {
                 return Err(ClientFailure::DidNotStart {
                     unit: Some(watch.unit.clone()),
                     answer: manager_last_words(last_answer.as_ref()),
@@ -321,7 +385,9 @@ pub(crate) fn reach(
             }
             Some(_) => {}
             // Without a manager to ask, nothing can start the service: what the wait comes to is the truth about the address.
-            None if started.elapsed() >= config.start_wait => return Err(nothing_answered(config, connected, started.elapsed())),
+            None if started.elapsed() >= config.start_wait => {
+                return Err(nothing_answered(config, connected, started.elapsed()));
+            }
             None => {}
         }
         std::thread::sleep(CONNECT_PAUSE);
@@ -349,10 +415,15 @@ pub(crate) fn reach(
 /// ```ts
 /// greetingPatienceWithoutAManager(config, started) // min(START_NOTICE_GRACE, startWait - elapsed)
 /// ```
-fn greeting_patience_without_a_manager(config: &ClientConfig, started: Instant) -> Duration {
+fn greeting_patience_without_a_manager(
+    config: &ClientConfig,
+    started: Instant,
+) -> Duration {
     let remaining: Duration = config.start_wait.saturating_sub(started.elapsed());
     // A read timeout of no time at all is refused by the system, so one millisecond is the shortest attempt there is.
-    return remaining.min(START_NOTICE_GRACE).max(Duration::from_millis(1));
+    return remaining
+        .min(START_NOTICE_GRACE)
+        .max(Duration::from_millis(1));
 }
 
 /// What:
@@ -369,12 +440,23 @@ fn greeting_patience_without_a_manager(config: &ClientConfig, started: Instant) 
 /// ```ts
 /// nothingAnswered(config, connected, waited) // { nothing-answered } | { did-not-start }
 /// ```
-fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) -> ClientFailure {
+fn nothing_answered(
+    config: &ClientConfig,
+    connected: bool,
+    waited: Duration,
+) -> ClientFailure {
     if !connected {
         // No manager can be asked here (`start_watch` is absent), so no unit was named to anyone and none answered.
-        return ClientFailure::DidNotStart { unit: None, answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing };
+        return ClientFailure::DidNotStart {
+            unit: None,
+            answer: ManagerLastWords::Silent,
+            asked: RequestedStart::Nothing,
+        };
     }
-    return ClientFailure::NothingAnswered { address: crate::service_server::address_text(&config.address), waited };
+    return ClientFailure::NothingAnswered {
+        address: crate::service_server::address_text(&config.address),
+        waited,
+    };
 }
 
 /// What:
@@ -387,7 +469,10 @@ fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) ->
 /// ```ts
 /// aPollIsDue(lastAsked, every) // lastAsked === undefined || now - lastAsked >= every
 /// ```
-fn a_poll_is_due(last_asked: Option<Instant>, every: Duration) -> bool {
+fn a_poll_is_due(
+    last_asked: Option<Instant>,
+    every: Duration,
+) -> bool {
     return match last_asked {
         Some(at) => at.elapsed() >= every,
         None => true,
@@ -444,7 +529,13 @@ fn manager_last_words(answer: Option<&ManagerAnswer>) -> ManagerLastWords {
 /// ```ts
 /// const reader = await reachCurrent(config, notices, announced)
 /// ```
-pub(crate) fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
+pub(crate) fn reach_current(
+    config: &ClientConfig,
+    notices: &mut dyn Write,
+    announced: &mut bool,
+    trace: &mut ReachTrace,
+    service_seen: bool,
+) -> Result<BufReader<UnixStream>, ClientFailure> {
     let began: Instant = Instant::now();
     let reached = reach_current_untimed(config, notices, announced, trace, service_seen);
     trace.elapsed += began.elapsed();
@@ -452,17 +543,24 @@ pub(crate) fn reach_current(config: &ClientConfig, notices: &mut dyn Write, anno
 }
 
 /// `reach_current` without the clock around it.
-pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
+pub(crate) fn reach_current_untimed(
+    config: &ClientConfig,
+    notices: &mut dyn Write,
+    announced: &mut bool,
+    trace: &mut ReachTrace,
+    service_seen: bool,
+) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
     // Whether the service of another release that outlasted the bound was already ended, which happens once.
     let mut restarted: bool = false;
     loop {
-        let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
+        let (mut reader, version, release) =
+            reach(config, notices, announced, trace, service_seen)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
             trace.answered_by = release;
             return Ok(reader);
         }
-                if version > PROTOCOL_VERSION {
+        if version > PROTOCOL_VERSION {
             return Err(ClientFailure::NoCommonVersion);
         }
         // The give-up time is fixed the first time an other-release service is met, and the person is told then.
@@ -495,11 +593,13 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             //       Ending a unit is this worktree's own stop and start; nothing here makes the manager read every unit it
             //       holds, which no Git command may ask for
             //       (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
-            if !restarted
-                && let Some(watch) = config.start_watch.as_ref()
-            {
+            if !restarted && let Some(watch) = config.start_watch.as_ref() {
                 restarted = true;
-                let _written = writeln!(notices, "{}", replacing_notice(watch.unit.as_str(), config.start_wait));
+                let _written = writeln!(
+                    notices,
+                    "{}",
+                    replacing_notice(watch.unit.as_str(), config.start_wait)
+                );
                 let _ended = (watch.restart)(watch.bus.as_path(), watch.unit.as_str());
                 give_up_at = Some(Instant::now() + config.start_ceiling);
                 continue;

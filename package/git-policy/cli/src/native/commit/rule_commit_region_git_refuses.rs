@@ -31,7 +31,10 @@
 
 /// The commit options Git's table read,
 /// as final states after every option in order.
-use crate::command_commit::{CommitRegion, FixupKind};
+use crate::command_commit::{
+    CommitRegion,
+    FixupKind,
+};
 
 /// One form of `git commit` real Git refuses before it makes a commit.
 /// `#[derive(...)]` generates copying,

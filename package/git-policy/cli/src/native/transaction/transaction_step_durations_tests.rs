@@ -36,8 +36,18 @@ fn steps_are_ordered_by_start_and_measured_from_the_origin() {
     assert_eq!(
         figures,
         vec![
-            StepFigure { name: String::from("git add"), arguments: None, offset_ms: 10, duration_ms: 5 },
-            StepFigure { name: String::from("git commit"), arguments: None, offset_ms: 40, duration_ms: 7 },
+            StepFigure {
+                name: String::from("git add"),
+                arguments: None,
+                offset_ms: 10,
+                duration_ms: 5
+            },
+            StepFigure {
+                name: String::from("git commit"),
+                arguments: None,
+                offset_ms: 40,
+                duration_ms: 7
+            },
         ]
     );
     assert!(drain_steps(origin).0.is_empty());
@@ -81,22 +91,43 @@ fn a_name_never_carries_a_path_or_a_separator() {
     note_step("git /home/person/secret;rm=1+2@3\n\"", origin, SHORT);
     let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
     let name: &str = figures[0].name.as_str();
-    assert!(name.chars().all(|character| { return character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_' | '?'); }), "{name}");
-    assert!(!name.contains('/') && !name.contains(';') && !name.contains('@') && !name.contains('+'), "{name}");
+    assert!(
+        name.chars().all(|character| {
+            return character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_' | '?');
+        }),
+        "{name}"
+    );
+    assert!(
+        !name.contains('/') && !name.contains(';') && !name.contains('@') && !name.contains('+'),
+        "{name}"
+    );
 }
 
 /// The JSON and the log word of the same steps.
 #[test]
 fn the_record_forms_name_every_step() {
     let figures: Vec<StepFigure> = vec![
-        StepFigure { name: String::from("git add"), arguments: None, offset_ms: 1, duration_ms: 2 },
-        StepFigure { name: String::from("git commit"), arguments: None, offset_ms: 3, duration_ms: 1004 },
+        StepFigure {
+            name: String::from("git add"),
+            arguments: None,
+            offset_ms: 1,
+            duration_ms: 2,
+        },
+        StepFigure {
+            name: String::from("git commit"),
+            arguments: None,
+            offset_ms: 3,
+            duration_ms: 1004,
+        },
     ];
     assert_eq!(
         steps_json(figures.as_slice()),
         "[{\"name\":\"git add\",\"offsetMs\":1,\"durationMs\":2},{\"name\":\"git commit\",\"offsetMs\":3,\"durationMs\":1004}]"
     );
-    assert_eq!(steps_word(figures.as_slice()), "git add@1+2;git commit@3+1004");
+    assert_eq!(
+        steps_word(figures.as_slice()),
+        "git add@1+2;git commit@3+1004"
+    );
     assert_eq!(steps_json(&[]), "[]");
     assert_eq!(steps_word(&[]), "");
 }
@@ -115,12 +146,21 @@ fn a_slow_step_names_its_arguments_and_a_short_one_does_not() {
     note_step_asked("git for-each-ref", arguments.as_slice(), origin, NAMED_STEP);
     note_step("git add", origin, NAMED_STEP - Duration::from_millis(1));
     let (figures, _dropped): (Vec<StepFigure>, usize) = drain_steps(origin);
-    assert_eq!(figures[0].arguments.as_deref(), Some("for-each-ref --format=%(refname)%00%(objectname)%00%(symref)"));
-    assert_eq!(figures[1].arguments, None, "a step under the bound names no arguments");
+    assert_eq!(
+        figures[0].arguments.as_deref(),
+        Some("for-each-ref --format=%(refname)%00%(objectname)%00%(symref)")
+    );
+    assert_eq!(
+        figures[1].arguments, None,
+        "a step under the bound names no arguments"
+    );
     let written: String = steps_json(figures.as_slice());
     assert!(
         written.contains("\"name\":\"git for-each-ref\",\"arguments\":\"for-each-ref --format="),
         "the arguments stand beside the step they belong to: {written}"
     );
-    assert!(written.contains("{\"name\":\"git add\",\"offsetMs\":"), "a short step keeps its old shape: {written}");
+    assert!(
+        written.contains("{\"name\":\"git add\",\"offsetMs\":"),
+        "a short step keeps its old shape: {written}"
+    );
 }

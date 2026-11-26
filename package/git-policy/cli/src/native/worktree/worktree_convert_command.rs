@@ -37,23 +37,54 @@
 
 use crate::action::Action;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
-use crate::subvolume_command::main_checkout_root;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedEvents};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
+use crate::parallel_runner::{
+    Event,
+    OrderedEvents,
+};
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
-use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
-use crate::subvolume_error::{Interrupt, MigrateError};
-use crate::subvolume_index_files::{LinkedWorktreeScan, scan_linked_worktrees};
-use crate::subvolume_platform::{LinuxPlatform, Platform};
-use crate::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
-use crate::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
+use crate::parallel_runner_on_the_runtime_awaiting::{
+    OrderedAwaitingWork,
+    OrderedRunOfAwaitingOwned,
+    run_ordered_awaiting_on_the_runtime,
+};
+use crate::subvolume_command::main_checkout_root;
+use crate::subvolume_error::{
+    Interrupt,
+    MigrateError,
+};
+use crate::subvolume_index_files::{
+    LinkedWorktreeScan,
+    scan_linked_worktrees,
+};
+use crate::subvolume_platform::{
+    LinuxPlatform,
+    Platform,
+};
+use crate::worktree_convert::{
+    ConvertOptions,
+    Verdict,
+    convert_worktree,
+};
+use crate::worktree_convert_arguments::{
+    CONVERT_HELP,
+    ConvertArguments,
+    RISK_NOTICE,
+};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::future::Future;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -89,7 +120,10 @@ struct Targets {
 /// The worktrees a run covers:
 /// every linked worktree inside the main checkout,
 /// or every named path resolved from `cwd`.
-fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Targets, String> {
+fn targets(
+    arguments: &ConvertArguments,
+    cwd: &Path,
+) -> Result<Targets, String> {
     if arguments.all {
         let root: PathBuf = main_checkout_root(cwd)?;
         let scan: LinkedWorktreeScan = scan_linked_worktrees(root.as_path())?;
@@ -101,13 +135,19 @@ fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Targets, String> 
         for left in scan.left_out {
             left_out.push(left.reason);
         }
-        return Ok(Targets { covered, left_out });
+        return Ok(Targets {
+            covered,
+            left_out,
+        });
     }
     let mut named: Vec<PathBuf> = Vec::new();
     for word in &arguments.paths {
         named.push(cwd.join(word));
     }
-    return Ok(Targets { covered: named, left_out: Vec::new() });
+    return Ok(Targets {
+        covered: named,
+        left_out: Vec::new(),
+    });
 }
 
 /// What:
@@ -164,8 +204,18 @@ pub const CONVERSION_STORAGE_CEILING: usize = 16;
 
 /// The workers a run of `lanes` independent conversions uses on `host`,
 /// with the person's `cap`.
-pub fn conversion_workers(lanes: usize, cap: Option<usize>, host: &HostResources) -> usize {
-    return worker_budget(&BudgetRequest { items: lanes, per_item_memory: CONVERSION_MEMORY, ceiling: Some(CONVERSION_STORAGE_CEILING), cap, host });
+pub fn conversion_workers(
+    lanes: usize,
+    cap: Option<usize>,
+    host: &HostResources,
+) -> usize {
+    return worker_budget(&BudgetRequest {
+        items: lanes,
+        per_item_memory: CONVERSION_MEMORY,
+        ceiling: Some(CONVERSION_STORAGE_CEILING),
+        cap,
+        host,
+    });
 }
 
 /// What:
@@ -211,8 +261,23 @@ pub struct ConvertRun<'run> {
 /// ```ts
 /// const code = await execute(platform, arguments, cwd, interrupt, say);
 /// ```
-pub fn execute(platform: Arc<dyn Platform + Send + Sync>, arguments: &ConvertArguments, cwd: &Path, interrupt: Arc<Interrupt>, say: &mut dyn FnMut(&str)) -> i32 {
-    return execute_run(&ConvertRun { platform, arguments, cwd, interrupt, host: &HostResources::read() }, say);
+pub fn execute(
+    platform: Arc<dyn Platform + Send + Sync>,
+    arguments: &ConvertArguments,
+    cwd: &Path,
+    interrupt: Arc<Interrupt>,
+    say: &mut dyn FnMut(&str),
+) -> i32 {
+    return execute_run(
+        &ConvertRun {
+            platform,
+            arguments,
+            cwd,
+            interrupt,
+            host: &HostResources::read(),
+        },
+        say,
+    );
 }
 
 /// What:
@@ -246,13 +311,24 @@ struct FoundTargets {
 /// ```ts
 /// function findTheTargetsAndLanes(arguments: ConvertArguments, cwd: string): FoundTargets;
 /// ```
-fn find_the_targets_and_lanes(arguments: &ConvertArguments, cwd: &Path) -> FoundTargets {
+fn find_the_targets_and_lanes(
+    arguments: &ConvertArguments,
+    cwd: &Path,
+) -> FoundTargets {
     let found: Targets = match targets(arguments, cwd) {
         Ok(covered) => covered,
-        Err(reason) => return FoundTargets { found: Err(reason), lanes: Vec::new() },
+        Err(reason) => {
+            return FoundTargets {
+                found: Err(reason),
+                lanes: Vec::new(),
+            };
+        }
     };
     let lanes: Vec<Vec<usize>> = lanes_of(found.covered.as_slice());
-    return FoundTargets { found: Ok(found), lanes };
+    return FoundTargets {
+        found: Ok(found),
+        lanes,
+    };
 }
 
 /// What:
@@ -316,7 +392,12 @@ struct ConvertEachWorktree {
 }
 
 impl OrderedAwaitingWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEachWorktree {
-    fn run<'a>(&'a self, _index: usize, path: &'a PathBuf, say: LinesToTheConsumer<Result<Verdict, MigrateError>>) -> Pin<Box<dyn Future<Output = Result<Verdict, MigrateError>> + Send + 'a>> {
+    fn run<'a>(
+        &'a self,
+        _index: usize,
+        path: &'a PathBuf,
+        say: LinesToTheConsumer<Result<Verdict, MigrateError>>,
+    ) -> Pin<Box<dyn Future<Output = Result<Verdict, MigrateError>> + Send + 'a>> {
         return Box::pin(async move {
             let platform: Arc<dyn Platform + Send + Sync> = Arc::clone(&self.platform);
             let interrupt: Arc<Interrupt> = Arc::clone(&self.interrupt);
@@ -325,7 +406,13 @@ impl OrderedAwaitingWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEach
             // The sink is a value the item owns, so the job of the pool says the conversion's lines as it works.
             let mut lines: LinesToTheConsumer<Result<Verdict, MigrateError>> = say;
             let converted = run_blocking_job_within_the_budget(move || {
-                return convert_worktree(platform.as_ref(), worktree.as_path(), options, interrupt.as_ref(), &mut lines);
+                return convert_worktree(
+                    platform.as_ref(),
+                    worktree.as_path(),
+                    options,
+                    interrupt.as_ref(),
+                    &mut lines,
+                );
             })
             .await;
             return match converted {
@@ -375,7 +462,10 @@ struct ConversionReport<'a> {
 }
 
 impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
-    fn on_event(&mut self, event: Event<'_, Result<Verdict, MigrateError>>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, Result<Verdict, MigrateError>>,
+    ) {
         match event {
             Event::Begin(index) => (self.say)(format!("{}", self.list[index].display()).as_str()),
             Event::Line(_index, text) => (self.say)(text),
@@ -385,7 +475,11 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
             }
             Event::End(_index, Ok(Verdict::Resumed)) => {
                 self.converted += 1;
-                (self.say)(if self.dry_run { "  an unfinished conversion would be completed" } else { "  the unfinished conversion was completed" });
+                (self.say)(if self.dry_run {
+                    "  an unfinished conversion would be completed"
+                } else {
+                    "  the unfinished conversion was completed"
+                });
             }
             Event::End(_index, Ok(Verdict::WouldConvert)) => {
                 self.would_convert += 1;
@@ -410,7 +504,9 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
                 (self.say)(format!("  failed: {error}").as_str());
                 // A conversion whose step never started has no journal to finish, so only a step that ran may say it has one.
                 if !matches!(error, MigrateError::Runtime(_)) {
-                    (self.say)("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
+                    (self.say)(
+                        "  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.",
+                    );
                 }
             }
         }
@@ -422,7 +518,10 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
 /// so it enters the process's runtime once and waits there,
 /// and from inside the runtime it refuses,
 /// where `execute_run_awaiting` is the face such a caller uses.
-pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
+pub fn execute_run(
+    run: &ConvertRun<'_>,
+    say: &mut dyn FnMut(&str),
+) -> i32 {
     return match run_on_runtime(execute_run_awaiting(run, say)) {
         Ok(code) => code,
         Err(refusal) => {
@@ -452,25 +551,48 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
 /// ```ts
 /// const code = await executeRunAwaiting({ platform, arguments, cwd, interrupt, host }, say);
 /// ```
-pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
-    let ConvertRun { platform, arguments, cwd, interrupt, host } = run;
+pub async fn execute_run_awaiting(
+    run: &ConvertRun<'_>,
+    say: &mut dyn FnMut(&str),
+) -> i32 {
+    let ConvertRun {
+        platform,
+        arguments,
+        cwd,
+        interrupt,
+        host,
+    } = run;
     // Finding the targets and grouping their lanes is storage and Git work (`canonicalize`, a scan of the linked
     //  worktrees), so it is one job of the blocking pool: a path whose lookup stalls would otherwise hold the thread that
     //  polls this runtime before the future's first await, where no timeout could expire.
-    let (arguments_owned, cwd_owned): (ConvertArguments, PathBuf) = ((*arguments).clone(), cwd.to_path_buf());
-    let located: FoundTargets = match run_blocking_job_within_the_budget(move || { return find_the_targets_and_lanes(&arguments_owned, cwd_owned.as_path()); }).await {
+    let (arguments_owned, cwd_owned): (ConvertArguments, PathBuf) =
+        ((*arguments).clone(), cwd.to_path_buf());
+    let located: FoundTargets = match run_blocking_job_within_the_budget(move || {
+        return find_the_targets_and_lanes(&arguments_owned, cwd_owned.as_path());
+    })
+    .await
+    {
         Ok(found) => found,
         Err(refused) => {
-            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {refused}").as_str());
+            say(format!(
+                "git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {refused}"
+            )
+            .as_str());
             say("Nothing was changed.");
             return REFUSED_EXIT_CODE;
         }
     };
-    let FoundTargets { found: targets_or_refusal, lanes } = located;
+    let FoundTargets {
+        found: targets_or_refusal,
+        lanes,
+    } = located;
     let found: Targets = match targets_or_refusal {
         Ok(covered) => covered,
         Err(reason) => {
-            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
+            say(format!(
+                "git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}"
+            )
+            .as_str());
             say("Nothing was changed.");
             return REFUSED_EXIT_CODE;
         }
@@ -482,13 +604,26 @@ pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str
     }
     let left_out: usize = found.left_out.len();
     let list: Arc<[PathBuf]> = Arc::from(found.covered);
-    let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon, command_line_attributes: arguments.command_line_attributes };
+    let options: ConvertOptions = ConvertOptions {
+        dry_run: arguments.dry_run,
+        abandon: arguments.abandon,
+        command_line_attributes: arguments.command_line_attributes,
+    };
     // Said once, before the first worktree is touched, when the run can delete an old tree.
     if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
         say(RISK_NOTICE);
     }
     let workers: usize = conversion_workers(lanes.len(), arguments.jobs, host);
-    debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
+    debug(
+        TAG,
+        format!(
+            "{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})",
+            list.len(),
+            lanes.len(),
+            arguments.jobs
+        )
+        .as_str(),
+    );
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
     //  filesystem. Lines and results come back to the calling task, which says them in input order.
     let mut report: ConversionReport<'_> = ConversionReport {
@@ -506,26 +641,57 @@ pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str
         items: Arc::clone(&list),
         lanes: Arc::from(lanes),
         workers,
-        work: Arc::new(ConvertEachWorktree { platform: Arc::clone(platform), options, interrupt: Arc::clone(interrupt) }),
+        work: Arc::new(ConvertEachWorktree {
+            platform: Arc::clone(platform),
+            options,
+            interrupt: Arc::clone(interrupt),
+        }),
         on_event: &mut report,
     })
     .await;
-    let (refused, already_subvolume, undone, converted, would_convert, failed): (usize, usize, usize, usize, usize, usize) =
-        (report.refused, report.already_subvolume, report.undone, report.converted, report.would_convert, report.failed);
+    let (refused, already_subvolume, undone, converted, would_convert, failed): (
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    ) = (
+        report.refused,
+        report.already_subvolume,
+        report.undone,
+        report.converted,
+        report.would_convert,
+        report.failed,
+    );
     let stopped: Option<String> = match ran {
         Ok(()) => None,
         // The worktrees the run did not reach were not touched, and what ended the run is said before the summary.
         Err(ended) => Some(ended.to_string()),
     };
     if let Some(reason) = stopped.as_deref() {
-        (report.say)(format!("  the run stopped before every worktree was done: {reason}").as_str());
+        (report.say)(
+            format!("  the run stopped before every worktree was done: {reason}").as_str(),
+        );
     }
     // A worktree that is a subvolume already costs nothing and was skipped, as the line beside its name says, so it counts in
     //  the summary's skips; a refusal is counted apart because a refusal of a named worktree alone decides the status.
     let skipped: usize = refused + already_subvolume;
-    let failures: String = if failed > 0 { format!(", {failed} failed") } else { String::new() };
-    let undone_text: String = if undone > 0 { format!(", {undone} undone") } else { String::new() };
-    let left_text: String = if left_out > 0 { format!("; {left_out} registered worktree(s) left out") } else { String::new() };
+    let failures: String = if failed > 0 {
+        format!(", {failed} failed")
+    } else {
+        String::new()
+    };
+    let undone_text: String = if undone > 0 {
+        format!(", {undone} undone")
+    } else {
+        String::new()
+    };
+    let left_text: String = if left_out > 0 {
+        format!("; {left_out} registered worktree(s) left out")
+    } else {
+        String::new()
+    };
     // A dry run converts nothing, so its summary counts what it listed as a conversion it would make; the other counters
     // would say "0 converted" beside lines that say "would convert".
     let counted: String = if arguments.dry_run {
@@ -537,7 +703,11 @@ pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str
     if failed > 0 || stopped.is_some() {
         return FAILED_EXIT_CODE;
     }
-    return if refused > 0 && !arguments.all && !arguments.dry_run { REFUSED_EXIT_CODE } else { 0 };
+    return if refused > 0 && !arguments.all && !arguments.dry_run {
+        REFUSED_EXIT_CODE
+    } else {
+        0
+    };
 }
 
 /// What:
@@ -574,15 +744,35 @@ fn say_on_standard_error(text: &str) {
 /// ```ts
 /// function convertAction(arguments: ConvertArguments, cwd: string, environment: [string, string][], realGit?: string): Action;
 /// ```
-pub fn convert_action(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
+pub fn convert_action(
+    arguments: &ConvertArguments,
+    cwd: &Path,
+    environment: &[(OsString, OsString)],
+    real_git: Option<&Path>,
+) -> Action {
     if arguments.help {
-        return Action::Exit { code: 0, stdout: String::from(CONVERT_HELP), stderr: String::new() };
+        return Action::Exit {
+            code: 0,
+            stdout: String::from(CONVERT_HELP),
+            stderr: String::new(),
+        };
     }
     // The conversion runs as a job of the blocking pool, which is inside the process's runtime, where no child may be
     //  started through the bridge; so the facts about the Git this command forwards to are settled here, on this thread.
-    let platform: LinuxPlatform = LinuxPlatform::forwarding_to(environment, real_git).with_its_conversion_environment_settled();
-    let code: i32 = execute(Arc::new(platform), arguments, cwd, Arc::new(Interrupt::never()), &mut say_on_standard_error);
-    return Action::Exit { code, stdout: String::new(), stderr: String::new() };
+    let platform: LinuxPlatform = LinuxPlatform::forwarding_to(environment, real_git)
+        .with_its_conversion_environment_settled();
+    let code: i32 = execute(
+        Arc::new(platform),
+        arguments,
+        cwd,
+        Arc::new(Interrupt::never()),
+        &mut say_on_standard_error,
+    );
+    return Action::Exit {
+        code,
+        stdout: String::new(),
+        stderr: String::new(),
+    };
 }
 
 /// Command controls stay out of the release executable.

@@ -24,7 +24,10 @@ use crate::fs_beneath::ObjectId;
 use crate::plain_file::SMALL_FILE_LIMIT;
 use crate::plain_file::read_plain_file;
 use crate::worktree_add_binding::resolve_lexically;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The registration that names a destination,
@@ -92,12 +95,17 @@ enum Naming {
 /// ```ts
 /// for (const admin of readdir(join(commonDir, 'worktrees'))) if (namesDestination(admin, destination)) return { named: admin }
 /// ```
-pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegistration {
+pub fn registration_naming(
+    common_dir: &Path,
+    destination: &Path,
+) -> NamedRegistration {
     let worktrees: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(worktrees.as_path()) {
         Ok(listing) => listing,
         // No `worktrees` directory is a repository with no linked worktree at all.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return NamedRegistration::None,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return NamedRegistration::None;
+        }
         // A repository whose registrations cannot be listed proves nothing, so a copy is kept rather than discarded.
         Err(_unreadable) => return NamedRegistration::Unknown,
     };
@@ -120,7 +128,11 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
             Err(_unreadable) => unproven = true,
         }
     }
-    return if unproven { NamedRegistration::Unknown } else { NamedRegistration::None };
+    return if unproven {
+        NamedRegistration::Unknown
+    } else {
+        NamedRegistration::None
+    };
 }
 
 /// What:
@@ -162,12 +174,17 @@ pub(crate) enum RegisteredObject {
 /// ```ts
 /// const registeredObject = (commonDir, identity) => readdir(join(commonDir, 'worktrees')).map(registrationRoot).find((root) => identityAt(root) === identity);
 /// ```
-pub(crate) fn registered_object(common_dir: &Path, identity: ObjectId) -> RegisteredObject {
+pub(crate) fn registered_object(
+    common_dir: &Path,
+    identity: ObjectId,
+) -> RegisteredObject {
     let worktrees: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(worktrees.as_path()) {
         Ok(listing) => listing,
         // No `worktrees` directory is a repository with no linked worktree, so no registration holds any object.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return RegisteredObject::None,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return RegisteredObject::None;
+        }
         // A repository whose registrations cannot be listed proves nothing, so no record is settled on it.
         Err(_unreadable) => return RegisteredObject::Unknown,
     };
@@ -181,13 +198,21 @@ pub(crate) fn registered_object(common_dir: &Path, identity: ObjectId) -> Regist
             }
         };
         match registration_root(admin.as_path()) {
-            Registered::Root(root) if crate::worktree_add_binding::path_identity(root.as_path()) == Some(identity) => return RegisteredObject::Root(root),
+            Registered::Root(root)
+                if crate::worktree_add_binding::path_identity(root.as_path()) == Some(identity) =>
+            {
+                return RegisteredObject::Root(root);
+            }
             Registered::Root(_another_object) => {}
             Registered::NoRoot => {}
             Registered::Unproven => unproven = true,
         }
     }
-    return if unproven { RegisteredObject::Unknown } else { RegisteredObject::None };
+    return if unproven {
+        RegisteredObject::Unknown
+    } else {
+        RegisteredObject::None
+    };
 }
 
 /// What:
@@ -280,7 +305,11 @@ fn recorded_line(recorded: &[u8]) -> &[u8] {
 /// ```ts
 /// const line = read('gitdir').replace(/\n$/, ''); const marker = resolveLexically(admin, line); return namingOf(canonicalize(dirname(marker)), destination)
 /// ```
-fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
+fn naming_by(
+    admin: &Path,
+    recorded: &[u8],
+    destination: &Path,
+) -> Naming {
     let line: &[u8] = recorded_line(recorded);
     if line.is_empty() {
         return Naming::Unproven;
@@ -317,7 +346,8 @@ fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
 /// const absentPath = (error) => error.code === 'ENOENT' || error.code === 'ENOTDIR'
 /// ```
 pub(crate) fn absent_path(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ENOTDIR);
+    return error.kind() == std::io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(libc::ENOTDIR);
 }
 
 /// Registration naming controls stay out of the release executable.

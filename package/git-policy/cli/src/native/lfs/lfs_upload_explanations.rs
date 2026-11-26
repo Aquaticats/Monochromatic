@@ -24,22 +24,41 @@ use crate::auto_push_single_flight::PushAttempt;
 /// The limit a stopped child was ended by,
 /// which window it was,
 /// and the status the wrapper's own stop carries.
-use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, StopReport, StopWindow};
+use crate::bounded_push::{
+    PUSH_DEADLINE_VARIABLE,
+    STOPPED_EXIT_CODE,
+    StopCause,
+    StopReport,
+    StopWindow,
+};
+/// The masks and the hosts a destination or a failure names.
+use crate::lfs_output_mask::{
+    host_of,
+    hosts_in,
+    mask_url_secrets_text,
+};
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{
-    LFS_PROGRAM, failed_message, host_key_not_known_sentence, login_needed_message, reads_as_a_key_failure, reads_as_a_login_failure, reads_as_unknown_host_key,
+    LFS_PROGRAM,
+    failed_message,
+    host_key_not_known_sentence,
+    login_needed_message,
+    reads_as_a_key_failure,
+    reads_as_a_login_failure,
+    reads_as_unknown_host_key,
     start_failed_message,
 };
 /// The folders searched and the refusal that names them.
-use crate::lfs_program_search::{ProgramSearch, missing_program_message};
-/// The masks and the hosts a destination or a failure names.
-use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
-/// What a stop says the connection carried.
-use crate::stop_cause_and_words::traffic_clause;
+use crate::lfs_program_search::{
+    ProgramSearch,
+    missing_program_message,
+};
 /// The variable that sets the floor,
 /// which is how a person on a slower line gets through.
 use crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE;
+/// What a stop says the connection carried.
+use crate::stop_cause_and_words::traffic_clause;
 
 /// The most standard error text one run keeps and relays;
 /// the rest is dropped,
@@ -62,7 +81,9 @@ fn connected_ways_forward(report: &StopReport) -> String {
     let floor: String = if report.carried == 0 {
         String::from("nothing moved, so no rate setting changes this stop")
     } else {
-        format!("set {PUSH_MINIMUM_RATE_VARIABLE} to a smaller number to let a line slower than this one through")
+        format!(
+            "set {PUSH_MINIMUM_RATE_VARIABLE} to a smaller number to let a line slower than this one through"
+        )
     };
     return format!(
         "Ways forward: {floor}; or run the upload by hand with `git lfs push --all <remote>`, which has no such window, \
@@ -89,7 +110,10 @@ fn connected_ways_forward(report: &StopReport) -> String {
 /// ```ts
 /// cause.kind === 'stalled' ? `made no progress for ${limit} seconds and was stopped` : `...`
 /// ```
-pub fn stopped_upload_words(cause: &StopCause, server: Option<&str>) -> String {
+pub fn stopped_upload_words(
+    cause: &StopCause,
+    server: Option<&str>,
+) -> String {
     let other_end: String = match server {
         Some(host) => format!("the server `{host}`"),
         None => String::from("the remote"),
@@ -115,11 +139,16 @@ pub fn stopped_upload_words(cause: &StopCause, server: Option<&str>) -> String {
                 connected_ways_forward(report)
             ),
         },
-        StopCause::Flood => format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"),
+        StopCause::Flood => {
+            format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped")
+        }
         // A typed upload carries no arm for the service's stop, so this ending cannot be reached here.
         StopCause::ServiceStopped => String::from("was ended because the service was stopped"),
     };
-    return format!("monochromatic-git-policy-cli: `{} push` {stopped}.", LFS_PROGRAM);
+    return format!(
+        "monochromatic-git-policy-cli: `{} push` {stopped}.",
+        LFS_PROGRAM
+    );
 }
 
 /// What:
@@ -159,11 +188,16 @@ pub fn stopped_upload_tail() -> String {
 /// ```ts
 /// hostsIn(output)[0] ?? hostOf(String(destination))
 /// ```
-fn ssh_host(destination: &std::ffi::OsStr, output: &str) -> Option<String> {
+fn ssh_host(
+    destination: &std::ffi::OsStr,
+    output: &str,
+) -> Option<String> {
     let from_program: Option<String> = hosts_in(output).into_iter().next();
     // `to_string_lossy` reads a destination that is not UTF-8 without failing; a remote name or URL is text in practice.
     let text: String = destination.to_string_lossy().into_owned();
-    return from_program.or_else(|| { return host_of(text.as_str()); });
+    return from_program.or_else(|| {
+        return host_of(text.as_str());
+    });
 }
 
 /// What:
@@ -184,7 +218,10 @@ fn ssh_host(destination: &std::ffi::OsStr, output: &str) -> Option<String> {
 /// const host = sshHost(destination, output);
 /// host ? `the server \`${host}\`` : `the destination \`${maskUserinfoText(destination)}\``
 /// ```
-fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
+fn login_subject(
+    destination: &std::ffi::OsStr,
+    output: &str,
+) -> String {
     // `to_string_lossy` reads a destination that is not UTF-8 without failing; a remote name or URL is text in practice.
     let text: String = destination.to_string_lossy().into_owned();
     return match ssh_host(destination, output) {
@@ -217,7 +254,11 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
 /// ```ts
 /// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(...) : '') + (readsAsUnknownHostKey(output) ? hostKeyNotKnownSentence(sshHost(destination, output)) : '')
 /// ```
-pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
+pub fn explanation_after_failure(
+    status: &str,
+    destination: &std::ffi::OsStr,
+    output: &[u8],
+) -> String {
     let mut text: String = failed_message(status);
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
     let shown: String = String::from_utf8_lossy(output).into_owned();
@@ -228,7 +269,13 @@ pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, ou
     }
     if reads_as_a_login_failure(shown.as_str()) {
         let key_not_unlocked: bool = reads_as_a_key_failure(shown.as_str());
-        text.push_str(login_needed_message(login_subject(destination, shown.as_str()).as_str(), key_not_unlocked).as_str());
+        text.push_str(
+            login_needed_message(
+                login_subject(destination, shown.as_str()).as_str(),
+                key_not_unlocked,
+            )
+            .as_str(),
+        );
     }
     return text;
 }
@@ -276,7 +323,11 @@ pub fn guard_failed_message(why: &str) -> String {
 /// ({ exitCode: 1, output: missingProgramMessage(search).trimEnd() })
 /// ```
 pub fn missing_program_attempt(search: &ProgramSearch) -> PushAttempt {
-    return PushAttempt { exit_code: 1, signal: None, output: missing_program_message(search).trim_end().to_owned() };
+    return PushAttempt {
+        exit_code: 1,
+        signal: None,
+        output: missing_program_message(search).trim_end().to_owned(),
+    };
 }
 
 /// What:
@@ -291,8 +342,15 @@ pub fn missing_program_attempt(search: &ProgramSearch) -> PushAttempt {
 /// ```ts
 /// ({ exitCode: 1, output: startFailedMessage(program, why).trimEnd() })
 /// ```
-pub fn start_failed_attempt(program: &str, why: &str) -> PushAttempt {
-    return PushAttempt { exit_code: 1, signal: None, output: start_failed_message(program, why).trim_end().to_owned() };
+pub fn start_failed_attempt(
+    program: &str,
+    why: &str,
+) -> PushAttempt {
+    return PushAttempt {
+        exit_code: 1,
+        signal: None,
+        output: start_failed_message(program, why).trim_end().to_owned(),
+    };
 }
 
 /// What:
@@ -311,18 +369,31 @@ pub fn start_failed_attempt(program: &str, why: &str) -> PushAttempt {
 /// ```ts
 /// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) }, destination);
 /// ```
-pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr) -> Option<PushAttempt> {
+pub fn failed_upload(
+    attempt: &PushAttempt,
+    destination: &std::ffi::OsStr,
+) -> Option<PushAttempt> {
     if attempt.exit_code == 0 {
         return None;
     }
     let shown: String = mask_url_secrets_text(attempt.output.as_str());
-    return Some(explained(PushAttempt { exit_code: attempt.exit_code, signal: attempt.signal, output: shown }, destination));
+    return Some(explained(
+        PushAttempt {
+            exit_code: attempt.exit_code,
+            signal: attempt.signal,
+            output: shown,
+        },
+        destination,
+    ));
 }
 
 /// The failed attempt with the explanation after the program's own output;
 /// a stop says what a stop means,
 /// and a login the program needed says how to give it one.
-pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAttempt {
+pub fn explained(
+    attempt: PushAttempt,
+    destination: &std::ffi::OsStr,
+) -> PushAttempt {
     let explanation: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         stopped_upload_tail()
     } else {
@@ -342,5 +413,9 @@ pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAtt
     } else {
         format!("{}\n{shown}", attempt.output)
     };
-    return PushAttempt { exit_code: attempt.exit_code, signal: attempt.signal, output };
+    return PushAttempt {
+        exit_code: attempt.exit_code,
+        signal: attempt.signal,
+        output,
+    };
 }

@@ -18,12 +18,35 @@
 //! expect(await waitBounded(run)).toBe(0); expect(pendingBytes(pipe)).toBe(pipe.capacity);
 //! ```
 
-use super::commit::{remove_settled, wrapped_commit};
-use super::support::{Fixture, close_on_exec_pipe, fixture, git, repository, spawn_owned};
+use super::commit::{
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    close_on_exec_pipe,
+    fixture,
+    git,
+    repository,
+    spawn_owned,
+};
 use std::ffi::OsStr;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+    RawFd,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Stdio,
+};
 use std::time::Duration;
 
 /// How long this control waits for the commit before it fails, in seconds.
@@ -81,11 +104,22 @@ fn descriptor_flags(descriptor: RawFd) -> libc::c_int {
 /// ```ts
 /// const waitForRoom = (fd: number, waiting: boolean) => fcntl(fd, F_SETFL, waiting ? flags & ~O_NONBLOCK : flags | O_NONBLOCK);
 /// ```
-fn wait_for_room(descriptor: RawFd, waiting: bool) {
+fn wait_for_room(
+    descriptor: RawFd,
+    waiting: bool,
+) {
     let flags: libc::c_int = descriptor_flags(descriptor);
-    let wanted: libc::c_int = if waiting { flags & !libc::O_NONBLOCK } else { flags | libc::O_NONBLOCK };
+    let wanted: libc::c_int = if waiting {
+        flags & !libc::O_NONBLOCK
+    } else {
+        flags | libc::O_NONBLOCK
+    };
     // SAFETY: `F_SETFL` sets the flags of an open descriptor of this process.
-    assert_eq!(unsafe { libc::fcntl(descriptor, libc::F_SETFL, wanted) }, 0, "the descriptor's flags");
+    assert_eq!(
+        unsafe { libc::fcntl(descriptor, libc::F_SETFL, wanted) },
+        0,
+        "the descriptor's flags"
+    );
 }
 
 /// How many bytes one write took,
@@ -95,9 +129,13 @@ fn wait_for_room(descriptor: RawFd, waiting: bool) {
 /// ```ts
 /// const oneWrite = (fd: number, bytes: Uint8Array): number => { const taken = write(fd, bytes); return taken < 0 ? 0 : taken };
 /// ```
-fn one_write(descriptor: RawFd, bytes: &[u8]) -> usize {
+fn one_write(
+    descriptor: RawFd,
+    bytes: &[u8],
+) -> usize {
     // SAFETY: `bytes` is read for its own length, and the descriptor is open.
-    let written: libc::ssize_t = unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
+    let written: libc::ssize_t =
+        unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
     return usize::try_from(written).unwrap_or_default();
 }
 
@@ -123,7 +161,11 @@ fn pipe_capacity(descriptor: RawFd) -> usize {
 fn pending_bytes(descriptor: RawFd) -> usize {
     let mut waiting: libc::c_int = 0;
     // SAFETY: `FIONREAD` writes one integer into the buffer it is given, and the descriptor is open.
-    assert_eq!(unsafe { libc::ioctl(descriptor, libc::FIONREAD, &mut waiting) }, 0, "how many bytes the pipe holds");
+    assert_eq!(
+        unsafe { libc::ioctl(descriptor, libc::FIONREAD, &mut waiting) },
+        0,
+        "how many bytes the pipe holds"
+    );
     return usize::try_from(waiting).unwrap_or_default();
 }
 
@@ -142,7 +184,8 @@ fn pending_bytes(descriptor: RawFd) -> usize {
 fn a_full_pipe() -> (PipeNobodyDrains, OwnedFd) {
     let ends: [libc::c_int; 2] = close_on_exec_pipe();
     // SAFETY: `pipe2` made both descriptors here, and neither number is used again.
-    let (read_end, write_end): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+    let (read_end, write_end): (OwnedFd, OwnedFd) =
+        unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
     let capacity: usize = pipe_capacity(write_end.as_raw_fd());
     // What: The fill asks for room instead of waiting for it.
     // Why:  A blocking write to a full pipe waits for a reader, and this control is that wait's opposite.
@@ -155,8 +198,15 @@ fn a_full_pipe() -> (PipeNobodyDrains, OwnedFd) {
     // Why:  The flags belong to the pipe itself, so the command's standard error would otherwise refuse
     //       a write with a signal rather than wait in the kernel, which is not the shape under test.
     wait_for_room(write_end.as_raw_fd(), true);
-    let full: PipeNobodyDrains = PipeNobodyDrains { read_end, capacity };
-    assert_eq!(pending_bytes(full.read_end.as_raw_fd()), capacity, "the pipe starts full");
+    let full: PipeNobodyDrains = PipeNobodyDrains {
+        read_end,
+        capacity,
+    };
+    assert_eq!(
+        pending_bytes(full.read_end.as_raw_fd()),
+        capacity,
+        "the pipe starts full"
+    );
     // The write end goes to the command; the read end stays here, open and unread.
     return (full, write_end);
 }
@@ -176,7 +226,11 @@ fn a_full_pipe() -> (PipeNobodyDrains, OwnedFd) {
 /// ```ts
 /// const waitBounded = (child, within, what) => { const ended = waitInAThread(child); try { return ended.recv(within) } catch { kill(-child.pid, SIGKILL); throw new Error(`${what} waited ${within}`) } };
 /// ```
-fn wait_bounded(mut child: Child, within: Duration, what: &str) -> ExitStatus {
+fn wait_bounded(
+    mut child: Child,
+    within: Duration,
+    what: &str,
+) -> ExitStatus {
     let id: u32 = child.id();
     let group: libc::pid_t = libc::pid_t::try_from(id).expect("a process ID fits the pid type");
     let (told, ended) = std::sync::mpsc::channel::<std::io::Result<ExitStatus>>();
@@ -194,15 +248,21 @@ fn wait_bounded(mut child: Child, within: Duration, what: &str) -> ExitStatus {
             // SAFETY: the group number is the one `spawn_owned` made for this child, and the signal goes to
             //  that group and nothing else.
             let _signalled = unsafe { libc::kill(-group, libc::SIGKILL) };
-            let reaped: std::io::Result<ExitStatus> = ended.recv_timeout(REAPING).unwrap_or_else(|_| {
-                panic!("{what} was ended at {within:?} and not reaped within {REAPING:?}")
-            });
-            let _status: ExitStatus = reaped.unwrap_or_else(|error| panic!("the ending of {what} cannot be read: {error}"));
+            let reaped: std::io::Result<ExitStatus> =
+                ended.recv_timeout(REAPING).unwrap_or_else(|_| {
+                    panic!("{what} was ended at {within:?} and not reaped within {REAPING:?}")
+                });
+            let _status: ExitStatus = reaped
+                .unwrap_or_else(|error| panic!("the ending of {what} cannot be read: {error}"));
             let _joined = waited.join();
-            panic!("{what} did not return within {within:?}: a note of the commit waited for a reader that never read its standard error");
+            panic!(
+                "{what} did not return within {within:?}: a note of the commit waited for a reader that never read its standard error"
+            );
         }
         // The waiter sends before it ends, so a disconnect here is a defect of this control.
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of {what} ended without its ending"),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            panic!("the waiter of {what} ended without its ending")
+        }
     };
     let _joined = waited.join();
     return first.unwrap_or_else(|error| panic!("the ending of {what} cannot be read: {error}"));
@@ -218,7 +278,11 @@ fn wait_bounded(mut child: Child, within: Duration, what: &str) -> ExitStatus {
 /// ```ts
 /// const gitText = (fixture, repo, args) => exec(git, ['-C', repo, ...args]).stdout.trim();
 /// ```
-fn git_text(fixture: &Fixture, repository: &Path, arguments: &[&str]) -> String {
+fn git_text(
+    fixture: &Fixture,
+    repository: &Path,
+    arguments: &[&str],
+) -> String {
     let output: std::process::Output = git(fixture, repository, arguments);
     return String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
 }
@@ -238,7 +302,11 @@ fn a_repository_with_an_edit_the_policies_correct(fixture: &Fixture) -> PathBuf 
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"one\n").expect("the tracked file");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
     // The edit has no final newline, which the `final-newline` policy corrects and says so on standard
     //  error once the commit has landed.
     std::fs::write(repo.join("a.txt"), b"one\ntwo").expect("an edit without the final newline");
@@ -263,15 +331,30 @@ fn a_commit_lands_while_nobody_drains_its_full_standard_error() {
     let fixture: Fixture = fixture("commit-stalled-standard-error");
     let repo: PathBuf = a_repository_with_an_edit_the_policies_correct(&fixture);
     let (pipe, write_end): (PipeNobodyDrains, OwnedFd) = a_full_pipe();
-    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--message=stalled", "a.txt"]);
+    let mut command: Command = wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--message=stalled", "a.txt"],
+    );
     // What: The command's standard error is the full pipe, and its other two streams go nowhere.
     // Why:  A captured pipe of this control's own would be drained by the wait, which is the reader
     //       this control removes.
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::from(write_end));
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(write_end));
     let child: Child = spawn_owned(&mut command).expect("the commit starts");
     let status: ExitStatus = wait_bounded(child, Duration::from_secs(WAIT_SECONDS), "the commit");
-    assert_eq!(status.code(), Some(0), "the commit returned without landing: {status:?}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "stalled", "the commit landed");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "the commit returned without landing: {status:?}"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(),
+        "stalled",
+        "the commit landed"
+    );
     assert_eq!(
         pending_bytes(pipe.read_end.as_raw_fd()),
         pipe.capacity,

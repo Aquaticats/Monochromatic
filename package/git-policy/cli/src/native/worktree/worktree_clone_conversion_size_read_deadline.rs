@@ -52,7 +52,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub(crate) fn a_control_shortens_the_deadline_to(within: Duration) -> TheDeadlineForTheControl {
-    THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(|deadline| { deadline.set(Some(within)); });
+    THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(|deadline| {
+        deadline.set(Some(within));
+    });
     return TheDeadlineForTheControl;
 }
 
@@ -65,6 +67,8 @@ pub(crate) struct TheDeadlineForTheControl;
 #[cfg(test)]
 impl Drop for TheDeadlineForTheControl {
     fn drop(&mut self) {
-        THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(|deadline| { deadline.set(None); });
+        THE_JOIN_DEADLINE_FOR_THIS_THREAD.with(|deadline| {
+            deadline.set(None);
+        });
     }
 }

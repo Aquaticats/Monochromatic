@@ -61,7 +61,10 @@ pub enum FolderLook {
 /// ```
 pub trait ThePlansFolder {
     /// The one look at `folder`.
-    fn look(&self, folder: &Path) -> FolderLook;
+    fn look(
+        &self,
+        folder: &Path,
+    ) -> FolderLook;
 }
 
 /// What:
@@ -81,24 +84,43 @@ pub struct TheLivePlansFolder;
 impl ThePlansFolder for TheLivePlansFolder {
     /// The folder's entries,
     /// or what stands in its place.
-    fn look(&self, folder: &Path) -> FolderLook {
+    fn look(
+        &self,
+        folder: &Path,
+    ) -> FolderLook {
         let metadata: std::fs::Metadata = match std::fs::symlink_metadata(folder) {
             Ok(found) => found,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return FolderLook::NoFolder,
-            Err(error) => return FolderLook::NotAFolder { said: error.to_string() },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return FolderLook::NoFolder;
+            }
+            Err(error) => {
+                return FolderLook::NotAFolder {
+                    said: error.to_string(),
+                };
+            }
         };
         if !metadata.is_dir() {
-            return FolderLook::NotAFolder { said: String::from("the entry at the plan folder's path is not a folder") };
+            return FolderLook::NotAFolder {
+                said: String::from("the entry at the plan folder's path is not a folder"),
+            };
         }
         let listing: std::fs::ReadDir = match std::fs::read_dir(folder) {
             Ok(opened) => opened,
-            Err(error) => return FolderLook::NotAFolder { said: error.to_string() },
+            Err(error) => {
+                return FolderLook::NotAFolder {
+                    said: error.to_string(),
+                };
+            }
         };
         let mut names: Vec<OsString> = Vec::new();
         for listed in listing {
             let opened: std::fs::DirEntry = match listed {
                 Ok(found) => found,
-                Err(error) => return FolderLook::NotAFolder { said: error.to_string() },
+                Err(error) => {
+                    return FolderLook::NotAFolder {
+                        said: error.to_string(),
+                    };
+                }
             };
             names.push(opened.file_name());
         }

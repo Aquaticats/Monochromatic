@@ -17,11 +17,27 @@
 
 /// The record,
 /// its line and the place.
-use super::{AUDIT_FILE, AuditOutcome, AuditRecord, DecidedForm, audit_line, audit_place, parent_process, record_audit};
-use crate::command_test_support::{fixture, os_arguments, remove};
+use super::{
+    AUDIT_FILE,
+    AuditOutcome,
+    AuditRecord,
+    DecidedForm,
+    audit_line,
+    audit_place,
+    parent_process,
+    record_audit,
+};
+use crate::command_test_support::{
+    fixture,
+    os_arguments,
+    remove,
+};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::worktree_identity::WorktreeIdentity;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A main worktree identity under the given root.
 fn main_identity(root: &Path) -> WorktreeIdentity {
@@ -57,9 +73,15 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
     let value: serde_json::Value = serde_json::from_str(line.trim_end()).expect("JSON");
     assert_eq!(value["schemaVersion"], 1);
     assert_eq!(value["timeMillis"], "1700000000123");
-    assert_eq!(value["time"], "2023-11-14T22:13:20.123Z", "the time in the form every other record uses");
+    assert_eq!(
+        value["time"], "2023-11-14T22:13:20.123Z",
+        "the time in the form every other record uses"
+    );
     assert_eq!(value["release"], crate::service_protocol::RELEASE);
-    assert_eq!(value["gitDir"], "/r/.git/worktrees/w", "the worktree's own Git directory, which the kind word does not name");
+    assert_eq!(
+        value["gitDir"], "/r/.git/worktrees/w",
+        "the worktree's own Git directory, which the kind word does not name"
+    );
     assert_eq!(value["level"], "warn", "a refusal stands out");
     assert_eq!(value["pid"], 42);
     assert_eq!(value["parentPid"], 7);
@@ -68,10 +90,19 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
     assert_eq!(value["outcome"], "rejected");
     assert_eq!(value["dirty"], true);
     assert_eq!(value["cwd"], "/r/sub");
-    assert_eq!(value["arguments"], serde_json::Value::from(vec!["-C", "/r", "restore", "--", "a.txt"]));
+    assert_eq!(
+        value["arguments"],
+        serde_json::Value::from(vec!["-C", "/r", "restore", "--", "a.txt"])
+    );
     // The bytes sit beside the text, so a reader that takes the text reads what it read before.
-    assert_eq!(value["cwdHex"], "2f722f737562", "the working directory's bytes");
-    assert_eq!(value["gitDirHex"], crate::path_bytes_in_records::hex_of_path(Path::new("/r/.git/worktrees/w")));
+    assert_eq!(
+        value["cwdHex"], "2f722f737562",
+        "the working directory's bytes"
+    );
+    assert_eq!(
+        value["gitDirHex"],
+        crate::path_bytes_in_records::hex_of_path(Path::new("/r/.git/worktrees/w"))
+    );
     assert_eq!(
         value["argumentsHex"],
         serde_json::Value::from(vec!["2d43", "2f72", "726573746f7265", "2d2d", "612e747874"]),
@@ -105,12 +136,16 @@ fn the_line_states_who_ran_what_where_and_what_was_decided() {
 /// so the record could not attribute a loss to the command that made it.
 #[test]
 fn a_cwd_and_arguments_that_are_not_text_keep_their_bytes() {
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    use std::os::unix::ffi::{
+        OsStrExt,
+        OsStringExt,
+    };
     let place: (PathBuf, &'static str) = (PathBuf::from("/r/.git"), "main");
     // Two directories whose names differ only in a byte no UTF-8 sequence holds, and one argument of the same kind.
     let first: Vec<u8> = b"/r/sub/\xff".to_vec();
     let second: Vec<u8> = b"/r/sub/\xfe".to_vec();
-    let arguments: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from_vec(b"restore\xff".to_vec())];
+    let arguments: Vec<std::ffi::OsString> =
+        vec![std::ffi::OsString::from_vec(b"restore\xff".to_vec())];
     let one = |directory: &[u8]| -> serde_json::Value {
         let line: String = audit_line(&AuditRecord {
             time_millis: 1,
@@ -130,15 +165,45 @@ fn a_cwd_and_arguments_that_are_not_text_keep_their_bytes() {
     };
     let first_value: serde_json::Value = one(first.as_slice());
     let second_value: serde_json::Value = one(second.as_slice());
-    let expected_cwd = |bytes: &[u8]| -> String { return crate::path_bytes_in_records::hex_of_path(Path::new(std::ffi::OsStr::from_bytes(bytes))); };
-    assert_eq!(first_value["cwdHex"], expected_cwd(first.as_slice()), "the directory's bytes, byte for byte");
-    assert_eq!(second_value["cwdHex"], expected_cwd(second.as_slice()), "the other byte is another directory");
-    assert_ne!(first_value["cwdHex"], second_value["cwdHex"], "the bytes tell the two commands apart");
-    assert_eq!(first_value["cwd"], second_value["cwd"], "the text a reader sees is the same lossy capture for both");
-    let replacement_text: String = first_value["cwd"].as_str().expect("the field is text").to_owned();
-    assert_ne!(first_value["cwdHex"], expected_cwd(replacement_text.as_bytes()), "the bytes are not the replacement text's");
-    let expected_argument: String = crate::path_bytes_in_records::hex_of_path(Path::new(arguments[0].as_os_str()));
-    assert_eq!(first_value["argumentsHex"], serde_json::Value::from(vec![expected_argument]), "the argument's bytes");
+    let expected_cwd = |bytes: &[u8]| -> String {
+        return crate::path_bytes_in_records::hex_of_path(Path::new(std::ffi::OsStr::from_bytes(
+            bytes,
+        )));
+    };
+    assert_eq!(
+        first_value["cwdHex"],
+        expected_cwd(first.as_slice()),
+        "the directory's bytes, byte for byte"
+    );
+    assert_eq!(
+        second_value["cwdHex"],
+        expected_cwd(second.as_slice()),
+        "the other byte is another directory"
+    );
+    assert_ne!(
+        first_value["cwdHex"], second_value["cwdHex"],
+        "the bytes tell the two commands apart"
+    );
+    assert_eq!(
+        first_value["cwd"], second_value["cwd"],
+        "the text a reader sees is the same lossy capture for both"
+    );
+    let replacement_text: String = first_value["cwd"]
+        .as_str()
+        .expect("the field is text")
+        .to_owned();
+    assert_ne!(
+        first_value["cwdHex"],
+        expected_cwd(replacement_text.as_bytes()),
+        "the bytes are not the replacement text's"
+    );
+    let expected_argument: String =
+        crate::path_bytes_in_records::hex_of_path(Path::new(arguments[0].as_os_str()));
+    assert_eq!(
+        first_value["argumentsHex"],
+        serde_json::Value::from(vec![expected_argument]),
+        "the argument's bytes"
+    );
 }
 
 /// The four outcomes have four distinct words.
@@ -207,9 +272,22 @@ fn records_append_in_order_and_the_directory_is_never_created() {
     std::fs::create_dir(root.join(".git")).expect("git directory");
     let identity: WorktreeIdentity = main_identity(root.as_path());
     let arguments = os_arguments(&["restore", "a.txt"]);
-    record_audit(&identity, GuardedCommand::RestoreWorktree, AuditOutcome::Rejected, arguments.as_slice(), Some(false));
-    record_audit(&identity, GuardedCommand::Stash, AuditOutcome::Hatch, arguments.as_slice(), None);
-    let text: String = std::fs::read_to_string(root.join(".git").join(AUDIT_FILE)).expect("audit file");
+    record_audit(
+        &identity,
+        GuardedCommand::RestoreWorktree,
+        AuditOutcome::Rejected,
+        arguments.as_slice(),
+        Some(false),
+    );
+    record_audit(
+        &identity,
+        GuardedCommand::Stash,
+        AuditOutcome::Hatch,
+        arguments.as_slice(),
+        None,
+    );
+    let text: String =
+        std::fs::read_to_string(root.join(".git").join(AUDIT_FILE)).expect("audit file");
     let lines: Vec<&str> = text.lines().collect();
     assert_eq!(lines.len(), 2);
     assert!(lines[0].contains("\"outcome\":\"rejected\""));

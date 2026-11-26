@@ -39,33 +39,69 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
-use crate::add_timing::{begin_work, end_work};
+use crate::add_timing::{
+    begin_work,
+    end_work,
+};
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
+use crate::package_repair_cargo_concurrent::{
+    ItemLabel,
+    map_concurrent_awaiting,
+};
+use crate::package_repair_cargo_lock::{
+    read_lock,
+    restore_lock,
+};
+use crate::package_repair_cargo_workspaces::{
+    MANIFEST,
+    Workspace,
+    distinct_workspaces,
+    manifest_directories_awaiting,
+    read_workspace_awaiting,
+};
+use crate::package_repair_command::{
+    ToolCommand,
+    ToolEnd,
+    ToolRun,
+    run_tool_awaiting,
+};
+use crate::package_repair_prewarm::{
+    PrewarmEntry,
+    common_directory_awaiting,
+};
 use crate::package_repair_request::RepairRequest;
-use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting};
-use crate::package_repair_cargo_lock::{read_lock, restore_lock};
-use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
-use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
-use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting};
 /// Whether a directory a clean deletes from is still inside the worktree it serves.
 use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 /// The jobs of one workspace and what their runs take,
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "package_repair_cargo_jobs.rs"]
 mod jobs;
-use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
+use self::jobs::{
+    CargoTool,
+    ReadWorkspaceJob,
+    RepairWorkspaceJob,
+    look_for_the_program,
+};
 /// The hand-over of the filling to the commit service and the line the add answers for it,
 /// kept in a file of its own to stay under the file-size limit.
 #[path = "package_repair_cargo_hand_over.rs"]
 mod hand_over;
 use self::hand_over::hand_the_filling_over;
 use crate::package_repair_prewarm_job::stage_the_worktrees_own_state;
-use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
+use crate::package_repair_report::{
+    Finding,
+    Outcome,
+    Tool,
+    missing_tool,
+};
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -161,35 +197,56 @@ pub struct StateFacts {
 /// ```ts
 /// function planBuildState(destination: Workspace, destinationRoot: string, facts: StateFacts): BuildStatePlan;
 /// ```
-pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts: &StateFacts) -> BuildStatePlan {
+pub fn plan_build_state(
+    destination: &Workspace,
+    destination_root: &Path,
+    facts: &StateFacts,
+) -> BuildStatePlan {
     if destination.build_directory.starts_with(destination_root) {
         // A copied `target/` can be a link to a directory outside the worktree, and a clean through it would delete the
         //  files of the checkout that link names, which this repair does not serve.
         if !facts.destination_build_is_inside || !facts.destination_target_is_inside {
-            return BuildStatePlan::Nothing(String::from("the build state is reached through a link that leaves the worktree, and a clean there would delete another directory's files"));
+            return BuildStatePlan::Nothing(String::from(
+                "the build state is reached through a link that leaves the worktree, and a clean there would delete another directory's files",
+            ));
         }
         // What a clean here would remove is the copy's state for the worktree's own crates, so nothing was carried when the
         //  source has no counterpart workspace.
         if !facts.source_has_the_workspace {
-            return BuildStatePlan::Nothing(String::from("the source has no such workspace, so no state was carried"));
+            return BuildStatePlan::Nothing(String::from(
+                "the source has no such workspace, so no state was carried",
+            ));
         }
         return if facts.destination_build_exists {
-            BuildStatePlan::MovedAside { to: destination.build_directory.clone() }
+            BuildStatePlan::MovedAside {
+                to: destination.build_directory.clone(),
+            }
         } else {
-            BuildStatePlan::Nothing(String::from("the build directory is inside the worktree and was not carried"))
+            BuildStatePlan::Nothing(String::from(
+                "the build directory is inside the worktree and was not carried",
+            ))
         };
     }
     if facts.destination_build_exists {
-        return BuildStatePlan::Nothing(String::from("the worktree's build directory already holds state of its own"));
+        return BuildStatePlan::Nothing(String::from(
+            "the worktree's build directory already holds state of its own",
+        ));
     }
     let Some(source_build) = facts.source_build.as_ref() else {
-        return BuildStatePlan::Nothing(String::from("the source holds no build directory this repair could read, so there is nothing to fill"));
+        return BuildStatePlan::Nothing(String::from(
+            "the source holds no build directory this repair could read, so there is nothing to fill",
+        ));
     };
     if *source_build == destination.build_directory {
-        return BuildStatePlan::Nothing(String::from("the source and the worktree share one build directory, which a clean would damage"));
+        return BuildStatePlan::Nothing(String::from(
+            "the source and the worktree share one build directory, which a clean would damage",
+        ));
     }
     if facts.source_build_exists {
-        return BuildStatePlan::FillFromTheSource { from: source_build.clone(), to: destination.build_directory.clone() };
+        return BuildStatePlan::FillFromTheSource {
+            from: source_build.clone(),
+            to: destination.build_directory.clone(),
+        };
     }
     return BuildStatePlan::Nothing(String::from(
         "the worktree's build directory does not exist and the source holds none for it, so a clean would reach nothing a build could reuse",
@@ -251,7 +308,10 @@ pub fn locked_clean_arguments(members: &[String]) -> Vec<OsString> {
 /// ```ts
 /// const cleanArgumentsOf = (members, locked) => ['clean', '--offline', ...(locked ? ['--locked'] : []), ...members.flatMap((m) => ['--package', m])];
 /// ```
-fn clean_arguments_of(members: &[String], locked: bool) -> Vec<OsString> {
+fn clean_arguments_of(
+    members: &[String],
+    locked: bool,
+) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = ["clean", "--offline"].iter().map(OsString::from).collect();
     if locked {
         arguments.push(OsString::from("--locked"));
@@ -275,12 +335,19 @@ fn clean_arguments_of(members: &[String], locked: bool) -> Vec<OsString> {
 /// ```ts
 /// function manualCommand(root: string, members: string[]): string;
 /// ```
-pub fn manual_command(root: &Path, members: &[String]) -> String {
+pub fn manual_command(
+    root: &Path,
+    members: &[String],
+) -> String {
     let mut words: Vec<String> = Vec::new();
     for word in clean_arguments(members) {
         words.push(shell_quote(word.as_encoded_bytes()));
     }
-    return format!("cd {} && {PROGRAM} {}", shell_quote(root.as_os_str().as_encoded_bytes()), words.join(" "));
+    return format!(
+        "cd {} && {PROGRAM} {}",
+        shell_quote(root.as_os_str().as_encoded_bytes()),
+        words.join(" ")
+    );
 }
 
 /// What a repair of one workspace did.
@@ -324,13 +391,27 @@ enum Done {
 /// ```ts
 /// async function repairWorkspace(tool: CargoTool, workspace: Workspace, destinationRoot: string, source: string): Promise<Done>;
 /// ```
-async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path, kept_in: Option<&Path>) -> Done {
+async fn repair_workspace_awaiting(
+    tool: &CargoTool,
+    workspace: &Workspace,
+    destination_root: &Path,
+    source: &Path,
+    kept_in: Option<&Path>,
+) -> Done {
     let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
     // The repository's Git directory, whose own exclude file names the staging patterns: the staging sits beside the build
     //  directory it takes, inside the worktree, and without that the person's `git status` would show it.
     let staging_root: Option<PathBuf> = kept_in.map(Path::to_path_buf);
     let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
-        debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
+        debug(
+            TAG,
+            format!(
+                "{} lies outside {} and is left alone",
+                workspace.root.display(),
+                destination_root.display()
+            )
+            .as_str(),
+        );
         return Done::Skipped;
     };
     let source_workspace: PathBuf = source.join(relative);
@@ -340,10 +421,19 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
     // and reading the source there would be a workspace resolution with no answer the plan uses.
     let destination_build_exists: bool = workspace.build_directory.exists();
     let source_build: Option<PathBuf> = if !destination_build_exists && source_has_the_workspace {
-        match timed_read_workspace_awaiting("cargoMetadataSource", tool, source_workspace.as_path()).await {
+        match timed_read_workspace_awaiting("cargoMetadataSource", tool, source_workspace.as_path())
+            .await
+        {
             Ok(found) => Some(found.build_directory),
             Err(reason) => {
-                debug(TAG, format!("the source workspace {} cannot be read: {reason}", source_workspace.display()).as_str());
+                debug(
+                    TAG,
+                    format!(
+                        "the source workspace {} cannot be read: {reason}",
+                        source_workspace.display()
+                    )
+                    .as_str(),
+                );
                 None
             }
         }
@@ -358,50 +448,96 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         },
         source_build,
         destination_build_exists,
-        destination_build_is_inside: is_inside_the_worktree(destination_root, workspace.build_directory.as_path()),
-        destination_target_is_inside: is_inside_the_worktree(destination_root, workspace.target_directory.as_path()),
+        destination_build_is_inside: is_inside_the_worktree(
+            destination_root,
+            workspace.build_directory.as_path(),
+        ),
+        destination_target_is_inside: is_inside_the_worktree(
+            destination_root,
+            workspace.target_directory.as_path(),
+        ),
     };
     let plan: BuildStatePlan = plan_build_state(workspace, destination_root, &facts);
-    debug(TAG, format!("{}: {plan:?}", workspace.root.display()).as_str());
+    debug(
+        TAG,
+        format!("{}: {plan:?}", workspace.root.display()).as_str(),
+    );
     match &plan {
         BuildStatePlan::Nothing(_) => return Done::Skipped,
         // The clone that fills this worktree's build directory is the service's work, and the same clean runs on the copy
         //  it publishes, so this workspace is done here.
-        BuildStatePlan::FillFromTheSource { from, to } => {
-            return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: Some(from.clone()), to: to.clone(), members: workspace.members.clone(), staged_in: None });
+        BuildStatePlan::FillFromTheSource {
+            from,
+            to,
+        } => {
+            return Done::HandedOver(PrewarmEntry {
+                root: workspace.root.clone(),
+                from: Some(from.clone()),
+                to: to.clone(),
+                members: workspace.members.clone(),
+                staged_in: None,
+            });
         }
         // The state the copy carried is moved aside here, before the add answers: one rename, no Cargo run, so no build can
         //  start on artifacts Cargo would call fresh and the add never waits for a clean. The staging name lies beside the
         //  build directory it takes, inside the worktree, because btrfs refuses to rename a directory out of a subvolume, and
         //  the repository's `info/exclude` names it so the person's `git status` and `git add -A` never see it.
-        BuildStatePlan::MovedAside { to } => {
-            let staged: Result<crate::package_repair_prewarm_job::Staged, String> = match staging_root.as_ref() {
-                Some(root) => stage_the_worktrees_own_state(to.as_path(), Some(root.as_path())),
-                None => Err(String::from("the repair was handed no Git directory to stage the copied build state in")),
-            };
+        BuildStatePlan::MovedAside {
+            to,
+        } => {
+            let staged: Result<crate::package_repair_prewarm_job::Staged, String> =
+                match staging_root.as_ref() {
+                    Some(root) => stage_the_worktrees_own_state(to.as_path(), Some(root.as_path())),
+                    None => Err(String::from(
+                        "the repair was handed no Git directory to stage the copied build state in",
+                    )),
+                };
             match staged {
                 Ok(crate::package_repair_prewarm_job::Staged::Staged(staged_in)) => {
-                    return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: None, to: to.clone(), members: workspace.members.clone(), staged_in: Some(staged_in) });
+                    return Done::HandedOver(PrewarmEntry {
+                        root: workspace.root.clone(),
+                        from: None,
+                        to: to.clone(),
+                        members: workspace.members.clone(),
+                        staged_in: Some(staged_in),
+                    });
                 }
                 Ok(crate::package_repair_prewarm_job::Staged::Nothing) => return Done::Skipped,
                 // The state could not be moved aside, and a build would reuse it where it stands, so this add cleans it here
                 //  as every release before this one did. The wait is then the repair tool's own window, which this path keeps
                 //  for the case a rename cannot happen at all, and the finding names the clean to run if it fails.
-                Err(reason) => debug(TAG, format!("{reason}; the clean runs here instead").as_str()),
+                Err(reason) => debug(
+                    TAG,
+                    format!("{reason}; the clean runs here instead").as_str(),
+                ),
             }
         }
     }
-    let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
+    let command: ToolCommand = ToolCommand {
+        arguments: clean_arguments(workspace.members.as_slice()),
+        directory: workspace.root.clone(),
+        set: Vec::new(),
+    };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
     let run: ToolRun = timed_clean_awaiting(tool, &command).await;
     // The bytes the clean displaced are kept before the checked-out lock comes back, and the line says where they are
     //  (`package_repair_cargo_lock.rs`).
-    let displaced: Option<String> = restore_lock(workspace.root.as_path(), lock_before.as_deref(), kept_in);
+    let displaced: Option<String> =
+        restore_lock(workspace.root.as_path(), lock_before.as_deref(), kept_in);
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned(displaced),
         ToolEnd::Failed(reason) => workspace_failed(manual.as_str(), reason),
-        ToolEnd::TimedOut => workspace_failed(manual.as_str(), String::from("it showed no sign of work for the quiet window and was stopped")),
-        ToolEnd::CeilingReached(ceiling) => workspace_failed(manual.as_str(), crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, ceiling)),
+        ToolEnd::TimedOut => workspace_failed(
+            manual.as_str(),
+            String::from("it showed no sign of work for the quiet window and was stopped"),
+        ),
+        ToolEnd::CeilingReached(ceiling) => workspace_failed(
+            manual.as_str(),
+            crate::package_repair_report::ceiling_reason(
+                crate::package_repair_report::Tool::Cargo,
+                ceiling,
+            ),
+        ),
     };
 }
 
@@ -418,8 +554,17 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
 /// ```ts
 /// const workspaceFailed = (manual: string, reason: string) => ({ kind: 'Failed', reason, runInstead: manual });
 /// ```
-fn workspace_failed(manual: &str, reason: String) -> Done {
-    return Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual.to_owned() } });
+fn workspace_failed(
+    manual: &str,
+    reason: String,
+) -> Done {
+    return Done::Failed(Finding {
+        tool: Tool::Cargo,
+        outcome: Outcome::Failed {
+            reason,
+            run_instead: manual.to_owned(),
+        },
+    });
 }
 
 /// What:
@@ -435,9 +580,14 @@ fn workspace_failed(manual: &str, reason: String) -> Done {
 /// const workspace = await readWorkspaceAwaiting(cargo, directory, limits);
 /// endWork(name, began);
 /// ```
-async fn timed_read_workspace_awaiting(name: &str, tool: &CargoTool, directory: &Path) -> Result<Workspace, String> {
+async fn timed_read_workspace_awaiting(
+    name: &str,
+    tool: &CargoTool,
+    directory: &Path,
+) -> Result<Workspace, String> {
     let began: Instant = begin_work();
-    let read: Result<Workspace, String> = read_workspace_awaiting(tool.program.as_path(), directory, tool.limits).await;
+    let read: Result<Workspace, String> =
+        read_workspace_awaiting(tool.program.as_path(), directory, tool.limits).await;
     end_work(name, began);
     return read;
 }
@@ -454,7 +604,10 @@ async fn timed_read_workspace_awaiting(name: &str, tool: &CargoTool, directory: 
 /// const run = await runToolAwaiting(cargo, command, limits);
 /// endWork('cargoClean', began);
 /// ```
-async fn timed_clean_awaiting(tool: &CargoTool, command: &ToolCommand) -> ToolRun {
+async fn timed_clean_awaiting(
+    tool: &CargoTool,
+    command: &ToolCommand,
+) -> ToolRun {
     let began: Instant = begin_work();
     let run: ToolRun = run_tool_awaiting(tool.program.as_path(), command, tool.limits).await;
     end_work("cargoClean", began);
@@ -466,7 +619,10 @@ async fn timed_clean_awaiting(tool: &CargoTool, command: &ToolCommand) -> ToolRu
 struct ReadingLabel;
 
 impl ItemLabel<PathBuf> for ReadingLabel {
-    fn label(&self, directory: &PathBuf) -> String {
+    fn label(
+        &self,
+        directory: &PathBuf,
+    ) -> String {
         return format!("reading the Cargo workspace at {}", directory.display());
     }
 }
@@ -476,8 +632,14 @@ impl ItemLabel<PathBuf> for ReadingLabel {
 struct RepairLabel;
 
 impl ItemLabel<Workspace> for RepairLabel {
-    fn label(&self, workspace: &Workspace) -> String {
-        return format!("the repair of the Cargo workspace at {}", workspace.root.display());
+    fn label(
+        &self,
+        workspace: &Workspace,
+    ) -> String {
+        return format!(
+            "the repair of the Cargo workspace at {}",
+            workspace.root.display()
+        );
     }
 }
 
@@ -499,40 +661,76 @@ impl ItemLabel<Workspace> for RepairLabel {
 /// ```
 pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> {
     let started: Instant = Instant::now();
-    let directories: Vec<PathBuf> = match manifest_directories_awaiting(request.git, request.destination).await {
-        Ok(found) => found,
-        Err(reason) => {
-            debug(TAG, format!("{}: {reason}", request.destination.display()).as_str());
-            return Vec::new();
-        }
-    };
+    let directories: Vec<PathBuf> =
+        match manifest_directories_awaiting(request.git, request.destination).await {
+            Ok(found) => found,
+            Err(reason) => {
+                debug(
+                    TAG,
+                    format!("{}: {reason}", request.destination.display()).as_str(),
+                );
+                return Vec::new();
+            }
+        };
     if directories.is_empty() {
         return Vec::new();
     }
     let search_path: Option<OsString> = request.environment.search_path.clone();
     let looked = run_a_job_or_in_turn(
-        (search_path, request.destination.to_path_buf(), request.environment.start_directory.clone()),
+        (
+            search_path,
+            request.destination.to_path_buf(),
+            request.environment.start_directory.clone(),
+        ),
         look_for_the_program,
     )
     .await;
-    let (found_program, real_destination): (Option<PathBuf>, Result<PathBuf, std::io::Error>) = match looked {
-        Ok(found) => found,
-        // Which workspaces need what was not learnt, so the repair says what it could not do and names the command.
-        Err(refused) => {
-            return vec![Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason: format!("the Cargo repair could not be prepared ({refused})"), run_instead: manual_command(request.destination, &[String::from("<member>")]) } }];
-        }
-    };
+    let (found_program, real_destination): (Option<PathBuf>, Result<PathBuf, std::io::Error>) =
+        match looked {
+            Ok(found) => found,
+            // Which workspaces need what was not learnt, so the repair says what it could not do and names the command.
+            Err(refused) => {
+                return vec![Finding {
+                    tool: Tool::Cargo,
+                    outcome: Outcome::Failed {
+                        reason: format!("the Cargo repair could not be prepared ({refused})"),
+                        run_instead: manual_command(
+                            request.destination,
+                            &[String::from("<member>")],
+                        ),
+                    },
+                }];
+            }
+        };
     let Some(cargo) = found_program else {
-        return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
+        return vec![missing_tool(
+            Tool::Cargo,
+            PROGRAM,
+            "cargo clean --offline --package <member> in each Cargo workspace of the worktree",
+        )];
     };
     // The repository's common Git directory, asked once for the whole lane: a moved-aside build state waits under it, out of the
     //  worktree, and the lock bytes a clean displaces are kept under it too.
-    let common_dir: Option<PathBuf> = common_directory_awaiting(request.git, request.destination).await.ok();
+    let common_dir: Option<PathBuf> = common_directory_awaiting(request.git, request.destination)
+        .await
+        .ok();
     let workers: usize = request.environment.workers;
-    let tool: CargoTool = CargoTool { program: cargo, limits: request.environment.limits() };
+    let tool: CargoTool = CargoTool {
+        program: cargo,
+        limits: request.environment.limits(),
+    };
     let listed: Arc<[PathBuf]> = Arc::from(directories);
     let mut read: Vec<Result<Workspace, String>> = Vec::new();
-    for outcome in map_concurrent_awaiting(Arc::clone(&listed), workers, Arc::new(ReadingLabel), Arc::new(ReadWorkspaceJob { tool: tool.clone() })).await {
+    for outcome in map_concurrent_awaiting(
+        Arc::clone(&listed),
+        workers,
+        Arc::new(ReadingLabel),
+        Arc::new(ReadWorkspaceJob {
+            tool: tool.clone(),
+        }),
+    )
+    .await
+    {
         // A panic in the read and a failed read are both a failed read.
         read.push(match outcome {
             Ok(inner) => inner,
@@ -545,7 +743,13 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         // A panic in the read and a failed read are both a failed read.
         match outcome {
             Ok(workspace) => found.push(workspace),
-            Err(reason) => findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(directory.as_path(), &[String::from("<member>")]) } }),
+            Err(reason) => findings.push(Finding {
+                tool: Tool::Cargo,
+                outcome: Outcome::Failed {
+                    reason,
+                    run_instead: manual_command(directory.as_path(), &[String::from("<member>")]),
+                },
+            }),
         }
     }
     let workspaces: Arc<[Workspace]> = Arc::from(distinct_workspaces(found));
@@ -555,14 +759,33 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         // A worktree whose real path cannot be read is used as the caller named it.
         Err(_cannot_be_resolved) => request.destination.to_path_buf(),
     };
-    let repairer: RepairWorkspaceJob = RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), kept_in: common_dir.clone() };
-    let repaired: Vec<Result<Done, String>> =
-        map_concurrent_awaiting(Arc::clone(&workspaces), workers, Arc::new(RepairLabel), Arc::new(repairer)).await;
+    let repairer: RepairWorkspaceJob = RepairWorkspaceJob {
+        tool,
+        destination_root,
+        source: request.source.to_path_buf(),
+        kept_in: common_dir.clone(),
+    };
+    let repaired: Vec<Result<Done, String>> = map_concurrent_awaiting(
+        Arc::clone(&workspaces),
+        workers,
+        Arc::new(RepairLabel),
+        Arc::new(repairer),
+    )
+    .await;
     let mut done: Vec<Done> = Vec::new();
     for (outcome, workspace) in repaired.into_iter().zip(workspaces.iter()) {
         done.push(match outcome {
             Ok(finished) => finished,
-            Err(reason) => Done::Failed(Finding { tool: Tool::Cargo, outcome: Outcome::Failed { reason, run_instead: manual_command(workspace.root.as_path(), &[String::from("<member>")]) } }),
+            Err(reason) => Done::Failed(Finding {
+                tool: Tool::Cargo,
+                outcome: Outcome::Failed {
+                    reason,
+                    run_instead: manual_command(
+                        workspace.root.as_path(),
+                        &[String::from("<member>")],
+                    ),
+                },
+            }),
         });
     }
     let mut cleaned: usize = 0;
@@ -582,14 +805,24 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         }
     }
     if cleaned > 0 {
-        let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
+        let workspace_noun: &str = if cleaned == 1 {
+            "workspace"
+        } else {
+            "workspaces"
+        };
         // A clean that displaced a lock keeps those bytes, and the line says where they are: a worktree that is clean again may
         //  still hold a command's newer lock under its Git directory (`package_repair_cargo_lock.rs`).
-        let kept: String = if displaced.is_empty() { String::new() } else { format!("; {}", displaced.join("; ")) };
+        let kept: String = if displaced.is_empty() {
+            String::new()
+        } else {
+            format!("; {}", displaced.join("; "))
+        };
         findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}{kept}"), millis: started.elapsed().as_millis() } });
     }
     if !handed_over.is_empty() {
-        findings.push(hand_the_filling_over(request, handed_over.as_slice(), common_dir.as_deref()).await);
+        findings.push(
+            hand_the_filling_over(request, handed_over.as_slice(), common_dir.as_deref()).await,
+        );
     }
     return findings;
 }
@@ -613,7 +846,14 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         Ok(findings) => findings,
         // The tracked manifests cannot be listed without the runtime, and the repair says so in the log alone, as it did.
         Err(refusal) => {
-            debug(TAG, format!("{}: git could not list the tracked manifests ({refusal})", request.destination.display()).as_str());
+            debug(
+                TAG,
+                format!(
+                    "{}: git could not list the tracked manifests ({refusal})",
+                    request.destination.display()
+                )
+                .as_str(),
+            );
             Vec::new()
         }
     };

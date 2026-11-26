@@ -24,14 +24,28 @@
 
 /// The table and the readings of `git clean`,
 ///  and the two sentences a failed reading is told apart by.
-use crate::command_clean::{CLEAN_TABLE, UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, parse_clean_region};
+use crate::command_clean::{
+    CLEAN_TABLE,
+    UNREADABLE_CLEAN_DELETION,
+    clean_dry_run_arguments,
+    parse_clean_region,
+};
 /// Which nested Git repositories that reading says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// Git's own option grammar,
 ///  for where the clean's options end.
-use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
+use crate::command_options::{
+    Boundary,
+    DEFAULT_MODE,
+    ParsedOptions,
+    parse_options,
+};
 /// Where the subcommand starts in the invocation's arguments.
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::global_arguments::{
+    GlobalLayout,
+    GlobalOutcome,
+    global_layout,
+};
 /// The facts interface this transform asks.
 use crate::repository_facts::RepositoryFacts;
 /// The token copier of every transform that adds tokens.
@@ -136,9 +150,15 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(clean.query) {
         Ok(answer) => answer,
         // Git refuses this clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
-        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => return CapDecision::Unchanged,
+        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => {
+            return CapDecision::Unchanged;
+        }
         // A reading that never answered, or one the wrapper ended, could hide a repository the menu would offer.
-        Err(message) => return CapDecision::Stopped { message },
+        Err(message) => {
+            return CapDecision::Stopped {
+                message,
+            };
+        }
     };
     let root: std::path::PathBuf = match facts.location() {
         Ok(location) => match worktree_root(&location.identity) {
@@ -147,10 +167,15 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
         },
         Err(_) => return CapDecision::Unchanged,
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path()) {
-        Ok(found) => found,
-        Err(message) => return CapDecision::Stopped { message },
-    };
+    let repositories: Vec<Vec<u8>> =
+        match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path()) {
+            Ok(found) => found,
+            Err(message) => {
+                return CapDecision::Stopped {
+                    message,
+                };
+            }
+        };
     if repositories.is_empty() {
         return CapDecision::Unchanged;
     }
@@ -208,7 +233,10 @@ fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
 /// ```ts
 /// function optionRegionEnd(parsed, length): number;
 /// ```
-fn option_region_end(parsed: &ParsedOptions, length: usize) -> usize {
+fn option_region_end(
+    parsed: &ParsedOptions,
+    length: usize,
+) -> usize {
     // `.min(...)` is the smaller index; a token that ends the options earlier wins.
     let mut end: usize = match parsed.boundary {
         Boundary::End => length,

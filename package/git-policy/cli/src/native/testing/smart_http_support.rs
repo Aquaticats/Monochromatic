@@ -23,12 +23,29 @@
 
 use crate::test_support::REAL_GIT;
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::io::{
+    BufRead,
+    BufReader,
+    Read,
+    Write,
+};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 use std::thread::JoinHandle;
 
 /// A running server:
@@ -61,13 +78,19 @@ impl SmartHttp {
                 }
                 let Ok(stream) = incoming else { continue };
                 let served_root: PathBuf = root.clone();
-                serving.push(std::thread::spawn(move || { serve(stream, served_root.as_path()); }));
+                serving.push(std::thread::spawn(move || {
+                    serve(stream, served_root.as_path());
+                }));
             }
             for thread in serving {
                 let _ended = thread.join();
             }
         });
-        return Self { port, stopping, acceptor: Some(acceptor) };
+        return Self {
+            port,
+            stopping,
+            acceptor: Some(acceptor),
+        };
     }
 
     /// The port the server listens on.
@@ -101,7 +124,8 @@ fn read_chunked(reader: &mut BufReader<TcpStream>) -> Vec<u8> {
         if reader.read_line(&mut line).unwrap_or(0) == 0 {
             return body;
         }
-        let size: usize = usize::from_str_radix(line.trim().split(';').next().unwrap_or("0"), 16).unwrap_or(0);
+        let size: usize =
+            usize::from_str_radix(line.trim().split(';').next().unwrap_or("0"), 16).unwrap_or(0);
         if size == 0 {
             let mut trailer: String = String::new();
             let _read = reader.read_line(&mut trailer);
@@ -120,15 +144,22 @@ fn read_chunked(reader: &mut BufReader<TcpStream>) -> Vec<u8> {
 /// Serve one connection:
 /// one request,
 /// answered by `git http-backend`.
-fn serve(stream: TcpStream, project_root: &Path) {
-    let Ok(clone) = stream.try_clone() else { return };
+fn serve(
+    stream: TcpStream,
+    project_root: &Path,
+) {
+    let Ok(clone) = stream.try_clone() else {
+        return;
+    };
     let mut reader: BufReader<TcpStream> = BufReader::new(clone);
     let mut request_line: String = String::new();
     if reader.read_line(&mut request_line).unwrap_or(0) == 0 {
         return;
     }
     let mut parts = request_line.split_whitespace();
-    let (Some(method), Some(target)) = (parts.next(), parts.next()) else { return };
+    let (Some(method), Some(target)) = (parts.next(), parts.next()) else {
+        return;
+    };
     let mut headers: HashMap<String, String> = HashMap::new();
     loop {
         let mut line: String = String::new();
@@ -139,14 +170,23 @@ fn serve(stream: TcpStream, project_root: &Path) {
             headers.insert(name.trim().to_ascii_lowercase(), value.trim().to_owned());
         }
     }
-    if headers.get("expect").is_some_and(|value| { return value.eq_ignore_ascii_case("100-continue"); }) {
+    if headers.get("expect").is_some_and(|value| {
+        return value.eq_ignore_ascii_case("100-continue");
+    }) {
         let mut writer: &TcpStream = &stream;
         let _sent = writer.write_all(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
-    let body: Vec<u8> = if headers.get("transfer-encoding").is_some_and(|value| { return value.contains("chunked"); }) {
+    let body: Vec<u8> = if headers.get("transfer-encoding").is_some_and(|value| {
+        return value.contains("chunked");
+    }) {
         read_chunked(&mut reader)
     } else {
-        let length: usize = headers.get("content-length").and_then(|value| { return value.parse::<usize>().ok(); }).unwrap_or(0);
+        let length: usize = headers
+            .get("content-length")
+            .and_then(|value| {
+                return value.parse::<usize>().ok();
+            })
+            .unwrap_or(0);
         let mut bytes: Vec<u8> = vec![0; length];
         if reader.read_exact(&mut bytes).is_err() {
             return;
@@ -180,9 +220,18 @@ fn serve(stream: TcpStream, project_root: &Path) {
     if let Some(mut input) = child.stdin.take() {
         let _written = input.write_all(&body);
     }
-    let Ok(finished) = child.wait_with_output() else { return };
+    let Ok(finished) = child.wait_with_output() else {
+        return;
+    };
     let output: Vec<u8> = finished.stdout;
-    let split: usize = output.windows(4).position(|window| { return window == b"\r\n\r\n"; }).map_or(output.len(), |at| { return at; });
+    let split: usize = output
+        .windows(4)
+        .position(|window| {
+            return window == b"\r\n\r\n";
+        })
+        .map_or(output.len(), |at| {
+            return at;
+        });
     let head: String = String::from_utf8_lossy(&output[..split]).into_owned();
     let payload: &[u8] = output.get(split + 4..).unwrap_or(&[]);
     let mut status: String = String::from("200 OK");

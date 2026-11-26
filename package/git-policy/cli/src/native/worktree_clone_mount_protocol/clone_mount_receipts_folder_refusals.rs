@@ -150,34 +150,91 @@ impl ReceiptsRefusal {
     /// naming the path and the way forward.
     pub fn message(&self) -> String {
         let reason: String = match self {
-            ReceiptsRefusal::Directory { path, reason } => format!("the results directory {} could not be opened ({reason})", path.display()),
-            ReceiptsRefusal::DirectoryAbsent { path } => format!("the results directory {} does not exist yet", path.display()),
-            ReceiptsRefusal::NotWhatWasWritten { name } => format!(
+            ReceiptsRefusal::Directory {
+                path,
+                reason,
+            } => format!(
+                "the results directory {} could not be opened ({reason})",
+                path.display()
+            ),
+            ReceiptsRefusal::DirectoryAbsent {
+                path,
+            } => format!(
+                "the results directory {} does not exist yet",
+                path.display()
+            ),
+            ReceiptsRefusal::NotWhatWasWritten {
+                name,
+            } => format!(
                 "the receipt `{name}` this route built is not one its own reader reads back, so it was not written; a field of it holds a character or a length the receipt's grammar refuses"
             ),
-            ReceiptsRefusal::DirectoryOwner { path, found, wanted } => format!(
+            ReceiptsRefusal::DirectoryOwner {
+                path,
+                found,
+                wanted,
+            } => format!(
                 "the results directory {} is owned by user {found}, and this route requires user {wanted}",
                 path.display()
             ),
-            ReceiptsRefusal::DirectoryMode { path, found } => format!(
+            ReceiptsRefusal::DirectoryMode {
+                path,
+                found,
+            } => format!(
                 "the results directory {} has mode {found:04o}, and this route requires {DIRECTORY_MODE:04o}",
                 path.display()
             ),
-            ReceiptsRefusal::File { name, reason } => format!("the receipt `{name}` could not be opened or written ({reason})"),
-            ReceiptsRefusal::FileOwner { name, found, wanted } => {
-                format!("the receipt `{name}` is owned by user {found}, and this route requires user {wanted}")
+            ReceiptsRefusal::File {
+                name,
+                reason,
+            } => format!("the receipt `{name}` could not be opened or written ({reason})"),
+            ReceiptsRefusal::FileOwner {
+                name,
+                found,
+                wanted,
+            } => {
+                format!(
+                    "the receipt `{name}` is owned by user {found}, and this route requires user {wanted}"
+                )
             }
-            ReceiptsRefusal::FileMode { name, found } => format!("the receipt `{name}` has mode {found:04o}, and this route requires {RECEIPT_MODE:04o}"),
-            ReceiptsRefusal::NotRegular { name } => format!("`{name}` does not name a regular file, so it is not a receipt"),
-            ReceiptsRefusal::TooLarge { name, bytes } => {
-                format!("the receipt `{name}` is {bytes} bytes and a receipt is at most {MAXIMUM_RECEIPT_BYTES}")
+            ReceiptsRefusal::FileMode {
+                name,
+                found,
+            } => format!(
+                "the receipt `{name}` has mode {found:04o}, and this route requires {RECEIPT_MODE:04o}"
+            ),
+            ReceiptsRefusal::NotRegular {
+                name,
+            } => format!("`{name}` does not name a regular file, so it is not a receipt"),
+            ReceiptsRefusal::TooLarge {
+                name,
+                bytes,
+            } => {
+                format!(
+                    "the receipt `{name}` is {bytes} bytes and a receipt is at most {MAXIMUM_RECEIPT_BYTES}"
+                )
             }
-            ReceiptsRefusal::NotText { name } => format!("the receipt `{name}` is not UTF-8 text"),
-            ReceiptsRefusal::WrongDataset { name, found } => format!(
+            ReceiptsRefusal::NotText {
+                name,
+            } => format!("the receipt `{name}` is not UTF-8 text"),
+            ReceiptsRefusal::WrongDataset {
+                name,
+                found,
+            } => format!(
                 "the receipt `{name}` carries dataset GUID {found} and is filed under another GUID"
             ),
-            ReceiptsRefusal::NotAReceipt { name, refusal } => return format!("{}\nThe file is `{name}` in {RESULTS_DIRECTORY}.", refusal.message()),
-            ReceiptsRefusal::Staging { name, reason } => format!(
+            ReceiptsRefusal::NotAReceipt {
+                name,
+                refusal,
+            } => {
+                return format!(
+                    "{}\nThe file is `{name}` in {RESULTS_DIRECTORY}.",
+                    refusal.message()
+                );
+            }
+            ReceiptsRefusal::Staging {
+                name,
+                reason,
+            } => format!(
                 "the sibling `{name}` a receipt is staged under could not be made or renamed ({reason}); a rename that completed before a failed directory sync may still be visible after a crash, so read the receipt before retrying"
             ),
         };

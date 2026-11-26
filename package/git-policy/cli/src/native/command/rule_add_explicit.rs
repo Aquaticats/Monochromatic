@@ -34,8 +34,13 @@
 /// import { ADD_ESCAPE_HATCH, LITERAL_VARIABLE, caller_global_prefix, literal_pathspecs_enabled, parse_add_region } from './command_add.ts';
 /// ```
 use crate::command_add::{
-    ADD_ESCAPE_HATCH, AddRegion, LITERAL_VARIABLE, caller_global_prefix, literal_pathspecs_enabled,
-    names_no_literal_character, parse_add_region,
+    ADD_ESCAPE_HATCH,
+    AddRegion,
+    LITERAL_VARIABLE,
+    caller_global_prefix,
+    literal_pathspecs_enabled,
+    names_no_literal_character,
+    parse_add_region,
 };
 use crate::command_options::OptionError;
 use crate::global_arguments::command_tokens;
@@ -308,7 +313,9 @@ pub fn add_explicit_question(arguments: &[OsString]) -> Option<AddExplicitQuesti
         return None;
     }
     // `Some(x)` is the "present" case.
-    return Some(AddExplicitQuestion { tokens });
+    return Some(AddExplicitQuestion {
+        tokens,
+    });
 }
 
 /// What:
@@ -338,14 +345,23 @@ fn token_of(found: &BulkToken) -> usize {
 /// ```ts
 /// function sweptUp(question: AddExplicitQuestion, selection?: StagedSelection): string;
 /// ```
-fn swept_up(question: &AddExplicitQuestion, selection: Option<&StagedSelection>) -> String {
+fn swept_up(
+    question: &AddExplicitQuestion,
+    selection: Option<&StagedSelection>,
+) -> String {
     if let Some(measured) = selection {
         match scope_of(measured) {
             Some(BulkScope::Repository) => {
-                return format!("It selects all {} paths of this repository.", measured.selected);
+                return format!(
+                    "It selects all {} paths of this repository.",
+                    measured.selected
+                );
             }
             Some(BulkScope::Directory) => {
-                return format!("It selects all {} paths of this directory.", measured.selected);
+                return format!(
+                    "It selects all {} paths of this directory.",
+                    measured.selected
+                );
             }
             // A selection that leaves a path out says nothing about what a flag reaches.
             None => {}
@@ -356,7 +372,10 @@ fn swept_up(question: &AddExplicitQuestion, selection: Option<&StagedSelection>)
         // `match` unpacks the selector; the pathspec arm is no flag.
         match found.selector {
             BulkSelector::EveryChangedPath => names_every_path = true,
-            BulkSelector::EveryChangedTrackedPath | BulkSelector::Pathspec { .. } => {}
+            BulkSelector::EveryChangedTrackedPath
+            | BulkSelector::Pathspec {
+                ..
+            } => {}
         }
     }
     if names_every_path {
@@ -437,10 +456,20 @@ pub fn decide_add_explicit(
 /// ```ts
 /// const selectionQueryArguments = (prefix: string[], pathspecs: string[]) => [...prefix, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...pathspecs];
 /// ```
-pub fn selection_query_arguments(global_prefix: &[OsString], pathspecs: &[OsString]) -> Vec<OsString> {
+pub fn selection_query_arguments(
+    global_prefix: &[OsString],
+    pathspecs: &[OsString],
+) -> Vec<OsString> {
     // `.to_vec()` copies the borrowed prefix into a list this function owns.
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
-    for token in ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"] {
+    for token in [
+        "ls-files",
+        "-z",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "--",
+    ] {
         arguments.push(OsString::from(token));
     }
     // `.iter().cloned()` visits the spellings and copies each one onto the list.

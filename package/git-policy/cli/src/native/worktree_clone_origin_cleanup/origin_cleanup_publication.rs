@@ -23,14 +23,27 @@
 //! folder.publish(record); folder.remove(name);
 //! ```
 
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all,
+    replace_private_file_unsynced,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_parse::parse_the_record;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
-    check_the_private_file, check_the_private_folder, common_directory_owner, is_a_record_name, origin_cleanups_folder,
+    check_the_private_file,
+    check_the_private_folder,
+    common_directory_owner,
+    is_a_record_name,
+    origin_cleanups_folder,
 };
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::{CleanupRefusal, CleanupRefusalCause};
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::{
+    CleanupRefusal,
+    CleanupRefusalCause,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The folder one repository's origin cleanup records live in,
@@ -49,8 +62,14 @@ pub struct CleanupFolder {
 }
 
 impl std::fmt::Debug for CleanupFolder {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.debug_struct("CleanupFolder").field("path", &self.path).finish();
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return formatter
+            .debug_struct("CleanupFolder")
+            .field("path", &self.path)
+            .finish();
     }
 }
 
@@ -72,10 +91,18 @@ impl CleanupFolder {
     /// ```
     pub fn open_or_create(common_dir: &Path) -> Result<CleanupFolder, CleanupRefusal> {
         let path: PathBuf = origin_cleanups_folder(common_dir);
-        create_private_directory_all(path.as_path()).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string()))?;
+        create_private_directory_all(path.as_path()).map_err(|error| {
+            return CleanupRefusal::at(
+                CleanupRefusalCause::Unreadable,
+                "folder",
+                error.to_string(),
+            );
+        })?;
         let owner: u32 = common_directory_owner(common_dir)?;
         check_the_private_folder(path.as_path(), owner)?;
-        return Ok(CleanupFolder { path });
+        return Ok(CleanupFolder {
+            path,
+        });
     }
 
     /// The folder's path.
@@ -100,19 +127,33 @@ impl CleanupFolder {
     /// ```ts
     /// const path = folder.publish(record);
     /// ```
-    pub fn publish(&self, record: &OriginCleanupRecord) -> Result<PathBuf, CleanupRefusal> {
+    pub fn publish(
+        &self,
+        record: &OriginCleanupRecord,
+    ) -> Result<PathBuf, CleanupRefusal> {
         let name: String = record.origin_snapshot.clone();
         if !is_a_record_name(name.as_str()) {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "originSnapshot", name));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotCanonical,
+                "originSnapshot",
+                name,
+            ));
         }
         let bytes: Vec<u8> = record.encode()?;
         match parse_the_record(bytes.as_slice()) {
             Ok(read_back) if read_back == *record => {}
-            Ok(_) => return Err(CleanupRefusal::of(CleanupRefusalCause::NotCanonical, String::from("the writer would not read its own bytes back"))),
+            Ok(_) => {
+                return Err(CleanupRefusal::of(
+                    CleanupRefusalCause::NotCanonical,
+                    String::from("the writer would not read its own bytes back"),
+                ));
+            }
             Err(refusal) => return Err(refusal),
         }
         let path: PathBuf = self.path.join(name.as_str());
-        replace_private_file_unsynced(path.as_path(), bytes.as_slice()).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string()))?;
+        replace_private_file_unsynced(path.as_path(), bytes.as_slice()).map_err(|error| {
+            return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string());
+        })?;
         return Ok(path);
     }
 
@@ -132,26 +173,50 @@ impl CleanupFolder {
     /// ```ts
     /// folder.remove(name);
     /// ```
-    pub fn remove(&self, name: &str) -> Result<(), CleanupRefusal> {
+    pub fn remove(
+        &self,
+        name: &str,
+    ) -> Result<(), CleanupRefusal> {
         if !is_a_record_name(name) {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "name", String::from(name)));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotCanonical,
+                "name",
+                String::from(name),
+            ));
         }
         let path: PathBuf = self.path.join(name);
         match std::fs::symlink_metadata(path.as_path()) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error) => return Err(CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string())),
+            Err(error) => {
+                return Err(CleanupRefusal::at(
+                    CleanupRefusalCause::Unreadable,
+                    "file",
+                    error.to_string(),
+                ));
+            }
             Ok(_) => {}
         }
         let owner: u32 = {
             use std::os::unix::fs::MetadataExt as _;
-            let metadata: std::fs::Metadata = std::fs::symlink_metadata(path.as_path()).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string()))?;
+            let metadata: std::fs::Metadata =
+                std::fs::symlink_metadata(path.as_path()).map_err(|error| {
+                    return CleanupRefusal::at(
+                        CleanupRefusalCause::Unreadable,
+                        "file",
+                        error.to_string(),
+                    );
+                })?;
             metadata.uid()
         };
         check_the_private_file(path.as_path(), owner)?;
         return match std::fs::remove_file(path.as_path()) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string())),
+            Err(error) => Err(CleanupRefusal::at(
+                CleanupRefusalCause::Unreadable,
+                "file",
+                error.to_string(),
+            )),
         };
     }
 }

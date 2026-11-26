@@ -34,7 +34,10 @@
 
 use super::companion_process_calls::is_alive;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The variable that names the account's runtime directory.
 pub const RUNTIME_VARIABLE: &str = "XDG_RUNTIME_DIR";
@@ -156,7 +159,9 @@ impl RuntimeFolder {
                 ),
             });
         }
-        return Ok(RuntimeFolder { path: path.to_path_buf() });
+        return Ok(RuntimeFolder {
+            path: path.to_path_buf(),
+        });
     }
 
     /// The directory the variable named.
@@ -177,13 +182,18 @@ impl RuntimeFolder {
 /// A directory could not be made.
 pub fn make_run_directory(runtime: &RuntimeFolder) -> Result<RunDirectory, ScratchRefusal> {
     let folder: PathBuf = runtime.path().join(COMPANION_FOLDER);
-    std::fs::create_dir_all(folder.as_path()).map_err(|error| return refused(folder.as_path(), error))?;
+    std::fs::create_dir_all(folder.as_path())
+        .map_err(|error| return refused(folder.as_path(), error))?;
     sweep(folder.as_path());
     let root: PathBuf = folder.join(run_name());
     std::fs::create_dir(root.as_path()).map_err(|error| return refused(root.as_path(), error))?;
     let scratch: PathBuf = root.join("scratch");
-    std::fs::create_dir(scratch.as_path()).map_err(|error| return refused(scratch.as_path(), error))?;
-    return Ok(RunDirectory { root, scratch });
+    std::fs::create_dir(scratch.as_path())
+        .map_err(|error| return refused(scratch.as_path(), error))?;
+    return Ok(RunDirectory {
+        root,
+        scratch,
+    });
 }
 
 /// What:
@@ -219,12 +229,18 @@ static RUNS_OF_THIS_PROCESS: std::sync::atomic::AtomicU64 = std::sync::atomic::A
 /// The digits of this process's PID namespace,
 /// and zero where the kernel names none.
 fn namespace_digits() -> String {
-    let named: Option<String> = std::fs::read_link("/proc/self/ns/pid").ok().map(|path| return path.to_string_lossy().into_owned());
+    let named: Option<String> = std::fs::read_link("/proc/self/ns/pid")
+        .ok()
+        .map(|path| return path.to_string_lossy().into_owned());
     let Some(text) = named else {
         return String::from("0");
     };
     let digits: String = text.chars().filter(char::is_ascii_digit).collect();
-    return if digits.is_empty() { String::from("0") } else { digits };
+    return if digits.is_empty() {
+        String::from("0")
+    } else {
+        digits
+    };
 }
 
 /// What:
@@ -241,8 +257,15 @@ fn sweep(folder: &Path) {
     let ours: String = namespace_digits();
     for listed in listing.flatten() {
         let name: String = listed.file_name().to_string_lossy().into_owned();
-        let Some(rest) = name.strip_prefix(RUN_PREFIX) else { continue };
-        let (Some(pid), Some(namespace)) = (rest.split('-').next().and_then(|text| return text.parse::<libc::pid_t>().ok()), rest.split('-').nth(1)) else {
+        let Some(rest) = name.strip_prefix(RUN_PREFIX) else {
+            continue;
+        };
+        let (Some(pid), Some(namespace)) = (
+            rest.split('-')
+                .next()
+                .and_then(|text| return text.parse::<libc::pid_t>().ok()),
+            rest.split('-').nth(1),
+        ) else {
             continue;
         };
         if namespace != ours || is_alive(pid) {
@@ -253,7 +276,10 @@ fn sweep(folder: &Path) {
 }
 
 /// The refusal one directory that could not be made answers.
-fn refused(path: &Path, error: std::io::Error) -> ScratchRefusal {
+fn refused(
+    path: &Path,
+    error: std::io::Error,
+) -> ScratchRefusal {
     return ScratchRefusal {
         message: format!(
             "the account companion's scratch directory {} cannot be made ({error}), so the managed attach is refused as unproven. Ways forward: free some space under {RUNTIME_VARIABLE} or check that it is writable, then run the add again",

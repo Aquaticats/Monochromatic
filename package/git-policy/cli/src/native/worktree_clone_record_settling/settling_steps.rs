@@ -62,9 +62,15 @@ impl SettlingStep {
     /// The words a line names this step with.
     pub fn words(self) -> &'static str {
         return match self {
-            SettlingStep::TheLostLock => "the registration's lost lock, written again with this add's sentence",
-            SettlingStep::TheRegistrationRecipe => "the registration's own files, by the recipe's eight steps, and its directory",
-            SettlingStep::ThePlan => "the destruction plan, after the names it recorded as destroyed are printed",
+            SettlingStep::TheLostLock => {
+                "the registration's lost lock, written again with this add's sentence"
+            }
+            SettlingStep::TheRegistrationRecipe => {
+                "the registration's own files, by the recipe's eight steps, and its directory"
+            }
+            SettlingStep::ThePlan => {
+                "the destruction plan, after the names it recorded as destroyed are printed"
+            }
             SettlingStep::TheOriginInventory => "the origin-side inventory",
             SettlingStep::TheCloneInventory => "the clone-side inventory",
             SettlingStep::TheBinding => "the binding record",
@@ -108,7 +114,12 @@ pub const WHEN_A_CHECKOUT_HAS_BEGUN: [SettlingStep; 5] = [
 /// ```ts
 /// const steps = theSteps({ checkoutBegun, planStands });
 /// ```
-pub fn the_steps(TheOrderFacts { checkout_begun, plan_stands }: TheOrderFacts) -> Vec<SettlingStep> {
+pub fn the_steps(
+    TheOrderFacts {
+        checkout_begun,
+        plan_stands,
+    }: TheOrderFacts
+) -> Vec<SettlingStep> {
     let whole: &[SettlingStep] = match checkout_begun {
         true => WHEN_A_CHECKOUT_HAS_BEGUN.as_slice(),
         false => WHEN_NO_CHECKOUT_HAS_BEGUN.as_slice(),

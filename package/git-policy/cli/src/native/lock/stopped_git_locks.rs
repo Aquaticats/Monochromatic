@@ -71,7 +71,10 @@ use crate::stale_ref_lock_judge::Judge;
 /// The judgement and conditional removal of the reference locks below some Git directories.
 use crate::stale_ref_locks::clear_stale_ref_locks;
 /// Paths of the repository.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The command whose children are stopped.
 use std::process::Command;
 
@@ -124,7 +127,10 @@ impl LockLedger {
     /// for a child that holds no Git lock,
     /// such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), judge: None };
+        return Self {
+            roots: Vec::new(),
+            judge: None,
+        };
     }
 
     /// The ledger of a command that has not started yet:
@@ -132,13 +138,19 @@ impl LockLedger {
     /// or from
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
-        return Self { roots: roots_of_command(command), judge: None };
+        return Self {
+            roots: roots_of_command(command),
+            judge: None,
+        };
     }
 
     /// The same ledger with another judge,
     /// so a control does not wait out the margin of a real one.
     #[cfg(test)]
-    pub fn with_judge(mut self, judge: Judge) -> Self {
+    pub fn with_judge(
+        mut self,
+        judge: Judge,
+    ) -> Self {
         self.judge = Some(judge);
         return self;
     }
@@ -197,7 +209,12 @@ pub(crate) fn pid_named_by(path: &Path) -> Option<i32> {
 /// ```
 pub(crate) fn pid_named_in(contents: &[u8]) -> Option<i32> {
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(contents);
-    return text.trim().strip_prefix(PID_TEXT_PREFIX)?.trim().parse::<i32>().ok();
+    return text
+        .trim()
+        .strip_prefix(PID_TEXT_PREFIX)?
+        .trim()
+        .parse::<i32>()
+        .ok();
 }
 
 /// What:

@@ -33,8 +33,16 @@
 /// ```ts
 /// import { searchPathForRealGit, type RealGitNotFound } from './real-git.ts';
 /// ```
-use crate::real_git::{RealGitNotFound, ResolutionInputs, SearchedCandidate, search_path_for_real_git};
-use crate::real_git_candidate::{CandidateKind, classify_candidate};
+use crate::real_git::{
+    RealGitNotFound,
+    ResolutionInputs,
+    SearchedCandidate,
+    search_path_for_real_git,
+};
+use crate::real_git_candidate::{
+    CandidateKind,
+    classify_candidate,
+};
 use crate::real_git_record::read_recorded_git;
 /// `OsStr` is borrowed operating-system text (siblings:
 /// `OsString` owned,
@@ -42,7 +50,10 @@ use crate::real_git_record::read_recorded_git;
 use std::ffi::OsStr;
 /// `Path` is a borrowed filesystem path;
 ///  `PathBuf` is the owned sibling.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The real Git a unit file records,
@@ -106,7 +117,11 @@ pub struct ResolvedGit {
 /// ```ts
 /// function fallbackNotice(path: string, git: string, unit: string): string;
 /// ```
-fn fallback_notice(path: &OsStr, git: &Path, unit_file: &Path) -> String {
+fn fallback_notice(
+    path: &OsStr,
+    git: &Path,
+    unit_file: &Path,
+) -> String {
     // What:
     //  An `if`/`else` that yields a value, the last expression of each branch.
     //  `String::from("...")` copies a literal into owned text.
@@ -203,7 +218,10 @@ pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<ResolvedGit, RealGi
     // ```
     let mut not_found: RealGitNotFound = match search_path_for_real_git(inputs) {
         Ok(path) => {
-            return Ok(ResolvedGit { path, notice: None });
+            return Ok(ResolvedGit {
+                path,
+                notice: None,
+            });
         }
         Err(failure) => failure,
     };
@@ -237,11 +255,16 @@ pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<ResolvedGit, RealGi
     // ```ts
     // const kind = classifyCandidate(recorded, inputs.ownExecutable);
     // ```
-    let kind: CandidateKind = classify_candidate(recorded.as_path(), inputs.own_executable.as_path());
+    let kind: CandidateKind =
+        classify_candidate(recorded.as_path(), inputs.own_executable.as_path());
     if kind == CandidateKind::RealGit {
-        let notice: String = fallback_notice(inputs.path.as_os_str(), recorded.as_path(), unit_file);
+        let notice: String =
+            fallback_notice(inputs.path.as_os_str(), recorded.as_path(), unit_file);
         // `Some(notice)` wraps the line the caller must print.
-        return Ok(ResolvedGit { path: recorded, notice: Some(notice) });
+        return Ok(ResolvedGit {
+            path: recorded,
+            notice: Some(notice),
+        });
     }
     // What:
     //  `Some(RecordedGit { ... })` stores the refused record in the failure.
@@ -256,7 +279,10 @@ pub fn resolve_real_git(inputs: &ResolutionInputs) -> Result<ResolvedGit, RealGi
     // ```
     not_found.recorded = Some(RecordedGit {
         unit_file: unit_file.to_path_buf(),
-        candidate: SearchedCandidate { path: recorded, kind },
+        candidate: SearchedCandidate {
+            path: recorded,
+            kind,
+        },
     });
     return Err(not_found);
 }

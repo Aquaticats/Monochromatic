@@ -24,13 +24,24 @@
 //! confirm(held, registration);              // throws the reason the names are not the proven objects any more
 //! ```
 
-use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, open_file_at, open_root};
+use crate::fs_beneath::{
+    ObjectId,
+    handle_path,
+    identity_at,
+    identity_of,
+    open_directory_at,
+    open_file_at,
+    open_root,
+};
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_remove_registry::Registration;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether the administrative directory holds a `locked` entry.
@@ -50,7 +61,10 @@ pub(crate) fn lock_state(admin: &Path) -> Result<bool, String> {
     return match entry.symlink_metadata() {
         Ok(_found) => Ok(true),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(format!("the lock entry {} cannot be looked up ({error}), so the worktree is not known to be unlocked", entry.display())),
+        Err(error) => Err(format!(
+            "the lock entry {} cannot be looked up ({error}), so the worktree is not known to be unlocked",
+            entry.display()
+        )),
     };
 }
 
@@ -106,22 +120,38 @@ pub struct Held {
 /// ```
 /// A step of holding the worktree's directories with its failure worded as a refusal to open `what` at `path` without
 ///  following a link.
-fn refused<T>(outcome: std::io::Result<T>, what: &str, path: &Path) -> Result<T, String> {
+fn refused<T>(
+    outcome: std::io::Result<T>,
+    what: &str,
+    path: &Path,
+) -> Result<T, String> {
     return match outcome {
         Ok(value) => Ok(value),
-        Err(error) => Err(format!("{what} {} cannot be opened without following a link ({error})", path.display())),
+        Err(error) => Err(format!(
+            "{what} {} cannot be opened without following a link ({error})",
+            path.display()
+        )),
     };
 }
 
 /// A read of a held object's identity with its failure worded as the identity of `target` being unreadable.
-fn identity_unreadable<T>(outcome: std::io::Result<T>, target: &Path) -> Result<T, String> {
+fn identity_unreadable<T>(
+    outcome: std::io::Result<T>,
+    target: &Path,
+) -> Result<T, String> {
     return match outcome {
         Ok(value) => Ok(value),
-        Err(error) => Err(format!("the identity of {} cannot be read ({error})", target.display())),
+        Err(error) => Err(format!(
+            "the identity of {} cannot be read ({error})",
+            target.display()
+        )),
     };
 }
 
-pub(crate) fn hold(target: &Path, registration: &Registration) -> Result<Held, String> {
+pub(crate) fn hold(
+    target: &Path,
+    registration: &Registration,
+) -> Result<Held, String> {
     let Some(parent_of_target) = target.parent() else {
         return Err(format!("{} has no parent directory", target.display()));
     };
@@ -130,10 +160,26 @@ pub(crate) fn hold(target: &Path, registration: &Registration) -> Result<Held, S
         return Err(format!("{} has no last component", target.display()));
     };
     let name: OsString = last_component.to_os_string();
-    let parent: File = refused(open_root(parent_path.as_path()), "the directory", parent_path.as_path())?;
-    let held_target: File = refused(open_directory_at(&parent, name.as_os_str()), "the worktree", target)?;
-    let worktrees: File = refused(open_root(registration.worktrees.as_path()), "the directory", registration.worktrees.as_path())?;
-    let admin: File = refused(open_directory_at(&worktrees, registration.id.as_os_str()), "the registration", registration.admin.as_path())?;
+    let parent: File = refused(
+        open_root(parent_path.as_path()),
+        "the directory",
+        parent_path.as_path(),
+    )?;
+    let held_target: File = refused(
+        open_directory_at(&parent, name.as_os_str()),
+        "the worktree",
+        target,
+    )?;
+    let worktrees: File = refused(
+        open_root(registration.worktrees.as_path()),
+        "the directory",
+        registration.worktrees.as_path(),
+    )?;
+    let admin: File = refused(
+        open_directory_at(&worktrees, registration.id.as_os_str()),
+        "the registration",
+        registration.admin.as_path(),
+    )?;
     return Ok(Held {
         identity: identity_unreadable(identity_of(&held_target), target)?,
         parent_identity: identity_unreadable(identity_of(&parent), target)?,
@@ -163,32 +209,74 @@ pub(crate) fn hold(target: &Path, registration: &Registration) -> Result<Held, S
 /// ```ts
 /// async function confirm(held: Held, registration: Registration): Promise<void>; // throws the reason
 /// ```
-pub(crate) fn confirm(held: &Held, registration: &Registration) -> Result<(), String> {
+pub(crate) fn confirm(
+    held: &Held,
+    registration: &Registration,
+) -> Result<(), String> {
     let shown: PathBuf = held.parent_path.join(held.name.as_os_str());
     if lock_state(handle_path(&held.admin).as_path())? {
-        return Err(format!("{} was locked after it was proven clean", shown.display()));
+        return Err(format!(
+            "{} was locked after it was proven clean",
+            shown.display()
+        ));
     }
-    let named_now: ObjectId = path_failure(identity_at(&held.parent, held.name.as_os_str()), shown.as_path(), "cannot be looked up again")?;
+    let named_now: ObjectId = path_failure(
+        identity_at(&held.parent, held.name.as_os_str()),
+        shown.as_path(),
+        "cannot be looked up again",
+    )?;
     if named_now != held.identity {
-        return Err(format!("{} is not the directory that was proven clean any more", shown.display()));
+        return Err(format!(
+            "{} is not the directory that was proven clean any more",
+            shown.display()
+        ));
     }
-    let parent_now: File = path_failure(open_root(held.parent_path.as_path()), held.parent_path.as_path(), "cannot be opened again without following a link")?;
-    if path_failure(identity_of(&parent_now), held.parent_path.as_path(), "cannot be looked up again")? != held.parent_identity {
-        return Err(format!("{} is not the directory that held the worktree any more", held.parent_path.display()));
+    let parent_now: File = path_failure(
+        open_root(held.parent_path.as_path()),
+        held.parent_path.as_path(),
+        "cannot be opened again without following a link",
+    )?;
+    if path_failure(
+        identity_of(&parent_now),
+        held.parent_path.as_path(),
+        "cannot be looked up again",
+    )? != held.parent_identity
+    {
+        return Err(format!(
+            "{} is not the directory that held the worktree any more",
+            held.parent_path.display()
+        ));
     }
-    let admin_now: ObjectId = path_failure(identity_at(&held.worktrees, registration.id.as_os_str()), registration.admin.as_path(), "cannot be looked up again")?;
+    let admin_now: ObjectId = path_failure(
+        identity_at(&held.worktrees, registration.id.as_os_str()),
+        registration.admin.as_path(),
+        "cannot be looked up again",
+    )?;
     if admin_now != held.admin_identity {
-        return Err(format!("{} is not the registration that was proven any more", registration.admin.display()));
+        return Err(format!(
+            "{} is not the registration that was proven any more",
+            registration.admin.display()
+        ));
     }
-    let recorded: Vec<u8> = path_failure(read_held_file(held, "gitdir"), registration.admin.join("gitdir").as_path(), "cannot be read again")?;
+    let recorded: Vec<u8> = path_failure(
+        read_held_file(held, "gitdir"),
+        registration.admin.join("gitdir").as_path(),
+        "cannot be read again",
+    )?;
     if recorded != registration.gitdir_text {
-        return Err(format!("{} changed after it was proven", registration.admin.join("gitdir").display()));
+        return Err(format!(
+            "{} changed after it was proven",
+            registration.admin.join("gitdir").display()
+        ));
     }
     return Ok(());
 }
 
 /// The bytes of a file of the held administrative directory.
-fn read_held_file(held: &Held, name: &str) -> std::io::Result<Vec<u8>> {
+fn read_held_file(
+    held: &Held,
+    name: &str,
+) -> std::io::Result<Vec<u8>> {
     let mut file: File = open_file_at(&held.admin, std::ffi::OsStr::new(name))?;
     let mut bytes: Vec<u8> = Vec::new();
     file.read_to_end(&mut bytes)?;

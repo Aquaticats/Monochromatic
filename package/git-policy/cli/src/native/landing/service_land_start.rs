@@ -31,7 +31,11 @@
 //! const same = sameFile(await witnessOf(index), recordedWitness) // true: nobody wrote the index since the landing saw it
 //! ```
 
-use std::io::{Read as _, Seek as _, SeekFrom};
+use std::io::{
+    Read as _,
+    Seek as _,
+    SeekFrom,
+};
 use std::os::unix::fs::MetadataExt as _;
 use std::path::Path;
 
@@ -91,7 +95,9 @@ fn hex(bytes: &[u8]) -> String {
 pub fn witness_of(index: &Path) -> std::io::Result<IndexWitness> {
     let mut file: std::fs::File = match std::fs::File::open(index) {
         Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(IndexWitness::Absent),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(IndexWitness::Absent);
+        }
         Err(error) => return Err(error),
     };
     // The metadata of the open file, so the inode and the end of the file are of one file even if the path is replaced meanwhile.
@@ -116,8 +122,17 @@ pub fn witness_of(index: &Path) -> std::io::Result<IndexWitness> {
 pub fn encode(witness: &IndexWitness) -> String {
     return match witness {
         IndexWitness::Absent => String::from("absent"),
-        IndexWitness::File { inode, size, modified, changed, trailer } => {
-            format!("file:{inode}:{size}:{}:{}:{}:{}:{trailer}", modified.0, modified.1, changed.0, changed.1)
+        IndexWitness::File {
+            inode,
+            size,
+            modified,
+            changed,
+            trailer,
+        } => {
+            format!(
+                "file:{inode}:{size}:{}:{}:{}:{}:{trailer}",
+                modified.0, modified.1, changed.0, changed.1
+            )
         }
     };
 }
@@ -140,7 +155,13 @@ pub fn decode(text: &str) -> Option<IndexWitness> {
     if fields.next().is_some() || !trailer.as_bytes().iter().all(u8::is_ascii_hexdigit) {
         return None;
     }
-    return Some(IndexWitness::File { inode, size, modified, changed, trailer });
+    return Some(IndexWitness::File {
+        inode,
+        size,
+        modified,
+        changed,
+        trailer,
+    });
 }
 
 #[cfg(test)]

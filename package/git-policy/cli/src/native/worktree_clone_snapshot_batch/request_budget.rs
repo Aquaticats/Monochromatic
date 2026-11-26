@@ -57,7 +57,9 @@ pub struct RequestBudget {
 impl RequestBudget {
     /// A budget of `input_bytes` bytes of encoded request input.
     pub fn of_input_bytes(input_bytes: usize) -> RequestBudget {
-        return RequestBudget { input_bytes };
+        return RequestBudget {
+            input_bytes,
+        };
     }
 
     /// The budget in bytes.
@@ -69,8 +71,15 @@ impl RequestBudget {
 /// How the budget prints to a person.
 impl fmt::Display for RequestBudget {
     /// Prints the number with its unit.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return write!(formatter, "{} bytes of encoded request input", self.input_bytes);
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        return write!(
+            formatter,
+            "{} bytes of encoded request input",
+            self.input_bytes
+        );
     }
 }
 

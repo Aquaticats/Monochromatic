@@ -33,7 +33,10 @@
 use super::root_namespace_test_support::in_a_root_namespace;
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name written and removed again to learn whether a root takes a name that is not UTF-8.
 /// Its last byte starts no character,
@@ -67,7 +70,10 @@ const INSIDE_VARIABLE: &str = "CLI_GIT_FIXTURE_ROOT_ANY_NAME";
 /// ```ts
 /// function inARootTakingAnyName(root: string, test: string): boolean;
 /// ```
-pub(crate) fn in_a_root_taking_any_name(root: &Path, test: &str) -> bool {
+pub(crate) fn in_a_root_taking_any_name(
+    root: &Path,
+    test: &str,
+) -> bool {
     if a_name_that_is_not_utf8_can_be_made(root) {
         return true;
     }
@@ -105,7 +111,10 @@ fn a_name_that_is_not_utf8_can_be_made(root: &Path) -> bool {
             return true;
         }
         Err(error) if error.raw_os_error() == Some(libc::EILSEQ) => return false,
-        Err(error) => panic!("the fixture root {} was asked whether it takes a name that is not UTF-8: {error}", root.display()),
+        Err(error) => panic!(
+            "the fixture root {} was asked whether it takes a name that is not UTF-8: {error}",
+            root.display()
+        ),
     }
 }
 
@@ -129,9 +138,13 @@ fn a_name_that_is_not_utf8_can_be_made(root: &Path) -> bool {
 /// ```ts
 /// function mountATmpfs(root: string, sizeBytes?: number): void; // throws when the mount is refused
 /// ```
-pub(crate) fn mount_a_tmpfs(root: &Path, size_bytes: Option<u64>) {
+pub(crate) fn mount_a_tmpfs(
+    root: &Path,
+    size_bytes: Option<u64>,
+) {
     let source: CString = CString::new("tmpfs").expect("a file system type holds no NUL");
-    let target: CString = CString::new(root.as_os_str().as_bytes()).expect("a fixture path holds no NUL");
+    let target: CString =
+        CString::new(root.as_os_str().as_bytes()).expect("a fixture path holds no NUL");
     let kind: CString = CString::new("tmpfs").expect("a file system type holds no NUL");
     // What: the mount's options as the one string the kernel reads, which is empty unless a size was asked for.
     // Why: `size=` is how a tmpfs is told how many bytes it may hold, and no option means the kernel's own size.
@@ -140,11 +153,27 @@ pub(crate) fn mount_a_tmpfs(root: &Path, size_bytes: Option<u64>) {
     // ```ts
     // const options = sizeBytes === undefined ? '' : `size=${sizeBytes}`;
     // ```
-    let options: CString = CString::new(size_bytes.map_or_else(String::new, |bytes| { return format!("size={bytes}"); }))
-        .expect("a mount option holds no NUL");
+    let options: CString = CString::new(size_bytes.map_or_else(String::new, |bytes| {
+        return format!("size={bytes}");
+    }))
+    .expect("a mount option holds no NUL");
     // SAFETY: all four values are NUL-terminated and outlive the call, and `mount` reads no other memory of ours.
-    let mounted: libc::c_int = unsafe { libc::mount(source.as_ptr(), target.as_ptr(), kind.as_ptr(), 0, options.as_ptr().cast()) };
-    assert_eq!(mounted, 0, "a tmpfs is mounted at {}: {}", root.display(), std::io::Error::last_os_error());
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            source.as_ptr(),
+            target.as_ptr(),
+            kind.as_ptr(),
+            0,
+            options.as_ptr().cast(),
+        )
+    };
+    assert_eq!(
+        mounted,
+        0,
+        "a tmpfs is mounted at {}: {}",
+        root.display(),
+        std::io::Error::last_os_error()
+    );
 }
 
 /// What:
@@ -171,7 +200,8 @@ pub(crate) fn mount_a_tmpfs(root: &Path, size_bytes: Option<u64>) {
 /// ```
 fn stop_gaining_capabilities_across_exec() {
     // SAFETY: `prctl` with `PR_SET_SECUREBITS` reads the integers it is given and touches no memory of ours.
-    let refused: libc::c_int = unsafe { libc::prctl(libc::PR_SET_SECUREBITS, libc::SECBIT_NOROOT, 0, 0, 0) };
+    let refused: libc::c_int =
+        unsafe { libc::prctl(libc::PR_SET_SECUREBITS, libc::SECBIT_NOROOT, 0, 0, 0) };
     assert_eq!(
         refused,
         0,

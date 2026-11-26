@@ -26,14 +26,30 @@
 //! A session bus with no user service manager behind it is the third such state,
 //! and its words live beside the mapping that chooses them (`service_provision_host_and_manager.rs`).
 
-use crate::service_address_of_a_worktree::{abstract_name_column, socket_address_of};
-use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, socket_unit_instance};
+use crate::service_address_of_a_worktree::{
+    abstract_name_column,
+    socket_address_of,
+};
+use crate::service_instance::{
+    LONGEST_SOCKET_PATH,
+    longest_runtime_directory,
+    socket_unit_instance,
+};
 use crate::service_messages::ClientFailure;
-use crate::service_provision_host_and_manager::{Manager, ProvisionHost};
-use crate::service_server::{Bind, address_text};
+use crate::service_provision_host_and_manager::{
+    Manager,
+    ProvisionHost,
+};
+use crate::service_server::{
+    Bind,
+    address_text,
+};
 use crate::systemd_dbus::CallError;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Refuses a socket address that cannot exist.
@@ -51,8 +67,11 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// refuseAPathNoSocketAddressCanCarry(host) // throws when only a path can be named and it is too long
 /// ```
-pub(crate) fn refuse_a_path_no_socket_address_can_carry(host: &ProvisionHost) -> Result<(), ClientFailure> {
-    let Bind::Path(path) = socket_address_of(host.runtime_dir.as_path(), host.instance.as_str()) else {
+pub(crate) fn refuse_a_path_no_socket_address_can_carry(
+    host: &ProvisionHost
+) -> Result<(), ClientFailure> {
+    let Bind::Path(path) = socket_address_of(host.runtime_dir.as_path(), host.instance.as_str())
+    else {
         return Ok(());
     };
     let length: usize = path.as_os_str().len();
@@ -94,15 +113,23 @@ pub(crate) fn refuse_a_path_no_socket_address_can_carry(host: &ProvisionHost) ->
 /// ```ts
 /// namesOneSocket('/run/user/1000/monochromatic-git-policy-cli/3f9a.sock', { path: '/var/run/user/1000/monochromatic-git-policy-cli/3f9a.sock' }) // true
 /// ```
-fn names_one_socket(one: &Path, other: &Bind) -> bool {
+fn names_one_socket(
+    one: &Path,
+    other: &Bind,
+) -> bool {
     let Bind::Path(wanted) = other else {
-        let Bind::Abstract(name) = other else { return false };
+        let Bind::Abstract(name) = other else {
+            return false;
+        };
         return one.as_os_str().as_bytes() == abstract_name_column(name).as_slice();
     };
     if one == wanted {
         return true;
     }
-    return match (the_place_an_address_reaches(one), the_place_an_address_reaches(wanted)) {
+    return match (
+        the_place_an_address_reaches(one),
+        the_place_an_address_reaches(wanted),
+    ) {
         (Some(here), Some(there)) => here == there,
         _one_stands_in_no_folder => false,
     };
@@ -153,9 +180,13 @@ fn the_place_an_address_reaches(address: &Path) -> Option<PathBuf> {
 /// ```ts
 /// refuseAServiceThatListensElsewhere(host, manager) // throws with both addresses named
 /// ```
-pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
+pub(crate) fn refuse_a_service_that_listens_elsewhere(
+    host: &ProvisionHost,
+    manager: &mut dyn Manager,
+) -> Result<(), ClientFailure> {
     let looked_for: Bind = socket_address_of(host.runtime_dir.as_path(), host.instance.as_str());
-    let asked: Result<Option<Vec<String>>, CallError> = manager.listen(socket_unit_instance(host.instance.as_str()).as_str());
+    let asked: Result<Option<Vec<String>>, CallError> =
+        manager.listen(socket_unit_instance(host.instance.as_str()).as_str());
     let addresses: Vec<String> = match asked {
         Ok(Some(addresses)) => addresses,
         // A manager that holds no unit yet, or cannot read the property, proves nothing either way.
@@ -168,7 +199,9 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
             return Ok(());
         }
     }
-    let Some(made) = addresses.first() else { return Ok(()) };
+    let Some(made) = addresses.first() else {
+        return Ok(());
+    };
     let manager_runtime: PathBuf = runtime_directory_of_an_address(Path::new(made.as_str()));
     return Err(ClientFailure::ServiceElsewhere {
         made: made.clone(),
@@ -193,8 +226,12 @@ pub(crate) fn refuse_a_service_that_listens_elsewhere(host: &ProvisionHost, mana
 /// runtimeDirectoryOfAnAddress('/run/user/1000/monochromatic-git-policy-cli/3f9a.sock') // '/run/user/1000'
 /// ```
 pub fn runtime_directory_of_an_address(address: &Path) -> PathBuf {
-    let Some(folder) = address.parent() else { return address.to_path_buf() };
-    let Some(runtime) = folder.parent() else { return address.to_path_buf() };
+    let Some(folder) = address.parent() else {
+        return address.to_path_buf();
+    };
+    let Some(runtime) = folder.parent() else {
+        return address.to_path_buf();
+    };
     return runtime.to_path_buf();
 }
 

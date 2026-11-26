@@ -30,7 +30,10 @@ use crate::work_item::WorkItem;
 /// ```ts
 /// return goneWords(item, await refsHoldingOnTheRuntime(git, item));
 /// ```
-pub(crate) async fn branch_is_gone_words_awaiting(git: &PushGit, item: &WorkItem) -> String {
+pub(crate) async fn branch_is_gone_words_awaiting(
+    git: &PushGit,
+    item: &WorkItem,
+) -> String {
     return gone_words(item, refs_holding_awaiting(git, item).await);
 }
 
@@ -45,8 +48,21 @@ pub(crate) async fn branch_is_gone_words_awaiting(git: &PushGit, item: &WorkItem
 /// ```ts
 /// const refs = await git.for_each_ref(['--contains', item.oid, '--format=%(refname)']);
 /// ```
-async fn refs_holding_awaiting(git: &PushGit, item: &WorkItem) -> Option<Vec<String>> {
-    let answer = match crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["for-each-ref", "--contains", item.oid.as_str(), "--format=%(refname)"])).await {
+async fn refs_holding_awaiting(
+    git: &PushGit,
+    item: &WorkItem,
+) -> Option<Vec<String>> {
+    let answer = match crate::auto_push_single_flight::run_query_awaiting(
+        git,
+        &crate::auto_push_reconcile_basics_and_limits::argv(&[
+            "for-each-ref",
+            "--contains",
+            item.oid.as_str(),
+            "--format=%(refname)",
+        ]),
+    )
+    .await
+    {
         Ok(answer) => answer,
         Err(error) => {
             crate::service_warn!(
@@ -72,13 +88,19 @@ async fn refs_holding_awaiting(git: &PushGit, item: &WorkItem) -> Option<Vec<Str
 /// ```ts
 /// answer.code === 0 ? answer.stdout.split('\n').filter(Boolean) : warn(...) ?? undefined
 /// ```
-fn refs_of(answer: crate::bounded_query::QueryOutput, item: &WorkItem) -> Option<Vec<String>> {
+fn refs_of(
+    answer: crate::bounded_query::QueryOutput,
+    item: &WorkItem,
+) -> Option<Vec<String>> {
     if answer.code != Some(0) {
         crate::service_warn!(
             "the refs that hold {} {} could not be read (git for-each-ref exited {}), so the notice does not say where the commit lives",
             item.oid,
             crate::service_timing::in_the_repository_at(item.repository.as_path()),
-            match answer.code { Some(code) => code.to_string(), None => String::from("on a signal") }
+            match answer.code {
+                Some(code) => code.to_string(),
+                None => String::from("on a signal"),
+            }
         );
         return None;
     }
@@ -103,8 +125,14 @@ fn refs_of(answer: crate::bounded_query::QueryOutput, item: &WorkItem) -> Option
 /// ```ts
 /// `... the branch ${branch} no longer exists ... ${whereItLives}`
 /// ```
-fn gone_words(item: &WorkItem, holding: Option<Vec<String>>) -> String {
-    let branch: &str = item.branch_ref.strip_prefix("refs/heads/").unwrap_or(item.branch_ref.as_str());
+fn gone_words(
+    item: &WorkItem,
+    holding: Option<Vec<String>>,
+) -> String {
+    let branch: &str = item
+        .branch_ref
+        .strip_prefix("refs/heads/")
+        .unwrap_or(item.branch_ref.as_str());
     const NAMED_AT_MOST: usize = 5;
     let where_it_lives: String = match holding {
         None => format!(
@@ -116,13 +144,21 @@ fn gone_words(item: &WorkItem, holding: Option<Vec<String>>) -> String {
             item.oid
         ),
         Some(named) => {
-            let shown: Vec<&str> = named.iter().take(NAMED_AT_MOST).map(String::as_str).collect();
+            let shown: Vec<&str> = named
+                .iter()
+                .take(NAMED_AT_MOST)
+                .map(String::as_str)
+                .collect();
             let more: usize = named.len().saturating_sub(shown.len());
             format!(
                 "Commit {} is still on {}{}.",
                 item.oid,
                 shown.join(", "),
-                if more == 0 { String::new() } else { format!(" and {more} more refs") }
+                if more == 0 {
+                    String::new()
+                } else {
+                    format!(" and {more} more refs")
+                }
             )
         }
     };

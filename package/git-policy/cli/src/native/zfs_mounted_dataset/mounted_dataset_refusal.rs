@@ -19,8 +19,15 @@
 //! type MountedDatasetRefusal = { kind: 'table-unreadable' | 'none-mounted' | ... };
 //! ```
 
-use super::the_designs_datasets_in_the_mount_table::{DESIGN_CHECKOUT_DATASET_NAME, DESIGN_CONTAINER_DATASET_NAME, DESIGN_PROBE_DATASET_UNDER_THE_POOL};
-use std::path::{Path, PathBuf};
+use super::the_designs_datasets_in_the_mount_table::{
+    DESIGN_CHECKOUT_DATASET_NAME,
+    DESIGN_CONTAINER_DATASET_NAME,
+    DESIGN_PROBE_DATASET_UNDER_THE_POOL,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Why a design name found no dataset,
@@ -116,14 +123,36 @@ impl MountedDatasetRefusal {
     /// as a record that holds closed words carries it.
     pub fn word(&self) -> &'static str {
         return match self {
-            MountedDatasetRefusal::TableUnreadable { .. } => "mount-table-unreadable",
-            MountedDatasetRefusal::SeveralMounted { .. } | MountedDatasetRefusal::DatasetMountedSeveralTimes { .. } => "several-mounted-checkouts",
-            MountedDatasetRefusal::NoneMounted { .. }
-            | MountedDatasetRefusal::DatasetNotMounted { .. }
-            | MountedDatasetRefusal::NoDatasetAtThePath { .. }
-            | MountedDatasetRefusal::LeafNameDiffers { .. }
-            | MountedDatasetRefusal::NotADataset { .. } => "no-mounted-checkout",
-            MountedDatasetRefusal::NoParentForTheContainer { .. } | MountedDatasetRefusal::NoPoolForTheProbeDataset { .. } => "no-source-name",
+            MountedDatasetRefusal::TableUnreadable {
+                ..
+            } => "mount-table-unreadable",
+            MountedDatasetRefusal::SeveralMounted {
+                ..
+            }
+            | MountedDatasetRefusal::DatasetMountedSeveralTimes {
+                ..
+            } => "several-mounted-checkouts",
+            MountedDatasetRefusal::NoneMounted {
+                ..
+            }
+            | MountedDatasetRefusal::DatasetNotMounted {
+                ..
+            }
+            | MountedDatasetRefusal::NoDatasetAtThePath {
+                ..
+            }
+            | MountedDatasetRefusal::LeafNameDiffers {
+                ..
+            }
+            | MountedDatasetRefusal::NotADataset {
+                ..
+            } => "no-mounted-checkout",
+            MountedDatasetRefusal::NoParentForTheContainer {
+                ..
+            }
+            | MountedDatasetRefusal::NoPoolForTheProbeDataset {
+                ..
+            } => "no-source-name",
         };
     }
 
@@ -141,37 +170,66 @@ impl MountedDatasetRefusal {
     ///  "Four further answers on the look-up with no configuration file").
     pub fn cause(&self) -> String {
         return match self {
-            MountedDatasetRefusal::TableUnreadable { said } => format!(
+            MountedDatasetRefusal::TableUnreadable {
+                said,
+            } => format!(
                 "this process's own mount table could not be read ({said}), so nothing here says which dataset the route acts on"
             ),
-            MountedDatasetRefusal::NoneMounted { leaf, ignored } => format!(
+            MountedDatasetRefusal::NoneMounted {
+                leaf,
+                ignored,
+            } => format!(
                 "no mount in this process's own mount table is an instance of the checkout dataset, whose last name component is `{leaf}`. A row counts only when its root within the dataset is `/`, and a dataset mounted directly inside the clone container this run uses is a managed clone, never the checkout. The table's ZFS rows whose source carried that leaf name: {}",
                 listed_or_nothing(ignored.as_slice())
             ),
-            MountedDatasetRefusal::SeveralMounted { leaf, found } => format!(
+            MountedDatasetRefusal::SeveralMounted {
+                leaf,
+                found,
+            } => format!(
                 "two or more mounts in this process's own mount table are instances of the dataset whose last name component is `{leaf}`, so this run will not choose between them; two pools that hold that leaf name, one dataset mounted at two paths, and a bind mount of the dataset's own root outside it all look like this. The instances are {}",
                 found.join(", ")
             ),
-            MountedDatasetRefusal::DatasetNotMounted { dataset } => format!(
+            MountedDatasetRefusal::DatasetNotMounted {
+                dataset,
+            } => format!(
                 "`cloneMounts.checkoutDataset` names `{dataset}` and this process's own mount table holds no ZFS mount of it at its own root, so no mount point says where the checkout path is"
             ),
-            MountedDatasetRefusal::DatasetMountedSeveralTimes { dataset, mount_points } => format!(
+            MountedDatasetRefusal::DatasetMountedSeveralTimes {
+                dataset,
+                mount_points,
+            } => format!(
                 "`cloneMounts.checkoutDataset` names `{dataset}` and this process's own mount table mounts it {} times, so no single mount point says where the checkout path is: {}",
                 mount_points.len(),
                 mount_points.join(", ")
             ),
-            MountedDatasetRefusal::NoParentForTheContainer { dataset } => format!(
+            MountedDatasetRefusal::NoParentForTheContainer {
+                dataset,
+            } => format!(
                 "`{dataset}` has no parent component, so `{DESIGN_CONTAINER_DATASET_NAME}` cannot be named beside it"
             ),
-            MountedDatasetRefusal::NoPoolForTheProbeDataset { dataset } => format!(
+            MountedDatasetRefusal::NoPoolForTheProbeDataset {
+                dataset,
+            } => format!(
                 "`{dataset}` is a single name component, so no pool name can be put before `{DESIGN_PROBE_DATASET_UNDER_THE_POOL}` for the probe dataset"
             ),
-            MountedDatasetRefusal::NoDatasetAtThePath { path } => format!("no mount stands at {}, so no dataset there says which pool the probe dataset lives in", path.display()),
-            MountedDatasetRefusal::LeafNameDiffers { path, found, wanted } => format!(
+            MountedDatasetRefusal::NoDatasetAtThePath {
+                path,
+            } => format!(
+                "no mount stands at {}, so no dataset there says which pool the probe dataset lives in",
+                path.display()
+            ),
+            MountedDatasetRefusal::LeafNameDiffers {
+                path,
+                found,
+                wanted,
+            } => format!(
                 "the checkout {} is on the dataset `{found}`, and the dataset this route finds by its own name is the one whose last component is `{wanted}`; a checkout of another dataset is another checkout's, which one probe's pass says nothing about",
                 path.display()
             ),
-            MountedDatasetRefusal::NotADataset { path, found } => format!(
+            MountedDatasetRefusal::NotADataset {
+                path,
+                found,
+            } => format!(
                 "the checkout {} is on a `{found}` mount rather than on a ZFS dataset, and the design's own name only finds a dataset",
                 path.display()
             ),
@@ -183,7 +241,10 @@ impl MountedDatasetRefusal {
     /// what was found,
     /// and the configuration entry or setup command that settles it for the
     /// sweep.
-    pub fn message(&self, configuration: &Path) -> String {
+    pub fn message(
+        &self,
+        configuration: &Path,
+    ) -> String {
         return format!(
             "{cause}. Nothing was enumerated, attached or recorded, and every clone's mount intent stands untouched. {remedy}",
             cause = self.cause(),
@@ -193,28 +254,57 @@ impl MountedDatasetRefusal {
 
     /// What a person does about this refusal,
     /// naming the setup command or the file entry.
-    pub fn remedy(&self, configuration: &Path) -> String {
+    pub fn remedy(
+        &self,
+        configuration: &Path,
+    ) -> String {
         let file = configuration.display();
         return match self {
-            MountedDatasetRefusal::TableUnreadable { .. } => format!(
+            MountedDatasetRefusal::TableUnreadable {
+                ..
+            } => format!(
                 "Ways forward: run the route from a process that can read `/proc/self/mountinfo`, or write `cloneMounts.checkout` and `cloneMounts.checkoutDataset` in {file}."
             ),
-            MountedDatasetRefusal::NoneMounted { .. } | MountedDatasetRefusal::DatasetNotMounted { .. } => format!(
+            MountedDatasetRefusal::NoneMounted {
+                ..
+            }
+            | MountedDatasetRefusal::DatasetNotMounted {
+                ..
+            } => format!(
                 "Ways forward: write `cloneMounts.checkout` (the checkout path) or `cloneMounts.checkoutDataset` (the checkout dataset) in {file}, naming the checkout this run acts on; leave both keys out and the route finds the one mounted dataset whose last name component is `{DESIGN_CHECKOUT_DATASET_NAME}`, which this release carries no setup that creates or mounts."
             ),
-            MountedDatasetRefusal::SeveralMounted { .. } | MountedDatasetRefusal::DatasetMountedSeveralTimes { .. } => format!(
+            MountedDatasetRefusal::SeveralMounted {
+                ..
+            }
+            | MountedDatasetRefusal::DatasetMountedSeveralTimes {
+                ..
+            } => format!(
                 "Ways forward: leave one mounted instance of the checkout dataset and run this again, or name the dataset with `cloneMounts.checkoutDataset` and its path with `cloneMounts.checkout` in {file}."
             ),
-            MountedDatasetRefusal::NoParentForTheContainer { .. } => format!(
+            MountedDatasetRefusal::NoParentForTheContainer {
+                ..
+            } => format!(
                 "Ways forward: write `cloneMounts.parent` in {file}, naming the dataset whose immediate children are the managed clones."
             ),
-            MountedDatasetRefusal::NoPoolForTheProbeDataset { .. } | MountedDatasetRefusal::NoDatasetAtThePath { .. } => {
-                format!("Ways forward: write `startProbe.dataset` in {file}, naming the probe dataset in full.")
+            MountedDatasetRefusal::NoPoolForTheProbeDataset {
+                ..
             }
-            MountedDatasetRefusal::LeafNameDiffers { found, .. } => format!(
+            | MountedDatasetRefusal::NoDatasetAtThePath {
+                ..
+            } => {
+                format!(
+                    "Ways forward: write `startProbe.dataset` in {file}, naming the probe dataset in full."
+                )
+            }
+            MountedDatasetRefusal::LeafNameDiffers {
+                found,
+                ..
+            } => format!(
                 "Ways forward: mount the design's checkout dataset at that path, or write `cloneMounts.checkoutDataset` in {file} naming `{found}`."
             ),
-            MountedDatasetRefusal::NotADataset { .. } => format!(
+            MountedDatasetRefusal::NotADataset {
+                ..
+            } => format!(
                 "Ways forward: mount the design's checkout dataset at that path, or write `cloneMounts.checkoutDataset` in {file} naming the dataset."
             ),
         };
@@ -224,5 +314,9 @@ impl MountedDatasetRefusal {
 /// One list in words,
 /// or a phrase saying it held nothing.
 fn listed_or_nothing(items: &[String]) -> String {
-    return if items.is_empty() { String::from("none") } else { items.join("; ") };
+    return if items.is_empty() {
+        String::from("none")
+    } else {
+        items.join("; ")
+    };
 }

@@ -27,15 +27,27 @@
 //! const alone = ignoredEntriesAloneHere(git, worktree, admin, source); // { names, more }
 //! ```
 
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use crate::worktree_copy_compare::entry_matches;
-use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, retained_mode};
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    WorktreeCopyEntry,
+    retained_mode,
+};
 use crate::worktree_copy_repository_path::filesystem_path;
 use crate::worktree_copy_vanished_entry::lstat_or_absent;
 use crate::worktree_ladder_target::checkout_environment;
 use crate::worktree_snapshot_source::plain;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The query that names every ignored entry Git sees in one worktree,
@@ -49,7 +61,15 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const IGNORED_WORDS = ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z'];
 /// ```
-const IGNORED_WORDS: [&str; 7] = ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory", "-z"];
+const IGNORED_WORDS: [&str; 7] = [
+    "ls-files",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "--directory",
+    "--no-empty-directory",
+    "-z",
+];
 
 /// How many names the sentence of a kept worktree shows before it counts the rest.
 const SHOWN_NAMES: usize = 3;
@@ -124,7 +144,12 @@ impl AloneHere {
 ///
 /// The words for a query or a comparison this cannot make,
 /// which leaves the worktree kept rather than read as empty.
-pub(crate) fn ignored_entries_alone_here(git: &GitContext, worktree: &Path, admin: &Path, source: &Path) -> Result<AloneHere, String> {
+pub(crate) fn ignored_entries_alone_here(
+    git: &GitContext,
+    worktree: &Path,
+    admin: &Path,
+    source: &Path,
+) -> Result<AloneHere, String> {
     let request: GitRequest = GitRequest {
         cwd: worktree.to_path_buf(),
         arguments: IGNORED_WORDS.iter().map(OsString::from).collect(),
@@ -134,19 +159,35 @@ pub(crate) fn ignored_entries_alone_here(git: &GitContext, worktree: &Path, admi
     };
     let output: GitOutput = match run_git(git, &request) {
         Ok(finished) => finished,
-        Err(error) => return Err(format!("the ignored files in {} cannot be asked of Git ({error})", worktree.display())),
+        Err(error) => {
+            return Err(format!(
+                "the ignored files in {} cannot be asked of Git ({error})",
+                worktree.display()
+            ));
+        }
     };
     if output.code != Some(0) {
-        let said: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-        return Err(format!("Git cannot list the ignored files in {} ({said})", worktree.display()));
+        let said: String = String::from_utf8_lossy(output.stderr.as_slice())
+            .trim()
+            .to_owned();
+        return Err(format!(
+            "Git cannot list the ignored files in {} ({said})",
+            worktree.display()
+        ));
     }
     let mut alone: AloneHere = AloneHere::default();
-    for name in output.stdout.split(|byte: &u8| return *byte == 0).filter(|name: &&[u8]| return !name.is_empty()) {
+    for name in output
+        .stdout
+        .split(|byte: &u8| return *byte == 0)
+        .filter(|name: &&[u8]| return !name.is_empty())
+    {
         match alone_in_the_worktree(worktree, source, name) {
             Ok(true) => {
                 alone.count += 1;
                 if alone.shown.len() < SHOWN_NAMES {
-                    alone.shown.push(plain(String::from_utf8_lossy(name).as_ref()));
+                    alone
+                        .shown
+                        .push(plain(String::from_utf8_lossy(name).as_ref()));
                 }
             }
             Ok(false) => {}
@@ -168,14 +209,30 @@ pub(crate) fn ignored_entries_alone_here(git: &GitContext, worktree: &Path, admi
 /// ```ts
 /// aloneInTheWorktree(worktree, source, name) // boolean, or the reason
 /// ```
-fn alone_in_the_worktree(worktree: &Path, source: &Path, name: &[u8]) -> Result<bool, String> {
+fn alone_in_the_worktree(
+    worktree: &Path,
+    source: &Path,
+    name: &[u8],
+) -> Result<bool, String> {
     // The listing names a whole ignored directory with the separator that ends it, which names no entry of its own.
     let entry_name: &[u8] = name.strip_suffix(b"/").unwrap_or(name);
-    let inside: PathBuf = filesystem_path(worktree, entry_name).map_err(|error| format!("{} names no path this program can read ({})", String::from_utf8_lossy(entry_name), error.0))?;
+    let inside: PathBuf = filesystem_path(worktree, entry_name).map_err(|error| {
+        return format!(
+            "{} names no path this program can read ({})",
+            String::from_utf8_lossy(entry_name),
+            error.0
+        );
+    })?;
     let here = match lstat_or_absent(inside.as_path()) {
         Ok(Some(metadata)) => metadata,
         Ok(None) => return Ok(false),
-        Err(error) => return Err(format!("the ignored entry {} cannot be read ({})", String::from_utf8_lossy(entry_name), error.0)),
+        Err(error) => {
+            return Err(format!(
+                "the ignored entry {} cannot be read ({})",
+                String::from_utf8_lossy(entry_name),
+                error.0
+            ));
+        }
     };
     if here.is_dir() {
         return Ok(false);
@@ -188,10 +245,18 @@ fn alone_in_the_worktree(worktree: &Path, source: &Path, name: &[u8]) -> Result<
         // A socket, a FIFO or a device node holds no bytes a removal can lose.
         return Ok(false);
     };
-    let entry: WorktreeCopyEntry = WorktreeCopyEntry { kind, mode: retained_mode(&here), relative_path: entry_name.to_vec() };
+    let entry: WorktreeCopyEntry = WorktreeCopyEntry {
+        kind,
+        mode: retained_mode(&here),
+        relative_path: entry_name.to_vec(),
+    };
     return match entry_matches(worktree, source, &entry) {
         Ok(same) => Ok(!same),
-        Err(error) => Err(format!("the ignored entry {} cannot be compared with the worktree this command runs in ({})", String::from_utf8_lossy(entry_name), error.0)),
+        Err(error) => Err(format!(
+            "the ignored entry {} cannot be compared with the worktree this command runs in ({})",
+            String::from_utf8_lossy(entry_name),
+            error.0
+        )),
     };
 }
 

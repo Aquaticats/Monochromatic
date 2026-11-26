@@ -41,7 +41,11 @@
 //! const outcome = checkCloneRetention({ clone, dataset, snapshots, inherited }); // pass | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    pass,
+    unknown,
+};
 use super::zfs_checks::Reading;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::PropertyValue;
 
@@ -132,10 +136,17 @@ pub struct CloneRetentionFacts {
 /// ```ts
 /// const value = number(facts.used, 'used', object); // number | the sentence
 /// ```
-fn number(value: &PropertyValue, property: &str, object: &str) -> Result<u64, String> {
+fn number(
+    value: &PropertyValue,
+    property: &str,
+    object: &str,
+) -> Result<u64, String> {
     return match value.number() {
         Some(held) => Ok(held),
-        None => Err(format!("{object} carries no `{property}` number in its reply ({})", value.describe(property))),
+        None => Err(format!(
+            "{object} carries no `{property}` number in its reply ({})",
+            value.describe(property)
+        )),
     };
 }
 
@@ -151,13 +162,29 @@ fn number(value: &PropertyValue, property: &str, object: &str) -> Result<u64, St
 /// ```ts
 /// const clause = '`clone@s1` (own) `used` 4096, `referenced` 0, `logicalreferenced` 0, `written` 4096';
 /// ```
-fn clause(facts: &AccountingFacts, own: bool) -> Result<String, String> {
+fn clause(
+    facts: &AccountingFacts,
+    own: bool,
+) -> Result<String, String> {
     let used: u64 = number(&facts.used, USED_PROPERTY, facts.object.as_str())?;
-    let referenced: u64 = number(&facts.referenced, REFERENCED_PROPERTY, facts.object.as_str())?;
-    let logical: u64 = number(&facts.logical_referenced, LOGICAL_REFERENCED_PROPERTY, facts.object.as_str())?;
+    let referenced: u64 = number(
+        &facts.referenced,
+        REFERENCED_PROPERTY,
+        facts.object.as_str(),
+    )?;
+    let logical: u64 = number(
+        &facts.logical_referenced,
+        LOGICAL_REFERENCED_PROPERTY,
+        facts.object.as_str(),
+    )?;
     let written: String = match &facts.written {
-        PropertyValue::Absent => format!("`{WRITTEN_PROPERTY}` is not in the reply, which OpenZFS leaves out until the object has a previous snapshot"),
-        other => format!("`{WRITTEN_PROPERTY}` {}", number(other, WRITTEN_PROPERTY, facts.object.as_str())?),
+        PropertyValue::Absent => format!(
+            "`{WRITTEN_PROPERTY}` is not in the reply, which OpenZFS leaves out until the object has a previous snapshot"
+        ),
+        other => format!(
+            "`{WRITTEN_PROPERTY}` {}",
+            number(other, WRITTEN_PROPERTY, facts.object.as_str())?
+        ),
     };
     let kind: &str = if own { " (own)" } else { "" };
     return Ok(format!(
@@ -186,8 +213,20 @@ fn clause(facts: &AccountingFacts, own: bool) -> Result<String, String> {
 pub fn check_clone_retention(facts: &CloneRetentionFacts) -> CheckOutcome {
     let clone: &str = facts.clone.as_str();
     let dataset: &AccountingFacts = match &facts.dataset {
-        Reading::Missing { why } => return pass(format!("the pool holds no dataset `{clone}` ({why}), so it retains no blocks and its snapshots are the clone snapshot line's report")),
-        Reading::Unreadable { why } => return unknown(format!("the clone dataset `{clone}` could not be read ({why}), so what it retains is unproved")),
+        Reading::Missing {
+            why,
+        } => {
+            return pass(format!(
+                "the pool holds no dataset `{clone}` ({why}), so it retains no blocks and its snapshots are the clone snapshot line's report"
+            ));
+        }
+        Reading::Unreadable {
+            why,
+        } => {
+            return unknown(format!(
+                "the clone dataset `{clone}` could not be read ({why}), so what it retains is unproved"
+            ));
+        }
         Reading::Read(held) => held,
     };
     let mut clauses: Vec<String> = Vec::new();
@@ -205,14 +244,22 @@ pub fn check_clone_retention(facts: &CloneRetentionFacts) -> CheckOutcome {
         clauses.push(String::from("it holds no snapshot of its own"));
     }
     let underlay: String = match (&facts.origin_snapshot, facts.inherited.is_empty()) {
-        (Some(snapshot), true) => format!("The origin snapshot `{snapshot}` it was cloned from is retained under the checkout's own name, and no field above counts that snapshot's blocks as this clone's."),
+        (Some(snapshot), true) => format!(
+            "The origin snapshot `{snapshot}` it was cloned from is retained under the checkout's own name, and no field above counts that snapshot's blocks as this clone's."
+        ),
         (Some(snapshot), false) => format!(
             "The origin snapshot `{snapshot}` it was cloned from and the {} snapshot(s) it inherited ({}) are retained under the checkout's own name, and no field above counts their blocks as this clone's.",
             facts.inherited.len(),
             facts.inherited.join(", ")
         ),
-        (None, true) => String::from("The record names no origin snapshot, so no underlay in the checkout's snapshots is this clone's."),
-        (None, false) => format!("The {} snapshot(s) it inherited ({}) are retained under the checkout's own name.", facts.inherited.len(), facts.inherited.join(", ")),
+        (None, true) => String::from(
+            "The record names no origin snapshot, so no underlay in the checkout's snapshots is this clone's.",
+        ),
+        (None, false) => format!(
+            "The {} snapshot(s) it inherited ({}) are retained under the checkout's own name.",
+            facts.inherited.len(),
+            facts.inherited.join(", ")
+        ),
     };
     return pass(format!(
         "{}; {underlay} ZFS counts one shared block in every dataset that holds it, so these are separate fields of one object's own reply and this report sums none of them.",

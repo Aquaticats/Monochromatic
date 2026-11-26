@@ -13,8 +13,18 @@
 
 /// The decision under test,
 ///  its result type and the real-Git fixture helpers.
-use super::{NO_OVERWRITE_IGNORE, keep_ignored_files};
-use crate::command_test_support::{fixture, git, git_output, os_arguments, remove, repository};
+use super::{
+    NO_OVERWRITE_IGNORE,
+    keep_ignored_files,
+};
+use crate::command_test_support::{
+    fixture,
+    git,
+    git_output,
+    os_arguments,
+    remove,
+    repository,
+};
 use crate::rule_argument_rewrite::ArgumentRewrite;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -50,12 +60,17 @@ fn a_switch_gets_the_token_directly_after_the_subcommand() {
         vec!["switch", "--detach", "HEAD~1"],
     ] {
         let (word, region): (&str, &[&str]) = (values[0], &values[1..]);
-        let mut expected: Vec<String> = vec![String::from(word), String::from("--no-overwrite-ignore")];
+        let mut expected: Vec<String> =
+            vec![String::from(word), String::from("--no-overwrite-ignore")];
         for token in region {
             expected.push(String::from(*token));
         }
         let spelled: Vec<&str> = expected.iter().map(String::as_str).collect();
-        assert_eq!(forwarded(values.as_slice()), os_arguments(&spelled), "{values:?}");
+        assert_eq!(
+            forwarded(values.as_slice()),
+            os_arguments(&spelled),
+            "{values:?}"
+        );
     }
     // The global options come first, and the token still follows the subcommand.
     assert_eq!(
@@ -120,7 +135,10 @@ fn real_git_refuses_to_replace_an_ignored_file_and_switches_when_nothing_is_lost
     std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
     git(repo.as_path(), &["add", "--force", "--", ".env"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
-    git(repo.as_path(), &["checkout", "--quiet", "-b", "free", "main"]);
+    git(
+        repo.as_path(),
+        &["checkout", "--quiet", "-b", "free", "main"],
+    );
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(repo.join(".env"), b"SECRET=the person value\n").expect("ignored file");
     for word in ["checkout", "switch"] {
@@ -128,7 +146,10 @@ fn real_git_refuses_to_replace_an_ignored_file_and_switches_when_nothing_is_lost
             repo.as_path(),
             os_arguments(&[word, "--no-overwrite-ignore", "tracks"]).as_slice(),
         );
-        assert!(!refused.status.success(), "{word} tracks replaced the ignored file");
+        assert!(
+            !refused.status.success(),
+            "{word} tracks replaced the ignored file"
+        );
         assert_eq!(
             std::fs::read(repo.join(".env")).expect("ignored file"),
             b"SECRET=the person value\n",
@@ -139,7 +160,11 @@ fn real_git_refuses_to_replace_an_ignored_file_and_switches_when_nothing_is_lost
             repo.as_path(),
             os_arguments(&[word, "--no-overwrite-ignore", "free"]).as_slice(),
         );
-        assert!(allowed.status.success(), "{word} free: {}", String::from_utf8_lossy(allowed.stderr.as_slice()));
+        assert!(
+            allowed.status.success(),
+            "{word} free: {}",
+            String::from_utf8_lossy(allowed.stderr.as_slice())
+        );
         git(repo.as_path(), &["checkout", "--quiet", "main"]);
     }
     remove(root.as_path());

@@ -40,10 +40,19 @@
 
 use super::probe_fingerprint::ProbeFingerprint;
 use super::probe_record::ABSENT;
-use std::fs::{File, OpenOptions};
+use std::fs::{
+    File,
+    OpenOptions,
+};
 use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    OpenOptionsExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The file beside the probe's record that keeps this boot's first real attach.
 pub const FIRST_ATTACH_NAME: &str = "first-attach";
@@ -72,7 +81,6 @@ pub const REFUSED: &str = "refused";
 
 /// The word a value this build has none of is written as.
 pub const NONE: &str = "none";
-
 
 /// The file's mode:
 /// readable by everyone,
@@ -136,7 +144,13 @@ impl FirstAttachOutcome {
     /// one fixed key per line.
     fn lines(&self) -> Vec<String> {
         return match self {
-            FirstAttachOutcome::Attached { mount_id, flags, slot, clone, guid } => vec![
+            FirstAttachOutcome::Attached {
+                mount_id,
+                flags,
+                slot,
+                clone,
+                guid,
+            } => vec![
                 format!("outcome {ATTACHED}"),
                 format!("mount {mount_id}"),
                 format!("flags {flags}"),
@@ -144,7 +158,13 @@ impl FirstAttachOutcome {
                 format!("clone {clone}"),
                 format!("guid {guid}"),
             ],
-            FirstAttachOutcome::Refused { slot, clone, guid, step, errno } => vec![
+            FirstAttachOutcome::Refused {
+                slot,
+                clone,
+                guid,
+                step,
+                errno,
+            } => vec![
                 format!("outcome {REFUSED}"),
                 format!("slot {slot}"),
                 format!("clone {clone}"),
@@ -162,9 +182,18 @@ fn fingerprint_lines(fingerprint: &ProbeFingerprint) -> Vec<String> {
     return vec![
         format!("boot {}", fingerprint.boot_id),
         format!("kernel {}", fingerprint.kernel_release),
-        format!("module {}", fingerprint.module_version.as_deref().unwrap_or(ABSENT)),
-        format!("srcversion {}", fingerprint.module_srcversion.as_deref().unwrap_or(ABSENT)),
-        format!("handler {}", fingerprint.handler.as_deref().unwrap_or(ABSENT)),
+        format!(
+            "module {}",
+            fingerprint.module_version.as_deref().unwrap_or(ABSENT)
+        ),
+        format!(
+            "srcversion {}",
+            fingerprint.module_srcversion.as_deref().unwrap_or(ABSENT)
+        ),
+        format!(
+            "handler {}",
+            fingerprint.handler.as_deref().unwrap_or(ABSENT)
+        ),
     ];
 }
 
@@ -180,8 +209,15 @@ fn fingerprint_lines(fingerprint: &ProbeFingerprint) -> Vec<String> {
 /// ```ts
 /// const text = startedRecord(fingerprint, time);
 /// ```
-pub fn started_record(fingerprint: &ProbeFingerprint, time: &str) -> String {
-    let mut lines: Vec<String> = vec![String::from(FIRST_ATTACH_VERSION), format!("kind {FIRST_ATTACH_KIND}"), format!("state {STARTED}")];
+pub fn started_record(
+    fingerprint: &ProbeFingerprint,
+    time: &str,
+) -> String {
+    let mut lines: Vec<String> = vec![
+        String::from(FIRST_ATTACH_VERSION),
+        format!("kind {FIRST_ATTACH_KIND}"),
+        format!("state {STARTED}"),
+    ];
     lines.extend(fingerprint_lines(fingerprint));
     lines.push(format!("time {time}"));
     lines.push(format!("operation {FIRST_ATTACH_OPERATION}"));
@@ -199,8 +235,16 @@ pub fn started_record(fingerprint: &ProbeFingerprint, time: &str) -> String {
 /// ```ts
 /// const text = outcomeRecord(fingerprint, time, outcome);
 /// ```
-pub fn outcome_record(fingerprint: &ProbeFingerprint, time: &str, outcome: &FirstAttachOutcome) -> String {
-    let mut lines: Vec<String> = vec![String::from(FIRST_ATTACH_VERSION), format!("kind {FIRST_ATTACH_KIND}"), format!("state {FINISHED}")];
+pub fn outcome_record(
+    fingerprint: &ProbeFingerprint,
+    time: &str,
+    outcome: &FirstAttachOutcome,
+) -> String {
+    let mut lines: Vec<String> = vec![
+        String::from(FIRST_ATTACH_VERSION),
+        format!("kind {FIRST_ATTACH_KIND}"),
+        format!("state {FINISHED}"),
+    ];
     lines.extend(fingerprint_lines(fingerprint));
     lines.push(format!("time {time}"));
     lines.push(format!("operation {FIRST_ATTACH_OPERATION}"));
@@ -248,15 +292,29 @@ impl FirstAttachRefusal {
     /// naming the path and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            FirstAttachRefusal::AlreadyClaimed { path } => {
-                format!("another process of this boot claimed the first attach's record {} before this one, so this attempt's outcome is in the handler's journal alone", path.display())
+            FirstAttachRefusal::AlreadyClaimed {
+                path,
+            } => {
+                format!(
+                    "another process of this boot claimed the first attach's record {} before this one, so this attempt's outcome is in the handler's journal alone",
+                    path.display()
+                )
             }
-            FirstAttachRefusal::Directory { path, reason } => format!(
+            FirstAttachRefusal::Directory {
+                path,
+                reason,
+            } => format!(
                 "the first attach's record directory {} could not be made at its own mode ({reason}), so this boot keeps no first attach. Ways forward: make the directory writable by root and run the sweep again.",
                 path.display()
             ),
-            FirstAttachRefusal::Publish { path, reason } => {
-                format!("the first attach's record at {} could not be written ({reason}), so this boot keeps a started record or none. Ways forward: make the directory writable by root and run the sweep again.", path.display())
+            FirstAttachRefusal::Publish {
+                path,
+                reason,
+            } => {
+                format!(
+                    "the first attach's record at {} could not be written ({reason}), so this boot keeps a started record or none. Ways forward: make the directory writable by root and run the sweep again.",
+                    path.display()
+                )
             }
         };
     }
@@ -314,13 +372,17 @@ pub struct FirstAttachPlace {
 impl FirstAttachPlace {
     /// The place the handler writes at boot.
     pub fn live() -> Self {
-        return FirstAttachPlace { directory: PathBuf::from(super::probe_record_files::RECORD_DIRECTORY) };
+        return FirstAttachPlace {
+            directory: PathBuf::from(super::probe_record_files::RECORD_DIRECTORY),
+        };
     }
 
     /// A place at the given directory,
     /// which a control names.
     pub fn at(directory: PathBuf) -> Self {
-        return FirstAttachPlace { directory };
+        return FirstAttachPlace {
+            directory,
+        };
     }
 
     /// The file's own path.
@@ -331,7 +393,10 @@ impl FirstAttachPlace {
     /// This writer's own staging path,
     /// named for its process so nothing truncates another file.
     pub fn staging(&self) -> PathBuf {
-        return self.directory.join(format!("{FIRST_ATTACH_NAME}.staging.{}", std::process::id()));
+        return self.directory.join(format!(
+            "{FIRST_ATTACH_NAME}.staging.{}",
+            std::process::id()
+        ));
     }
 
     /// What:
@@ -352,28 +417,63 @@ impl FirstAttachPlace {
     /// # Errors
     /// The directory could not be made,
     /// or the name was already claimed or could not be created.
-    pub fn claim(&self, fingerprint: &ProbeFingerprint, time: &str) -> Result<FirstAttachClaim, FirstAttachRefusal> {
+    pub fn claim(
+        &self,
+        fingerprint: &ProbeFingerprint,
+        time: &str,
+    ) -> Result<FirstAttachClaim, FirstAttachRefusal> {
         if let Err(error) = std::fs::create_dir_all(self.directory.as_path()) {
-            return Err(FirstAttachRefusal::Directory { path: self.directory.clone(), reason: error.to_string() });
+            return Err(FirstAttachRefusal::Directory {
+                path: self.directory.clone(),
+                reason: error.to_string(),
+            });
         }
-        if let Err(error) = std::fs::set_permissions(self.directory.as_path(), std::fs::Permissions::from_mode(DIRECTORY_MODE)) {
-            return Err(FirstAttachRefusal::Directory { path: self.directory.clone(), reason: error.to_string() });
+        if let Err(error) = std::fs::set_permissions(
+            self.directory.as_path(),
+            std::fs::Permissions::from_mode(DIRECTORY_MODE),
+        ) {
+            return Err(FirstAttachRefusal::Directory {
+                path: self.directory.clone(),
+                reason: error.to_string(),
+            });
         }
         let path: PathBuf = self.path();
-        let mut file: File = match OpenOptions::new().write(true).create_new(true).mode(FIRST_ATTACH_MODE).open(path.as_path()) {
+        let mut file: File = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(FIRST_ATTACH_MODE)
+            .open(path.as_path())
+        {
             Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(FirstAttachRefusal::AlreadyClaimed { path }),
-            Err(error) => return Err(FirstAttachRefusal::Publish { path, reason: error.to_string() }),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(FirstAttachRefusal::AlreadyClaimed {
+                    path,
+                });
+            }
+            Err(error) => {
+                return Err(FirstAttachRefusal::Publish {
+                    path,
+                    reason: error.to_string(),
+                });
+            }
         };
         let written: Result<(), String> = (|| {
-            file.set_permissions(std::fs::Permissions::from_mode(FIRST_ATTACH_MODE)).map_err(|error| return error.to_string())?;
-            file.write_all(started_record(fingerprint, time).as_bytes()).map_err(|error| return error.to_string())?;
+            file.set_permissions(std::fs::Permissions::from_mode(FIRST_ATTACH_MODE))
+                .map_err(|error| return error.to_string())?;
+            file.write_all(started_record(fingerprint, time).as_bytes())
+                .map_err(|error| return error.to_string())?;
             file.sync_all().map_err(|error| return error.to_string())?;
             return sync_the_directory(self.directory.as_path());
         })();
         return match written {
-            Ok(()) => Ok(FirstAttachClaim { path, fingerprint: fingerprint.clone() }),
-            Err(reason) => Err(FirstAttachRefusal::Publish { path, reason }),
+            Ok(()) => Ok(FirstAttachClaim {
+                path,
+                fingerprint: fingerprint.clone(),
+            }),
+            Err(reason) => Err(FirstAttachRefusal::Publish {
+                path,
+                reason,
+            }),
         };
     }
 
@@ -396,9 +496,18 @@ impl FirstAttachPlace {
     /// # Errors
     /// The staging write,
     /// its sync or the rename answered an error.
-    pub fn record(&self, claim: &FirstAttachClaim, text: &str) -> Result<(), FirstAttachRefusal> {
+    pub fn record(
+        &self,
+        claim: &FirstAttachClaim,
+        text: &str,
+    ) -> Result<(), FirstAttachRefusal> {
         if text.len() > RECORD_BOUND {
-            return Err(FirstAttachRefusal::Publish { path: claim.path.clone(), reason: format!("the record is longer than the {RECORD_BOUND} bytes a reader takes") });
+            return Err(FirstAttachRefusal::Publish {
+                path: claim.path.clone(),
+                reason: format!(
+                    "the record is longer than the {RECORD_BOUND} bytes a reader takes"
+                ),
+            });
         }
         let staging: PathBuf = self.staging();
         let staged: Result<(), String> = (|| {
@@ -409,15 +518,21 @@ impl FirstAttachPlace {
                 .mode(FIRST_ATTACH_MODE)
                 .open(staging.as_path())
                 .map_err(|error| return error.to_string())?;
-            file.set_permissions(std::fs::Permissions::from_mode(FIRST_ATTACH_MODE)).map_err(|error| return error.to_string())?;
-            file.write_all(text.as_bytes()).map_err(|error| return error.to_string())?;
+            file.set_permissions(std::fs::Permissions::from_mode(FIRST_ATTACH_MODE))
+                .map_err(|error| return error.to_string())?;
+            file.write_all(text.as_bytes())
+                .map_err(|error| return error.to_string())?;
             file.sync_all().map_err(|error| return error.to_string())?;
-            std::fs::rename(staging.as_path(), claim.path.as_path()).map_err(|error| return error.to_string())?;
+            std::fs::rename(staging.as_path(), claim.path.as_path())
+                .map_err(|error| return error.to_string())?;
             return sync_the_directory(self.directory.as_path());
         })();
         return match staged {
             Ok(()) => Ok(()),
-            Err(reason) => Err(FirstAttachRefusal::Publish { path: claim.path.clone(), reason }),
+            Err(reason) => Err(FirstAttachRefusal::Publish {
+                path: claim.path.clone(),
+                reason,
+            }),
         };
     }
 }

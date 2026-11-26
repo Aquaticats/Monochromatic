@@ -13,18 +13,45 @@
 
 /// Import the run under test,
 ///  its sibling fixtures and shared fixtures.
-use super::tests::{findings_at, loaded, store, was_scanned};
-use super::{ScanRunError, scan_version};
+use super::tests::{
+    findings_at,
+    loaded,
+    store,
+    was_scanned,
+};
+use super::{
+    ScanRunError,
+    scan_version,
+};
 use crate::candidate_error::CandidateFailure;
 use crate::candidate_object::parse_object_id;
 use crate::candidate_store::CandidateStore;
-use crate::candidate_version::{CandidateSource, CandidateVersion};
-use crate::scanner_adapter::{CandidateScanner, ScannerFailure};
+use crate::candidate_version::{
+    CandidateSource,
+    CandidateVersion,
+};
+use crate::scanner_adapter::{
+    CandidateScanner,
+    ScannerFailure,
+};
 use crate::scanner_selection::rules_candidate_path;
-use crate::scanner_test_support::{needle, rules_file, run_isolated};
-use crate::test_support::{git, repository};
-use forbidden_strings::{CandidateScan, ScanFinding};
-use std::path::{Path, PathBuf};
+use crate::scanner_test_support::{
+    needle,
+    rules_file,
+    run_isolated,
+};
+use crate::test_support::{
+    git,
+    repository,
+};
+use forbidden_strings::{
+    CandidateScan,
+    ScanFinding,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// Body:

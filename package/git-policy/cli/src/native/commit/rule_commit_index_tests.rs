@@ -12,9 +12,18 @@
 //! ```
 
 /// The functions under test and the real-Git fixture helpers.
-use super::{INDEX_QUERY, IndexVsHead, index_query_arguments, index_state_from_exit};
+use super::{
+    INDEX_QUERY,
+    IndexVsHead,
+    index_query_arguments,
+    index_state_from_exit,
+};
 use crate::command_test_support::{
-    git, git_output, os_arguments, remove, repository_with_tracked_file,
+    git,
+    git_output,
+    os_arguments,
+    remove,
+    repository_with_tracked_file,
 };
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -110,24 +119,51 @@ fn real_git_exit_statuses_map_to_the_three_states() {
 /// index equal to `HEAD` and 1 for a staged change.
 #[test]
 fn the_index_check_starts_no_git() {
-    use crate::recording_git::{recorded_starts, recording_context};
+    use crate::recording_git::{
+        recorded_starts,
+        recording_context,
+    };
     use crate::repo_read_hook::SWITCH_VARIABLE;
-    use crate::test_support::{fixture, git_text, repository};
-    use crate::transaction_git::{GitRequest, run_git};
+    use crate::test_support::{
+        fixture,
+        git_text,
+        repository,
+    };
+    use crate::transaction_git::{
+        GitRequest,
+        run_git,
+    };
     let root: PathBuf = fixture("rule-commit-index-no-start");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let (mut context, log) = recording_context(root.as_path());
     // The recorder switches the in-process readers off; the check under test must run with them on.
-    context.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    context.overlay.retain(|(name, _)| {
+        return name != SWITCH_VARIABLE;
+    });
     let commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let ask = |words: &[&str]| -> Option<i32> { return run_git(&context, &GitRequest::new(repo.as_path(), words)).expect("ran").code; };
+    let ask = |words: &[&str]| -> Option<i32> {
+        return run_git(&context, &GitRequest::new(repo.as_path(), words))
+            .expect("ran")
+            .code;
+    };
     assert_eq!(ask(INDEX_QUERY), Some(0));
-    assert_eq!(ask(&["diff-index", "--cached", "--quiet", commit.as_str()]), Some(0));
+    assert_eq!(
+        ask(&["diff-index", "--cached", "--quiet", commit.as_str()]),
+        Some(0)
+    );
     std::fs::write(repo.join("staged.txt"), "staged\n").expect("write");
     git(repo.as_path(), &["add", "staged.txt"]);
     assert_eq!(ask(INDEX_QUERY), Some(1));
-    assert_eq!(ask(&["diff-index", "--cached", "--quiet", commit.as_str()]), Some(1));
+    assert_eq!(
+        ask(&["diff-index", "--cached", "--quiet", commit.as_str()]),
+        Some(1)
+    );
     let starts: Vec<String> = recorded_starts(log.as_path());
-    assert!(!starts.iter().any(|start| { return start.starts_with("diff-index"); }), "Git was started for the index check: {starts:?}");
+    assert!(
+        !starts.iter().any(|start| {
+            return start.starts_with("diff-index");
+        }),
+        "Git was started for the index check: {starts:?}"
+    );
     remove(root.as_path());
 }

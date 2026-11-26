@@ -15,19 +15,37 @@
 //! ```
 
 use super::super::*;
-use super::fixtures::{World, dead_owner, place};
-use crate::merge_isolation_changes::{WorktreeState, file_identity, worktree_path, worktree_state};
+use super::fixtures::{
+    World,
+    dead_owner,
+    place,
+};
+use crate::merge_isolation_changes::{
+    WorktreeState,
+    file_identity,
+    worktree_path,
+    worktree_state,
+};
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
 use crate::merge_isolation_recovery_steps::standing;
-use crate::test_support::{git, git_text};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    git,
+    git_text,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Everything about the staged entries and the worktree that another session would notice.
 pub(super) fn snapshot(world: &World) -> (String, String) {
     return (
         git_text(world.repo.as_path(), &["ls-files", "--stage"]),
-        git_text(world.repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]),
+        git_text(
+            world.repo.as_path(),
+            &["status", "--porcelain=v1", "--untracked-files=all"],
+        ),
     );
 }
 
@@ -44,7 +62,10 @@ pub(super) fn snapshot(world: &World) -> (String, String) {
 /// ```ts
 /// function theActionFor(outcomes, record): MergeRecoveryAction | undefined; // outcomes.find((outcome) => outcome.record === record)?.action
 /// ```
-pub(super) fn the_action_for(outcomes: &[MergeRecoveryOutcome], record: &Path) -> Option<MergeRecoveryAction> {
+pub(super) fn the_action_for(
+    outcomes: &[MergeRecoveryOutcome],
+    record: &Path,
+) -> Option<MergeRecoveryAction> {
     for outcome in outcomes {
         if outcome.record.as_path() == record {
             return Some(outcome.action);
@@ -79,18 +100,33 @@ pub(super) fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
         carried: None,
     };
     let place: RecoveryPlace = place(world);
-    let changes: Vec<Change> = merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");
-    let records_file_modes: bool = crate::merge_isolation_changes::the_repository_records_file_modes(&place.git, world.repo.as_path());
+    let changes: Vec<Change> =
+        merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");
+    let records_file_modes: bool =
+        crate::merge_isolation_changes::the_repository_records_file_modes(
+            &place.git,
+            world.repo.as_path(),
+        );
     let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for change in &changes {
         // The identity first, as recovery reads it, then the content: exactly the order of `settle_failed_merge`.
-        let identity = file_identity(worktree_path(world.repo.as_path(), change.path.as_slice()).as_path());
-        let state: WorktreeState = worktree_state(&place.git, world.repo.as_path(), change.path.as_slice()).expect("the state");
+        let identity =
+            file_identity(worktree_path(world.repo.as_path(), change.path.as_slice()).as_path());
+        let state: WorktreeState =
+            worktree_state(&place.git, world.repo.as_path(), change.path.as_slice())
+                .expect("the state");
         let content: Option<String> = match &state {
-            WorktreeState::Content { object, .. } => Some(object.clone()),
+            WorktreeState::Content {
+                object,
+                ..
+            } => Some(object.clone()),
             WorktreeState::Missing | WorktreeState::Other => None,
         };
-        judgements.push(Judged { standing: standing(change, &state, records_file_modes), identity, content });
+        judgements.push(Judged {
+            standing: standing(change, &state, records_file_modes),
+            identity,
+            content,
+        });
     }
     return (changes, judgements);
 }
@@ -108,12 +144,27 @@ pub(super) fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
 /// const theModeGitChecksOut = (world, path) => mode(join(world.parent, 'git-wrote', path)); // after `git checkout-index --prefix=...`
 /// ```
 #[cfg(unix)]
-pub(super) fn the_mode_git_checks_out(world: &World, path: &str) -> u32 {
+pub(super) fn the_mode_git_checks_out(
+    world: &World,
+    path: &str,
+) -> u32 {
     use std::os::unix::fs::PermissionsExt;
     let elsewhere: PathBuf = world.parent.join("git-wrote");
     std::fs::create_dir(elsewhere.as_path()).expect("a directory Git checks the entry out into");
-    git(world.repo.as_path(), &["checkout-index", format!("--prefix={}/", elsewhere.display()).as_str(), "--", path]);
-    return std::fs::symlink_metadata(elsewhere.join(path)).expect("Git's checkout of the entry").permissions().mode() & 0o7777;
+    git(
+        world.repo.as_path(),
+        &[
+            "checkout-index",
+            format!("--prefix={}/", elsewhere.display()).as_str(),
+            "--",
+            path,
+        ],
+    );
+    return std::fs::symlink_metadata(elsewhere.join(path))
+        .expect("Git's checkout of the entry")
+        .permissions()
+        .mode()
+        & 0o7777;
 }
 
 /// The bytes the file the merge holds at one path has,
@@ -123,7 +174,14 @@ pub(super) fn the_mode_git_checks_out(world: &World, path: &str) -> u32 {
 /// ```ts
 /// git(['show', `${oid}:${path}`])
 /// ```
-pub(super) fn the_bytes_of_a_commit(world: &World, oid: &str, path: &str) -> Vec<u8> {
-    let text: String = git_text(world.repo.as_path(), &["show", format!("{oid}:{path}").as_str()]);
+pub(super) fn the_bytes_of_a_commit(
+    world: &World,
+    oid: &str,
+    path: &str,
+) -> Vec<u8> {
+    let text: String = git_text(
+        world.repo.as_path(),
+        &["show", format!("{oid}:{path}").as_str()],
+    );
     return format!("{text}\n").into_bytes();
 }

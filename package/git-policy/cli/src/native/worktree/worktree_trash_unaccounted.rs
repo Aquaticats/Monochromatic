@@ -22,13 +22,27 @@
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::plain_file::read_plain_file;
 use crate::service_work::work_directory;
-use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
+use crate::work_item::{
+    CLAIMED,
+    FAILED,
+    PENDING,
+    RECOVERING,
+    WorkItem,
+    WorkKind,
+    state_directory,
+};
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_dispose::{PendingTrash, RECORD_LIMIT};
+use crate::worktree_trash_dispose::{
+    PendingTrash,
+    RECORD_LIMIT,
+};
 use crate::worktree_trash_hand_over::Recorded;
 use crate::worktree_trash_manifest::is_trash_name;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Name every trash in this worktree that nothing will empty,
@@ -64,7 +78,12 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// nameUnaccountedTrash(commonDir, worktree, notices, wake); // and wake(commonDir) when a record was written
 /// ```
-pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write, wake: &dyn WakeTheService) {
+pub fn name_unaccounted_trash(
+    git_dir: &Path,
+    worktree: &Path,
+    notices: &mut dyn Write,
+    wake: &dyn WakeTheService,
+) {
     // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     if std::fs::symlink_metadata(&parent).is_err() {
@@ -73,7 +92,9 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
     let work: PathBuf = work_directory(git_dir);
     let mut accounted: Vec<String> = Vec::new();
     for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
-        let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
+        let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else {
+            continue;
+        };
         for entry in listing.flatten() {
             // What: A record whose name says it is another kind of work is passed over without being opened.
             // Why:  The queue keeps every kind, and this repository held 508 failed pushes and reviews beside one
@@ -82,15 +103,23 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
             //       (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
             //       A record's name begins with its kind (`work_item_ids_and_names.rs`), so the name answers the question the
             //       bytes would.
-            if !crate::work_item_ids_and_names::names_a_trash_record(entry.file_name().to_string_lossy().as_ref()) {
+            if !crate::work_item_ids_and_names::names_a_trash_record(
+                entry.file_name().to_string_lossy().as_ref(),
+            ) {
                 continue;
             }
             let record: PathBuf = entry.path();
             // A record is a plain file: a named pipe or a device in a state directory is somebody's own entry, and
             // opening it would wait for a writer that never comes, on every command in this worktree.
-            let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
-            let Ok(text) = String::from_utf8(bytes) else { continue };
-            let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
+            let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else {
+                continue;
+            };
+            let Ok(text) = String::from_utf8(bytes) else {
+                continue;
+            };
+            let Ok(item) = WorkItem::decode(text.as_str()) else {
+                continue;
+            };
             if item.kind != WorkKind::Trash {
                 continue;
             }
@@ -98,7 +127,9 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
             // it here would send the person to look at work that is not theirs. A failed record is settled for good, so
             // it accounts for nothing. A pending record is only the service's work until one claim lease has passed
             // without anything claiming it, which means no service ever looked at it.
-            let the_service_owns_it: bool = state == CLAIMED || state == RECOVERING || (state == PENDING && !waited_longer_than_a_claim(record.as_path()));
+            let the_service_owns_it: bool = state == CLAIMED
+                || state == RECOVERING
+                || (state == PENDING && !waited_longer_than_a_claim(record.as_path()));
             if !the_service_owns_it {
                 continue;
             }
@@ -141,8 +172,12 @@ fn is_past_a_claim_lease(age: std::time::Duration) -> bool {
 /// const waitedLongerThanAClaim = (record) => Date.now() - mtimeMs(record) > CLAIM_LEASE_MS;
 /// ```
 fn waited_longer_than_a_claim(record: &Path) -> bool {
-    let Ok(found) = std::fs::metadata(record) else { return false };
-    let Ok(written) = found.modified() else { return false };
+    let Ok(found) = std::fs::metadata(record) else {
+        return false;
+    };
+    let Ok(written) = found.modified() else {
+        return false;
+    };
     return written.elapsed().is_ok_and(is_past_a_claim_lease);
 }
 
@@ -180,20 +215,41 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
 /// ```ts
 /// const settleUnrecordedTrash = ({ gitDir, worktree, accounted }) => { for (const name of readdir(join(worktree, TRASH_PARENT))) { if (accounted.includes(name) || !isTrashName(name)) continue; const manifest = readTrashManifest(worktree, name); if (manifest) recordTheTrash({ destination: worktree, commonDir: gitDir, manifest }); else nameItForThePerson(join(worktree, TRASH_PARENT, name)); } };
 /// ```
-fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String], notices: &mut dyn Write) -> bool {
+fn settle_unrecorded_trash(
+    git_dir: &Path,
+    worktree: &Path,
+    accounted: &[String],
+    notices: &mut dyn Write,
+) -> bool {
     let parent: PathBuf = worktree.join(TRASH_PARENT);
-    let Ok(listing) = std::fs::read_dir(&parent) else { return false };
+    let Ok(listing) = std::fs::read_dir(&parent) else {
+        return false;
+    };
     let mut waiting: bool = false;
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if accounted.contains(&name) || !is_trash_name(name.as_str()) {
             continue;
         }
-        let Some(manifest) = crate::worktree_trash_own_manifest::read(worktree, name.as_str()) else {
-            let _told = writeln!(notices, "{}", left_words(entry.path().as_path(), "there is no record the service still works on, and the trash cannot say what it is"));
+        let Some(manifest) = crate::worktree_trash_own_manifest::read(worktree, name.as_str())
+        else {
+            let _told = writeln!(
+                notices,
+                "{}",
+                left_words(
+                    entry.path().as_path(),
+                    "there is no record the service still works on, and the trash cannot say what it is"
+                )
+            );
             continue;
         };
-        let pending: PendingTrash = PendingTrash { destination: worktree.to_path_buf(), common_dir: git_dir.to_path_buf(), manifest, taken_over: 0, quiet: true };
+        let pending: PendingTrash = PendingTrash {
+            destination: worktree.to_path_buf(),
+            common_dir: git_dir.to_path_buf(),
+            manifest,
+            taken_over: 0,
+            quiet: true,
+        };
         let said: String = match crate::worktree_trash_hand_over::record_the_trash(&pending) {
             Ok(Recorded::Written) => {
                 // A record nobody is told about waits for a wake that need never come, so the writing of one is what the
@@ -210,8 +266,14 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
                 "monochromatic-git-policy-cli: {} holds directories a snapshot left out, and the trash says what it is, and a record of it is already in the queue, so the commit service empties it when it next runs for this repository, one trash at a time.",
                 entry.path().display()
             ),
-            Ok(Recorded::GivenUp) => left_words(entry.path().as_path(), "the commit service gave up on the record of this trash and never claims it again"),
-            Err(reason) => left_words(entry.path().as_path(), format!("the record of the trash cannot be written: {reason}").as_str()),
+            Ok(Recorded::GivenUp) => left_words(
+                entry.path().as_path(),
+                "the commit service gave up on the record of this trash and never claims it again",
+            ),
+            Err(reason) => left_words(
+                entry.path().as_path(),
+                format!("the record of the trash cannot be written: {reason}").as_str(),
+            ),
         };
         let _told = writeln!(notices, "{said}");
     }
@@ -235,7 +297,10 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
 /// ```ts
 /// const leftWords = (path, reason) => `... ${path} holds directories a snapshot left out that nothing will empty now (${reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.`;
 /// ```
-fn left_words(path: &Path, reason: &str) -> String {
+fn left_words(
+    path: &Path,
+    reason: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now ({reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
         path.display()

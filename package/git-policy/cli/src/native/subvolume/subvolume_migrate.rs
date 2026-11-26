@@ -31,16 +31,43 @@
 //! const verdict = await migrate({ platform, root, options, interrupt, say });
 //! ```
 
-use crate::process_use::{UseTarget, processes_using};
+use crate::process_use::{
+    UseTarget,
+    processes_using,
+};
 use crate::subvolume_arguments::MIGRATE_RISK_NOTICE;
-use crate::subvolume_error::{Interrupt, MigrateError};
-use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside};
+use crate::subvolume_error::{
+    Interrupt,
+    MigrateError,
+};
+use crate::subvolume_index_files::{
+    IndexLock,
+    linked_worktrees_inside,
+};
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
-use crate::subvolume_lock::{acquire, lock_paths, release_all, token_of};
+use crate::subvolume_lock::{
+    acquire,
+    lock_paths,
+    release_all,
+    token_of,
+};
 use crate::subvolume_platform::Platform;
-use crate::subvolume_preflight::{INSTALLED_ROOT, Layout, Refusal, installed_identity, layout_of, migrate_refusals};
-use crate::subvolume_run::{INDEX_LOCK, Run};
-use std::path::{Path, PathBuf};
+use crate::subvolume_preflight::{
+    INSTALLED_ROOT,
+    Layout,
+    Refusal,
+    installed_identity,
+    layout_of,
+    migrate_refusals,
+};
+use crate::subvolume_run::{
+    INDEX_LOCK,
+    Run,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Instant;
 
 /// What:
@@ -90,7 +117,10 @@ pub enum Verdict {
 
 /// Whether a path is the root of a subvolume,
 /// false when it cannot be asked.
-fn is_subvolume(platform: &dyn Platform, path: &Path) -> bool {
+fn is_subvolume(
+    platform: &dyn Platform,
+    path: &Path,
+) -> bool {
     return platform.is_subvolume_root(path).unwrap_or(false);
 }
 
@@ -106,10 +136,21 @@ fn is_subvolume(platform: &dyn Platform, path: &Path) -> bool {
 /// ```ts
 /// announce(run, options);
 /// ```
-fn announce(run: &mut Run<'_>, options: MigrateOptions) {
+fn announce(
+    run: &mut Run<'_>,
+    options: MigrateOptions,
+) {
     let root: PathBuf = run.layout.root.clone();
     let removal: bool = run.platform.removal_allowed(root.as_path());
-    run.line(format!("checkout {}; new subvolume {}; old tree will be {}", root.display(), run.layout.new_path.display(), run.layout.old_path.display()).as_str());
+    run.line(
+        format!(
+            "checkout {}; new subvolume {}; old tree will be {}",
+            root.display(),
+            run.layout.new_path.display(),
+            run.layout.old_path.display()
+        )
+        .as_str(),
+    );
     run.line(format!("user_subvol_rm_allowed: {}", if removal { "active" } else { "absent (a subvolume is then removed by emptying it and rmdir; see git monochromatic-git-policy-cli doctor)" }).as_str());
     let real: PathBuf = std::fs::canonicalize(root.as_path()).unwrap_or(root);
     let scan = processes_using(&UseTarget::Inside(real.as_path()));
@@ -118,11 +159,25 @@ fn announce(run: &mut Run<'_>, options: MigrateOptions) {
     } else {
         run.line(format!("WARNING: {} process(es) have a working directory inside the checkout and will stay in the OLD tree after the exchange; restart them (or `cd \"$PWD\"` in a shell) afterwards:", scan.users.len()).as_str());
         for user in &scan.users {
-            run.line(format!("  pid {} ({})", user.pid, user.command.as_deref().unwrap_or("name unreadable")).as_str());
+            run.line(
+                format!(
+                    "  pid {} ({})",
+                    user.pid,
+                    user.command.as_deref().unwrap_or("name unreadable")
+                )
+                .as_str(),
+            );
         }
     }
-    let nested: usize = if options.nested_worktrees { linked_worktrees_inside(run.layout.root.as_path()).len() } else { 0 };
-    run.line(format!("linked worktrees inside the checkout that become nested subvolumes: {nested}").as_str());
+    let nested: usize = if options.nested_worktrees {
+        linked_worktrees_inside(run.layout.root.as_path()).len()
+    } else {
+        0
+    };
+    run.line(
+        format!("linked worktrees inside the checkout that become nested subvolumes: {nested}")
+            .as_str(),
+    );
 }
 
 /// What:
@@ -137,17 +192,26 @@ fn announce(run: &mut Run<'_>, options: MigrateOptions) {
 /// ```ts
 /// await createSubvolumes(run, options);
 /// ```
-fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError> {
+fn create_subvolumes(
+    run: &mut Run<'_>,
+    options: MigrateOptions,
+) -> Result<(), MigrateError> {
     if !run.journal.is_done("create") {
         run.journal.mark("create", "started")?;
         if !run.layout.new_path.exists() {
-            run.platform.create_subvolume(run.layout.new_path.as_path())?;
+            run.platform
+                .create_subvolume(run.layout.new_path.as_path())?;
         }
         // The identity of the stage this step made or adopted rides with the step's mark, so one write carries both: a journal
         // that says the step finished also names the subvolume, and the preflight lets through only an empty subvolume when
         // the identity is not recorded yet.
-        let Some(identity) = crate::worktree_convert_phases::identity_of_path(run.layout.new_path.as_path()) else {
-            return Err(MigrateError::Journal(format!("{} was not there after it was created", run.layout.new_path.display())));
+        let Some(identity) =
+            crate::worktree_convert_phases::identity_of_path(run.layout.new_path.as_path())
+        else {
+            return Err(MigrateError::Journal(format!(
+                "{} was not there after it was created",
+                run.layout.new_path.display()
+            )));
         };
         run.journal.record_stage_identity(identity);
         run.journal.mark("create", "done")?;
@@ -155,10 +219,16 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
     run.checkpoint("after-create")?;
     if options.nested_worktrees && !run.journal.is_done("nested") {
         for linked in linked_worktrees_inside(run.layout.root.as_path()) {
-            let Ok(relative) = linked.worktree.strip_prefix(run.layout.root.as_path()) else { continue };
+            let Ok(relative) = linked.worktree.strip_prefix(run.layout.root.as_path()) else {
+                continue;
+            };
             let target: PathBuf = run.layout.new_path.join(relative);
             if let Some(parent) = target.parent() {
-                MigrateError::from_io_result(std::fs::create_dir_all(parent), "create the directory", parent)?;
+                MigrateError::from_io_result(
+                    std::fs::create_dir_all(parent),
+                    "create the directory",
+                    parent,
+                )?;
             }
             if !target.exists() {
                 run.platform.create_subvolume(target.as_path())?;
@@ -202,7 +272,11 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     let old_path: PathBuf = run.layout.old_path.clone();
     if run.journal.has_begun("exchange") && is_subvolume(run.platform, root.as_path()) {
         if new_path.exists() && !old_path.exists() {
-            MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
+            MigrateError::from_io_result(
+                std::fs::rename(&new_path, &old_path),
+                "rename",
+                new_path.as_path(),
+            )?;
         }
         record_installed(run);
         return run.journal.mark("exchange", "done");
@@ -212,7 +286,13 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     run.journal.mark("lock", "started")?;
     run.line(format!("holding {} (and the lock of every linked worktree's index) so no Git command writes an index during the last delta", root.join(INDEX_LOCK).display()).as_str());
     run.checkpoint("after-lock")?;
-    run.pass("last delta (under the lock)", root.as_path(), new_path.as_path(), true, false)?;
+    run.pass(
+        "last delta (under the lock)",
+        root.as_path(),
+        new_path.as_path(),
+        true,
+        false,
+    )?;
     // A worktree administered since the locks were taken has no lock yet; the new tree holds the same locks before the exchange.
     acquire_all(root.as_path(), token.as_str())?;
     acquire_all(new_path.as_path(), token.as_str())?;
@@ -220,7 +300,11 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     run.checkpoint("before-exchange")?;
     run.platform.exchange(root.as_path(), new_path.as_path())?;
     run.checkpoint("after-exchange")?;
-    MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
+    MigrateError::from_io_result(
+        std::fs::rename(&new_path, &old_path),
+        "rename",
+        new_path.as_path(),
+    )?;
     run.checkpoint("after-rename")?;
     run.line(format!("exchanged; the old tree is now {}", old_path.display()).as_str());
     record_installed(run);
@@ -264,7 +348,10 @@ fn record_installed(run: &mut Run<'_>) {
 /// ```ts
 /// for (const lock of lockPaths(tree)) await acquire(lock, token);
 /// ```
-fn acquire_all(tree: &Path, token: &str) -> Result<(), MigrateError> {
+fn acquire_all(
+    tree: &Path,
+    token: &str,
+) -> Result<(), MigrateError> {
     for lock in lock_paths(tree) {
         acquire(lock.as_path(), token)?;
     }
@@ -287,7 +374,13 @@ fn drop_old_locks(run: &mut Run<'_>) -> Result<(), MigrateError> {
     let token: String = token_of(&run.journal);
     let released: usize = release_all(run.layout.old_path.as_path(), token.as_str())?;
     if released > 0 {
-        run.line(format!("removed {released} index lock(s) from {}", run.layout.old_path.display()).as_str());
+        run.line(
+            format!(
+                "removed {released} index lock(s) from {}",
+                run.layout.old_path.display()
+            )
+            .as_str(),
+        );
     }
     return Ok(());
 }
@@ -307,13 +400,22 @@ fn drop_old_locks(run: &mut Run<'_>) -> Result<(), MigrateError> {
 /// ```ts
 /// await finish(run, options);
 /// ```
-fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError> {
+fn finish(
+    run: &mut Run<'_>,
+    options: MigrateOptions,
+) -> Result<(), MigrateError> {
     let root: PathBuf = run.layout.root.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
     drop_old_locks(run)?;
     let token: String = token_of(&run.journal);
     if !run.journal.is_done("catchup") {
-        run.pass("catch-up (files newer in the old tree)", old_path.as_path(), root.as_path(), false, true)?;
+        run.pass(
+            "catch-up (files newer in the old tree)",
+            old_path.as_path(),
+            root.as_path(),
+            false,
+            true,
+        )?;
         run.journal.mark("catchup", "done")?;
     }
     run.checkpoint("after-catchup")?;
@@ -333,17 +435,29 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
             run.line(text.as_str());
         }
         let count: usize = refreshed?;
-        run.line(format!("index stat rewrite: {count} index file(s), {:.2} s", started.elapsed().as_secs_f64()).as_str());
+        run.line(
+            format!(
+                "index stat rewrite: {count} index file(s), {:.2} s",
+                started.elapsed().as_secs_f64()
+            )
+            .as_str(),
+        );
         run.journal.mark("indexes", "done")?;
     }
     run.checkpoint("after-indexes")?;
     // The new checkout was locked from the exchange until now; Git commands may use it again.
     release_all(root.as_path(), token.as_str())?;
     if !is_subvolume(run.platform, root.as_path()) {
-        return Err(MigrateError::Journal(format!("{} is not a subvolume root after the exchange; run with --rollback to restore the original tree", root.display())));
+        return Err(MigrateError::Journal(format!(
+            "{} is not a subvolume root after the exchange; run with --rollback to restore the original tree",
+            root.display()
+        )));
     }
     if !root.join(".git").join("HEAD").exists() {
-        return Err(MigrateError::Journal(format!("{} has no .git/HEAD after the exchange; run with --rollback to restore the original tree", root.display())));
+        return Err(MigrateError::Journal(format!(
+            "{} has no .git/HEAD after the exchange; run with --rollback to restore the original tree",
+            root.display()
+        )));
     }
     // A journal that somehow reached verification with no installed identity gets one now; the first record is the install's,
     // and a later step never blesses a directory that took the checkout's place.
@@ -365,7 +479,10 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
 /// ```
 fn closing(run: &mut Run<'_>) {
     let layout: &Layout = run.layout;
-    let (root, old_path) = (layout.root.display().to_string(), layout.old_path.display().to_string());
+    let (root, old_path) = (
+        layout.root.display().to_string(),
+        layout.old_path.display().to_string(),
+    );
     run.line(format!("{root} is now a btrfs subvolume (root inode 256).").as_str());
     run.line(format!("The original tree is kept at {old_path}. Check the result with `git status` and `git fsck`, then delete it with `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old` (or undo everything with `--rollback`).").as_str());
     run.line("Shells, editors and agent sessions that had their working directory inside the checkout still use the old tree; restart them, or run `cd \"$PWD\"` in a shell.");
@@ -400,11 +517,22 @@ pub fn migrate(
     say: &mut dyn FnMut(&str),
 ) -> Result<Verdict, MigrateError> {
     let Some(layout) = layout_of(root) else {
-        return Err(MigrateError::Journal(format!("{} has no parent directory to hold the new subvolume", root.display())));
+        return Err(MigrateError::Journal(format!(
+            "{} has no parent directory to hold the new subvolume",
+            root.display()
+        )));
     };
     let mut run: Run<'_> = Run::open(platform, &layout, interrupt, say)?;
-    if is_subvolume(platform, root) && (run.journal.is_done("verify") || !run.journal.is_persisted()) {
-        run.line(format!("{} is already a btrfs subvolume; nothing to do.", root.display()).as_str());
+    if is_subvolume(platform, root)
+        && (run.journal.is_done("verify") || !run.journal.is_persisted())
+    {
+        run.line(
+            format!(
+                "{} is already a btrfs subvolume; nothing to do.",
+                root.display()
+            )
+            .as_str(),
+        );
         if run.journal.is_done("verify") && layout.old_path.exists() {
             run.line(format!("The original tree is still at {}; delete it with `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old`.", layout.old_path.display()).as_str());
         }
@@ -422,19 +550,33 @@ pub fn migrate(
     announce(&mut run, options);
     if options.dry_run {
         run.line("plan: create the new subvolume and the nested ones; copy with cloned data; repeat as a delta; hold .git/index.lock, run the last delta, exchange the directories atomically; carry over newer files; rewrite the index stat fields; verify.");
-        run.line("dry run complete; nothing was changed. Run the command without --dry-run to migrate.");
+        run.line(
+            "dry run complete; nothing was changed. Run the command without --dry-run to migrate.",
+        );
         return Ok(Verdict::DryRun);
     }
     let started: Instant = Instant::now();
     create_subvolumes(&mut run, options)?;
     if !run.journal.is_done("copy") {
         run.journal.mark("copy", "started")?;
-        run.pass("copy", layout.root.as_path(), layout.new_path.as_path(), false, false)?;
+        run.pass(
+            "copy",
+            layout.root.as_path(),
+            layout.new_path.as_path(),
+            false,
+            false,
+        )?;
         run.checkpoint("after-copy")?;
         run.journal.mark("copy", "done")?;
     }
     if !run.journal.is_done("delta1") && !run.journal.has_begun("exchange") {
-        run.pass("first delta", layout.root.as_path(), layout.new_path.as_path(), true, false)?;
+        run.pass(
+            "first delta",
+            layout.root.as_path(),
+            layout.new_path.as_path(),
+            true,
+            false,
+        )?;
         run.journal.mark("delta1", "done")?;
     }
     run.checkpoint("after-delta1")?;

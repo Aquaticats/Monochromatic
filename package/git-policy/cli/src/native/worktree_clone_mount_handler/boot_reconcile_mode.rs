@@ -36,18 +36,38 @@
 
 use super::per_slot_root_claim::SlotClaimDirectory;
 use super::sweep_checkout_mount::LiveCheckoutMounts;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
-use super::sweep_configuration::{SweepConfiguration, read_configuration};
+use super::sweep_configuration::{
+    SweepConfiguration,
+    read_configuration,
+};
+use super::sweep_dataset_reader::ZfsDatasetReader;
 use super::sweep_first_attach::LiveFirstAttach;
 use super::sweep_one_clone::LiveStandingMounts;
-use super::sweep_dataset_reader::ZfsDatasetReader;
 use super::sweep_one_clone::SweepContext;
-use super::sweep_preconditions::{BootFacts, PreparedBoot, complete, prepare, probe_record_path};
-use super::sweep_run::{SweepRun, sweep};
-use crate::diagnostic_log::{debug, warn};
+use super::sweep_preconditions::{
+    BootFacts,
+    PreparedBoot,
+    complete,
+    prepare,
+    probe_record_path,
+};
+use super::sweep_run::{
+    SweepRun,
+    sweep,
+};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::worktree_clone_mount::SLOT_IDENTITY_STORE_PATH;
-use crate::worktree_clone_mount_protocol::{ReadinessFile, ReadinessRecord, ReceiptsFolder, SweepState};
 use crate::worktree_clone_mount_handler::handler_install_paths::CONFIGURATION_PATH;
+use crate::worktree_clone_mount_protocol::{
+    ReadinessFile,
+    ReadinessRecord,
+    ReceiptsFolder,
+    SweepState,
+};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::path::PathBuf;
 
 /// Module tag for diagnostics.
@@ -79,13 +99,25 @@ pub struct ReconcilePlaces {
 impl ReconcilePlaces {
     /// The installed places.
     pub fn installed() -> Self {
-        return ReconcilePlaces { configuration: PathBuf::from(CONFIGURATION_PATH), store: PathBuf::from(SLOT_IDENTITY_STORE_PATH), probe_record: probe_record_path() };
+        return ReconcilePlaces {
+            configuration: PathBuf::from(CONFIGURATION_PATH),
+            store: PathBuf::from(SLOT_IDENTITY_STORE_PATH),
+            probe_record: probe_record_path(),
+        };
     }
 
     /// Fixture places,
     /// which a control hands in so nothing on a machine is read or written.
-    pub fn at(configuration: PathBuf, store: PathBuf, probe_record: PathBuf) -> Self {
-        return ReconcilePlaces { configuration, store, probe_record };
+    pub fn at(
+        configuration: PathBuf,
+        store: PathBuf,
+        probe_record: PathBuf,
+    ) -> Self {
+        return ReconcilePlaces {
+            configuration,
+            store,
+            probe_record,
+        };
     }
 }
 
@@ -125,23 +157,35 @@ pub fn run() -> Result<String, String> {
 ///
 /// # Errors
 /// Everything `run` refuses.
-pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<String, String> {
+pub fn run_at(
+    places: &ReconcilePlaces,
+    readiness: &ReadinessFile,
+) -> Result<String, String> {
     let mounts: LiveCheckoutMounts = LiveCheckoutMounts;
     let table: LiveMountedDatasets = LiveMountedDatasets;
-    let configuration: SweepConfiguration = read_configuration(places.configuration.as_path(), &table).map_err(|refusal| return refusal.message())?;
-    let prepared: PreparedBoot = prepare(&configuration, places.probe_record.as_path(), &mounts).map_err(|refusal| return refusal.message())?;
+    let configuration: SweepConfiguration =
+        read_configuration(places.configuration.as_path(), &table)
+            .map_err(|refusal| return refusal.message())?;
+    let prepared: PreparedBoot = prepare(&configuration, places.probe_record.as_path(), &mounts)
+        .map_err(|refusal| return refusal.message())?;
     let reader: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| return format!("the handler could not open the ZFS device, so this boot's clones are not reconciled: {error}"))?;
-    let facts: BootFacts = complete(prepared, &reader, configuration.parent_dataset.as_str()).map_err(|refusal| return refusal.message())?;
+    let facts: BootFacts = complete(prepared, &reader, configuration.parent_dataset.as_str())
+        .map_err(|refusal| return refusal.message())?;
     let boot: String = facts.boot.clone();
-    readiness.publish(&record_of(&facts, SweepState::Running)).map_err(|refusal| return refusal.message())?;
+    readiness
+        .publish(&record_of(&facts, SweepState::Running))
+        .map_err(|refusal| return refusal.message())?;
     let receipts: ReceiptsFolder = ReceiptsFolder::live();
     let claims: SlotClaimDirectory = SlotClaimDirectory::live();
     let clock = || return crate::iso_time::now_iso();
     let standing: LiveStandingMounts = LiveStandingMounts::read();
     // The step asks this same reader when the walk stops at a slot that already stands on this clone's own mount, so one
     // copy of the kernel's table answers both the answer before the walk and the answer at it.
-    let attach: super::sweep_attach_step::RealAttachStep<'_, super::sweep_attach_step::RealRollbackCalls, super::sweep_attach_step::RealCloneMountCall> =
-        super::sweep_attach_step::RealAttachStep::release(&standing);
+    let attach: super::sweep_attach_step::RealAttachStep<
+        '_,
+        super::sweep_attach_step::RealRollbackCalls,
+        super::sweep_attach_step::RealCloneMountCall,
+    > = super::sweep_attach_step::RealAttachStep::release(&standing);
     let first_attach: LiveFirstAttach = LiveFirstAttach::live();
     let context: SweepContext<'_> = SweepContext {
         parent_dataset: configuration.parent_dataset.as_str(),
@@ -158,13 +202,23 @@ pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<Str
         standing: &standing,
     };
     let run: SweepRun = sweep(&context);
-    let state: SweepState = if run.completed() && run.failed() == 0 { SweepState::Finished } else { SweepState::Failed };
+    let state: SweepState = if run.completed() && run.failed() == 0 {
+        SweepState::Finished
+    } else {
+        SweepState::Failed
+    };
     if state == SweepState::Failed {
         warn(TAG, run.summary().as_str());
     }
-    readiness.publish(&record_of(&facts, state)).map_err(|refusal| return refusal.message())?;
+    readiness
+        .publish(&record_of(&facts, state))
+        .map_err(|refusal| return refusal.message())?;
     debug(TAG, "this boot's readiness is published after the sweep");
-    return Ok(format!("{}\n{}", readiness_line(&facts, state), run.report()));
+    return Ok(format!(
+        "{}\n{}",
+        readiness_line(&facts, state),
+        run.report()
+    ));
 }
 
 /// What:
@@ -180,7 +234,10 @@ pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<Str
 /// ```ts
 /// const record = recordOf(facts, 'finished', 'none');
 /// ```
-fn record_of(facts: &BootFacts, sweep_state: SweepState) -> ReadinessRecord {
+fn record_of(
+    facts: &BootFacts,
+    sweep_state: SweepState,
+) -> ReadinessRecord {
     return ReadinessRecord {
         boot: facts.boot.clone(),
         pool_name: facts.pool_name.clone(),
@@ -199,7 +256,10 @@ fn record_of(facts: &BootFacts, sweep_state: SweepState) -> ReadinessRecord {
 /// ```ts
 /// const line = `readiness published for boot ${boot} with the sweep ${state}`;
 /// ```
-fn readiness_line(facts: &BootFacts, state: SweepState) -> String {
+fn readiness_line(
+    facts: &BootFacts,
+    state: SweepState,
+) -> String {
     return format!(
         "this boot's readiness is published: boot {}, pool {} {}, checkout {} {}, sweep {}. Managed attaches are admitted only when both the pool and the checkout are ready for this boot.",
         facts.boot,

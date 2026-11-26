@@ -30,19 +30,31 @@
 //! finish(exitCode); // appends JSON.stringify(record) + '\n' to join(commonDir, 'monochromatic-git-policy-cli-worktree-add-timing.jsonl')
 //! ```
 
-use crate::wrapper_names_old_and_new::WORKTREE_ADD_TIMING_LOG;
 use crate::diagnostic_log::debug;
-use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
-use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::quote;
-use crate::quiet_ledger::{drain, object_json};
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_line;
+use crate::quiet_ledger::{
+    drain,
+    object_json,
+};
 use crate::service_protocol::RELEASE;
+use crate::wrapper_names_old_and_new::WORKTREE_ADD_TIMING_LOG;
 use std::cell::RefCell;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The file inside the common Git directory that collects the add timing records of every worktree of the repository.
 pub const ADD_TIMING_FILE: &str = WORKTREE_ADD_TIMING_LOG.current;
@@ -92,7 +104,11 @@ struct Spent {
 /// const known = list.find((each) => each.name === name);
 /// if (known) { known.own += own; known.calls += 1; } else { list.push({ name, own, calls: 1 }); }
 /// ```
-fn add_spent(list: &mut Vec<Spent>, name: &str, own: Duration) {
+fn add_spent(
+    list: &mut Vec<Spent>,
+    name: &str,
+    own: Duration,
+) {
     for known in list.iter_mut() {
         if known.name == name {
             known.own += own;
@@ -100,7 +116,11 @@ fn add_spent(list: &mut Vec<Spent>, name: &str, own: Duration) {
             return;
         }
     }
-    list.push(Spent { name: name.to_string(), own, calls: 1 });
+    list.push(Spent {
+        name: name.to_string(),
+        own,
+        calls: 1,
+    });
 }
 
 /// What:
@@ -127,7 +147,12 @@ fn micros_to_ms(time: Duration) -> String {
 /// `${quote(each.name)}:{"ms":${ms(each.own)},"calls":${each.calls}}`
 /// ```
 fn spent_json(each: &Spent) -> String {
-    return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls);
+    return format!(
+        "{}:{{\"ms\":{},\"calls\":{}}}",
+        quote(each.name.as_str()),
+        micros_to_ms(each.own),
+        each.calls
+    );
 }
 
 /// What:
@@ -187,23 +212,43 @@ impl Recorder {
     /// A recorder for an add in the repository whose common Git directory is `common_dir`.
     pub fn new(common_dir: PathBuf) -> Self {
         // A clock before the Unix epoch gives zero, as `unwrap_or_default` did.
-        let start_millis: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-            Ok(elapsed) => elapsed.as_millis(),
-            Err(_before_epoch) => 0,
+        let start_millis: u128 =
+            match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                Ok(elapsed) => elapsed.as_millis(),
+                Err(_before_epoch) => 0,
+            };
+        return Self {
+            common_dir,
+            open: Vec::new(),
+            spent: Vec::new(),
+            notes: Vec::new(),
+            start_millis,
+            work: Vec::new(),
+            quiet: Vec::new(),
         };
-        return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis, work: Vec::new(), quiet: Vec::new() };
     }
 
     /// Enter the step `name` at `at`,
     /// a time since the recorder began.
-    pub fn enter(&mut self, name: &str, at: Duration) {
-        self.open.push(Frame { name: name.to_string(), entered: at, inside: Duration::ZERO });
+    pub fn enter(
+        &mut self,
+        name: &str,
+        at: Duration,
+    ) {
+        self.open.push(Frame {
+            name: name.to_string(),
+            entered: at,
+            inside: Duration::ZERO,
+        });
     }
 
     /// Leave the innermost step at `at`;
     /// its own time is what the steps inside it left,
     /// and the outer step loses the whole.
-    pub fn leave(&mut self, at: Duration) {
+    pub fn leave(
+        &mut self,
+        at: Duration,
+    ) {
         let Some(frame) = self.open.pop() else { return };
         let whole: Duration = at.saturating_sub(frame.entered);
         let own: Duration = whole.saturating_sub(frame.inside);
@@ -215,7 +260,11 @@ impl Recorder {
 
     /// Note a fact about the add;
     /// a later note of the same key replaces the earlier one.
-    pub fn note(&mut self, key: &str, value: &str) {
+    pub fn note(
+        &mut self,
+        key: &str,
+        value: &str,
+    ) {
         // Replace the value of a key that is already noted; the loop stops at the first match, as `find` did.
         for known in &mut self.notes {
             if known.0 == key {
@@ -228,7 +277,11 @@ impl Recorder {
 
     /// Add `own` to the work named `name`,
     /// as one call.
-    pub fn add_work(&mut self, name: &str, own: Duration) {
+    pub fn add_work(
+        &mut self,
+        name: &str,
+        own: Duration,
+    ) {
         add_spent(&mut self.work, name, own);
     }
 
@@ -239,7 +292,11 @@ impl Recorder {
     /// a word with a quote or a newline is escaped
     /// by `quote`,
     /// so the line stays one line.
-    pub fn line(&self, total: Duration, exit_code: i32) -> String {
+    pub fn line(
+        &self,
+        total: Duration,
+        exit_code: i32,
+    ) -> String {
         let mut covered: Duration = Duration::ZERO;
         for each in &self.spent {
             covered += each.own;
@@ -287,7 +344,10 @@ thread_local! {
 /// Begin recording the add of the repository whose common Git directory is `common_dir`,
 /// replacing any earlier recording
 ///  of this thread.
-pub fn begin(common_dir: PathBuf, quiet: bool) {
+pub fn begin(
+    common_dir: PathBuf,
+    quiet: bool,
+) {
     begin_on_route(common_dir, quiet, None);
 }
 
@@ -309,7 +369,11 @@ pub fn begin(common_dir: PathBuf, quiet: bool) {
 /// ```ts
 /// beginOnRoute(commonDir, quiet, plain); // plain: why the ladder refused, or undefined
 /// ```
-pub fn begin_on_route(common_dir: PathBuf, quiet: bool, plain: Option<String>) {
+pub fn begin_on_route(
+    common_dir: PathBuf,
+    quiet: bool,
+    plain: Option<String>,
+) {
     let began: Instant = Instant::now();
     ACTIVE.set(Some((began, Recorder::new(common_dir))));
     // An add that is still running after a few seconds says which step it is in,
@@ -422,7 +486,14 @@ fn innermost_step(recorder: &Recorder) -> Option<String> {
 /// ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path'].includes(word)
 /// ```
 pub(crate) fn option_takes_value(word: &OsStr) -> bool {
-    for known in ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"] {
+    for known in [
+        "-C",
+        "-c",
+        "--git-dir",
+        "--work-tree",
+        "--namespace",
+        "--exec-path",
+    ] {
         if word == OsStr::new(known) {
             return true;
         }
@@ -493,7 +564,10 @@ pub fn begin_work() -> Instant {
 /// ```ts
 /// endWork('untrackedScan', began);
 /// ```
-pub fn end_work(name: &str, began: Instant) {
+pub fn end_work(
+    name: &str,
+    began: Instant,
+) {
     note_work(name, began.elapsed());
 }
 
@@ -508,7 +582,10 @@ pub fn end_work(name: &str, began: Instant) {
 /// ```ts
 /// noteWork('cloneFiles', spentAcrossTheSlice);
 /// ```
-pub fn note_work(name: &str, spent: Duration) {
+pub fn note_work(
+    name: &str,
+    spent: Duration,
+) {
     if let Ok(mut work) = WORK.lock()
         && let Some(list) = work.as_mut()
     {
@@ -518,7 +595,10 @@ pub fn note_work(name: &str, spent: Duration) {
 
 /// Note a fact about the add being recorded;
 /// nothing outside a recording.
-pub fn note(key: &str, value: &str) {
+pub fn note(
+    key: &str,
+    value: &str,
+) {
     let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
     if let Some((_began, recorder)) = recording.as_mut() {
         recorder.note(key, value);
@@ -548,7 +628,9 @@ pub fn finish(exit_code: i32) {
         Ok(mut work) => work.take(),
         Err(_poisoned) => None,
     };
-    let Some((began, mut recorder)) = taken else { return };
+    let Some((began, mut recorder)) = taken else {
+        return;
+    };
     for (name, spent) in drained.unwrap_or_default() {
         recorder.add_work(name.as_str(), spent);
     }
@@ -558,7 +640,13 @@ pub fn finish(exit_code: i32) {
     let target: PathBuf = recorder.common_dir().join(ADD_TIMING_FILE);
     let line: String = recorder.line(began.elapsed(), exit_code);
     if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
-        debug(TAG, &format!("the add timing record could not be written to {}: {error}", target.display()));
+        debug(
+            TAG,
+            &format!(
+                "the add timing record could not be written to {}: {error}",
+                target.display()
+            ),
+        );
     }
 }
 

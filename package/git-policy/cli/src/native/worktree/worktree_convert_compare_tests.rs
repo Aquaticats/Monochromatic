@@ -3,10 +3,16 @@
 use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::os::unix::fs::PermissionsExt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
 
 /// How much a control extends each file per step while the comparison reads it.
 /// Why:
@@ -27,8 +33,16 @@ fn twin_trees(name: &str) -> (PathBuf, PathBuf, PathBuf) {
         std::fs::write(tree.join("dir/file"), b"same\n").expect("file");
         std::os::unix::fs::symlink("dir/file", tree.join("link")).expect("link");
     }
-    let mtime = std::fs::metadata(old.join("dir/file")).expect("metadata").modified().expect("mtime");
-    std::fs::OpenOptions::new().write(true).open(installed.join("dir/file")).expect("open").set_modified(mtime).expect("same time");
+    let mtime = std::fs::metadata(old.join("dir/file"))
+        .expect("metadata")
+        .modified()
+        .expect("mtime");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(installed.join("dir/file"))
+        .expect("open")
+        .set_modified(mtime)
+        .expect("same time");
     return (root, old, installed);
 }
 
@@ -37,9 +51,15 @@ fn twin_trees(name: &str) -> (PathBuf, PathBuf, PathBuf) {
 #[test]
 fn equal_trees_have_no_difference_and_more_in_the_installed_tree_is_fine() {
     let (root, old, installed) = twin_trees("compare-equal");
-    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None);
+    assert_eq!(
+        first_difference(old.as_path(), installed.as_path()).expect("compared"),
+        None
+    );
     std::fs::write(installed.join("added-since"), b"new\n").expect("added");
-    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None);
+    assert_eq!(
+        first_difference(old.as_path(), installed.as_path()).expect("compared"),
+        None
+    );
     remove(root.as_path());
 }
 
@@ -52,22 +72,47 @@ fn equal_trees_have_no_difference_and_more_in_the_installed_tree_is_fine() {
 fn each_kind_of_difference_is_named_and_nothing_is_changed() {
     let (root, old, installed) = twin_trees("compare-differences");
     std::fs::write(installed.join("dir/file"), b"another length\n").expect("rewrite");
-    let size = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(size.contains("dir/file") && size.contains("differs"), "{size}");
-    assert_eq!(std::fs::read(old.join("dir/file")).expect("old"), b"same\n", "the old tree is unchanged");
-    assert_eq!(std::fs::read(installed.join("dir/file")).expect("installed"), b"another length\n", "the installed tree is unchanged");
+    let size = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        size.contains("dir/file") && size.contains("differs"),
+        "{size}"
+    );
+    assert_eq!(
+        std::fs::read(old.join("dir/file")).expect("old"),
+        b"same\n",
+        "the old tree is unchanged"
+    );
+    assert_eq!(
+        std::fs::read(installed.join("dir/file")).expect("installed"),
+        b"another length\n",
+        "the installed tree is unchanged"
+    );
     std::fs::remove_file(installed.join("dir/file")).expect("remove");
-    let missing = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(missing.contains("dir/file") && missing.contains("missing"), "{missing}");
+    let missing = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        missing.contains("dir/file") && missing.contains("missing"),
+        "{missing}"
+    );
     std::fs::create_dir(installed.join("dir/file")).expect("a directory in its place");
-    let kind = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    let kind = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
     assert!(kind.contains("not the same kind"), "{kind}");
     std::fs::remove_dir(installed.join("dir/file")).expect("remove");
     std::fs::write(installed.join("dir/file"), b"same\n").expect("restore");
     std::fs::remove_file(installed.join("link")).expect("remove link");
     std::os::unix::fs::symlink("elsewhere", installed.join("link")).expect("another target");
-    let target = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(target.contains("link") && target.contains("points elsewhere"), "{target}");
+    let target = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        target.contains("link") && target.contains("points elsewhere"),
+        "{target}"
+    );
     remove(root.as_path());
 }
 
@@ -91,7 +136,8 @@ fn a_file_that_keeps_growing_does_not_hold_the_comparison_open() {
     let second_compared: PathBuf = installed.clone();
     let growing: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
     let started: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let writer: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::new(std::sync::Mutex::new(None));
+    let writer: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>> =
+        Arc::new(std::sync::Mutex::new(None));
     let stop: Arc<AtomicBool> = Arc::clone(&growing);
     let once: Arc<AtomicBool> = Arc::clone(&started);
     let spawned: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::clone(&writer);
@@ -107,8 +153,14 @@ fn a_file_that_keeps_growing_does_not_hold_the_comparison_open() {
             let first_extended: PathBuf = first_watched.clone();
             let second_extended: PathBuf = second_watched.clone();
             let handle: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-                let first: std::fs::File = std::fs::OpenOptions::new().write(true).open(first_extended.as_path()).expect("the old file");
-                let second: std::fs::File = std::fs::OpenOptions::new().write(true).open(second_extended.as_path()).expect("the installed file");
+                let first: std::fs::File = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(first_extended.as_path())
+                    .expect("the old file");
+                let second: std::fs::File = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(second_extended.as_path())
+                    .expect("the installed file");
                 let mut length: u64 = first.metadata().expect("metadata").len();
                 while stopping.load(Ordering::SeqCst) {
                     length += GROWTH_BYTES;
@@ -127,11 +179,16 @@ fn a_file_that_keeps_growing_does_not_hold_the_comparison_open() {
         return decided;
     });
     growing.store(false, Ordering::SeqCst);
-    let stopped: Option<std::thread::JoinHandle<()>> = writer.lock().expect("the slot of the writer").take();
+    let stopped: Option<std::thread::JoinHandle<()>> =
+        writer.lock().expect("the slot of the writer").take();
     if let Some(handle) = stopped {
         handle.join().expect("the writer stopped");
     }
-    let Some(outcome) = comparison else { panic!("the comparison did not finish within five seconds although the files only grew; its read has no bound") };
+    let Some(outcome) = comparison else {
+        panic!(
+            "the comparison did not finish within five seconds although the files only grew; its read has no bound"
+        )
+    };
     let difference: String = outcome.expect("compared").expect("a difference");
     assert!(difference.contains("dir/file"), "{difference}");
     remove(root.as_path());
@@ -153,10 +210,24 @@ fn a_same_size_edit_with_the_time_put_back_is_a_difference() {
     let mut edited: Vec<u8> = bytes.clone();
     edited[0] = b'D';
     std::fs::write(&file, &edited).expect("an edit of the same length");
-    std::fs::OpenOptions::new().write(true).open(&file).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
-    assert_eq!(std::fs::metadata(&file).expect("metadata").len(), before.len(), "the length is unchanged");
-    let difference: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(difference.contains("dir/file") && difference.contains("contents"), "{difference}");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file)
+        .expect("open the edited file")
+        .set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified")))
+        .expect("put the time back");
+    assert_eq!(
+        std::fs::metadata(&file).expect("metadata").len(),
+        before.len(),
+        "the length is unchanged"
+    );
+    let difference: String = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        difference.contains("dir/file") && difference.contains("contents"),
+        "{difference}"
+    );
     remove(root.as_path());
 }
 
@@ -187,19 +258,46 @@ fn a_same_size_edit_before_the_proving_pass_is_still_a_difference() {
     let mut edited: Vec<u8> = std::fs::read(&file).expect("bytes");
     edited[0] = b'D';
     std::fs::write(&file, &edited).expect("an edit of the same length");
-    std::fs::OpenOptions::new().write(true).open(&file).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file)
+        .expect("open the edited file")
+        .set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified")))
+        .expect("put the time back");
     let proved_at: i64 = crate::worktree_convert_journal::now_milliseconds() + PROOF_MARGIN_MS;
-    let difference: String = first_difference_after(old.as_path(), installed.as_path(), Some(proved_at)).expect("compared").expect("a difference");
-    assert!(difference.contains("dir/file") && difference.contains("contents"), "{difference}");
-    assert_eq!(std::fs::read(&file).expect("old"), edited, "the old tree still holds the edited bytes");
+    let difference: String =
+        first_difference_after(old.as_path(), installed.as_path(), Some(proved_at))
+            .expect("compared")
+            .expect("a difference");
+    assert!(
+        difference.contains("dir/file") && difference.contains("contents"),
+        "{difference}"
+    );
+    assert_eq!(
+        std::fs::read(&file).expect("old"),
+        edited,
+        "the old tree still holds the edited bytes"
+    );
     // An edit made after the instant the proof finished is named as one made after the proof, which is what tells a person
     // reading the report whether the copy or the edit came first.
-    let proved_before_it: i64 = crate::worktree_convert_journal::now_milliseconds() - PROOF_MARGIN_MS;
+    let proved_before_it: i64 =
+        crate::worktree_convert_journal::now_milliseconds() - PROOF_MARGIN_MS;
     edited[0] = b'E';
     std::fs::write(&file, &edited).expect("a later edit of the same length");
-    std::fs::OpenOptions::new().write(true).open(&file).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back again");
-    let later: String = first_difference_after(old.as_path(), installed.as_path(), Some(proved_before_it)).expect("compared").expect("a difference");
-    assert!(later.contains("dir/file") && later.contains("after the copy was proved"), "{later}");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file)
+        .expect("open the edited file")
+        .set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified")))
+        .expect("put the time back again");
+    let later: String =
+        first_difference_after(old.as_path(), installed.as_path(), Some(proved_before_it))
+            .expect("compared")
+            .expect("a difference");
+    assert!(
+        later.contains("dir/file") && later.contains("after the copy was proved"),
+        "{later}"
+    );
     remove(root.as_path());
 }
 
@@ -217,15 +315,23 @@ fn a_same_size_edit_before_the_proving_pass_is_still_a_difference() {
 fn a_stage_container_of_another_command_is_not_a_difference() {
     let (root, old, installed) = twin_trees("compare-stage-container");
     for tree in [&old, &installed] {
-        std::fs::create_dir_all(tree.join(".claude/worktrees")).expect("the folder the stages live in");
+        std::fs::create_dir_all(tree.join(".claude/worktrees"))
+            .expect("the folder the stages live in");
     }
-    let container: PathBuf = old.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
+    let container: PathBuf = old
+        .join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload");
     std::fs::create_dir_all(&container).expect("the stage container");
     std::fs::write(container.join("credentials"), b"token\n").expect("its payload");
-    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "another command's stage container is not the old tree's state");
+    assert_eq!(
+        first_difference(old.as_path(), installed.as_path()).expect("compared"),
+        None,
+        "another command's stage container is not the old tree's state"
+    );
     let lookalike: PathBuf = old.join("cli-git-worktree-copy-notes.md");
     std::fs::write(&lookalike, b"notes\n").expect("a file whose name merely holds the prefix");
-    let found: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
+    let found: String = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
     assert!(found.contains("cli-git-worktree-copy-notes.md"), "{found}");
     remove(root.as_path());
 }
@@ -243,15 +349,31 @@ fn a_stage_container_of_another_command_is_not_a_difference() {
 fn a_prefix_named_file_is_a_difference_and_an_emptied_stage_folder_is_not() {
     let (root, old, installed) = twin_trees("compare-prefixed-file");
     let notes: PathBuf = old.join(".cli-git-worktree-copy-user-notes");
-    std::fs::write(notes.as_path(), b"the person's notes\n").expect("a file whose name begins the prefix");
-    let found: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(found.contains(".cli-git-worktree-copy-user-notes"), "{found}");
+    std::fs::write(notes.as_path(), b"the person's notes\n")
+        .expect("a file whose name begins the prefix");
+    let found: String = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        found.contains(".cli-git-worktree-copy-user-notes"),
+        "{found}"
+    );
     std::fs::remove_file(notes.as_path()).expect("drop the file");
-    let container: PathBuf = old.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    let container: PathBuf =
+        old.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
     std::fs::create_dir_all(container.join("payload")).expect("the stage container");
-    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "a container no copy carries is not a difference");
-    std::fs::remove_dir_all(container.as_path()).expect("the other command removes only its container");
-    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "the folder it emptied carries nothing a copy would have carried");
+    assert_eq!(
+        first_difference(old.as_path(), installed.as_path()).expect("compared"),
+        None,
+        "a container no copy carries is not a difference"
+    );
+    std::fs::remove_dir_all(container.as_path())
+        .expect("the other command removes only its container");
+    assert_eq!(
+        first_difference(old.as_path(), installed.as_path()).expect("compared"),
+        None,
+        "the folder it emptied carries nothing a copy would have carried"
+    );
     remove(root.as_path());
 }
 
@@ -264,9 +386,15 @@ fn a_prefix_named_file_is_a_difference_and_an_emptied_stage_folder_is_not() {
 #[test]
 fn a_mode_change_of_the_old_root_is_a_difference() {
     let (root, old, installed) = twin_trees("compare-root-mode");
-    std::fs::set_permissions(old.as_path(), std::fs::Permissions::from_mode(0o700)).expect("a narrowed old root");
-    let difference: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(difference.contains("the old tree itself") && difference.contains("permission bits"), "{difference}");
+    std::fs::set_permissions(old.as_path(), std::fs::Permissions::from_mode(0o700))
+        .expect("a narrowed old root");
+    let difference: String = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        difference.contains("the old tree itself") && difference.contains("permission bits"),
+        "{difference}"
+    );
     remove(root.as_path());
 }
 
@@ -282,10 +410,17 @@ fn a_mode_change_of_the_old_root_is_a_difference() {
 #[test]
 fn a_mode_change_of_a_named_pipe_is_a_difference() {
     let (root, old, installed) = twin_trees("compare-fifo-mode");
-    crate::subvolume_sync_attrs::make_fifo(old.join("queue").as_path(), 0o600).expect("the old queue");
-    crate::subvolume_sync_attrs::make_fifo(installed.join("queue").as_path(), 0o644).expect("the installed queue");
-    let difference: String = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(difference.contains("queue") && difference.contains("permission bits"), "{difference}");
+    crate::subvolume_sync_attrs::make_fifo(old.join("queue").as_path(), 0o600)
+        .expect("the old queue");
+    crate::subvolume_sync_attrs::make_fifo(installed.join("queue").as_path(), 0o644)
+        .expect("the installed queue");
+    let difference: String = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        difference.contains("queue") && difference.contains("permission bits"),
+        "{difference}"
+    );
     remove(root.as_path());
 }
 
@@ -320,7 +455,9 @@ fn a_named_pipe_planted_before_the_contents_are_read_does_not_block_the_comparis
         watch_contents_open(None);
         return decided;
     });
-    let Some(outcome) = comparison else { panic!("the comparison did not finish within five seconds") };
+    let Some(outcome) = comparison else {
+        panic!("the comparison did not finish within five seconds")
+    };
     let error: std::io::Error = outcome.expect_err("the comparison reports what it cannot read");
     assert!(error.to_string().contains("not a plain file"), "{error}");
     remove(root.as_path());
@@ -340,10 +477,19 @@ fn a_named_pipe_planted_before_the_contents_are_read_does_not_block_the_comparis
 /// ```
 fn give_user_attribute(path: &Path) -> bool {
     let name = std::ffi::CString::new("user.cli-git-control").expect("a name without NUL");
-    let text = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let text =
+        std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without NUL");
     let value: &[u8] = b"only in the old tree";
     // SAFETY: both strings are NUL-terminated and outlive the call, and `value` is readable for its own length.
-    let result: libc::c_int = unsafe { libc::lsetxattr(text.as_ptr(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+    let result: libc::c_int = unsafe {
+        libc::lsetxattr(
+            text.as_ptr(),
+            name.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+        )
+    };
     return result == 0;
 }
 
@@ -363,24 +509,54 @@ fn running_as_root() -> bool {
 fn a_change_of_the_mode_an_owner_or_an_attribute_is_a_difference() {
     let (root, old, installed) = twin_trees("compare-attributes");
     let file: PathBuf = old.join("dir/file");
-    let original: std::fs::Permissions = std::fs::metadata(installed.join("dir/file")).expect("installed").permissions();
-    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).expect("a narrowed file");
-    let bits = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(bits.contains("dir/file") && bits.contains("permission bits"), "{bits}");
+    let original: std::fs::Permissions = std::fs::metadata(installed.join("dir/file"))
+        .expect("installed")
+        .permissions();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600))
+        .expect("a narrowed file");
+    let bits = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        bits.contains("dir/file") && bits.contains("permission bits"),
+        "{bits}"
+    );
     std::fs::set_permissions(&file, original).expect("the same bits again");
-    assert_eq!(first_difference(old.as_path(), installed.as_path()).expect("compared"), None, "the control can report no difference");
-    std::fs::set_permissions(old.join("dir"), std::fs::Permissions::from_mode(0o700)).expect("a narrowed directory");
-    let directory = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(directory.contains("dir differs") && directory.contains("permission bits"), "{directory}");
-    std::fs::set_permissions(old.join("dir"), std::fs::Permissions::from_mode(0o755)).expect("the same bits again");
+    assert_eq!(
+        first_difference(old.as_path(), installed.as_path()).expect("compared"),
+        None,
+        "the control can report no difference"
+    );
+    std::fs::set_permissions(old.join("dir"), std::fs::Permissions::from_mode(0o700))
+        .expect("a narrowed directory");
+    let directory = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        directory.contains("dir differs") && directory.contains("permission bits"),
+        "{directory}"
+    );
+    std::fs::set_permissions(old.join("dir"), std::fs::Permissions::from_mode(0o755))
+        .expect("the same bits again");
     if !give_user_attribute(&file) {
-        eprintln!("XATTR CONTROL NOT RUN: a_change_of_the_mode_an_owner_or_an_attribute_is_a_difference (the filesystem took no user attribute)");
+        eprintln!(
+            "XATTR CONTROL NOT RUN: a_change_of_the_mode_an_owner_or_an_attribute_is_a_difference (the filesystem took no user attribute)"
+        );
         remove(root.as_path());
         return;
     }
-    let attribute = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(attribute.contains("dir/file") && attribute.contains("extended attributes"), "{attribute}");
-    assert_eq!(std::fs::read(installed.join("dir/file")).expect("installed"), b"same\n", "the installed tree is unchanged");
+    let attribute = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        attribute.contains("dir/file") && attribute.contains("extended attributes"),
+        "{attribute}"
+    );
+    assert_eq!(
+        std::fs::read(installed.join("dir/file")).expect("installed"),
+        b"same\n",
+        "the installed tree is unchanged"
+    );
     remove(root.as_path());
 }
 
@@ -390,17 +566,25 @@ fn a_change_of_the_mode_an_owner_or_an_attribute_is_a_difference() {
 #[test]
 fn an_owner_change_is_a_difference() {
     if !running_as_root() {
-        eprintln!("OWNER CONTROL NOT RUN: an_owner_change_is_a_difference (giving a file another owner needs root)");
+        eprintln!(
+            "OWNER CONTROL NOT RUN: an_owner_change_is_a_difference (giving a file another owner needs root)"
+        );
         return;
     }
     let (root, old, installed) = twin_trees("compare-owner");
     let file: PathBuf = old.join("dir/file");
-    let name = std::ffi::CString::new(file.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let name =
+        std::ffi::CString::new(file.as_os_str().as_encoded_bytes()).expect("a path without NUL");
     // SAFETY: `name` is NUL-terminated and outlives the call.
     let result: libc::c_int = unsafe { libc::lchown(name.as_ptr(), 65534, 65534) };
     assert_eq!(result, 0, "give the old tree's file another owner");
-    let found = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(found.contains("dir/file") && found.contains("owner or group"), "{found}");
+    let found = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        found.contains("dir/file") && found.contains("owner or group"),
+        "{found}"
+    );
     remove(root.as_path());
 }
 
@@ -408,13 +592,22 @@ fn an_owner_change_is_a_difference() {
 /// so the old tree is kept with the path.
 #[test]
 fn btrfs_a_nested_subvolume_is_named_as_not_deleted() {
-    let Some(base) = btrfs_fixture("compare-nested") else { return };
+    let Some(base) = btrfs_fixture("compare-nested") else {
+        return;
+    };
     let old: PathBuf = base.join("old");
     let installed: PathBuf = base.join("installed");
     std::fs::create_dir_all(&old).expect("old");
     std::fs::create_dir_all(installed.join("inner")).expect("installed");
     subvolume_create_at(old.join("inner").as_path()).expect("nested subvolume");
-    let found = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
-    assert!(found.contains("inner") && found.contains("subvolume or a mount point") && found.contains("does not delete"), "{found}");
+    let found = first_difference(old.as_path(), installed.as_path())
+        .expect("compared")
+        .expect("a difference");
+    assert!(
+        found.contains("inner")
+            && found.contains("subvolume or a mount point")
+            && found.contains("does not delete"),
+        "{found}"
+    );
     remove(base.as_path());
 }

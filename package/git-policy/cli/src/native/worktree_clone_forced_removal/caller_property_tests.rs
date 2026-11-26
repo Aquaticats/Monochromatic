@@ -9,7 +9,8 @@ use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 /// One identity a control writes and reads.
 fn an_identity() -> CallerIdentity {
     return CallerIdentity {
-        nonce: RequestNonce::parse("0123456789abcdef0123456789abcdef").expect("32 lowercase hex digits"),
+        nonce: RequestNonce::parse("0123456789abcdef0123456789abcdef")
+            .expect("32 lowercase hex digits"),
         pid: 4242,
         started: 8123,
         parent: 4000,
@@ -35,27 +36,40 @@ fn a_written_value_reads_back_as_the_same_identity() {
 /// and a value longer than the grammar admits is refused before it is split.
 #[test]
 fn each_fault_is_its_own_refusal() {
-    assert!(matches!(parse_caller_property("v2:1:2:3:4:5:x"), Err(CallerPropertyRefusal::Version { .. })));
+    assert!(matches!(
+        parse_caller_property("v2:1:2:3:4:5:x"),
+        Err(CallerPropertyRefusal::Version { .. })
+    ));
     assert_eq!(
         parse_caller_property("v1:0123456789abcdef0123456789abcdef:4242"),
-        Err(CallerPropertyRefusal::Fields { found: 3 })
+        Err(CallerPropertyRefusal::Fields {
+            found: 3
+        })
     );
     assert!(matches!(
-        parse_caller_property("v1:0123456789abcdef0123456789abcdef:pid:8123:4000:8000:6f0f1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b"),
-        Err(CallerPropertyRefusal::Number { field: "pid" })
+        parse_caller_property(
+            "v1:0123456789abcdef0123456789abcdef:pid:8123:4000:8000:6f0f1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b"
+        ),
+        Err(CallerPropertyRefusal::Number {
+            field: "pid"
+        })
     ));
     assert!(matches!(
         parse_caller_property("v1:0123456789abcdef0123456789abcdef:4242:8123:4000:8000:not-a-boot"),
         Err(CallerPropertyRefusal::Boot)
     ));
     assert!(matches!(
-        parse_caller_property("v1:not-a-nonce:4242:8123:4000:8000:6f0f1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b"),
+        parse_caller_property(
+            "v1:not-a-nonce:4242:8123:4000:8000:6f0f1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b"
+        ),
         Err(CallerPropertyRefusal::Nonce(_))
     ));
     let too_long: String = "v".repeat(MAXIMUM_CALLER_PROPERTY_BYTES + 1);
     assert_eq!(
         parse_caller_property(too_long.as_str()),
-        Err(CallerPropertyRefusal::TooLong { found: MAXIMUM_CALLER_PROPERTY_BYTES + 1 })
+        Err(CallerPropertyRefusal::TooLong {
+            found: MAXIMUM_CALLER_PROPERTY_BYTES + 1
+        })
     );
 }
 
@@ -63,16 +77,34 @@ fn each_fault_is_its_own_refusal() {
 /// and it reads back as the same nonce.
 #[test]
 fn the_force_word_carries_the_nonce_alone() {
-    let nonce: RequestNonce = RequestNonce::parse("fedcba9876543210fedcba9876543210").expect("a nonce");
+    let nonce: RequestNonce =
+        RequestNonce::parse("fedcba9876543210fedcba9876543210").expect("a nonce");
     let value: String = force_property_value(&nonce);
     assert_eq!(value, "v1:fedcba9876543210fedcba9876543210");
     assert_eq!(parse_force_property(value.as_str()), Ok(nonce));
-    assert!(matches!(parse_force_property("v1:one:two"), Err(ForceWordRefusal::Fields { found: 3 })));
-    assert!(matches!(parse_force_property("v1:fedcba9876543210fedcba9876543210:extra"), Err(ForceWordRefusal::TooLong { .. })));
-    assert!(matches!(parse_force_property("v2:fedcba9876543210fedcba9876543210"), Err(ForceWordRefusal::Version { .. })));
-    assert!(matches!(parse_force_property("v1:not-a-nonce"), Err(ForceWordRefusal::Nonce(_))));
+    assert!(matches!(
+        parse_force_property("v1:one:two"),
+        Err(ForceWordRefusal::Fields {
+            found: 3
+        })
+    ));
+    assert!(matches!(
+        parse_force_property("v1:fedcba9876543210fedcba9876543210:extra"),
+        Err(ForceWordRefusal::TooLong { .. })
+    ));
+    assert!(matches!(
+        parse_force_property("v2:fedcba9876543210fedcba9876543210"),
+        Err(ForceWordRefusal::Version { .. })
+    ));
+    assert!(matches!(
+        parse_force_property("v1:not-a-nonce"),
+        Err(ForceWordRefusal::Nonce(_))
+    ));
     let too_long: String = "v".repeat(MAXIMUM_FORCE_PROPERTY_BYTES + 1);
-    assert!(matches!(parse_force_property(too_long.as_str()), Err(ForceWordRefusal::TooLong { .. })));
+    assert!(matches!(
+        parse_force_property(too_long.as_str()),
+        Err(ForceWordRefusal::TooLong { .. })
+    ));
 }
 
 /// The boot shape is the kernel's own,

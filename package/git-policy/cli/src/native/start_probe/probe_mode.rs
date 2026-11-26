@@ -30,18 +30,66 @@
 //! const line = new ProbeMode(place, configuration).run(); // writes result and returns one line
 //! ```
 
-use super::probe_deadline::{deadline_from_environment, deadline_passed, remaining};
-use super::probe_mode_words::{namespace_of, refusal_sentence, refusal_word, skip_after_gate_refusal, source_of, source_refusal_word, unstarted, verdict_line};
-use super::probe_test_switch::{TestSwitch, keep_descriptor_from_environment, test_switch_from_environment};
-use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
-use super::probe_holder_control::{Arrival, Holder, reports_of};
-use super::probe_pipe_lines::{set_nonblocking, write_all};
-use super::probe_processes::{Exit, fork, kill_process, kill_process_group, pid_descriptor, pipe_pair, poll_descriptors, raw, reap_now, set_process_group};
-use super::probe_record::{ProbeRecord, started_text};
-use super::probe_record_files::{RecordFileRefusal, RecordPlace};
-use super::probe_report::{ChildEnding, ProbeReport, ProbeVerdict};
+use super::probe_deadline::{
+    deadline_from_environment,
+    deadline_passed,
+    remaining,
+};
+use super::probe_fingerprint::{
+    FingerprintPaths,
+    ProbeFingerprint,
+};
+use super::probe_holder_control::{
+    Arrival,
+    Holder,
+    reports_of,
+};
+use super::probe_mode_words::{
+    namespace_of,
+    refusal_sentence,
+    refusal_word,
+    skip_after_gate_refusal,
+    source_of,
+    source_refusal_word,
+    unstarted,
+    verdict_line,
+};
+use super::probe_pipe_lines::{
+    set_nonblocking,
+    write_all,
+};
+use super::probe_processes::{
+    Exit,
+    fork,
+    kill_process,
+    kill_process_group,
+    pid_descriptor,
+    pipe_pair,
+    poll_descriptors,
+    raw,
+    reap_now,
+    set_process_group,
+};
+use super::probe_record::{
+    ProbeRecord,
+    started_text,
+};
+use super::probe_record_files::{
+    RecordFileRefusal,
+    RecordPlace,
+};
+use super::probe_report::{
+    ChildEnding,
+    ProbeReport,
+    ProbeVerdict,
+};
 use super::probe_status_drain::drain_status;
 use super::probe_status_line::LineFeed;
+use super::probe_test_switch::{
+    TestSwitch,
+    keep_descriptor_from_environment,
+    test_switch_from_environment,
+};
 use std::os::fd::OwnedFd;
 use std::path::Path;
 use std::time::Instant;
@@ -78,8 +126,14 @@ pub struct ProbeMode<'a> {
 
 impl<'a> ProbeMode<'a> {
     /// The mode over one place and one configuration.
-    pub fn new(place: &'a RecordPlace, configuration: &'a Path) -> Self {
-        return ProbeMode { place, configuration };
+    pub fn new(
+        place: &'a RecordPlace,
+        configuration: &'a Path,
+    ) -> Self {
+        return ProbeMode {
+            place,
+            configuration,
+        };
     }
 
     /// Run the probe against this machine's own kernel files.
@@ -94,17 +148,27 @@ impl<'a> ProbeMode<'a> {
     ///
     /// # Errors
     /// The fingerprint could not be read or the record could not be written.
-    pub fn run_with(&self, paths: &FingerprintPaths) -> Result<String, String> {
+    pub fn run_with(
+        &self,
+        paths: &FingerprintPaths,
+    ) -> Result<String, String> {
         let switch: TestSwitch = test_switch_from_environment();
         if switch == TestSwitch::Disabled {
             return skip_after_gate_refusal(self.place, paths, "test-switch");
         }
-        let fingerprint: ProbeFingerprint = ProbeFingerprint::read(paths).map_err(|refusal| return refusal.message())?;
-        self.place.prepare().map_err(|refusal: RecordFileRefusal| return refusal.message())?;
+        let fingerprint: ProbeFingerprint =
+            ProbeFingerprint::read(paths).map_err(|refusal| return refusal.message())?;
+        self.place
+            .prepare()
+            .map_err(|refusal: RecordFileRefusal| return refusal.message())?;
         let time: String = crate::iso_time::now_iso();
-        self.place.publish(started_text(&fingerprint, time.as_str()).as_str()).map_err(|refusal| return refusal.message())?;
+        self.place
+            .publish(started_text(&fingerprint, time.as_str()).as_str())
+            .map_err(|refusal| return refusal.message())?;
         let hold: Option<super::probe_arms::ProbeStep> = match switch {
-            TestSwitch::Hold { step } => Some(step),
+            TestSwitch::Hold {
+                step,
+            } => Some(step),
             TestSwitch::None | TestSwitch::Disabled => None,
         };
         return self.supervise(&fingerprint, time.as_str(), hold);
@@ -113,31 +177,37 @@ impl<'a> ProbeMode<'a> {
     /// Fork the worker and the holder,
     /// wait for the worker within the deadline,
     /// and write the finished record.
-    fn supervise(&self, fingerprint: &ProbeFingerprint, time: &str, hold: Option<super::probe_arms::ProbeStep>) -> Result<String, String> {
+    fn supervise(
+        &self,
+        fingerprint: &ProbeFingerprint,
+        time: &str,
+        hold: Option<super::probe_arms::ProbeStep>,
+    ) -> Result<String, String> {
         let deadline: std::time::Duration = deadline_from_environment();
         let keep_descriptor: bool = keep_descriptor_from_environment();
         let request = pipe_pair().map_err(|error| return unstarted("request pipe", error.errno))?;
         let reply = pipe_pair().map_err(|error| return unstarted("reply pipe", error.errno))?;
         let status = pipe_pair().map_err(|error| return unstarted("status pipe", error.errno))?;
         let started: Instant = Instant::now();
-        let worker: libc::pid_t = match fork().map_err(|error| return unstarted("worker", error.errno))? {
-            Some(pid) => pid,
-            None => {
-                let start = super::probe_worker::WorkerStart {
-                    place: self.place,
-                    configuration: self.configuration,
-                    request: raw(&request.write),
-                    reply: raw(&reply.read),
-                    status: raw(&status.write),
-                    hold,
-                    keep_descriptor,
-                };
-                drop(request.read);
-                drop(reply.write);
-                drop(status.read);
-                super::probe_worker::run(&start);
-            }
-        };
+        let worker: libc::pid_t =
+            match fork().map_err(|error| return unstarted("worker", error.errno))? {
+                Some(pid) => pid,
+                None => {
+                    let start = super::probe_worker::WorkerStart {
+                        place: self.place,
+                        configuration: self.configuration,
+                        request: raw(&request.write),
+                        reply: raw(&reply.read),
+                        status: raw(&status.write),
+                        hold,
+                        keep_descriptor,
+                    };
+                    drop(request.read);
+                    drop(reply.write);
+                    drop(status.read);
+                    super::probe_worker::run(&start);
+                }
+            };
         let _ = set_process_group(worker);
         let mut worker_namespace: Option<String> = None;
         drop(request.write);
@@ -152,7 +222,8 @@ impl<'a> ProbeMode<'a> {
         let mut holder_feed: LineFeed = LineFeed::new();
         let _ = set_nonblocking(raw(&status.read));
         let _ = set_nonblocking(raw(&request.read));
-        let pidfd = pid_descriptor(worker).map_err(|error| return unstarted("worker watch", error.errno))?;
+        let pidfd = pid_descriptor(worker)
+            .map_err(|error| return unstarted("worker watch", error.errno))?;
         let mut timed_out: bool = false;
         loop {
             if deadline_passed(started, Instant::now(), deadline) {
@@ -160,38 +231,79 @@ impl<'a> ProbeMode<'a> {
                 break;
             }
             let mut watched: Vec<libc::pollfd> = vec![
-                libc::pollfd { fd: raw(&status.read), events: libc::POLLIN, revents: 0 },
-                libc::pollfd { fd: raw(&request.read), events: libc::POLLIN, revents: 0 },
-                libc::pollfd { fd: raw(&pidfd), events: libc::POLLIN, revents: 0 },
+                libc::pollfd {
+                    fd: raw(&status.read),
+                    events: libc::POLLIN,
+                    revents: 0,
+                },
+                libc::pollfd {
+                    fd: raw(&request.read),
+                    events: libc::POLLIN,
+                    revents: 0,
+                },
+                libc::pollfd {
+                    fd: raw(&pidfd),
+                    events: libc::POLLIN,
+                    revents: 0,
+                },
             ];
             if let Some(held) = holder.as_ref() {
-                watched.push(libc::pollfd { fd: reports_of(held), events: libc::POLLIN, revents: 0 });
+                watched.push(libc::pollfd {
+                    fd: reports_of(held),
+                    events: libc::POLLIN,
+                    revents: 0,
+                });
             }
-            match poll_descriptors(watched.as_mut_slice(), remaining(started, Instant::now(), deadline)) {
+            match poll_descriptors(
+                watched.as_mut_slice(),
+                remaining(started, Instant::now(), deadline),
+            ) {
                 Ok(0) => continue,
                 Ok(_) => {}
                 Err(_) => continue,
             }
-            if watched.first().is_some_and(|entry| return entry.revents != 0) {
+            if watched
+                .first()
+                .is_some_and(|entry| return entry.revents != 0)
+            {
                 let _ = drain_status(raw(&status.read), &mut feed, &mut report);
             }
-            if worker_namespace.is_none() && report.lines().iter().any(|line| return line.step == super::probe_arms::ProbeStep::Unshare) {
+            if worker_namespace.is_none()
+                && report
+                    .lines()
+                    .iter()
+                    .any(|line| return line.step == super::probe_arms::ProbeStep::Unshare)
+            {
                 worker_namespace = namespace_of(worker);
             }
-            if watched.get(1).is_some_and(|entry| return entry.revents != 0) && awaiting.is_none() {
+            if watched
+                .get(1)
+                .is_some_and(|entry| return entry.revents != 0)
+                && awaiting.is_none()
+            {
                 let mut byte: [u8; 1] = [0];
-                if let Ok(super::probe_pipe_lines::ReadSome::Bytes(_)) = super::probe_pipe_lines::read_available(raw(&request.read), byte.as_mut_slice()) {
+                if let Ok(super::probe_pipe_lines::ReadSome::Bytes(_)) =
+                    super::probe_pipe_lines::read_available(raw(&request.read), byte.as_mut_slice())
+                {
                     awaiting = Some(byte[0]);
                 }
             }
-            if watched.get(3).is_some_and(|entry| return entry.revents != 0) && let Some(held) = holder.as_mut() {
+            if watched
+                .get(3)
+                .is_some_and(|entry| return entry.revents != 0)
+                && let Some(held) = holder.as_mut()
+            {
                 {
                     match held.drain(&mut holder_feed, &mut report) {
-                        Arrival::Attach { passed } => {
+                        Arrival::Attach {
+                            passed,
+                        } => {
                             holder_namespace = held.namespace();
                             if awaiting == Some(START_HOLDER) {
                                 let answer: String = match (passed, holder_namespace.as_deref()) {
-                                    (true, Some(namespace)) => format!("{HOLDER_DONE} {namespace}\n"),
+                                    (true, Some(namespace)) => {
+                                        format!("{HOLDER_DONE} {namespace}\n")
+                                    }
                                     _ => format!("{HOLDER_FAILED}\n"),
                                 };
                                 let _ = write_all(raw(&reply_fd), answer.as_bytes());
@@ -200,7 +312,10 @@ impl<'a> ProbeMode<'a> {
                         }
                         Arrival::Gone => {
                             if awaiting == Some(START_HOLDER) {
-                                let _ = write_all(raw(&reply_fd), format!("{HOLDER_FAILED}\n").as_bytes());
+                                let _ = write_all(
+                                    raw(&reply_fd),
+                                    format!("{HOLDER_FAILED}\n").as_bytes(),
+                                );
                                 awaiting = None;
                             }
                             holder = None;
@@ -231,7 +346,10 @@ impl<'a> ProbeMode<'a> {
                     awaiting = None;
                 }
             }
-            if watched.get(2).is_some_and(|entry| return entry.revents != 0) {
+            if watched
+                .get(2)
+                .is_some_and(|entry| return entry.revents != 0)
+            {
                 break;
             }
         }
@@ -245,11 +363,23 @@ impl<'a> ProbeMode<'a> {
         }
         let _ = drain_status(raw(&status.read), &mut feed, &mut report);
         let verdict: ProbeVerdict = if timed_out {
-            ProbeVerdict::TimedOut { in_flight: report.in_flight(), last_finished: report.last_finished() }
+            ProbeVerdict::TimedOut {
+                in_flight: report.in_flight(),
+                last_finished: report.last_finished(),
+            }
         } else {
-            if !report.stopped_on_purpose() && report.lines().iter().all(|line| return line.step != super::probe_arms::ProbeStep::Teardown) {
+            if !report.stopped_on_purpose()
+                && report
+                    .lines()
+                    .iter()
+                    .all(|line| return line.step != super::probe_arms::ProbeStep::Teardown)
+            {
                 report.finish_with(match ending {
-                    Exit::Signaled { signal } => ChildEnding::Signal { number: signal },
+                    Exit::Signaled {
+                        signal,
+                    } => ChildEnding::Signal {
+                        number: signal,
+                    },
                     _ => ChildEnding::NoStatusLine,
                 });
             }
@@ -267,13 +397,19 @@ impl<'a> ProbeMode<'a> {
             holder_namespace: holder_namespace.as_deref(),
             skip_reason: None,
         };
-        self.place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
+        self.place
+            .publish(record.text().as_str())
+            .map_err(|refusal| return refusal.message())?;
         let line: String = verdict_line(verdict, &report);
         // A refusal about the configuration file gets its sentence in the mode as well: the record keeps closed words,
         // and a person reads what the file, the table or the setup command needs (the project's second and fourth
         // answers of 2026-11-22).
         if let Some(word) = refusal_word(&report)
-            && let Some(sentence) = refusal_sentence(word, self.configuration, &crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets)
+            && let Some(sentence) = refusal_sentence(
+                word,
+                self.configuration,
+                &crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets,
+            )
         {
             return Ok(format!("{line}\n{sentence}"));
         }

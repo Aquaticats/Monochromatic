@@ -17,23 +17,48 @@
 
 use crate::capture_invocation::InvocationCapture;
 use crate::command_commit::CommitRegion;
-use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_conclusion::events_with_summary;
-use crate::commit_no_change::{NO_CHANGE_CODE, NO_CHANGE_CORE_ID, no_change_message};
+use crate::commit_no_change::{
+    NO_CHANGE_CODE,
+    NO_CHANGE_CORE_ID,
+    no_change_message,
+};
 use crate::commit_transaction::{
-    CommitInvocation, TransactionResult, TransactionStop, failed,
+    CommitInvocation,
+    TransactionResult,
+    TransactionStop,
+    failed,
 };
 use crate::config_snapshot::ConfigSnapshot;
 use crate::policy_events::PolicyEvent;
+use crate::private_index_request::{
+    CaptureIndexes,
+    indexed_request,
+};
 use crate::private_storage::write_private_file;
-use crate::service_land_follow::{IndexPaths, update_index};
-use crate::service_protocol::{ALLOWED_MODES, Change, MAX_CHANGES, is_object_name, is_plain_path};
-use crate::transaction_git::{GitContext, run_git_checked};
-use std::ffi::OsString;
+use crate::service_land_follow::{
+    IndexPaths,
+    update_index,
+};
+use crate::service_prepare_ready_shapes::Prepared;
+use crate::service_protocol::{
+    ALLOWED_MODES,
+    Change,
+    MAX_CHANGES,
+    is_object_name,
+    is_plain_path,
+};
+use crate::transaction_git::{
+    GitContext,
+    run_git_checked,
+};
 use crate::transaction_journal::AddedPath;
 use crate::worktree_completion::install_added_worktree_files;
-use std::path::{Path, PathBuf};
-use crate::service_prepare_ready_shapes::Prepared;
+use std::ffi::OsString;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The all-zero object name of the repository's hash length,
 /// standing for a branch that does not exist yet.
@@ -47,27 +72,70 @@ pub fn zero_object(empty_tree: &str) -> String {
 /// deletions as no object.
 /// Nothing when the
 ///  embedded route cannot carry them.
-pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base: &str) -> Result<Option<Vec<Change>>, TransactionStop> {
-    let arguments: Vec<String> = ["diff-index", "--cached", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", base].map(String::from).to_vec();
+pub fn changes_of(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    base: &str,
+) -> Result<Option<Vec<Change>>, TransactionStop> {
+    let arguments: Vec<String> = [
+        "diff-index",
+        "--cached",
+        "-r",
+        "--raw",
+        "-z",
+        "--no-renames",
+        "--no-abbrev",
+        base,
+    ]
+    .map(String::from)
+    .to_vec();
     let output = run_git_checked(
         context,
-        &indexed_request(context, cwd, &arguments, Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
+        &indexed_request(
+            context,
+            cwd,
+            &arguments,
+            Some(indexes.commit_index.as_path()),
+            Some(indexes.object_directory.as_path()),
+        ),
     )?;
     // The listing is read as the bytes Git wrote: the header is text, and the name after it is a name and not text.
     let mut fields = output.stdout.split(ends_a_field).filter(is_not_empty_field);
     let mut changes: Vec<Change> = Vec::new();
     while let Some(raw_header) = fields.next() {
-        let Some(named) = fields.next() else { return Ok(None) };
-        let Ok(header) = std::str::from_utf8(raw_header) else { return Ok(None) };
+        let Some(named) = fields.next() else {
+            return Ok(None);
+        };
+        let Ok(header) = std::str::from_utf8(raw_header) else {
+            return Ok(None);
+        };
         let parts: Vec<&str> = header.trim_start_matches(':').split(' ').collect();
-        let [_, new_mode, _, new_name, status] = parts.as_slice() else { return Ok(None) };
+        let [_, new_mode, _, new_name, status] = parts.as_slice() else {
+            return Ok(None);
+        };
         let deletion: bool = status.starts_with('D');
-        let mode: u32 = if deletion { ALLOWED_MODES[0] } else { u32::from_str_radix(new_mode, 8).unwrap_or(0) };
+        let mode: u32 = if deletion {
+            ALLOWED_MODES[0]
+        } else {
+            u32::from_str_radix(new_mode, 8).unwrap_or(0)
+        };
         let path: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(named));
-        if !is_plain_path(path.as_path()) || !ALLOWED_MODES.contains(&mode) || (!deletion && !is_object_name(new_name)) {
+        if !is_plain_path(path.as_path())
+            || !ALLOWED_MODES.contains(&mode)
+            || (!deletion && !is_object_name(new_name))
+        {
             return Ok(None);
         }
-        changes.push(Change { path, mode, blob: if deletion { None } else { Some((*new_name).to_string()) } });
+        changes.push(Change {
+            path,
+            mode,
+            blob: if deletion {
+                None
+            } else {
+                Some((*new_name).to_string())
+            },
+        });
         if changes.len() > MAX_CHANGES {
             return Ok(None);
         }
@@ -155,10 +223,19 @@ pub fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
 /// ```ts
 /// pathspecFileFor(scratch, cwd, source, stdinBytes)
 /// ```
-pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&Path>, standard_input: Option<&[u8]>) -> std::io::Result<Option<PathBuf>> {
+pub(crate) fn pathspec_file_for(
+    scratch: &Path,
+    cwd: &Path,
+    source: Option<&Path>,
+    standard_input: Option<&[u8]>,
+) -> std::io::Result<Option<PathBuf>> {
     let Some(named) = source else { return Ok(None) };
     if named.as_os_str() != "-" {
-        return Ok(Some(if named.is_absolute() { named.to_path_buf() } else { cwd.join(named) }));
+        return Ok(Some(if named.is_absolute() {
+            named.to_path_buf()
+        } else {
+            cwd.join(named)
+        }));
     }
     let snapshot: PathBuf = scratch.join(crate::commit_index::PATHSPEC_INPUT_NAME);
     write_private_file(snapshot.as_path(), standard_input.unwrap_or_default())?;
@@ -176,7 +253,10 @@ pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&Path
 /// ```ts
 /// const name = pathOf(valueBytes(arguments, value))
 /// ```
-fn names_a_file(arguments: &[OsString], value: crate::command_options::OptionValue) -> PathBuf {
+fn names_a_file(
+    arguments: &[OsString],
+    value: crate::command_options::OptionValue,
+) -> PathBuf {
     let bytes: &[u8] = crate::command_options_query::value_bytes(arguments, value);
     return PathBuf::from(crate::path_bytes::os_from_path_bytes(bytes));
 }
@@ -211,7 +291,9 @@ pub(crate) fn the_pathspec_file(
     }
     return match pathspec_file_for(scratch, cwd, source.as_deref(), standard_input) {
         Ok(made) => Ok(made),
-        Err(error) => Err(crate::commit_transaction::failed(format!("reading the pathspec file failed: {error}"))),
+        Err(error) => Err(crate::commit_transaction::failed(format!(
+            "reading the pathspec file failed: {error}"
+        ))),
     };
 }
 
@@ -228,8 +310,17 @@ pub(crate) fn normalized(
     settled: &(Vec<PolicyEvent>, u64, Vec<Vec<u8>>),
 ) -> Result<Prepared, TransactionStop> {
     let (events, passes, changed_paths) = settled;
-    if let Err(code) = update_index(invocation.context, capture.layout.repository_root.as_path(), capture.layout.real_index_path.as_path(), base, IndexPaths::Named(committed)) {
-        return Err(failed(format!("the index could not be reconciled with the corrected files: {}", code.word())));
+    if let Err(code) = update_index(
+        invocation.context,
+        capture.layout.repository_root.as_path(),
+        capture.layout.real_index_path.as_path(),
+        base,
+        IndexPaths::Named(committed),
+    ) {
+        return Err(failed(format!(
+            "the index could not be reconciled with the corrected files: {}",
+            code.word()
+        )));
     }
     let completion = match install_added_worktree_files(
         invocation.context,
@@ -241,13 +332,19 @@ pub(crate) fn normalized(
         Ok(done) => done,
         Err(error) => return Err(TransactionStop::Message(error.0)),
     };
-    let mut summary: Vec<PolicyEvent> = events_with_summary(events.clone(), *passes, changed_paths.as_slice());
+    let mut summary: Vec<PolicyEvent> =
+        events_with_summary(events.clone(), *passes, changed_paths.as_slice());
     summary.push(PolicyEvent::CoreFinding {
         core_id: NO_CHANGE_CORE_ID,
         code: NO_CHANGE_CODE,
         message: no_change_message(completion.conflicted.as_slice()),
     });
-    return Ok(Prepared::Ended(TransactionResult { events: summary, exit_code: 1, landed_oid: None, uses_lfs: false }));
+    return Ok(Prepared::Ended(TransactionResult {
+        events: summary,
+        exit_code: 1,
+        landed_oid: None,
+        uses_lfs: false,
+    }));
 }
 
 /// Controls for the pathspec file the private index reads stay out of the release executable.

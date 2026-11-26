@@ -1,10 +1,26 @@
 //! Controls for reading the processes below one process and signalling them safely.
 
 use super::*;
-use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, signal_members, terminate_members};
-use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, ExitStatus, Stdio};
-use std::time::{Duration, Instant};
+use crate::member_signalled_through_its_pidfd::{
+    Delivered,
+    kill_members,
+    signal_members,
+    terminate_members,
+};
+use std::io::{
+    BufRead,
+    BufReader,
+};
+use std::process::{
+    Child,
+    Command,
+    ExitStatus,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long a test waits for a process to end before it reports that the process was not stopped.
 ///  Generous,
@@ -20,8 +36,12 @@ const ENDING_BOUND: Duration = Duration::from_secs(10);
 /// so the test thread's fixtures end the shell and the sleeper under it however the test ends.
 fn shell_with_a_sleeper() -> (Child, i32) {
     let mut command: Command = Command::new("sh");
-    command.args(["-c", "sleep 600 & echo $!; wait"]).stdin(Stdio::null()).stdout(Stdio::piped());
-    let mut shell: Child = crate::test_support::spawn_owned(&mut command).expect("the shell starts");
+    command
+        .args(["-c", "sleep 600 & echo $!; wait"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped());
+    let mut shell: Child =
+        crate::test_support::spawn_owned(&mut command).expect("the shell starts");
     let mut line: String = String::new();
     BufReader::new(shell.stdout.take().expect("piped stdout"))
         .read_line(&mut line)
@@ -86,15 +106,29 @@ fn a_descendant_is_found_and_signalled() {
     let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
     let root: i32 = i32::try_from(shell.id()).expect("a process number");
     let found: Vec<TreeMember> = descendants_of(root);
-    let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
+    let member: &TreeMember = found
+        .iter()
+        .find(|candidate| {
+            return candidate.pid == sleeper;
+        })
+        .expect("the sleeper is below the shell");
     assert!(still_running(member));
     let delivered: Vec<Delivered> = signal_members(&found, libc::SIGKILL);
     // The shell's `wait` returns when the sleeper has ended, so this is the event the checks below need.
     let status: Option<ExitStatus> = status_within_bound(&mut shell);
     let sleeper_ended: bool = !still_running(member);
     reap(&mut shell);
-    assert_eq!(delivered, vec![Delivered::Sent; found.len()], "a member that is still the process that was found is signalled through its descriptor: {found:?}");
-    assert!(status.is_some_and(|ended| { return ended.success(); }), "the shell ended once the sleeper did: {status:?}");
+    assert_eq!(
+        delivered,
+        vec![Delivered::Sent; found.len()],
+        "a member that is still the process that was found is signalled through its descriptor: {found:?}"
+    );
+    assert!(
+        status.is_some_and(|ended| {
+            return ended.success();
+        }),
+        "the shell ended once the sleeper did: {status:?}"
+    );
     assert!(sleeper_ended, "the sleeper ended");
 }
 
@@ -105,11 +139,22 @@ fn a_descendant_is_found_and_signalled() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_named_wrappers_end_the_found_members() {
-    for (name, end) in [("terminate_members", terminate_members as fn(&[TreeMember]) -> Vec<Delivered>), ("kill_members", kill_members)] {
+    for (name, end) in [
+        (
+            "terminate_members",
+            terminate_members as fn(&[TreeMember]) -> Vec<Delivered>,
+        ),
+        ("kill_members", kill_members),
+    ] {
         let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
         let root: i32 = i32::try_from(shell.id()).expect("a process number");
         let found: Vec<TreeMember> = descendants_of(root);
-        let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
+        let member: &TreeMember = found
+            .iter()
+            .find(|candidate| {
+                return candidate.pid == sleeper;
+            })
+            .expect("the sleeper is below the shell");
         end(&found);
         // Bounded poll: a wrapper that signals nothing leaves the sleeper running for its whole lifetime.
         let deadline: Instant = Instant::now() + ENDING_BOUND;
@@ -131,21 +176,37 @@ fn a_reused_number_is_not_signalled() {
     let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
     let root: i32 = i32::try_from(shell.id()).expect("a process number");
     let found: Vec<TreeMember> = descendants_of(root);
-    let real: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
-    let stale: TreeMember = TreeMember { pid: real.pid, started: real.started + 1 };
+    let real: &TreeMember = found
+        .iter()
+        .find(|candidate| {
+            return candidate.pid == sleeper;
+        })
+        .expect("the sleeper is below the shell");
+    let stale: TreeMember = TreeMember {
+        pid: real.pid,
+        started: real.started + 1,
+    };
     assert!(!still_running(&stale));
     signal_members(&[stale], libc::SIGKILL);
     let left_alone: bool = still_running(real);
     reap(&mut shell);
-    assert!(left_alone, "the process with the other start time was left alone");
+    assert!(
+        left_alone,
+        "the process with the other start time was left alone"
+    );
 }
 
 /// A process with no children has no descendants.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_leaf_has_no_descendants() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
-    assert_eq!(descendants_of(i32::try_from(sleeper.id()).expect("a process number")), Vec::<TreeMember>::new());
+    let mut sleeper: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("sleep starts");
+    assert_eq!(
+        descendants_of(i32::try_from(sleeper.id()).expect("a process number")),
+        Vec::<TreeMember>::new()
+    );
     sleeper.kill().expect("sleep is killed");
     sleeper.wait().expect("sleep is collected");
 }
@@ -163,12 +224,28 @@ fn a_leaf_has_no_descendants() {
 fn the_cheap_walk_finds_the_descendants_the_pass_finds() {
     let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
     let root: i32 = i32::try_from(shell.id()).expect("a process number");
-    let by_pass: Vec<i32> = descendants_of(root).iter().map(|member| { return member.pid; }).collect();
-    let by_walk: Vec<i32> = descendant_numbers_from_thread_lists(root).expect("this kernel has the per-thread child lists");
+    let by_pass: Vec<i32> = descendants_of(root)
+        .iter()
+        .map(|member| {
+            return member.pid;
+        })
+        .collect();
+    let by_walk: Vec<i32> = descendant_numbers_from_thread_lists(root)
+        .expect("this kernel has the per-thread child lists");
     reap(&mut shell);
-    assert!(by_pass.contains(&sleeper), "the pass found the sleeper: {by_pass:?}");
-    assert!(by_walk.contains(&sleeper), "the walk found the sleeper: {by_walk:?}");
-    assert_eq!(by_walk.len(), by_pass.len(), "both find the same number of processes: {by_walk:?} against {by_pass:?}");
+    assert!(
+        by_pass.contains(&sleeper),
+        "the pass found the sleeper: {by_pass:?}"
+    );
+    assert!(
+        by_walk.contains(&sleeper),
+        "the walk found the sleeper: {by_walk:?}"
+    );
+    assert_eq!(
+        by_walk.len(),
+        by_pass.len(),
+        "both find the same number of processes: {by_walk:?} against {by_pass:?}"
+    );
 }
 
 /// How long a control waits for a process it did not signal to still be there,
@@ -191,11 +268,16 @@ const STILL_THERE_BOUND: Duration = Duration::from_millis(500);
 #[cfg(target_os = "linux")]
 #[test]
 fn a_number_reused_before_the_signal_is_not_signalled() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
+    let mut sleeper: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("sleep starts");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     let (started, _zombie): (u64, bool) = identity_of(pid).expect("the sleeper is read");
     // The member a look read a moment earlier: the same number, and the start time of the process that has since ended.
-    let found: TreeMember = TreeMember { pid, started: started.wrapping_add(1) };
+    let found: TreeMember = TreeMember {
+        pid,
+        started: started.wrapping_add(1),
+    };
     reused_after_the_next_read(pid, found.started);
     let delivered: Vec<Delivered> = signal_members(&[found], libc::SIGKILL);
     let deadline: Instant = Instant::now() + STILL_THERE_BOUND;
@@ -208,8 +290,15 @@ fn a_number_reused_before_the_signal_is_not_signalled() {
         sleeper.kill().expect("cleanup");
         sleeper.wait().expect("reaped");
     }
-    assert!(killed.is_none(), "the process that took the reused number was killed ({killed:?}) by a signal meant for the process that ended");
-    assert_eq!(delivered, vec![Delivered::Gone], "the signal reported itself as sent to a number that names another process");
+    assert!(
+        killed.is_none(),
+        "the process that took the reused number was killed ({killed:?}) by a signal meant for the process that ended"
+    );
+    assert_eq!(
+        delivered,
+        vec![Delivered::Gone],
+        "the signal reported itself as sent to a number that names another process"
+    );
 }
 
 /// `use_of` names a running process
@@ -217,7 +306,9 @@ fn a_number_reused_before_the_signal_is_not_signalled() {
 #[cfg(target_os = "linux")]
 #[test]
 fn use_of_names_a_process_and_holds_what_it_uses() {
-    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
+    let mut sleeper: Child =
+        crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null()))
+            .expect("sleep starts");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     let used: ProcessUse = use_of(pid).expect("a running process is read");
     sleeper.kill().expect("sleep is killed");

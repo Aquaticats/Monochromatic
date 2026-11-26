@@ -16,7 +16,11 @@
 
 /// The functions under test.
 use super::{
-    ReleaseBump, UnsupportedVersion, json_quote_units, patch_bump_version, unsupported_message,
+    ReleaseBump,
+    UnsupportedVersion,
+    json_quote_units,
+    patch_bump_version,
+    unsupported_message,
 };
 
 /// Code units of text.

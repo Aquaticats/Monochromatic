@@ -16,8 +16,21 @@
 //! await enqueueAll(workDir, items); // 'added' | 'known' for each, in the order given
 //! ```
 
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::work_item::{CLAIMED, DONE, RECOVERING, FAILED, PENDING, WorkItem, entries_oldest_first, id_of_entry, state_directory};
+use crate::private_storage::{
+    create_private_directory_all,
+    write_private_file_unsynced,
+};
+use crate::work_item::{
+    CLAIMED,
+    DONE,
+    FAILED,
+    PENDING,
+    RECOVERING,
+    WorkItem,
+    entries_oldest_first,
+    id_of_entry,
+    state_directory,
+};
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -77,10 +90,16 @@ fn claimed_or_recovering_ids(work_dir: &Path) -> HashSet<String> {
 /// # Errors
 ///
 /// As `enqueue_all`.
-pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
+pub fn enqueue(
+    work_dir: &Path,
+    item: &WorkItem,
+) -> Result<Enqueued, String> {
     let answers: Vec<Enqueued> = enqueue_all(work_dir, std::slice::from_ref(item))?;
     let Some(answer) = answers.first() else {
-        return Err(format!("the round of the one item {} answered nothing", item.id()));
+        return Err(format!(
+            "the round of the one item {} answered nothing",
+            item.id()
+        ));
     };
     return Ok(*answer);
 }
@@ -107,9 +126,13 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
 /// A state directory that cannot be made,
 /// or a pending record that cannot be written for a reason other than its id
 /// being there already.
-pub fn enqueue_all(work_dir: &Path, items: &[WorkItem]) -> Result<Vec<Enqueued>, String> {
+pub fn enqueue_all(
+    work_dir: &Path,
+    items: &[WorkItem],
+) -> Result<Vec<Enqueued>, String> {
     for state in [PENDING, CLAIMED, DONE, FAILED] {
-        if let Err(error) = create_private_directory_all(state_directory(work_dir, state).as_path()) {
+        if let Err(error) = create_private_directory_all(state_directory(work_dir, state).as_path())
+        {
             return Err(format!("creating the {state} directory failed: {error}"));
         }
     }
@@ -127,12 +150,19 @@ pub fn enqueue_all(work_dir: &Path, items: &[WorkItem]) -> Result<Vec<Enqueued>,
             answers.push(Enqueued::Known);
             continue;
         }
-        match write_private_file_unsynced(state_directory(work_dir, PENDING).join(id.as_str()).as_path(), item.encode().as_bytes()) {
+        match write_private_file_unsynced(
+            state_directory(work_dir, PENDING)
+                .join(id.as_str())
+                .as_path(),
+            item.encode().as_bytes(),
+        ) {
             Ok(()) => {
                 held.insert(id);
                 answers.push(Enqueued::Added);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => answers.push(Enqueued::Known),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                answers.push(Enqueued::Known)
+            }
             Err(error) => return Err(format!("writing the work item {id} failed: {error}")),
         }
     }

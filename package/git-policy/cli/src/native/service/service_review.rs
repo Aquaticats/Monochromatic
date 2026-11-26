@@ -26,16 +26,41 @@
 //! const outcome = await reviewLanded(names, sha, subject, read, options);
 //! ```
 
-use crate::standards_review_input::{ChangedPath, LandedCommit, has_shadow_log};
-use crate::standards_review_run::{Containment, Contained, EnvironmentVariables, LandedCommitReader, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in, run_contained_in_awaiting};
-use crate::standards_review_source::{read_landed_commit, read_message, read_names};
-use crate::standards_review_text::commit_subject;
-use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
 use crate::common_directory_of_a_git_directory::common_directory_of;
+use crate::service_review_key::{
+    KEY_VARIABLES,
+    ReviewKey,
+};
 use crate::service_work::Verdict;
+use crate::standards_review_input::{
+    ChangedPath,
+    LandedCommit,
+    has_shadow_log,
+};
+use crate::standards_review_run::{
+    Contained,
+    Containment,
+    EnvironmentVariables,
+    LandedCommitReader,
+    ReviewOptions,
+    ReviewOutcome,
+    options_from_environment,
+    review_landed,
+    run_contained_in,
+    run_contained_in_awaiting,
+};
+use crate::standards_review_source::{
+    read_landed_commit,
+    read_message,
+    read_names,
+};
+use crate::standards_review_text::commit_subject;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// How long the gateway call may stay silent before it is ended.
@@ -71,7 +96,10 @@ pub const CALL_QUIET_WINDOW: Duration = Duration::from_secs(10);
 /// ```ts
 /// optionsFor(item, process.env)
 /// ```
-pub fn options_for(item: &WorkItem, variable: &dyn EnvironmentVariables) -> ReviewOptions {
+pub fn options_for(
+    item: &WorkItem,
+    variable: &dyn EnvironmentVariables,
+) -> ReviewOptions {
     let common: PathBuf = common_directory_of(item.git_dir.as_path());
     let mut options: ReviewOptions = options_from_environment(common.as_path(), variable);
     options.quiet_window = CALL_QUIET_WINDOW;
@@ -107,7 +135,9 @@ fn expose_as_text(held: &ReviewKey) -> String {
 /// (name) => keyNames.includes(name) ? fromMessage(name) : process.env[name]
 /// ```
 pub fn review_variables(key: Option<&ReviewKey>) -> ReviewVariables {
-    return ReviewVariables { exposed: key.map(expose_as_text) };
+    return ReviewVariables {
+        exposed: key.map(expose_as_text),
+    };
 }
 
 /// The variable lookup of a review:
@@ -121,7 +151,10 @@ pub struct ReviewVariables {
 }
 
 impl EnvironmentVariables for ReviewVariables {
-    fn variable(&self, name: &str) -> Option<String> {
+    fn variable(
+        &self,
+        name: &str,
+    ) -> Option<String> {
         if name == KEY_VARIABLES[0] {
             return self.exposed.clone();
         }
@@ -156,7 +189,10 @@ struct ReadLandedCommit<'a> {
 }
 
 impl LandedCommitReader for ReadLandedCommit<'_> {
-    fn read(&self, files: &[ChangedPath]) -> Result<LandedCommit, String> {
+    fn read(
+        &self,
+        files: &[ChangedPath],
+    ) -> Result<LandedCommit, String> {
         return read_landed_commit(self.context, self.cwd, self.oid, self.subject, files);
     }
 }
@@ -164,7 +200,12 @@ impl LandedCommitReader for ReadLandedCommit<'_> {
 /// The Git reads,
 /// the subject and the review,
 /// without the budget.
-fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, now_millis: &dyn Fn() -> u64) -> ReviewOutcome {
+fn run_review(
+    context: &GitContext,
+    item: &WorkItem,
+    options: &ReviewOptions,
+    now_millis: &dyn Fn() -> u64,
+) -> ReviewOutcome {
     let cwd: PathBuf = item.repository.clone();
     let names: Vec<ChangedPath> = match read_names(context, cwd.as_path(), item.oid.as_str()) {
         Ok(found) => found,
@@ -174,8 +215,20 @@ fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, no
         Ok(message) => commit_subject(message.as_str()),
         Err(message) => return ReviewOutcome::Unread(message),
     };
-    let read: ReadLandedCommit<'_> = ReadLandedCommit { context, cwd: cwd.as_path(), oid: item.oid.as_str(), subject: subject.as_str() };
-    return review_landed(names.as_slice(), item.oid.as_str(), subject.as_str(), &read, options, now_millis);
+    let read: ReadLandedCommit<'_> = ReadLandedCommit {
+        context,
+        cwd: cwd.as_path(),
+        oid: item.oid.as_str(),
+        subject: subject.as_str(),
+    };
+    return review_landed(
+        names.as_slice(),
+        item.oid.as_str(),
+        subject.as_str(),
+        &read,
+        options,
+        now_millis,
+    );
 }
 
 /// The wall clock in milliseconds since 1970.
@@ -206,14 +259,29 @@ fn wall_clock_millis() -> u64 {
 /// ```ts
 /// await reviewItem(context, item, options)
 /// ```
-pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions) -> Verdict {
+pub fn review_item(
+    context: &GitContext,
+    item: &WorkItem,
+    options: ReviewOptions,
+) -> Verdict {
     return review_item_within(context, item, options, crate::wait_ceilings::REVIEW_CEILING);
 }
 
 /// `review_item` where the whole review is waited for at most `ceiling`;
 /// a control shortens it.
-pub fn review_item_within(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
-    return review_item_in(&crate::standards_review_run::RUNNER, context, item, options, ceiling);
+pub fn review_item_within(
+    context: &GitContext,
+    item: &WorkItem,
+    options: ReviewOptions,
+    ceiling: Duration,
+) -> Verdict {
+    return review_item_in(
+        &crate::standards_review_run::RUNNER,
+        context,
+        item,
+        options,
+        ceiling,
+    );
 }
 
 /// What:
@@ -232,12 +300,25 @@ pub fn review_item_within(context: &GitContext, item: &WorkItem, options: Review
 /// ```ts
 /// await runner.contain(() => hasShadowLog(repository) ? reviewLanded(...) : undefined, ceiling)
 /// ```
-pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
-    let owned_context: GitContext = GitContext { common_dir: Some(item.git_dir.clone()), ..context.clone() };
+pub fn review_item_in(
+    runner: &'static Containment,
+    context: &GitContext,
+    item: &WorkItem,
+    options: ReviewOptions,
+    ceiling: Duration,
+) -> Verdict {
+    let owned_context: GitContext = GitContext {
+        common_dir: Some(item.git_dir.clone()),
+        ..context.clone()
+    };
     let owned: WorkItem = item.clone();
-    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(runner, move || {
-        return run_the_review(owned_context, owned, options);
-    }, ceiling);
+    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(
+        runner,
+        move || {
+            return run_the_review(owned_context, owned, options);
+        },
+        ceiling,
+    );
     return verdict_of(outcome, item);
 }
 
@@ -256,14 +337,36 @@ pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: 
 /// ```ts
 /// await reviewItemAwaiting(context, item, options)
 /// ```
-pub async fn review_item_awaiting(context: &GitContext, item: &WorkItem, options: ReviewOptions) -> Verdict {
-    return review_item_within_awaiting(context, item, options, crate::wait_ceilings::REVIEW_CEILING).await;
+pub async fn review_item_awaiting(
+    context: &GitContext,
+    item: &WorkItem,
+    options: ReviewOptions,
+) -> Verdict {
+    return review_item_within_awaiting(
+        context,
+        item,
+        options,
+        crate::wait_ceilings::REVIEW_CEILING,
+    )
+    .await;
 }
 
 /// `review_item_awaiting` where the whole review is waited for at most `ceiling`;
 /// a control shortens it.
-pub async fn review_item_within_awaiting(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
-    return review_item_in_awaiting(&crate::standards_review_run::RUNNER, context, item, options, ceiling).await;
+pub async fn review_item_within_awaiting(
+    context: &GitContext,
+    item: &WorkItem,
+    options: ReviewOptions,
+    ceiling: Duration,
+) -> Verdict {
+    return review_item_in_awaiting(
+        &crate::standards_review_run::RUNNER,
+        context,
+        item,
+        options,
+        ceiling,
+    )
+    .await;
 }
 
 /// What:
@@ -279,12 +382,25 @@ pub async fn review_item_within_awaiting(context: &GitContext, item: &WorkItem, 
 /// ```ts
 /// await runner.containAwaiting(() => hasShadowLog(repository) ? reviewLanded(...) : undefined, ceiling)
 /// ```
-pub async fn review_item_in_awaiting(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
-    let owned_context: GitContext = GitContext { common_dir: Some(item.git_dir.clone()), ..context.clone() };
+pub async fn review_item_in_awaiting(
+    runner: &'static Containment,
+    context: &GitContext,
+    item: &WorkItem,
+    options: ReviewOptions,
+    ceiling: Duration,
+) -> Verdict {
+    let owned_context: GitContext = GitContext {
+        common_dir: Some(item.git_dir.clone()),
+        ..context.clone()
+    };
     let owned: WorkItem = item.clone();
-    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in_awaiting(runner, move || {
-        return run_the_review(owned_context, owned, options);
-    }, ceiling)
+    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in_awaiting(
+        runner,
+        move || {
+            return run_the_review(owned_context, owned, options);
+        },
+        ceiling,
+    )
     .await;
     return verdict_of(outcome, item);
 }
@@ -303,7 +419,11 @@ pub async fn review_item_in_awaiting(runner: &'static Containment, context: &Git
 /// ```ts
 /// const job = () => hasShadowLog(repository) ? reviewLanded(context, item, options, clock) : undefined
 /// ```
-fn run_the_review(context: GitContext, item: WorkItem, options: ReviewOptions) -> Option<ReviewOutcome> {
+fn run_the_review(
+    context: GitContext,
+    item: WorkItem,
+    options: ReviewOptions,
+) -> Option<ReviewOutcome> {
     if !has_shadow_log(item.repository.as_path()) {
         return None;
     }
@@ -321,15 +441,33 @@ fn run_the_review(context: GitContext, item: WorkItem, options: ReviewOptions) -
 /// ```ts
 /// const verdictOf = (outcome, item, ceiling) => ...
 /// ```
-fn verdict_of(outcome: Contained<Option<ReviewOutcome>>, item: &WorkItem) -> Verdict {
+fn verdict_of(
+    outcome: Contained<Option<ReviewOutcome>>,
+    item: &WorkItem,
+) -> Verdict {
     return match outcome {
-        Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
-        Contained::NoThread(refused) => Verdict::Failed(format!("the review of {} was not started: {refused}", item.oid)),
-        Contained::CeilingReached(reached) => Verdict::Failed(ceiling_reason(item.oid.as_str(), reached)),
+        Contained::Panicked => Verdict::Failed(format!(
+            "the review of {} stopped with an internal error",
+            item.oid
+        )),
+        Contained::NoThread(refused) => Verdict::Failed(format!(
+            "the review of {} was not started: {refused}",
+            item.oid
+        )),
+        Contained::CeilingReached(reached) => {
+            Verdict::Failed(ceiling_reason(item.oid.as_str(), reached))
+        }
         Contained::Busy => Verdict::Failed(busy_reason(item.oid.as_str())),
         Contained::Finished(None) => Verdict::Done,
-        Contained::Finished(Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message))) => Verdict::Failed(message),
-        Contained::Finished(Some(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged)) => Verdict::Done,
+        Contained::Finished(Some(
+            ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message),
+        )) => Verdict::Failed(message),
+        Contained::Finished(Some(
+            ReviewOutcome::NoEntry
+            | ReviewOutcome::Skipped
+            | ReviewOutcome::Reviewed(_)
+            | ReviewOutcome::AlreadyLogged,
+        )) => Verdict::Done,
     };
 }
 
@@ -367,7 +505,10 @@ pub fn busy_reason(oid: &str) -> String {
 /// ```ts
 /// `the standards review of ${oid} ran for ${seconds} seconds, ...; run SHADOW_REVIEW_SHA=${oid} mise run shadow-review`
 /// ```
-pub fn ceiling_reason(oid: &str, ceiling: Duration) -> String {
+pub fn ceiling_reason(
+    oid: &str,
+    ceiling: Duration,
+) -> String {
     return format!(
         "the standards review of {oid} ran for {} seconds, the longest the service lets one review run, and the service stopped waiting for it; \
          review it again with `SHADOW_REVIEW_SHA={oid} mise run shadow-review`",

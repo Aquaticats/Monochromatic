@@ -32,11 +32,21 @@
 //! ```
 
 use super::staged_folder_identity::StagedFolderIdentity;
-use super::staging_folder_name::{staging_folder_name, staging_record_name, staging_temporary_name};
+use super::staging_folder_name::{
+    staging_folder_name,
+    staging_record_name,
+    staging_temporary_name,
+};
+use crate::foundation::json_record::{
+    parse_object,
+    string_field,
+};
 use crate::hexadecimal_of_bytes::hexadecimal_of_bytes;
-use crate::foundation::json_record::{parse_object, string_field};
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::ffi::OsString;
 use std::io::Write;
 
@@ -117,26 +127,49 @@ fn birth_of(text: &str) -> Option<Option<(i64, u32)>> {
 
 /// One field's text,
 /// refused with its own name.
-fn field(map: &Map<String, Value>, key: &'static str) -> Result<String, StagedFolderRefusal> {
+fn field(
+    map: &Map<String, Value>,
+    key: &'static str,
+) -> Result<String, StagedFolderRefusal> {
     return match string_field(map, key) {
         Some(text) => Ok(String::from(text)),
-        None => Err(StagedFolderRefusal::Field { field: key, said: String::from("the field is absent or is not text") }),
+        None => Err(StagedFolderRefusal::Field {
+            field: key,
+            said: String::from("the field is absent or is not text"),
+        }),
     };
 }
 
 /// One field's number.
-fn number(map: &Map<String, Value>, key: &'static str) -> Result<u64, StagedFolderRefusal> {
+fn number(
+    map: &Map<String, Value>,
+    key: &'static str,
+) -> Result<u64, StagedFolderRefusal> {
     let text: String = field(map, key)?;
-    if text.is_empty() || text.len() > MAXIMUM_INTEGER_DIGITS || !text.bytes().all(|byte| return byte.is_ascii_digit()) {
-        return Err(StagedFolderRefusal::Field { field: key, said: String::from("it is not a decimal number") });
+    if text.is_empty()
+        || text.len() > MAXIMUM_INTEGER_DIGITS
+        || !text.bytes().all(|byte| return byte.is_ascii_digit())
+    {
+        return Err(StagedFolderRefusal::Field {
+            field: key,
+            said: String::from("it is not a decimal number"),
+        });
     }
-    return text.parse::<u64>().map_err(|_error| return StagedFolderRefusal::Field { field: key, said: String::from("it is larger than 64 bits") });
+    return text.parse::<u64>().map_err(|_error| {
+        return StagedFolderRefusal::Field {
+            field: key,
+            said: String::from("it is larger than 64 bits"),
+        };
+    });
 }
 
 impl StagedFolderRecord {
     /// The record as the one JSON object the file holds.
     pub fn encode(&self) -> String {
-        #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "the JSON macro builds one object of every field; no fallible read is made here"
+        )]
         let object: Value = serde_json::json!({
             "version": RECORD_VERSION,
             "kind": RECORD_KIND,
@@ -176,38 +209,94 @@ impl StagedFolderRecord {
 /// a field is absent or wrong,
 /// the version or kind is not this shape,
 /// or the record names another GUID.
-pub fn record_from_text(text: &str, wanted: DatasetGuid) -> Result<StagedFolderRecord, StagedFolderRefusal> {
-    let map: Map<String, Value> = parse_object(text).ok_or_else(|| return StagedFolderRefusal::Malformed { said: String::from("the text is not one JSON object") })?;
+pub fn record_from_text(
+    text: &str,
+    wanted: DatasetGuid,
+) -> Result<StagedFolderRecord, StagedFolderRefusal> {
+    let map: Map<String, Value> = parse_object(text).ok_or_else(|| {
+        return StagedFolderRefusal::Malformed {
+            said: String::from("the text is not one JSON object"),
+        };
+    })?;
     let version: String = field(&map, "version")?;
     if version != RECORD_VERSION {
-        return Err(StagedFolderRefusal::Malformed { said: format!("its version is `{version}`, and this route reads `{RECORD_VERSION}`") });
+        return Err(StagedFolderRefusal::Malformed {
+            said: format!("its version is `{version}`, and this route reads `{RECORD_VERSION}`"),
+        });
     }
     let kind: String = field(&map, "kind")?;
     if kind != RECORD_KIND {
-        return Err(StagedFolderRefusal::Malformed { said: format!("its kind is `{kind}`, and this route reads `{RECORD_KIND}`") });
+        return Err(StagedFolderRefusal::Malformed {
+            said: format!("its kind is `{kind}`, and this route reads `{RECORD_KIND}`"),
+        });
     }
     let guid_text: String = field(&map, "guid")?;
-    let guid: DatasetGuid = DatasetGuid::parse(guid_text.as_str()).map_err(|refusal| return StagedFolderRefusal::Field { field: "guid", said: refusal.message() })?;
+    let guid: DatasetGuid = DatasetGuid::parse(guid_text.as_str()).map_err(|refusal| {
+        return StagedFolderRefusal::Field {
+            field: "guid",
+            said: refusal.message(),
+        };
+    })?;
     if guid != wanted {
-        return Err(StagedFolderRefusal::WrongGuid { wanted, recorded: guid_text });
+        return Err(StagedFolderRefusal::WrongGuid {
+            wanted,
+            recorded: guid_text,
+        });
     }
     let component: String = field(&map, "component")?;
     let derived: String = staging_folder_name(wanted);
     if component != derived {
-        return Err(StagedFolderRefusal::Field { field: "component", said: format!("it is `{component}`, and the GUID derives `{derived}`") });
+        return Err(StagedFolderRefusal::Field {
+            field: "component",
+            said: format!("it is `{component}`, and the GUID derives `{derived}`"),
+        });
     }
-    let birth: Option<(i64, u32)> = birth_of(field(&map, "birth")?.as_str()).ok_or_else(|| return StagedFolderRefusal::Field { field: "birth", said: String::from("it is neither `none` nor `seconds:nanoseconds`") })?;
+    let birth: Option<(i64, u32)> = birth_of(field(&map, "birth")?.as_str()).ok_or_else(|| {
+        return StagedFolderRefusal::Field {
+            field: "birth",
+            said: String::from("it is neither `none` nor `seconds:nanoseconds`"),
+        };
+    })?;
     let mode_text: String = field(&map, "mode")?;
-    let mode: u32 = u32::from_str_radix(mode_text.as_str(), 8).map_err(|_error| return StagedFolderRefusal::Field { field: "mode", said: String::from("it is not octal") })?;
+    let mode: u32 = u32::from_str_radix(mode_text.as_str(), 8).map_err(|_error| {
+        return StagedFolderRefusal::Field {
+            field: "mode",
+            said: String::from("it is not octal"),
+        };
+    })?;
     let handle_text: String = field(&map, "handle")?;
-    if handle_text.is_empty() || handle_text.len() > MAXIMUM_HANDLE_BYTES * 2 || handle_text.len() % 2 != 0 {
-        return Err(StagedFolderRefusal::Handle { said: format!("its text is {} bytes, and a handle is one to {MAXIMUM_HANDLE_BYTES} whole bytes", handle_text.len()) });
+    if handle_text.is_empty()
+        || handle_text.len() > MAXIMUM_HANDLE_BYTES * 2
+        || handle_text.len() % 2 != 0
+    {
+        return Err(StagedFolderRefusal::Handle {
+            said: format!(
+                "its text is {} bytes, and a handle is one to {MAXIMUM_HANDLE_BYTES} whole bytes",
+                handle_text.len()
+            ),
+        });
     }
-    let handle: Vec<u8> = decode_hex(handle_text.as_str()).ok_or_else(|| return StagedFolderRefusal::Handle { said: String::from("its text is not lowercase hexadecimal") })?;
-    let handle_type: i32 = i32::try_from(number(&map, "handle-type")?).map_err(|_error| return StagedFolderRefusal::Field { field: "handle-type", said: String::from("it is larger than 32 bits") })?;
+    let handle: Vec<u8> = decode_hex(handle_text.as_str()).ok_or_else(|| {
+        return StagedFolderRefusal::Handle {
+            said: String::from("its text is not lowercase hexadecimal"),
+        };
+    })?;
+    let handle_type: i32 = i32::try_from(number(&map, "handle-type")?).map_err(|_error| {
+        return StagedFolderRefusal::Field {
+            field: "handle-type",
+            said: String::from("it is larger than 32 bits"),
+        };
+    })?;
     let nonce: String = field(&map, "nonce")?;
-    if nonce.len() != 32 || !nonce.bytes().all(|byte| return byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()) {
-        return Err(StagedFolderRefusal::Field { field: "nonce", said: String::from("it is not 32 lowercase hexadecimal digits") });
+    if nonce.len() != 32
+        || !nonce
+            .bytes()
+            .all(|byte| return byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(StagedFolderRefusal::Field {
+            field: "nonce",
+            said: String::from("it is not 32 lowercase hexadecimal digits"),
+        });
     }
     return Ok(StagedFolderRecord {
         component,
@@ -217,7 +306,12 @@ pub fn record_from_text(text: &str, wanted: DatasetGuid) -> Result<StagedFolderR
             device: number(&map, "device")?,
             inode: number(&map, "inode")?,
             birth,
-            owner: u32::try_from(number(&map, "owner")?).map_err(|_error| return StagedFolderRefusal::Field { field: "owner", said: String::from("it is larger than 32 bits") })?,
+            owner: u32::try_from(number(&map, "owner")?).map_err(|_error| {
+                return StagedFolderRefusal::Field {
+                    field: "owner",
+                    said: String::from("it is larger than 32 bits"),
+                };
+            })?,
             mode,
         },
         handle_type,
@@ -234,7 +328,11 @@ fn decode_hex(text: &str) -> Option<Vec<u8>> {
     let mut bytes: Vec<u8> = Vec::with_capacity(text.len() / 2);
     let mut digits = text.bytes();
     while let (Some(high), Some(low)) = (digits.next(), digits.next()) {
-        if !high.is_ascii_hexdigit() || !low.is_ascii_hexdigit() || high.is_ascii_uppercase() || low.is_ascii_uppercase() {
+        if !high.is_ascii_hexdigit()
+            || !low.is_ascii_hexdigit()
+            || high.is_ascii_uppercase()
+            || low.is_ascii_uppercase()
+        {
             return None;
         }
         bytes.push(u8::from_str_radix(std::str::from_utf8(&[high, low]).ok()?, 16).ok()?);
@@ -244,7 +342,10 @@ fn decode_hex(text: &str) -> Option<Vec<u8>> {
 
 /// The names a record is written under.
 fn names(guid: DatasetGuid) -> (OsString, OsString) {
-    return (OsString::from(staging_temporary_name(guid)), OsString::from(staging_record_name(guid)));
+    return (
+        OsString::from(staging_temporary_name(guid)),
+        OsString::from(staging_record_name(guid)),
+    );
 }
 
 /// What:
@@ -266,18 +367,54 @@ fn names(guid: DatasetGuid) -> (OsString, OsString) {
 /// The temporary name could not be created or written,
 /// the rename refused,
 /// or the folder could not be synced.
-pub fn write_record(cache: &std::fs::File, record: &StagedFolderRecord) -> Result<(), StagedFolderRefusal> {
+pub fn write_record(
+    cache: &std::fs::File,
+    record: &StagedFolderRecord,
+) -> Result<(), StagedFolderRefusal> {
     let (temporary, final_name): (OsString, OsString) = names(record.guid);
     let _stale = crate::fs_beneath::remove_at(cache, temporary.as_os_str(), false);
-    let mut file: std::fs::File = crate::fs_beneath::create_file_at(cache, temporary.as_os_str(), 0o644)
-        .map_err(|error| return StagedFolderRefusal::Unreadable { path: temporary.to_string_lossy().to_string(), reason: error.to_string() })?;
+    let mut file: std::fs::File =
+        crate::fs_beneath::create_file_at(cache, temporary.as_os_str(), 0o644).map_err(
+            |error| {
+                return StagedFolderRefusal::Unreadable {
+                    path: temporary.to_string_lossy().to_string(),
+                    reason: error.to_string(),
+                };
+            },
+        )?;
     file.write_all(record.encode().as_bytes())
-        .map_err(|error| return StagedFolderRefusal::Unreadable { path: temporary.to_string_lossy().to_string(), reason: error.to_string() })?;
-    file.sync_all().map_err(|error| return StagedFolderRefusal::Unreadable { path: temporary.to_string_lossy().to_string(), reason: error.to_string() })?;
+        .map_err(|error| {
+            return StagedFolderRefusal::Unreadable {
+                path: temporary.to_string_lossy().to_string(),
+                reason: error.to_string(),
+            };
+        })?;
+    file.sync_all().map_err(|error| {
+        return StagedFolderRefusal::Unreadable {
+            path: temporary.to_string_lossy().to_string(),
+            reason: error.to_string(),
+        };
+    })?;
     drop(file);
-    crate::fs_beneath::rename_at(cache, temporary.as_os_str(), cache, final_name.as_os_str(), true)
-        .map_err(|error| return StagedFolderRefusal::Unreadable { path: final_name.to_string_lossy().to_string(), reason: error.to_string() })?;
-    return cache.sync_all().map_err(|error| return StagedFolderRefusal::Unreadable { path: String::from("~/.cache"), reason: error.to_string() });
+    crate::fs_beneath::rename_at(
+        cache,
+        temporary.as_os_str(),
+        cache,
+        final_name.as_os_str(),
+        true,
+    )
+    .map_err(|error| {
+        return StagedFolderRefusal::Unreadable {
+            path: final_name.to_string_lossy().to_string(),
+            reason: error.to_string(),
+        };
+    })?;
+    return cache.sync_all().map_err(|error| {
+        return StagedFolderRefusal::Unreadable {
+            path: String::from("~/.cache"),
+            reason: error.to_string(),
+        };
+    });
 }
 
 /// What:
@@ -292,28 +429,54 @@ pub fn write_record(cache: &std::fs::File, record: &StagedFolderRecord) -> Resul
 /// ```ts
 /// const reading = readRecord(cache, guid); // { kind: 'absent' | 'text' | 'unreadable' }
 /// ```
-pub fn read_record_text(cache: &std::fs::File, guid: DatasetGuid) -> Result<Option<String>, StagedFolderRefusal> {
+pub fn read_record_text(
+    cache: &std::fs::File,
+    guid: DatasetGuid,
+) -> Result<Option<String>, StagedFolderRefusal> {
     let name: OsString = OsString::from(staging_record_name(guid));
     let file: std::fs::File = match crate::fs_beneath::open_file_at(cache, name.as_os_str()) {
         Ok(file) => file,
         Err(error) if error.raw_os_error() == Some(libc::ENOENT) => return Ok(None),
-        Err(error) => return Err(StagedFolderRefusal::Unreadable { path: name.to_string_lossy().to_string(), reason: error.to_string() }),
+        Err(error) => {
+            return Err(StagedFolderRefusal::Unreadable {
+                path: name.to_string_lossy().to_string(),
+                reason: error.to_string(),
+            });
+        }
     };
-    let facts: std::fs::Metadata = file.metadata().map_err(|error| return StagedFolderRefusal::Unreadable { path: name.to_string_lossy().to_string(), reason: error.to_string() })?;
+    let facts: std::fs::Metadata = file.metadata().map_err(|error| {
+        return StagedFolderRefusal::Unreadable {
+            path: name.to_string_lossy().to_string(),
+            reason: error.to_string(),
+        };
+    })?;
     if facts.len() > MAXIMUM_RECORD_BYTES {
-        return Err(StagedFolderRefusal::TooLarge { bytes: facts.len(), bound: MAXIMUM_RECORD_BYTES });
+        return Err(StagedFolderRefusal::TooLarge {
+            bytes: facts.len(),
+            bound: MAXIMUM_RECORD_BYTES,
+        });
     }
     let mut bytes: Vec<u8> = Vec::with_capacity(usize::try_from(facts.len()).unwrap_or(0));
     use std::io::Read;
     std::io::Read::take(&file, MAXIMUM_RECORD_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|error| return StagedFolderRefusal::Unreadable { path: name.to_string_lossy().to_string(), reason: error.to_string() })?;
+        .map_err(|error| {
+            return StagedFolderRefusal::Unreadable {
+                path: name.to_string_lossy().to_string(),
+                reason: error.to_string(),
+            };
+        })?;
     if bytes.len() as u64 > MAXIMUM_RECORD_BYTES {
-        return Err(StagedFolderRefusal::TooLarge { bytes: bytes.len() as u64, bound: MAXIMUM_RECORD_BYTES });
+        return Err(StagedFolderRefusal::TooLarge {
+            bytes: bytes.len() as u64,
+            bound: MAXIMUM_RECORD_BYTES,
+        });
     }
     return match std::str::from_utf8(bytes.as_slice()) {
         Ok(text) => Ok(Some(String::from(text))),
-        Err(_) => Err(StagedFolderRefusal::Malformed { said: String::from("the file is not UTF-8 text") }),
+        Err(_) => Err(StagedFolderRefusal::Malformed {
+            said: String::from("the file is not UTF-8 text"),
+        }),
     };
 }
 

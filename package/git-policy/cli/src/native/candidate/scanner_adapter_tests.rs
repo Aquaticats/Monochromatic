@@ -18,18 +18,43 @@
 #![cfg(unix)]
 
 /// Import the adapter under test and shared fixtures.
-use super::{CandidateScanner, RulesSource, ScannerError, ScannerFailure};
+use super::{
+    CandidateScanner,
+    RulesSource,
+    ScannerError,
+    ScannerFailure,
+};
+use crate::candidate_object::{
+    CandidateMode,
+    parse_object_id,
+};
+use crate::candidate_record::CandidateChange;
+use crate::candidate_version::{
+    Candidate,
+    CandidateIdentity,
+};
+use crate::scanner_test_support::{
+    needle,
+    rules_file,
+    run_isolated,
+};
 /// Import what a load may write into the shared compiled-rules cache.
 use forbidden_strings::CacheAccess;
-use crate::candidate_object::{CandidateMode, parse_object_id};
-use crate::candidate_record::CandidateChange;
-use crate::candidate_version::{Candidate, CandidateIdentity};
-use crate::scanner_test_support::{needle, rules_file, run_isolated};
-use forbidden_strings::{CandidateScan, RulesEntry, ScanFinding};
-use std::path::{Path, PathBuf};
+use forbidden_strings::{
+    CandidateScan,
+    RulesEntry,
+    ScanFinding,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One added regular-file candidate at a list position.
-fn candidate(index: usize, path: &[u8]) -> Candidate {
+fn candidate(
+    index: usize,
+    path: &[u8],
+) -> Candidate {
     return Candidate {
         identity: CandidateIdentity {
             generation: 0,
@@ -46,7 +71,10 @@ fn candidate(index: usize, path: &[u8]) -> Candidate {
 ///  without the built-in baseline.
 fn loaded(directory: &Path) -> CandidateScanner {
     let rules: RulesSource = RulesSource {
-        entries: vec![RulesEntry { path: rules_file(directory), optional: false }],
+        entries: vec![RulesEntry {
+            path: rules_file(directory),
+            optional: false,
+        }],
         explicit: true,
     };
     match CandidateScanner::load(&rules, false) {
@@ -56,7 +84,10 @@ fn loaded(directory: &Path) -> CandidateScanner {
 }
 
 /// The failure of a load that must be refused.
-fn load_failure(rules: &RulesSource, builtin_rules: bool) -> ScannerError {
+fn load_failure(
+    rules: &RulesSource,
+    builtin_rules: bool,
+) -> ScannerError {
     match CandidateScanner::load(rules, builtin_rules) {
         Ok(_) => panic!("the load must be refused"),
         Err(error) => return error,
@@ -193,11 +224,17 @@ fn cache_warnings_are_the_scanners_own() {
 fn load_failures_leave_no_scanner_body(directory: &Path) {
     let missing: PathBuf = directory.join("missing.txt");
     let explicit: RulesSource = RulesSource {
-        entries: vec![RulesEntry { path: missing.clone(), optional: false }],
+        entries: vec![RulesEntry {
+            path: missing.clone(),
+            optional: false,
+        }],
         explicit: true,
     };
     let implicit: RulesSource = RulesSource {
-        entries: vec![RulesEntry { path: missing, optional: false }],
+        entries: vec![RulesEntry {
+            path: missing,
+            optional: false,
+        }],
         explicit: false,
     };
     for (rules, builtin_rules) in [(&explicit, false), (&explicit, true), (&implicit, false)] {
@@ -230,7 +267,10 @@ fn load_failures_leave_no_scanner_body(directory: &Path) {
     std::fs::write(&invalid, format!("/{pattern}/g\n")).expect("invalid rules file");
     let refused: ScannerError = load_failure(
         &RulesSource {
-            entries: vec![RulesEntry { path: invalid, optional: false }],
+            entries: vec![RulesEntry {
+                path: invalid,
+                optional: false,
+            }],
             explicit: true,
         },
         false,
@@ -286,8 +326,14 @@ fn listed_rules_files_body(directory: &Path) {
     let local: PathBuf = directory.join("local.txt");
     let rules: RulesSource = RulesSource {
         entries: vec![
-            RulesEntry { path: shared.clone(), optional: false },
-            RulesEntry { path: local.clone(), optional: true },
+            RulesEntry {
+                path: shared.clone(),
+                optional: false,
+            },
+            RulesEntry {
+                path: local.clone(),
+                optional: true,
+            },
         ],
         explicit: true,
     };
@@ -297,39 +343,60 @@ fn listed_rules_files_body(directory: &Path) {
     };
     assert_eq!(scanner.skipped_optional_rules(), [local.clone()].as_slice());
     let leak: Vec<u8> = format!("{token}\n").into_bytes();
-    let scan: CandidateScan = scanner.scan(&candidate(0, b"src/a.txt"), leak.as_slice()).expect("scan");
+    let scan: CandidateScan = scanner
+        .scan(&candidate(0, b"src/a.txt"), leak.as_slice())
+        .expect("scan");
     assert_eq!(
         scan.findings,
-        vec![ScanFinding::Content { line: 1, rule: String::from("qqq-shared") }]
+        vec![ScanFinding::Content {
+            line: 1,
+            rule: String::from("qqq-shared")
+        }]
     );
     // Once the optional file exists it joins the rule set, in list order after the shared file.
-    std::fs::write(&local, "==> qqq-local <==\nLOCAL_LISTED_RULE_LONG_ENOUGH\n").expect("local rules");
+    std::fs::write(&local, "==> qqq-local <==\nLOCAL_LISTED_RULE_LONG_ENOUGH\n")
+        .expect("local rules");
     let both: CandidateScanner = match CandidateScanner::load(&rules, false) {
         Ok(found) => found,
         Err(error) => panic!("both files must load: {error}"),
     };
     assert!(both.skipped_optional_rules().is_empty());
     let local_scan: CandidateScan = both
-        .scan(&candidate(1, b"src/b.txt"), b"LOCAL_LISTED_RULE_LONG_ENOUGH\n")
+        .scan(
+            &candidate(1, b"src/b.txt"),
+            b"LOCAL_LISTED_RULE_LONG_ENOUGH\n",
+        )
         .expect("scan");
     assert_eq!(
         local_scan.findings,
-        vec![ScanFinding::Content { line: 1, rule: String::from("qqq-local") }]
+        vec![ScanFinding::Content {
+            line: 1,
+            rule: String::from("qqq-local")
+        }]
     );
     // A required file that is absent refuses the whole load and names its path.
     let missing: PathBuf = directory.join("gone.txt");
     let refused: ScannerError = load_failure(
         &RulesSource {
             entries: vec![
-                RulesEntry { path: shared, optional: false },
-                RulesEntry { path: missing.clone(), optional: false },
+                RulesEntry {
+                    path: shared,
+                    optional: false,
+                },
+                RulesEntry {
+                    path: missing.clone(),
+                    optional: false,
+                },
             ],
             explicit: true,
         },
         false,
     );
     assert_eq!(refused.failure, ScannerFailure::RulesNotLoaded);
-    assert!(refused.message.contains(missing.to_string_lossy().as_ref()), "{refused}");
+    assert!(
+        refused.message.contains(missing.to_string_lossy().as_ref()),
+        "{refused}"
+    );
 }
 
 /// Several rules files load as one scanner.
@@ -351,12 +418,17 @@ fn artifacts() -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![cache];
     while let Some(next) = pending.pop() {
-        let Ok(entries) = std::fs::read_dir(next) else { continue };
+        let Ok(entries) = std::fs::read_dir(next) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path: PathBuf = entry.path();
             if path.is_dir() {
                 pending.push(path);
-            } else if path.file_name().is_some_and(|name| return name == "rules.bin") {
+            } else if path
+                .file_name()
+                .is_some_and(|name| return name == "rules.bin")
+            {
                 found.push(path);
             }
         }
@@ -368,14 +440,20 @@ fn artifacts() -> Vec<PathBuf> {
 /// The planted rules as one explicit entry.
 fn planted_rules(directory: &Path) -> RulesSource {
     return RulesSource {
-        entries: vec![RulesEntry { path: rules_file(directory), optional: false }],
+        entries: vec![RulesEntry {
+            path: rules_file(directory),
+            optional: false,
+        }],
         explicit: true,
     };
 }
 
 /// Load `rules` under `access`,
 /// naming no control but the fixture.
-fn loaded_with(rules: &RulesSource, access: CacheAccess) -> CandidateScanner {
+fn loaded_with(
+    rules: &RulesSource,
+    access: CacheAccess,
+) -> CandidateScanner {
     match CandidateScanner::load_writing_cache(rules, false, access) {
         Ok(scanner) => return scanner,
         Err(error) => panic!("planted rules must load: {error}"),
@@ -383,8 +461,14 @@ fn loaded_with(rules: &RulesSource, access: CacheAccess) -> CandidateScanner {
 }
 
 /// The content findings of one scan of a candidate holding `body`.
-fn findings_of(scanner: &CandidateScanner, body: &[u8]) -> Vec<ScanFinding> {
-    return scanner.scan(&candidate(0, b"src/a.txt"), body).expect("scan").findings;
+fn findings_of(
+    scanner: &CandidateScanner,
+    body: &[u8],
+) -> Vec<ScanFinding> {
+    return scanner
+        .scan(&candidate(0, b"src/a.txt"), body)
+        .expect("scan")
+        .findings;
 }
 
 /// Body:
@@ -401,23 +485,36 @@ fn a_load_writes_the_cache_only_when_it_may_body(directory: &Path) {
     );
     assert_eq!(
         findings_of(&scanner, leak.as_bytes()),
-        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+        vec![ScanFinding::Content {
+            line: 2,
+            rule: String::from("0")
+        }]
     );
     // The same rules, loaded by a command that owns the cache: one artifact, and the cache answers the next load.
     let writing: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
     assert_eq!(artifacts().len(), 1, "a load that may write writes once");
     assert_eq!(
-        writing.cache_warnings().first().map(|warning| return warning.reason()),
+        writing
+            .cache_warnings()
+            .first()
+            .map(|warning| return warning.reason()),
         Some("missing"),
         "a command that publishes compiled from the text: {:?}",
         writing.cache_warnings()
     );
     assert_eq!(
         findings_of(&writing, leak.as_bytes()),
-        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+        vec![ScanFinding::Content {
+            line: 2,
+            rule: String::from("0")
+        }]
     );
     let again: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
-    assert!(again.cache_warnings().is_empty(), "the published artifact answers the next load: {:?}", again.cache_warnings());
+    assert!(
+        again.cache_warnings().is_empty(),
+        "the published artifact answers the next load: {:?}",
+        again.cache_warnings()
+    );
 }
 
 /// A compiled artifact is written only by a load that may write.
@@ -436,7 +533,10 @@ fn a_partial_artifact_is_never_used_body(directory: &Path) {
     let rules: RulesSource = planted_rules(directory);
     let published: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
     assert_eq!(
-        published.cache_warnings().first().map(|warning| return warning.reason()),
+        published
+            .cache_warnings()
+            .first()
+            .map(|warning| return warning.reason()),
         Some("missing"),
         "the first load of an empty cache compiles from the text"
     );
@@ -446,14 +546,20 @@ fn a_partial_artifact_is_never_used_body(directory: &Path) {
     std::fs::write(&artifact, &whole[..torn]).expect("tear the artifact");
     let recovered: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
     assert_eq!(
-        recovered.cache_warnings().first().map(|warning| return warning.reason()),
+        recovered
+            .cache_warnings()
+            .first()
+            .map(|warning| return warning.reason()),
         Some("invalid"),
         "a torn artifact is refused as invalid, not read as absent: {:?}",
         recovered.cache_warnings()
     );
     assert_eq!(
         findings_of(&recovered, format!("first line\n{}\n", needle()).as_bytes()),
-        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+        vec![ScanFinding::Content {
+            line: 2,
+            rule: String::from("0")
+        }]
     );
 }
 
@@ -480,13 +586,19 @@ fn a_cache_of_other_rules_is_never_used_body(directory: &Path) {
     let published: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
     assert_eq!(
         findings_of(&published, format!("x\n{before}\n").as_bytes()),
-        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+        vec![ScanFinding::Content {
+            line: 2,
+            rule: String::from("0")
+        }]
     );
     std::fs::write(directory.join("rules.txt"), format!("{after}\n")).expect("rules after");
     // The cache holds the artifact of the old text, and this load must not scan with it.
     let changed: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
     assert_eq!(
-        changed.cache_warnings().first().map(|warning| return warning.reason()),
+        changed
+            .cache_warnings()
+            .first()
+            .map(|warning| return warning.reason()),
         Some("missing"),
         "the artifact of other rules text is a miss, not a hit: {:?}",
         changed.cache_warnings()
@@ -498,7 +610,10 @@ fn a_cache_of_other_rules_is_never_used_body(directory: &Path) {
     );
     assert_eq!(
         findings_of(&changed, format!("x\n{after}\n").as_bytes()),
-        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+        vec![ScanFinding::Content {
+            line: 2,
+            rule: String::from("0")
+        }]
     );
 }
 

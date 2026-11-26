@@ -14,7 +14,10 @@
 //! ```
 
 /// The request for one child of this test binary, its deadline, and the check that its one test passed.
-use super::child_test_process::{ChildTest, passed};
+use super::child_test_process::{
+    ChildTest,
+    passed,
+};
 /// The variable that marks the child of this helper.
 use std::ffi::OsStr;
 
@@ -39,12 +42,21 @@ const CHILD_VARIABLE: &str = "CLI_GIT_UMASK_CHILD";
 ///   return true;
 /// }
 /// ```
-pub(crate) fn ran_in_child(module: &str, name: &str, mask: u32) -> bool {
+pub(crate) fn ran_in_child(
+    module: &str,
+    name: &str,
+    mask: u32,
+) -> bool {
     if std::env::var_os(CHILD_VARIABLE).is_some() {
         return false;
     }
     // The crate's own name is the first segment of `module_path!()` and is not part of the name libtest answers to.
-    let path: String = format!("{}::{name}", module.split_once("::").map_or(module, |(_, rest)| { return rest; }));
+    let path: String = format!(
+        "{}::{name}",
+        module.split_once("::").map_or(module, |(_, rest)| {
+            return rest;
+        })
+    );
     let environment: [(&str, &OsStr); 1] = [(CHILD_VARIABLE, OsStr::new("1"))];
     passed(ChildTest {
         exact_test: path.as_str(),

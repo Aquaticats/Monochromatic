@@ -23,9 +23,20 @@
 //! const outcome = checkSlotIdentity({ slot: 'one', refusal }); // pass | finding('mode') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use crate::worktree_clone_mount::clone_folder_identity::field_names;
-use crate::worktree_clone_mount::{CloneFolderField, CloneFolderIdentity, CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
+use crate::worktree_clone_mount::{
+    CloneFolderField,
+    CloneFolderIdentity,
+    CloneSlotRefusal,
+    WalkRefusal,
+    WalkRefusalReason,
+};
 
 /// What:
 ///  What the store's `.parent` record answered.
@@ -123,7 +134,12 @@ pub struct SlotIdentityFacts {
 /// const unproved = (reason) => ['unreadable', 'unreadable-fields', 'checkout'].includes(reason);
 /// ```
 pub fn walk_refusal_is_unproved(reason: WalkRefusalReason) -> bool {
-    return matches!(reason, WalkRefusalReason::Unreadable | WalkRefusalReason::UnreadableFields | WalkRefusalReason::Checkout);
+    return matches!(
+        reason,
+        WalkRefusalReason::Unreadable
+            | WalkRefusalReason::UnreadableFields
+            | WalkRefusalReason::Checkout
+    );
 }
 
 /// What:
@@ -141,27 +157,53 @@ pub fn walk_refusal_is_unproved(reason: WalkRefusalReason) -> bool {
 pub fn check_parent_identity(facts: &ParentIdentityFacts) -> CheckOutcome {
     let recorded: &CloneFolderIdentity = match &facts.recorded {
         RecordedIdentity::Read(identity) => identity,
-        RecordedIdentity::Absent { why } => {
-            return finding("parent-record", format!("the store files no `{PARENT_RECORD}`, so no live folder can be compared ({why}); an administrator records the intended replacement by running the words `monochromatic-git-policy-cli zfs-root adopt-worktree-parent`, after the root-owned file's path, as root with the replacement's device and inode; plan step 19's setup installs that root-owned file and links it for ZED, and no release installs it yet, so nothing on this machine starts those words today, and nothing is attached meanwhile", PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME));
+        RecordedIdentity::Absent {
+            why,
+        } => {
+            return finding(
+                "parent-record",
+                format!(
+                    "the store files no `{PARENT_RECORD}`, so no live folder can be compared ({why}); an administrator records the intended replacement by running the words `monochromatic-git-policy-cli zfs-root adopt-worktree-parent`, after the root-owned file's path, as root with the replacement's device and inode; plan step 19's setup installs that root-owned file and links it for ZED, and no release installs it yet, so nothing on this machine starts those words today, and nothing is attached meanwhile",
+                    PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME
+                ),
+            );
         }
-        RecordedIdentity::Unreadable { why } => return unknown(format!("`{PARENT_RECORD}` could not be read ({why}), so the parent's identity is unproved", PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME)),
+        RecordedIdentity::Unreadable {
+            why,
+        } => {
+            return unknown(format!(
+                "`{PARENT_RECORD}` could not be read ({why}), so the parent's identity is unproved",
+                PARENT_RECORD = crate::worktree_clone_mount::PARENT_RECORD_NAME
+            ));
+        }
     };
     let found: &CloneFolderIdentity = match &facts.live {
         LiveIdentity::Held(identity) => identity,
         LiveIdentity::Refused(refusal) => {
             if walk_refusal_is_unproved(refusal.reason) {
-                return unknown(format!("{} could not be read ({}), so the parent's live identity is unproved", refusal.component, refusal.message()));
+                return unknown(format!(
+                    "{} could not be read ({}), so the parent's live identity is unproved",
+                    refusal.component,
+                    refusal.message()
+                ));
             }
             return finding(refusal.component.clone(), refusal.message());
         }
     };
     let fields: Vec<CloneFolderField> = recorded.differences(found);
     if fields.is_empty() {
-        return pass(String::from("the live `.claude/worktrees` folder is the one the store recorded"));
+        return pass(String::from(
+            "the live `.claude/worktrees` folder is the one the store recorded",
+        ));
     }
     return finding(
         field_names(&fields),
-        format!("the live `.claude/worktrees` folder is not the recorded one: the {} differs. Recorded: {}. Found: {}. Ways forward: restore the recorded folder, or let an administrator run `monochromatic-git-policy-cli zfs-root adopt-worktree-parent` as root with the replacement's device and inode", field_names(&fields), recorded.describe(), found.describe()),
+        format!(
+            "the live `.claude/worktrees` folder is not the recorded one: the {} differs. Recorded: {}. Found: {}. Ways forward: restore the recorded folder, or let an administrator run `monochromatic-git-policy-cli zfs-root adopt-worktree-parent` as root with the replacement's device and inode",
+            field_names(&fields),
+            recorded.describe(),
+            found.describe()
+        ),
     );
 }
 
@@ -182,17 +224,31 @@ pub fn check_slot_identity(facts: &SlotIdentityFacts) -> CheckOutcome {
         return pass(format!("slot `{slot}` is the folder its record holds"));
     };
     return match refusal {
-        CloneSlotRefusal::SlotIdentity { fields, .. } => finding(field_names(fields), refusal.message()),
-        CloneSlotRefusal::ParentIdentity { fields, .. } => finding(field_names(fields), refusal.message()),
-        CloneSlotRefusal::TargetAnotherObject { .. } => finding("slot", refusal.message()),
+        CloneSlotRefusal::SlotIdentity {
+            fields,
+            ..
+        } => finding(field_names(fields), refusal.message()),
+        CloneSlotRefusal::ParentIdentity {
+            fields,
+            ..
+        } => finding(field_names(fields), refusal.message()),
+        CloneSlotRefusal::TargetAnotherObject {
+            ..
+        } => finding("slot", refusal.message()),
         CloneSlotRefusal::Walk(walk) => {
             if walk_refusal_is_unproved(walk.reason) {
-                unknown(format!("slot `{slot}` could not be read: {}", walk.message()))
+                unknown(format!(
+                    "slot `{slot}` could not be read: {}",
+                    walk.message()
+                ))
             } else {
                 finding(walk.component.clone(), walk.message())
             }
         }
-        CloneSlotRefusal::Store(_) => unknown(format!("slot `{slot}`'s record could not be read: {}", refusal.message())),
+        CloneSlotRefusal::Store(_) => unknown(format!(
+            "slot `{slot}`'s record could not be read: {}",
+            refusal.message()
+        )),
     };
 }
 

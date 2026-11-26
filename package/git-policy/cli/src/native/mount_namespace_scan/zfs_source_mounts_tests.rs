@@ -14,8 +14,14 @@
 //! expect(mountsOfSource(table, 'zpcachyos/…/clones/one').length).toBe(2);
 //! ```
 
-use super::{is_of_source, mounts_of_source};
-use crate::fs_mount_options::{MountFacts, parse_mount_table};
+use super::{
+    is_of_source,
+    mounts_of_source,
+};
+use crate::fs_mount_options::{
+    MountFacts,
+    parse_mount_table,
+};
 
 /// The dataset every control here scans for.
 const SOURCE: &str = "zpcachyos/nosnap/clones/one";
@@ -54,8 +60,14 @@ fn a_bind_of_the_clone_is_a_holder_beside_the_slot_mount() {
     let table: Vec<MountFacts> = held_twice();
     let held: Vec<&MountFacts> = mounts_of_source(table.as_slice(), SOURCE);
     assert_eq!(held.len(), 2);
-    assert_eq!(held[0].mount_point, std::path::PathBuf::from("/home/user/Monochromatic/.claude/worktrees/one"));
+    assert_eq!(
+        held[0].mount_point,
+        std::path::PathBuf::from("/home/user/Monochromatic/.claude/worktrees/one")
+    );
     assert_eq!(held[0].root, std::path::PathBuf::from("/"));
-    assert_eq!(held[1].mount_point, std::path::PathBuf::from("/home/user/elsewhere"));
+    assert_eq!(
+        held[1].mount_point,
+        std::path::PathBuf::from("/home/user/elsewhere")
+    );
     assert_eq!(held[1].root, std::path::PathBuf::from("/sub"));
 }

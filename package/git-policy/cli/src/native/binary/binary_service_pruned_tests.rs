@@ -22,13 +22,35 @@
 //! pauseAt('service-prepared'); await deleteLooseObject(blob); release(); expect(await commit()).toLand();
 //! ```
 
-use super::commit::{EDITOR_WRITES_A_MESSAGE, git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, Observed, fixture, git, observe, start_fixture_service};
-use git_policy_cli::service_messages::{ClientFailure, render};
+use super::commit::{
+    EDITOR_WRITES_A_MESSAGE,
+    git_text,
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    FixtureService,
+    Observed,
+    fixture,
+    git,
+    observe,
+    start_fixture_service,
+};
+use git_policy_cli::service_messages::{
+    ClientFailure,
+    render,
+};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for the paused wrapper to arrive,
 /// far beyond a healthy run.
@@ -40,7 +62,9 @@ const THE_PLAIN_COMMIT: &[&str] = &["commit", "--quiet", "-m", "more", "--", "a.
 
 /// The amend a control of the tree question runs:
 /// it embeds the whole tree and names no list of blobs.
-const AN_AMEND: &[&str] = &["commit", "--quiet", "--amend", "-m", "amended", "--", "a.txt"];
+const AN_AMEND: &[&str] = &[
+    "commit", "--quiet", "--amend", "-m", "amended", "--", "a.txt",
+];
 
 /// An editor commit Git builds in the shadow,
 /// whose request names the built commit and nothing else.
@@ -72,40 +96,71 @@ fn case(name: &str) -> Case {
 ///  A reftable store and a files store holding a replace ref are the two stores the landing's in-process
 ///  object reader declines,
 ///  so the arms that show the declined reader's cost live where each of them stands.
-fn case_in(name: &str, format: &[&str], replace: bool) -> Case {
+fn case_in(
+    name: &str,
+    format: &[&str],
+    replace: bool,
+) -> Case {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = fixture.root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("repository directory");
     let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
     init.extend_from_slice(format);
     git(&fixture, &repo, init.as_slice());
-    git(&fixture, &repo, &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    git(
+        &fixture,
+        &repo,
+        &["commit", "--quiet", "--allow-empty", "--message=initial"],
+    );
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     std::fs::create_dir(repo.join("dir")).expect("directory");
     std::fs::write(repo.join("dir").join("gone.txt"), "gone\n").expect("gone");
     git(&fixture, &repo, &["add", "a.txt", "dir/gone.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
     if replace {
-        let older: String = git_text(&fixture, &repo, &["rev-parse", "HEAD~1"]).trim().to_string();
-        let head: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+        let older: String = git_text(&fixture, &repo, &["rev-parse", "HEAD~1"])
+            .trim()
+            .to_string();
+        let head: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"])
+            .trim()
+            .to_string();
         git(&fixture, &repo, &["replace", older.as_str(), head.as_str()]);
     }
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
     std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
-    let blob: String = git_text(&fixture, &repo, &["hash-object", "a.txt"]).trim().to_string();
-    let under_the_tree: String = git_text(&fixture, &repo, &["rev-parse", "HEAD:dir/gone.txt"]).trim().to_string();
+    let blob: String = git_text(&fixture, &repo, &["hash-object", "a.txt"])
+        .trim()
+        .to_string();
+    let under_the_tree: String = git_text(&fixture, &repo, &["rev-parse", "HEAD:dir/gone.txt"])
+        .trim()
+        .to_string();
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("markers");
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Case { fixture, repo, service, blob, under_the_tree, markers };
+    return Case {
+        fixture,
+        repo,
+        service,
+        blob,
+        under_the_tree,
+        markers,
+    };
 }
 
 /// Removes the loose file of the commit's blob,
 /// as a pruning cleanup would;
 /// a packed or absent object is left alone.
-fn remove_blob(repo: &Path, blob: &str) {
-    let _removed = std::fs::remove_file(repo.join(".git/objects").join(&blob[..2]).join(&blob[2..]));
+fn remove_blob(
+    repo: &Path,
+    blob: &str,
+) {
+    let _removed =
+        std::fs::remove_file(repo.join(".git/objects").join(&blob[..2]).join(&blob[2..]));
 }
 
 /// Answers the paused wrapper at `phase` for each of `occurrences` times in turn:
@@ -113,7 +168,13 @@ fn remove_blob(repo: &Path, blob: &str) {
 /// removes the object `doomed` names
 /// when `remove` holds for that occurrence,
 /// and releases it.
-fn answer_phase(case: &Case, phase: &'static str, occurrences: usize, remove: fn(usize) -> bool, doomed: fn(&Case) -> String) -> std::thread::JoinHandle<Vec<bool>> {
+fn answer_phase(
+    case: &Case,
+    phase: &'static str,
+    occurrences: usize,
+    remove: fn(usize) -> bool,
+    doomed: fn(&Case) -> String,
+) -> std::thread::JoinHandle<Vec<bool>> {
     let markers: PathBuf = case.markers.clone();
     let repo: PathBuf = case.repo.clone();
     let name: String = doomed(case);
@@ -143,10 +204,18 @@ fn answer_phase(case: &Case, phase: &'static str, occurrences: usize, remove: fn
 /// Runs the commit of `a.txt` with the wrapper paused at `phase`,
 /// answered by `answer`,
 /// and returns what the caller saw.
-fn commit_paused(case: &Case, phase: &str, arguments: &[&str], answer: std::thread::JoinHandle<Vec<bool>>) -> (Observed, Vec<bool>) {
+fn commit_paused(
+    case: &Case,
+    phase: &str,
+    arguments: &[&str],
+    answer: std::thread::JoinHandle<Vec<bool>>,
+) -> (Observed, Vec<bool>) {
     let mut command: Command = wrapped_commit(&case.fixture, &case.repo, arguments);
     command.env("XDG_RUNTIME_DIR", &case.service.runtime);
-    command.env(PHASE_SIGNAL_VARIABLE, format!("{phase}:pause:{}", case.markers.display()));
+    command.env(
+        PHASE_SIGNAL_VARIABLE,
+        format!("{phase}:pause:{}", case.markers.display()),
+    );
     let seen: Observed = observe(&mut command, b"");
     std::fs::write(case.markers.join("finished"), "").expect("finished");
     let removed: Vec<bool> = answer.join().expect("the answering thread");
@@ -160,7 +229,9 @@ fn stderr_text(seen: &Observed) -> String {
 /// The branch tip's subject,
 /// which says whether the commit landed.
 fn tip_subject(case: &Case) -> String {
-    return git_text(&case.fixture, &case.repo, &["log", "-1", "--format=%s"]).trim().to_string();
+    return git_text(&case.fixture, &case.repo, &["log", "-1", "--format=%s"])
+        .trim()
+        .to_string();
 }
 
 /// The crash reports a failed import leaves in the Git directory,
@@ -169,8 +240,12 @@ fn crash_reports(case: &Case) -> Vec<String> {
     return std::fs::read_dir(case.repo.join(".git"))
         .expect("git dir")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.contains("crash"); })
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
+        .filter(|name| {
+            return name.contains("crash");
+        })
         .collect();
 }
 
@@ -181,19 +256,50 @@ fn crash_reports(case: &Case) -> Vec<String> {
 /// Why:
 ///  A crash report is what an import that died on a missing blob leaves,
 ///  and the person who meets the plain words must not find one either.
-fn assert_plain_failure(case: &Case, seen: &Observed) {
-    assert_eq!(crash_reports(case), Vec::<String>::new(), "the failed import left its crash report behind");
+fn assert_plain_failure(
+    case: &Case,
+    seen: &Observed,
+) {
+    assert_eq!(
+        crash_reports(case),
+        Vec::<String>::new(),
+        "the failed import left its crash report behind"
+    );
     let all: String = stderr_text(seen);
     // The phase marker a test arms logs its own warning lines; they are not part of what the wrapper tells the person.
-    let text: String = all.lines().filter(|line| { return !line.starts_with("[warn] "); }).collect::<Vec<&str>>().join("\n");
+    let text: String = all
+        .lines()
+        .filter(|line| {
+            return !line.starts_with("[warn] ");
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
     assert_eq!(seen.code, Some(1), "{text}");
-    assert_eq!(text.trim_end(), render(&ClientFailure::ContentPruned), "{text}");
+    assert_eq!(
+        text.trim_end(),
+        render(&ClientFailure::ContentPruned),
+        "{text}"
+    );
     for leaked in ["schemaVersion", "engine-failure", "{\""] {
-        assert!(!text.contains(leaked), "{leaked} reached the person: {text}");
+        assert!(
+            !text.contains(leaked),
+            "{leaked} reached the person: {text}"
+        );
     }
-    assert!(text.contains("--prune=now") && text.contains("Nothing in the repository changed"), "{text}");
-    assert_eq!(tip_subject(case), "base", "a failed commit changed the branch");
-    assert_eq!(std::fs::read_to_string(case.repo.join("a.txt")).expect("a"), "base\nmore\n", "the person's edit is intact");
+    assert!(
+        text.contains("--prune=now") && text.contains("Nothing in the repository changed"),
+        "{text}"
+    );
+    assert_eq!(
+        tip_subject(case),
+        "base",
+        "a failed commit changed the branch"
+    );
+    assert_eq!(
+        std::fs::read_to_string(case.repo.join("a.txt")).expect("a"),
+        "base\nmore\n",
+        "the person's edit is intact"
+    );
 }
 
 /// Content removed after it was staged and before the policies read it:
@@ -204,7 +310,17 @@ fn assert_plain_failure(case: &Case, seen: &Observed) {
 #[test]
 fn content_removed_while_staged_fails_plainly_without_reading_the_worktree_again() {
     let case: Case = case("pruned-staged");
-    let answer = answer_phase(&case, "service-staged", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
+    let answer = answer_phase(
+        &case,
+        "service-staged",
+        2,
+        |_| {
+            return true;
+        },
+        |whole| {
+            return whole.blob.clone();
+        },
+    );
     let (seen, removed) = commit_paused(&case, "service-staged", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -219,7 +335,17 @@ fn content_removed_while_staged_fails_plainly_without_reading_the_worktree_again
 #[test]
 fn content_removed_before_landing_fails_plainly_without_reading_the_worktree_again() {
     let case: Case = case("pruned-landing");
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
+    let answer = answer_phase(
+        &case,
+        "service-prepared",
+        2,
+        |_| {
+            return true;
+        },
+        |whole| {
+            return whole.blob.clone();
+        },
+    );
     let (seen, removed) = commit_paused(&case, "service-prepared", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -237,7 +363,17 @@ fn content_removed_before_landing_fails_plainly_without_reading_the_worktree_aga
 #[test]
 fn content_removed_before_landing_fails_plainly_in_a_reftable_repository() {
     let case: Case = case_in("pruned-landing-reftable", &["--ref-format=reftable"], false);
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
+    let answer = answer_phase(
+        &case,
+        "service-prepared",
+        2,
+        |_| {
+            return true;
+        },
+        |whole| {
+            return whole.blob.clone();
+        },
+    );
     let (seen, removed) = commit_paused(&case, "service-prepared", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -254,7 +390,17 @@ fn content_removed_before_landing_fails_plainly_in_a_reftable_repository() {
 #[test]
 fn content_removed_before_landing_fails_plainly_beside_a_replace_ref() {
     let case: Case = case_in("pruned-landing-replace-ref", &[], true);
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
+    let answer = answer_phase(
+        &case,
+        "service-prepared",
+        2,
+        |_| {
+            return true;
+        },
+        |whole| {
+            return whole.blob.clone();
+        },
+    );
     let (seen, removed) = commit_paused(&case, "service-prepared", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -271,8 +417,22 @@ fn content_removed_before_landing_fails_plainly_beside_a_replace_ref() {
 ///  tree names an object no store holds.
 #[test]
 fn a_blob_removed_below_an_amended_tree_fails_plainly_where_the_reader_declines() {
-    let case: Case = case_in("pruned-amend-tree-reftable", &["--ref-format=reftable"], false);
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.under_the_tree.clone(); });
+    let case: Case = case_in(
+        "pruned-amend-tree-reftable",
+        &["--ref-format=reftable"],
+        false,
+    );
+    let answer = answer_phase(
+        &case,
+        "service-prepared",
+        2,
+        |_| {
+            return true;
+        },
+        |whole| {
+            return whole.under_the_tree.clone();
+        },
+    );
     let (seen, removed) = commit_paused(&case, "service-prepared", AN_AMEND, answer);
     assert_eq!(removed, vec![true], "the amend was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -289,10 +449,17 @@ fn a_blob_removed_below_an_amended_tree_fails_plainly_where_the_reader_declines(
 #[test]
 fn a_commit_git_builds_that_a_prune_removed_fails_plainly_where_the_reader_declines() {
     let case: Case = case_in("pruned-built-commit-replace-ref", &[], true);
-    git(&case.fixture, &case.repo, &["config", "core.editor", EDITOR_WRITES_A_MESSAGE]);
+    git(
+        &case.fixture,
+        &case.repo,
+        &["config", "core.editor", EDITOR_WRITES_A_MESSAGE],
+    );
     let mut command: Command = wrapped_commit(&case.fixture, &case.repo, A_COMMIT_GIT_BUILDS);
     command.env("XDG_RUNTIME_DIR", &case.service.runtime);
-    command.env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", case.markers.display()));
+    command.env(
+        PHASE_SIGNAL_VARIABLE,
+        format!("service-prepared:pause:{}", case.markers.display()),
+    );
     let (seen, pruned) = std::thread::scope(|scope| {
         let answering = scope.spawn(|| {
             let reached: PathBuf = case.markers.join("service-prepared-1.reached");

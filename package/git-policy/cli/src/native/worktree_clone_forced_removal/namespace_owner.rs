@@ -26,7 +26,11 @@
 //! ```
 
 use std::ffi::CString;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -103,8 +107,15 @@ pub struct OwnerRefusal {
 
 impl std::fmt::Display for OwnerRefusal {
     /// One sentence naming the call, what it was asked and the errno.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return write!(formatter, "{} refused for {} with errno {}", self.calling, self.what, self.errno);
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return write!(
+            formatter,
+            "{} refused for {} with errno {}",
+            self.calling, self.what, self.errno
+        );
     }
 }
 
@@ -118,19 +129,30 @@ impl std::fmt::Display for OwnerRefusal {
 /// # Errors
 /// The path could not be opened.
 pub fn open_a_namespace(path: &Path) -> Result<std::fs::File, OwnerRefusal> {
-    let text: CString = CString::new(path.as_os_str().as_bytes()).map_err(|_nul| return OwnerRefusal {
-        calling: "open",
-        what: format!("a namespace path holding a NUL byte: {}", path.display()),
-        errno: libc::EINVAL,
+    let text: CString = CString::new(path.as_os_str().as_bytes()).map_err(|_nul| {
+        return OwnerRefusal {
+            calling: "open",
+            what: format!("a namespace path holding a NUL byte: {}", path.display()),
+            errno: libc::EINVAL,
+        };
     })?;
     // SAFETY: `text` is one NUL-terminated path that outlives the call, and the descriptor it answers is owned exactly
     // once, by the `File` below.
-    let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) };
+    let descriptor: libc::c_int =
+        unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_CLOEXEC) };
     if descriptor < 0 {
-        return Err(OwnerRefusal { calling: "open", what: String::from(path.display().to_string()), errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EINVAL) });
+        return Err(OwnerRefusal {
+            calling: "open",
+            what: String::from(path.display().to_string()),
+            errno: std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or(libc::EINVAL),
+        });
     }
     // SAFETY: the call answered a descriptor that nothing else owns.
-    return Ok(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) }));
+    return Ok(std::fs::File::from(unsafe {
+        OwnedFd::from_raw_fd(descriptor)
+    }));
 }
 
 /// What:
@@ -144,9 +166,13 @@ pub fn open_a_namespace(path: &Path) -> Result<std::fs::File, OwnerRefusal> {
 /// # Errors
 /// The descriptor could not be described.
 pub fn identity_of(namespace: &std::fs::File) -> Result<String, OwnerRefusal> {
-    let facts: std::fs::Metadata = namespace
-        .metadata()
-        .map_err(|error| return OwnerRefusal { calling: "stat", what: String::from("a namespace descriptor"), errno: error.raw_os_error().unwrap_or(libc::EINVAL) })?;
+    let facts: std::fs::Metadata = namespace.metadata().map_err(|error| {
+        return OwnerRefusal {
+            calling: "stat",
+            what: String::from("a namespace descriptor"),
+            errno: error.raw_os_error().unwrap_or(libc::EINVAL),
+        };
+    })?;
     return Ok(format!("mnt:[{}]", facts.ino()));
 }
 
@@ -162,13 +188,23 @@ pub fn owner_of(namespace: &std::fs::File) -> Result<u64, OwnerRefusal> {
     // SAFETY: the ioctl takes the descriptor this process holds and answers a new one, which the `OwnedFd` below owns.
     let answered: libc::c_int = unsafe { libc::ioctl(namespace.as_raw_fd(), libc::NS_GET_USERNS) };
     if answered < 0 {
-        return Err(OwnerRefusal { calling: "ioctl NS_GET_USERNS", what: String::from("a mount namespace descriptor"), errno: std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EINVAL) });
+        return Err(OwnerRefusal {
+            calling: "ioctl NS_GET_USERNS",
+            what: String::from("a mount namespace descriptor"),
+            errno: std::io::Error::last_os_error()
+                .raw_os_error()
+                .unwrap_or(libc::EINVAL),
+        });
     }
     // SAFETY: the ioctl answered a descriptor that nothing else owns.
     let owner: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(answered) });
-    let facts: std::fs::Metadata = owner
-        .metadata()
-        .map_err(|error| return OwnerRefusal { calling: "stat", what: String::from("the owner of a mount namespace"), errno: error.raw_os_error().unwrap_or(libc::EINVAL) })?;
+    let facts: std::fs::Metadata = owner.metadata().map_err(|error| {
+        return OwnerRefusal {
+            calling: "stat",
+            what: String::from("the owner of a mount namespace"),
+            errno: error.raw_os_error().unwrap_or(libc::EINVAL),
+        };
+    })?;
     return Ok(facts.ino());
 }
 
@@ -182,8 +218,13 @@ pub fn owner_of(namespace: &std::fs::File) -> Result<u64, OwnerRefusal> {
 /// # Errors
 /// The path could not be described.
 pub fn our_user_namespace() -> Result<u64, OwnerRefusal> {
-    let facts: std::fs::Metadata = std::fs::metadata(OUR_USER_NAMESPACE)
-        .map_err(|error| return OwnerRefusal { calling: "stat", what: String::from(OUR_USER_NAMESPACE), errno: error.raw_os_error().unwrap_or(libc::EINVAL) })?;
+    let facts: std::fs::Metadata = std::fs::metadata(OUR_USER_NAMESPACE).map_err(|error| {
+        return OwnerRefusal {
+            calling: "stat",
+            what: String::from(OUR_USER_NAMESPACE),
+            errno: error.raw_os_error().unwrap_or(libc::EINVAL),
+        };
+    })?;
     return Ok(facts.ino());
 }
 
@@ -202,7 +243,11 @@ pub fn read_the_owner(namespace_path: &Path) -> Result<NamespaceOwner, OwnerRefu
     let identity: String = identity_of(&namespace)?;
     let owner: u64 = owner_of(&namespace)?;
     let ours: u64 = our_user_namespace()?;
-    return Ok(NamespaceOwner { namespace: identity, owner, ours });
+    return Ok(NamespaceOwner {
+        namespace: identity,
+        owner,
+        ours,
+    });
 }
 
 /// Controls stay out of the release executable.

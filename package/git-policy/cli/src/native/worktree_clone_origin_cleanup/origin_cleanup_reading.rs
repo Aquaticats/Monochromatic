@@ -26,11 +26,19 @@ use crate::worktree_clone_binding_record::registration_home::wrapper_folder;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_bounds::ORIGIN_CLEANUP_MAXIMUM_BYTES;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_parse::parse_the_record;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_record::OriginCleanupRecord;
-use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::{CleanupRefusal, CleanupRefusalCause};
-use crate::worktree_clone_origin_cleanup::origin_cleanup_words::{
-    ORIGIN_CLEANUPS_FOLDER, ORIGIN_CLEANUP_NAME_BYTES, ORIGIN_SNAPSHOT_PREFIX,
+use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::{
+    CleanupRefusal,
+    CleanupRefusalCause,
 };
-use std::path::{Path, PathBuf};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_words::{
+    ORIGIN_CLEANUP_NAME_BYTES,
+    ORIGIN_CLEANUPS_FOLDER,
+    ORIGIN_SNAPSHOT_PREFIX,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder one repository's origin cleanup records live in.
 pub fn origin_cleanups_folder(common_dir: &Path) -> PathBuf {
@@ -47,7 +55,9 @@ pub fn is_a_record_name(name: &str) -> bool {
     let Some(digits) = name.strip_prefix(ORIGIN_SNAPSHOT_PREFIX) else {
         return false;
     };
-    return digits.chars().all(|digit| return digit.is_ascii_digit() || ('a'..='f').contains(&digit));
+    return digits
+        .chars()
+        .all(|digit| return digit.is_ascii_digit() || ('a'..='f').contains(&digit));
 }
 
 /// Whether one entry's name is a staging name of this package's publication:
@@ -102,16 +112,34 @@ impl CleanupListing {
 /// ```ts
 /// const listing = listTheOriginCleanups(commonDir); // undefined when the folder is absent
 /// ```
-pub fn list_the_origin_cleanups(common_dir: &Path) -> Result<Option<CleanupListing>, CleanupRefusal> {
+pub fn list_the_origin_cleanups(
+    common_dir: &Path
+) -> Result<Option<CleanupListing>, CleanupRefusal> {
     let folder: PathBuf = origin_cleanups_folder(common_dir);
     let entries: std::fs::ReadDir = match std::fs::read_dir(folder.as_path()) {
         Ok(listed) => listed,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string())),
+        Err(error) => {
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::Unreadable,
+                "folder",
+                error.to_string(),
+            ));
+        }
     };
-    let mut listing: CleanupListing = CleanupListing { records: Vec::new(), foreign: Vec::new(), staging: Vec::new() };
+    let mut listing: CleanupListing = CleanupListing {
+        records: Vec::new(),
+        foreign: Vec::new(),
+        staging: Vec::new(),
+    };
     for listed in entries {
-        let held: std::fs::DirEntry = listed.map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string()))?;
+        let held: std::fs::DirEntry = listed.map_err(|error| {
+            return CleanupRefusal::at(
+                CleanupRefusalCause::Unreadable,
+                "folder",
+                error.to_string(),
+            );
+        })?;
         let name: String = held.file_name().to_string_lossy().into_owned();
         if is_a_record_name(name.as_str()) {
             listing.records.push(name);
@@ -144,19 +172,32 @@ pub fn list_the_origin_cleanups(common_dir: &Path) -> Result<Option<CleanupListi
 /// ```ts
 /// const record = readTheCleanupRecord(commonDir, name);
 /// ```
-pub fn read_the_cleanup_record(common_dir: &Path, name: &str) -> Result<OriginCleanupRecord, CleanupRefusal> {
+pub fn read_the_cleanup_record(
+    common_dir: &Path,
+    name: &str,
+) -> Result<OriginCleanupRecord, CleanupRefusal> {
     if !is_a_record_name(name) {
-        return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "name", String::from(name)));
+        return Err(CleanupRefusal::at(
+            CleanupRefusalCause::NotCanonical,
+            "name",
+            String::from(name),
+        ));
     }
     let owner: u32 = common_directory_owner(common_dir)?;
     let folder: PathBuf = origin_cleanups_folder(common_dir);
     check_the_private_folder(folder.as_path(), owner)?;
     let path: PathBuf = folder.join(name);
     check_the_private_file(path.as_path(), owner)?;
-    let bytes: Vec<u8> = std::fs::read(path.as_path()).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string()))?;
+    let bytes: Vec<u8> = std::fs::read(path.as_path()).map_err(|error| {
+        return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string());
+    })?;
     let record: OriginCleanupRecord = parse_the_record(bytes.as_slice())?;
     if record.origin_snapshot != name {
-        return Err(CleanupRefusal::at(CleanupRefusalCause::NotCanonical, "originSnapshot", format!("`{}` in a file named `{name}`", record.origin_snapshot)));
+        return Err(CleanupRefusal::at(
+            CleanupRefusalCause::NotCanonical,
+            "originSnapshot",
+            format!("`{}` in a file named `{name}`", record.origin_snapshot),
+        ));
     }
     return Ok(record);
 }
@@ -178,11 +219,20 @@ pub fn read_the_cleanup_record(common_dir: &Path, name: &str) -> Result<OriginCl
 /// ```ts
 /// const record = anExistingCleanupRecord(commonDir, name); // undefined when none stands
 /// ```
-pub fn an_existing_cleanup_record(common_dir: &Path, name: &str) -> Result<Option<OriginCleanupRecord>, CleanupRefusal> {
+pub fn an_existing_cleanup_record(
+    common_dir: &Path,
+    name: &str,
+) -> Result<Option<OriginCleanupRecord>, CleanupRefusal> {
     let path: PathBuf = origin_cleanups_folder(common_dir).join(name);
     match std::fs::symlink_metadata(path.as_path()) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string())),
+        Err(error) => {
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::Unreadable,
+                "file",
+                error.to_string(),
+            ));
+        }
         Ok(_) => {}
     }
     return read_the_cleanup_record(common_dir, name).map(Some);
@@ -190,7 +240,13 @@ pub fn an_existing_cleanup_record(common_dir: &Path, name: &str) -> Result<Optio
 
 /// The account that owns the common Git directory.
 pub fn common_directory_owner(common_dir: &Path) -> Result<u32, CleanupRefusal> {
-    let metadata: std::fs::Metadata = std::fs::metadata(common_dir).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "common directory", error.to_string()))?;
+    let metadata: std::fs::Metadata = std::fs::metadata(common_dir).map_err(|error| {
+        return CleanupRefusal::at(
+            CleanupRefusalCause::Unreadable,
+            "common directory",
+            error.to_string(),
+        );
+    })?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -207,20 +263,37 @@ pub fn common_directory_owner(common_dir: &Path) -> Result<u32, CleanupRefusal> 
 ///
 /// # Throws
 /// The mode or the owner that differs.
-pub fn check_the_private_folder(folder: &Path, owner: u32) -> Result<(), CleanupRefusal> {
-    let metadata: std::fs::Metadata = std::fs::metadata(folder).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string()))?;
+pub fn check_the_private_folder(
+    folder: &Path,
+    owner: u32,
+) -> Result<(), CleanupRefusal> {
+    let metadata: std::fs::Metadata = std::fs::metadata(folder).map_err(|error| {
+        return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "folder", error.to_string());
+    })?;
     if !metadata.is_dir() {
-        return Err(CleanupRefusal::at(CleanupRefusalCause::NotARegularFile, "folder", String::from("not a directory")));
+        return Err(CleanupRefusal::at(
+            CleanupRefusalCause::NotARegularFile,
+            "folder",
+            String::from("not a directory"),
+        ));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         let mode: u32 = metadata.mode() & 0o777;
         if mode != 0o700 {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotThisAccounts, "folder", format!("mode {mode:04o}")));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotThisAccounts,
+                "folder",
+                format!("mode {mode:04o}"),
+            ));
         }
         if metadata.uid() != owner {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotThisAccounts, "folder", format!("owner {}", metadata.uid())));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotThisAccounts,
+                "folder",
+                format!("owner {}", metadata.uid()),
+            ));
         }
     }
     #[cfg(not(unix))]
@@ -233,20 +306,37 @@ pub fn check_the_private_folder(folder: &Path, owner: u32) -> Result<(), Cleanup
 /// # Throws
 /// The kind,
 /// the owner or the mode that differs.
-pub fn check_the_private_file(path: &Path, owner: u32) -> Result<(), CleanupRefusal> {
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string()))?;
+pub fn check_the_private_file(
+    path: &Path,
+    owner: u32,
+) -> Result<(), CleanupRefusal> {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        return CleanupRefusal::at(CleanupRefusalCause::Unreadable, "file", error.to_string());
+    })?;
     if !metadata.is_file() {
-        return Err(CleanupRefusal::at(CleanupRefusalCause::NotARegularFile, "file", path.display().to_string()));
+        return Err(CleanupRefusal::at(
+            CleanupRefusalCause::NotARegularFile,
+            "file",
+            path.display().to_string(),
+        ));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         if metadata.uid() != owner {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotThisAccounts, "file", format!("owner {}", metadata.uid())));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotThisAccounts,
+                "file",
+                format!("owner {}", metadata.uid()),
+            ));
         }
         let mode: u32 = metadata.mode() & 0o777;
         if mode & 0o022 != 0 {
-            return Err(CleanupRefusal::at(CleanupRefusalCause::NotThisAccounts, "file", format!("mode {mode:04o}")));
+            return Err(CleanupRefusal::at(
+                CleanupRefusalCause::NotThisAccounts,
+                "file",
+                format!("mode {mode:04o}"),
+            ));
         }
     }
     #[cfg(not(unix))]

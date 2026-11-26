@@ -22,29 +22,51 @@ use super::DependentCheck;
 use crate::candidate_object::CandidateMode;
 /// What a lifecycle asks the candidate layer for.
 use crate::candidate_prediction::CandidateRequest;
+/// The registry configuration the generator writes,
+///  and its repository path.
+use crate::dependent_version_test_support::{
+    CONFIG_PATH,
+    config_text,
+};
 /// The engine's failure codes.
 use crate::diagnostics::EngineFailureCode;
-/// The shared candidates,
-///  corrections and lifecycle content.
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
 /// The finding and outcome types of a check.
 use crate::event_path::EventPath;
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+/// The shared candidates,
+///  corrections and lifecycle content.
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
+};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
 /// Scripted facts that prepare candidates with real Git.
-use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    main_worktree,
+    scripted_facts,
+};
 /// The lifecycle points.
 use crate::policy_trigger::Trigger;
 /// Shared fixture directories and real Git.
-use crate::test_support::{fixture, git, remove, repository};
-/// The registry configuration the generator writes,
-///  and its repository path.
-use crate::dependent_version_test_support::{CONFIG_PATH, config_text};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// Unix permission bits.
 use std::os::unix::fs::PermissionsExt;
 /// Borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Shared byte handles.
 use std::rc::Rc;
 
@@ -76,7 +98,11 @@ fn check_dependent_version(
 }
 
 /// A manifest as two-space JSON with a final newline.
-fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
+fn manifest(
+    name: &str,
+    version: &str,
+    dependency: Option<&str>,
+) -> String {
     let dependencies: String = dependency.map_or_else(String::new, dependency_block);
     return format!(
         "{{\n  \"name\": \"{name}\",\n  \"version\": \"{version}\"{dependencies}\n}}\n"
@@ -85,7 +111,11 @@ fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
 
 /// Write a file below the repository,
 ///  creating its directory.
-fn write(repo: &Path, path: &str, text: &str) {
+fn write(
+    repo: &Path,
+    path: &str,
+    text: &str,
+) {
     let file: PathBuf = repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(file, text).expect("file");
@@ -107,7 +137,10 @@ fn workspace(root: &Path) -> PathBuf {
 
 /// The same workspace,
 ///  with the registry configuration text the case names.
-fn workspace_with(root: &Path, registry: Option<&str>) -> PathBuf {
+fn workspace_with(
+    root: &Path,
+    registry: Option<&str>,
+) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     write(
         repo.as_path(),
@@ -156,7 +189,11 @@ fn direct(pathspecs: &[&str]) -> LifecycleContent {
 }
 
 /// The stale finding about dependent `name` moving from `from` to `to`.
-fn stale(name: &str, from: &str, to: &str) -> PolicyFinding {
+fn stale(
+    name: &str,
+    from: &str,
+    to: &str,
+) -> PolicyFinding {
     return PolicyFinding {
         code: "dependent-version-stale",
         message: format!(
@@ -169,7 +206,11 @@ fn stale(name: &str, from: &str, to: &str) -> PolicyFinding {
 }
 
 /// The correction of dependent `name` from `from` to `to`.
-fn bump(name: &str, from: &str, to: &str) -> Correction {
+fn bump(
+    name: &str,
+    from: &str,
+    to: &str,
+) -> Correction {
     return Correction {
         path: path_of(name).into_bytes(),
         mode: CandidateMode::Regular,
@@ -273,7 +314,10 @@ fn a_narrow_fix_admits_clean_unselected_dependents() {
 }
 
 /// The conflict a narrow fix reports after `change` alters dependent `@s/b`'s copies.
-fn narrow_conflict(name: &str, change: fn(&Path)) -> PolicyOutcome {
+fn narrow_conflict(
+    name: &str,
+    change: fn(&Path),
+) -> PolicyOutcome {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = workspace(root.as_path());
     change(repo.as_path());
@@ -383,7 +427,13 @@ fn prerelease_dependent(repo: &Path) {
     git(repo, &["add", path_of("b").as_str()]);
     git(
         repo,
-        &["commit", "--quiet", "--message=prerelease", "--", path_of("b").as_str()],
+        &[
+            "commit",
+            "--quiet",
+            "--message=prerelease",
+            "--",
+            path_of("b").as_str(),
+        ],
     );
 }
 
@@ -424,7 +474,12 @@ fn failures_follow_their_cause() {
         &all,
         Trigger::DirectCheck,
     );
-    let PolicyOutcome::Failed { code, message, .. } = broken else {
+    let PolicyOutcome::Failed {
+        code,
+        message,
+        ..
+    } = broken
+    else {
         panic!("expected a failure, got {broken:?}");
     };
     assert_eq!(code, EngineFailureCode::PolicyIncomplete);
@@ -493,7 +548,13 @@ fn no_registry_configuration(repo: &Path) {
     git(repo, &["rm", "--quiet", CONFIG_PATH]);
     git(
         repo,
-        &["commit", "--quiet", "--message=no-registry", "--", CONFIG_PATH],
+        &[
+            "commit",
+            "--quiet",
+            "--message=no-registry",
+            "--",
+            CONFIG_PATH,
+        ],
     );
 }
 
@@ -503,7 +564,13 @@ fn empty_publish_set(repo: &Path) {
     git(repo, &["add", "--", CONFIG_PATH]);
     git(
         repo,
-        &["commit", "--quiet", "--message=empty-publish-set", "--", CONFIG_PATH],
+        &[
+            "commit",
+            "--quiet",
+            "--message=empty-publish-set",
+            "--",
+            CONFIG_PATH,
+        ],
     );
 }
 
@@ -561,7 +628,9 @@ fn a_fix_without_a_location_reports_it() {
     let root: PathBuf = fixture("dependent-unlocated");
     let repo: PathBuf = workspace(root.as_path());
     let mut facts: ScriptedFacts = facts_in(repo.as_path());
-    facts.location = Err(String::from("monochromatic-git-policy-cli could not locate the repository"));
+    facts.location = Err(String::from(
+        "monochromatic-git-policy-cli could not locate the repository",
+    ));
     let mut content: ContentState = ContentState::new();
     assert_eq!(
         check_dependent_version(
@@ -581,7 +650,10 @@ fn a_fix_without_a_location_reports_it() {
 
 /// The lifecycle content of a commit that names `paths`,
 /// and the real index it read them from.
-fn commit_naming(repo: &Path, paths: &[&str]) -> (LifecycleContent, PathBuf) {
+fn commit_naming(
+    repo: &Path,
+    paths: &[&str],
+) -> (LifecycleContent, PathBuf) {
     let head: String = String::from_utf8_lossy(
         crate::test_support::git(repo, &["rev-parse", "HEAD"])
             .stdout
@@ -612,8 +684,7 @@ fn committed(
 ) -> (PolicyOutcome, Vec<Correction>) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = workspace(root.as_path());
-    let (lifecycle, real_index): (LifecycleContent, PathBuf) =
-        commit_naming(repo.as_path(), paths);
+    let (lifecycle, real_index): (LifecycleContent, PathBuf) = commit_naming(repo.as_path(), paths);
     // The commit's selection: the raised manifest, which every control below names.
     git(repo.as_path(), &["add", "--", path_of("a").as_str()]);
     change(repo.as_path());
@@ -640,11 +711,8 @@ fn nothing(_repo: &Path) {}
 /// so the hand bump and its ripple land together.
 #[test]
 fn a_commit_proposes_every_clean_dependent() {
-    let (outcome, proposals) = committed(
-        "dependent-commit-clean",
-        nothing,
-        &[path_of("a").as_str()],
-    );
+    let (outcome, proposals) =
+        committed("dependent-commit-clean", nothing, &[path_of("a").as_str()]);
     assert_eq!(
         outcome,
         PolicyOutcome::Findings(vec![
@@ -671,7 +739,11 @@ fn a_commit_names_the_dependent_it_leaves_behind() {
         unstaged_edit,
         &[path_of("a").as_str()],
     );
-    let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+    let PolicyOutcome::FindingsWithNotes {
+        findings,
+        notes,
+    } = outcome
+    else {
         panic!("a note is expected beside the findings, got {outcome:?}");
     };
     assert_eq!(findings, vec![stale("c", "3.0.0", "3.0.1")]);
@@ -708,15 +780,22 @@ fn a_commit_reports_what_it_cannot_judge_instead_of_failing() {
             "the publish set of package/config/pnpr/config.yaml cannot be read",
         ),
     ] {
-        let (outcome, proposals) =
-            committed(name, change, &[path_of("a").as_str()]);
-        let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+        let (outcome, proposals) = committed(name, change, &[path_of("a").as_str()]);
+        let PolicyOutcome::FindingsWithNotes {
+            findings,
+            notes,
+        } = outcome
+        else {
             panic!("a note is expected for {name}, got {outcome:?}");
         };
         assert_eq!(findings, Vec::<PolicyFinding>::new(), "{name}");
         assert_eq!(proposals, Vec::<Correction>::new(), "{name}");
         assert_eq!(notes.len(), 1, "{name}");
-        assert!(notes[0].message.contains(cause), "{name}: {}", notes[0].message);
+        assert!(
+            notes[0].message.contains(cause),
+            "{name}: {}",
+            notes[0].message
+        );
     }
 }
 
@@ -744,18 +823,18 @@ fn a_commit_names_a_dependent_it_cannot_bump() {
     });
     let proposals: Vec<Correction> = content.take_proposals();
     remove(root.as_path());
-    let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+    let PolicyOutcome::FindingsWithNotes {
+        findings,
+        notes,
+    } = outcome
+    else {
         panic!("a note is expected, got {outcome:?}");
     };
     assert_eq!(findings, Vec::<PolicyFinding>::new());
     assert_eq!(proposals, Vec::<Correction>::new());
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].path, None);
-    assert!(
-        notes[0].message.contains("@s/b"),
-        "{}",
-        notes[0].message
-    );
+    assert!(notes[0].message.contains("@s/b"), "{}", notes[0].message);
 }
 
 /// A real index that could not be listed leaves every dependent whose copies that listing would
@@ -785,21 +864,37 @@ fn a_commit_names_every_dependent_a_failed_listing_left_behind() {
     });
     let proposals: Vec<Correction> = content.take_proposals();
     remove(root.as_path());
-    let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+    let PolicyOutcome::FindingsWithNotes {
+        findings,
+        notes,
+    } = outcome
+    else {
         panic!("one note per dependent is expected, got {outcome:?}");
     };
     assert_eq!(findings, Vec::<PolicyFinding>::new());
     assert_eq!(proposals, Vec::<Correction>::new());
     assert_eq!(notes.len(), 2, "{notes:?}");
     for (note, name) in notes.iter().zip(["b", "c"]) {
-        assert_eq!(note.path, Some(EventPath::display(&path_of(name))), "{name}");
-        assert!(note.message.contains(&format!("@s/{name}")), "{name}: {}", note.message);
+        assert_eq!(
+            note.path,
+            Some(EventPath::display(&path_of(name))),
+            "{name}"
+        );
+        assert!(
+            note.message.contains(&format!("@s/{name}")),
+            "{name}: {}",
+            note.message
+        );
         assert!(
             note.message.contains("the real index could not be listed"),
             "{name}: {}",
             note.message
         );
-        assert!(note.message.contains("index file"), "{name}: {}", note.message);
+        assert!(
+            note.message.contains("index file"),
+            "{name}: {}",
+            note.message
+        );
         assert_eq!(
             note.hint,
             Some(crate::policy_events::UNPROVEN_RIPPLE_HINT),

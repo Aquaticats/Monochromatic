@@ -29,14 +29,50 @@ fn words(items: &[&str]) -> Vec<OsString> {
 fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
     let (rewritten, notice) = with_skip_repo(words(&["lfs", "install"]), true);
     assert_eq!(rewritten, words(&["lfs", "install", SKIP_REPO_OPTION]));
-    assert!(notice.contains("no `pre-push` hook is installed in this repository and none is needed"), "{notice}");
-    assert!(notice.contains("This command asks git-lfs to put the `filter.lfs.*` keys in your global configuration"), "{notice}");
-    assert!(!notice.contains("keys were written"), "the notice runs before git-lfs and never promises a write: {notice}");
-    assert!(!notice.contains("keys go, as this command asked, to"), "git-lfs can fail after a good parse, so the notice states a request: {notice}");
-    assert!(!notice.contains("run `git lfs update --manual`"), "no advice that cannot work is offered: {notice}");
+    assert!(
+        notice.contains("no `pre-push` hook is installed in this repository and none is needed"),
+        "{notice}"
+    );
+    assert!(
+        notice.contains(
+            "This command asks git-lfs to put the `filter.lfs.*` keys in your global configuration"
+        ),
+        "{notice}"
+    );
+    assert!(
+        !notice.contains("keys were written"),
+        "the notice runs before git-lfs and never promises a write: {notice}"
+    );
+    assert!(
+        !notice.contains("keys go, as this command asked, to"),
+        "git-lfs can fail after a good parse, so the notice states a request: {notice}"
+    );
+    assert!(
+        !notice.contains("run `git lfs update --manual`"),
+        "no advice that cannot work is offered: {notice}"
+    );
 
-    let (with_a_caller_setting, setting_notice) = with_skip_repo(words(&["-c", "lfs.skipdownloaderrors=true", "lfs", "install", "--force"]), true);
-    assert_eq!(with_a_caller_setting, words(&["-c", "lfs.skipdownloaderrors=true", "lfs", "install", SKIP_REPO_OPTION, "--force"]));
+    let (with_a_caller_setting, setting_notice) = with_skip_repo(
+        words(&[
+            "-c",
+            "lfs.skipdownloaderrors=true",
+            "lfs",
+            "install",
+            "--force",
+        ]),
+        true,
+    );
+    assert_eq!(
+        with_a_caller_setting,
+        words(&[
+            "-c",
+            "lfs.skipdownloaderrors=true",
+            "lfs",
+            "install",
+            SKIP_REPO_OPTION,
+            "--force"
+        ])
+    );
     assert!(!setting_notice.is_empty());
 
     for untouched in [
@@ -53,11 +89,22 @@ fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
         vec!["status"],
     ] {
         let (same, silent) = with_skip_repo(words(untouched.as_slice()), false);
-        assert_eq!(same, words(untouched.as_slice()), "{untouched:?} outside a repository");
-        assert!(silent.is_empty(), "{untouched:?} outside a repository says nothing");
+        assert_eq!(
+            same,
+            words(untouched.as_slice()),
+            "{untouched:?} outside a repository"
+        );
+        assert!(
+            silent.is_empty(),
+            "{untouched:?} outside a repository says nothing"
+        );
     }
     let (help, silent) = with_skip_repo(words(&["lfs", "install", "--help"]), true);
-    assert_eq!(help, words(&["lfs", "install", "--help"]), "a help query is answered as it was typed");
+    assert_eq!(
+        help,
+        words(&["lfs", "install", "--help"]),
+        "a help query is answered as it was typed"
+    );
     assert!(silent.is_empty());
 }
 
@@ -99,51 +146,161 @@ fn an_install_inside_a_repository_runs_with_skip_repo_and_its_notice() {
 #[test]
 fn the_notice_names_the_scope_the_caller_asked_for() {
     for (case, typed, wanted) in [
-        ("the default scope is the global file", vec!["lfs", "install"], "global configuration"),
-        ("--force keeps the global scope", vec!["lfs", "install", "--force"], "global configuration"),
-        ("--local names the repository's own file", vec!["lfs", "install", "--local"], "this repository's `.git/config`"),
-        ("-l names it too", vec!["lfs", "install", "-l"], "this repository's `.git/config`"),
-        ("--worktree names the worktree file and its condition", vec!["lfs", "install", "--worktree"], "`config.worktree` in this worktree's Git directory"),
-        ("--system names the system file", vec!["lfs", "install", "--system"], "system configuration"),
-        ("--file names the file it was given", vec!["lfs", "install", "--file=/work/elsewhere.conf"], "`/work/elsewhere.conf`"),
-        ("--file's value may be the next word", vec!["lfs", "install", "--file", "elsewhere.conf"], "`elsewhere.conf`"),
+        (
+            "the default scope is the global file",
+            vec!["lfs", "install"],
+            "global configuration",
+        ),
+        (
+            "--force keeps the global scope",
+            vec!["lfs", "install", "--force"],
+            "global configuration",
+        ),
+        (
+            "--local names the repository's own file",
+            vec!["lfs", "install", "--local"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "-l names it too",
+            vec!["lfs", "install", "-l"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "--worktree names the worktree file and its condition",
+            vec!["lfs", "install", "--worktree"],
+            "`config.worktree` in this worktree's Git directory",
+        ),
+        (
+            "--system names the system file",
+            vec!["lfs", "install", "--system"],
+            "system configuration",
+        ),
+        (
+            "--file names the file it was given",
+            vec!["lfs", "install", "--file=/work/elsewhere.conf"],
+            "`/work/elsewhere.conf`",
+        ),
+        (
+            "--file's value may be the next word",
+            vec!["lfs", "install", "--file", "elsewhere.conf"],
+            "`elsewhere.conf`",
+        ),
         (
             "--file takes a flag-like next word as its value",
             vec!["lfs", "install", "--file", "--local"],
             "keys in `--local`",
         ),
-        ("--local=true names the repository's own file", vec!["lfs", "install", "--local=true"], "this repository's `.git/config`"),
-        ("--worktree=false leaves the global file", vec!["lfs", "install", "--worktree=false"], "global configuration"),
-        ("--system=true names the system file", vec!["lfs", "install", "--system=true"], "system configuration"),
-        ("a later false value resets --local", vec!["lfs", "install", "--local", "--local=false"], "global configuration"),
-        ("a later false value resets --system", vec!["lfs", "install", "--system", "--system=false"], "global configuration"),
-        ("a false --worktree leaves the earlier --local", vec!["lfs", "install", "--local", "--worktree=false"], "this repository's `.git/config`"),
-        ("--file= resets the file scope", vec!["lfs", "install", "--file=/work/elsewhere.conf", "--file="], "global configuration"),
-        ("-l=false withdraws --local", vec!["lfs", "install", "-l=false"], "global configuration"),
-        ("-l=0 withdraws --local", vec!["lfs", "install", "-l=0"], "global configuration"),
-        ("-l=true keeps --local", vec!["lfs", "install", "-l=true"], "this repository's `.git/config`"),
-        ("-w=0 withdraws --worktree", vec!["lfs", "install", "-w=0"], "global configuration"),
-        ("-lw=false sets --local and withdraws --worktree", vec!["lfs", "install", "-lw=false"], "this repository's `.git/config`"),
-        ("-lm=false asks for no hook instructions", vec!["lfs", "install", "-lm=false"], "this repository's `.git/config`"),
-        ("-m=false names no scope of its own", vec!["lfs", "install", "-m=false"], "global configuration"),
-        ("-l=false before -w leaves the worktree scope", vec!["lfs", "install", "-l=false", "-w"], "`config.worktree` in this worktree's Git directory"),
+        (
+            "--local=true names the repository's own file",
+            vec!["lfs", "install", "--local=true"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "--worktree=false leaves the global file",
+            vec!["lfs", "install", "--worktree=false"],
+            "global configuration",
+        ),
+        (
+            "--system=true names the system file",
+            vec!["lfs", "install", "--system=true"],
+            "system configuration",
+        ),
+        (
+            "a later false value resets --local",
+            vec!["lfs", "install", "--local", "--local=false"],
+            "global configuration",
+        ),
+        (
+            "a later false value resets --system",
+            vec!["lfs", "install", "--system", "--system=false"],
+            "global configuration",
+        ),
+        (
+            "a false --worktree leaves the earlier --local",
+            vec!["lfs", "install", "--local", "--worktree=false"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "--file= resets the file scope",
+            vec!["lfs", "install", "--file=/work/elsewhere.conf", "--file="],
+            "global configuration",
+        ),
+        (
+            "-l=false withdraws --local",
+            vec!["lfs", "install", "-l=false"],
+            "global configuration",
+        ),
+        (
+            "-l=0 withdraws --local",
+            vec!["lfs", "install", "-l=0"],
+            "global configuration",
+        ),
+        (
+            "-l=true keeps --local",
+            vec!["lfs", "install", "-l=true"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "-w=0 withdraws --worktree",
+            vec!["lfs", "install", "-w=0"],
+            "global configuration",
+        ),
+        (
+            "-lw=false sets --local and withdraws --worktree",
+            vec!["lfs", "install", "-lw=false"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "-lm=false asks for no hook instructions",
+            vec!["lfs", "install", "-lm=false"],
+            "this repository's `.git/config`",
+        ),
+        (
+            "-m=false names no scope of its own",
+            vec!["lfs", "install", "-m=false"],
+            "global configuration",
+        ),
+        (
+            "-l=false before -w leaves the worktree scope",
+            vec!["lfs", "install", "-l=false", "-w"],
+            "`config.worktree` in this worktree's Git directory",
+        ),
     ] {
         let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
-        assert!(notice.contains(wanted), "{case}: the notice names the scope: {notice}");
+        assert!(
+            notice.contains(wanted),
+            "{case}: the notice names the scope: {notice}"
+        );
     }
     let (_, worktree_notice) = with_skip_repo(words(&["lfs", "install", "--worktree"]), true);
-    assert!(worktree_notice.contains("extensions.worktreeConfig"), "the worktree notice says when Git reads that file: {worktree_notice}");
+    assert!(
+        worktree_notice.contains("extensions.worktreeConfig"),
+        "the worktree notice says when Git reads that file: {worktree_notice}"
+    );
     assert!(
         worktree_notice.contains("this repository's `.git/config`"),
         "the worktree notice names the extension-unset file too: {worktree_notice}"
     );
     let (_, manual) = with_skip_repo(words(&["lfs", "install", "--manual"]), true);
-    assert!(manual.contains("`--manual`"), "the notice answers what `--manual` asked for: {manual}");
-    assert!(manual.contains("none are printed here"), "the notice says the hook instructions are not printed: {manual}");
+    assert!(
+        manual.contains("`--manual`"),
+        "the notice answers what `--manual` asked for: {manual}"
+    );
+    assert!(
+        manual.contains("none are printed here"),
+        "the notice says the hook instructions are not printed: {manual}"
+    );
     let (_, force_manual) = with_skip_repo(words(&["lfs", "install", "-m"]), true);
-    assert!(force_manual.contains("`--manual`"), "the short form of `--manual` is read too: {force_manual}");
+    assert!(
+        force_manual.contains("`--manual`"),
+        "the short form of `--manual` is read too: {force_manual}"
+    );
     let (_, manual_on_value) = with_skip_repo(words(&["lfs", "install", "--manual=true"]), true);
-    assert!(manual_on_value.contains("none are printed here"), "--manual=true asks for the instructions too: {manual_on_value}");
+    assert!(
+        manual_on_value.contains("none are printed here"),
+        "--manual=true asks for the instructions too: {manual_on_value}"
+    );
     for off in [
         vec!["lfs", "install", "--manual=false"],
         vec!["lfs", "install", "--manual", "--manual=false"],
@@ -151,7 +308,10 @@ fn the_notice_names_the_scope_the_caller_asked_for() {
         vec!["lfs", "install", "-lm=false"],
     ] {
         let (_, silent) = with_skip_repo(words(off.as_slice()), true);
-        assert!(!silent.contains("none are printed here"), "{off:?} asks for no hook instructions: {silent}");
+        assert!(
+            !silent.contains("none are printed here"),
+            "{off:?} asks for no hook instructions: {silent}"
+        );
     }
 }
 
@@ -201,40 +361,117 @@ fn the_notice_names_the_refusal_instead_of_a_destination() {
             vec!["lfs", "install", "-l", "--worktree"],
             "only one of `--local`, `--system`, `--worktree` and `--file` can be specified, and this command asks for more than one",
         ),
-        ("a short group -lw", vec!["lfs", "install", "-lw"], "more than one"),
-        ("--local --system", vec!["lfs", "install", "--local", "--system"], "more than one"),
-        ("three flags -lw --system", vec!["lfs", "install", "-lw", "--system"], "more than one"),
-        ("a rejected short value", vec!["lfs", "install", "-l=yes"], "`-l=yes`"),
-        ("a short group that ends in =", vec!["lfs", "install", "-l="], "`-l=`"),
-        ("a short group ending in = on --worktree", vec!["lfs", "install", "-w="], "`-w=`"),
-        ("a rejected long value", vec!["lfs", "install", "--local=yes"], "`--local=yes`"),
-        ("a rejected value on a boolean that chooses no scope", vec!["lfs", "install", "--force=yes"], "`--force=yes`"),
-        ("a rejected value on a short boolean that chooses no scope", vec!["lfs", "install", "-f=yes"], "`-f=yes`"),
-        ("--file with no path, beside a destination flag", vec!["lfs", "install", "--local", "--file"], "`--file` needs a path and none followed it"),
-        ("a --file path counts as a destination beside --local", vec!["lfs", "install", "--file=elsewhere.conf", "--local"], "more than one"),
+        (
+            "a short group -lw",
+            vec!["lfs", "install", "-lw"],
+            "more than one",
+        ),
+        (
+            "--local --system",
+            vec!["lfs", "install", "--local", "--system"],
+            "more than one",
+        ),
+        (
+            "three flags -lw --system",
+            vec!["lfs", "install", "-lw", "--system"],
+            "more than one",
+        ),
+        (
+            "a rejected short value",
+            vec!["lfs", "install", "-l=yes"],
+            "`-l=yes`",
+        ),
+        (
+            "a short group that ends in =",
+            vec!["lfs", "install", "-l="],
+            "`-l=`",
+        ),
+        (
+            "a short group ending in = on --worktree",
+            vec!["lfs", "install", "-w="],
+            "`-w=`",
+        ),
+        (
+            "a rejected long value",
+            vec!["lfs", "install", "--local=yes"],
+            "`--local=yes`",
+        ),
+        (
+            "a rejected value on a boolean that chooses no scope",
+            vec!["lfs", "install", "--force=yes"],
+            "`--force=yes`",
+        ),
+        (
+            "a rejected value on a short boolean that chooses no scope",
+            vec!["lfs", "install", "-f=yes"],
+            "`-f=yes`",
+        ),
+        (
+            "--file with no path, beside a destination flag",
+            vec!["lfs", "install", "--local", "--file"],
+            "`--file` needs a path and none followed it",
+        ),
+        (
+            "a --file path counts as a destination beside --local",
+            vec!["lfs", "install", "--file=elsewhere.conf", "--local"],
+            "more than one",
+        ),
     ] {
         let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
-        assert!(notice.contains("git-lfs refuses this command"), "{case}: the notice says git-lfs refuses it: {notice}");
-        assert!(notice.contains(wanted), "{case}: the notice names the refusal: {notice}");
-        assert!(!notice.contains("asks git-lfs to put"), "{case}: the notice names no destination: {notice}");
+        assert!(
+            notice.contains("git-lfs refuses this command"),
+            "{case}: the notice says git-lfs refuses it: {notice}"
+        );
+        assert!(
+            notice.contains(wanted),
+            "{case}: the notice names the refusal: {notice}"
+        );
+        assert!(
+            !notice.contains("asks git-lfs to put"),
+            "{case}: the notice names no destination: {notice}"
+        );
         assert!(
             notice.contains("so no `filter.lfs.*` key is written to any configuration file"),
             "{case}: the notice claims no write: {notice}"
         );
     }
     for (case, typed) in [
-        ("a false second destination is no second destination", vec!["lfs", "install", "--local", "--worktree=false"]),
-        ("a withdrawn flag before another leaves one destination", vec!["lfs", "install", "-l=false", "-w"]),
-        ("a withdrawn flag alone leaves the global file", vec!["lfs", "install", "--local", "--local=false"]),
-        ("a group whose value withdraws one flag leaves one destination", vec!["lfs", "install", "-lw=false"]),
-        ("short booleans of their own change no destination", vec!["lfs", "install", "-fs"]),
-        ("a word after -- is no option", vec!["lfs", "install", "--", "-lw"]),
+        (
+            "a false second destination is no second destination",
+            vec!["lfs", "install", "--local", "--worktree=false"],
+        ),
+        (
+            "a withdrawn flag before another leaves one destination",
+            vec!["lfs", "install", "-l=false", "-w"],
+        ),
+        (
+            "a withdrawn flag alone leaves the global file",
+            vec!["lfs", "install", "--local", "--local=false"],
+        ),
+        (
+            "a group whose value withdraws one flag leaves one destination",
+            vec!["lfs", "install", "-lw=false"],
+        ),
+        (
+            "short booleans of their own change no destination",
+            vec!["lfs", "install", "-fs"],
+        ),
+        (
+            "a word after -- is no option",
+            vec!["lfs", "install", "--", "-lw"],
+        ),
     ] {
         let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
-        assert!(!notice.contains("git-lfs refuses this command"), "{case}: git-lfs runs it: {notice}");
+        assert!(
+            !notice.contains("git-lfs refuses this command"),
+            "{case}: git-lfs runs it: {notice}"
+        );
     }
     let (_, refused_manual) = with_skip_repo(words(&["lfs", "install", "-lw", "--manual"]), true);
-    assert!(refused_manual.contains("git-lfs refuses this command"), "a refused command is told so: {refused_manual}");
+    assert!(
+        refused_manual.contains("git-lfs refuses this command"),
+        "a refused command is told so: {refused_manual}"
+    );
     assert!(
         !refused_manual.contains("none are printed here"),
         "a refused command prints no hook instructions because it is refused, not because `--skip-repo` skipped them: {refused_manual}"
@@ -250,7 +487,9 @@ fn the_notice_names_the_refusal_instead_of_a_destination() {
     );
     let (_, unread_letter) = with_skip_repo(words(&["lfs", "install", "-z"]), true);
     assert!(
-        unread_letter.contains("This command asks git-lfs to put the `filter.lfs.*` keys in your global configuration"),
+        unread_letter.contains(
+            "This command asks git-lfs to put the `filter.lfs.*` keys in your global configuration"
+        ),
         "an unknown short letter is passed through like an unknown long option: {unread_letter}"
     );
 }
@@ -298,9 +537,15 @@ fn the_worktree_notice_states_every_outcome_git_chooses() {
             "the extension is unset and several worktrees exist",
             "no file at all when it is not and the repository holds several",
         ),
-        ("Git refuses that write and git-lfs ends with status 2", "Git refuses the write and git-lfs ends with status 2"),
+        (
+            "Git refuses that write and git-lfs ends with status 2",
+            "Git refuses the write and git-lfs ends with status 2",
+        ),
     ] {
-        assert!(notice.contains(wanted), "{outcome}: the notice states it: {notice}");
+        assert!(
+            notice.contains(wanted),
+            "{outcome}: the notice states it: {notice}"
+        );
     }
     assert!(
         !notice.contains("`.git/config.worktree`"),
@@ -321,9 +566,18 @@ fn the_worktree_notice_states_every_outcome_git_chooses() {
 /// ```
 #[test]
 fn a_caller_who_wrote_the_option_already_keeps_one_copy_and_gets_the_notice() {
-    let (rewritten, notice) = with_skip_repo(words(&["lfs", "install", SKIP_REPO_OPTION, "--local"]), true);
-    assert_eq!(rewritten, words(&["lfs", "install", SKIP_REPO_OPTION, "--local"]));
-    assert!(notice.contains("this repository's `.git/config`"), "the notice still names the scope: {notice}");
+    let (rewritten, notice) = with_skip_repo(
+        words(&["lfs", "install", SKIP_REPO_OPTION, "--local"]),
+        true,
+    );
+    assert_eq!(
+        rewritten,
+        words(&["lfs", "install", SKIP_REPO_OPTION, "--local"])
+    );
+    assert!(
+        notice.contains("this repository's `.git/config`"),
+        "the notice still names the scope: {notice}"
+    );
 }
 
 /// What:
@@ -358,28 +612,47 @@ fn a_help_query_is_answered_as_it_was_typed() {
         vec!["lfs", "install", "-h", "--"],
     ] {
         let (same, silent) = with_skip_repo(words(typed.as_slice()), true);
-        assert_eq!(same, words(typed.as_slice()), "{typed:?}: a help query is answered as it was typed");
-        assert!(silent.is_empty(), "{typed:?}: nothing is said about a command that writes no key");
+        assert_eq!(
+            same,
+            words(typed.as_slice()),
+            "{typed:?}: a help query is answered as it was typed"
+        );
+        assert!(
+            silent.is_empty(),
+            "{typed:?}: nothing is said about a command that writes no key"
+        );
     }
-    for typed in [vec!["lfs", "install", "--help=false"], vec!["lfs", "install", "-lh=false"]] {
+    for typed in [
+        vec!["lfs", "install", "--help=false"],
+        vec!["lfs", "install", "-lh=false"],
+    ] {
         let (rewritten, notice) = with_skip_repo(words(typed.as_slice()), true);
         assert_eq!(
             rewritten,
             words(&["lfs", "install", SKIP_REPO_OPTION, typed[2]]),
             "{typed:?}: a false help value runs the command, so the wrapper adds its option"
         );
-        assert!(notice.contains("asks git-lfs to put the `filter.lfs.*` keys in"), "{typed:?}: the notice names the request: {notice}");
+        assert!(
+            notice.contains("asks git-lfs to put the `filter.lfs.*` keys in"),
+            "{typed:?}: the notice names the request: {notice}"
+        );
     }
-    let (positional, positional_notice) = with_skip_repo(words(&["lfs", "install", "--", "-h"]), true);
+    let (positional, positional_notice) =
+        with_skip_repo(words(&["lfs", "install", "--", "-h"]), true);
     assert_eq!(
         positional,
         words(&["lfs", "install", SKIP_REPO_OPTION, "--", "-h"]),
         "a word after `--` is no help query, and the wrapper's option still goes right after `install`"
     );
-    assert!(positional_notice.contains("your global configuration"), "the positional word asks for no destination: {positional_notice}");
+    assert!(
+        positional_notice.contains("your global configuration"),
+        "the positional word asks for no destination: {positional_notice}"
+    );
     let (_, refused_help) = with_skip_repo(words(&["lfs", "install", "-lh", "--local=yes"]), true);
     assert!(
-        refused_help.contains("git-lfs refuses this command, because its flag parser rejects `--local=yes`"),
+        refused_help.contains(
+            "git-lfs refuses this command, because its flag parser rejects `--local=yes`"
+        ),
         "a parse error beats help, as cobra reads them: {refused_help}"
     );
 }
@@ -400,13 +673,17 @@ fn a_help_query_is_answered_as_it_was_typed() {
 /// ```
 #[test]
 fn a_word_after_the_double_dash_is_no_option() {
-    let (rewritten, notice) = with_skip_repo(words(&["lfs", "install", "--", SKIP_REPO_OPTION]), true);
+    let (rewritten, notice) =
+        with_skip_repo(words(&["lfs", "install", "--", SKIP_REPO_OPTION]), true);
     assert_eq!(
         rewritten,
         words(&["lfs", "install", SKIP_REPO_OPTION, "--", SKIP_REPO_OPTION]),
         "the positional word is not the option, so the wrapper adds one"
     );
-    assert!(notice.contains("your global configuration"), "the positional word asks for no destination: {notice}");
+    assert!(
+        notice.contains("your global configuration"),
+        "the positional word asks for no destination: {notice}"
+    );
 }
 
 /// What:
@@ -430,7 +707,11 @@ fn a_word_after_the_double_dash_is_no_option() {
 /// ```
 #[test]
 fn a_caller_who_turned_skip_repo_off_gets_the_wrappers_copy_after_it() {
-    for spelled in [String::from("--skip-repo=false"), String::from("--skip-repo=0"), String::from("--skip-repo=FALSE")] {
+    for spelled in [
+        String::from("--skip-repo=false"),
+        String::from("--skip-repo=0"),
+        String::from("--skip-repo=FALSE"),
+    ] {
         let typed: Vec<&str> = vec!["lfs", "install", spelled.as_str()];
         let (rewritten, notice) = with_skip_repo(words(typed.as_slice()), true);
         assert_eq!(
@@ -443,17 +724,25 @@ fn a_caller_who_turned_skip_repo_off_gets_the_wrappers_copy_after_it() {
             "{spelled}: the notice says which word won: {notice}"
         );
         assert!(
-            notice.contains("asks git-lfs to put the `filter.lfs.*` keys in your global configuration"),
+            notice.contains(
+                "asks git-lfs to put the `filter.lfs.*` keys in your global configuration"
+            ),
             "{spelled}: the destination is unchanged by that word: {notice}"
         );
     }
-    let (kept, kept_notice) = with_skip_repo(words(&["lfs", "install", "--skip-repo=false", SKIP_REPO_OPTION]), true);
+    let (kept, kept_notice) = with_skip_repo(
+        words(&["lfs", "install", "--skip-repo=false", SKIP_REPO_OPTION]),
+        true,
+    );
     assert_eq!(
         kept,
         words(&["lfs", "install", "--skip-repo=false", SKIP_REPO_OPTION]),
         "the caller's own copy stands when its value is already on"
     );
-    assert!(!kept_notice.contains("turned it off"), "nothing was turned off: {kept_notice}");
+    assert!(
+        !kept_notice.contains("turned it off"),
+        "nothing was turned off: {kept_notice}"
+    );
 }
 
 /// What:
@@ -484,14 +773,36 @@ fn a_refusal_after_an_option_the_reading_does_not_name_states_no_reason() {
         vec!["lfs", "install", "-lw", "--bogus"],
     ] {
         let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
-        assert!(notice.contains("git-lfs refuses this command, so no `filter.lfs.*` key is written"), "{typed:?}: {notice}");
-        assert!(!notice.contains("because"), "{typed:?}: git-lfs stops at a word this reading cannot name: {notice}");
+        assert!(
+            notice.contains("git-lfs refuses this command, so no `filter.lfs.*` key is written"),
+            "{typed:?}: {notice}"
+        );
+        assert!(
+            !notice.contains("because"),
+            "{typed:?}: git-lfs stops at a word this reading cannot name: {notice}"
+        );
     }
     for (case, typed, wanted) in [
-        ("a word git-lfs reaches is named", vec!["lfs", "install", "--local=yes", "--bogus"], "because its flag parser rejects `--local=yes`"),
-        ("a short group's bad value", vec!["lfs", "install", "-f=yes"], "because its flag parser rejects `-f=yes`"),
-        ("the count is the reason when nothing was passed through", vec!["lfs", "install", "-lw"], "because only one of"),
-        ("a file without a path is the reason", vec!["lfs", "install", "--file"], "because `--file` needs a path"),
+        (
+            "a word git-lfs reaches is named",
+            vec!["lfs", "install", "--local=yes", "--bogus"],
+            "because its flag parser rejects `--local=yes`",
+        ),
+        (
+            "a short group's bad value",
+            vec!["lfs", "install", "-f=yes"],
+            "because its flag parser rejects `-f=yes`",
+        ),
+        (
+            "the count is the reason when nothing was passed through",
+            vec!["lfs", "install", "-lw"],
+            "because only one of",
+        ),
+        (
+            "a file without a path is the reason",
+            vec!["lfs", "install", "--file"],
+            "because `--file` needs a path",
+        ),
     ] {
         let (_, notice) = with_skip_repo(words(typed.as_slice()), true);
         assert!(notice.contains(wanted), "{case}: {notice}");

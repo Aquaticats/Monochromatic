@@ -22,8 +22,18 @@
 //! const seen = evidence(readings);
 //! ```
 
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, MountRows, SlotMount, clone_mount_of};
-use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, PlanReading, SlotReadings};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    MountRows,
+    SlotMount,
+    clone_mount_of,
+};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    IntentFacts,
+    PlanReading,
+    SlotReadings,
+};
 
 /// What:
 ///  What the readings saw,
@@ -42,10 +52,17 @@ use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, Inte
 pub fn evidence(readings: &SlotReadings) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     match &readings.binding {
-        BindingReading::Absent => lines.push(format!("binding: no record is filed under `{}`", readings.slot)),
-        BindingReading::Unreadable { reason } => lines.push(format!("binding: cannot be read: {reason}")),
+        BindingReading::Absent => lines.push(format!(
+            "binding: no record is filed under `{}`",
+            readings.slot
+        )),
+        BindingReading::Unreadable {
+            reason,
+        } => lines.push(format!("binding: cannot be read: {reason}")),
         BindingReading::Record(record) => {
-            let settling: String = record.settle_reason.map_or_else(String::new, |reason| return format!(" settleReason={}", reason.word()));
+            let settling: String = record.settle_reason.map_or_else(String::new, |reason| {
+                return format!(" settleReason={}", reason.word());
+            });
             lines.push(format!(
                 "binding: phase={} cloneDataset=`{}` pool=`{}`{settling}",
                 record.phase.word(),
@@ -56,41 +73,85 @@ pub fn evidence(readings: &SlotReadings) -> Vec<String> {
     }
     match (&readings.binding, readings.registration_stands) {
         (BindingReading::Record(record), Some(stands)) => {
-            let registration: String = record.registration_path().map_or_else(String::new, |path| return path.display().to_string());
+            let registration: String = record
+                .registration_path()
+                .map_or_else(String::new, |path| return path.display().to_string());
             lines.push(format!(
                 "registration: {}{registration}",
-                if stands { "stands at " } else { "gone, and the record names " }
+                if stands {
+                    "stands at "
+                } else {
+                    "gone, and the record names "
+                }
             ));
         }
         (BindingReading::Record(record), None) => match record.registration_path() {
-            Some(path) => lines.push(format!("registration: not read, and the record names {}", path.display())),
+            Some(path) => lines.push(format!(
+                "registration: not read, and the record names {}",
+                path.display()
+            )),
             None => lines.push(String::from("registration: the record names none yet")),
         },
-        (BindingReading::Absent | BindingReading::Unreadable { .. }, _) => {
-            lines.push(String::from("registration: no record was read, so no registration was looked for"));
+        (
+            BindingReading::Absent
+            | BindingReading::Unreadable {
+                ..
+            },
+            _,
+        ) => {
+            lines.push(String::from(
+                "registration: no record was read, so no registration was looked for",
+            ));
         }
     }
     match &readings.plan {
-        PlanReading::NotAsked => lines.push(String::from("plan: not asked, because no record was read to name the clone with")),
-        PlanReading::NoPlan => lines.push(String::from("plan: no destruction plan names this clone")),
-        PlanReading::NamesTheClone { plan } => lines.push(format!("plan: {} names this clone", plan.display())),
-        PlanReading::Unreadable { plan, reason } => lines.push(format!("plan: {} cannot be read: {reason}", plan.display())),
+        PlanReading::NotAsked => lines.push(String::from(
+            "plan: not asked, because no record was read to name the clone with",
+        )),
+        PlanReading::NoPlan => {
+            lines.push(String::from("plan: no destruction plan names this clone"))
+        }
+        PlanReading::NamesTheClone {
+            plan,
+        } => lines.push(format!("plan: {} names this clone", plan.display())),
+        PlanReading::Unreadable {
+            plan,
+            reason,
+        } => lines.push(format!("plan: {} cannot be read: {reason}", plan.display())),
     }
     match &readings.intent {
-        IntentFacts::Unasked => lines.push(String::from("intent: not asked, because the record names no clone dataset yet")),
+        IntentFacts::Unasked => lines.push(String::from(
+            "intent: not asked, because the record names no clone dataset yet",
+        )),
         IntentFacts::Absent => lines.push(String::from("intent: no request of the clone's own")),
-        IntentFacts::Mounting { nonce } => lines.push(format!("intent: mount requested under nonce `{nonce}`")),
-        IntentFacts::Unmounting { nonce } => lines.push(format!("intent: unmount requested under nonce `{nonce}`")),
-        IntentFacts::Inherited { from } => lines.push(format!("intent: inherited from `{from}`, which authorizes nothing")),
-        IntentFacts::Unreadable { reason } => lines.push(format!("intent: cannot be read: {reason}")),
+        IntentFacts::Mounting {
+            nonce,
+        } => lines.push(format!("intent: mount requested under nonce `{nonce}`")),
+        IntentFacts::Unmounting {
+            nonce,
+        } => lines.push(format!("intent: unmount requested under nonce `{nonce}`")),
+        IntentFacts::Inherited {
+            from,
+        } => lines.push(format!(
+            "intent: inherited from `{from}`, which authorizes nothing"
+        )),
+        IntentFacts::Unreadable {
+            reason,
+        } => lines.push(format!("intent: cannot be read: {reason}")),
     }
     let clone_dataset: Option<&str> = match &readings.binding {
         BindingReading::Record(record) => Some(record.clone_dataset.as_str()),
-        BindingReading::Absent | BindingReading::Unreadable { .. } => None,
+        BindingReading::Absent
+        | BindingReading::Unreadable {
+            ..
+        } => None,
     };
     match clone_dataset {
         Some(dataset) => lines.extend(mount_evidence(readings, dataset)),
-        None => lines.push(slot_mount_evidence(&readings.slot_mount, readings.slot_path.as_path())),
+        None => lines.push(slot_mount_evidence(
+            &readings.slot_mount,
+            readings.slot_path.as_path(),
+        )),
     }
     return lines;
 }
@@ -110,26 +171,58 @@ pub fn evidence(readings: &SlotReadings) -> Vec<String> {
 /// ```ts
 /// const mount = mount_evidence(readings, cloneDataset);
 /// ```
-fn mount_evidence(readings: &SlotReadings, clone_dataset: &str) -> Vec<String> {
+fn mount_evidence(
+    readings: &SlotReadings,
+    clone_dataset: &str,
+) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
-    let mount: CloneMount = clone_mount_of(&readings.mounts, &readings.slot_mount, clone_dataset, readings.slot_path.as_path());
+    let mount: CloneMount = clone_mount_of(
+        &readings.mounts,
+        &readings.slot_mount,
+        clone_dataset,
+        readings.slot_path.as_path(),
+    );
     match &readings.mounts {
-        MountRows::Unreadable { reason } => lines.push(format!("mount table: cannot be read: {reason}")),
+        MountRows::Unreadable {
+            reason,
+        } => lines.push(format!("mount table: cannot be read: {reason}")),
         MountRows::Rows(rows) => {
-            let clone_rows: Vec<&crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance> = rows.iter().filter(|row| return row.dataset == clone_dataset).collect();
+            let clone_rows: Vec<
+                &crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance,
+            > = rows
+                .iter()
+                .filter(|row| return row.dataset == clone_dataset)
+                .collect();
             if clone_rows.is_empty() {
                 lines.push(format!("mount table: no row mounts `{clone_dataset}`"));
             }
-            lines.extend(clone_rows.iter().map(|row| return format!("mount table: clone mounted as {}", row.described())));
+            lines.extend(
+                clone_rows
+                    .iter()
+                    .map(|row| return format!("mount table: clone mounted as {}", row.described())),
+            );
         }
     }
-    lines.push(slot_mount_evidence(&readings.slot_mount, readings.slot_path.as_path()));
+    lines.push(slot_mount_evidence(
+        &readings.slot_mount,
+        readings.slot_path.as_path(),
+    ));
     match mount {
-        CloneMount::AtItsSlot => lines.push(String::from("mount: the clone's own root stands at its slot")),
-        CloneMount::Nowhere => lines.push(String::from("mount: the clone is not mounted anywhere this table shows")),
-        CloneMount::Elsewhere { described } => lines.push(format!("mount: the clone is elsewhere ({described})")),
-        CloneMount::SomethingElseAtTheSlot { described } => lines.push(format!("mount: {described} stands at the slot")),
-        CloneMount::Unreadable { reason } => lines.push(format!("mount: cannot be read: {reason}")),
+        CloneMount::AtItsSlot => lines.push(String::from(
+            "mount: the clone's own root stands at its slot",
+        )),
+        CloneMount::Nowhere => lines.push(String::from(
+            "mount: the clone is not mounted anywhere this table shows",
+        )),
+        CloneMount::Elsewhere {
+            described,
+        } => lines.push(format!("mount: the clone is elsewhere ({described})")),
+        CloneMount::SomethingElseAtTheSlot {
+            described,
+        } => lines.push(format!("mount: {described} stands at the slot")),
+        CloneMount::Unreadable {
+            reason,
+        } => lines.push(format!("mount: cannot be read: {reason}")),
     }
     return lines;
 }
@@ -144,10 +237,17 @@ fn mount_evidence(readings: &SlotReadings, clone_dataset: &str) -> Vec<String> {
 /// ```ts
 /// const line = slot_mount_evidence(slotMount, slotPath);
 /// ```
-fn slot_mount_evidence(slot_mount: &SlotMount, slot_path: &std::path::Path) -> String {
+fn slot_mount_evidence(
+    slot_mount: &SlotMount,
+    slot_path: &std::path::Path,
+) -> String {
     return match slot_mount {
         SlotMount::Nothing => format!("slot mount: nothing is mounted at {}", slot_path.display()),
-        SlotMount::Something { described } => format!("slot mount: {described}"),
-        SlotMount::Unreadable { reason } => format!("slot mount: cannot be read: {reason}"),
+        SlotMount::Something {
+            described,
+        } => format!("slot mount: {described}"),
+        SlotMount::Unreadable {
+            reason,
+        } => format!("slot mount: cannot be read: {reason}"),
     };
 }

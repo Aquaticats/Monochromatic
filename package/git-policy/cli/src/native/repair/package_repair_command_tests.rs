@@ -10,7 +10,10 @@
 
 use super::*;
 use crate::test_support::executable;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A limit long enough that no control reaches it unless the control is about the limit.
 const GENEROUS: Duration = Duration::from_secs(60);
@@ -20,7 +23,10 @@ const ROOMY: Duration = Duration::from_secs(3600);
 
 /// The limits of a control that is about the quiet window only.
 fn limits(window: Duration) -> ToolLimits {
-    return ToolLimits { window, ceiling: ROOMY };
+    return ToolLimits {
+        window,
+        ceiling: ROOMY,
+    };
 }
 
 /// A limit short enough to wait out.
@@ -45,7 +51,14 @@ fn finds_the_first_executable_in_search_order() {
     executable(first.join("tool").as_path(), b"#!/bin/sh\nexit 0\n");
     executable(second.join("tool").as_path(), b"#!/bin/sh\nexit 0\n");
     let search: OsString = std::env::join_paths([&first, &second]).expect("search path");
-    assert_eq!(find_program("tool", Some(search.as_os_str()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))), Some(first.join("tool")));
+    assert_eq!(
+        find_program(
+            "tool",
+            Some(search.as_os_str()),
+            &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))
+        ),
+        Some(first.join("tool"))
+    );
     remove(&root);
 }
 
@@ -63,10 +76,17 @@ fn a_relative_search_entry_names_the_file_the_lookup_found() {
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(bin.as_path()).expect("bin");
     executable(bin.join("tool").as_path(), b"#!/bin/sh\nexit 0\n");
-    let found: Option<PathBuf> =
-        find_program("tool", Some(std::ffi::OsStr::new("bin")), &crate::start_directory::StartDirectory::at(root.as_path()));
+    let found: Option<PathBuf> = find_program(
+        "tool",
+        Some(std::ffi::OsStr::new("bin")),
+        &crate::start_directory::StartDirectory::at(root.as_path()),
+    );
     let named: PathBuf = found.expect("the program the relative entry names");
-    assert!(named.is_absolute(), "the child would read {} from its own directory", named.display());
+    assert!(
+        named.is_absolute(),
+        "the child would read {} from its own directory",
+        named.display()
+    );
     assert_eq!(named, root.join("bin/tool"));
     remove(&root);
 }
@@ -78,9 +98,30 @@ fn reports_missing_and_non_executable_programs_as_absent() {
     let root: PathBuf = fixture("finds-absent");
     std::fs::write(root.join("plain"), b"data").expect("plain file");
     let search: OsString = root.clone().into_os_string();
-    assert_eq!(find_program("absent", Some(search.as_os_str()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))), None);
-    assert_eq!(find_program("plain", Some(search.as_os_str()), &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))), None);
-    assert_eq!(find_program("plain", None, &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))), None);
+    assert_eq!(
+        find_program(
+            "absent",
+            Some(search.as_os_str()),
+            &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))
+        ),
+        None
+    );
+    assert_eq!(
+        find_program(
+            "plain",
+            Some(search.as_os_str()),
+            &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))
+        ),
+        None
+    );
+    assert_eq!(
+        find_program(
+            "plain",
+            None,
+            &crate::start_directory::StartDirectory::at(std::path::Path::new("/"))
+        ),
+        None
+    );
     remove(&root);
 }
 
@@ -93,13 +134,25 @@ fn runs_in_the_directory_with_the_variables_and_reports_success() {
     let record: PathBuf = root.join("record");
     executable(
         program.as_path(),
-        format!("#!/bin/sh\npwd -P > '{}'\nprintf '%s' \"$REPAIR_PROBE\" >> '{}'\n", record.display(), record.display()).as_bytes(),
+        format!(
+            "#!/bin/sh\npwd -P > '{}'\nprintf '%s' \"$REPAIR_PROBE\" >> '{}'\n",
+            record.display(),
+            record.display()
+        )
+        .as_bytes(),
     );
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: vec![(OsString::from("REPAIR_PROBE"), OsString::from("kept"))] };
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: vec![(OsString::from("REPAIR_PROBE"), OsString::from("kept"))],
+    };
     let run: ToolRun = run_tool(program.as_path(), &command, limits(GENEROUS));
     assert_eq!(run.end, ToolEnd::Succeeded);
     let recorded: String = std::fs::read_to_string(&record).expect("record");
-    assert!(recorded.starts_with(root.to_str().expect("utf8 root")), "ran in {recorded}");
+    assert!(
+        recorded.starts_with(root.to_str().expect("utf8 root")),
+        "ran in {recorded}"
+    );
     assert!(recorded.ends_with("kept"), "variable missing in {recorded}");
     remove(&root);
 }
@@ -109,12 +162,28 @@ fn runs_in_the_directory_with_the_variables_and_reports_success() {
 fn reports_a_failure_with_its_status_and_output() {
     let root: PathBuf = fixture("runs-failure");
     let program: PathBuf = root.join("tool");
-    executable(program.as_path(), format!("#!/bin/sh\necho 'reason printed on stderr' >&2\nexit {FAILING_STATUS}\n").as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\necho 'reason printed on stderr' >&2\nexit {FAILING_STATUS}\n")
+            .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let run: ToolRun = run_tool(program.as_path(), &command, limits(GENEROUS));
-    let ToolEnd::Failed(text) = run.end else { panic!("expected a failure, got {:?}", run.end) };
-    assert!(text.contains(FAILING_STATUS.to_string().as_str()), "status missing in {text}");
-    assert!(text.contains("reason printed on stderr"), "output missing in {text}");
+    let ToolEnd::Failed(text) = run.end else {
+        panic!("expected a failure, got {:?}", run.end)
+    };
+    assert!(
+        text.contains(FAILING_STATUS.to_string().as_str()),
+        "status missing in {text}"
+    );
+    assert!(
+        text.contains("reason printed on stderr"),
+        "output missing in {text}"
+    );
     remove(&root);
 }
 
@@ -124,11 +193,22 @@ fn reports_a_failure_with_its_status_and_output() {
 fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
     let root: PathBuf = fixture("runs-limit");
     let program: PathBuf = root.join("tool");
-    executable(program.as_path(), format!("#!/bin/sh\nexec sleep {SLOW_SECONDS}\n").as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nexec sleep {SLOW_SECONDS}\n").as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let run: ToolRun = run_tool(program.as_path(), &command, limits(BRIEF));
     assert_eq!(run.end, ToolEnd::TimedOut);
-    assert!(run.millis < u128::from(SLOW_SECONDS) * 1000, "the run waited {} ms for a program stopped at its limit", run.millis);
+    assert!(
+        run.millis < u128::from(SLOW_SECONDS) * 1000,
+        "the run waited {} ms for a program stopped at its limit",
+        run.millis
+    );
     remove(&root);
 }
 
@@ -137,7 +217,11 @@ fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
 #[test]
 fn reports_a_program_that_cannot_start() {
     let root: PathBuf = fixture("runs-unstartable");
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let run: ToolRun = run_tool(root.join("absent").as_path(), &command, limits(GENEROUS));
     assert!(matches!(run.end, ToolEnd::Failed(_)), "got {:?}", run.end);
     remove(&root);
@@ -147,7 +231,8 @@ fn reports_a_program_that_cannot_start() {
 /// the reason stays.
 #[test]
 fn a_failure_text_drops_wait_notices() {
-    let text: String = tail_of(b"Blocking waiting for file lock on package cache\nerror: the real reason\n");
+    let text: String =
+        tail_of(b"Blocking waiting for file lock on package cache\nerror: the real reason\n");
     assert_eq!(text, "error: the real reason");
 }
 
@@ -155,7 +240,9 @@ fn a_failure_text_drops_wait_notices() {
 /// the worktree, the package, and the store entry,
 /// long enough that the kept tail of a one-line failure begins inside one.
 fn a_path_of_the_shape_pnpm_printed(package: &str) -> String {
-    return format!("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-integration-pass-16-for-alpha-13/package/{package}/node_modules/{package}");
+    return format!(
+        "/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-integration-pass-16-for-alpha-13/package/{package}/node_modules/{package}"
+    );
 }
 
 /// What:
@@ -178,13 +265,29 @@ fn a_cut_failure_text_starts_at_a_sentence() {
     let output: String = format!(
         "Error while trying to symlink \"{link}\" to \"{store}\". The link at \"{link}\" points at \"{store}\" and still does after it was removed to be retargeted. Details: File exists (os error 17)"
     );
-    assert!(output.len() > OUTPUT_TAIL_BYTES, "the fixture is {} bytes and does not reach the bound", output.len());
-    let text: String = failure_text(output.as_bytes());
-    assert!(text.starts_with("The link at \""), "the kept text began inside a sentence: {text:?}");
-    assert!(text.contains(link.as_str()), "the kept text does not name the link in full: {text:?}");
-    assert!(text.contains("Details: File exists (os error 17)"), "the kept text does not carry pnpm\u{27}s last sentence: {text:?}");
     assert!(
-        text.ends_with(&format!("The tool printed {} bytes and only its end is kept here.", output.len())),
+        output.len() > OUTPUT_TAIL_BYTES,
+        "the fixture is {} bytes and does not reach the bound",
+        output.len()
+    );
+    let text: String = failure_text(output.as_bytes());
+    assert!(
+        text.starts_with("The link at \""),
+        "the kept text began inside a sentence: {text:?}"
+    );
+    assert!(
+        text.contains(link.as_str()),
+        "the kept text does not name the link in full: {text:?}"
+    );
+    assert!(
+        text.contains("Details: File exists (os error 17)"),
+        "the kept text does not carry pnpm\u{27}s last sentence: {text:?}"
+    );
+    assert!(
+        text.ends_with(&format!(
+            "The tool printed {} bytes and only its end is kept here.",
+            output.len()
+        )),
         "the kept text does not end at a sentence that says what was left out: {text:?}"
     );
 }
@@ -195,8 +298,18 @@ fn a_cut_failure_text_keeps_whole_lines() {
     let progress: String = "progress ".repeat(80);
     let output: String = format!("{progress}\nerror: the real reason\n");
     let text: String = failure_text(output.as_bytes());
-    assert!(output.len() > OUTPUT_TAIL_BYTES, "the fixture is {} bytes and does not reach the bound", output.len());
-    assert_eq!(text, format!("error: the real reason The tool printed {} bytes and only its end is kept here.", output.len()));
+    assert!(
+        output.len() > OUTPUT_TAIL_BYTES,
+        "the fixture is {} bytes and does not reach the bound",
+        output.len()
+    );
+    assert_eq!(
+        text,
+        format!(
+            "error: the real reason The tool printed {} bytes and only its end is kept here.",
+            output.len()
+        )
+    );
 }
 
 /// A failure whose output fit within the bound says nothing about a bound.
@@ -224,10 +337,18 @@ fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
         program.as_path(),
         format!("#!/bin/sh\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n").as_bytes(),
     );
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let run: ToolRun = run_tool(program.as_path(), &command, limits(WORKING_WINDOW));
     assert_eq!(run.end, ToolEnd::Succeeded);
-    assert!(run.millis > WORKING_WINDOW.as_millis() * 2, "the fixture ran only {} ms", run.millis);
+    assert!(
+        run.millis > WORKING_WINDOW.as_millis() * 2,
+        "the fixture ran only {} ms",
+        run.millis
+    );
     remove(&root);
 }
 
@@ -242,7 +363,14 @@ fn is_running(pid: i32) -> bool {
     if unsafe { libc::kill(pid, 0) } != 0 {
         return false;
     }
-    return std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| { return !stat.rsplit(')').next().unwrap_or("").trim_start().starts_with('Z'); });
+    return std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| {
+        return !stat
+            .rsplit(')')
+            .next()
+            .unwrap_or("")
+            .trim_start()
+            .starts_with('Z');
+    });
 }
 
 /// Waits a moment for a process to be gone:
@@ -289,13 +417,40 @@ fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_g
         )
         .as_bytes(),
     );
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING });
-    assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING), "ran {} ms", run.millis);
-    assert!(run.millis >= SHORT_CEILING.as_millis() && run.millis < u128::from(SLOW_SECONDS) * 1000 / 2, "the run lasted {} ms against a ceiling of {SHORT_CEILING:?}", run.millis);
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    let run: ToolRun = run_tool(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: WORKING_WINDOW,
+            ceiling: SHORT_CEILING,
+        },
+    );
+    assert_eq!(
+        run.end,
+        ToolEnd::CeilingReached(SHORT_CEILING),
+        "ran {} ms",
+        run.millis
+    );
+    assert!(
+        run.millis >= SHORT_CEILING.as_millis() && run.millis < u128::from(SLOW_SECONDS) * 1000 / 2,
+        "the run lasted {} ms against a ceiling of {SHORT_CEILING:?}",
+        run.millis
+    );
     for record in [&printing_record, &silent_record] {
-        let pid: i32 = std::fs::read_to_string(record).expect("the helper's number").trim().parse().expect("a process number");
-        assert!(is_gone_soon(pid), "the helper {pid} of the tool outlived the stop of its group");
+        let pid: i32 = std::fs::read_to_string(record)
+            .expect("the helper's number")
+            .trim()
+            .parse()
+            .expect("a process number");
+        assert!(
+            is_gone_soon(pid),
+            "the helper {pid} of the tool outlived the stop of its group"
+        );
     }
     remove(&root);
 }
@@ -311,18 +466,47 @@ fn a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_
     let root: PathBuf = fixture("runs-helper-holds-output");
     let program: PathBuf = root.join("tool");
     let record: PathBuf = root.join("helper-pid");
-    executable(program.as_path(), format!("#!/bin/sh\nsleep 40 &\necho $! > '{}'\necho leader-output\n", record.display()).as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nsleep 40 &\necho $! > '{}'\necho leader-output\n",
+            record.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let (sender, receiver) = std::sync::mpsc::channel();
     let started_in: PathBuf = program.clone();
-    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS })); });
-    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the run ended without waiting for the helper to close the output");
+    std::thread::spawn(move || {
+        let _sent = sender.send(run_tool(
+            started_in.as_path(),
+            &command,
+            ToolLimits {
+                window: GENEROUS,
+                ceiling: GENEROUS,
+            },
+        ));
+    });
+    let run: ToolRun = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .expect("the run ended without waiting for the helper to close the output");
     assert_eq!(run.end, ToolEnd::Succeeded);
     assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
-    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    let pid: i32 = std::fs::read_to_string(&record)
+        .expect("the helper's number")
+        .trim()
+        .parse()
+        .expect("a process number");
     // The helper is left alone on purpose (sol-2 round 2): a run that ended it would also pass the deadline above, so the control
     //  asks the helper itself before it cleans up.
-    assert!(is_running(pid), "the helper of a tool that succeeded is left running");
+    assert!(
+        is_running(pid),
+        "the helper of a tool that succeeded is left running"
+    );
     // SAFETY: the control ends the helper it started.
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     remove(&root);
@@ -342,15 +526,37 @@ fn a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run() {
         program.as_path(),
         format!("#!/bin/sh\n(while :; do echo helper-output; sleep 0.01; done) &\necho $! > '{}'\necho leader-output\nsleep 0.3\n", record.display()).as_bytes(),
     );
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let (sender, receiver) = std::sync::mpsc::channel();
     let started_in: PathBuf = program.clone();
-    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS })); });
-    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the run ended without chasing the helper's output");
+    std::thread::spawn(move || {
+        let _sent = sender.send(run_tool(
+            started_in.as_path(),
+            &command,
+            ToolLimits {
+                window: GENEROUS,
+                ceiling: GENEROUS,
+            },
+        ));
+    });
+    let run: ToolRun = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .expect("the run ended without chasing the helper's output");
     assert_eq!(run.end, ToolEnd::Succeeded);
     assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
-    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
-    assert!(is_running(pid), "the helper that keeps writing is left running");
+    let pid: i32 = std::fs::read_to_string(&record)
+        .expect("the helper's number")
+        .trim()
+        .parse()
+        .expect("a process number");
+    assert!(
+        is_running(pid),
+        "the helper that keeps writing is left running"
+    );
     // SAFETY: the control ends the helper it started.
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     remove(&root);
@@ -370,13 +576,32 @@ fn a_helper_outside_the_process_group_that_holds_the_output_does_not_hold_the_ce
         program.as_path(),
         format!("#!/bin/sh\nsetsid sleep 40 &\necho $! > '{}'\nn=0\nwhile [ $n -lt 100 ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n", record.display()).as_bytes(),
     );
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let (sender, receiver) = std::sync::mpsc::channel();
     let started_in: PathBuf = program.clone();
-    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING })); });
-    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the ceiling ended the run without waiting for the helper");
+    std::thread::spawn(move || {
+        let _sent = sender.send(run_tool(
+            started_in.as_path(),
+            &command,
+            ToolLimits {
+                window: WORKING_WINDOW,
+                ceiling: SHORT_CEILING,
+            },
+        ));
+    });
+    let run: ToolRun = receiver
+        .recv_timeout(Duration::from_secs(15))
+        .expect("the ceiling ended the run without waiting for the helper");
     assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING));
-    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    let pid: i32 = std::fs::read_to_string(&record)
+        .expect("the helper's number")
+        .trim()
+        .parse()
+        .expect("a process number");
     // SAFETY: the control ends the helper it started.
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     remove(&root);
@@ -388,8 +613,19 @@ fn a_program_that_finishes_before_its_ceiling_succeeds() {
     let root: PathBuf = fixture("runs-under-ceiling");
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), b"#!/bin/sh\necho done\n");
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    let run: ToolRun = run_tool(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: GENEROUS,
+            ceiling: GENEROUS,
+        },
+    );
     assert_eq!(run.end, ToolEnd::Succeeded);
     remove(&root);
 }
@@ -407,12 +643,25 @@ fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
     let child: Child = command.spawn().expect("the leader");
     let pid: i32 = i32::try_from(child.id()).expect("a process number");
     let began: Instant = Instant::now();
-    assert!(!run_on_runtime(reap_within(child, Duration::from_millis(300))).expect("the runtime runs the reaping"), "the leader had not ended");
-    assert!(began.elapsed() < Duration::from_secs(10), "the reaping gave up after its budget");
-    assert!(is_running(pid), "the leader is still there: nothing waited for it");
+    assert!(
+        !run_on_runtime(reap_within(child, Duration::from_millis(300)))
+            .expect("the runtime runs the reaping"),
+        "the leader had not ended"
+    );
+    assert!(
+        began.elapsed() < Duration::from_secs(10),
+        "the reaping gave up after its budget"
+    );
+    assert!(
+        is_running(pid),
+        "the leader is still there: nothing waited for it"
+    );
     // SAFETY: the control ends the process it started.
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
-    assert!(is_gone_soon(pid), "the thread the leader was handed to reaped it when it ended");
+    assert!(
+        is_gone_soon(pid),
+        "the thread the leader was handed to reaped it when it ended"
+    );
 }
 
 /// A leader that ends is reaped within the budget.
@@ -420,7 +669,10 @@ fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
 fn a_leader_that_ends_is_reaped_within_the_budget() {
     let mut command: Command = Command::new("true");
     let child: Child = command.spawn().expect("the leader");
-    assert!(run_on_runtime(reap_within(child, Duration::from_secs(10))).expect("the runtime runs the reaping"));
+    assert!(
+        run_on_runtime(reap_within(child, Duration::from_secs(10)))
+            .expect("the runtime runs the reaping")
+    );
 }
 
 /// A tool that writes more than the snapshot keeps,
@@ -437,16 +689,51 @@ fn output_past_the_snapshot_is_disclosed_to_the_person() {
     let program: PathBuf = root.join("tool");
     let too_much: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1024;
     executable(program.as_path(), format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\necho the-reason >&2\nexit {FAILING_STATUS}\n").as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
-    let ToolEnd::Failed(text) = &run.end else { panic!("{run:?}") };
-    assert!(text.contains("the-reason"), "the tail of the error output is shown: {text}");
-    assert!(text.contains("left out"), "the person is told output was left out: {text}");
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    let run: ToolRun = run_tool(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: GENEROUS,
+            ceiling: GENEROUS,
+        },
+    );
+    let ToolEnd::Failed(text) = &run.end else {
+        panic!("{run:?}")
+    };
+    assert!(
+        text.contains("the-reason"),
+        "the tail of the error output is shown: {text}"
+    );
+    assert!(
+        text.contains("left out"),
+        "the person is told output was left out: {text}"
+    );
     let succeeding: PathBuf = root.join("succeeding");
-    executable(succeeding.as_path(), format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\n").as_bytes());
-    let succeeded: ToolRun = run_tool(succeeding.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
+    executable(
+        succeeding.as_path(),
+        format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\n").as_bytes(),
+    );
+    let succeeded: ToolRun = run_tool(
+        succeeding.as_path(),
+        &command,
+        ToolLimits {
+            window: GENEROUS,
+            ceiling: GENEROUS,
+        },
+    );
     assert_eq!(succeeded.end, ToolEnd::Succeeded);
-    assert!(succeeded.notes.iter().any(|note| { return note.contains("left out"); }), "output that was cut is not a complete result: {:?}", succeeded.notes);
+    assert!(
+        succeeded.notes.iter().any(|note| {
+            return note.contains("left out");
+        }),
+        "output that was cut is not a complete result: {:?}",
+        succeeded.notes
+    );
     remove(&root);
 }
 
@@ -464,22 +751,50 @@ fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_rele
     let root: PathBuf = fixture("runs-stop-reaper");
     let program: PathBuf = root.join("tool");
     let written: PathBuf = root.join("written");
-    executable(program.as_path(), format!("#!/bin/sh\necho before-the-stop\n: > '{}'\nsleep {SLOW_SECONDS}\n", written.display()).as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\necho before-the-stop\n: > '{}'\nsleep {SLOW_SECONDS}\n",
+            written.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     let calls = std::cell::Cell::new(0_u32);
     let verdict = std::cell::RefCell::new(String::new());
-    let run: ToolRun = run_on_runtime(run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: Duration::from_secs(3) }, &async |mut leader: Child, captured: &Capture| -> bool {
-        calls.set(calls.get() + 1);
-        let tool_had_written: bool = written.exists();
-        let emptied: bool = captured.snapshot(1024).stdout.is_empty();
-        *verdict.borrow_mut() = format!("written={tool_had_written} emptied={emptied}");
-        // A leader that does not end is the reaper's to wait for: this one is reaped here.
-        let _ended = leader.wait();
-        return false;
-    })).expect("the runtime runs the tool");
+    let run: ToolRun = run_on_runtime(run_tool_reaping(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: ROOMY,
+            ceiling: Duration::from_secs(3),
+        },
+        &async |mut leader: Child, captured: &Capture| -> bool {
+            calls.set(calls.get() + 1);
+            let tool_had_written: bool = written.exists();
+            let emptied: bool = captured.snapshot(1024).stdout.is_empty();
+            *verdict.borrow_mut() = format!("written={tool_had_written} emptied={emptied}");
+            // A leader that does not end is the reaper's to wait for: this one is reaped here.
+            let _ended = leader.wait();
+            return false;
+        },
+    ))
+    .expect("the runtime runs the tool");
     assert_eq!(run.end, ToolEnd::CeilingReached(Duration::from_secs(3)));
-    assert_eq!(calls.get(), 1, "the stop path reaps through the reaper it was given");
-    assert_eq!(verdict.borrow().as_str(), "written=true emptied=true", "the tool had written, and what it wrote was released before the reaper ran");
+    assert_eq!(
+        calls.get(),
+        1,
+        "the stop path reaps through the reaper it was given"
+    );
+    assert_eq!(
+        verdict.borrow().as_str(),
+        "written=true emptied=true",
+        "the tool had written, and what it wrote was released before the reaper ran"
+    );
     remove(&root);
 }
 
@@ -496,22 +811,53 @@ fn a_wait_that_fails_stops_the_tool_and_releases_its_output() {
     let root: PathBuf = fixture("runs-wait-error");
     let program: PathBuf = root.join("tool");
     let written: PathBuf = root.join("written");
-    executable(program.as_path(), format!("#!/bin/sh\necho before-the-failure\n: > '{}'\nsleep {SLOW_SECONDS}\n", written.display()).as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { *seam.borrow_mut() = Some(written.clone()); });
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\necho before-the-failure\n: > '{}'\nsleep {SLOW_SECONDS}\n",
+            written.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| {
+        *seam.borrow_mut() = Some(written.clone());
+    });
     let calls = std::cell::Cell::new(0_u32);
     let verdict = std::cell::RefCell::new(String::new());
-    let run: ToolRun = run_on_runtime(run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: ROOMY }, &async |mut leader: Child, captured: &Capture| -> bool {
-        calls.set(calls.get() + 1);
-        *verdict.borrow_mut() = format!("emptied={}", captured.snapshot(1024).stdout.is_empty());
-        let _ended = leader.wait();
-        return false;
-    })).expect("the runtime runs the tool");
-    WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { *seam.borrow_mut() = None; });
-    let ToolEnd::Failed(text) = &run.end else { panic!("{run:?}") };
+    let run: ToolRun = run_on_runtime(run_tool_reaping(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: ROOMY,
+            ceiling: ROOMY,
+        },
+        &async |mut leader: Child, captured: &Capture| -> bool {
+            calls.set(calls.get() + 1);
+            *verdict.borrow_mut() =
+                format!("emptied={}", captured.snapshot(1024).stdout.is_empty());
+            let _ended = leader.wait();
+            return false;
+        },
+    ))
+    .expect("the runtime runs the tool");
+    WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| {
+        *seam.borrow_mut() = None;
+    });
+    let ToolEnd::Failed(text) = &run.end else {
+        panic!("{run:?}")
+    };
     assert!(text.contains("could not be waited for"), "{text}");
     assert_eq!(calls.get(), 1, "the leader goes to the reaper");
-    assert_eq!(verdict.borrow().as_str(), "emptied=true", "the output was released");
+    assert_eq!(
+        verdict.borrow().as_str(),
+        "emptied=true",
+        "the output was released"
+    );
     remove(&root);
 }
 
@@ -523,15 +869,28 @@ fn the_wait_for_a_running_tool_lets_other_tasks_run() {
     let root: PathBuf = fixture("runs-wait-beside-a-ticker");
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), b"#!/bin/sh\nsleep 0.3\n");
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let (run, ticks): (ToolRun, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(run_tool_reaping(
-        program.as_path(),
-        &command,
-        ToolLimits { window: GENEROUS, ceiling: GENEROUS },
-        &async |leader: Child, _captured: &Capture| -> bool { return reap_within(leader, Duration::from_secs(1)).await; },
-    ));
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    let (run, ticks): (ToolRun, u32) =
+        crate::ticker_beside_a_wait::with_a_ticker_beside(run_tool_reaping(
+            program.as_path(),
+            &command,
+            ToolLimits {
+                window: GENEROUS,
+                ceiling: GENEROUS,
+            },
+            &async |leader: Child, _captured: &Capture| -> bool {
+                return reap_within(leader, Duration::from_secs(1)).await;
+            },
+        ));
     assert_eq!(run.end, ToolEnd::Succeeded);
-    assert!(ticks > 0, "the wait for the tool held the thread: the task beside it never ran");
+    assert!(
+        ticks > 0,
+        "the wait for the tool held the thread: the task beside it never ran"
+    );
     remove(&root);
 }
 
@@ -543,12 +902,20 @@ fn the_reaping_of_a_leader_that_does_not_end_lets_other_tasks_run() {
     command.arg("30");
     let child: Child = command.spawn().expect("the leader");
     let pid: i32 = i32::try_from(child.id()).expect("a process number");
-    let (reaped, ticks): (bool, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(reap_within(child, Duration::from_millis(300)));
+    let (reaped, ticks): (bool, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(
+        reap_within(child, Duration::from_millis(300)),
+    );
     assert!(!reaped, "the leader had not ended");
-    assert!(ticks > 0, "the reaping held the thread: the task beside it never ran");
+    assert!(
+        ticks > 0,
+        "the reaping held the thread: the task beside it never ran"
+    );
     // SAFETY: the control ends the process it started.
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
-    assert!(is_gone_soon(pid), "the task the leader was handed to reaped it when it ended");
+    assert!(
+        is_gone_soon(pid),
+        "the task the leader was handed to reaped it when it ended"
+    );
 }
 
 /// What:
@@ -576,15 +943,37 @@ fn a_tool_that_outlasts_the_notice_bound_says_once_what_it_waits_for() {
     let program: PathBuf = root.join("pnpm");
     // Long past the notice bound, and short of the quiet window so the tool ends by itself.
     executable(program.as_path(), b"#!/bin/sh\necho working\nsleep 3\n");
-    let command: ToolCommand = ToolCommand { arguments: vec![OsString::from("install"), OsString::from("--offline")], directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY });
+    let command: ToolCommand = ToolCommand {
+        arguments: vec![OsString::from("install"), OsString::from("--offline")],
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    let run: ToolRun = run_tool(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: GENEROUS,
+            ceiling: ROOMY,
+        },
+    );
     assert_eq!(run.end, ToolEnd::Succeeded);
-    let said: Vec<String> = notices_said().into_iter().filter(|line| { return line.contains(root.display().to_string().as_str()); }).collect();
+    let said: Vec<String> = notices_said()
+        .into_iter()
+        .filter(|line| {
+            return line.contains(root.display().to_string().as_str());
+        })
+        .collect();
     assert_eq!(said.len(), 1, "one line, and one only: {said:?}");
     let line: &String = &said[0];
     assert!(line.contains("pnpm"), "the line names the tool: {line}");
-    assert!(line.contains("install --offline"), "the line names what it runs: {line}");
-    assert!(line.contains("60 seconds") && line.contains("60 minutes"), "the line names both bounds that end it: {line}");
+    assert!(
+        line.contains("install --offline"),
+        "the line names what it runs: {line}"
+    );
+    assert!(
+        line.contains("60 seconds") && line.contains("60 minutes"),
+        "the line names both bounds that end it: {line}"
+    );
     remove(&root);
 }
 
@@ -605,10 +994,26 @@ fn a_tool_that_ends_before_the_notice_bound_says_nothing() {
     let root: PathBuf = fixture("says-nothing-when-quick");
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), b"#!/bin/sh\nexit 0\n");
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY });
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    let run: ToolRun = run_tool(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: GENEROUS,
+            ceiling: ROOMY,
+        },
+    );
     assert_eq!(run.end, ToolEnd::Succeeded);
-    let said: Vec<String> = notices_said().into_iter().filter(|line| { return line.contains(root.display().to_string().as_str()); }).collect();
+    let said: Vec<String> = notices_said()
+        .into_iter()
+        .filter(|line| {
+            return line.contains(root.display().to_string().as_str());
+        })
+        .collect();
     assert!(said.is_empty(), "a quick tool says nothing: {said:?}");
     remove(&root);
 }
@@ -627,10 +1032,16 @@ const HELD_BEFORE_EXEC: Duration = Duration::from_secs(4);
 /// because a child the blocking pool forked is listed under that thread.
 fn children_of_this_process() -> Vec<i32> {
     let mut found: Vec<i32> = Vec::new();
-    let Ok(threads) = std::fs::read_dir("/proc/self/task") else { return found };
+    let Ok(threads) = std::fs::read_dir("/proc/self/task") else {
+        return found;
+    };
     for thread in threads.flatten() {
-        let Ok(listed) = std::fs::read_to_string(thread.path().join("children")) else { continue };
-        found.extend(listed.split_whitespace().filter_map(|number| { return number.parse::<i32>().ok(); }));
+        let Ok(listed) = std::fs::read_to_string(thread.path().join("children")) else {
+            continue;
+        };
+        found.extend(listed.split_whitespace().filter_map(|number| {
+            return number.parse::<i32>().ok();
+        }));
     }
     return found;
 }
@@ -660,26 +1071,73 @@ fn a_start_that_gives_no_answer_ends_the_run_at_its_bound_and_stops_the_child_it
     let root: PathBuf = fixture("runs-start-bound");
     let program: PathBuf = root.join("tool");
     let ran: PathBuf = root.join("ran");
-    executable(program.as_path(), format!("#!/bin/sh\nsleep 2\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", ran.display()).as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nsleep 2\n: > '{}'\nexec sleep {SLOW_SECONDS}\n",
+            ran.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(Some(HELD_BEFORE_EXEC)));
     let began: Instant = Instant::now();
-    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: BRIEF, ceiling: SHORT_CEILING }, BRIEF_START, &reap_within_stop_grace))
-        .expect("the runtime runs the tool");
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: BRIEF,
+            ceiling: SHORT_CEILING,
+        },
+        BRIEF_START,
+        &reap_within_stop_grace,
+    ))
+    .expect("the runtime runs the tool");
     let waited: Duration = began.elapsed();
     crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(None));
     // The held child is this process's own, so the control can see it leave once the hold ends and the child execs.
     let held: Vec<i32> = children_of_this_process();
-    assert!(waited < HELD_BEFORE_EXEC, "the run waited {waited:?} for a start it bounds at {BRIEF_START:?}");
-    assert!(run.millis < HELD_BEFORE_EXEC.as_millis(), "the run reported {} ms, past the {HELD_BEFORE_EXEC:?} the child was held", run.millis);
-    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
-    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
-    assert!(text.contains("gave no answer"), "the reason names the start that did not answer: {text}");
-    assert!(!held.is_empty(), "the control's own child was held before its exec when the run ended");
+    assert!(
+        waited < HELD_BEFORE_EXEC,
+        "the run waited {waited:?} for a start it bounds at {BRIEF_START:?}"
+    );
+    assert!(
+        run.millis < HELD_BEFORE_EXEC.as_millis(),
+        "the run reported {} ms, past the {HELD_BEFORE_EXEC:?} the child was held",
+        run.millis
+    );
+    let ToolEnd::Failed(text) = &run.end else {
+        panic!(
+            "a start that gave no answer is a failure of the start, not {:?}",
+            run.end
+        )
+    };
+    assert!(
+        text.contains("could not start"),
+        "the reason says the tool never started here: {text}"
+    );
+    assert!(
+        text.contains("gave no answer"),
+        "the reason names the start that did not answer: {text}"
+    );
+    assert!(
+        !held.is_empty(),
+        "the control's own child was held before its exec when the run ended"
+    );
     for pid in held {
-        assert!(is_gone_soon(pid), "the child {pid} the run left started outlived the answer that it did not start");
+        assert!(
+            is_gone_soon(pid),
+            "the child {pid} the run left started outlived the answer that it did not start"
+        );
     }
-    assert!(!ran.exists(), "the tool ran in the worktree after the run said it did not start");
+    assert!(
+        !ran.exists(),
+        "the tool ran in the worktree after the run said it did not start"
+    );
     remove(&root);
 }
 
@@ -702,22 +1160,59 @@ fn a_start_that_gives_no_answer_never_lets_the_tool_run() {
     let root: PathBuf = fixture("runs-start-never-runs");
     let program: PathBuf = root.join("tool");
     let ran: PathBuf = root.join("ran");
-    executable(program.as_path(), format!("#!/bin/sh\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", ran.display()).as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\n: > '{}'\nexec sleep {SLOW_SECONDS}\n",
+            ran.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(Some(HELD_BEFORE_EXEC)));
-    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: BRIEF, ceiling: SHORT_CEILING }, BRIEF_START, &reap_within_stop_grace))
-        .expect("the runtime runs the tool");
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: BRIEF,
+            ceiling: SHORT_CEILING,
+        },
+        BRIEF_START,
+        &reap_within_stop_grace,
+    ))
+    .expect("the runtime runs the tool");
     crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(None));
-    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
-    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
+    let ToolEnd::Failed(text) = &run.end else {
+        panic!(
+            "a start that gave no answer is a failure of the start, not {:?}",
+            run.end
+        )
+    };
+    assert!(
+        text.contains("could not start"),
+        "the reason says the tool never started here: {text}"
+    );
     // The child that waited at the gate is this process's own, so the control sees it leave before it reads the worktree:
     // a tool that ran would have run before the child was gone, and nothing it wrote could be undone afterwards.
     let waited: Vec<i32> = children_of_this_process();
-    assert!(!waited.is_empty(), "the control's own child waited at the gate when the run answered");
+    assert!(
+        !waited.is_empty(),
+        "the control's own child waited at the gate when the run answered"
+    );
     for pid in waited {
-        assert!(is_gone_soon(pid), "the child {pid} outlived the answer that nothing of it ran");
+        assert!(
+            is_gone_soon(pid),
+            "the child {pid} outlived the answer that nothing of it ran"
+        );
     }
-    assert!(!ran.exists(), "the tool ran in the worktree after the run said nothing of it ran");
+    assert!(
+        !ran.exists(),
+        "the tool ran in the worktree after the run said nothing of it ran"
+    );
     remove(&root);
 }
 
@@ -737,7 +1232,10 @@ fn read_a_pid_within(path: &Path) -> i32 {
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    panic!("the fixture never wrote a process number to {}", path.display());
+    panic!(
+        "the fixture never wrote a process number to {}",
+        path.display()
+    );
 }
 
 /// What:
@@ -774,11 +1272,18 @@ fn a_child_the_run_never_took_is_stopped_with_the_group_it_leads() {
     std::os::unix::process::CommandExt::process_group(&mut command, 0);
     let started: Child = command.spawn().expect("the fixture starts");
     let leader: i32 = i32::try_from(started.id()).expect("a child number");
-    let kept: crate::package_repair_start::AChildNotYetTaken = crate::package_repair_start::AChildNotYetTaken::new(started);
+    let kept: crate::package_repair_start::AChildNotYetTaken =
+        crate::package_repair_start::AChildNotYetTaken::new(started);
     let helper_pid: i32 = read_a_pid_within(helper.as_path());
     drop(kept);
-    assert!(is_gone_soon(leader), "the child {leader} the run never took outlived the value that owned it");
-    assert!(is_gone_soon(helper_pid), "the helper {helper_pid} of the child {leader} outlived the stop of its group");
+    assert!(
+        is_gone_soon(leader),
+        "the child {leader} the run never took outlived the value that owned it"
+    );
+    assert!(
+        is_gone_soon(helper_pid),
+        "the helper {helper_pid} of the child {leader} outlived the stop of its group"
+    );
     remove(&root);
 }
 
@@ -807,23 +1312,67 @@ fn a_child_that_was_let_go_and_did_not_come_up_is_stopped_and_said_to_be_stopped
     let root: PathBuf = fixture("runs-let-go-without-an-answer");
     let program: PathBuf = root.join("tool");
     let ran: PathBuf = root.join("ran");
-    executable(program.as_path(), format!("#!/bin/sh\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", ran.display()).as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    crate::package_repair_start::HOLD_AFTER_THE_LET_GO.with(|seam| seam.set(Some(HELD_AFTER_THE_LET_GO)));
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\n: > '{}'\nexec sleep {SLOW_SECONDS}\n",
+            ran.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    crate::package_repair_start::HOLD_AFTER_THE_LET_GO
+        .with(|seam| seam.set(Some(HELD_AFTER_THE_LET_GO)));
     let began: Instant = Instant::now();
-    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: BRIEF, ceiling: SHORT_CEILING }, BRIEF_START, &reap_within_stop_grace))
-        .expect("the runtime runs the tool");
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: BRIEF,
+            ceiling: SHORT_CEILING,
+        },
+        BRIEF_START,
+        &reap_within_stop_grace,
+    ))
+    .expect("the runtime runs the tool");
     let waited: Duration = began.elapsed();
     crate::package_repair_start::HOLD_AFTER_THE_LET_GO.with(|seam| seam.set(None));
-    assert!(waited < HELD_AFTER_THE_LET_GO, "the run waited {waited:?} for a start it bounds at {BRIEF_START:?}");
-    let ToolEnd::Failed(text) = &run.end else { panic!("a start whose own `exec` did not answer is a failure of the start, not {:?}", run.end) };
-    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
-    assert!(text.contains("let go") && text.contains("stopped"), "the reason says the child was stopped after it was let go: {text}");
-    assert!(!text.contains("nothing of it ran"), "the reason promises that nothing ran about a child it let go: {text}");
+    assert!(
+        waited < HELD_AFTER_THE_LET_GO,
+        "the run waited {waited:?} for a start it bounds at {BRIEF_START:?}"
+    );
+    let ToolEnd::Failed(text) = &run.end else {
+        panic!(
+            "a start whose own `exec` did not answer is a failure of the start, not {:?}",
+            run.end
+        )
+    };
+    assert!(
+        text.contains("could not start"),
+        "the reason says the tool never started here: {text}"
+    );
+    assert!(
+        text.contains("let go") && text.contains("stopped"),
+        "the reason says the child was stopped after it was let go: {text}"
+    );
+    assert!(
+        !text.contains("nothing of it ran"),
+        "the reason promises that nothing ran about a child it let go: {text}"
+    );
     for pid in children_of_this_process() {
-        assert!(is_gone_soon(pid), "the child {pid} that was let go outlived the stop of the start");
+        assert!(
+            is_gone_soon(pid),
+            "the child {pid} that was let go outlived the stop of the start"
+        );
     }
-    assert!(!ran.exists(), "the child that was held after it was let go never reached the tool's own exec");
+    assert!(
+        !ran.exists(),
+        "the child that was held after it was let go never reached the tool's own exec"
+    );
     remove(&root);
 }
 
@@ -889,24 +1438,56 @@ fn a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_u
         program.as_path(),
         format!("#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nsleep 1\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", recorded.display(), marker.display()).as_bytes(),
     );
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(Some(AUDIT_HOLD_AFTER_THE_START)));
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
+    crate::package_repair_start::HOLD_AFTER_THE_START
+        .with(|seam| seam.set(Some(AUDIT_HOLD_AFTER_THE_START)));
     // The tool writes its own number first, and the run does not give up on the child before that write landed: what the
     // control checks below is the scene it names, and never which of the two won a race.
-    crate::package_repair_start::WAIT_FOR_THE_TOOLS_NUMBER.with(|seam| *seam.borrow_mut() = Some(recorded.clone()));
-    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY }, AUDIT_START_BOUND, &reap_within_stop_grace))
-        .expect("the runtime runs the tool");
+    crate::package_repair_start::WAIT_FOR_THE_TOOLS_NUMBER
+        .with(|seam| *seam.borrow_mut() = Some(recorded.clone()));
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(
+        program.as_path(),
+        &command,
+        ToolLimits {
+            window: GENEROUS,
+            ceiling: ROOMY,
+        },
+        AUDIT_START_BOUND,
+        &reap_within_stop_grace,
+    ))
+    .expect("the runtime runs the tool");
     crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(None));
     crate::package_repair_start::WAIT_FOR_THE_TOOLS_NUMBER.with(|seam| *seam.borrow_mut() = None);
-    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
-    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
-    assert!(!text.contains("nothing of it ran"), "the answer promises that nothing ran about a child it let go: {text}");
+    let ToolEnd::Failed(text) = &run.end else {
+        panic!(
+            "a start that gave no answer is a failure of the start, not {:?}",
+            run.end
+        )
+    };
+    assert!(
+        text.contains("could not start"),
+        "the reason says the tool never started here: {text}"
+    );
+    assert!(
+        !text.contains("nothing of it ran"),
+        "the answer promises that nothing ran about a child it let go: {text}"
+    );
     let pid: i32 = read_a_pid_within(recorded.as_path());
-    assert!(is_collected_soon(pid), "the child {pid} the start handed over was left running or uncollected");
+    assert!(
+        is_collected_soon(pid),
+        "the child {pid} the start handed over was left running or uncollected"
+    );
     // The marker is what the tool writes a second after it starts, which is long after the answer: a child that was
     // stopped never reaches it, and one that was left running does.
     std::thread::sleep(Duration::from_millis(1_200));
-    assert!(!marker.exists(), "the tool wrote after the start was answered, so the child was left running");
+    assert!(
+        !marker.exists(),
+        "the tool wrote after the start was answered, so the child was left running"
+    );
     remove(&root);
 }
 
@@ -979,31 +1560,76 @@ impl Drop for StandardErrorPutBack {
 fn a_standard_error_whose_reader_stopped_draining_does_not_hold_the_tool_past_its_ceiling() {
     let root: PathBuf = fixture("runs-a-full-standard-error");
     let program: PathBuf = root.join("tool");
-    executable(program.as_path(), format!("#!/bin/sh\nsleep {SLOW_SECONDS}\n").as_bytes());
-    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nsleep {SLOW_SECONDS}\n").as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand {
+        arguments: Vec::new(),
+        directory: root.clone(),
+        set: Vec::new(),
+    };
     // A pipe nothing drains, filled to its own capacity: the next write waits in the kernel.
     let mut ends: [libc::c_int; 2] = [0; 2];
-    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0, "a pipe for standard error");
+    assert_eq!(
+        unsafe { libc::pipe(ends.as_mut_ptr()) },
+        0,
+        "a pipe for standard error"
+    );
     let (unread, writer): (libc::c_int, libc::c_int) = (ends[0], ends[1]);
-    let capacity: usize = usize::try_from(unsafe { libc::fcntl(writer, libc::F_GETPIPE_SZ) }).expect("the pipe's own capacity");
+    let capacity: usize = usize::try_from(unsafe { libc::fcntl(writer, libc::F_GETPIPE_SZ) })
+        .expect("the pipe's own capacity");
     let filler: Vec<u8> = vec![b'x'; capacity];
     let filled: isize = unsafe { libc::write(writer, filler.as_ptr().cast(), capacity) };
-    assert_eq!(filled, isize::try_from(capacity).expect("the pipe's capacity as an isize"), "the pipe is full");
+    assert_eq!(
+        filled,
+        isize::try_from(capacity).expect("the pipe's capacity as an isize"),
+        "the pipe is full"
+    );
     let saved: libc::c_int = unsafe { libc::dup(2) };
     assert!(saved >= 0, "descriptor 2 is open");
-    let put_back: StandardErrorPutBack = StandardErrorPutBack { saved };
-    assert!(unsafe { libc::dup2(writer, 2) } >= 0, "descriptor 2 is the pipe");
+    let put_back: StandardErrorPutBack = StandardErrorPutBack {
+        saved,
+    };
+    assert!(
+        unsafe { libc::dup2(writer, 2) } >= 0,
+        "descriptor 2 is the pipe"
+    );
     unsafe { libc::close(writer) };
-    let _unread: std::fs::File = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(unread) };
-    let (sender, answers): (std::sync::mpsc::Sender<ToolRun>, std::sync::mpsc::Receiver<ToolRun>) = std::sync::mpsc::channel::<ToolRun>();
+    let _unread: std::fs::File =
+        unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(unread) };
+    let (sender, answers): (
+        std::sync::mpsc::Sender<ToolRun>,
+        std::sync::mpsc::Receiver<ToolRun>,
+    ) = std::sync::mpsc::channel::<ToolRun>();
     std::thread::spawn(move || {
-        let _sent = sender.send(run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: NOTICE_CONTROL_CEILING }));
+        let _sent = sender.send(run_tool(
+            program.as_path(),
+            &command,
+            ToolLimits {
+                window: GENEROUS,
+                ceiling: NOTICE_CONTROL_CEILING,
+            },
+        ));
     });
-    let answered: Result<ToolRun, std::sync::mpsc::RecvTimeoutError> = answers.recv_timeout(NOTICE_CONTROL_BOUND);
+    let answered: Result<ToolRun, std::sync::mpsc::RecvTimeoutError> =
+        answers.recv_timeout(NOTICE_CONTROL_BOUND);
     put_back.put_back();
-    let run: ToolRun = answered.expect("the write of the notice held the loop, so the run never reached its ceiling");
-    assert_eq!(run.end, ToolEnd::CeilingReached(NOTICE_CONTROL_CEILING), "the ceiling still ends the tool");
-    let said: Vec<String> = notices_said().into_iter().filter(|line| return line.contains(root.display().to_string().as_str())).collect();
-    assert_eq!(said.len(), 1, "the notice of the wait was made, and one only: {said:?}");
+    let run: ToolRun = answered
+        .expect("the write of the notice held the loop, so the run never reached its ceiling");
+    assert_eq!(
+        run.end,
+        ToolEnd::CeilingReached(NOTICE_CONTROL_CEILING),
+        "the ceiling still ends the tool"
+    );
+    let said: Vec<String> = notices_said()
+        .into_iter()
+        .filter(|line| return line.contains(root.display().to_string().as_str()))
+        .collect();
+    assert_eq!(
+        said.len(),
+        1,
+        "the notice of the wait was made, and one only: {said:?}"
+    );
     remove(&root);
 }

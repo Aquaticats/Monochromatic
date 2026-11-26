@@ -27,15 +27,22 @@
 //! expect(recorder.calls).toHaveLength(0);
 //! ```
 
-use crate::worktree_clone_snapshot_batch::request_refusal::BatchRefusal;
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
+use crate::worktree_clone_snapshot_batch::request_refusal::BatchRefusal;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::plan_requests;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{
-    RequestResult, SnapshotDestroyDevice, send_request,
+    RequestResult,
+    SnapshotDestroyDevice,
+    send_request,
 };
 use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::NameOutcome;
 use monochromatic_zfs_request_to_openzfs_kernel_device::requests::ElementError;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, Error, NvList, Operation};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    Error,
+    NvList,
+    Operation,
+};
 use std::cell::RefCell;
 
 /// The pool every send names.
@@ -77,7 +84,11 @@ impl Recorder {
 impl SnapshotDestroyDevice for Recorder {
     /// Records the pool and names,
     /// then answers.
-    fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
+    fn destroy_snaps(
+        &self,
+        pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
         self.calls.borrow_mut().push((
             pool.to_string(),
             names
@@ -148,15 +159,21 @@ fn a_refusal_is_answered_per_name() {
             },
         });
     });
-    let result: RequestResult = send_request(&device, POOL, set.as_slice()).expect("the chunk sends");
+    let result: RequestResult =
+        send_request(&device, POOL, set.as_slice()).expect("the chunk sends");
     let RequestResult::Answered(outcome) = result else {
         panic!("a non-empty chunk is sent");
     };
     assert_eq!(
         outcome.outcome_of(set[1].as_str()),
-        Some(&NameOutcome::Refused { errno: libc::EBUSY })
+        Some(&NameOutcome::Refused {
+            errno: libc::EBUSY
+        })
     );
-    assert_eq!(outcome.outcome_of(set[0].as_str()), Some(&NameOutcome::Intact));
+    assert_eq!(
+        outcome.outcome_of(set[0].as_str()),
+        Some(&NameOutcome::Intact)
+    );
 }
 
 /// A failure the answer cannot attribute is kept as unknown,
@@ -173,7 +190,8 @@ fn an_unattributable_failure_is_unknown() {
             },
         });
     });
-    let result: RequestResult = send_request(&device, POOL, set.as_slice()).expect("the chunk sends");
+    let result: RequestResult =
+        send_request(&device, POOL, set.as_slice()).expect("the chunk sends");
     let RequestResult::Answered(outcome) = result else {
         panic!("a non-empty chunk is sent");
     };

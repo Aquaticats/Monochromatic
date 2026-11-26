@@ -12,10 +12,24 @@
 //! ```
 
 /// Import the functions under test and the pair of names they work on.
-use super::{Look, Placement, carry_out, existing_kept_name, look, place_kept_name};
+use super::{
+    Look,
+    Placement,
+    carry_out,
+    existing_kept_name,
+    look,
+    place_kept_name,
+};
 use crate::rename_that_never_replaces::rename_noreplace;
-use crate::wrapper_names_old_and_new::{DATA_FOLDER, DISCARD_AUDIT_LOG, RenamedName};
-use std::path::{Path, PathBuf};
+use crate::wrapper_names_old_and_new::{
+    DATA_FOLDER,
+    DISCARD_AUDIT_LOG,
+    RenamedName,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Create one empty fixture directory owned by this test process and test name.
 fn fixture(name: &str) -> PathBuf {
@@ -23,21 +37,32 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 /// Make the earlier folder of a pair with one file in it.
-fn earlier_folder_with_file(parent: &Path, name: RenamedName, content: &str) {
+fn earlier_folder_with_file(
+    parent: &Path,
+    name: RenamedName,
+    content: &str,
+) {
     let folder: PathBuf = parent.join(name.earlier);
     std::fs::create_dir_all(folder.as_path()).expect("create the earlier folder");
     std::fs::write(folder.join("saved"), content).expect("write the saved file");
 }
 
 /// Make the current folder of a pair with one file in it.
-fn current_folder_with_file(parent: &Path, name: RenamedName, content: &str) {
+fn current_folder_with_file(
+    parent: &Path,
+    name: RenamedName,
+    content: &str,
+) {
     let folder: PathBuf = parent.join(name.current);
     std::fs::create_dir_all(folder.as_path()).expect("create the current folder");
     std::fs::write(folder.join("saved"), content).expect("write the saved file");
 }
 
 /// A rename that always fails the way a read-only Git directory does.
-fn refusing_rename(_from: &Path, _to: &Path) -> std::io::Result<()> {
+fn refusing_rename(
+    _from: &Path,
+    _to: &Path,
+) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
 }
 
@@ -51,9 +76,21 @@ fn only_the_earlier_folder_is_renamed_in_place_with_its_content() {
     let parent: PathBuf = fixture("only-earlier");
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "kept bytes");
     let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
-    assert_eq!(placed, Placement { path: parent.join(DATA_FOLDER.current), notice: None });
-    assert_eq!(std::fs::read_to_string(placed.path.join("saved")).expect("content moved"), "kept bytes");
-    assert!(!parent.join(DATA_FOLDER.earlier).exists(), "the earlier name is gone");
+    assert_eq!(
+        placed,
+        Placement {
+            path: parent.join(DATA_FOLDER.current),
+            notice: None
+        }
+    );
+    assert_eq!(
+        std::fs::read_to_string(placed.path.join("saved")).expect("content moved"),
+        "kept bytes"
+    );
+    assert!(
+        !parent.join(DATA_FOLDER.earlier).exists(),
+        "the earlier name is gone"
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -62,11 +99,18 @@ fn only_the_earlier_folder_is_renamed_in_place_with_its_content() {
 #[test]
 fn an_earlier_log_file_is_renamed_in_place_with_its_bytes() {
     let parent: PathBuf = fixture("log-file");
-    std::fs::write(parent.join(DISCARD_AUDIT_LOG.earlier), b"line one\nline two\n").expect("write the earlier log");
+    std::fs::write(
+        parent.join(DISCARD_AUDIT_LOG.earlier),
+        b"line one\nline two\n",
+    )
+    .expect("write the earlier log");
     let placed: Placement = place_kept_name(parent.as_path(), DISCARD_AUDIT_LOG);
     assert_eq!(placed.path, parent.join(DISCARD_AUDIT_LOG.current));
     assert_eq!(placed.notice, None);
-    assert_eq!(std::fs::read(placed.path.as_path()).expect("bytes moved"), b"line one\nline two\n");
+    assert_eq!(
+        std::fs::read(placed.path.as_path()).expect("bytes moved"),
+        b"line one\nline two\n"
+    );
     assert!(!parent.join(DISCARD_AUDIT_LOG.earlier).exists());
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
@@ -80,8 +124,12 @@ fn an_earlier_symbolic_link_is_moved_as_a_link() {
     std::os::unix::fs::symlink(target.as_path(), parent.join(DATA_FOLDER.earlier)).expect("link");
     let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
     assert_eq!(placed.notice, None);
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(placed.path.as_path()).expect("the link exists");
-    assert!(metadata.file_type().is_symlink(), "the link itself was moved");
+    let metadata: std::fs::Metadata =
+        std::fs::symlink_metadata(placed.path.as_path()).expect("the link exists");
+    assert!(
+        metadata.file_type().is_symlink(),
+        "the link itself was moved"
+    );
     assert!(target.is_dir(), "the target was not touched");
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
@@ -94,8 +142,17 @@ fn only_the_current_folder_is_used_without_a_notice() {
     current_folder_with_file(parent.as_path(), DATA_FOLDER, "current bytes");
     assert_eq!(look(parent.as_path(), DATA_FOLDER), Look::Settled);
     let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
-    assert_eq!(placed, Placement { path: parent.join(DATA_FOLDER.current), notice: None });
-    assert_eq!(std::fs::read_to_string(placed.path.join("saved")).expect("content"), "current bytes");
+    assert_eq!(
+        placed,
+        Placement {
+            path: parent.join(DATA_FOLDER.current),
+            notice: None
+        }
+    );
+    assert_eq!(
+        std::fs::read_to_string(placed.path.join("saved")).expect("content"),
+        "current bytes"
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -105,8 +162,17 @@ fn only_the_current_folder_is_used_without_a_notice() {
 fn neither_name_gives_the_current_path_and_creates_nothing() {
     let parent: PathBuf = fixture("neither");
     let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
-    assert_eq!(placed, Placement { path: parent.join(DATA_FOLDER.current), notice: None });
-    assert_eq!(std::fs::read_dir(parent.as_path()).expect("list").count(), 0);
+    assert_eq!(
+        placed,
+        Placement {
+            path: parent.join(DATA_FOLDER.current),
+            notice: None
+        }
+    );
+    assert_eq!(
+        std::fs::read_dir(parent.as_path()).expect("list").count(),
+        0
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -121,9 +187,18 @@ fn both_names_use_the_current_and_leave_the_earlier_to_the_fold() {
     current_folder_with_file(parent.as_path(), DATA_FOLDER, "current bytes");
     let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
     assert_eq!(placed.path, parent.join(DATA_FOLDER.current));
-    assert_eq!(placed.notice, None, "the placement of two existing names is silent");
-    assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.earlier).join("saved")).expect("earlier"), "earlier bytes");
-    assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.current).join("saved")).expect("current"), "current bytes");
+    assert_eq!(
+        placed.notice, None,
+        "the placement of two existing names is silent"
+    );
+    assert_eq!(
+        std::fs::read_to_string(parent.join(DATA_FOLDER.earlier).join("saved")).expect("earlier"),
+        "earlier bytes"
+    );
+    assert_eq!(
+        std::fs::read_to_string(parent.join(DATA_FOLDER.current).join("saved")).expect("current"),
+        "current bytes"
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -144,8 +219,17 @@ fn a_competitor_that_renames_first_leaves_one_folder_and_no_error() {
     let competitor: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
     assert_eq!(competitor.notice, None);
     let loser: Placement = carry_out(looked, parent.as_path(), DATA_FOLDER, rename_noreplace);
-    assert_eq!(loser, Placement { path: parent.join(DATA_FOLDER.current), notice: None });
-    assert_eq!(std::fs::read_to_string(loser.path.join("saved")).expect("content"), "raced bytes");
+    assert_eq!(
+        loser,
+        Placement {
+            path: parent.join(DATA_FOLDER.current),
+            notice: None
+        }
+    );
+    assert_eq!(
+        std::fs::read_to_string(loser.path.join("saved")).expect("content"),
+        "raced bytes"
+    );
     assert!(!parent.join(DATA_FOLDER.earlier).exists());
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
@@ -164,7 +248,10 @@ fn a_current_folder_that_appears_after_the_look_is_not_replaced() {
     let placed: Placement = carry_out(looked, parent.as_path(), DATA_FOLDER, rename_noreplace);
     assert_eq!(placed.path, parent.join(DATA_FOLDER.current));
     assert_eq!(placed.notice, None);
-    assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.earlier).join("saved")).expect("earlier"), "earlier bytes");
+    assert_eq!(
+        std::fs::read_to_string(parent.join(DATA_FOLDER.earlier).join("saved")).expect("earlier"),
+        "earlier bytes"
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -177,12 +264,27 @@ fn a_crash_between_the_look_and_the_rename_is_finished_by_the_next_run() {
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "crash bytes");
     // The crashed process: it looked, and was gone before it renamed.
     assert_eq!(look(parent.as_path(), DATA_FOLDER), Look::OnlyEarlier);
-    assert!(parent.join(DATA_FOLDER.earlier).is_dir(), "nothing was moved");
-    assert!(!parent.join(DATA_FOLDER.current).exists(), "no half-made current name");
+    assert!(
+        parent.join(DATA_FOLDER.earlier).is_dir(),
+        "nothing was moved"
+    );
+    assert!(
+        !parent.join(DATA_FOLDER.current).exists(),
+        "no half-made current name"
+    );
     // The next run.
     let next: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
-    assert_eq!(next, Placement { path: parent.join(DATA_FOLDER.current), notice: None });
-    assert_eq!(std::fs::read_to_string(next.path.join("saved")).expect("content"), "crash bytes");
+    assert_eq!(
+        next,
+        Placement {
+            path: parent.join(DATA_FOLDER.current),
+            notice: None
+        }
+    );
+    assert_eq!(
+        std::fs::read_to_string(next.path.join("saved")).expect("content"),
+        "crash bytes"
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -194,11 +296,19 @@ fn a_crash_between_the_look_and_the_rename_is_finished_by_the_next_run() {
 fn a_refused_rename_keeps_the_earlier_name_in_use_with_a_notice() {
     let parent: PathBuf = fixture("refused");
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "kept bytes");
-    let placed: Placement = carry_out(Look::OnlyEarlier, parent.as_path(), DATA_FOLDER, refusing_rename);
+    let placed: Placement = carry_out(
+        Look::OnlyEarlier,
+        parent.as_path(),
+        DATA_FOLDER,
+        refusing_rename,
+    );
     assert_eq!(placed.path, parent.join(DATA_FOLDER.earlier));
     let notice: String = placed.notice.expect("reported");
     assert!(notice.contains("tried again"), "{notice}");
-    assert_eq!(std::fs::read_to_string(placed.path.join("saved")).expect("content"), "kept bytes");
+    assert_eq!(
+        std::fs::read_to_string(placed.path.join("saved")).expect("content"),
+        "kept bytes"
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -207,12 +317,24 @@ fn a_refused_rename_keeps_the_earlier_name_in_use_with_a_notice() {
 #[test]
 fn a_reader_finds_the_name_that_exists_and_moves_nothing() {
     let parent: PathBuf = fixture("reader");
-    assert_eq!(existing_kept_name(parent.as_path(), DATA_FOLDER), parent.join(DATA_FOLDER.current));
+    assert_eq!(
+        existing_kept_name(parent.as_path(), DATA_FOLDER),
+        parent.join(DATA_FOLDER.current)
+    );
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "earlier bytes");
-    assert_eq!(existing_kept_name(parent.as_path(), DATA_FOLDER), parent.join(DATA_FOLDER.earlier));
-    assert!(parent.join(DATA_FOLDER.earlier).is_dir(), "nothing was renamed");
+    assert_eq!(
+        existing_kept_name(parent.as_path(), DATA_FOLDER),
+        parent.join(DATA_FOLDER.earlier)
+    );
+    assert!(
+        parent.join(DATA_FOLDER.earlier).is_dir(),
+        "nothing was renamed"
+    );
     current_folder_with_file(parent.as_path(), DATA_FOLDER, "current bytes");
-    assert_eq!(existing_kept_name(parent.as_path(), DATA_FOLDER), parent.join(DATA_FOLDER.current));
+    assert_eq!(
+        existing_kept_name(parent.as_path(), DATA_FOLDER),
+        parent.join(DATA_FOLDER.current)
+    );
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }
 
@@ -223,13 +345,27 @@ fn a_reader_finds_the_name_that_exists_and_moves_nothing() {
 #[test]
 fn spaces_quotes_and_newlines_in_the_parent_path_do_not_change_the_move() {
     let root: PathBuf = fixture("adversarial");
-    for (index, awkward) in ["with space", "it's", "double \"quote\"", "line\nbreak", "-dash", "$(echo)", "semi;colon"].iter().enumerate() {
+    for (index, awkward) in [
+        "with space",
+        "it's",
+        "double \"quote\"",
+        "line\nbreak",
+        "-dash",
+        "$(echo)",
+        "semi;colon",
+    ]
+    .iter()
+    .enumerate()
+    {
         let parent: PathBuf = root.join(format!("{index}-{awkward}"));
         std::fs::create_dir_all(parent.as_path()).expect("create the awkward parent");
         earlier_folder_with_file(parent.as_path(), DATA_FOLDER, awkward);
         let placed: Placement = place_kept_name(parent.as_path(), DATA_FOLDER);
         assert_eq!(placed.notice, None, "{awkward:?}");
-        assert_eq!(std::fs::read_to_string(placed.path.join("saved")).expect("content"), *awkward);
+        assert_eq!(
+            std::fs::read_to_string(placed.path.join("saved")).expect("content"),
+            *awkward
+        );
         assert!(!parent.join(DATA_FOLDER.earlier).exists(), "{awkward:?}");
     }
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
@@ -244,15 +380,25 @@ fn two_threads_moving_the_same_name_leave_one_folder_with_the_content() {
     let parent: PathBuf = fixture("two-threads");
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "contended bytes");
     let placements: Vec<Placement> = std::thread::scope(|scope| {
-        let first = scope.spawn(|| { return place_kept_name(parent.as_path(), DATA_FOLDER); });
-        let second = scope.spawn(|| { return place_kept_name(parent.as_path(), DATA_FOLDER); });
-        return vec![first.join().expect("first thread"), second.join().expect("second thread")];
+        let first = scope.spawn(|| {
+            return place_kept_name(parent.as_path(), DATA_FOLDER);
+        });
+        let second = scope.spawn(|| {
+            return place_kept_name(parent.as_path(), DATA_FOLDER);
+        });
+        return vec![
+            first.join().expect("first thread"),
+            second.join().expect("second thread"),
+        ];
     });
     for placed in &placements {
         assert_eq!(placed.path, parent.join(DATA_FOLDER.current));
         assert_eq!(placed.notice, None);
     }
-    assert_eq!(std::fs::read_to_string(parent.join(DATA_FOLDER.current).join("saved")).expect("content"), "contended bytes");
+    assert_eq!(
+        std::fs::read_to_string(parent.join(DATA_FOLDER.current).join("saved")).expect("content"),
+        "contended bytes"
+    );
     assert!(!parent.join(DATA_FOLDER.earlier).exists());
     std::fs::remove_dir_all(parent.as_path()).expect("remove only the fixture");
 }

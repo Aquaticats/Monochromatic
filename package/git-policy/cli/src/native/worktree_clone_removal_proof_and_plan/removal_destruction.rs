@@ -43,21 +43,44 @@
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt, PlanSnapshot};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+    PlanSnapshot,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, enter_the_removal, history_of};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
+    EnteredRemoval,
+    RemovalClock,
+    RemovalEntry,
+    enter_the_removal,
+    history_of,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
-use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::{RequestPlan, plan_requests};
-use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{RequestResult, SnapshotDestroyDevice, send_request};
+use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::{
+    RequestPlan,
+    plan_requests,
+};
+use crate::worktree_clone_snapshot_batch::snapshot_batch_send::{
+    RequestResult,
+    SnapshotDestroyDevice,
+    send_request,
+};
 use crate::worktree_clone_snapshot_batch::snapshot_name_outcome::NameOutcome;
-use crate::worktree_removal_deferred_origin_check::origin_verdict::{Verdict, check_planned_origin};
+use crate::worktree_removal_deferred_origin_check::origin_verdict::{
+    Verdict,
+    check_planned_origin,
+};
 use crate::worktree_removal_deferred_origin_check::planned_origin::PlannedOrigin;
 use crate::worktree_removal_deferred_origin_check::removal_history::RemovalHistory;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Everything one removal's destruction step reads and drives:
@@ -157,34 +180,68 @@ pub struct DestructionUnderway {
 /// ```ts
 /// const underway = destroyTheRemoval(input);
 /// ```
-pub fn destroy_the_removal(input: &RemovalDestruction<'_>) -> Result<DestructionUnderway, RemovalStop> {
-    let entered: EnteredRemoval = enter_the_removal(input.entry, input.reads, input.unmount, input.clock)?;
+pub fn destroy_the_removal(
+    input: &RemovalDestruction<'_>
+) -> Result<DestructionUnderway, RemovalStop> {
+    let entered: EnteredRemoval =
+        enter_the_removal(input.entry, input.reads, input.unmount, input.clock)?;
     let planned: PlannedOrigin = planned_origin_of(input.entry.slot, &entered);
-    let folder: PlanFolder = PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
-        return RemovalStop::PlanUnreadable { path: crate::worktree_clone_binding_record::registration_home::plans_folder(input.entry.common_dir), refusal };
-    })?;
+    let folder: PlanFolder =
+        PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
+            return RemovalStop::PlanUnreadable {
+                path: crate::worktree_clone_binding_record::registration_home::plans_folder(
+                    input.entry.common_dir,
+                ),
+                refusal,
+            };
+        })?;
     let mut plan: DestructionPlan = entered.plan;
-    let requested: RequestPlan = plan_requests(entered.pool.as_str(), the_snapshots_to_send(&plan).as_slice(), input.budget).map_err(|refusal| {
-        return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: 0 };
+    let requested: RequestPlan = plan_requests(
+        entered.pool.as_str(),
+        the_snapshots_to_send(&plan).as_slice(),
+        input.budget,
+    )
+    .map_err(|refusal| {
+        return RemovalStop::TheSnapshotSetIsNotSendable {
+            said: refusal.to_string(),
+            sent: 0,
+        };
     })?;
     let mut requests: Vec<BatchOutcome> = Vec::new();
     for chunk in requested.chunks() {
         refuse_a_marked_or_replaced_origin(input.check, &planned, &plan)?;
-        let answer: RequestResult = send_request(input.device, entered.pool.as_str(), chunk.as_slice()).map_err(|refusal| {
-            return RemovalStop::TheSnapshotSetIsNotSendable { said: refusal.to_string(), sent: requests.len() };
-        })?;
+        let answer: RequestResult =
+            send_request(input.device, entered.pool.as_str(), chunk.as_slice()).map_err(
+                |refusal| {
+                    return RemovalStop::TheSnapshotSetIsNotSendable {
+                        said: refusal.to_string(),
+                        sent: requests.len(),
+                    };
+                },
+            )?;
         let RequestResult::Answered(outcome) = answer else {
             // A planned chunk is never empty, and `send_request` skips an empty set itself, so this arm
             // is the route's own rule rather than a state a caller can reach.
             continue;
         };
         record_the_answer(&mut plan, entered.plan_path.as_path(), &outcome)?;
-        folder.publish(&plan).map_err(|refusal| return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: entered.plan_path.clone(), said: refusal.message(folder.path()) })?;
+        folder.publish(&plan).map_err(|refusal| {
+            return RemovalStop::ThePlanCouldNotHoldTheAnswer {
+                path: entered.plan_path.clone(),
+                said: refusal.message(folder.path()),
+            };
+        })?;
         requests.push(outcome);
     }
     let remaining: Vec<String> = the_remaining_snapshots(input.reads, &plan)?;
     refuse_a_marked_or_replaced_origin(input.check, &planned, &plan)?;
-    return Ok(DestructionUnderway { plan, plan_path: entered.plan_path, lost: entered.lost, requests, remaining_snapshots: remaining });
+    return Ok(DestructionUnderway {
+        plan,
+        plan_path: entered.plan_path,
+        lost: entered.lost,
+        requests,
+        remaining_snapshots: remaining,
+    });
 }
 
 /// What:
@@ -202,7 +259,10 @@ pub fn destroy_the_removal(input: &RemovalDestruction<'_>) -> Result<Destruction
 /// ```ts
 /// const planned = plannedOriginOf(slot, entered);
 /// ```
-pub(super) fn planned_origin_of(slot: &str, entered: &EnteredRemoval) -> PlannedOrigin {
+pub(super) fn planned_origin_of(
+    slot: &str,
+    entered: &EnteredRemoval,
+) -> PlannedOrigin {
     let facts = &entered.plan.facts;
     return PlannedOrigin {
         slot: String::from(slot),
@@ -231,7 +291,11 @@ pub(super) fn planned_origin_of(slot: &str, entered: &EnteredRemoval) -> Planned
 /// const names = plan.namedSnapshots().map(s => s.name);
 /// ```
 pub(super) fn the_snapshots_to_send(plan: &DestructionPlan) -> Vec<String> {
-    return plan.named_snapshots().iter().map(|snapshot| return snapshot.name.clone()).collect();
+    return plan
+        .named_snapshots()
+        .iter()
+        .map(|snapshot| return snapshot.name.clone())
+        .collect();
 }
 
 /// What:
@@ -255,11 +319,18 @@ pub(super) fn the_snapshots_to_send(plan: &DestructionPlan) -> Vec<String> {
 /// const verdict = checkPlannedOrigin(check, planned);
 /// if (verdict.kind === 'refused') throw stop(verdict.cause, historyOf(plan));
 /// ```
-pub(super) fn refuse_a_marked_or_replaced_origin(check: &dyn DatasetReader, planned: &PlannedOrigin, plan: &DestructionPlan) -> Result<(), RemovalStop> {
+pub(super) fn refuse_a_marked_or_replaced_origin(
+    check: &dyn DatasetReader,
+    planned: &PlannedOrigin,
+    plan: &DestructionPlan,
+) -> Result<(), RemovalStop> {
     let history: RemovalHistory = history_of(Some(plan));
     return match check_planned_origin(check, planned) {
         Verdict::Proceed => Ok(()),
-        Verdict::Refused(refusal) => Err(RemovalStop::OriginCheckRefused { refusal: Box::new(refusal), history }),
+        Verdict::Refused(refusal) => Err(RemovalStop::OriginCheckRefused {
+            refusal: Box::new(refusal),
+            history,
+        }),
     };
 }
 
@@ -283,25 +354,47 @@ pub(super) fn refuse_a_marked_or_replaced_origin(check: &dyn DatasetReader, plan
 /// ```ts
 /// for (const submitted of outcome.names()) plan.recordLine(line(submitted));
 /// ```
-pub(super) fn record_the_answer(plan: &mut DestructionPlan, path: &Path, outcome: &BatchOutcome) -> Result<(), RemovalStop> {
+pub(super) fn record_the_answer(
+    plan: &mut DestructionPlan,
+    path: &Path,
+    outcome: &BatchOutcome,
+) -> Result<(), RemovalStop> {
     let named: Vec<PlanSnapshot> = plan.named_snapshots();
     for submitted in outcome.names() {
         let Some(snapshot) = named.iter().find(|held| return held.name == submitted.name) else {
             return Err(RemovalStop::ThePlanCouldNotHoldTheAnswer {
                 path: path.to_path_buf(),
-                said: format!("the kernel answered about `{}`, and the plan holds no snapshot of that name", submitted.name),
+                said: format!(
+                    "the kernel answered about `{}`, and the plan holds no snapshot of that name",
+                    submitted.name
+                ),
             });
         };
-        let line: PlanAttempt = attempt_line(snapshot, next_attempt(plan, snapshot.name.as_str()), &submitted.outcome, path)?;
-        plan.record_line(line).map_err(|refusal| return RemovalStop::ThePlanCouldNotHoldTheAnswer { path: path.to_path_buf(), said: refusal.message(path) })?;
+        let line: PlanAttempt = attempt_line(
+            snapshot,
+            next_attempt(plan, snapshot.name.as_str()),
+            &submitted.outcome,
+            path,
+        )?;
+        plan.record_line(line).map_err(|refusal| {
+            return RemovalStop::ThePlanCouldNotHoldTheAnswer {
+                path: path.to_path_buf(),
+                said: refusal.message(path),
+            };
+        })?;
     }
     return Ok(());
 }
 
 /// The attempt number a name's next line takes:
 /// one above the highest this plan already holds for it.
-pub(super) fn next_attempt(plan: &DestructionPlan, name: &str) -> u64 {
-    return plan.current_state(name).map_or(1, |held| return held.attempt + 1);
+pub(super) fn next_attempt(
+    plan: &DestructionPlan,
+    name: &str,
+) -> u64 {
+    return plan
+        .current_state(name)
+        .map_or(1, |held| return held.attempt + 1);
 }
 
 /// What:
@@ -320,22 +413,39 @@ pub(super) fn next_attempt(plan: &DestructionPlan, name: &str) -> u64 {
 /// ```ts
 /// const line = { snapshot, attempt, outcome: word, errno };
 /// ```
-pub(super) fn attempt_line(snapshot: &PlanSnapshot, attempt: u64, outcome: &NameOutcome, path: &Path) -> Result<PlanAttempt, RemovalStop> {
+pub(super) fn attempt_line(
+    snapshot: &PlanSnapshot,
+    attempt: u64,
+    outcome: &NameOutcome,
+    path: &Path,
+) -> Result<PlanAttempt, RemovalStop> {
     let (word, errno): (SnapshotOutcome, Option<u32>) = match outcome {
         NameOutcome::Destroyed => (SnapshotOutcome::Destroyed, None),
         NameOutcome::Intact => (SnapshotOutcome::Intact, None),
-        NameOutcome::Unknown { .. } => (SnapshotOutcome::Unknown, None),
-        NameOutcome::Refused { errno } => match u32::try_from(*errno) {
+        NameOutcome::Unknown {
+            ..
+        } => (SnapshotOutcome::Unknown, None),
+        NameOutcome::Refused {
+            errno,
+        } => match u32::try_from(*errno) {
             Ok(held) => (SnapshotOutcome::Refused, Some(held)),
             Err(_) => {
                 return Err(RemovalStop::ThePlanCouldNotHoldTheAnswer {
                     path: path.to_path_buf(),
-                    said: format!("the kernel answered errno {errno} for `{}`, which a record's line cannot carry", snapshot.name),
+                    said: format!(
+                        "the kernel answered errno {errno} for `{}`, which a record's line cannot carry",
+                        snapshot.name
+                    ),
                 });
             }
         },
     };
-    return Ok(PlanAttempt { snapshot: snapshot.clone(), attempt, outcome: word, errno });
+    return Ok(PlanAttempt {
+        snapshot: snapshot.clone(),
+        attempt,
+        outcome: word,
+        errno,
+    });
 }
 
 /// What:
@@ -357,11 +467,22 @@ pub(super) fn attempt_line(snapshot: &PlanSnapshot, attempt: u64, outcome: &Name
 /// ```ts
 /// const snapshots = reads.snapshotsOf(plan.facts.cloneDataset, plan.facts.cloneGuid);
 /// ```
-pub(super) fn the_remaining_snapshots(reads: &dyn RemovalPoolReads, plan: &DestructionPlan) -> Result<Vec<String>, RemovalStop> {
-    let objects = reads.snapshots_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid).map_err(|reason| {
-        return RemovalStop::InventoryUnreadable { clone: plan.facts.clone_dataset.clone(), reason };
-    })?;
-    let mut names: Vec<String> = objects.iter().map(|object| return object.full_name()).collect();
+pub(super) fn the_remaining_snapshots(
+    reads: &dyn RemovalPoolReads,
+    plan: &DestructionPlan,
+) -> Result<Vec<String>, RemovalStop> {
+    let objects = reads
+        .snapshots_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)
+        .map_err(|reason| {
+            return RemovalStop::InventoryUnreadable {
+                clone: plan.facts.clone_dataset.clone(),
+                reason,
+            };
+        })?;
+    let mut names: Vec<String> = objects
+        .iter()
+        .map(|object| return object.full_name())
+        .collect();
     names.sort();
     return Ok(names);
 }

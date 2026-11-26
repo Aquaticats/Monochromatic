@@ -1,7 +1,13 @@
 //! Controls for batch parsing and loading against real Git.
 
 use super::*;
-use crate::test_support::{fixture, git_context, git_text, remove, repository};
+use crate::test_support::{
+    fixture,
+    git_context,
+    git_text,
+    remove,
+    repository,
+};
 use std::path::PathBuf;
 
 /// Owned IDs from literals.
@@ -234,6 +240,7 @@ fn preparing_a_batch_looks_at_each_object_name_once() {
     assert_eq!(
         looked,
         twice.len() as u64,
-        "{looked} collected names looked at for {} requested names; one per name is linear", twice.len()
+        "{looked} collected names looked at for {} requested names; one per name is linear",
+        twice.len()
     );
 }

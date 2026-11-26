@@ -15,9 +15,19 @@
 //! ```
 
 use crate::command_options::{
-    Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
+    UNREAD,
+    parse_options,
+    row,
 };
-use crate::command_options_query::{WrapperFlags, split_wrapper_flags};
+use crate::command_options_query::{
+    WrapperFlags,
+    split_wrapper_flags,
+};
 /// What:
 ///  Bring the shared hatch spelling,
 ///  the tokenizer,

@@ -31,10 +31,16 @@
 //! const reply = await runner.run(["merge-tree", "--write-tree"], undefined, undefined); // { code, stdout, stderr }
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What a Git start gave back.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,7 +108,8 @@ impl GitRunner for ContextRunner<'_> {
         arguments: &'a [&'a str],
         input: Option<&'a [u8]>,
         index_file: Option<&'a Path>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>>
+    {
         return Box::pin(async move {
             let mut request: GitRequest = GitRequest::new(self.cwd, arguments);
             request.without_prefix = self.without_prefix;
@@ -113,9 +120,18 @@ impl GitRunner for ContextRunner<'_> {
             request.index = index_file.map(PathBuf::from);
             let output = match run_git_awaiting(self.context, &request).await {
                 Ok(done) => done,
-                Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
+                Err(error) => {
+                    return Err(format!(
+                        "git {} could not start: {error}",
+                        arguments.join(" ")
+                    ));
+                }
             };
-            return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
+            return Ok(GitReply {
+                code: output.code,
+                stdout: output.stdout,
+                stderr: output.stderr,
+            });
         });
     }
 }
@@ -150,7 +166,9 @@ pub fn config_options(prefix: &[OsString]) -> Vec<OsString> {
     while let Some(token) = tokens.next() {
         // Two of these options carry their value in the next token, and the other two after `=` in the same one.
         if token == "-c" || token == "--config-env" || token == "--attr-source" {
-            let Some(setting) = tokens.next() else { continue };
+            let Some(setting) = tokens.next() else {
+                continue;
+            };
             kept.push(token.clone());
             kept.push(setting.clone());
             continue;

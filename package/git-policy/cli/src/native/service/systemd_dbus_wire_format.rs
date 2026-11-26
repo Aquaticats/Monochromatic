@@ -71,25 +71,38 @@ pub(crate) struct Writer {
 }
 
 impl Writer {
-    fn align(&mut self, boundary: usize) {
+    fn align(
+        &mut self,
+        boundary: usize,
+    ) {
         while self.bytes.len() % boundary != 0 {
             self.bytes.push(0);
         }
     }
 
-    fn unsigned(&mut self, value: u32) {
+    fn unsigned(
+        &mut self,
+        value: u32,
+    ) {
         self.align(4);
         self.bytes.extend(value.to_le_bytes());
     }
 
-    fn text(&mut self, value: &str) {
+    fn text(
+        &mut self,
+        value: &str,
+    ) {
         self.unsigned(u32::try_from(value.len()).unwrap_or(u32::MAX));
         self.bytes.extend(value.as_bytes());
         self.bytes.push(0);
     }
 
-    fn signature(&mut self, value: &str) {
-        self.bytes.push(u8::try_from(value.len()).unwrap_or(u8::MAX));
+    fn signature(
+        &mut self,
+        value: &str,
+    ) {
+        self.bytes
+            .push(u8::try_from(value.len()).unwrap_or(u8::MAX));
         self.bytes.extend(value.as_bytes());
         self.bytes.push(0);
     }
@@ -97,7 +110,12 @@ impl Writer {
     /// One header field:
     /// its code,
     /// then a variant holding a string-like or signature value.
-    fn field(&mut self, code: u8, kind: char, value: &str) {
+    fn field(
+        &mut self,
+        code: u8,
+        kind: char,
+        value: &str,
+    ) {
         self.align(8);
         self.bytes.push(code);
         self.signature(&kind.to_string());
@@ -131,12 +149,20 @@ pub struct Target<'a> {
 /// ```ts
 /// encodeCall(serial, START_UNIT, ['cli-git.socket', 'replace'])
 /// ```
-pub fn encode_call(serial: u32, target: &Target<'_>, arguments: &[&str]) -> Vec<u8> {
-    let mut body: Writer = Writer { bytes: Vec::new() };
+pub fn encode_call(
+    serial: u32,
+    target: &Target<'_>,
+    arguments: &[&str],
+) -> Vec<u8> {
+    let mut body: Writer = Writer {
+        bytes: Vec::new(),
+    };
     for argument in arguments {
         body.text(argument);
     }
-    let mut fields: Writer = Writer { bytes: vec![0; 16] };
+    let mut fields: Writer = Writer {
+        bytes: vec![0; 16],
+    };
     fields.field(FIELD_PATH, 'o', target.path);
     fields.field(FIELD_DESTINATION, 's', target.destination);
     fields.field(FIELD_INTERFACE, 's', target.interface);
@@ -152,7 +178,11 @@ pub fn encode_call(serial: u32, target: &Target<'_>, arguments: &[&str]) -> Vec<
     message[1] = METHOD_CALL;
     message[2] = 0;
     message[3] = 1;
-    message[4..8].copy_from_slice(&u32::try_from(body.bytes.len()).unwrap_or(u32::MAX).to_le_bytes());
+    message[4..8].copy_from_slice(
+        &u32::try_from(body.bytes.len())
+            .unwrap_or(u32::MAX)
+            .to_le_bytes(),
+    );
     message[8..12].copy_from_slice(&serial.to_le_bytes());
     message[12..16].copy_from_slice(&array_length.to_le_bytes());
     message.extend(body.bytes);
@@ -179,7 +209,10 @@ pub struct Reply {
     pub first_text: Option<String>,
 }
 
-pub(crate) fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
+pub(crate) fn read_u32(
+    bytes: &[u8],
+    at: usize,
+) -> Option<u32> {
     return bytes.get(at..at.checked_add(4)?).map(u32_of_four_bytes);
 }
 
@@ -217,7 +250,10 @@ fn text_of(read: (String, usize)) -> String {
 /// Callers pass only the bytes of the region the string must lie in,
 /// so an end byte
 ///  beyond that region is not found.
-pub(crate) fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
+pub(crate) fn read_text(
+    bytes: &[u8],
+    at: usize,
+) -> Option<(String, usize)> {
     let length: usize = usize::try_from(read_u32(bytes, at)?).ok()?;
     let start: usize = at.checked_add(4)?;
     let end: usize = start.checked_add(length)?;
@@ -225,7 +261,10 @@ pub(crate) fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
     if *bytes.get(end)? != 0 {
         return None;
     }
-    return Some((String::from_utf8_lossy(text).into_owned(), end.saturating_add(1)));
+    return Some((
+        String::from_utf8_lossy(text).into_owned(),
+        end.saturating_add(1),
+    ));
 }
 
 /// The string a variant at `at` holds,
@@ -233,7 +272,10 @@ pub(crate) fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
 /// is cut short,
 /// or has a signature that does
 ///  not end with its end byte.
-fn read_variant_text(bytes: &[u8], at: usize) -> Option<String> {
+fn read_variant_text(
+    bytes: &[u8],
+    at: usize,
+) -> Option<String> {
     let length: usize = usize::from(*bytes.get(at)?);
     let inner_start: usize = at.checked_add(1)?;
     let inner_end: usize = inner_start.checked_add(length)?;
@@ -245,7 +287,10 @@ fn read_variant_text(bytes: &[u8], at: usize) -> Option<String> {
     return read_text(bytes, aligned(inner_end.checked_add(1)?, 4)).map(text_of);
 }
 
-pub(crate) fn aligned(offset: usize, boundary: usize) -> usize {
+pub(crate) fn aligned(
+    offset: usize,
+    boundary: usize,
+) -> usize {
     return match offset.checked_add(boundary - 1) {
         Some(sum) => sum / boundary * boundary,
         None => usize::MAX,
@@ -289,17 +334,29 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
     let mut signature: String = String::new();
     // A header field lies within the declared header and a body value within the declared body, whatever follows them.
     let header: &[u8] = bytes.get(..fields_end).unwrap_or_default();
-    let body: &[u8] = bytes.get(..body_start.saturating_add(body_length)).unwrap_or_default();
+    let body: &[u8] = bytes
+        .get(..body_start.saturating_add(body_length))
+        .unwrap_or_default();
     let mut at: usize = 16;
     while at < fields_end {
         at = aligned(at, 8);
-        let (Some(&code), Some(&signature_length)) = (header.get(at), header.get(at.saturating_add(1))) else { break };
+        let (Some(&code), Some(&signature_length)) =
+            (header.get(at), header.get(at.saturating_add(1)))
+        else {
+            break;
+        };
         let kind_at: usize = at.saturating_add(2);
-        let Some(&value_kind) = header.get(kind_at) else { break };
-        let value_at: usize = kind_at.saturating_add(usize::from(signature_length)).saturating_add(1);
+        let Some(&value_kind) = header.get(kind_at) else {
+            break;
+        };
+        let value_at: usize = kind_at
+            .saturating_add(usize::from(signature_length))
+            .saturating_add(1);
         match (value_kind, code) {
             (b's' | b'o', _) => {
-                let Some((text, next)) = read_text(header, aligned(value_at, 4)) else { break };
+                let Some((text, next)) = read_text(header, aligned(value_at, 4)) else {
+                    break;
+                };
                 if code == FIELD_ERROR_NAME {
                     error_name = Some(text);
                 }
@@ -311,7 +368,12 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
                     let start: usize = value_at.saturating_add(1);
                     // A signature whose end byte is missing is not read, so the body is not interpreted by it.
                     if header.get(start.saturating_add(length)) == Some(&0) {
-                        signature = String::from_utf8_lossy(header.get(start..start.saturating_add(length)).unwrap_or_default()).into_owned();
+                        signature = String::from_utf8_lossy(
+                            header
+                                .get(start..start.saturating_add(length))
+                                .unwrap_or_default(),
+                        )
+                        .into_owned();
                     }
                 }
                 at = value_at.saturating_add(length).saturating_add(2);
@@ -334,7 +396,12 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
     } else {
         None
     };
-    return Ok(Reply { kind, reply_serial, error_name, first_text });
+    return Ok(Reply {
+        kind,
+        reply_serial,
+        error_name,
+        first_text,
+    });
 }
 
 /// What:

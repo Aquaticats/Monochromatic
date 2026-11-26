@@ -13,9 +13,15 @@
 //! runTransactionGit({ gitPath, cwd, indexPath, objectDirectory, args })
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The index and object-store inputs of one listing.
@@ -60,7 +66,8 @@ pub fn indexed_request<S: AsRef<OsStr>>(
 ) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(cwd, arguments);
     request.without_prefix = true;
-    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    request.repository_selection =
+        crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     request.index = index.map(Path::to_path_buf);
     request.object_directory = object_directory.map(Path::to_path_buf);
     return request;
@@ -101,11 +108,18 @@ pub fn caller_pathspec_request(
     index: Option<&Path>,
     object_directory: Option<&Path>,
 ) -> GitRequest {
-    let mut words: Vec<std::ffi::OsString> = crate::global_arguments_pathspec_modes::pathspec_mode_options(context.global_prefix.as_slice());
+    let mut words: Vec<std::ffi::OsString> =
+        crate::global_arguments_pathspec_modes::pathspec_mode_options(
+            context.global_prefix.as_slice(),
+        );
     words.extend(arguments.iter().cloned());
-    let mut request: GitRequest = indexed_request(context, cwd, words.as_slice(), index, object_directory);
+    let mut request: GitRequest =
+        indexed_request(context, cwd, words.as_slice(), index, object_directory);
     // `LC_ALL` wins over `LANG`, `LC_MESSAGES` and `LANGUAGE` in the C library's own lookup, so the one variable is enough.
-    request.environment.push((std::ffi::OsString::from("LC_ALL"), std::ffi::OsString::from("C")));
+    request.environment.push((
+        std::ffi::OsString::from("LC_ALL"),
+        std::ffi::OsString::from("C"),
+    ));
     return request;
 }
 

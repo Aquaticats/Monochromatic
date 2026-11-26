@@ -58,7 +58,9 @@ pub fn thread_numbers(pid: u32) -> std::io::Result<Vec<u32>> {
     let mut numbers: Vec<u32> = Vec::new();
     for listed in std::fs::read_dir(format!("/proc/{pid}/task"))? {
         let Ok(entry) = listed else { continue };
-        if let Some(number) = entry.file_name().to_str().and_then(|name| { return name.parse::<u32>().ok(); }) {
+        if let Some(number) = entry.file_name().to_str().and_then(|name| {
+            return name.parse::<u32>().ok();
+        }) {
             numbers.push(number);
         }
     }
@@ -76,7 +78,10 @@ pub fn thread_numbers(pid: u32) -> std::io::Result<Vec<u32>> {
 /// ```ts
 /// const used = numbers.map((n) => threadTicks(pid, n) ?? 0).reduce((a, b) => a + b, 0);
 /// ```
-pub fn ticks_of_threads(pid: u32, numbers: &[u32]) -> u64 {
+pub fn ticks_of_threads(
+    pid: u32,
+    numbers: &[u32],
+) -> u64 {
     let mut used: u64 = 0;
     for number in numbers {
         if let Some(ticks) = thread_ticks(pid, *number) {
@@ -101,7 +106,10 @@ pub fn ticks_of_threads(pid: u32, numbers: &[u32]) -> u64 {
 /// ```ts
 /// const f = readFile(`/proc/${pid}/task/${tid}/stat`).split(')')[1].trim().split(/\s+/); return Number(f[11]) + Number(f[12]);
 /// ```
-pub fn thread_ticks(pid: u32, thread: u32) -> Option<u64> {
+pub fn thread_ticks(
+    pid: u32,
+    thread: u32,
+) -> Option<u64> {
     let stat: String = std::fs::read_to_string(format!("/proc/{pid}/task/{thread}/stat")).ok()?;
     let after_name: &str = stat.rsplit_once(')')?.1;
     let fields: Vec<&str> = after_name.split_whitespace().collect();
@@ -125,5 +133,9 @@ pub fn thread_ticks(pid: u32, thread: u32) -> Option<u64> {
 pub fn ticks_per_second() -> f64 {
     // SAFETY: `sysconf` reads a constant of the system and touches no memory of this process.
     let per_second: i64 = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
-    return if per_second > 0 { per_second as f64 } else { 100.0 };
+    return if per_second > 0 {
+        per_second as f64
+    } else {
+        100.0
+    };
 }

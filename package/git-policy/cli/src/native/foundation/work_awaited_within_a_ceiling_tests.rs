@@ -32,8 +32,14 @@ fn a_job_that_never_answers_gives_up_at_its_ceiling() {
     assert_eq!(answer, None);
     // The ceiling is a floor for how long this may take and a loose roof for how long it does: a loaded host adds
     //  scheduling time to the wait, never work.
-    assert!(waited >= ceiling, "the wait ended before the ceiling: {waited:?}");
-    assert!(waited < ceiling + Duration::from_secs(10), "the wait outlived its ceiling: {waited:?}");
+    assert!(
+        waited >= ceiling,
+        "the wait ended before the ceiling: {waited:?}"
+    );
+    assert!(
+        waited < ceiling + Duration::from_secs(10),
+        "the wait outlived its ceiling: {waited:?}"
+    );
 }
 
 /// What:
@@ -45,11 +51,28 @@ fn a_job_that_never_answers_gives_up_at_its_ceiling() {
 ///  can act on.
 #[test]
 fn a_line_is_delivered_or_left_waiting_at_the_ceiling() {
-    let delivered: Option<std::io::Result<()>> = write_within(Duration::from_secs(5), Vec::<u8>::new(), String::from("a line\n"));
-    assert!(matches!(delivered, Some(Ok(()))), "a stream that accepts the line answers with it: {delivered:?}");
+    let delivered: Option<std::io::Result<()>> = write_within(
+        Duration::from_secs(5),
+        Vec::<u8>::new(),
+        String::from("a line\n"),
+    );
+    assert!(
+        matches!(delivered, Some(Ok(()))),
+        "a stream that accepts the line answers with it: {delivered:?}"
+    );
     let (sender, receiver) = channel::<()>();
-    let blocked: Option<std::io::Result<()>> = write_within(Duration::from_millis(50), BlockedStream { _sender: sender, waiting: receiver }, String::from("a line\n"));
-    assert!(blocked.is_none(), "a stream that never accepts the line gives no answer: {blocked:?}");
+    let blocked: Option<std::io::Result<()>> = write_within(
+        Duration::from_millis(50),
+        BlockedStream {
+            _sender: sender,
+            waiting: receiver,
+        },
+        String::from("a line\n"),
+    );
+    assert!(
+        blocked.is_none(),
+        "a stream that never accepts the line gives no answer: {blocked:?}"
+    );
 }
 
 /// A stream whose write waits for an answer that never comes.
@@ -63,7 +86,10 @@ struct BlockedStream {
 
 impl Write for BlockedStream {
     /// Waits for an answer that never comes.
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<usize> {
         let _never = self.waiting.recv();
         return Ok(buffer.len());
     }
@@ -84,15 +110,33 @@ impl Write for BlockedStream {
 #[test]
 fn a_refused_thread_is_not_a_job_that_did_not_answer() {
     let refused: ThreadsRefusedForTheControl = a_control_refuses_every_thread();
-    let ran: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ran: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let touched: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&ran);
-    let answered: TheAnswerOfAThreadOfWork<u8> = work_within_reporting(Duration::from_secs(5), move || {
-        touched.store(true, std::sync::atomic::Ordering::SeqCst);
-        return 7;
-    });
-    assert!(matches!(answered, TheAnswerOfAThreadOfWork::NoThreadToStart), "a refused thread is its own answer");
-    assert!(!ran.load(std::sync::atomic::Ordering::SeqCst), "the job of a refused thread never ran");
+    let answered: TheAnswerOfAThreadOfWork<u8> =
+        work_within_reporting(Duration::from_secs(5), move || {
+            touched.store(true, std::sync::atomic::Ordering::SeqCst);
+            return 7;
+        });
+    assert!(
+        matches!(answered, TheAnswerOfAThreadOfWork::NoThreadToStart),
+        "a refused thread is its own answer"
+    );
+    assert!(
+        !ran.load(std::sync::atomic::Ordering::SeqCst),
+        "the job of a refused thread never ran"
+    );
     drop(refused);
-    assert_eq!(work_within(Duration::from_secs(5), || return 7), Some(7), "with threads the job runs and answers");
-    assert!(matches!(work_within_reporting(Duration::from_secs(5), || return 7), TheAnswerOfAThreadOfWork::Ran(7)), "and the same call reports that it ran");
+    assert_eq!(
+        work_within(Duration::from_secs(5), || return 7),
+        Some(7),
+        "with threads the job runs and answers"
+    );
+    assert!(
+        matches!(
+            work_within_reporting(Duration::from_secs(5), || return 7),
+            TheAnswerOfAThreadOfWork::Ran(7)
+        ),
+        "and the same call reports that it ran"
+    );
 }

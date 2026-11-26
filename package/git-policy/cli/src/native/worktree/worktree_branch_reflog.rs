@@ -30,7 +30,10 @@
 //! ```
 
 use crate::plain_file::read_plain_file;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The one move a merge makes in the branch it ran in,
@@ -121,7 +124,10 @@ fn is_zero(byte: &u8) -> bool {
 /// ```ts
 /// readReflog(commonDir, 'refs/heads/feature') // Buffer | undefined
 /// ```
-fn read_reflog(common_dir: &Path, reference: &str) -> Option<Vec<u8>> {
+fn read_reflog(
+    common_dir: &Path,
+    reference: &str,
+) -> Option<Vec<u8>> {
     let path: PathBuf = common_dir.join("logs").join(reference);
     return read_plain_file(path.as_path(), REFLOG_LIMIT).ok();
 }
@@ -140,7 +146,10 @@ fn read_reflog(common_dir: &Path, reference: &str) -> Option<Vec<u8>> {
 /// ```ts
 /// branchMadeAt(commonDir, 'refs/heads/feature') // 'dfc6c4e...' | undefined
 /// ```
-pub(crate) fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
+pub(crate) fn branch_made_at(
+    common_dir: &Path,
+    reference: &str,
+) -> Option<String> {
     let text: Vec<u8> = read_reflog(common_dir, reference)?;
     let oldest: &[u8] = text.split(is_line_end).next()?;
     let made: &[u8] = oldest.split(is_space).nth(1)?;
@@ -201,11 +210,20 @@ fn moved_between(line: &[u8]) -> Option<(&[u8], &[u8])> {
 /// ```ts
 /// branchMovedOnto(commonDir, 'refs/heads/main', 'dfc6c4e...', undefined) // true when main's own reflog moved there
 /// ```
-pub(crate) fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str, merge_move: Option<MergeMove<'_>>) -> bool {
-    let Some(text) = read_reflog(common_dir, reference) else { return false };
+pub(crate) fn branch_moved_onto(
+    common_dir: &Path,
+    reference: &str,
+    commit: &str,
+    merge_move: Option<MergeMove<'_>>,
+) -> bool {
+    let Some(text) = read_reflog(common_dir, reference) else {
+        return false;
+    };
     let wanted: &[u8] = commit.as_bytes();
     for line in text.split(is_line_end) {
-        let Some((old, next)) = moved_between(line) else { continue };
+        let Some((old, next)) = moved_between(line) else {
+            continue;
+        };
         if next != wanted || old == next || is_no_commit(old) {
             continue;
         }

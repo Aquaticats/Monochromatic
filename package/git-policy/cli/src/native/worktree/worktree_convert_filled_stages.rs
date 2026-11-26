@@ -25,7 +25,10 @@
 //! ```
 
 use crate::subvolume_error::MigrateError;
-use crate::worktree_copy_stages_being_filled::{FilledStage, filled_stages_below};
+use crate::worktree_copy_stages_being_filled::{
+    FilledStage,
+    filled_stages_below,
+};
 use std::path::Path;
 
 /// What:
@@ -40,7 +43,10 @@ use std::path::Path;
 /// ```ts
 /// swapRefusals('/common', '/w'); // ['process 1234 is filling the stage container ...; nothing is swapped, ...']
 /// ```
-pub fn swap_refusals(common: &Path, worktree: &Path) -> Vec<String> {
+pub fn swap_refusals(
+    common: &Path,
+    worktree: &Path,
+) -> Vec<String> {
     let mut reasons: Vec<String> = Vec::new();
     match filled_stages_below(common, worktree, worktree) {
         Ok(filled) => {
@@ -72,7 +78,11 @@ pub fn swap_refusals(common: &Path, worktree: &Path) -> Vec<String> {
 /// ```ts
 /// removalRefusal('/common', '/w', '/w.cli-git-converting'); // throws 'the old tree at ... is kept: ...'
 /// ```
-pub fn removal_refusal(common: &Path, worktree: &Path, old_tree: &Path) -> Result<(), MigrateError> {
+pub fn removal_refusal(
+    common: &Path,
+    worktree: &Path,
+    old_tree: &Path,
+) -> Result<(), MigrateError> {
     // `match` on the read: a claim this release cannot read rules no container out, so the old tree stays.
     let filled: Vec<FilledStage> = match filled_stages_below(common, worktree, old_tree) {
         Ok(found) => found,
@@ -114,7 +124,10 @@ fn words(stage: &FilledStage) -> String {
         Some(pid) => format!("process {pid} is"),
         None => String::from("its owner is"),
     };
-    return format!("{filler} filling the stage container {} below it, which is another command's copy of a worktree's ignored state", stage.container.display());
+    return format!(
+        "{filler} filling the stage container {} below it, which is another command's copy of a worktree's ignored state",
+        stage.container.display()
+    );
 }
 
 /// Filled-stage controls stay out of the release executable.

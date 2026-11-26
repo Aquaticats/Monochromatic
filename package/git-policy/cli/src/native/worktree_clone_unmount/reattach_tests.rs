@@ -11,12 +11,23 @@
 //! expect(rollBackToSlot(request).kind).toBe('reattached');
 //! ```
 
-use crate::reattach::{roll_back_to_slot, ReattachRequest, ReattachResult};
+use crate::reattach::{
+    ReattachRequest,
+    ReattachResult,
+    roll_back_to_slot,
+};
 use crate::slot_walk_calls::SlotWalk;
 use crate::staged_folder_identity::StagedFolderIdentity;
-use crate::staging_calls::{StagingCall, StagingCallRefusal, StagingCalls};
+use crate::staging_calls::{
+    StagingCall,
+    StagingCallRefusal,
+    StagingCalls,
+};
 use crate::staging_calls_control::RecordingCalls;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The walk a control drives.
 struct FakeWalk {
@@ -26,18 +37,40 @@ struct FakeWalk {
 }
 
 impl SlotWalk for FakeWalk {
-    fn open_the_slot(&self, _checkout: &Path, _slot: &str) -> Result<std::fs::File, StagingCallRefusal> {
-        return std::fs::File::open(self.slot.as_path()).map_err(|error| return StagingCallRefusal { call: StagingCall::OpenSlot, errno: error.raw_os_error().unwrap_or(0), detail: error.to_string() });
+    fn open_the_slot(
+        &self,
+        _checkout: &Path,
+        _slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
+        return std::fs::File::open(self.slot.as_path()).map_err(|error| {
+            return StagingCallRefusal {
+                call: StagingCall::OpenSlot,
+                errno: error.raw_os_error().unwrap_or(0),
+                detail: error.to_string(),
+            };
+        });
     }
 
-    fn open_the_slot_uncrossed(&self, _checkout: &Path, _slot: &str) -> Result<std::fs::File, StagingCallRefusal> {
+    fn open_the_slot_uncrossed(
+        &self,
+        _checkout: &Path,
+        _slot: &str,
+    ) -> Result<std::fs::File, StagingCallRefusal> {
         if self.covered {
-            return Err(StagingCallRefusal { call: StagingCall::OpenSlot, errno: libc::EXDEV, detail: String::from("a mount covers the slot") });
+            return Err(StagingCallRefusal {
+                call: StagingCall::OpenSlot,
+                errno: libc::EXDEV,
+                detail: String::from("a mount covers the slot"),
+            });
         }
         return self.open_the_slot(_checkout, _slot);
     }
 
-    fn look_again(&self, _checkout: &Path, _slot: &str) -> Result<u64, StagingCallRefusal> {
+    fn look_again(
+        &self,
+        _checkout: &Path,
+        _slot: &str,
+    ) -> Result<u64, StagingCallRefusal> {
         return Ok(self.again);
     }
 }
@@ -52,13 +85,22 @@ struct Fixture {
 }
 
 /// The fixture slot and the row the move back compares.
-fn fixture(name: &str, parent: u64) -> Fixture {
+fn fixture(
+    name: &str,
+    parent: u64,
+) -> Fixture {
     let root: PathBuf = crate::testing::test_support::fixture_root().join(name);
     let slot: PathBuf = root.join(".claude/worktrees/one");
     std::fs::create_dir_all(slot.as_path()).expect("the fixture slot is made");
-    let folder: std::fs::File = std::fs::File::open(slot.as_path()).expect("the fixture slot opens");
-    let identity: StagedFolderIdentity = StagedFolderIdentity::of(&folder).expect("the slot's identity is read");
-    let calls = RecordingCalls { mount_id: 41, observed: slot.clone(), ..RecordingCalls::default() };
+    let folder: std::fs::File =
+        std::fs::File::open(slot.as_path()).expect("the fixture slot opens");
+    let identity: StagedFolderIdentity =
+        StagedFolderIdentity::of(&folder).expect("the slot's identity is read");
+    let calls = RecordingCalls {
+        mount_id: 41,
+        observed: slot.clone(),
+        ..RecordingCalls::default()
+    };
     calls.mount_ids.borrow_mut().extend([40, 41, 41]);
     *calls.facts.borrow_mut() = Some(crate::fs_mount_options::MountFacts {
         mount_id: 41,
@@ -71,12 +113,23 @@ fn fixture(name: &str, parent: u64) -> Fixture {
         mount_options: Vec::new(),
         super_options: Vec::new(),
     });
-    let staging: std::fs::File = std::fs::File::open(slot.as_path()).expect("the fixture staging folder opens");
-    return Fixture { slot, staging, identity, calls };
+    let staging: std::fs::File =
+        std::fs::File::open(slot.as_path()).expect("the fixture staging folder opens");
+    return Fixture {
+        slot,
+        staging,
+        identity,
+        calls,
+    };
 }
 
 /// One request over the fixture.
-fn request<'a>(fixture: &'a Fixture, identity: &'a StagedFolderIdentity, walk: &'a FakeWalk, checkout: &'a Path) -> ReattachRequest<'a> {
+fn request<'a>(
+    fixture: &'a Fixture,
+    identity: &'a StagedFolderIdentity,
+    walk: &'a FakeWalk,
+    checkout: &'a Path,
+) -> ReattachRequest<'a> {
     return ReattachRequest {
         checkout,
         slot: "one",
@@ -94,8 +147,17 @@ fn request<'a>(fixture: &'a Fixture, identity: &'a StagedFolderIdentity, walk: &
 #[test]
 fn a_free_slot_receives_the_clone() {
     let fixture = fixture("reattach-free", 40);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: false,
+        again: 41,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let identity: StagedFolderIdentity = fixture.identity;
     let request = request(&fixture, &identity, &walk, checkout.as_path());
     let result: ReattachResult = roll_back_to_slot(&request);
@@ -107,12 +169,24 @@ fn a_free_slot_receives_the_clone() {
 #[test]
 fn a_covered_slot_refuses_before_the_move() {
     let fixture = fixture("reattach-covered", 40);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: true, again: 41 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: true,
+        again: 41,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let identity: StagedFolderIdentity = fixture.identity;
     let request = request(&fixture, &identity, &walk, checkout.as_path());
     let result: ReattachResult = roll_back_to_slot(&request);
-    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "open-slot"), "{result:?}");
+    assert!(
+        matches!(result, ReattachResult::Refused { ref step, .. } if step == "open-slot"),
+        "{result:?}"
+    );
     assert!(!fixture.calls.ran(StagingCall::Move));
 }
 
@@ -120,13 +194,25 @@ fn a_covered_slot_refuses_before_the_move() {
 #[test]
 fn a_slot_whose_identity_moved_refuses() {
     let fixture = fixture("reattach-identity", 40);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: false,
+        again: 41,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let mut identity: StagedFolderIdentity = fixture.identity;
     identity.inode += 1;
     let request = request(&fixture, &identity, &walk, checkout.as_path());
     let result: ReattachResult = roll_back_to_slot(&request);
-    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "slot-identity"), "{result:?}");
+    assert!(
+        matches!(result, ReattachResult::Refused { ref step, .. } if step == "slot-identity"),
+        "{result:?}"
+    );
     assert!(!fixture.calls.ran(StagingCall::Move));
 }
 
@@ -134,24 +220,48 @@ fn a_slot_whose_identity_moved_refuses() {
 #[test]
 fn a_proof_that_fails_the_walk_refuses() {
     let fixture = fixture("reattach-proof-walk", 40);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 99 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: false,
+        again: 99,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let identity: StagedFolderIdentity = fixture.identity;
     let request = request(&fixture, &identity, &walk, checkout.as_path());
     let result: ReattachResult = roll_back_to_slot(&request);
-    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"), "{result:?}");
+    assert!(
+        matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"),
+        "{result:?}"
+    );
 }
 
 /// A row whose parent is another mount refuses the placement.
 #[test]
 fn a_proof_that_fails_the_parent_refuses() {
     let fixture = fixture("reattach-proof-parent", 39);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: false,
+        again: 41,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let identity: StagedFolderIdentity = fixture.identity;
     let request = request(&fixture, &identity, &walk, checkout.as_path());
     let result: ReattachResult = roll_back_to_slot(&request);
-    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"), "{result:?}");
+    assert!(
+        matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"),
+        "{result:?}"
+    );
 }
 
 /// What:
@@ -170,47 +280,95 @@ fn a_busy_unmount_whose_slot_is_covered_refuses_the_reattach() {
     if !in_a_mount_namespace("STAGED_REATTACH_MAY_NOT_INSIDE", test) {
         return;
     }
-    let root: std::path::PathBuf = crate::testing::test_support::fixture_root().join("reattach-may-not");
+    let root: std::path::PathBuf =
+        crate::testing::test_support::fixture_root().join("reattach-may-not");
     let checkout: std::path::PathBuf = root.join("checkout");
     let slot: std::path::PathBuf = checkout.join(".claude/worktrees/one");
     let parent: std::path::PathBuf = checkout.join(".claude/worktrees");
     std::fs::create_dir_all(slot.as_path()).expect("the slot is made");
     let cache_path: std::path::PathBuf = root.join("cache");
-    let name: String = crate::staging_folder_name::staging_folder_name(crate::worktree_clone_mount_protocol::DatasetGuid::parse("71").expect("the GUID parses"));
+    let name: String = crate::staging_folder_name::staging_folder_name(
+        crate::worktree_clone_mount_protocol::DatasetGuid::parse("71").expect("the GUID parses"),
+    );
     let staging: std::path::PathBuf = cache_path.join(name.as_str());
     std::fs::create_dir_all(staging.as_path()).expect("the staging folder is made");
     let cache: std::fs::File = std::fs::File::open(cache_path.as_path()).expect("the cache opens");
-    let folder: std::fs::File = std::fs::File::open(staging.as_path()).expect("the staging folder opens");
-    let bind: std::fs::File = crate::staging_calls::LiveStagingCalls.bind_the_folder(&folder, &cache, std::ffi::OsStr::new(name.as_str())).expect("the folder binds");
-    crate::staging_calls::LiveStagingCalls.make_private(&bind).expect("the bind is private");
+    let folder: std::fs::File =
+        std::fs::File::open(staging.as_path()).expect("the staging folder opens");
+    let bind: std::fs::File = crate::staging_calls::LiveStagingCalls
+        .bind_the_folder(&folder, &cache, std::ffi::OsStr::new(name.as_str()))
+        .expect("the folder binds");
+    crate::staging_calls::LiveStagingCalls
+        .make_private(&bind)
+        .expect("the bind is private");
     let clone: std::fs::File = mount_a_tmpfs_at(root.join("clone").as_path());
-    crate::staging_calls::LiveStagingCalls.move_clone(&clone, &bind).expect("the tmpfs moves onto the bind");
+    crate::staging_calls::LiveStagingCalls
+        .move_clone(&clone, &bind)
+        .expect("the tmpfs moves onto the bind");
     drop(clone);
     drop(bind);
-    let slot_identity = crate::staged_folder_identity::StagedFolderIdentity::of(&std::fs::File::open(slot.as_path()).expect("the empty slot opens")).expect("the slot identity reads");
-    let parent_file: std::fs::File = std::fs::File::open(parent.as_path()).expect("the slot parent opens");
-    let parent_mount: u64 = crate::staging_calls::LiveStagingCalls.mount_id(&parent_file).expect("the slot parent's mount reads");
-    let staged: std::fs::File = crate::staging_calls::LiveStagingCalls.open_by_name(&cache, std::ffi::OsStr::new(name.as_str())).expect("the staged clone opens");
-    let mut holder: std::process::Child = std::process::Command::new("sh").args(["-c", format!("cd {} && exec sleep 60", staging.display()).as_str()]).spawn().expect("the holder starts");
+    let slot_identity = crate::staged_folder_identity::StagedFolderIdentity::of(
+        &std::fs::File::open(slot.as_path()).expect("the empty slot opens"),
+    )
+    .expect("the slot identity reads");
+    let parent_file: std::fs::File =
+        std::fs::File::open(parent.as_path()).expect("the slot parent opens");
+    let parent_mount: u64 = crate::staging_calls::LiveStagingCalls
+        .mount_id(&parent_file)
+        .expect("the slot parent's mount reads");
+    let staged: std::fs::File = crate::staging_calls::LiveStagingCalls
+        .open_by_name(&cache, std::ffi::OsStr::new(name.as_str()))
+        .expect("the staged clone opens");
+    let mut holder: std::process::Child = std::process::Command::new("sh")
+        .args([
+            "-c",
+            format!("cd {} && exec sleep 60", staging.display()).as_str(),
+        ])
+        .spawn()
+        .expect("the holder starts");
     let until = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while std::time::Instant::now() < until && std::fs::read_link(format!("/proc/{}/cwd", holder.id())).ok() != std::fs::canonicalize(staging.as_path()).ok() {
+    while std::time::Instant::now() < until
+        && std::fs::read_link(format!("/proc/{}/cwd", holder.id())).ok()
+            != std::fs::canonicalize(staging.as_path()).ok()
+    {
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
-    let busy = crate::staged_unmount::unmount_the_staged_mount(&crate::staged_unmount::HeldUnmount { cache: &cache, folder: &folder, name: name.as_str(), clone_source: "tmpfs", calls: &crate::staging_calls::LiveStagingCalls });
-    assert!(matches!(busy, crate::staged_unmount::HeldOutcome::Retained { errno: libc::EBUSY, .. }), "the holder forces EBUSY: {busy:?}");
+    let busy =
+        crate::staged_unmount::unmount_the_staged_mount(&crate::staged_unmount::HeldUnmount {
+            cache: &cache,
+            folder: &folder,
+            name: name.as_str(),
+            clone_source: "tmpfs",
+            calls: &crate::staging_calls::LiveStagingCalls,
+        });
+    assert!(
+        matches!(
+            busy,
+            crate::staged_unmount::HeldOutcome::Retained {
+                errno: libc::EBUSY,
+                ..
+            }
+        ),
+        "the holder forces EBUSY: {busy:?}"
+    );
     mount_a_tmpfs_at(slot.as_path());
     let refused = roll_back_to_slot(&crate::reattach::ReattachRequest {
         checkout: checkout.as_path(),
         slot: "one",
         clone_source: "tmpfs",
-        clone_mount_id: crate::staging_calls::LiveStagingCalls.mount_id(&staged).expect("the staged clone's mount reads"),
+        clone_mount_id: crate::staging_calls::LiveStagingCalls
+            .mount_id(&staged)
+            .expect("the staged clone's mount reads"),
         slot_identity: &slot_identity,
         slot_parent_mount_id: parent_mount,
         clone_at_staging: &staged,
         calls: &crate::staging_calls::LiveStagingCalls,
         walk: &crate::slot_walk_calls::LiveSlotWalk,
     });
-    assert!(matches!(refused, ReattachResult::Refused { ref step, .. } if step == "open-slot"), "a covered slot refuses before the move: {refused:?}");
+    assert!(
+        matches!(refused, ReattachResult::Refused { ref step, .. } if step == "open-slot"),
+        "a covered slot refuses before the move: {refused:?}"
+    );
     let _ = holder.kill();
     let _ = holder.wait();
 }
@@ -221,15 +379,32 @@ fn mount_a_tmpfs_at(target: &std::path::Path) -> std::fs::File {
     std::fs::create_dir_all(target).expect("the mount point is made");
     let at = std::ffi::CString::new(target.as_os_str().as_bytes()).expect("a path holds no NUL");
     let kind = std::ffi::CString::new("tmpfs").expect("no NUL in a type");
-    let data = std::ffi::CString::new("size=64k,nr_inodes=16,mode=0700").expect("no NUL in an option");
+    let data =
+        std::ffi::CString::new("size=64k,nr_inodes=16,mode=0700").expect("no NUL in an option");
     // SAFETY: every pointer is this call's own and outlives it.
-    let mounted: libc::c_int = unsafe { libc::mount(kind.as_ptr(), at.as_ptr(), kind.as_ptr(), libc::MS_NOSUID | libc::MS_NODEV, data.as_ptr().cast::<libc::c_void>()) };
-    assert_eq!(mounted, 0, "the fixture tmpfs mounts: {}", std::io::Error::last_os_error());
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            kind.as_ptr(),
+            at.as_ptr(),
+            kind.as_ptr(),
+            libc::MS_NOSUID | libc::MS_NODEV,
+            data.as_ptr().cast::<libc::c_void>(),
+        )
+    };
+    assert_eq!(
+        mounted,
+        0,
+        "the fixture tmpfs mounts: {}",
+        std::io::Error::last_os_error()
+    );
     return std::fs::File::open(target).expect("the mounted folder opens");
 }
 
 /// Whether this run is the inner half of a private user and mount namespace.
-fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
+fn in_a_mount_namespace(
+    variable: &str,
+    test: &str,
+) -> bool {
     if std::env::var_os(variable).is_some() {
         return true;
     }
@@ -240,7 +415,13 @@ fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
         environment: environment.as_slice(),
         running_program: Some(crate::child_test_process::ProgramRunningTheTest {
             program: "unshare",
-            arguments_before_the_test_binary: &["--user", "--map-root-user", "--mount", "--propagation", "private"],
+            arguments_before_the_test_binary: &[
+                "--user",
+                "--map-root-user",
+                "--mount",
+                "--propagation",
+                "private",
+            ],
         }),
         ..crate::child_test_process::ChildTest::default()
     });
@@ -251,13 +432,25 @@ fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
 #[test]
 fn a_slot_on_another_parent_refuses_the_rollback() {
     let fixture = fixture("reattach-slot-parent", 40);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: false,
+        again: 41,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let identity: StagedFolderIdentity = fixture.identity;
     let mut request = request(&fixture, &identity, &walk, checkout.as_path());
     request.slot_parent_mount_id = 999;
     let result: ReattachResult = roll_back_to_slot(&request);
-    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "slot-parent"), "{result:?}");
+    assert!(
+        matches!(result, ReattachResult::Refused { ref step, .. } if step == "slot-parent"),
+        "{result:?}"
+    );
     assert!(!fixture.calls.ran(StagingCall::Move));
 }
 
@@ -265,13 +458,25 @@ fn a_slot_on_another_parent_refuses_the_rollback() {
 #[test]
 fn a_proof_on_another_mount_refuses() {
     let fixture = fixture("reattach-proof-mount", 40);
-    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
-    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let walk = FakeWalk {
+        slot: fixture.slot.clone(),
+        covered: false,
+        again: 41,
+    };
+    let checkout: PathBuf = fixture
+        .slot
+        .ancestors()
+        .nth(3)
+        .expect("the checkout is above the slot")
+        .to_path_buf();
     let identity: StagedFolderIdentity = fixture.identity;
     let request = request(&fixture, &identity, &walk, checkout.as_path());
     fixture.calls.mount_ids.borrow_mut().clear();
     // The destination's own mount, then the proof's read of a mount that is not the clone.
     fixture.calls.mount_ids.borrow_mut().extend([40, 99]);
     let result: ReattachResult = roll_back_to_slot(&request);
-    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"), "{result:?}");
+    assert!(
+        matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"),
+        "{result:?}"
+    );
 }

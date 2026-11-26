@@ -48,7 +48,10 @@
 //! ```
 
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The folder below a task that holds one folder per thread.
 pub const THREADS_FOLDER: &str = "task";
@@ -84,7 +87,10 @@ impl RootIdentity {
     /// or nothing when it cannot be read.
     pub fn of(path: &Path) -> Option<Self> {
         let fields = std::fs::metadata(path).ok()?;
-        return Some(RootIdentity { device: fields.dev(), inode: fields.ino() });
+        return Some(RootIdentity {
+            device: fields.dev(),
+            inode: fields.ino(),
+        });
     }
 }
 
@@ -138,7 +144,10 @@ pub struct ThreadAt {
 impl ThreadAt {
     /// Whether this thread's table is rendered from the root the reader
     /// compares against.
-    pub fn is_at_the_readers_root(&self, readers_root: Option<RootIdentity>) -> bool {
+    pub fn is_at_the_readers_root(
+        &self,
+        readers_root: Option<RootIdentity>,
+    ) -> bool {
         let (Some(wanted), RootAt::Known(found)) = (readers_root, &self.root) else {
             return false;
         };
@@ -205,7 +214,10 @@ impl MountNamespaceTasks {
     ///  and a namespace whose threads disagree,
     ///  none of them at the reader's root,
     ///  has none this reader can name.
-    pub fn namespace_root(&self, readers_root: Option<RootIdentity>) -> NamespaceRoot {
+    pub fn namespace_root(
+        &self,
+        readers_root: Option<RootIdentity>,
+    ) -> NamespaceRoot {
         if self.has_a_thread_at(readers_root) {
             return NamespaceRoot::Readers;
         }
@@ -224,14 +236,35 @@ impl MountNamespaceTasks {
     }
 
     /// Whether one thread is at the root this namespace renders from.
-    fn is_at_the_namespace_root(thread: &ThreadAt, root: NamespaceRoot, readers_root: Option<RootIdentity>) -> bool {
+    fn is_at_the_namespace_root(
+        thread: &ThreadAt,
+        root: NamespaceRoot,
+        readers_root: Option<RootIdentity>,
+    ) -> bool {
         return match (&thread.root, root) {
             (RootAt::Known(found), NamespaceRoot::Shared(wanted)) => *found == wanted,
-            (RootAt::Known(_found), NamespaceRoot::Readers) => thread.is_at_the_readers_root(readers_root),
+            (RootAt::Known(_found), NamespaceRoot::Readers) => {
+                thread.is_at_the_readers_root(readers_root)
+            }
             (RootAt::Known(_found), NamespaceRoot::Unknown) => false,
-            (RootAt::Unknown { .. }, NamespaceRoot::Readers) => false,
-            (RootAt::Unknown { .. }, NamespaceRoot::Shared(_wanted)) => false,
-            (RootAt::Unknown { .. }, NamespaceRoot::Unknown) => false,
+            (
+                RootAt::Unknown {
+                    ..
+                },
+                NamespaceRoot::Readers,
+            ) => false,
+            (
+                RootAt::Unknown {
+                    ..
+                },
+                NamespaceRoot::Shared(_wanted),
+            ) => false,
+            (
+                RootAt::Unknown {
+                    ..
+                },
+                NamespaceRoot::Unknown,
+            ) => false,
         };
     }
 
@@ -245,7 +278,10 @@ impl MountNamespaceTasks {
     ///  cannot,
     ///  and a thread whose root could not be read may be anywhere,
     ///  so it is tried last.
-    pub fn threads_in_reading_order(&self, readers_root: Option<RootIdentity>) -> Vec<&ThreadAt> {
+    pub fn threads_in_reading_order(
+        &self,
+        readers_root: Option<RootIdentity>,
+    ) -> Vec<&ThreadAt> {
         let root: NamespaceRoot = self.namespace_root(readers_root);
         let mut at_the_root: Vec<&ThreadAt> = Vec::with_capacity(self.threads.len());
         let mut at_another_root: Vec<&ThreadAt> = Vec::new();
@@ -270,8 +306,14 @@ impl MountNamespaceTasks {
     ///  A namespace whose every thread is chrooted away cannot be shown to hold
     ///  nothing:
     ///  the table read through one of them omits everything above its root.
-    pub fn has_a_thread_at(&self, readers_root: Option<RootIdentity>) -> bool {
-        return self.threads.iter().any(|thread| return thread.is_at_the_readers_root(readers_root));
+    pub fn has_a_thread_at(
+        &self,
+        readers_root: Option<RootIdentity>,
+    ) -> bool {
+        return self
+            .threads
+            .iter()
+            .any(|thread| return thread.is_at_the_readers_root(readers_root));
     }
 }
 
@@ -389,7 +431,10 @@ pub struct NamespaceListing {
 /// const ended = (errno) => errno === 'ENOENT' || errno === 'ESRCH' || errno === 'EINVAL';
 /// ```
 pub fn is_a_thread_that_ended(error: &std::io::Error) -> bool {
-    return matches!(error.raw_os_error(), Some(libc::ENOENT) | Some(libc::ESRCH) | Some(libc::EINVAL));
+    return matches!(
+        error.raw_os_error(),
+        Some(libc::ENOENT) | Some(libc::ESRCH) | Some(libc::EINVAL)
+    );
 }
 
 /// What:
@@ -404,11 +449,15 @@ pub fn is_a_thread_that_ended(error: &std::io::Error) -> bool {
 /// const link = taskLink('/proc/11/task/12'); // { kind: 'namespace', namespace: 'mnt:[…]' }
 /// ```
 pub fn task_link(thread: &Path) -> TaskLink {
-    let link: PathBuf = thread.join(MOUNT_NAMESPACE_LINK[0]).join(MOUNT_NAMESPACE_LINK[1]);
+    let link: PathBuf = thread
+        .join(MOUNT_NAMESPACE_LINK[0])
+        .join(MOUNT_NAMESPACE_LINK[1]);
     return match std::fs::read_link(link.as_path()) {
         Ok(target) => TaskLink::Namespace(target.to_string_lossy().into_owned()),
         Err(error) if is_a_thread_that_ended(&error) => TaskLink::Ended,
-        Err(error) => TaskLink::Unreadable { reason: error.to_string() },
+        Err(error) => TaskLink::Unreadable {
+            reason: error.to_string(),
+        },
     };
 }
 
@@ -424,7 +473,9 @@ pub fn task_link(thread: &Path) -> TaskLink {
 /// const mine = namespace_target('/proc/self/ns/mnt');
 /// ```
 pub fn namespace_target(link: &Path) -> Option<String> {
-    return std::fs::read_link(link).ok().map(|target| return target.to_string_lossy().into_owned());
+    return std::fs::read_link(link)
+        .ok()
+        .map(|target| return target.to_string_lossy().into_owned());
 }
 
 /// What:
@@ -463,12 +514,20 @@ pub struct ListingRequest<'a> {
 ///
 /// # Errors
 /// The `/proc` root could not be listed.
-pub fn threads_by_mount_namespace(request: &ListingRequest<'_>) -> Result<NamespaceListing, ListingRefusal> {
+pub fn threads_by_mount_namespace(
+    request: &ListingRequest<'_>
+) -> Result<NamespaceListing, ListingRefusal> {
     let listing: std::fs::ReadDir = match std::fs::read_dir(request.proc_root) {
         Ok(iter) => iter,
-        Err(error) => return Err(ListingRefusal { path: request.proc_root.to_path_buf(), reason: error.to_string() }),
+        Err(error) => {
+            return Err(ListingRefusal {
+                path: request.proc_root.to_path_buf(),
+                reason: error.to_string(),
+            });
+        }
     };
-    let mut grouped: std::collections::BTreeMap<String, Vec<(u32, ThreadAt)>> = std::collections::BTreeMap::new();
+    let mut grouped: std::collections::BTreeMap<String, Vec<(u32, ThreadAt)>> =
+        std::collections::BTreeMap::new();
     let mut unreadable: Vec<UnreadableLink> = Vec::new();
     for entry in listing.filter_map(|entry| return entry.ok()) {
         // One guard reads the name: a `/proc` entry that is no pid is no task, and a number too large for a pid
@@ -476,11 +535,12 @@ pub fn threads_by_mount_namespace(request: &ListingRequest<'_>) -> Result<Namesp
         if entry.file_name().to_string_lossy().parse::<u32>().is_err() {
             continue;
         }
-        let mut threads: std::fs::ReadDir = match std::fs::read_dir(entry.path().join(THREADS_FOLDER)) {
-            Ok(iter) => iter,
-            // The process ended between the listing and its thread folder, which is a task that ended.
-            Err(_ended) => continue,
-        };
+        let mut threads: std::fs::ReadDir =
+            match std::fs::read_dir(entry.path().join(THREADS_FOLDER)) {
+                Ok(iter) => iter,
+                // The process ended between the listing and its thread folder, which is a task that ended.
+                Err(_ended) => continue,
+            };
         loop {
             let Some(thread_entry) = threads.next() else {
                 break;
@@ -496,21 +556,43 @@ pub fn threads_by_mount_namespace(request: &ListingRequest<'_>) -> Result<Namesp
                 TaskLink::Namespace(namespace) => {
                     let root: RootAt = match RootIdentity::of(thread.join(ROOT_LINK).as_path()) {
                         Some(identity) => RootAt::Known(identity),
-                        None => RootAt::Unknown { reason: String::from("its root could not be read") },
+                        None => RootAt::Unknown {
+                            reason: String::from("its root could not be read"),
+                        },
                     };
-                    grouped.entry(namespace).or_default().push((tid, ThreadAt { thread, root }));
+                    grouped.entry(namespace).or_default().push((
+                        tid,
+                        ThreadAt {
+                            thread,
+                            root,
+                        },
+                    ));
                 }
                 TaskLink::Ended => continue,
-                TaskLink::Unreadable { reason } => unreadable.push(UnreadableLink { thread, reason }),
+                TaskLink::Unreadable {
+                    reason,
+                } => unreadable.push(UnreadableLink {
+                    thread,
+                    reason,
+                }),
             }
         }
     }
     let mut namespaces: Vec<MountNamespaceTasks> = Vec::with_capacity(grouped.len());
     for (namespace, mut threads) in grouped {
         threads.sort_by_key(|(tid, _thread)| return *tid);
-        namespaces.push(MountNamespaceTasks { namespace, threads: threads.into_iter().map(|(_tid, thread)| return thread).collect() });
+        namespaces.push(MountNamespaceTasks {
+            namespace,
+            threads: threads
+                .into_iter()
+                .map(|(_tid, thread)| return thread)
+                .collect(),
+        });
     }
-    return Ok(NamespaceListing { namespaces, unreadable });
+    return Ok(NamespaceListing {
+        namespaces,
+        unreadable,
+    });
 }
 
 /// Controls stay out of the release executable.

@@ -71,16 +71,16 @@
 //! for (const line of lines) console.error(line);
 //! ```
 
-pub mod pass_refusal_lines;
 pub mod pass_done_lines;
-pub mod the_pass_seams;
-pub mod the_plans_folder;
-pub mod the_slots_claim;
-pub mod the_plans_registration;
-pub mod the_plans_binding;
-pub mod the_plans_file;
 pub mod pass_on_one_plan;
 pub mod pass_over_the_plans;
+pub mod pass_refusal_lines;
+pub mod the_pass_seams;
+pub mod the_plans_binding;
+pub mod the_plans_file;
+pub mod the_plans_folder;
+pub mod the_plans_registration;
+pub mod the_slots_claim;
 
 pub use pass_over_the_plans::finish_the_removal_plans;
 pub use the_pass_seams::FinishPass;

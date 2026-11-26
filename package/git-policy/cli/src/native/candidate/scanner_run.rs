@@ -19,12 +19,18 @@
 /// Import the candidate layer's failure,
 ///  store and version.
 use crate::candidate_error::CandidateError;
-use crate::candidate_store::CandidateStore;
-use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the candidates whose content a parent already holds.
 use crate::candidate_known_content::KnownContent;
+use crate::candidate_store::CandidateStore;
+use crate::candidate_version::{
+    Candidate,
+    CandidateVersion,
+};
 /// Import the loaded scanner and its failure.
-use crate::scanner_adapter::{CandidateScanner, ScannerError};
+use crate::scanner_adapter::{
+    CandidateScanner,
+    ScannerError,
+};
 /// Import the eligibility decision.
 use crate::scanner_selection::is_scannable;
 /// The scanner library's per-candidate result,
@@ -71,7 +77,10 @@ pub enum ScanRunError {
 impl std::fmt::Display for ScanRunError {
     /// `&self` borrows this error read-only;
     ///  `&mut` lends the formatter for writing.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // `match self` reads the variant; each arm prints the message of the failure it carries.
         match self {
             ScanRunError::Candidate(error) => return formatter.write_str(error.message.as_str()),
@@ -107,7 +116,10 @@ pub trait CandidateBytes {
     /// ```ts
     /// bytes(candidate: Candidate): Promise<Uint8Array>; // throws CandidateError
     /// ```
-    fn candidate_bytes(&mut self, candidate: &Candidate) -> Result<Rc<[u8]>, CandidateError>;
+    fn candidate_bytes(
+        &mut self,
+        candidate: &Candidate,
+    ) -> Result<Rc<[u8]>, CandidateError>;
 }
 
 /// What:
@@ -129,7 +141,10 @@ impl CandidateBytes for CandidateStore {
     /// ```ts
     /// bytes(candidate) { return this.read(candidate); }
     /// ```
-    fn candidate_bytes(&mut self, candidate: &Candidate) -> Result<Rc<[u8]>, CandidateError> {
+    fn candidate_bytes(
+        &mut self,
+        candidate: &Candidate,
+    ) -> Result<Rc<[u8]>, CandidateError> {
         return self.bytes(candidate);
     }
 }
@@ -158,7 +173,13 @@ pub fn scan_version(
     version: &CandidateVersion,
     rules_paths: &[Vec<u8>],
 ) -> Result<Vec<CandidateScan>, ScanRunError> {
-    return scan_version_skipping(scanner, store, version, rules_paths, &KnownContent::default());
+    return scan_version_skipping(
+        scanner,
+        store,
+        version,
+        rules_paths,
+        &KnownContent::default(),
+    );
 }
 
 /// What:

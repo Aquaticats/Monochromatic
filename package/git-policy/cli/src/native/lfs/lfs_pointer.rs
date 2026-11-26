@@ -33,7 +33,11 @@
 pub const BLOB_SIZE_CUTOFF: usize = 1024;
 
 /// The versions `git-lfs` accepts (`v1Aliases`).
-const VERSIONS: [&[u8]; 3] = [b"http://git-media.io/v/2", b"https://hawser.github.com/spec/v1", b"https://git-lfs.github.com/spec/v1"];
+const VERSIONS: [&[u8]; 3] = [
+    b"http://git-media.io/v/2",
+    b"https://hawser.github.com/spec/v1",
+    b"https://git-lfs.github.com/spec/v1",
+];
 
 /// The keys of a pointer in their order.
 const KEYS: [&[u8]; 3] = [b"version", b"oid", b"size"];
@@ -69,7 +73,10 @@ fn is_space_byte(byte: &u8) -> bool {
 }
 
 /// Whether `haystack` holds `needle`.
-fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+fn contains(
+    haystack: &[u8],
+    needle: &[u8],
+) -> bool {
     for window in haystack.windows(needle.len()) {
         if window == needle {
             return true;
@@ -145,21 +152,37 @@ pub fn decode_pointer(blob: &[u8]) -> Verdict {
             continue;
         }
         let Some(space) = line.iter().position(is_space_byte) else {
-            return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
+            return if odd_edge {
+                Verdict::Decline
+            } else {
+                Verdict::NotUploadable
+            };
         };
         let (key, value): (&[u8], &[u8]) = (&line[..space], &line[space + 1..]);
         if line_number >= KEYS.len() {
-            return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
+            return if odd_edge {
+                Verdict::Decline
+            } else {
+                Verdict::NotUploadable
+            };
         }
         if key != KEYS[line_number] {
             // Extension lines carry their own objects and priorities; leave them to `git-lfs`.
-            return if is_extension_key(key) || odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
+            return if is_extension_key(key) || odd_edge {
+                Verdict::Decline
+            } else {
+                Verdict::NotUploadable
+            };
         }
         values[line_number] = Some(value);
         line_number += 1;
     }
     let [Some(version), Some(oid), Some(size)] = values else {
-        return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
+        return if odd_edge {
+            Verdict::Decline
+        } else {
+            Verdict::NotUploadable
+        };
     };
     let parsed_size: Option<i64> = match std::str::from_utf8(size) {
         Ok(text) => text.parse::<i64>().ok(),
@@ -171,12 +194,20 @@ pub fn decode_pointer(blob: &[u8]) -> Verdict {
         _ => None,
     };
     let (Some(name), Some(bytes)) = (parse_oid(oid), size_value) else {
-        return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
+        return if odd_edge {
+            Verdict::Decline
+        } else {
+            Verdict::NotUploadable
+        };
     };
     if !VERSIONS.contains(&version) {
         return Verdict::NotUploadable;
     }
-    return if bytes == 0 { Verdict::NotUploadable } else { Verdict::Pointer(name) };
+    return if bytes == 0 {
+        Verdict::NotUploadable
+    } else {
+        Verdict::Pointer(name)
+    };
 }
 
 /// The decoding is controlled in the test module.

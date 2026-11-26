@@ -14,17 +14,38 @@
 
 /// Import the resolver under test and shared fixtures.
 use super::{
-    DEFAULT_WINDOWS_PATH_EXTENSIONS, Platform, RealGitNotFound, ResolutionInputs, SearchedCandidate,
-    candidate_sequence, common_git_paths, executable_names, host_platform,
-    process_resolution_inputs, search_path_for_real_git,
+    DEFAULT_WINDOWS_PATH_EXTENSIONS,
+    Platform,
+    RealGitNotFound,
+    ResolutionInputs,
+    SearchedCandidate,
+    candidate_sequence,
+    common_git_paths,
+    executable_names,
+    host_platform,
+    process_resolution_inputs,
+    search_path_for_real_git,
 };
 use crate::real_git_candidate::CandidateKind;
-use crate::test_support::{executable, fixture, remove};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    executable,
+    fixture,
+    remove,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Build inputs for one disposable PATH with no conventional locations.
-fn inputs(path: &str, root: &Path) -> ResolutionInputs {
+fn inputs(
+    path: &str,
+    root: &Path,
+) -> ResolutionInputs {
     return ResolutionInputs {
         platform: Platform::Unix,
         path: OsString::from(path),
@@ -243,11 +264,17 @@ fn resolution_skips_every_wrapper_form() {
         "wrapper:wrapper:linked:missing:copied:shim:real:later",
         root.as_path(),
     );
-    assert_eq!(search_path_for_real_git(&resolution), Ok(root.join("real/git")));
+    assert_eq!(
+        search_path_for_real_git(&resolution),
+        Ok(root.join("real/git"))
+    );
     // The same wrapper reached first through a relative link directory is still excluded.
     let mut through_link: ResolutionInputs = inputs("linked:real", root.as_path());
     through_link.own_executable = root.join("linked/git");
-    assert_eq!(search_path_for_real_git(&through_link), Ok(root.join("real/git")));
+    assert_eq!(
+        search_path_for_real_git(&through_link),
+        Ok(root.join("real/git"))
+    );
     remove(root.as_path());
 }
 
@@ -271,10 +298,22 @@ fn resolution_failure_reports_examined_and_skipped_counts() {
     assert_eq!(
         failure.searched,
         vec![
-            SearchedCandidate { path: root.join("wrapper/git"), kind: CandidateKind::Wrapper },
-            SearchedCandidate { path: root.join("linked/git"), kind: CandidateKind::Wrapper },
-            SearchedCandidate { path: root.join("plain/git"), kind: CandidateKind::Unusable },
-            SearchedCandidate { path: root.join("missing/git"), kind: CandidateKind::Unusable },
+            SearchedCandidate {
+                path: root.join("wrapper/git"),
+                kind: CandidateKind::Wrapper
+            },
+            SearchedCandidate {
+                path: root.join("linked/git"),
+                kind: CandidateKind::Wrapper
+            },
+            SearchedCandidate {
+                path: root.join("plain/git"),
+                kind: CandidateKind::Unusable
+            },
+            SearchedCandidate {
+                path: root.join("missing/git"),
+                kind: CandidateKind::Unusable
+            },
         ]
     );
     let said: String = failure.to_string();
@@ -286,7 +325,10 @@ fn resolution_failure_reports_examined_and_skipped_counts() {
         "{said}"
     );
     for candidate in &failure.searched {
-        assert!(said.contains(candidate.path.to_string_lossy().as_ref()), "{said}");
+        assert!(
+            said.contains(candidate.path.to_string_lossy().as_ref()),
+            "{said}"
+        );
     }
     assert!(said.contains("never starts itself as Git"), "{said}");
     assert!(said.contains("To fix it, install Git"), "{said}");
@@ -297,7 +339,10 @@ fn resolution_failure_reports_examined_and_skipped_counts() {
     // An unset PATH is named as such, never printed as an empty value.
     let unset: RealGitNotFound =
         search_path_for_real_git(&inputs("", root.as_path())).expect_err("no PATH at all");
-    assert!(unset.to_string().contains("PATH is empty or unset."), "{unset}");
+    assert!(
+        unset.to_string().contains("PATH is empty or unset."),
+        "{unset}"
+    );
     remove(root.as_path());
 }
 
@@ -311,9 +356,15 @@ fn resolution_prefers_exposed_common_locations() {
     executable(root.join("early/git").as_path(), b"#!/bin/sh\nexit 3\n");
     executable(root.join("system/git").as_path(), b"\x7fELF system");
     let mut resolution: ResolutionInputs = inputs("early:system", root.as_path());
-    assert_eq!(search_path_for_real_git(&resolution), Ok(root.join("early/git")));
+    assert_eq!(
+        search_path_for_real_git(&resolution),
+        Ok(root.join("early/git"))
+    );
     resolution.common_paths = vec![root.join("system/git")];
-    assert_eq!(search_path_for_real_git(&resolution), Ok(root.join("system/git")));
+    assert_eq!(
+        search_path_for_real_git(&resolution),
+        Ok(root.join("system/git"))
+    );
     remove(root.as_path());
 }
 
@@ -329,7 +380,8 @@ fn host_platform_is_unix_on_linux() {
 #[test]
 fn process_inputs_combine_environment_and_process_identity() {
     let directory: PathBuf = crate::test_support::fixture("process-inputs-directory");
-    let start: crate::start_directory::StartDirectory = crate::start_directory::StartDirectory::at(directory.as_path());
+    let start: crate::start_directory::StartDirectory =
+        crate::start_directory::StartDirectory::at(directory.as_path());
     let from_environment: ResolutionInputs = process_resolution_inputs(
         environment(&[("PATH", "/first:/second"), ("PATHEXT", ".X")]).as_slice(),
         &start,
@@ -342,7 +394,10 @@ fn process_inputs_combine_environment_and_process_identity() {
         from_environment.own_executable,
         crate::test_support::this_test_binary().expect("current executable")
     );
-    assert_eq!(from_environment.current_directory, directory, "the directory the caller named is the one the search reads");
+    assert_eq!(
+        from_environment.current_directory, directory,
+        "the directory the caller named is the one the search reads"
+    );
     assert_eq!(
         from_environment.common_paths,
         common_git_paths(host_platform(), &[])

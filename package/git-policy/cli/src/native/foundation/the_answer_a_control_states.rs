@@ -43,7 +43,9 @@ thread_local! {
 
 /// The answer this thread states for its next jobs.
 pub(crate) fn the_answer_a_control_states() -> Option<AStatesAnswer> {
-    return STATED.with(|slot| { return slot.get(); });
+    return STATED.with(|slot| {
+        return slot.get();
+    });
 }
 
 /// What:
@@ -59,7 +61,9 @@ pub(crate) fn the_answer_a_control_states() -> Option<AStatesAnswer> {
 /// using _stated = stateTheAnswer('notRun');
 /// ```
 pub(crate) fn state_the_answer(answer: AStatesAnswer) -> AStatedAnswer {
-    STATED.with(|slot| { slot.set(Some(answer)); });
+    STATED.with(|slot| {
+        slot.set(Some(answer));
+    });
     return AStatedAnswer;
 }
 
@@ -68,6 +72,8 @@ pub(crate) struct AStatedAnswer;
 
 impl Drop for AStatedAnswer {
     fn drop(&mut self) {
-        STATED.with(|slot| { slot.set(None); });
+        STATED.with(|slot| {
+            slot.set(None);
+        });
     }
 }

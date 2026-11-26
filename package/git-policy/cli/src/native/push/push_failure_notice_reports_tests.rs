@@ -7,8 +7,14 @@
 
 use super::*;
 use crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN;
-use crate::push_failure_notice::{LONGEST_REASON, push_failures};
-use crate::test_support::{fixture, remove};
+use crate::push_failure_notice::{
+    LONGEST_REASON,
+    push_failures,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// A commit name for the records of these controls.
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -50,14 +56,24 @@ fn an_accepted_pushs_account_keeps_every_line_it_was_given() {
         said.push_str(filler.as_str());
     }
     said.push_str(LAST_LINE);
-    assert!(said.len() > LONGEST_REASON, "the account is longer than the cap this control defends against");
+    assert!(
+        said.len() > LONGEST_REASON,
+        "the account is longer than the cap this control defends against"
+    );
     let root: PathBuf = fixture("push-report-every-line");
-    record_push_report(root.as_path(), BRANCH, COMMIT, said.as_str()).expect("the record of an accepted push");
+    record_push_report(root.as_path(), BRANCH, COMMIT, said.as_str())
+        .expect("the record of an accepted push");
     let shown: Vec<String> = shown_in(root.as_path());
     assert_eq!(shown.len(), 1, "one record: {shown:?}");
     let notice: &str = shown[0].as_str();
-    assert!(notice.contains(LAST_LINE), "the server's last line is missing from the only record of the push: {notice}");
-    assert!(!notice.contains(CUT_MARKER), "the account was cut: {notice}");
+    assert!(
+        notice.contains(LAST_LINE),
+        "the server's last line is missing from the only record of the push: {notice}"
+    );
+    assert!(
+        !notice.contains(CUT_MARKER),
+        "the account was cut: {notice}"
+    );
     remove(root.as_path());
 }
 
@@ -76,14 +92,30 @@ fn a_report_whose_replacement_is_refused_leaves_the_record_it_replaces() {
     let root: PathBuf = fixture("push-report-replacement-refused");
     record_push_report(root.as_path(), BRANCH, COMMIT, FIRST).expect("the first record");
     AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the disk filled")); }));
+        *hook.borrow_mut() = Some(Box::new(|| {
+            return Err(std::io::Error::other("the disk filled"));
+        }));
     });
     let refused: Result<(), String> = record_push_report(root.as_path(), BRANCH, COMMIT, SECOND);
-    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = None;
+    });
     refused.expect_err("a write the disk refused");
     let shown: Vec<String> = shown_in(root.as_path());
-    assert_eq!(shown.len(), 1, "the record that stood there is gone: {shown:?}");
-    assert!(shown[0].contains(FIRST), "the words nobody had read were kept: {:?}", shown[0]);
-    assert!(!shown[0].contains(SECOND), "the refused words are not the record: {:?}", shown[0]);
+    assert_eq!(
+        shown.len(),
+        1,
+        "the record that stood there is gone: {shown:?}"
+    );
+    assert!(
+        shown[0].contains(FIRST),
+        "the words nobody had read were kept: {:?}",
+        shown[0]
+    );
+    assert!(
+        !shown[0].contains(SECOND),
+        "the refused words are not the record: {:?}",
+        shown[0]
+    );
     remove(root.as_path());
 }

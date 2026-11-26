@@ -8,8 +8,15 @@
 //! so `git show 642b6d72cb^` holds it.
 
 use super::*;
-use crate::test_support::{fixture, git, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Environment of every Git child of these fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
@@ -33,7 +40,10 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
 fn git_for(root: &Path) -> PushGit {
     // The probe's per-user scratch directory is made under a home beside the repository.
     let mut environment = fixture_environment();
-    environment.push((OsString::from("HOME"), root.parent().unwrap_or(root).join("home").into_os_string()));
+    environment.push((
+        OsString::from("HOME"),
+        root.parent().unwrap_or(root).join("home").into_os_string(),
+    ));
     return PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
@@ -54,7 +64,14 @@ fn repository_with_unpublished_commit(name: &str) -> (PathBuf, String) {
     std::fs::create_dir_all(&repo).expect("repo");
     git(&repo, &["init", "--quiet", "--initial-branch=main"]);
     git(&repo, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&repo, &["config", "user.name", "monochromatic-git-policy-cli fixture"]);
+    git(
+        &repo,
+        &[
+            "config",
+            "user.name",
+            "monochromatic-git-policy-cli fixture",
+        ],
+    );
     git(
         &repo,
         &["commit", "--quiet", "--allow-empty", "--message=base"],
@@ -141,7 +158,10 @@ fn an_unreachable_destination_fails_the_scope() {
 /// so a refused push names the failed step.
 #[test]
 fn the_failure_displays_its_message() {
-    let failure = ManualPushFailure::step(ManualPushCause::SelfExplained, String::from("the step failed"));
+    let failure = ManualPushFailure::step(
+        ManualPushCause::SelfExplained,
+        String::from("the step failed"),
+    );
     assert_eq!(failure.to_string(), "the step failed");
 }
 
@@ -195,11 +215,17 @@ fn collecting_a_pushed_scope_looks_at_each_name_once() {
     let before: u64 = crate::collected_elements_looked_at::looked_at();
     let scope = pushed_scope(&scopes).expect("scope");
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
-    assert_eq!(scope.commits.len(), 2 * width, "every commit once, in first-seen order");
-    assert_eq!(scope.trees, vec![parse_object_id(format!("{:040x}", 2 * width).as_bytes()).expect("object name")]);
     assert_eq!(
-        looked,
-        names as u64,
+        scope.commits.len(),
+        2 * width,
+        "every commit once, in first-seen order"
+    );
+    assert_eq!(
+        scope.trees,
+        vec![parse_object_id(format!("{:040x}", 2 * width).as_bytes()).expect("object name")]
+    );
+    assert_eq!(
+        looked, names as u64,
         "{looked} collected names looked at for {names} named commits and tips; one per name is linear"
     );
 }

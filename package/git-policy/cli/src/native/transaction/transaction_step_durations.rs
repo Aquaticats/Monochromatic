@@ -34,7 +34,10 @@ use std::ffi::OsString;
 /// A lock around the shared list.
 use std::sync::Mutex;
 /// A moment and a span of time.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The most steps one record lists.
 ///
@@ -92,7 +95,10 @@ struct Ledger {
 }
 
 /// The steps of this process since a record last took them.
-static STEPS: Mutex<Ledger> = Mutex::new(Ledger { runs: Vec::new(), dropped: 0 });
+static STEPS: Mutex<Ledger> = Mutex::new(Ledger {
+    runs: Vec::new(),
+    dropped: 0,
+});
 
 /// What:
 ///  Keeps one step that has just ended.
@@ -104,8 +110,17 @@ static STEPS: Mutex<Ledger> = Mutex::new(Ledger { runs: Vec::new(), dropped: 0 }
 /// ```ts
 /// noteStep('git commit', began, Date.now() - began);
 /// ```
-pub fn note_step(name: &str, began: Instant, took: Duration) {
-    record(StepRun { name: plain_name(name), arguments: None, began, took });
+pub fn note_step(
+    name: &str,
+    began: Instant,
+    took: Duration,
+) {
+    record(StepRun {
+        name: plain_name(name),
+        arguments: None,
+        began,
+        took,
+    });
 }
 
 /// What:
@@ -125,17 +140,25 @@ pub fn note_step(name: &str, began: Instant, took: Duration) {
 /// ```ts
 /// noteStepAsked('git commit', request.arguments, began, elapsed);
 /// ```
-pub fn note_step_asked(name: &str, arguments: &[OsString], began: Instant, took: Duration) {
-    let named:
-    Option<String> = if took >= NAMED_STEP {
-        let words:
-        String = crate::git_step_arguments::named_arguments(arguments);
+pub fn note_step_asked(
+    name: &str,
+    arguments: &[OsString],
+    began: Instant,
+    took: Duration,
+) {
+    let named: Option<String> = if took >= NAMED_STEP {
+        let words: String = crate::git_step_arguments::named_arguments(arguments);
         // A step whose every word is left out carries no arguments member rather than an empty one.
         if words.is_empty() { None } else { Some(words) }
     } else {
         None
     };
-    record(StepRun { name: plain_name(name), arguments: named, began, took });
+    record(StepRun {
+        name: plain_name(name),
+        arguments: named,
+        began,
+        took,
+    });
 }
 
 /// What:
@@ -151,7 +174,9 @@ pub fn note_step_asked(name: &str, arguments: &[OsString], began: Instant, took:
 /// ```
 fn record(run: StepRun) {
     // A poisoned lock means another thread panicked while holding it; the list is still a list of steps.
-    let mut ledger = STEPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut ledger = STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if ledger.runs.len() >= MAX_STEP_RUNS {
         ledger.dropped += 1;
         return;
@@ -172,8 +197,13 @@ fn record(run: StepRun) {
 /// ```ts
 /// const children = runs.filter((run) => run.began >= from && run.began <= to).reduce((sum, run) => sum + Math.min(run.took, to - run.began), 0);
 /// ```
-pub fn step_time_between(from: Instant, to: Instant) -> Duration {
-    let ledger = STEPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+pub fn step_time_between(
+    from: Instant,
+    to: Instant,
+) -> Duration {
+    let ledger = STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut taken: Duration = Duration::ZERO;
     for run in &ledger.runs {
         if run.began < from || run.began > to {
@@ -201,7 +231,11 @@ pub(crate) fn plain_name(name: &str) -> String {
 /// One character of a name,
 /// or `?` when it is none of the allowed ones.
 fn plain_character(character: char) -> char {
-    return if character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_') { character } else { '?' };
+    return if character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_') {
+        character
+    } else {
+        '?'
+    };
 }
 
 /// One step as its record knows it:
@@ -237,7 +271,9 @@ pub struct StepFigure {
 /// const { figures, dropped } = drainSteps(commandStartedAt);
 /// ```
 pub fn drain_steps(origin: Instant) -> (Vec<StepFigure>, usize) {
-    let mut ledger = STEPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut ledger = STEPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut taken: Vec<StepRun> = std::mem::take(&mut ledger.runs);
     let dropped: usize = std::mem::take(&mut ledger.dropped);
     drop(ledger);
@@ -257,11 +293,15 @@ fn began_of(run: &StepRun) -> Instant {
 
 /// The figure of one step against an origin;
 /// a step that began before the origin starts at zero.
-fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
+fn figure_of(
+    run: &StepRun,
+    origin: Instant,
+) -> StepFigure {
     return StepFigure {
         name: run.name.clone(),
         arguments: run.arguments.clone(),
-        offset_ms: u64::try_from(run.began.saturating_duration_since(origin).as_millis()).unwrap_or(u64::MAX),
+        offset_ms: u64::try_from(run.began.saturating_duration_since(origin).as_millis())
+            .unwrap_or(u64::MAX),
         duration_ms: u64::try_from(run.took.as_millis()).unwrap_or(u64::MAX),
     };
 }
@@ -281,10 +321,8 @@ fn figure_of(run: &StepRun, origin: Instant) -> StepFigure {
 fn figure_json(figure: &StepFigure) -> String {
     // A step that ran less than `NAMED_STEP` carries no `arguments` member at all,
     // so its object is the one it always was.
-    let asked:
-    String = match figure.arguments.as_deref() {
-        Some(words) => format!("\"arguments\":{},",
-        quote(words)),
+    let asked: String = match figure.arguments.as_deref() {
+        Some(words) => format!("\"arguments\":{},", quote(words)),
         None => String::new(),
     };
     return format!(
@@ -331,7 +369,10 @@ pub fn steps_word(figures: &[StepFigure]) -> String {
 
 /// One step as `name@offset+duration`.
 fn step_word(figure: &StepFigure) -> String {
-    return format!("{}@{}+{}", figure.name, figure.offset_ms, figure.duration_ms);
+    return format!(
+        "{}@{}+{}",
+        figure.name, figure.offset_ms, figure.duration_ms
+    );
 }
 
 /// The ledger is kept,

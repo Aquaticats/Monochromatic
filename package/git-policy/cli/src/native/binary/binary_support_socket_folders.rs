@@ -56,8 +56,12 @@ const FOLDER_TOKEN_ATTEMPTS: usize = 8;
 /// and the folder is made exclusively,
 /// so a token drawn twice still names two folders.
 fn fresh_folder_token() -> String {
-    let uuid: String = git_policy_cli::random_id::random_uuid().expect("the operating system's random source");
-    return uuid.get(..FOLDER_TOKEN_DIGITS).expect("a UUID is longer than the token").to_string();
+    let uuid: String =
+        git_policy_cli::random_id::random_uuid().expect("the operating system's random source");
+    return uuid
+        .get(..FOLDER_TOKEN_DIGITS)
+        .expect("a UUID is longer than the token")
+        .to_string();
 }
 
 /// What:
@@ -93,68 +97,88 @@ impl SocketFolders {
         return self.made.clone();
     }
 
-/// What:
-///  The folder this fixture's sockets stand in:
-///  the longest place this account offers that holds its own name and stays within `longest` bytes.
-/// Why:
-///   A Unix socket's name must fit `SUN_LEN`,
-/// which is 108 bytes,
-/// and a fixture root under a deep checkout does not,
-/// so a control that bound its socket beside the fixture failed on a long checkout and passed on a short one
-/// (2026-11-08),
-/// and the same control then failed by the length of the home directory it was given (2026-11-15).
-/// The places are tried from the package's own folder to the shortest this account has,
-/// and a place that leaves too little is named rather than assumed away.
-/// The folder is this fixture's alone,
-/// named with a token and made exclusively,
-/// and it goes with the fixture,
-/// so a passing control leaves nothing in a place it shares.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// socketFolders.folder('rt', 27) // '/home/tester/temp/agent/rt3f9a1c'
-/// ```
-pub fn folder(&mut self, prefix: &str, longest: usize) -> PathBuf {
-    let name_length: usize = prefix.len() + FOLDER_TOKEN_DIGITS;
-    let offered: Vec<PathBuf> = places_this_account_offers();
-    if !offered.iter().any(|place| { return place.as_os_str().len() + 1 + name_length <= longest; }) {
-        let tried: String = if offered.is_empty() {
-            String::from("this account names no home directory and no runtime directory")
-        } else {
-            let described: Vec<String> = offered.iter().map(|place| {
-                let folder: PathBuf = place.join(format!("{prefix}{}", "x".repeat(FOLDER_TOKEN_DIGITS)));
-                return format!("{} ({} bytes)", folder.display(), folder.as_os_str().len());
-            }).collect();
-            described.join(", ")
-        };
-        panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
-    }
-    for _attempt in 0..FOLDER_TOKEN_ATTEMPTS {
-        if self.token.is_empty() {
-            self.token = fresh_folder_token();
+    /// What:
+    ///  The folder this fixture's sockets stand in:
+    ///  the longest place this account offers that holds its own name and stays within `longest` bytes.
+    /// Why:
+    ///   A Unix socket's name must fit `SUN_LEN`,
+    /// which is 108 bytes,
+    /// and a fixture root under a deep checkout does not,
+    /// so a control that bound its socket beside the fixture failed on a long checkout and passed on a short one
+    /// (2026-11-08),
+    /// and the same control then failed by the length of the home directory it was given (2026-11-15).
+    /// The places are tried from the package's own folder to the shortest this account has,
+    /// and a place that leaves too little is named rather than assumed away.
+    /// The folder is this fixture's alone,
+    /// named with a token and made exclusively,
+    /// and it goes with the fixture,
+    /// so a passing control leaves nothing in a place it shares.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// socketFolders.folder('rt', 27) // '/home/tester/temp/agent/rt3f9a1c'
+    /// ```
+    pub fn folder(
+        &mut self,
+        prefix: &str,
+        longest: usize,
+    ) -> PathBuf {
+        let name_length: usize = prefix.len() + FOLDER_TOKEN_DIGITS;
+        let offered: Vec<PathBuf> = places_this_account_offers();
+        if !offered.iter().any(|place| {
+            return place.as_os_str().len() + 1 + name_length <= longest;
+        }) {
+            let tried: String = if offered.is_empty() {
+                String::from("this account names no home directory and no runtime directory")
+            } else {
+                let described: Vec<String> = offered
+                    .iter()
+                    .map(|place| {
+                        let folder: PathBuf =
+                            place.join(format!("{prefix}{}", "x".repeat(FOLDER_TOKEN_DIGITS)));
+                        return format!(
+                            "{} ({} bytes)",
+                            folder.display(),
+                            folder.as_os_str().len()
+                        );
+                    })
+                    .collect();
+                described.join(", ")
+            };
+            panic!(
+                "no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}"
+            );
         }
-        let name: String = format!("{prefix}{}", self.token);
-        for place in &offered {
-            if place.as_os_str().len() + 1 + name_length > longest {
-                continue;
+        for _attempt in 0..FOLDER_TOKEN_ATTEMPTS {
+            if self.token.is_empty() {
+                self.token = fresh_folder_token();
             }
-            let folder: PathBuf = place.join(name.as_str());
-            if self.made.iter().any(|made| { return made == &folder; }) {
-                return folder;
-            }
-            std::fs::create_dir_all(place.as_path()).expect("a place this account offers");
-            match std::fs::create_dir(folder.as_path()) {
-                Ok(()) => {
-                    self.made.push(folder.clone());
+            let name: String = format!("{prefix}{}", self.token);
+            for place in &offered {
+                if place.as_os_str().len() + 1 + name_length > longest {
+                    continue;
+                }
+                let folder: PathBuf = place.join(name.as_str());
+                if self.made.iter().any(|made| {
+                    return made == &folder;
+                }) {
                     return folder;
                 }
-                // A folder another run made is not shared, so this fixture takes another token.
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => break,
-                Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
+                std::fs::create_dir_all(place.as_path()).expect("a place this account offers");
+                match std::fs::create_dir(folder.as_path()) {
+                    Ok(()) => {
+                        self.made.push(folder.clone());
+                        return folder;
+                    }
+                    // A folder another run made is not shared, so this fixture takes another token.
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => break,
+                    Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
+                }
             }
+            self.token = fresh_folder_token();
         }
-        self.token = fresh_folder_token();
+        panic!(
+            "no folder was left for this fixture: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made"
+        );
     }
-    panic!("no folder was left for this fixture: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made");
-}
 }

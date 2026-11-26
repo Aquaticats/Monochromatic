@@ -4,12 +4,29 @@
 //! and an entry that a neighbouring copy keeps rewriting.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use crate::worktree_copy_ceiling::CopyCeiling;
-use crate::worktree_copy_manifest::{LeftOut, collect_pruned_manifest};
-use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, try_clone};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use crate::worktree_copy_manifest::{
+    LeftOut,
+    collect_pruned_manifest,
+};
+use crate::worktree_copy_stage_leaf_copying::{
+    CopiedManifest,
+    copy_manifest_entries_with,
+    try_clone,
+};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 /// The mode of the clone request the control supplies:
 /// nothing is changed under the copy.
@@ -60,8 +77,19 @@ static CHANGED: AtomicBool = AtomicBool::new(false);
 /// a stage root beside it,
 /// and the manifest of the two,
 /// under the lock that keeps one control at a time.
-fn two_ignored_files(label: &str, mode: usize) -> (MutexGuard<'static, ()>, PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>) {
-    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME.lock().expect("no other control holds the clone request");
+fn two_ignored_files(
+    label: &str,
+    mode: usize,
+) -> (
+    MutexGuard<'static, ()>,
+    PathBuf,
+    PathBuf,
+    PathBuf,
+    Vec<WorktreeCopyEntry>,
+) {
+    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME
+        .lock()
+        .expect("no other control holds the clone request");
     let root: PathBuf = fixture(label);
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("the ignored cache");
@@ -70,8 +98,15 @@ fn two_ignored_files(label: &str, mode: usize) -> (MutexGuard<'static, ()>, Path
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(&stage).expect("the stage");
     let mut left_out: LeftOut = LeftOut::default();
-    let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut left_out, &CopyCeiling::unbounded()).expect("the manifest");
+    let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
+        source.as_path(),
+        [b"cache".to_vec()].as_slice(),
+        &[],
+        Prune::Never,
+        &mut left_out,
+        &CopyCeiling::unbounded(),
+    )
+    .expect("the manifest");
     assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
     assert!(left_out.uncopiable.is_empty(), "{:?}", left_out.uncopiable);
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
@@ -105,7 +140,10 @@ fn make_pipe(path: &Path) {
 /// to recognise the entry a copy is reading.
 fn identity_of(path: &Path) -> Option<(u64, u64)> {
     return match std::fs::metadata(path) {
-        Ok(found) => Some((std::os::unix::fs::MetadataExt::dev(&found), std::os::unix::fs::MetadataExt::ino(&found))),
+        Ok(found) => Some((
+            std::os::unix::fs::MetadataExt::dev(&found),
+            std::os::unix::fs::MetadataExt::ino(&found),
+        )),
         Err(_absent) => None,
     };
 }
@@ -126,14 +164,22 @@ fn identity_of(path: &Path) -> Option<(u64, u64)> {
 /// ```ts
 /// function hook(input, output) { const mode = MODE; const copies = COPIES++; const root = SOURCE_ROOT; if (mode === VANISHES && copies === 0) rmSync(join(root, 'cache/b.txt')); if (mode === CHANGES_ONCE && copies === 0) writeFileSync(join(root, 'cache/a.txt'), 'rewritten once'); if (mode === KEEPS_CHANGING) { if (reading(input) === identity('cache/a.txt')) writeFileSync(join(root, 'cache/b.txt'), `b ${copies}`); else writeFileSync(join(root, 'cache/a.txt'), `a ${copies}`); } return tryClone(input, output); }
 /// ```
-fn changing_clone(input: &std::fs::File, output: &std::fs::File) -> bool {
+fn changing_clone(
+    input: &std::fs::File,
+    output: &std::fs::File,
+) -> bool {
     let mode: usize = MODE.load(Ordering::SeqCst);
     let copies: usize = COPIES.fetch_add(1, Ordering::SeqCst);
-    let Some(root) = SOURCE_ROOT.lock().expect("the source").clone() else { return try_clone(input, output) };
+    let Some(root) = SOURCE_ROOT.lock().expect("the source").clone() else {
+        return try_clone(input, output);
+    };
     let a: PathBuf = root.join("cache/a.txt");
     let b: PathBuf = root.join("cache/b.txt");
     let reading = match input.metadata() {
-        Ok(found) => Some((std::os::unix::fs::MetadataExt::dev(&found), std::os::unix::fs::MetadataExt::ino(&found))),
+        Ok(found) => Some((
+            std::os::unix::fs::MetadataExt::dev(&found),
+            std::os::unix::fs::MetadataExt::ino(&found),
+        )),
         Err(_absent) => None,
     };
     // `match` on the mode keeps each control's change to the one it states.
@@ -142,18 +188,28 @@ fn changing_clone(input: &std::fs::File, output: &std::fs::File) -> bool {
             std::fs::remove_file(&b).expect("b goes away");
         }
         DIRECTORY_VANISHES if copies == 0 => {
-            std::fs::remove_dir_all(root.join("cache/deep")).expect("the source's directory goes away");
+            std::fs::remove_dir_all(root.join("cache/deep"))
+                .expect("the source's directory goes away");
         }
         DIRECTORY_MODE_CHANGES if copies == 0 => {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(root.join("cache/deep"), std::fs::Permissions::from_mode(0o750)).expect("the directory's mode changes");
+            std::fs::set_permissions(
+                root.join("cache/deep"),
+                std::fs::Permissions::from_mode(0o750),
+            )
+            .expect("the directory's mode changes");
         }
         A_PIPE_REPLACES_A_FILE if copies == 0 => {
             std::fs::remove_file(&b).expect("the file goes away");
             make_pipe(&b);
         }
-        CHANGES_ONCE if reading.is_some() && reading == identity_of(b.as_path()) && !CHANGED.swap(true, Ordering::SeqCst) => {
-            std::fs::write(&a, b"rewritten once\n").expect("a is rewritten by the copy of its neighbour");
+        CHANGES_ONCE
+            if reading.is_some()
+                && reading == identity_of(b.as_path())
+                && !CHANGED.swap(true, Ordering::SeqCst) =>
+        {
+            std::fs::write(&a, b"rewritten once\n")
+                .expect("a is rewritten by the copy of its neighbour");
         }
         KEEPS_CHANGING => {
             if reading.is_some() && reading == identity_of(a.as_path()) {
@@ -178,8 +234,18 @@ fn changing_clone(input: &std::fs::File, output: &std::fs::File) -> bool {
 /// ```ts
 /// const copied = copyManifestEntriesWith({ source, stage, entries, clone: changingClone }); return settleTheCopy({ ...copied, source, stage, entries, prune: 'never', clone: changingClone });
 /// ```
-fn copy_and_settle(source: &Path, stage: &Path, entries: Vec<WorktreeCopyEntry>) -> Result<Settled, WorktreeCopyError> {
-    let copied: CopiedManifest = copy_manifest_entries_with(source, stage, entries.as_slice(), changing_clone, &CopyCeiling::unbounded())?;
+fn copy_and_settle(
+    source: &Path,
+    stage: &Path,
+    entries: Vec<WorktreeCopyEntry>,
+) -> Result<Settled, WorktreeCopyError> {
+    let copied: CopiedManifest = copy_manifest_entries_with(
+        source,
+        stage,
+        entries.as_slice(),
+        changing_clone,
+        &CopyCeiling::unbounded(),
+    )?;
     return settle_the_copy(SettlingRequest {
         source_root: source,
         stage_root: stage,
@@ -212,12 +278,33 @@ fn copy_and_settle(source: &Path, stage: &Path, entries: Vec<WorktreeCopyEntry>)
 #[test]
 fn a_file_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure() {
     let (held, root, source, stage, entries) = two_ignored_files("settling-vanished", VANISHES);
-    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a vanished entry is no failure");
-    let staged: Vec<Vec<u8>> = settled.entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.clone(); }).collect();
-    assert_eq!(staged, vec![b"cache".to_vec(), b"cache/a.txt".to_vec()], "the entry the source removed is not in the stage");
-    assert!(!stage.join("cache/b.txt").exists(), "and nothing of it was staged");
-    assert!(settled.unsettled.is_empty(), "nothing was left in the source for changing: {:?}", settled.unsettled);
-    assert!(source.join("cache/a.txt").is_file(), "the source keeps its own files");
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries)
+        .expect("a vanished entry is no failure");
+    let staged: Vec<Vec<u8>> = settled
+        .entries
+        .iter()
+        .map(|entry: &WorktreeCopyEntry| {
+            return entry.relative_path.clone();
+        })
+        .collect();
+    assert_eq!(
+        staged,
+        vec![b"cache".to_vec(), b"cache/a.txt".to_vec()],
+        "the entry the source removed is not in the stage"
+    );
+    assert!(
+        !stage.join("cache/b.txt").exists(),
+        "and nothing of it was staged"
+    );
+    assert!(
+        settled.unsettled.is_empty(),
+        "nothing was left in the source for changing: {:?}",
+        settled.unsettled
+    );
+    assert!(
+        source.join("cache/a.txt").is_file(),
+        "the source keeps its own files"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -237,11 +324,26 @@ fn a_file_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure() 
 /// ```
 #[test]
 fn a_file_that_changed_under_the_copy_is_copied_again() {
-    let (held, root, source, stage, entries) = two_ignored_files("settling-changed-once", CHANGES_ONCE);
-    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a changed entry is copied again");
-    assert!(settled.unsettled.is_empty(), "the entry settled at its second copy: {:?}", settled.unsettled);
-    assert_eq!(settled.entries.len(), 3, "every entry of the manifest is staged: {:?}", settled.entries);
-    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a staged a"), std::fs::read(source.join("cache/a.txt")).expect("a in the source"), "the stage holds the source's bytes");
+    let (held, root, source, stage, entries) =
+        two_ignored_files("settling-changed-once", CHANGES_ONCE);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries)
+        .expect("a changed entry is copied again");
+    assert!(
+        settled.unsettled.is_empty(),
+        "the entry settled at its second copy: {:?}",
+        settled.unsettled
+    );
+    assert_eq!(
+        settled.entries.len(),
+        3,
+        "every entry of the manifest is staged: {:?}",
+        settled.entries
+    );
+    assert_eq!(
+        std::fs::read(stage.join("cache/a.txt")).expect("a staged a"),
+        std::fs::read(source.join("cache/a.txt")).expect("a in the source"),
+        "the stage holds the source's bytes"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -266,12 +368,28 @@ fn a_file_that_changed_under_the_copy_is_copied_again() {
 /// ```
 #[test]
 fn a_file_that_keeps_changing_is_left_in_its_source_and_named() {
-    let (held, root, source, stage, entries) = two_ignored_files("settling-keeps-changing", KEEPS_CHANGING);
-    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("an entry that will not settle is no failure");
-    assert_eq!(settled.unsettled, vec![b"cache/a.txt".to_vec()], "the entry its neighbour kept rewriting is named");
-    assert!(!stage.join("cache/a.txt").exists(), "it is not in the stage");
-    assert!(source.join("cache/a.txt").is_file(), "its only copy stays in the source, untouched");
-    assert_eq!(std::fs::read(stage.join("cache/b.txt")).expect("b staged"), std::fs::read(source.join("cache/b.txt")).expect("b in the source"), "the entry that settled is staged with the source's bytes");
+    let (held, root, source, stage, entries) =
+        two_ignored_files("settling-keeps-changing", KEEPS_CHANGING);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries)
+        .expect("an entry that will not settle is no failure");
+    assert_eq!(
+        settled.unsettled,
+        vec![b"cache/a.txt".to_vec()],
+        "the entry its neighbour kept rewriting is named"
+    );
+    assert!(
+        !stage.join("cache/a.txt").exists(),
+        "it is not in the stage"
+    );
+    assert!(
+        source.join("cache/a.txt").is_file(),
+        "its only copy stays in the source, untouched"
+    );
+    assert_eq!(
+        std::fs::read(stage.join("cache/b.txt")).expect("b staged"),
+        std::fs::read(source.join("cache/b.txt")).expect("b in the source"),
+        "the entry that settled is staged with the source's bytes"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -292,8 +410,16 @@ fn a_file_that_keeps_changing_is_left_in_its_source_and_named() {
 fn source_with_a_directory(
     label: &str,
     mode: usize,
-) -> (MutexGuard<'static, ()>, PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>) {
-    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME.lock().expect("no other control holds the clone request");
+) -> (
+    MutexGuard<'static, ()>,
+    PathBuf,
+    PathBuf,
+    PathBuf,
+    Vec<WorktreeCopyEntry>,
+) {
+    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME
+        .lock()
+        .expect("no other control holds the clone request");
     let root: PathBuf = fixture(label);
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache/deep")).expect("the ignored cache");
@@ -302,8 +428,15 @@ fn source_with_a_directory(
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(&stage).expect("the stage");
     let mut left_out: LeftOut = LeftOut::default();
-    let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut left_out, &CopyCeiling::unbounded()).expect("the manifest");
+    let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
+        source.as_path(),
+        [b"cache".to_vec()].as_slice(),
+        &[],
+        Prune::Never,
+        &mut left_out,
+        &CopyCeiling::unbounded(),
+    )
+    .expect("the manifest");
     assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
@@ -336,11 +469,26 @@ fn mode_of(path: &Path) -> u32 {
 /// ```
 #[test]
 fn a_directory_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure() {
-    let (held, root, source, stage, entries) = source_with_a_directory("settling-directory-vanished", DIRECTORY_VANISHES);
-    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a vanished directory is no failure");
-    let staged: Vec<Vec<u8>> = settled.entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.clone(); }).collect();
-    assert_eq!(staged, vec![b"cache".to_vec(), b"cache/a.txt".to_vec()], "the directory the source removed and its file are not in the stage");
-    assert!(!stage.join("cache/deep").exists(), "and nothing of them was staged");
+    let (held, root, source, stage, entries) =
+        source_with_a_directory("settling-directory-vanished", DIRECTORY_VANISHES);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries)
+        .expect("a vanished directory is no failure");
+    let staged: Vec<Vec<u8>> = settled
+        .entries
+        .iter()
+        .map(|entry: &WorktreeCopyEntry| {
+            return entry.relative_path.clone();
+        })
+        .collect();
+    assert_eq!(
+        staged,
+        vec![b"cache".to_vec(), b"cache/a.txt".to_vec()],
+        "the directory the source removed and its file are not in the stage"
+    );
+    assert!(
+        !stage.join("cache/deep").exists(),
+        "and nothing of them was staged"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -362,13 +510,31 @@ fn a_directory_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failu
 #[cfg(unix)]
 #[test]
 fn a_directory_whose_mode_changed_under_the_copy_is_staged_with_the_new_mode() {
-    let (held, root, source, stage, entries) = source_with_a_directory("settling-directory-mode", DIRECTORY_MODE_CHANGES);
-    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a changed directory mode is no failure");
-    assert!(settled.unsettled.is_empty(), "the entry settled at its second pass: {:?}", settled.unsettled);
-    assert_eq!(settled.entries.len(), 4, "every entry of the manifest is staged: {:?}", settled.entries);
-    assert_eq!(mode_of(stage.join("cache/deep").as_path()), mode_of(source.join("cache/deep").as_path()), "the stage holds the source's permission bits");
+    let (held, root, source, stage, entries) =
+        source_with_a_directory("settling-directory-mode", DIRECTORY_MODE_CHANGES);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries)
+        .expect("a changed directory mode is no failure");
+    assert!(
+        settled.unsettled.is_empty(),
+        "the entry settled at its second pass: {:?}",
+        settled.unsettled
+    );
+    assert_eq!(
+        settled.entries.len(),
+        4,
+        "every entry of the manifest is staged: {:?}",
+        settled.entries
+    );
+    assert_eq!(
+        mode_of(stage.join("cache/deep").as_path()),
+        mode_of(source.join("cache/deep").as_path()),
+        "the stage holds the source's permission bits"
+    );
     assert_eq!(mode_of(stage.join("cache/deep").as_path()), 0o750);
-    assert!(stage.join("cache/deep/file.txt").is_file(), "the directory's content is still staged");
+    assert!(
+        stage.join("cache/deep/file.txt").is_file(),
+        "the directory's content is still staged"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -397,21 +563,44 @@ fn a_directory_whose_mode_changed_under_the_copy_is_staged_with_the_new_mode() {
 #[cfg(unix)]
 #[test]
 fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
-    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-replaces", A_PIPE_REPLACES_A_FILE);
-    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) = (source.clone(), stage.clone(), entries.clone());
-    let answered: Option<Result<CopiedManifest, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
-        crate::parallel_test_support::PATIENCE,
-        move || {
-            return copy_manifest_entries_with(wanted.0.as_path(), wanted.1.as_path(), wanted.2.as_slice(), changing_clone, &CopyCeiling::unbounded());
-        },
-    );
+    let (held, root, source, stage, entries) =
+        two_ignored_files("settling-pipe-replaces", A_PIPE_REPLACES_A_FILE);
+    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) =
+        (source.clone(), stage.clone(), entries.clone());
+    let answered: Option<Result<CopiedManifest, WorktreeCopyError>> =
+        crate::parallel_test_support::finished_within_at(
+            crate::parallel_test_support::PATIENCE,
+            move || {
+                return copy_manifest_entries_with(
+                    wanted.0.as_path(),
+                    wanted.1.as_path(),
+                    wanted.2.as_slice(),
+                    changing_clone,
+                    &CopyCeiling::unbounded(),
+                );
+            },
+        );
     let Some(staged) = answered else {
-        panic!("the copy of cache/b.txt waited for a writer of the named pipe that replaced it and never came; opening a source entry for reading must not wait");
+        panic!(
+            "the copy of cache/b.txt waited for a writer of the named pipe that replaced it and never came; opening a source entry for reading must not wait"
+        );
     };
-    let copied: CopiedManifest = staged.expect("a pipe where a file was listed is no failure of the copy");
-    assert_eq!(copied.gone, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as gone");
-    assert!(!stage.join("cache/b.txt").exists(), "and nothing of it was staged");
-    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour is copied as before");
+    let copied: CopiedManifest =
+        staged.expect("a pipe where a file was listed is no failure of the copy");
+    assert_eq!(
+        copied.gone,
+        vec![b"cache/b.txt".to_vec()],
+        "the entry the pipe replaced is named as gone"
+    );
+    assert!(
+        !stage.join("cache/b.txt").exists(),
+        "and nothing of it was staged"
+    );
+    assert_eq!(
+        std::fs::read(stage.join("cache/a.txt")).expect("a is staged"),
+        b"the first one\n",
+        "its neighbour is copied as before"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -439,18 +628,24 @@ fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
 #[cfg(unix)]
 #[test]
 fn settling_leaves_out_a_pipe_that_replaced_a_file_and_keeps_its_neighbours() {
-    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-named", A_PIPE_REPLACES_A_FILE);
-    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) = (source.clone(), stage.clone(), entries.clone());
-    let answered: Option<Result<Settled, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
-        crate::parallel_test_support::PATIENCE,
-        move || {
-            return copy_and_settle(wanted.0.as_path(), wanted.1.as_path(), wanted.2);
-        },
-    );
+    let (held, root, source, stage, entries) =
+        two_ignored_files("settling-pipe-named", A_PIPE_REPLACES_A_FILE);
+    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) =
+        (source.clone(), stage.clone(), entries.clone());
+    let answered: Option<Result<Settled, WorktreeCopyError>> =
+        crate::parallel_test_support::finished_within_at(
+            crate::parallel_test_support::PATIENCE,
+            move || {
+                return copy_and_settle(wanted.0.as_path(), wanted.1.as_path(), wanted.2);
+            },
+        );
     let Some(outcome) = answered else {
-        panic!("the staging of the copy waited for a writer of the named pipe that replaced cache/b.txt and never came");
+        panic!(
+            "the staging of the copy waited for a writer of the named pipe that replaced cache/b.txt and never came"
+        );
     };
-    let settled: Settled = outcome.expect("an entry no worktree can hold is left out of the settled copy, never fatal");
+    let settled: Settled = outcome
+        .expect("an entry no worktree can hold is left out of the settled copy, never fatal");
     let kept: Vec<&[u8]> = settled
         .entries
         .iter()
@@ -461,10 +656,25 @@ fn settling_leaves_out_a_pipe_that_replaced_a_file_and_keeps_its_neighbours() {
         vec![b"cache".as_slice(), b"cache/a.txt".as_slice()],
         "the entry the pipe replaced is gone, and the directory that held it and its neighbour stay"
     );
-    assert!(settled.unsettled.is_empty(), "the pipe is no entry that would not settle: {}", settled.unsettled.len());
-    assert_eq!(settled.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as one no worktree can hold");
-    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour was staged before the pass answered");
-    assert!(!stage.join("cache/b.txt").exists(), "nothing of the entry that became a pipe is installed");
+    assert!(
+        settled.unsettled.is_empty(),
+        "the pipe is no entry that would not settle: {}",
+        settled.unsettled.len()
+    );
+    assert_eq!(
+        settled.uncopiable,
+        vec![b"cache/b.txt".to_vec()],
+        "the entry the pipe replaced is named as one no worktree can hold"
+    );
+    assert_eq!(
+        std::fs::read(stage.join("cache/a.txt")).expect("a is staged"),
+        b"the first one\n",
+        "its neighbour was staged before the pass answered"
+    );
+    assert!(
+        !stage.join("cache/b.txt").exists(),
+        "nothing of the entry that became a pipe is installed"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -478,9 +688,20 @@ fn settling_leaves_out_a_pipe_that_replaced_a_file_and_keeps_its_neighbours() {
 #[cfg(unix)]
 #[test]
 fn a_pipe_that_replaces_a_file_after_the_copy_is_named_by_the_settling_pass() {
-    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-after-copy", UNCHANGED);
-    let copied: CopiedManifest = copy_manifest_entries_with(source.as_path(), stage.as_path(), entries.as_slice(), changing_clone, &CopyCeiling::unbounded()).expect("both entries are copied");
-    assert!(copied.gone.is_empty(), "both files were there for their copy");
+    let (held, root, source, stage, entries) =
+        two_ignored_files("settling-pipe-after-copy", UNCHANGED);
+    let copied: CopiedManifest = copy_manifest_entries_with(
+        source.as_path(),
+        stage.as_path(),
+        entries.as_slice(),
+        changing_clone,
+        &CopyCeiling::unbounded(),
+    )
+    .expect("both entries are copied");
+    assert!(
+        copied.gone.is_empty(),
+        "both files were there for their copy"
+    );
     std::fs::remove_file(source.join("cache/b.txt")).expect("the file goes away");
     make_pipe(source.join("cache/b.txt").as_path());
     let settled: Settled = settle_the_copy(SettlingRequest {
@@ -495,8 +716,15 @@ fn a_pipe_that_replaces_a_file_after_the_copy_is_named_by_the_settling_pass() {
         gone: copied.gone,
     })
     .expect("a pipe that replaced a file is no failure of the settling");
-    assert_eq!(settled.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as one no worktree can hold");
-    assert!(!stage.join("cache/b.txt").exists(), "nothing of the entry that became a pipe is installed");
+    assert_eq!(
+        settled.uncopiable,
+        vec![b"cache/b.txt".to_vec()],
+        "the entry the pipe replaced is named as one no worktree can hold"
+    );
+    assert!(
+        !stage.join("cache/b.txt").exists(),
+        "nothing of the entry that became a pipe is installed"
+    );
     drop(held);
     remove(root.as_path());
 }

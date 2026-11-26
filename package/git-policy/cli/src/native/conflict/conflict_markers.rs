@@ -20,7 +20,11 @@
 //! ```
 
 /// Running real Git for the committed blobs and the attribute.
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// Raw bytes to and from operating-system text.
@@ -71,7 +75,10 @@ pub fn marker_size_of(value: &str) -> usize {
 /// ```ts
 /// const hasMarkerLines = (content: Uint8Array, size: number) => lines(content).some((line) => isMarker(line, size, ['<', '>']));
 /// ```
-pub fn has_marker_lines(content: &[u8], size: usize) -> bool {
+pub fn has_marker_lines(
+    content: &[u8],
+    size: usize,
+) -> bool {
     // `split_inclusive` keeps each line's line feed, which is the white space that must follow the marker.
     for line in content.split_inclusive(is_line_feed_byte) {
         // A line shorter than the marker plus one character cannot be a marker.
@@ -120,8 +127,17 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// async function markerSizes(context, root, paths): Promise<number[]>;
 /// ```
-fn marker_sizes(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Vec<usize> {
-    let mut arguments: Vec<OsString> = vec![OsString::from("check-attr"), OsString::from("-z"), OsString::from("conflict-marker-size"), OsString::from("--")];
+fn marker_sizes(
+    context: &GitContext,
+    root: &Path,
+    paths: &[Vec<u8>],
+) -> Vec<usize> {
+    let mut arguments: Vec<OsString> = vec![
+        OsString::from("check-attr"),
+        OsString::from("-z"),
+        OsString::from("conflict-marker-size"),
+        OsString::from("--"),
+    ];
     for path in paths {
         arguments.push(OsString::from_vec(path.clone()));
     }
@@ -129,7 +145,11 @@ fn marker_sizes(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Vec<usi
     request.arguments = arguments;
     // Every path answers with three NUL-ended fields: the path, the attribute, the value.
     let answered: Vec<Vec<u8>> = match run_git(context, &request) {
-        Ok(output) if output.succeeded() => output.stdout.split(is_nul_byte).map(<[u8]>::to_vec).collect(),
+        Ok(output) if output.succeeded() => output
+            .stdout
+            .split(is_nul_byte)
+            .map(<[u8]>::to_vec)
+            .collect(),
         _ => Vec::new(),
     };
     let mut sizes: Vec<usize> = Vec::new();
@@ -157,7 +177,12 @@ fn marker_sizes(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Vec<usi
 /// ```ts
 /// async function pathsWithMarkers(context, root, commit, paths): Promise<Uint8Array[]>;
 /// ```
-pub fn paths_with_markers(context: &GitContext, root: &Path, commit: &str, paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
+pub fn paths_with_markers(
+    context: &GitContext,
+    root: &Path,
+    commit: &str,
+    paths: &[Vec<u8>],
+) -> Vec<Vec<u8>> {
     // An ordinary commit committed no path that was unmerged: nothing is read and no Git starts, which the start budgets pin.
     if paths.is_empty() {
         return Vec::new();
@@ -169,7 +194,11 @@ pub fn paths_with_markers(context: &GitContext, root: &Path, commit: &str, paths
         let mut name: Vec<u8> = format!("{commit}:").into_bytes();
         name.extend_from_slice(path.as_slice());
         let mut request: GitRequest = GitRequest::new(root, &[] as &[&str]);
-        request.arguments = vec![OsString::from("cat-file"), OsString::from("blob"), OsString::from_vec(name)];
+        request.arguments = vec![
+            OsString::from("cat-file"),
+            OsString::from("blob"),
+            OsString::from_vec(name),
+        ];
         if let Ok(output) = run_git(context, &request)
             && output.succeeded()
             && has_marker_lines(output.stdout.as_slice(), size)
@@ -193,7 +222,11 @@ pub fn paths_with_markers(context: &GitContext, root: &Path, commit: &str, paths
 /// const openLine = (merge: boolean) => `monochromatic-git-policy-cli: note: the ${merge ? 'merge' : 'cherry-pick'} is still in progress ...`;
 /// ```
 pub fn open_operation_line(merge: bool) -> String {
-    let (operation, continuing): (&str, &str) = if merge { ("merge", "git merge --continue") } else { ("cherry-pick", "git cherry-pick --continue") };
+    let (operation, continuing): (&str, &str) = if merge {
+        ("merge", "git merge --continue")
+    } else {
+        ("cherry-pick", "git cherry-pick --continue")
+    };
     return format!(
         "monochromatic-git-policy-cli: note: the {operation} is still in progress, because this commit took only the paths you named. To finish it, \
          stage any file that is still unmerged (git add <path>), then run git commit with no paths, or {continuing}.\n"

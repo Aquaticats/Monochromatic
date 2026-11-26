@@ -23,7 +23,10 @@
 /// Why:
 ///  the caller compares whole `key=value` lines,
 ///  so whitespace around them must not decide the comparison.
-pub(crate) fn lines_of(text: &str, section: &str) -> Vec<String> {
+pub(crate) fn lines_of(
+    text: &str,
+    section: &str,
+) -> Vec<String> {
     let mut inside: bool = false;
     let mut lines: Vec<String> = Vec::new();
     for line in text.lines() {
@@ -46,13 +49,25 @@ pub(crate) fn lines_of(text: &str, section: &str) -> Vec<String> {
 ///  a line such as `Last=` names an argument a control does not want to
 ///  repeat,
 /// so the assertion reads the beginning and the rest is the text's.
-pub(crate) fn carries(text: &str, section: &str, beginning: &str) -> bool {
-    return lines_of(text, section).iter().any(|line| return line.starts_with(beginning));
+pub(crate) fn carries(
+    text: &str,
+    section: &str,
+    beginning: &str,
+) -> bool {
+    return lines_of(text, section)
+        .iter()
+        .any(|line| return line.starts_with(beginning));
 }
 
 /// Whether one section carries the whole line.
-pub(crate) fn holds(text: &str, section: &str, wanted: &str) -> bool {
-    return lines_of(text, section).iter().any(|line| return line == wanted);
+pub(crate) fn holds(
+    text: &str,
+    section: &str,
+    wanted: &str,
+) -> bool {
+    return lines_of(text, section)
+        .iter()
+        .any(|line| return line == wanted);
 }
 
 /// Assert one file of this folder has the shape every one of them must have:
@@ -70,16 +85,32 @@ pub(crate) fn assert_file_shape(text: &str) {
     assert!(!text.ends_with("\n\n"), "the file carries no blank tail");
     assert!(!text.contains('\r'), "the file carries no carriage return");
     assert!(!text.contains('\t'), "the file carries no tab");
-    assert!(!text.contains('<'), "the file carries no placeholder: {text}");
-    assert!(!text.contains('>'), "the file carries no placeholder: {text}");
+    assert!(
+        !text.contains('<'),
+        "the file carries no placeholder: {text}"
+    );
+    assert!(
+        !text.contains('>'),
+        "the file carries no placeholder: {text}"
+    );
 }
 
 #[test]
 fn the_reader_names_a_section_and_drops_comments_and_blanks() {
-    let text: &str = "# a comment\n[Unit]\nDescription=x\n\n# inside\nWants=y\n[Service]\nType=oneshot\n";
-    assert_eq!(lines_of(text, "[Unit]"), vec![String::from("Description=x"), String::from("Wants=y")]);
-    assert_eq!(lines_of(text, "[Service]"), vec![String::from("Type=oneshot")]);
+    let text: &str =
+        "# a comment\n[Unit]\nDescription=x\n\n# inside\nWants=y\n[Service]\nType=oneshot\n";
+    assert_eq!(
+        lines_of(text, "[Unit]"),
+        vec![String::from("Description=x"), String::from("Wants=y")]
+    );
+    assert_eq!(
+        lines_of(text, "[Service]"),
+        vec![String::from("Type=oneshot")]
+    );
     assert!(carries(text, "[Unit]", "Wants="));
-    assert!(!holds(text, "[Unit]", "Wants=y "), "a line is compared whole");
+    assert!(
+        !holds(text, "[Unit]", "Wants=y "),
+        "a line is compared whole"
+    );
     assert!(holds(text, "[Unit]", "Wants=y"));
 }

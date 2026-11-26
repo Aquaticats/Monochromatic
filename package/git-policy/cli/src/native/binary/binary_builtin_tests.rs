@@ -17,21 +17,42 @@
 
 /// Import the shared fixtures and the bounded process helpers.
 use super::support::{
-    Fixture, Observed, fixture, git, observe, porcelain, remove, repository, run_direct,
-    run_wrapped, silent_success, stderr_of, wrapped,
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    observe,
+    porcelain,
+    remove,
+    repository,
+    run_direct,
+    run_wrapped,
+    silent_success,
+    stderr_of,
+    wrapped,
 };
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The start of a finding line numbered `sequence` for one policy.
-fn finding_start(sequence: u64, policy: &str) -> String {
+fn finding_start(
+    sequence: u64,
+    policy: &str,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"pre-forward\",\"policyId\":\"{policy}\",\"severity\":\"error\",\"code\":\"{policy}/"
     );
 }
 
 /// Require that a command was stopped with exit status 1 by exactly one finding of `policy`.
-fn assert_rejected_by(observed: &Observed, policy: &str, context: &str) {
+fn assert_rejected_by(
+    observed: &Observed,
+    policy: &str,
+    context: &str,
+) {
     let stderr: String = stderr_of(observed);
     assert_eq!(observed.code, Some(1), "{context}: {stderr}");
     assert_eq!(observed.stdout, Vec::<u8>::new(), "{context}");
@@ -46,7 +67,12 @@ fn assert_rejected_by(observed: &Observed, policy: &str, context: &str) {
 ///  success,
 /// nothing on standard output,
 ///  and one line on standard error naming the variable that exempted the repository and the directory it named.
-fn assert_exempted(observed: &Observed, variable: &str, directory: &Path, context: &str) {
+fn assert_exempted(
+    observed: &Observed,
+    variable: &str,
+    directory: &Path,
+    context: &str,
+) {
     let stderr: String = stderr_of(observed);
     assert_eq!(observed.code, Some(0), "{context}: {stderr}");
     assert_eq!(observed.stdout, Vec::<u8>::new(), "{context}: {stderr}");
@@ -61,7 +87,10 @@ fn assert_exempted(observed: &Observed, variable: &str, directory: &Path, contex
 
 /// Every local branch of a repository,
 ///  one name per line.
-fn branches(fixture: &Fixture, repo: &Path) -> String {
+fn branches(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     let output: std::process::Output = git(
         fixture,
         repo,
@@ -255,7 +284,8 @@ fn a_tool_cache_checkout_is_exempt_from_the_linked_worktree_rule() {
 fn a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule() {
     let fixture: Fixture = fixture("builtin-mise");
     // The fixture's home directory is the caller's `HOME`; mise keeps plugin clones below its data directory.
-    std::fs::create_dir_all(fixture.root.join("home/.local/share/mise/plugins")).expect("mise data");
+    std::fs::create_dir_all(fixture.root.join("home/.local/share/mise/plugins"))
+        .expect("mise data");
     std::fs::create_dir_all(fixture.root.join("home/.local/share/mise-other")).expect("sibling");
     let plugin: PathBuf = repository(&fixture, OsStr::new("home/.local/share/mise/plugins/cmake"));
     let sibling: PathBuf = repository(&fixture, OsStr::new("home/.local/share/mise-other/cmake"));
@@ -287,7 +317,10 @@ fn a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule() {
         b"one\n"
     );
     // Positive controls: the same command elsewhere is rejected and changes nothing.
-    for (repo, label) in [(&sibling, "sibling directory"), (&ordinary, "ordinary repository")] {
+    for (repo, label) in [
+        (&sibling, "sibling directory"),
+        (&ordinary, "ordinary repository"),
+    ] {
         assert_rejected_by(
             &run_wrapped(
                 &fixture,
@@ -448,7 +481,12 @@ enum LiteralMode {
 }
 
 /// Run the built executable in a directory under one literal pathspec mode.
-fn run_under(fixture: &Fixture, directory: &Path, mode: LiteralMode, arguments: &[&str]) -> Observed {
+fn run_under(
+    fixture: &Fixture,
+    directory: &Path,
+    mode: LiteralMode,
+    arguments: &[&str],
+) -> Observed {
     let mut command: std::process::Command = wrapped(fixture);
     command.current_dir(directory);
     match mode {
@@ -479,9 +517,17 @@ fn literal_pathspec_mode_stages_the_file_its_pathspec_names() {
         std::fs::write(repo.join("other.txt"), b"other\n").expect("other file");
         let staged: Observed = run_under(&fixture, repo.as_path(), mode, &["add", "--", "**"]);
         assert_eq!(staged.code, Some(0), "{mode:?}: {}", stderr_of(&staged));
-        assert_eq!(porcelain(&fixture, repo.as_path()), "A  **\n?? other.txt\n", "{mode:?}");
+        assert_eq!(
+            porcelain(&fixture, repo.as_path()),
+            "A  **\n?? other.txt\n",
+            "{mode:?}"
+        );
         let bulk: Observed = run_under(&fixture, repo.as_path(), mode, &["add", "--", "."]);
-        assert_rejected_by(&bulk, "add-explicit", "a literal-mode caller's . still stages the whole directory");
+        assert_rejected_by(
+            &bulk,
+            "add-explicit",
+            "a literal-mode caller's . still stages the whole directory",
+        );
         remove(&fixture);
     }
 }
@@ -502,10 +548,21 @@ fn a_global_option_value_cannot_disable_the_bulk_rejection() {
         "add-explicit",
         arguments.join(" ").as_str(),
     );
-    assert_eq!(porcelain(&fixture, repo.as_path()), "?? a.txt\n?? b.txt\n", "the rejection stages nothing");
+    assert_eq!(
+        porcelain(&fixture, repo.as_path()),
+        "?? a.txt\n?? b.txt\n",
+        "the rejection stages nothing"
+    );
     // Real Git stages both, so the rejection is the policy's and not a refusal of Git's own.
-    assert_eq!(run_direct(&fixture, fixture.root.as_path(), &arguments).code, Some(0));
-    assert_eq!(porcelain(&fixture, repo.as_path()), "A  a.txt\nA  b.txt\n", "Git reads the word as -C's directory");
+    assert_eq!(
+        run_direct(&fixture, fixture.root.as_path(), &arguments).code,
+        Some(0)
+    );
+    assert_eq!(
+        porcelain(&fixture, repo.as_path()),
+        "A  a.txt\nA  b.txt\n",
+        "Git reads the word as -C's directory"
+    );
     remove(&fixture);
 }
 

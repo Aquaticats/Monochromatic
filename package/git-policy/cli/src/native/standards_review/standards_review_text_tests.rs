@@ -38,7 +38,21 @@ fn prefix_never_exceeds_the_limit_and_never_splits_a_pair() {
 /// and the layout switches follow ECMAScript's thresholds.
 #[test]
 fn numbers_round_trip_and_follow_the_exponent_thresholds() {
-    for value in [0.43_f64, 0.02, 1.0, 0.5, 123.456, 1e-6, 1e-7, 1.5e-7, 1e20, 1e21, 1.5e21, 123_456_789.0, -0.25] {
+    for value in [
+        0.43_f64,
+        0.02,
+        1.0,
+        0.5,
+        123.456,
+        1e-6,
+        1e-7,
+        1.5e-7,
+        1e20,
+        1e21,
+        1.5e21,
+        123_456_789.0,
+        -0.25,
+    ] {
         let text: String = js_number_text(value);
         assert_eq!(text.parse::<f64>().ok(), Some(value), "{text}");
     }
@@ -60,11 +74,17 @@ fn seconds_round_to_the_nearest_tenth_with_ties_up() {
         let text: String = seconds_with_tenth(milliseconds);
         let printed: f64 = text.parse::<f64>().unwrap_or(f64::NAN);
         let exact: f64 = milliseconds as f64 / 1000.0;
-        assert!((printed - exact).abs() <= 0.05 + 1e-9, "{milliseconds} -> {text}");
+        assert!(
+            (printed - exact).abs() <= 0.05 + 1e-9,
+            "{milliseconds} -> {text}"
+        );
         if milliseconds % 500 == 250 {
             assert!(printed > exact, "{milliseconds} -> {text}");
         }
-        assert_eq!(text.split_once('.').map(|(_, tenth)| return tenth.len()), Some(1));
+        assert_eq!(
+            text.split_once('.').map(|(_, tenth)| return tenth.len()),
+            Some(1)
+        );
     }
 }
 
@@ -75,7 +95,13 @@ fn seconds_round_to_the_nearest_tenth_with_ties_up() {
 fn one_line_text_has_no_line_breaks() {
     let hostile: String = format!("a\nb\r\nc\td\u{0}e\u{2028}f\u{2029}g\u{85}h\u{7f}i");
     let escaped: String = on_one_line(hostile.as_str());
-    assert!(!escaped.chars().any(|character| return character.is_control() || character == '\u{2028}' || character == '\u{2029}'));
+    assert!(
+        !escaped
+            .chars()
+            .any(|character| return character.is_control()
+                || character == '\u{2028}'
+                || character == '\u{2029}')
+    );
     assert!(escaped.contains("\\n") && escaped.contains("\\r") && escaped.contains("\\t"));
     assert!(escaped.contains("\\u{0}") && escaped.contains("\\u{2028}"));
     assert_eq!(on_one_line(MIXED), MIXED);
@@ -88,7 +114,10 @@ fn one_line_text_has_no_line_breaks() {
 #[test]
 fn subject_is_the_first_paragraph_folded() {
     assert_eq!(commit_subject("fix(a): one\n\nbody line\n"), "fix(a): one");
-    assert_eq!(commit_subject("\n\nfix(a): one\ntwo   \n\nbody"), "fix(a): one two");
+    assert_eq!(
+        commit_subject("\n\nfix(a): one\ntwo   \n\nbody"),
+        "fix(a): one two"
+    );
     assert_eq!(commit_subject("only"), "only");
     assert_eq!(commit_subject(""), "");
     assert_eq!(commit_subject("  \n \n"), "");

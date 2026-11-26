@@ -103,27 +103,95 @@ pub mod space_guard_scope;
 #[path = "coverage_test_facts.rs"]
 pub(crate) mod coverage_test_facts;
 
-/// One section,
-/// one setting and the words sanoid reads a toggle as.
-pub use sanoid_section::{
-    AUTOSNAP_NO, AUTOSNAP_SETTING, FALSE_WORDS, PATH_SETTING, PROCESS_CHILDREN_ONLY_SETTING, RECURSIVE_SETTING, RECURSIVE_YES, RECURSIVE_ZFS, Recursion, SKIP_CHILDREN_SETTING, SanoidSection, SanoidSetting,
-    TEMPLATE_SETTING, TRUE_WORDS, is_false_word, is_true_word, recursion_of, render_section, render_sections,
+/// The comparison of a measured tree and configuration with the decision.
+pub use coverage_checks::{
+    COVERAGE_CHECK_NAME,
+    CoverageFacts,
+    check_coverage,
+};
+/// One drift and the check's answer.
+pub use coverage_finding::{
+    CoverageAnswer,
+    CoverageFinding,
+    FIELD_EXCLUSION_AUTOSNAP,
+    FIELD_EXCLUSION_DATASET,
+    FIELD_EXCLUSION_MARKER,
+    FIELD_EXCLUSION_MOUNT,
+    FIELD_EXCLUSION_SECTION,
+    FIELD_RECURSION,
+    FIELD_ROOT_SECTION,
+    FIELD_SECTION_ORDER,
+    FIELD_STORE_COVERAGE,
+    FIELD_TEMPLATE,
+};
+/// The corrections and the sentences that read a measured value.
+pub use coverage_words::{
+    AUTO_SNAPSHOT_OFF,
+    AUTO_SNAPSHOT_PROPERTY,
+    marker_correction,
+    mountpoint_words,
+};
+/// The decided coverage and the text that writes it.
+pub use decided_coverage::{
+    CoverageDecision,
+    Exclusion,
+    ExclusionMount,
+    GENERATED_HEADER,
+    RECURSIVE_ROOT,
+    TEMPLATE,
+    decided_coverage,
+    exclusion_section,
+    generated_text,
+    root_section,
+    sections_of,
+};
+/// The datasets one machine measured and their ancestry.
+pub use measured_dataset_tree::{
+    MeasuredDataset,
+    MeasuredTree,
+    has_path_mountpoint,
+    is_under,
 };
 /// A configuration text's sections,
 /// its duplicates and its refusals.
-pub use sanoid_conf_reading::{ConfigRefusal, DuplicateKey, ReadConfig, ReadSection, ReadSetting, SettingLookup, read_sanoid_conf};
-/// The datasets one machine measured and their ancestry.
-pub use measured_dataset_tree::{MeasuredDataset, MeasuredTree, has_path_mountpoint, is_under};
-/// The decided coverage and the text that writes it.
-pub use decided_coverage::{CoverageDecision, Exclusion, ExclusionMount, GENERATED_HEADER, RECURSIVE_ROOT, TEMPLATE, decided_coverage, exclusion_section, generated_text, root_section, sections_of};
-/// One drift and the check's answer.
-pub use coverage_finding::{
-    CoverageAnswer, CoverageFinding, FIELD_EXCLUSION_AUTOSNAP, FIELD_EXCLUSION_DATASET, FIELD_EXCLUSION_MARKER, FIELD_EXCLUSION_MOUNT, FIELD_EXCLUSION_SECTION, FIELD_RECURSION, FIELD_ROOT_SECTION,
-    FIELD_SECTION_ORDER, FIELD_STORE_COVERAGE, FIELD_TEMPLATE,
+pub use sanoid_conf_reading::{
+    ConfigRefusal,
+    DuplicateKey,
+    ReadConfig,
+    ReadSection,
+    ReadSetting,
+    SettingLookup,
+    read_sanoid_conf,
 };
-/// The corrections and the sentences that read a measured value.
-pub use coverage_words::{AUTO_SNAPSHOT_OFF, AUTO_SNAPSHOT_PROPERTY, marker_correction, mountpoint_words};
-/// The comparison of a measured tree and configuration with the decision.
-pub use coverage_checks::{COVERAGE_CHECK_NAME, CoverageFacts, check_coverage};
+/// One section,
+/// one setting and the words sanoid reads a toggle as.
+pub use sanoid_section::{
+    AUTOSNAP_NO,
+    AUTOSNAP_SETTING,
+    FALSE_WORDS,
+    PATH_SETTING,
+    PROCESS_CHILDREN_ONLY_SETTING,
+    RECURSIVE_SETTING,
+    RECURSIVE_YES,
+    RECURSIVE_ZFS,
+    Recursion,
+    SKIP_CHILDREN_SETTING,
+    SanoidSection,
+    SanoidSetting,
+    TEMPLATE_SETTING,
+    TRUE_WORDS,
+    is_false_word,
+    is_true_word,
+    recursion_of,
+    render_section,
+    render_sections,
+};
 /// What the space guard can prune and what it cannot.
-pub use space_guard_scope::{FIELD_GUARD_DATASET, FIELD_GUARD_RECURSION, SCOPE_CHECK_NAME, ScopeAnswer, SpaceGuardFacts, check_space_guard_scope};
+pub use space_guard_scope::{
+    FIELD_GUARD_DATASET,
+    FIELD_GUARD_RECURSION,
+    SCOPE_CHECK_NAME,
+    ScopeAnswer,
+    SpaceGuardFacts,
+    check_space_guard_scope,
+};

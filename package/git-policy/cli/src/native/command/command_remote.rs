@@ -30,7 +30,11 @@
 /// import { REMOTE_TABLE } from './command_remote_table.ts';
 /// import { DEFAULT_MODE, parse_options } from './command_options.ts';
 /// ```
-use crate::command_options::{DEFAULT_MODE, OptionError, parse_options};
+use crate::command_options::{
+    DEFAULT_MODE,
+    OptionError,
+    parse_options,
+};
 use crate::command_remote_table::REMOTE_TABLE;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
@@ -116,7 +120,9 @@ pub fn parse_remote_region(region: &[OsString]) -> Result<RemoteRegion, OptionEr
         Some(word) if word.as_encoded_bytes() != b"--" => Some(word.clone()),
         Some(_) | None => None,
     };
-    return Ok(RemoteRegion { subcommand });
+    return Ok(RemoteRegion {
+        subcommand,
+    });
 }
 
 /// Subcommand positions and refusals,

@@ -64,16 +64,31 @@ fn the_fixture_root_is_not_the_system_temporary_directory() {
     if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_none() {
         // The build output above `test-fixtures` is shared by every checkout that builds here, and a moved root cannot
         //  satisfy this assertion, which is why only this one is inside the arm without the variable.
-        assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
+        assert!(
+            root.parent().is_some_and(|above| {
+                return above.ends_with("test-fixtures");
+            }),
+            "{}",
+            root.display()
+        );
     }
-    assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
+    assert!(
+        root.ends_with(format!("process-{}", std::process::id()).as_str()),
+        "{}",
+        root.display()
+    );
     // What the root resolves to, compared with each listed directory as what it resolves to: a root that is a link into a
     //  system temporary directory is in it, and so is a root named by a `TMPDIR` that is a link to it. The two shape
     //  assertions above stay on the path `fixture_root` returned, which is where the fixtures are made; a build output
     //  that is itself a link keeps its own answer here.
     let resolved: PathBuf = std::fs::canonicalize(&root).expect("the fixture root resolves");
     for directory in system_temporary_directories() {
-        assert!(!resolved.starts_with(&directory), "{} is under the system temporary directory {}", resolved.display(), directory.display());
+        assert!(
+            !resolved.starts_with(&directory),
+            "{} is under the system temporary directory {}",
+            resolved.display(),
+            directory.display()
+        );
     }
 }
 
@@ -89,8 +104,16 @@ fn the_fixture_root_is_not_the_system_temporary_directory() {
 #[test]
 fn a_process_a_test_starts_may_not_write_a_core_dump() {
     let _root: PathBuf = fixture("core-limit");
-    let output = std::process::Command::new("sh").args(["-c", "ulimit -c; ulimit -H -c"]).output().expect("sh runs");
-    assert_eq!(String::from_utf8_lossy(&output.stdout).split_whitespace().collect::<Vec<&str>>(), vec!["0", "0"]);
+    let output = std::process::Command::new("sh")
+        .args(["-c", "ulimit -c; ulimit -H -c"])
+        .output()
+        .expect("sh runs");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .collect::<Vec<&str>>(),
+        vec!["0", "0"]
+    );
 }
 
 /// A wait whose event has already happened returns at once,
@@ -104,7 +127,9 @@ fn a_process_a_test_starts_may_not_write_a_core_dump() {
 #[test]
 fn a_wait_whose_event_has_happened_returns_at_once() {
     let before: u64 = crate::run_progress::looks_taken_by_this_thread();
-    assert!(wait_until(&|| { return true; }));
+    assert!(wait_until(&|| {
+        return true;
+    }));
     assert_eq!(
         crate::run_progress::looks_taken_by_this_thread(),
         before,
@@ -118,9 +143,18 @@ fn a_wait_whose_event_has_happened_returns_at_once() {
 fn a_wait_gives_up_when_the_run_shows_nothing() {
     let window: std::time::Duration = std::time::Duration::from_millis(300);
     let began: std::time::Instant = std::time::Instant::now();
-    let held: bool = wait_until_for(WaitingFor { window, done: &|| { return false; } });
+    let held: bool = wait_until_for(WaitingFor {
+        window,
+        done: &|| {
+            return false;
+        },
+    });
     assert!(!held, "an event that never happened was reported as held");
-    assert!(began.elapsed() >= window, "the wait ended before its window passed: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() >= window,
+        "the wait ended before its window passed: {:?}",
+        began.elapsed()
+    );
 }
 
 /// How much of its window a wait is held for here:
@@ -150,11 +184,16 @@ fn looks_past_the_window(window: std::time::Duration) -> usize {
 #[test]
 fn a_wait_outlives_its_window_while_the_run_keeps_working() {
     let window: std::time::Duration = std::time::Duration::from_millis(200);
-    let working: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-    let still_working: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&working);
+    let working: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let still_working: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::clone(&working);
     let worker = std::thread::spawn(move || {
         use std::io::Write as _;
-        let mut sink: std::fs::File = std::fs::OpenOptions::new().write(true).open("/dev/null").expect("a sink");
+        let mut sink: std::fs::File = std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/null")
+            .expect("a sink");
         while still_working.load(std::sync::atomic::Ordering::SeqCst) {
             sink.write_all(&[b'x'; 4096]).expect("a write");
             std::thread::sleep(std::time::Duration::from_millis(10));
@@ -177,7 +216,11 @@ fn a_wait_outlives_its_window_while_the_run_keeps_working() {
     working.store(false, std::sync::atomic::Ordering::SeqCst);
     worker.join().expect("the worker ends");
     assert!(held, "an event the working run delivered was given up on");
-    assert!(began.elapsed() >= window, "the wait ended inside its window: {:?}", began.elapsed());
+    assert!(
+        began.elapsed() >= window,
+        "the wait ended inside its window: {:?}",
+        began.elapsed()
+    );
 }
 
 /// How long a control waits for two of its waits to give up before it fails the control.
@@ -195,14 +238,20 @@ const WAITS: usize = 2;
 #[test]
 fn two_waits_do_not_keep_each_other_alive() {
     let window: std::time::Duration = std::time::Duration::from_millis(300);
-    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (told, heard) = std::sync::mpsc::channel::<bool>();
     let mut waits: Vec<std::thread::JoinHandle<()>> = Vec::new();
     for _ in 0..WAITS {
         let given_up: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&stop);
         let tell = told.clone();
         waits.push(std::thread::spawn(move || {
-            let held: bool = wait_until_for(WaitingFor { window, done: &|| { return given_up.load(std::sync::atomic::Ordering::SeqCst); } });
+            let held: bool = wait_until_for(WaitingFor {
+                window,
+                done: &|| {
+                    return given_up.load(std::sync::atomic::Ordering::SeqCst);
+                },
+            });
             let _sent = tell.send(held);
         }));
     }
@@ -219,14 +268,22 @@ fn two_waits_do_not_keep_each_other_alive() {
     for wait in waits {
         wait.join().expect("the waiting thread ends");
     }
-    assert_eq!(answers, vec![false; WAITS], "{WAITS} waits for events that never happen kept each other alive for {:?} by counting each other's readings as the run's work", began.elapsed());
+    assert_eq!(
+        answers,
+        vec![false; WAITS],
+        "{WAITS} waits for events that never happen kept each other alive for {:?} by counting each other's readings as the run's work",
+        began.elapsed()
+    );
 }
 
 /// The window a control's wait uses is shorter than the watchdog's,
 /// so a control reports why it gave up before the run is ended.
 #[test]
 fn the_controls_window_is_below_the_watchdogs() {
-    assert!(STILL_WORKING_WINDOW < QUIET_WINDOW, "{STILL_WORKING_WINDOW:?} is not below {QUIET_WINDOW:?}");
+    assert!(
+        STILL_WORKING_WINDOW < QUIET_WINDOW,
+        "{STILL_WORKING_WINDOW:?} is not below {QUIET_WINDOW:?}"
+    );
 }
 
 /// What:
@@ -258,16 +315,31 @@ fn a_wait_whose_predicate_works_is_not_abandoned() {
         window,
         done: &|| {
             use std::io::Write as _;
-            let mut sink: std::fs::File = std::fs::OpenOptions::new().write(true).open("/dev/null").expect("a sink");
-            sink.write_all(&[b'w'; 64 * 1024]).expect("a write of the predicate's own");
+            let mut sink: std::fs::File = std::fs::OpenOptions::new()
+                .write(true)
+                .open("/dev/null")
+                .expect("a sink");
+            sink.write_all(&[b'w'; 64 * 1024])
+                .expect("a write of the predicate's own");
             std::thread::sleep(std::time::Duration::from_millis(40));
             calls.set(calls.get() + 1);
             return calls.get() >= calls_to_deliver;
         },
     });
-    assert!(held, "the wait gave up although its predicate was doing the work the event is made of");
-    assert!(calls.get() >= calls_to_deliver, "the event was delivered: {} calls", calls.get());
-    assert!(began.elapsed() >= window, "the event came later than the window: {:?}", began.elapsed());
+    assert!(
+        held,
+        "the wait gave up although its predicate was doing the work the event is made of"
+    );
+    assert!(
+        calls.get() >= calls_to_deliver,
+        "the event was delivered: {} calls",
+        calls.get()
+    );
+    assert!(
+        began.elapsed() >= window,
+        "the event came later than the window: {:?}",
+        began.elapsed()
+    );
 }
 
 /// What:
@@ -298,7 +370,8 @@ fn a_closed_fixture_directory_goes_when_its_test_returns_or_panics() {
         std::fs::create_dir_all(closed.join("inner")).expect("closed directories");
         std::fs::write(closed.join("inner").join("file"), "content").expect("file");
         std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o555)).expect("mode");
-        std::fs::set_permissions(closed.join("inner"), std::fs::Permissions::from_mode(0o500)).expect("mode");
+        std::fs::set_permissions(closed.join("inner"), std::fs::Permissions::from_mode(0o500))
+            .expect("mode");
         sender.send(root).expect("send the root");
         panic!("the test fails with a read-only directory in its fixture");
     });
@@ -314,7 +387,11 @@ fn a_closed_fixture_directory_goes_when_its_test_returns_or_panics() {
 fn the_teardown_gives_the_owner_back_the_permission_and_removes_the_tree() {
     use std::os::unix::fs::PermissionsExt as _;
     let root: PathBuf = fixture("closed-modes");
-    for (name, mode) in [("searchable", 0o500), ("readable", 0o555), ("closed", 0o000)] {
+    for (name, mode) in [
+        ("searchable", 0o500),
+        ("readable", 0o555),
+        ("closed", 0o000),
+    ] {
         let directory: PathBuf = root.join(name).join("below");
         std::fs::create_dir_all(&directory).expect("directory");
         std::fs::write(directory.join("file"), "content").expect("file");
@@ -340,8 +417,24 @@ fn restoring_the_owner_access_keeps_group_and_other_bits_and_leaves_a_link_s_tar
     std::fs::set_permissions(&inside, std::fs::Permissions::from_mode(0o540)).expect("mode");
     std::os::unix::fs::symlink(&outside, root.join("to-outside")).expect("link");
     restore_owner_access(root.as_path());
-    assert_eq!(std::fs::metadata(&inside).expect("inside").permissions().mode() & 0o7777, 0o740, "only this user's read, write and search were added");
-    assert_eq!(std::fs::metadata(&outside).expect("outside").permissions().mode() & 0o7777, 0o500, "a directory outside the tree a link names keeps its mode");
+    assert_eq!(
+        std::fs::metadata(&inside)
+            .expect("inside")
+            .permissions()
+            .mode()
+            & 0o7777,
+        0o740,
+        "only this user's read, write and search were added"
+    );
+    assert_eq!(
+        std::fs::metadata(&outside)
+            .expect("outside")
+            .permissions()
+            .mode()
+            & 0o7777,
+        0o500,
+        "a directory outside the tree a link names keeps its mode"
+    );
 }
 
 /// What:
@@ -362,7 +455,11 @@ fn restoring_the_owner_access_keeps_group_and_other_bits_and_leaves_a_link_s_tar
 fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is_there() {
     let prefix: &str = "zc";
     let longest_place: PathBuf = runtime_directory_parent(prefix, usize::MAX);
-    assert!(longest_place.is_dir(), "the longest place is made: {}", longest_place.display());
+    assert!(
+        longest_place.is_dir(),
+        "the longest place is made: {}",
+        longest_place.display()
+    );
     let room_it_takes: usize = longest_place.as_os_str().len();
     let exact: PathBuf = runtime_directory_parent(prefix, room_it_takes);
     assert_eq!(
@@ -373,7 +470,11 @@ fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is
     );
     let one_byte_less: usize = room_it_takes - 1;
     let shorter: PathBuf = runtime_directory_parent(prefix, one_byte_less);
-    assert!(shorter.is_dir(), "the shorter place is made: {}", shorter.display());
+    assert!(
+        shorter.is_dir(),
+        "the shorter place is made: {}",
+        shorter.display()
+    );
     assert!(
         shorter.as_os_str().len() < room_it_takes,
         "one byte less of room than {} has moves the runtime directory to {}, which is not shorter",
@@ -382,7 +483,11 @@ fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is
     );
     // The folder it makes stays inside the room it is asked for, which is the contract both calls rest on: the first
     // fills its limit to the byte, and the second is held against its own limit here.
-    assert_eq!(exact.as_os_str().len(), room_it_takes, "the folder that fits a limit of {room_it_takes} bytes is that long");
+    assert_eq!(
+        exact.as_os_str().len(),
+        room_it_takes,
+        "the folder that fits a limit of {room_it_takes} bytes is that long"
+    );
     assert!(
         shorter.as_os_str().len() <= one_byte_less,
         "a limit of {one_byte_less} bytes is met by {}, which is {} bytes",
@@ -417,20 +522,45 @@ fn a_runtime_directory_is_named_for_its_tag_or_for_a_digest_of_it() {
     ] {
         let length: usize = parent.as_os_str().len() + 1 + room;
         let runtime: PathBuf = runtime_directory_under(parent.as_path(), length, tag);
-        assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
-        assert_eq!(runtime.parent(), Some(parent.as_path()), "the directory stands in the folder it was given");
+        assert_eq!(
+            runtime.as_os_str().len(),
+            length,
+            "the directory is exactly as long as the control asks"
+        );
+        assert_eq!(
+            runtime.parent(),
+            Some(parent.as_path()),
+            "the directory stands in the folder it was given"
+        );
         let name: &OsStr = runtime.file_name().expect("a runtime directory has a name");
-        assert_eq!(name.len(), room, "the name fills the room the folder was asked for: {}", runtime.display());
+        assert_eq!(
+            name.len(),
+            room,
+            "the name fills the room the folder was asked for: {}",
+            runtime.display()
+        );
         if the_room_holds_the_tag {
-            assert_eq!(name, OsStr::new(tag), "a room of {room} bytes holds the tag, so the name is the tag's own bytes");
+            assert_eq!(
+                name,
+                OsStr::new(tag),
+                "a room of {room} bytes holds the tag, so the name is the tag's own bytes"
+            );
         } else {
             let digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
             assert_eq!(
                 name.to_string_lossy().into_owned(),
-                String::from(digest.get(..room).expect("the digest is longer than the room")),
+                String::from(
+                    digest
+                        .get(..room)
+                        .expect("the digest is longer than the room")
+                ),
                 "a room of {room} bytes does not hold the tag, so the name is the leading bytes of its digest"
             );
-            assert_ne!(name, OsStr::new(tag), "a room that does not hold the tag does not name the directory for it");
+            assert_ne!(
+                name,
+                OsStr::new(tag),
+                "a room that does not hold the tag does not name the directory for it"
+            );
         }
     }
     std::fs::remove_dir_all(parent.as_path()).expect("the folder this control made");
@@ -450,7 +580,8 @@ fn a_runtime_directory_with_no_room_for_its_name_is_refused() {
     let parent: PathBuf = runtime_directory_parent("ze", usize::MAX);
     let tag: &str = "longest";
     let room: usize = room_a_runtime_name_needs(tag) - 1;
-    let _runtime: PathBuf = runtime_directory_under(parent.as_path(), parent.as_os_str().len() + 1 + room, tag);
+    let _runtime: PathBuf =
+        runtime_directory_under(parent.as_path(), parent.as_os_str().len() + 1 + room, tag);
 }
 
 /// What:
@@ -460,7 +591,9 @@ fn a_runtime_directory_with_no_room_for_its_name_is_refused() {
 ///   The refusal is what a person reads when a control cannot run where they are,
 /// and it has to say what to change rather than fail as a name that does not fit its own length.
 #[test]
-#[should_panic(expected = "no folder this account offers leaves room for a runtime directory's name")]
+#[should_panic(
+    expected = "no folder this account offers leaves room for a runtime directory's name"
+)]
 fn a_folder_with_room_for_no_runtime_directory_name_is_refused_naming_every_place() {
     // The shortest path a folder could have is the root, so nothing this account offers is this short.
     let no_place_is_this_short: usize = Path::new("/").as_os_str().len();
@@ -490,13 +623,20 @@ fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
         let longest: PathBuf = runtime_directory_parent("zg", usize::MAX);
         made.push(longest.clone());
         // One byte less of room than the longest place takes moves the folder to the next place this account offers.
-        made.push(runtime_directory_parent("zg", longest.as_os_str().len() - 1));
+        made.push(runtime_directory_parent(
+            "zg",
+            longest.as_os_str().len() - 1,
+        ));
         sender.send(made).expect("the folders this thread made");
     })
     .join()
     .expect("the thread ends");
     for folder in receiver.try_iter().flatten() {
-        assert!(!folder.exists(), "{} was left behind in a place this machine shares", folder.display());
+        assert!(
+            !folder.exists(),
+            "{} was left behind in a place this machine shares",
+            folder.display()
+        );
     }
 }
 
@@ -529,7 +669,10 @@ const PARENT_DEATH_PATIENCE: std::time::Duration = std::time::Duration::from_sec
 /// ```ts
 /// const process = spawnOwned(binary, ['--exact', thisTest], { env: { VARIABLE: root } })
 /// ```
-fn spawn_a_waiting_process(variable: &str, root: &std::path::Path) -> Child {
+fn spawn_a_waiting_process(
+    variable: &str,
+    root: &std::path::Path,
+) -> Child {
     // The waiting process answers nothing the parent reads: it records its own child through the fixture directory.
     let environment: [(&str, &std::ffi::OsStr); 1] = [(variable, root.as_os_str())];
     return crate::child_test_process::started(crate::child_test_process::ChildTest {
@@ -549,7 +692,12 @@ fn running(pid: i32) -> bool {
     let stat: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
     // The state is the third field, after the number and the name the parentheses hold; `Z` is a process that has ended,
     //  and `X` one the kernel is taking down.
-    let state: &str = stat.rsplit_once(") ").map_or("", |(_name, rest)| return rest).split(' ').next().unwrap_or("");
+    let state: &str = stat
+        .rsplit_once(") ")
+        .map_or("", |(_name, rest)| return rest)
+        .split(' ')
+        .next()
+        .unwrap_or("");
     return !matches!(state, "" | "Z" | "X");
 }
 
@@ -578,18 +726,27 @@ fn a_child_dies_with_the_test_process_that_started_it() {
         std::thread::sleep(WAITING_PATIENCE);
         return;
     }
-    if let Some(directory) = crate::helper_process_test_support::helper_directory(PARENT_DEATH_CHILD) {
-        let environment: [(&str, &std::ffi::OsStr); 1] = [(PARENT_DEATH_GRANDCHILD, directory.as_os_str())];
+    if let Some(directory) =
+        crate::helper_process_test_support::helper_directory(PARENT_DEATH_CHILD)
+    {
+        let environment: [(&str, &std::ffi::OsStr); 1] =
+            [(PARENT_DEATH_GRANDCHILD, directory.as_os_str())];
         // The middle is killed outright, so this child is never waited on: the control is that it goes without one.
-        #[allow(clippy::zombie_processes, reason = "the control ends the middle with SIGKILL, so its child is never reaped by it")]
-        let child: Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
-            exact_test: "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it",
-            environment: environment.as_slice(),
-            standard_output: std::process::Stdio::null(),
-            standard_error: std::process::Stdio::null(),
-            ..crate::child_test_process::ChildTest::default()
-        });
-        std::fs::write(directory.join("child"), child.id().to_string()).expect("the child's number");
+        #[allow(
+            clippy::zombie_processes,
+            reason = "the control ends the middle with SIGKILL, so its child is never reaped by it"
+        )]
+        let child: Child = crate::child_test_process::started(
+            crate::child_test_process::ChildTest {
+                exact_test: "testing::test_support::tests::a_child_dies_with_the_test_process_that_started_it",
+                environment: environment.as_slice(),
+                standard_output: std::process::Stdio::null(),
+                standard_error: std::process::Stdio::null(),
+                ..crate::child_test_process::ChildTest::default()
+            },
+        );
+        std::fs::write(directory.join("child"), child.id().to_string())
+            .expect("the child's number");
         std::thread::sleep(WAITING_PATIENCE);
         return;
     }
@@ -598,19 +755,40 @@ fn a_child_dies_with_the_test_process_that_started_it() {
     let recorded: PathBuf = root.join("child");
     let begun: std::time::Instant = std::time::Instant::now();
     while !recorded.exists() {
-        assert!(begun.elapsed() < PARENT_DEATH_PATIENCE, "the middle process never recorded its child's number");
-        assert!(middle.try_wait().expect("the middle's status").is_none(), "the middle ended before it recorded its child");
+        assert!(
+            begun.elapsed() < PARENT_DEATH_PATIENCE,
+            "the middle process never recorded its child's number"
+        );
+        assert!(
+            middle.try_wait().expect("the middle's status").is_none(),
+            "the middle ended before it recorded its child"
+        );
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    let number: i32 = std::fs::read_to_string(recorded.as_path()).expect("the child's number").trim().parse().expect("a process number");
-    assert!(running(number), "the child runs before the middle is killed");
+    let number: i32 = std::fs::read_to_string(recorded.as_path())
+        .expect("the child's number")
+        .trim()
+        .parse()
+        .expect("a process number");
+    assert!(
+        running(number),
+        "the child runs before the middle is killed"
+    );
     // SAFETY: `kill` takes a process number and a signal and reads no memory; this is the middle process this control started.
-    let killed: libc::c_int = unsafe { libc::kill(libc::pid_t::try_from(middle.id()).expect("a middle pid fits"), libc::SIGKILL) };
+    let killed: libc::c_int = unsafe {
+        libc::kill(
+            libc::pid_t::try_from(middle.id()).expect("a middle pid fits"),
+            libc::SIGKILL,
+        )
+    };
     assert_eq!(killed, 0, "the middle is killed");
     let _status: std::io::Result<std::process::ExitStatus> = middle.wait();
     let watched_from: std::time::Instant = std::time::Instant::now();
     while running(number) {
-        assert!(watched_from.elapsed() < PARENT_DEATH_PATIENCE, "the child {number} outlived the process that started it");
+        assert!(
+            watched_from.elapsed() < PARENT_DEATH_PATIENCE,
+            "the child {number} outlived the process that started it"
+        );
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     remove(root.as_path());

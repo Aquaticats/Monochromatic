@@ -7,16 +7,30 @@
 
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A shell child that sleeps `seconds` and exits with `code`.
 /// A shell is the one program every host has.
 /// The child is started with `test_support::spawn_owned`,
 /// so the test thread's fixtures end it however the test ends.
-fn sleeper(seconds: &str, code: i32) -> std::process::Child {
+fn sleeper(
+    seconds: &str,
+    code: i32,
+) -> std::process::Child {
     let mut command: Command = Command::new("/bin/sh");
-    command.arg("-c").arg(format!("sleep {seconds}; exit {code}")).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .arg("-c")
+        .arg(format!("sleep {seconds}; exit {code}"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return crate::test_support::spawn_owned(&mut command).expect("the shell starts");
 }
 
@@ -27,7 +41,11 @@ fn exists(pid: u32) -> bool {
 
 /// Every way the helper can fail after the start,
 /// plus none.
-const ALL_FAILURES: [InjectedFailure; 3] = [InjectedFailure::None, InjectedFailure::PidfdOpen, InjectedFailure::Registration];
+const ALL_FAILURES: [InjectedFailure; 3] = [
+    InjectedFailure::None,
+    InjectedFailure::PidfdOpen,
+    InjectedFailure::Registration,
+];
 
 /// A child that exits is awaited and its status comes back,
 /// whatever failed after its start.
@@ -54,10 +72,16 @@ fn a_failure_after_the_start_leaves_the_live_child_owned_and_reapable() {
         let child = sleeper("5", 0);
         let pid: u32 = child.id();
         let mut owned: OwnedChild = adopt_with(child, failure);
-        assert!(exists(pid), "{failure:?}: the child must be alive and owned");
+        assert!(
+            exists(pid),
+            "{failure:?}: the child must be alive and owned"
+        );
         assert_eq!(owned.id(), pid);
         owned.end_and_reap();
-        assert!(!exists(pid), "{failure:?}: the child must be reaped, not left a zombie or running");
+        assert!(
+            !exists(pid),
+            "{failure:?}: the child must be reaped, not left a zombie or running"
+        );
     }
 }
 
@@ -88,13 +112,18 @@ fn a_handed_over_child_is_not_ended_by_the_helper() {
 fn many_children_are_awaited_at_once_without_a_thread_each() {
     let started: Instant = Instant::now();
     let count: usize = 8;
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a current-thread runtime");
     let local = tokio::task::LocalSet::new();
     let statuses: Vec<std::process::ExitStatus> = runtime.block_on(local.run_until(async {
         let mut handles = Vec::new();
         for _ in 0..count {
             let mut owned: OwnedChild = adopt_with(sleeper("0.4", 0), InjectedFailure::None);
-            handles.push(tokio::task::spawn_local(async move { return owned.wait().await; }));
+            handles.push(tokio::task::spawn_local(async move {
+                return owned.wait().await;
+            }));
         }
         let mut done = Vec::new();
         for handle in handles {
@@ -103,5 +132,9 @@ fn many_children_are_awaited_at_once_without_a_thread_each() {
         return done;
     }));
     assert_eq!(statuses.len(), count);
-    assert!(started.elapsed() < Duration::from_millis(400) * 4, "the waits ran one after another: {:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_millis(400) * 4,
+        "the waits ran one after another: {:?}",
+        started.elapsed()
+    );
 }

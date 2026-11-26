@@ -23,34 +23,73 @@
 
 /// Import the module under test.
 use super::{
-    DIRECT_FIX_CYCLE_MESSAGE, DirectFixPasses, NO_WORKTREE_MESSAGE, convergence_pass, finish_fix,
-    fix_failure, run_direct_fix, settled_fix,
+    DIRECT_FIX_CYCLE_MESSAGE,
+    DirectFixPasses,
+    NO_WORKTREE_MESSAGE,
+    convergence_pass,
+    finish_fix,
+    fix_failure,
+    run_direct_fix,
+    settled_fix,
 };
 use crate::candidate_object::CandidateMode;
 use crate::candidate_prediction::CandidateRequest;
 use crate::command_test_support::os_arguments;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
-/// The event form of a pathname.
-use crate::event_path::EventPath;
-use crate::policy_checks::{ShippedChecks, shipped_checks};
-use crate::policy_content::{Correction, LifecycleContent};
-use crate::policy_convergence::{
-    Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass,
-};
-use crate::policy_engine::{StageEnd, StageRequest, Unavailable, pass_exit_code};
-use crate::policy_events::{FindingEvent, PolicyEvent};
-use crate::policy_pass::PassResult;
-use crate::policy_registry::{PolicyId, Severity};
 /// The tool-cache exemption entry these checks are built with.
 use crate::effective_target::ToolCacheDirectory;
-use crate::policy_test_support::{ScriptedFacts, scripted_facts, with_severity};
+/// The event form of a pathname.
+use crate::event_path::EventPath;
+use crate::policy_checks::{
+    ShippedChecks,
+    shipped_checks,
+};
+use crate::policy_content::{
+    Correction,
+    LifecycleContent,
+};
+use crate::policy_convergence::{
+    Convergence,
+    FIX_PASS_LIMIT_MESSAGE,
+    FixPasses,
+    PassResult as ConvergencePass,
+};
+use crate::policy_engine::{
+    StageEnd,
+    StageRequest,
+    Unavailable,
+    pass_exit_code,
+};
+use crate::policy_events::{
+    FindingEvent,
+    PolicyEvent,
+};
+use crate::policy_pass::PassResult;
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    scripted_facts,
+    with_severity,
+};
 use crate::policy_trigger::Trigger;
-use crate::test_support::{executable, fixture, git, remove, repository};
+use crate::test_support::{
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::wrapper_controls::no_controls;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// A direct-fix request with these settings.
@@ -79,7 +118,10 @@ fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
 }
 
 /// The fix summary of `passes` changed passes over these paths.
-fn summary(passes: u64, paths: &[&str]) -> PolicyEvent {
+fn summary(
+    passes: u64,
+    paths: &[&str],
+) -> PolicyEvent {
     let mut changed_paths: Vec<EventPath> = Vec::new();
     for path in paths {
         changed_paths.push(EventPath::from_git_bytes(path.as_bytes()));
@@ -93,7 +135,10 @@ fn summary(passes: u64, paths: &[&str]) -> PolicyEvent {
 
 /// A pass result with these events and ending,
 ///  and no arguments.
-fn pass_with(events: Vec<PolicyEvent>, end: StageEnd) -> PassResult {
+fn pass_with(
+    events: Vec<PolicyEvent>,
+    end: StageEnd,
+) -> PassResult {
     return PassResult {
         arguments: Vec::new(),
         events,
@@ -319,7 +364,7 @@ fn a_fix_that_keeps_a_journal_still_installs_and_says_where_it_is() {
         }));
     });
     let result: PassResult = run_direct_fix(&request, &mut checks, Some(repo.as_path()));
-    crate::direct_fix_install::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    crate::direct_fix_install::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     assert_eq!(result.end, StageEnd::Completed);
     assert_eq!(
         std::fs::read(&destination).expect("a"),
@@ -338,7 +383,11 @@ fn a_fix_that_keeps_a_journal_still_installs_and_says_where_it_is() {
         ),
         "{result:?}"
     );
-    let PolicyEvent::EngineFailure { message, .. } = notice else {
+    let PolicyEvent::EngineFailure {
+        message,
+        ..
+    } = notice
+    else {
         unreachable!("just matched");
     };
     assert!(message.contains("cli-git-direct-fix-"), "{message}");
@@ -424,7 +473,12 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
     let mut arguments_kept: PassResult = warned.clone();
     arguments_kept.arguments = os_arguments(&["kept"]);
     assert_eq!(
-        finish_fix(Convergence::FixCycle, arguments_kept.clone(), &mut checks, None),
+        finish_fix(
+            Convergence::FixCycle,
+            arguments_kept.clone(),
+            &mut checks,
+            None
+        ),
         PassResult {
             arguments: os_arguments(&["kept"]),
             events: vec![PolicyEvent::EngineFailure {
@@ -449,7 +503,9 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
     // Nothing corrected: the pass as it is, with no summary and no worktree needed.
     assert_eq!(
         finish_fix(
-            Convergence::Settled { changed_passes: 0 },
+            Convergence::Settled {
+                changed_passes: 0
+            },
             warned.clone(),
             &mut checks,
             None
@@ -488,7 +544,9 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
     );
     assert_eq!(
         finish_fix(
-            Convergence::Settled { changed_passes: 1 },
+            Convergence::Settled {
+                changed_passes: 1
+            },
             stopped.clone(),
             &mut corrected,
             None
@@ -591,8 +649,9 @@ fn an_installation_failure_still_names_an_interrupted_fix() {
     let request: StageRequest = fix_request(PolicyConfig::defaults());
     // A dead fix's journal, holding bytes the record does not know.
     let git_dir: PathBuf = repo.join(".git");
-    let kept: crate::direct_fix_install_writes::Kept =
-        crate::direct_fix_install_writes::Kept::of(&std::fs::metadata(repo.join("ok.txt")).expect("ok"));
+    let kept: crate::direct_fix_install_writes::Kept = crate::direct_fix_install_writes::Kept::of(
+        &std::fs::metadata(repo.join("ok.txt")).expect("ok"),
+    );
     let journal: PathBuf = crate::direct_fix_install_journal::open_journal(
         git_dir.as_path(),
         repo.join("ok.txt").as_path(),
@@ -619,7 +678,10 @@ fn an_installation_failure_still_names_an_interrupted_fix() {
     assert!(
         failed.events.iter().any(|event| {
             return match event {
-                PolicyEvent::EngineFailure { message, .. } => {
+                PolicyEvent::EngineFailure {
+                    message,
+                    ..
+                } => {
                     return message.contains("cli-git-direct-fix-");
                 }
                 _other => false,

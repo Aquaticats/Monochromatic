@@ -1,7 +1,11 @@
 //! Controls for the scan of processes that use a directory or a file.
 
 use super::*;
-use crate::test_support::{fixture, remove, spawn_owned};
+use crate::test_support::{
+    fixture,
+    remove,
+    spawn_owned,
+};
 use std::os::unix::fs::MetadataExt;
 use std::process::Command;
 
@@ -31,9 +35,16 @@ impl Sleeper {
     /// ```ts
     /// spawn('sleep', ['120'], { cwd, stdio: [openSync(file), 'ignore', 'ignore'] })
     /// ```
-    fn start(directory: &Path, held: Option<&Path>) -> Sleeper {
+    fn start(
+        directory: &Path,
+        held: Option<&Path>,
+    ) -> Sleeper {
         let mut command: Command = Command::new("sleep");
-        command.arg("120").current_dir(directory).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        command
+            .arg("120")
+            .current_dir(directory)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
         match held {
             Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
             None => command.stdin(std::process::Stdio::null()),
@@ -62,7 +73,9 @@ impl Drop for Sleeper {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_working_directory_inside_the_directory_is_a_use() {
-    let root: PathBuf = fixture("process-use-cwd").canonicalize().expect("canonical root");
+    let root: PathBuf = fixture("process-use-cwd")
+        .canonicalize()
+        .expect("canonical root");
     let inside: PathBuf = root.join("transaction/hooks");
     std::fs::create_dir_all(&inside).expect("inside");
     let elsewhere: PathBuf = root.join("elsewhere");
@@ -70,11 +83,26 @@ fn a_working_directory_inside_the_directory_is_a_use() {
     let target: PathBuf = root.join("transaction");
     let bystander: Sleeper = Sleeper::start(elsewhere.as_path(), None);
     let before: UseScan = processes_using(&UseTarget::Inside(target.as_path()));
-    assert!(!before.users.iter().any(|user| { return user.pid == bystander.pid(); }), "{before:?}");
+    assert!(
+        !before.users.iter().any(|user| {
+            return user.pid == bystander.pid();
+        }),
+        "{before:?}"
+    );
     let holder: Sleeper = Sleeper::start(inside.as_path(), None);
     let after: UseScan = processes_using(&UseTarget::Inside(target.as_path()));
-    assert!(after.users.iter().any(|user| { return user.pid == holder.pid(); }), "{after:?}");
-    assert!(!after.users.iter().any(|user| { return user.pid == bystander.pid(); }), "{after:?}");
+    assert!(
+        after.users.iter().any(|user| {
+            return user.pid == holder.pid();
+        }),
+        "{after:?}"
+    );
+    assert!(
+        !after.users.iter().any(|user| {
+            return user.pid == bystander.pid();
+        }),
+        "{after:?}"
+    );
     drop(holder);
     drop(bystander);
     remove(root.as_path());
@@ -85,14 +113,34 @@ fn a_working_directory_inside_the_directory_is_a_use() {
 #[cfg(target_os = "linux")]
 #[test]
 fn an_open_descriptor_inside_the_directory_is_a_use() {
-    let root: PathBuf = fixture("process-use-fd").canonicalize().expect("canonical root");
+    let root: PathBuf = fixture("process-use-fd")
+        .canonicalize()
+        .expect("canonical root");
     let target: PathBuf = root.join("transaction");
     std::fs::create_dir_all(&target).expect("transaction");
     std::fs::write(target.join("landing-1.json"), b"{}").expect("record");
-    let holder: Sleeper = Sleeper::start(root.as_path(), Some(target.join("landing-1.json").as_path()));
+    let holder: Sleeper = Sleeper::start(
+        root.as_path(),
+        Some(target.join("landing-1.json").as_path()),
+    );
     let scan: UseScan = processes_using(&UseTarget::Inside(target.as_path()));
-    assert!(scan.users.iter().any(|user| { return user.pid == holder.pid(); }), "{scan:?}");
-    assert_eq!(scan.users.iter().find(|user| { return user.pid == holder.pid(); }).and_then(|user| { return user.command.clone(); }), Some(String::from("sleep")));
+    assert!(
+        scan.users.iter().any(|user| {
+            return user.pid == holder.pid();
+        }),
+        "{scan:?}"
+    );
+    assert_eq!(
+        scan.users
+            .iter()
+            .find(|user| {
+                return user.pid == holder.pid();
+            })
+            .and_then(|user| {
+                return user.command.clone();
+            }),
+        Some(String::from("sleep"))
+    );
     drop(holder);
     remove(root.as_path());
 }
@@ -102,15 +150,26 @@ fn an_open_descriptor_inside_the_directory_is_a_use() {
 #[cfg(target_os = "linux")]
 #[test]
 fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
-    let root: PathBuf = fixture("process-use-identity").canonicalize().expect("canonical root");
+    let root: PathBuf = fixture("process-use-identity")
+        .canonicalize()
+        .expect("canonical root");
     std::fs::write(root.join("index.lock"), b"").expect("lock");
     std::fs::hard_link(root.join("index.lock"), root.join("alias")).expect("alias");
-    let metadata: std::fs::Metadata = std::fs::metadata(root.join("index.lock")).expect("lock metadata");
-    let target: UseTarget = UseTarget::File { device: metadata.dev(), inode: metadata.ino() };
+    let metadata: std::fs::Metadata =
+        std::fs::metadata(root.join("index.lock")).expect("lock metadata");
+    let target: UseTarget = UseTarget::File {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    };
     assert!(processes_using(&target).users.is_empty());
     let holder: Sleeper = Sleeper::start(root.as_path(), Some(root.join("alias").as_path()));
     let scan: UseScan = processes_using(&target);
-    assert!(scan.users.iter().any(|user| { return user.pid == holder.pid(); }), "{scan:?}");
+    assert!(
+        scan.users.iter().any(|user| {
+            return user.pid == holder.pid();
+        }),
+        "{scan:?}"
+    );
     drop(holder);
     remove(root.as_path());
 }
@@ -141,12 +200,20 @@ fn a_descriptor_is_matched_by_device_and_inode() {
     let holder: Sleeper = Sleeper::start(root.as_path(), Some(alias.as_path()));
     let process: PathBuf = PathBuf::from("/proc").join(holder.pid().to_string());
     assert!(
-        descriptor_is_file(process.as_path(), std::ffi::OsStr::new("0"), device, inode).expect("read"),
+        descriptor_is_file(process.as_path(), std::ffi::OsStr::new("0"), device, inode)
+            .expect("read"),
         "the same file is the same file through any of its names"
     );
-    let elsewhere: std::fs::Metadata = std::fs::metadata(&other).expect("the other file's metadata");
+    let elsewhere: std::fs::Metadata =
+        std::fs::metadata(&other).expect("the other file's metadata");
     assert!(
-        !descriptor_is_file(process.as_path(), std::ffi::OsStr::new("0"), elsewhere.dev(), elsewhere.ino()).expect("read"),
+        !descriptor_is_file(
+            process.as_path(),
+            std::ffi::OsStr::new("0"),
+            elsewhere.dev(),
+            elsewhere.ino()
+        )
+        .expect("read"),
         "another file is not the lock, whatever the descriptor is"
     );
     drop(holder);
@@ -158,15 +225,27 @@ fn a_descriptor_is_matched_by_device_and_inode() {
     let table: PathBuf = root.join("table").join(gone_pid.to_string());
     std::fs::create_dir_all(table.join("fd")).expect("the fake descriptor directory");
     std::fs::create_dir_all(table.join("fdinfo")).expect("the fake record directory");
-    std::fs::write(table.join("fdinfo").join("0"), format!("pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t{inode}\n")).expect("a record naming the lock's inode");
+    std::fs::write(
+        table.join("fdinfo").join("0"),
+        format!("pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t{inode}\n"),
+    )
+    .expect("a record naming the lock's inode");
     std::os::unix::fs::symlink(&lock, table.join("fd").join("0")).expect("a link to the lock");
     assert!(
         descriptor_is_file(table.as_path(), std::ffi::OsStr::new("0"), device, inode).is_err(),
         "a process number no process has is never resolved from a link's target"
     );
     // A record that names another inode is not resolved at all.
-    std::fs::write(table.join("fdinfo").join("0"), "pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t2\n").expect("another record");
-    assert!(!descriptor_is_file(table.as_path(), std::ffi::OsStr::new("0"), device, inode).expect("read"), "a record that names another inode is not resolved");
+    std::fs::write(
+        table.join("fdinfo").join("0"),
+        "pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t2\n",
+    )
+    .expect("another record");
+    assert!(
+        !descriptor_is_file(table.as_path(), std::ffi::OsStr::new("0"), device, inode)
+            .expect("read"),
+        "a record that names another inode is not resolved"
+    );
     remove(root.as_path());
 }
 
@@ -178,7 +257,9 @@ fn a_descriptor_is_matched_by_device_and_inode() {
 #[cfg(target_os = "linux")]
 #[test]
 fn two_subvolumes_that_share_an_inode_number_are_two_files() {
-    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("process-use-subvolumes") else { return };
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("process-use-subvolumes") else {
+        return;
+    };
     let first: PathBuf = root.join("sv-a");
     let second: PathBuf = root.join("sv-b");
     crate::fs_btrfs_ioctl::subvolume_create_at(first.as_path()).expect("the first subvolume");
@@ -189,13 +270,37 @@ fn two_subvolumes_that_share_an_inode_number_are_two_files() {
     std::fs::write(&held, b"x").expect("the file the other subvolume holds");
     let lock_metadata: std::fs::Metadata = std::fs::metadata(&lock).expect("lock metadata");
     let held_metadata: std::fs::Metadata = std::fs::metadata(&held).expect("held metadata");
-    assert_eq!(lock_metadata.ino(), held_metadata.ino(), "the two subvolumes number their first file alike");
-    assert_ne!(lock_metadata.dev(), held_metadata.dev(), "and give it a device number of its own");
+    assert_eq!(
+        lock_metadata.ino(),
+        held_metadata.ino(),
+        "the two subvolumes number their first file alike"
+    );
+    assert_ne!(
+        lock_metadata.dev(),
+        held_metadata.dev(),
+        "and give it a device number of its own"
+    );
     let holder: Sleeper = Sleeper::start(root.as_path(), Some(held.as_path()));
-    let own: UseScan = processes_using(&UseTarget::File { device: held_metadata.dev(), inode: held_metadata.ino() });
-    assert!(own.users.iter().any(|user| { return user.pid == holder.pid(); }), "the scan finds the process that holds the file: {own:?}");
-    let lock_users: UseScan = processes_using(&UseTarget::File { device: lock_metadata.dev(), inode: lock_metadata.ino() });
-    assert!(!lock_users.users.iter().any(|user| { return user.pid == holder.pid(); }), "a process holding another subvolume's file is no user of the lock: {lock_users:?}");
+    let own: UseScan = processes_using(&UseTarget::File {
+        device: held_metadata.dev(),
+        inode: held_metadata.ino(),
+    });
+    assert!(
+        own.users.iter().any(|user| {
+            return user.pid == holder.pid();
+        }),
+        "the scan finds the process that holds the file: {own:?}"
+    );
+    let lock_users: UseScan = processes_using(&UseTarget::File {
+        device: lock_metadata.dev(),
+        inode: lock_metadata.ino(),
+    });
+    assert!(
+        !lock_users.users.iter().any(|user| {
+            return user.pid == holder.pid();
+        }),
+        "a process holding another subvolume's file is no user of the lock: {lock_users:?}"
+    );
     drop(holder);
     remove(root.as_path());
 }
@@ -204,11 +309,21 @@ fn two_subvolumes_that_share_an_inode_number_are_two_files() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_scanning_process_is_not_reported() {
-    let root: PathBuf = fixture("process-use-self").canonicalize().expect("canonical root");
+    let root: PathBuf = fixture("process-use-self")
+        .canonicalize()
+        .expect("canonical root");
     let held: std::fs::File = std::fs::File::create(root.join("held")).expect("held");
     let metadata: std::fs::Metadata = held.metadata().expect("metadata");
-    let scan: UseScan = processes_using(&UseTarget::File { device: metadata.dev(), inode: metadata.ino() });
-    assert!(!scan.users.iter().any(|user| { return user.pid == i64::from(std::process::id()); }), "{scan:?}");
+    let scan: UseScan = processes_using(&UseTarget::File {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    });
+    assert!(
+        !scan.users.iter().any(|user| {
+            return user.pid == i64::from(std::process::id());
+        }),
+        "{scan:?}"
+    );
     drop(held);
     remove(root.as_path());
 }
@@ -217,10 +332,19 @@ fn the_scanning_process_is_not_reported() {
 /// not read as empty.
 #[test]
 fn an_unreadable_process_table_is_reported() {
-    let scan: UseScan = processes_using_through(Path::new("/nonexistent-proc-root"), &UseTarget::Inside(Path::new("/")), 1);
+    let scan: UseScan = processes_using_through(
+        Path::new("/nonexistent-proc-root"),
+        &UseTarget::Inside(Path::new("/")),
+        1,
+    );
     assert!(scan.users.is_empty());
     assert!(scan.unreadable.is_empty(), "{scan:?}");
-    assert!(scan.unavailable.as_deref().is_some_and(|reason| { return reason.contains("/nonexistent-proc-root"); }), "{scan:?}");
+    assert!(
+        scan.unavailable.as_deref().is_some_and(|reason| {
+            return reason.contains("/nonexistent-proc-root");
+        }),
+        "{scan:?}"
+    );
 }
 
 /// A descriptor whose link text is not a path is of no file,
@@ -240,17 +364,39 @@ fn a_descriptor_that_is_not_a_file_is_answered_without_its_record() {
     let table: PathBuf = root.join("table").join("4242");
     std::fs::create_dir_all(table.join("fd")).expect("the descriptor directory");
     std::fs::create_dir_all(table.join("fdinfo")).expect("the record directory");
-    std::fs::write(table.join("mountinfo"), "7 1 0:43 / / rw - btrfs none rw\n").expect("a mount table");
-    std::os::unix::fs::symlink("anon_inode:inotify", table.join("fd").join("3")).expect("a kernel anonymous inode's link");
+    std::fs::write(table.join("mountinfo"), "7 1 0:43 / / rw - btrfs none rw\n")
+        .expect("a mount table");
+    std::os::unix::fs::symlink("anon_inode:inotify", table.join("fd").join("3"))
+        .expect("a kernel anonymous inode's link");
     std::fs::create_dir_all(table.join("fdinfo").join("3")).expect("a record no read can open");
     assert!(
-        !descriptor_is_file(table.as_path(), std::ffi::OsStr::new("3"), metadata.dev(), metadata.ino()).expect("a descriptor that is no file is answered, not refused"),
+        !descriptor_is_file(
+            table.as_path(),
+            std::ffi::OsStr::new("3"),
+            metadata.dev(),
+            metadata.ino()
+        )
+        .expect("a descriptor that is no file is answered, not refused"),
         "a kernel anonymous inode cannot be the lock"
     );
-    std::fs::write(table.join("fdinfo").join("4"), format!("pos:\t0\nflags:\t0100000\nmnt_id:\t7\nino:\t{}\n", metadata.ino())).expect("a record naming the lock");
-    std::os::unix::fs::symlink(&lock, table.join("fd").join("4")).expect("a descriptor of the control's own");
+    std::fs::write(
+        table.join("fdinfo").join("4"),
+        format!(
+            "pos:\t0\nflags:\t0100000\nmnt_id:\t7\nino:\t{}\n",
+            metadata.ino()
+        ),
+    )
+    .expect("a record naming the lock");
+    std::os::unix::fs::symlink(&lock, table.join("fd").join("4"))
+        .expect("a descriptor of the control's own");
     assert!(
-        descriptor_is_file(table.as_path(), std::ffi::OsStr::new("4"), metadata.dev(), metadata.ino()).expect("the file is read"),
+        descriptor_is_file(
+            table.as_path(),
+            std::ffi::OsStr::new("4"),
+            metadata.dev(),
+            metadata.ino()
+        )
+        .expect("the file is read"),
         "a descriptor whose text is a path is still matched by its record and its file"
     );
     remove(root.as_path());
@@ -270,15 +416,22 @@ fn a_mounted_scan_reads_a_pipe_and_skips_a_kernel_anonymous_inode() {
     let mount: u64 = 9;
     let inode: u64 = 42;
     std::os::unix::fs::symlink("pipe:[42]", table.join("fd").join("5")).expect("a pipe's link");
-    std::fs::write(table.join("fdinfo").join("5"), format!("pos:\t0\nflags:\t00\nmnt_id:\t{mount}\nino:\t{inode}\n")).expect("the pipe's record");
+    std::fs::write(
+        table.join("fdinfo").join("5"),
+        format!("pos:\t0\nflags:\t00\nmnt_id:\t{mount}\nino:\t{inode}\n"),
+    )
+    .expect("the pipe's record");
     assert!(
-        mounted_descriptor_is_file(table.as_path(), std::ffi::OsStr::new("5"), mount, inode).expect("a pipe is read"),
+        mounted_descriptor_is_file(table.as_path(), std::ffi::OsStr::new("5"), mount, inode)
+            .expect("a pipe is read"),
         "a descriptor of the pipe is the pipe"
     );
-    std::os::unix::fs::symlink("anon_inode:inotify", table.join("fd").join("6")).expect("a kernel anonymous inode's link");
+    std::os::unix::fs::symlink("anon_inode:inotify", table.join("fd").join("6"))
+        .expect("a kernel anonymous inode's link");
     std::fs::create_dir_all(table.join("fdinfo").join("6")).expect("a record no read can open");
     assert!(
-        !mounted_descriptor_is_file(table.as_path(), std::ffi::OsStr::new("6"), mount, inode).expect("a kernel anonymous inode is answered, not refused"),
+        !mounted_descriptor_is_file(table.as_path(), std::ffi::OsStr::new("6"), mount, inode)
+            .expect("a kernel anonymous inode is answered, not refused"),
         "a kernel anonymous inode is not a pipe"
     );
     remove(root.as_path());
@@ -295,11 +448,20 @@ fn a_record_past_the_bound_is_a_file_that_may_be_held() {
     let table: PathBuf = root.join("table").join("4242");
     std::fs::create_dir_all(table.join("fd")).expect("the descriptor directory");
     std::fs::create_dir_all(table.join("fdinfo")).expect("the record directory");
-    std::os::unix::fs::symlink(&lock, table.join("fd").join("3")).expect("a descriptor of the control's own");
+    std::os::unix::fs::symlink(&lock, table.join("fd").join("3"))
+        .expect("a descriptor of the control's own");
     let head: String = format!("pos:\t0\nmnt_id:\t7\nino:\t{}\n", metadata.ino());
-    let filler: String = "x".repeat(crate::descriptor_record::RECORD_BYTES_AT_MOST - head.len() + 1);
-    std::fs::write(table.join("fdinfo").join("3"), format!("{head}{filler}\n")).expect("a record past the bound");
-    match descriptor_is_file_with(table.as_path(), std::ffi::OsStr::new("3"), metadata.dev(), metadata.ino(), read_the_link) {
+    let filler: String =
+        "x".repeat(crate::descriptor_record::RECORD_BYTES_AT_MOST - head.len() + 1);
+    std::fs::write(table.join("fdinfo").join("3"), format!("{head}{filler}\n"))
+        .expect("a record past the bound");
+    match descriptor_is_file_with(
+        table.as_path(),
+        std::ffi::OsStr::new("3"),
+        metadata.dev(),
+        metadata.ino(),
+        read_the_link,
+    ) {
         Err(Unread::File(reason)) => assert!(
             reason.contains(&crate::descriptor_record::RECORD_BYTES_AT_MOST.to_string()),
             "the reason says how long the scan reads: {reason}"
@@ -312,10 +474,16 @@ fn a_record_past_the_bound_is_a_file_that_may_be_held() {
 /// The reader of a descriptor's open file that a control uses for its own `/proc`:
 /// the file its link names,
 /// which is what a directory of links can say and what no judgement reads.
-fn read_the_link(process: &Path, fd: &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile> {
+fn read_the_link(
+    process: &Path,
+    fd: &std::ffi::OsStr,
+) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile> {
     use std::os::unix::fs::MetadataExt as _;
     let opened: std::fs::Metadata = std::fs::metadata(process.join("fd").join(fd))?;
-    return Ok(crate::open_file_of_a_descriptor::OpenedFile { device: opened.dev(), inode: opened.ino() });
+    return Ok(crate::open_file_of_a_descriptor::OpenedFile {
+        device: opened.dev(),
+        inode: opened.ino(),
+    });
 }
 
 /// A scan that reached the moment it was given says it did not finish,
@@ -329,11 +497,29 @@ fn a_scan_that_reached_its_moment_says_it_did_not_finish() {
     let process: PathBuf = root.join("proc").join("4242");
     std::fs::create_dir_all(process.join("fdinfo")).expect("the record directory");
     std::fs::create_dir_all(process.join("fd")).expect("the descriptor directory");
-    let stopped: UseScan = processes_using_until(root.join("proc").as_path(), &UseTarget::Inside(Path::new("/")), 1, Some(std::time::Instant::now()));
+    let stopped: UseScan = processes_using_until(
+        root.join("proc").as_path(),
+        &UseTarget::Inside(Path::new("/")),
+        1,
+        Some(std::time::Instant::now()),
+    );
     assert!(stopped.users.is_empty(), "{stopped:?}");
-    assert!(stopped.unavailable.as_deref().is_some_and(|reason| { return reason.contains("time bound"); }), "{stopped:?}");
-    let whole: UseScan = processes_using_until(root.join("proc").as_path(), &UseTarget::Inside(Path::new("/")), 1, None);
-    assert!(whole.unavailable.is_none(), "a scan with no moment reports the table it walked: {whole:?}");
+    assert!(
+        stopped.unavailable.as_deref().is_some_and(|reason| {
+            return reason.contains("time bound");
+        }),
+        "{stopped:?}"
+    );
+    let whole: UseScan = processes_using_until(
+        root.join("proc").as_path(),
+        &UseTarget::Inside(Path::new("/")),
+        1,
+        None,
+    );
+    assert!(
+        whole.unavailable.is_none(),
+        "a scan with no moment reports the table it walked: {whole:?}"
+    );
     remove(root.as_path());
 }
 
@@ -347,7 +533,8 @@ const HOLD_WATCHES_COUNT: &str = "CLI_GIT_TEST_HOLD_WATCHES_COUNT";
 /// Why:
 ///  A record whose size this control decides needs a descriptor of a live process,
 ///  and the smallest such program is a copy of this test binary running one test of it.
-const HOLD_WATCHES_TEST: &str = "process::process_use::tests::a_process_that_holds_that_many_watches_blocks";
+const HOLD_WATCHES_TEST: &str =
+    "process::process_use::tests::a_process_that_holds_that_many_watches_blocks";
 
 /// What:
 ///  Hold one inotify descriptor with `HOLD_WATCHES_COUNT` watches and block until standard input is closed.
@@ -360,10 +547,16 @@ fn a_process_that_holds_that_many_watches_blocks() {
     let Some(watches) = std::env::var_os(HOLD_WATCHES_ROOT) else {
         return;
     };
-    let count: usize = std::env::var(HOLD_WATCHES_COUNT).expect("a watch count").parse().expect("a number");
+    let count: usize = std::env::var(HOLD_WATCHES_COUNT)
+        .expect("a watch count")
+        .parse()
+        .expect("a number");
     let watching: PathBuf = PathBuf::from(watches);
     let descriptor: i32 = hold_watches(watching.as_path(), count);
-    println!("ready pid={} fd={descriptor} watches={count}", std::process::id());
+    println!(
+        "ready pid={} fd={descriptor} watches={count}",
+        std::process::id()
+    );
     use std::io::Write as _;
     std::io::stdout().flush().expect("the ready line");
     let mut buffer: [u8; 1] = [0; 1];
@@ -388,20 +581,34 @@ const IN_ALL_EVENTS: u32 = 0x0000_0fff;
 ///  each file made when it is missing.
 /// Why:
 ///   The number of watches is what decides the size of the descriptor's record.
-fn hold_watches(root: &Path, count: usize) -> i32 {
+fn hold_watches(
+    root: &Path,
+    count: usize,
+) -> i32 {
     std::fs::create_dir_all(root).expect("the watched tree");
     // SAFETY: `inotify_init1` takes only flags and answers a descriptor or an error.
     let descriptor: i32 = unsafe { libc::inotify_init1(IN_CLOEXEC | IN_NONBLOCK) };
-    assert!(descriptor >= 0, "inotify_init1: {}", std::io::Error::last_os_error());
+    assert!(
+        descriptor >= 0,
+        "inotify_init1: {}",
+        std::io::Error::last_os_error()
+    );
     for number in 0..count {
         let path: PathBuf = root.join(format!("w{number:08}"));
         if !path.exists() {
             std::fs::File::create(&path).expect("a watched file");
         }
-        let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
+        let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())
+            .expect("a path without a zero byte");
         // SAFETY: the descriptor is this process's own, and the name outlives the call.
-        let watch: i32 = unsafe { libc::inotify_add_watch(descriptor, name.as_ptr(), IN_ALL_EVENTS) };
-        assert!(watch >= 0, "inotify_add_watch {}: {}", path.display(), std::io::Error::last_os_error());
+        let watch: i32 =
+            unsafe { libc::inotify_add_watch(descriptor, name.as_ptr(), IN_ALL_EVENTS) };
+        assert!(
+            watch >= 0,
+            "inotify_add_watch {}: {}",
+            path.display(),
+            std::io::Error::last_os_error()
+        );
     }
     return descriptor;
 }
@@ -416,18 +623,31 @@ struct Watches(std::process::Child);
 
 impl Watches {
     /// Start a holder with `count` watches below `root`.
-    fn start(root: &Path, count: usize) -> Watches {
+    fn start(
+        root: &Path,
+        count: usize,
+    ) -> Watches {
         let count_text: String = count.to_string();
-        let environment: [(&str, &std::ffi::OsStr); 2] = [(HOLD_WATCHES_ROOT, root.as_os_str()), (HOLD_WATCHES_COUNT, std::ffi::OsStr::new(count_text.as_str()))];
-        let mut child: std::process::Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
-            exact_test: HOLD_WATCHES_TEST,
-            environment: environment.as_slice(),
-            standard_input: std::process::Stdio::piped(),
-            standard_error: std::process::Stdio::null(),
-            ..crate::child_test_process::ChildTest::default()
-        });
+        let environment: [(&str, &std::ffi::OsStr); 2] = [
+            (HOLD_WATCHES_ROOT, root.as_os_str()),
+            (
+                HOLD_WATCHES_COUNT,
+                std::ffi::OsStr::new(count_text.as_str()),
+            ),
+        ];
+        let mut child: std::process::Child =
+            crate::child_test_process::started(crate::child_test_process::ChildTest {
+                exact_test: HOLD_WATCHES_TEST,
+                environment: environment.as_slice(),
+                standard_input: std::process::Stdio::piped(),
+                standard_error: std::process::Stdio::null(),
+                ..crate::child_test_process::ChildTest::default()
+            });
         let line: String = ready_line(&mut child);
-        assert!(line.contains(&format!("watches={count}")), "the holder says what it holds: {line}");
+        assert!(
+            line.contains(&format!("watches={count}")),
+            "the holder says what it holds: {line}"
+        );
         return Watches(child);
     }
 
@@ -442,7 +662,9 @@ impl Watches {
     ///  A scan is what reads records,
     ///  so this walks the links of the process this control started and never a record of it.
     fn inotify_descriptor(&self) -> u32 {
-        let descriptors: PathBuf = PathBuf::from("/proc").join(self.pid().to_string()).join("fd");
+        let descriptors: PathBuf = PathBuf::from("/proc")
+            .join(self.pid().to_string())
+            .join("fd");
         for entry in std::fs::read_dir(descriptors).expect("the holder's descriptors") {
             let Ok(item) = entry else {
                 continue;
@@ -450,8 +672,16 @@ impl Watches {
             let Ok(text) = std::fs::read_link(item.path()) else {
                 continue;
             };
-            if text.as_os_str().as_encoded_bytes().starts_with(b"anon_inode:") {
-                return item.file_name().to_string_lossy().parse().expect("a descriptor number");
+            if text
+                .as_os_str()
+                .as_encoded_bytes()
+                .starts_with(b"anon_inode:")
+            {
+                return item
+                    .file_name()
+                    .to_string_lossy()
+                    .parse()
+                    .expect("a descriptor number");
             }
         }
         panic!("the holder holds an inotify descriptor");
@@ -502,13 +732,17 @@ const READY_BYTES_AT_MOST: usize = 4096;
 /// Why:
 ///   The scan walks a table and reads records,
 ///  and a table that names one process the control started is a walk that never reads another program's record.
-fn table_of_one(root: &Path, pid: u32) -> PathBuf {
+fn table_of_one(
+    root: &Path,
+    pid: u32,
+) -> PathBuf {
     let table: PathBuf = root.join("proc");
     let process: PathBuf = table.join(pid.to_string());
     std::fs::create_dir_all(process.as_path()).expect("the process's table directory");
     let real: PathBuf = PathBuf::from("/proc").join(pid.to_string());
     for name in ["fd", "fdinfo", "cwd", "comm"] {
-        std::os::unix::fs::symlink(real.join(name), process.join(name)).expect("a link into the kernel's own table");
+        std::os::unix::fs::symlink(real.join(name), process.join(name))
+            .expect("a link into the kernel's own table");
     }
     return table;
 }
@@ -524,7 +758,9 @@ fn table_of_one(root: &Path, pid: u32) -> PathBuf {
 /// which the control then reports rather than asserts.
 fn kernel_charge_now() -> Option<u64> {
     let own: String = std::fs::read_to_string("/proc/self/cgroup").ok()?;
-    let path: &str = own.lines().find_map(|line| { return line.strip_prefix("0::"); })?;
+    let path: &str = own.lines().find_map(|line| {
+        return line.strip_prefix("0::");
+    })?;
     let group: PathBuf = PathBuf::from("/sys/fs/cgroup").join(path.trim_start_matches('/'));
     let stat: String = std::fs::read_to_string(group.join("memory.stat")).ok()?;
     for line in stat.lines() {
@@ -558,9 +794,12 @@ const SAMPLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(2);
 impl KernelSampler {
     /// Start sampling.
     fn start() -> KernelSampler {
-        let running: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-        let most: std::sync::Arc<std::sync::atomic::AtomicU64> = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-        let sampling: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&running);
+        let running: std::sync::Arc<std::sync::atomic::AtomicBool> =
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let most: std::sync::Arc<std::sync::atomic::AtomicU64> =
+            std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let sampling: std::sync::Arc<std::sync::atomic::AtomicBool> =
+            std::sync::Arc::clone(&running);
         let seen: std::sync::Arc<std::sync::atomic::AtomicU64> = std::sync::Arc::clone(&most);
         let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
             while sampling.load(std::sync::atomic::Ordering::Relaxed) {
@@ -570,12 +809,17 @@ impl KernelSampler {
                 std::thread::sleep(SAMPLE_PAUSE);
             }
         });
-        return KernelSampler { running, most, thread: Some(thread) };
+        return KernelSampler {
+            running,
+            most,
+            thread: Some(thread),
+        };
     }
 
     /// Stop sampling and answer the largest charge seen.
     fn stop(mut self) -> u64 {
-        self.running.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         if let Some(thread) = self.thread.take() {
             thread.join().expect("the sampler");
         }
@@ -602,23 +846,49 @@ struct Cost {
 /// Why:
 ///   The direct read is the control that the measurement can see a record's cost at all:
 ///  the scan must not pay it.
-fn cost_of_one_scan(root: &Path, watches: &Watches) -> Cost {
+fn cost_of_one_scan(
+    root: &Path,
+    watches: &Watches,
+) -> Cost {
     let table: PathBuf = table_of_one(root, watches.pid());
-    let record: PathBuf = PathBuf::from("/proc").join(watches.pid().to_string()).join("fdinfo").join(watches.inotify_descriptor().to_string());
+    let record: PathBuf = PathBuf::from("/proc")
+        .join(watches.pid().to_string())
+        .join("fdinfo")
+        .join(watches.inotify_descriptor().to_string());
     let before: u64 = kernel_charge_now().unwrap_or(0);
     let reading: KernelSampler = KernelSampler::start();
-    let text: String = std::fs::read_to_string(record.as_path()).expect("the holder's record, which this control started");
+    let text: String = std::fs::read_to_string(record.as_path())
+        .expect("the holder's record, which this control started");
     let read_kernel: u64 = reading.stop().saturating_sub(before);
-    let target: UseTarget = UseTarget::File { device: 0, inode: 0 };
+    let target: UseTarget = UseTarget::File {
+        device: 0,
+        inode: 0,
+    };
     let scanning_base: u64 = kernel_charge_now().unwrap_or(0);
     let scanning: KernelSampler = KernelSampler::start();
     let began: std::time::Instant = std::time::Instant::now();
-    let scan: UseScan = processes_using_until(table.as_path(), &target, std::process::id(), Some(std::time::Instant::now() + PROCESS_SCAN_CEILING));
+    let scan: UseScan = processes_using_until(
+        table.as_path(),
+        &target,
+        std::process::id(),
+        Some(std::time::Instant::now() + PROCESS_SCAN_CEILING),
+    );
     let scan_time: std::time::Duration = began.elapsed();
     let scan_kernel: u64 = scanning.stop().saturating_sub(scanning_base);
-    assert!(scan.unavailable.is_none(), "the control's table is one process and the scan finishes it: {scan:?}");
-    assert!(scan.users.is_empty(), "no descriptor holds a file of no device and no inode: {scan:?}");
-    return Cost { record_bytes: text.len(), read_kernel, scan_kernel, scan: scan_time };
+    assert!(
+        scan.unavailable.is_none(),
+        "the control's table is one process and the scan finishes it: {scan:?}"
+    );
+    assert!(
+        scan.users.is_empty(),
+        "no descriptor holds a file of no device and no inode: {scan:?}"
+    );
+    return Cost {
+        record_bytes: text.len(),
+        read_kernel,
+        scan_kernel,
+        scan: scan_time,
+    };
 }
 
 /// The small inotify set this control starts with.

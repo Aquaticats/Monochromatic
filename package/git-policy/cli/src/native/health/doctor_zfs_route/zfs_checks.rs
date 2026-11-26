@@ -33,8 +33,19 @@
 //! const outcome = checkDataset(facts); // { kind: 'pass' | 'finding' | 'unknown' }
 //! ```
 
-use super::check_outcome::{Check, CheckOutcome, CheckReport, finding, pass, unknown};
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, PropertyValue, value_of};
+use super::check_outcome::{
+    Check,
+    CheckOutcome,
+    CheckReport,
+    finding,
+    pass,
+    unknown,
+};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
+    CloneObjectFacts,
+    PropertyValue,
+    value_of,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
 use std::path::PathBuf;
 
@@ -56,7 +67,8 @@ pub const NOT_FOUND_ERRNO: i32 = 2;
 
 /// The object-set type a filesystem has,
 /// from the sweep's own reading of the same field.
-pub const FILESYSTEM_OBJECT_SET: u32 = crate::worktree_clone_mount_handler::sweep_dataset_facts::DMU_OBJECT_SET_FILESYSTEM;
+pub const FILESYSTEM_OBJECT_SET: u32 =
+    crate::worktree_clone_mount_handler::sweep_dataset_facts::DMU_OBJECT_SET_FILESYSTEM;
 
 /// The `mountpoint` of a dataset nothing mounts automatically.
 pub const LEGACY_MOUNTPOINT: &str = "legacy";
@@ -68,7 +80,8 @@ pub const CANMOUNT_OFF: u64 = 0;
 pub const FLAG_OFF: u64 = 0;
 
 /// The `keystatus` value that means the key is not loaded.
-pub const KEY_UNAVAILABLE: u64 = crate::worktree_clone_mount_handler::sweep_dataset_facts::KEY_STATUS_UNAVAILABLE;
+pub const KEY_UNAVAILABLE: u64 =
+    crate::worktree_clone_mount_handler::sweep_dataset_facts::KEY_STATUS_UNAVAILABLE;
 
 /// The `encryption` value of a dataset that is not encrypted.
 pub const ENCRYPTION_OFF: &str = "off";
@@ -127,8 +140,12 @@ pub enum Reading<T> {
 pub fn reading_of<T>(read: Result<T, ReadFailure>) -> Reading<T> {
     return match read {
         Ok(value) => Reading::Read(value),
-        Err(failure) if failure.errno == Some(NOT_FOUND_ERRNO) => Reading::Missing { why: failure.said },
-        Err(failure) => Reading::Unreadable { why: failure.said },
+        Err(failure) if failure.errno == Some(NOT_FOUND_ERRNO) => Reading::Missing {
+            why: failure.said,
+        },
+        Err(failure) => Reading::Unreadable {
+            why: failure.said,
+        },
     };
 }
 
@@ -202,9 +219,23 @@ pub fn check_device(facts: &DeviceFacts) -> CheckOutcome {
     let path: String = facts.path.display().to_string();
     return match &facts.state {
         DeviceState::Opens => pass(format!("{path} is there and this account opened it")),
-        DeviceState::Absent => finding("device", format!("{path} is not there, so no pool read can run on this machine")),
-        DeviceState::Denied { why } => finding("open", format!("{path} is there and this account's open refused ({why}); the route needs the account to open it, not only root")),
-        DeviceState::Unreadable { why } => unknown(format!("{path} could not be looked at ({why}), so its presence and the account's open are unproved")),
+        DeviceState::Absent => finding(
+            "device",
+            format!("{path} is not there, so no pool read can run on this machine"),
+        ),
+        DeviceState::Denied {
+            why,
+        } => finding(
+            "open",
+            format!(
+                "{path} is there and this account's open refused ({why}); the route needs the account to open it, not only root"
+            ),
+        ),
+        DeviceState::Unreadable {
+            why,
+        } => unknown(format!(
+            "{path} could not be looked at ({why}), so its presence and the account's open are unproved"
+        )),
     };
 }
 
@@ -265,12 +296,33 @@ pub enum AbiFacts {
 /// ```
 pub fn check_abi(facts: &AbiFacts) -> CheckOutcome {
     return match facts {
-        AbiFacts::Compatible { module, details } => {
-            let release: String = module.as_ref().map_or(String::from("no release text"), |text| return format!("release {text}"));
-            pass(format!("the loaded module's layout matches this build's request contract ({release}; {})", details.join(", ")))
+        AbiFacts::Compatible {
+            module,
+            details,
+        } => {
+            let release: String = module
+                .as_ref()
+                .map_or(String::from("no release text"), |text| {
+                    return format!("release {text}");
+                });
+            pass(format!(
+                "the loaded module's layout matches this build's request contract ({release}; {})",
+                details.join(", ")
+            ))
         }
-        AbiFacts::Refused { words } => finding("module-layout", format!("{words}; every raw request stays disabled, reads included, and no flag or environment turns this into a pass")),
-        AbiFacts::Unreadable { why } => unknown(format!("the layout gate ran no comparison ({why}), so the module's declaration is unproved")),
+        AbiFacts::Refused {
+            words,
+        } => finding(
+            "module-layout",
+            format!(
+                "{words}; every raw request stays disabled, reads included, and no flag or environment turns this into a pass"
+            ),
+        ),
+        AbiFacts::Unreadable {
+            why,
+        } => unknown(format!(
+            "the layout gate ran no comparison ({why}), so the module's declaration is unproved"
+        )),
     };
 }
 
@@ -314,8 +366,19 @@ pub fn check_pool(facts: &PoolFacts) -> CheckOutcome {
     let pool: &str = facts.pool.as_str();
     return match &facts.reading {
         Reading::Read(guid) => pass(format!("pool {pool} answers with GUID {guid}")),
-        Reading::Missing { why } => finding("pool", format!("pool {pool} is not there ({why}); import it or correct the checkout dataset's name")),
-        Reading::Unreadable { why } => unknown(format!("pool {pool} could not be read ({why}), so its presence is unproved")),
+        Reading::Missing {
+            why,
+        } => finding(
+            "pool",
+            format!(
+                "pool {pool} is not there ({why}); import it or correct the checkout dataset's name"
+            ),
+        ),
+        Reading::Unreadable {
+            why,
+        } => unknown(format!(
+            "pool {pool} could not be read ({why}), so its presence is unproved"
+        )),
     };
 }
 
@@ -381,7 +444,9 @@ impl DatasetFacts {
     /// The check this dataset's facts answer.
     pub fn check(&self) -> Check {
         return match self.role {
-            DatasetRole::Checkout { .. } => Check::CheckoutDataset,
+            DatasetRole::Checkout {
+                ..
+            } => Check::CheckoutDataset,
             DatasetRole::Container => Check::ContainerDataset,
             DatasetRole::Clone => Check::CloneProperties,
         };
@@ -401,19 +466,33 @@ impl DatasetFacts {
 /// ```ts
 /// const failure = property_failure(role, facts); // { field, detail } | undefined
 /// ```
-fn property_failure(role: &DatasetRole, facts: &CloneObjectFacts) -> Option<(String, String)> {
+fn property_failure(
+    role: &DatasetRole,
+    facts: &CloneObjectFacts,
+) -> Option<(String, String)> {
     if facts.is_snapshot || facts.object_type != FILESYSTEM_OBJECT_SET {
         return Some((
             String::from("object-type"),
-            format!("`{}` is not a filesystem (type {}; snapshot: {}), and this route acts on filesystems only", facts.name, facts.object_type, facts.is_snapshot),
+            format!(
+                "`{}` is not a filesystem (type {}; snapshot: {}), and this route acts on filesystems only",
+                facts.name, facts.object_type, facts.is_snapshot
+            ),
         ));
     }
     match role {
-        DatasetRole::Checkout { mount_point } => {
+        DatasetRole::Checkout {
+            mount_point,
+        } => {
             let expected: String = mount_point.display().to_string();
             let found: String = facts.mountpoint.describe("mountpoint");
             if facts.mountpoint.text() != Some(expected.as_str()) {
-                return Some((String::from("mountpoint"), format!("`{}`: {found}, and the checkout is mounted at {expected}", facts.name)));
+                return Some((
+                    String::from("mountpoint"),
+                    format!(
+                        "`{}`: {found}, and the checkout is mounted at {expected}",
+                        facts.name
+                    ),
+                ));
             }
             return None;
         }
@@ -426,11 +505,25 @@ fn property_failure(role: &DatasetRole, facts: &CloneObjectFacts) -> Option<(Str
 /// set-user-ID or device nodes in a mount of it.
 fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     if facts.mountpoint.text() != Some(LEGACY_MOUNTPOINT) {
-        return Some((String::from("mountpoint"), format!("`{}`: {}, and the clone container must be `{LEGACY_MOUNTPOINT}`", facts.name, facts.mountpoint.describe("mountpoint"))));
+        return Some((
+            String::from("mountpoint"),
+            format!(
+                "`{}`: {}, and the clone container must be `{LEGACY_MOUNTPOINT}`",
+                facts.name,
+                facts.mountpoint.describe("mountpoint")
+            ),
+        ));
     }
     let canmount: PropertyValue = value_of(&facts.properties, CANMOUNT_PROPERTY);
     if canmount.number() != Some(CANMOUNT_OFF) {
-        return Some((String::from(CANMOUNT_PROPERTY), format!("`{}`: {}, and the container must be off so no clone mounts automatically", facts.name, canmount.describe(CANMOUNT_PROPERTY))));
+        return Some((
+            String::from(CANMOUNT_PROPERTY),
+            format!(
+                "`{}`: {}, and the container must be off so no clone mounts automatically",
+                facts.name,
+                canmount.describe(CANMOUNT_PROPERTY)
+            ),
+        ));
     }
     return flag_failure(facts);
 }
@@ -439,7 +532,14 @@ fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
 /// set-user-ID or device nodes in its mount.
 fn clone_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     if facts.mountpoint.text() != Some(LEGACY_MOUNTPOINT) {
-        return Some((String::from("mountpoint"), format!("`{}`: {}, and a clone must inherit `{LEGACY_MOUNTPOINT}`", facts.name, facts.mountpoint.describe("mountpoint"))));
+        return Some((
+            String::from("mountpoint"),
+            format!(
+                "`{}`: {}, and a clone must inherit `{LEGACY_MOUNTPOINT}`",
+                facts.name,
+                facts.mountpoint.describe("mountpoint")
+            ),
+        ));
     }
     return flag_failure(facts);
 }
@@ -448,7 +548,14 @@ fn clone_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
 fn flag_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     for (property, found) in [("setuid", &facts.setuid), ("devices", &facts.devices)] {
         if found.number() != Some(FLAG_OFF) {
-            return Some((String::from(property), format!("`{}`: {}, and `{property}` must be off for a mount of this dataset", facts.name, found.describe(property))));
+            return Some((
+                String::from(property),
+                format!(
+                    "`{}`: {}, and `{property}` must be off for a mount of this dataset",
+                    facts.name,
+                    found.describe(property)
+                ),
+            ));
         }
     }
     return None;
@@ -468,13 +575,26 @@ fn flag_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
 /// ```
 pub fn check_dataset(facts: &DatasetFacts) -> CheckOutcome {
     return match &facts.reading {
-        Reading::Unreadable { why } => unknown(format!("`{}` could not be read ({why}), so its properties are unproved", facts.name)),
-        Reading::Missing { why } => finding("dataset", format!("`{}` is not in its pool ({why})", facts.name)),
+        Reading::Unreadable {
+            why,
+        } => unknown(format!(
+            "`{}` could not be read ({why}), so its properties are unproved",
+            facts.name
+        )),
+        Reading::Missing {
+            why,
+        } => finding(
+            "dataset",
+            format!("`{}` is not in its pool ({why})", facts.name),
+        ),
         Reading::Read(read) => {
             let failure: Option<(String, String)> = property_failure(&facts.role, read);
             return match failure {
                 Some((field, detail)) => finding(field, detail),
-                None => pass(format!("`{}` carries the properties its role requires", facts.name)),
+                None => pass(format!(
+                    "`{}` carries the properties its role requires",
+                    facts.name
+                )),
             };
         }
     };
@@ -509,14 +629,29 @@ pub fn check_key(datasets: &[DatasetFacts]) -> CheckOutcome {
         }
         encrypted += 1;
         if facts.key_status.number() == Some(KEY_UNAVAILABLE) {
-            let root: String = facts.encryption_root.text().unwrap_or("an unread encryption root").to_string();
-            return finding("keystatus", format!("`{}`: `keystatus` is unavailable, so the key of {root} is not loaded and the dataset's data cannot be read", facts.name));
+            let root: String = facts
+                .encryption_root
+                .text()
+                .unwrap_or("an unread encryption root")
+                .to_string();
+            return finding(
+                "keystatus",
+                format!(
+                    "`{}`: `keystatus` is unavailable, so the key of {root} is not loaded and the dataset's data cannot be read",
+                    facts.name
+                ),
+            );
         }
     }
     if !unreadable.is_empty() {
-        return unknown(format!("the key state of {} could not be read, so no key answer holds for the route", unreadable.join(", ")));
+        return unknown(format!(
+            "the key state of {} could not be read, so no key answer holds for the route",
+            unreadable.join(", ")
+        ));
     }
-    return pass(format!("every key is loaded ({encrypted} encrypted dataset(s) read)"));
+    return pass(format!(
+        "every key is loaded ({encrypted} encrypted dataset(s) read)"
+    ));
 }
 
 /// What:
@@ -543,7 +678,12 @@ pub fn check_clone_properties(clones: &[DatasetFacts]) -> CheckOutcome {
                     failures.push(failure);
                 }
             }
-            Reading::Missing { .. } | Reading::Unreadable { .. } => unreadable.push(clone.name.clone()),
+            Reading::Missing {
+                ..
+            }
+            | Reading::Unreadable {
+                ..
+            } => unreadable.push(clone.name.clone()),
         }
     }
     if let Some((field, first)) = failures.first() {
@@ -555,9 +695,14 @@ pub fn check_clone_properties(clones: &[DatasetFacts]) -> CheckOutcome {
         return finding(field.clone(), detail);
     }
     if !unreadable.is_empty() {
-        return unknown(format!("the properties of {} could not be read, so no property answer holds for every clone", unreadable.join(", ")));
+        return unknown(format!(
+            "the properties of {} could not be read, so no property answer holds for every clone",
+            unreadable.join(", ")
+        ));
     }
-    return pass(format!("{read} clone(s) carry `mountpoint={LEGACY_MOUNTPOINT}`, `setuid=off` and `devices=off`"));
+    return pass(format!(
+        "{read} clone(s) carry `mountpoint={LEGACY_MOUNTPOINT}`, `setuid=off` and `devices=off`"
+    ));
 }
 
 //endregion

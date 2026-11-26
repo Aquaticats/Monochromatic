@@ -19,10 +19,29 @@
 //! const [write, note, target] = await planWorktreeAwaiting(places, change, entry);
 //! ```
 
-use crate::merge_isolation_carry_layers::{Decision, Layer, MODIFY_DELETE, Outcome, Side, decide, write_layer_bytes};
-use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath};
-use crate::merge_isolation_carry_reads::{file_form_awaiting, raw_bytes_awaiting};
-use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
+use crate::merge_isolation_carry_layers::{
+    Decision,
+    Layer,
+    MODIFY_DELETE,
+    Outcome,
+    Side,
+    decide,
+    write_layer_bytes,
+};
+use crate::merge_isolation_carry_parts::{
+    CapturedFile,
+    CapturedIndex,
+    CapturedPath,
+};
+use crate::merge_isolation_carry_reads::{
+    file_form_awaiting,
+    raw_bytes_awaiting,
+};
+use crate::merge_isolation_carry_writes::{
+    CarryFailure,
+    FileWrite,
+    IndexWrite,
+};
 use crate::merge_isolation_changes::Change;
 use crate::merge_second_pass::GitRunner;
 use crate::transaction_git::GitContext;
@@ -50,7 +69,10 @@ pub(crate) enum Note {
 /// ```ts
 /// const side = (change, after) => after ? (change.existsAfter ? { mode: change.newMode, oid: change.newOid } : null) : (change.existed ? { mode: change.oldMode, oid: change.oldOid } : null);
 /// ```
-pub(crate) fn side(change: &Change, after: bool) -> Option<Side> {
+pub(crate) fn side(
+    change: &Change,
+    after: bool,
+) -> Option<Side> {
     let (held, mode, oid): (bool, &String, &String) = if after {
         (change.exists_after(), &change.new_mode, &change.new_oid)
     } else {
@@ -59,7 +81,10 @@ pub(crate) fn side(change: &Change, after: bool) -> Option<Side> {
     if !held {
         return None;
     }
-    return Some(Side { mode: mode.clone(), oid: oid.clone() });
+    return Some(Side {
+        mode: mode.clone(),
+        oid: oid.clone(),
+    });
 }
 
 /// What:
@@ -99,8 +124,14 @@ pub(crate) async fn plan_worktree_awaiting(
     entry: &CapturedPath,
 ) -> Result<(FileWrite, Note, Option<String>), CarryFailure> {
     let (runner, context, root) = places;
-    let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
-    let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
+    let layer: Layer = Layer {
+        base: side(change, false),
+        ours: entry.worktree.as_ref().map(side_of_file),
+        theirs: side(change, true),
+    };
+    let decision: Decision = decide(runner, entry.path.as_slice(), &layer)
+        .await
+        .map_err(CarryFailure::Failed)?;
     // A write lands where Git's own update left the merge's entry,
     //  so the mode of the file there is the one Git's checkout gave it:
     //  the file system narrows a fresh `0666` or `0777` by the process's umask,
@@ -111,7 +142,11 @@ pub(crate) async fn plan_worktree_awaiting(
     //  A path the merge deletes has nothing of Git's standing where the person's entry goes back,
     //  so their own permission bits are the only ones left to write.
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
-    let the_persons_bits: Option<u32> = if change.exists_after() { None } else { entry.worktree.as_ref().and_then(the_permissions_of) };
+    let the_persons_bits: Option<u32> = if change.exists_after() {
+        None
+    } else {
+        entry.worktree.as_ref().and_then(the_permissions_of)
+    };
     // What:
     //  Whether the person's index holds an entry of their own that the merge's side does not have.
     // Why:
@@ -130,8 +165,18 @@ pub(crate) async fn plan_worktree_awaiting(
         && staged_of_their_own
         && let Some(file) = &entry.worktree
     {
-        let bytes: Vec<u8> = raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?;
-        return Ok((FileWrite::Bytes { bytes, mode, the_persons_bits }, Note::Kept(MODIFY_DELETE), Some(file.blob.clone())));
+        let bytes: Vec<u8> = raw_bytes_awaiting(context, root, file.raw.as_str())
+            .await
+            .map_err(CarryFailure::Failed)?;
+        return Ok((
+            FileWrite::Bytes {
+                bytes,
+                mode,
+                the_persons_bits,
+            },
+            Note::Kept(MODIFY_DELETE),
+            Some(file.blob.clone()),
+        ));
     }
     return match decision.outcome {
         // Nothing of the person's is in this layer, so what Git's own update wrote at the path is what the path ends at,
@@ -142,7 +187,9 @@ pub(crate) async fn plan_worktree_awaiting(
         Outcome::Ours => match &entry.worktree {
             Some(file) => Ok((
                 FileWrite::Bytes {
-                    bytes: raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?,
+                    bytes: raw_bytes_awaiting(context, root, file.raw.as_str())
+                        .await
+                        .map_err(CarryFailure::Failed)?,
                     mode,
                     the_persons_bits,
                 },
@@ -151,15 +198,38 @@ pub(crate) async fn plan_worktree_awaiting(
             )),
             None => Ok((FileWrite::Remove, Note::None, None)),
         },
-        Outcome::Merged { bytes, conflict, .. } => {
-            let oid: String = write_layer_bytes(runner, bytes.as_slice()).await.map_err(CarryFailure::Failed)?;
-            let form: Vec<u8> = file_form_awaiting(context, root, entry.path.as_slice(), oid.as_str()).await.map_err(CarryFailure::Failed)?;
-            return Ok((FileWrite::Bytes { bytes: form, mode, the_persons_bits }, if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
+        Outcome::Merged {
+            bytes,
+            conflict,
+            ..
+        } => {
+            let oid: String = write_layer_bytes(runner, bytes.as_slice())
+                .await
+                .map_err(CarryFailure::Failed)?;
+            let form: Vec<u8> =
+                file_form_awaiting(context, root, entry.path.as_slice(), oid.as_str())
+                    .await
+                    .map_err(CarryFailure::Failed)?;
+            return Ok((
+                FileWrite::Bytes {
+                    bytes: form,
+                    mode,
+                    the_persons_bits,
+                },
+                if conflict {
+                    Note::Conflict
+                } else {
+                    Note::Merged
+                },
+                Some(oid),
+            ));
         }
         Outcome::Kept(why) => match &entry.worktree {
             Some(file) => Ok((
                 FileWrite::Bytes {
-                    bytes: raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?,
+                    bytes: raw_bytes_awaiting(context, root, file.raw.as_str())
+                        .await
+                        .map_err(CarryFailure::Failed)?,
                     mode,
                     the_persons_bits,
                 },
@@ -223,8 +293,14 @@ pub(crate) async fn plan_index_awaiting(
     {
         return Ok(IndexWrite::Entry(person.mode.clone(), person.oid.clone()));
     }
-    let layer: Layer = Layer { base, ours: ours.clone(), theirs: side(change, true) };
-    let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
+    let layer: Layer = Layer {
+        base,
+        ours: ours.clone(),
+        theirs: side(change, true),
+    };
+    let decision: Decision = decide(runner, entry.path.as_slice(), &layer)
+        .await
+        .map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
     return match decision.outcome {
         // A staged mode of the person's stays staged over the merge's own object, as their staged bytes do.
@@ -236,8 +312,13 @@ pub(crate) async fn plan_index_awaiting(
             Some(staged) => Ok(IndexWrite::Entry(staged.mode.clone(), staged.oid.clone())),
             None => Ok(IndexWrite::Remove),
         },
-        Outcome::Merged { bytes, .. } => {
-            let oid: String = write_layer_bytes(runner, bytes.as_slice()).await.map_err(CarryFailure::Failed)?;
+        Outcome::Merged {
+            bytes,
+            ..
+        } => {
+            let oid: String = write_layer_bytes(runner, bytes.as_slice())
+                .await
+                .map_err(CarryFailure::Failed)?;
             Ok(IndexWrite::Entry(mode, oid))
         }
         Outcome::Gone(_) => Ok(IndexWrite::Remove),
@@ -251,7 +332,10 @@ pub(crate) async fn plan_index_awaiting(
 /// const sideOfFile = (file: CapturedFile): Side => ({ mode: file.mode, oid: file.blob });
 /// ```
 pub(crate) fn side_of_file(file: &CapturedFile) -> Side {
-    return Side { mode: file.mode.clone(), oid: file.blob.clone() };
+    return Side {
+        mode: file.mode.clone(),
+        oid: file.blob.clone(),
+    };
 }
 
 /// The side a captured index entry is.
@@ -261,5 +345,8 @@ pub(crate) fn side_of_file(file: &CapturedFile) -> Side {
 /// const sideOfIndex = (staged: CapturedIndex): Side => ({ mode: staged.mode, oid: staged.oid });
 /// ```
 pub(crate) fn side_of_index(staged: &CapturedIndex) -> Side {
-    return Side { mode: staged.mode.clone(), oid: staged.oid.clone() };
+    return Side {
+        mode: staged.mode.clone(),
+        oid: staged.oid.clone(),
+    };
 }

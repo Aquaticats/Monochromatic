@@ -19,8 +19,21 @@ fn entries_are_kept_per_worktree_and_an_unknown_stamp_is_not_kept() {
     memory.record_landed(common.as_path(), first.as_path(), COMMIT, 10);
     memory.record_landed(common.as_path(), first.as_path(), COMMIT, 0);
     memory.record_landed(common.as_path(), first.as_path(), COMMIT, 20);
-    assert_eq!(memory.remembered(common.as_path(), first.as_path()).iter().map(|entry| { return entry.captured; }).collect::<Vec<u64>>(), vec![10, 20]);
-    assert!(memory.remembered(common.as_path(), second.as_path()).is_empty());
+    assert_eq!(
+        memory
+            .remembered(common.as_path(), first.as_path())
+            .iter()
+            .map(|entry| {
+                return entry.captured;
+            })
+            .collect::<Vec<u64>>(),
+        vec![10, 20]
+    );
+    assert!(
+        memory
+            .remembered(common.as_path(), second.as_path())
+            .is_empty()
+    );
 }
 
 /// The oldest entries go first once the bound is passed.
@@ -35,7 +48,12 @@ fn the_oldest_entries_are_forgotten_first() {
     }
     let kept: Vec<LandedCapture> = memory.remembered(common.as_path(), worktree.as_path());
     assert_eq!(kept.len(), REMEMBERED);
-    assert_eq!(kept.first().map(|entry| { return entry.captured; }), Some(extra + 1));
+    assert_eq!(
+        kept.first().map(|entry| {
+            return entry.captured;
+        }),
+        Some(extra + 1)
+    );
 }
 
 /// Two memories are two values:
@@ -49,6 +67,13 @@ fn a_memory_is_a_value_and_not_shared_with_another() {
     let mut first: CaptureMemory = CaptureMemory::default();
     let second: CaptureMemory = CaptureMemory::default();
     first.record_landed(common.as_path(), worktree.as_path(), COMMIT, 1);
-    assert_eq!(first.remembered(common.as_path(), worktree.as_path()).len(), 1);
-    assert!(second.remembered(common.as_path(), worktree.as_path()).is_empty());
+    assert_eq!(
+        first.remembered(common.as_path(), worktree.as_path()).len(),
+        1
+    );
+    assert!(
+        second
+            .remembered(common.as_path(), worktree.as_path())
+            .is_empty()
+    );
 }

@@ -15,15 +15,32 @@
 //! ```
 
 use super::super::*;
-use super::fixtures::{World, dead_owner, deferred_record_of, place, record_of, world};
-use super::readings::{snapshot, the_action_for};
+use super::fixtures::{
+    World,
+    dead_owner,
+    deferred_record_of,
+    place,
+    record_of,
+    world,
+};
+use super::readings::{
+    snapshot,
+    the_action_for,
+};
 use crate::index_holder_wait::IndexWait;
 use crate::merge_isolation_journal::parse_merge_intent;
 use crate::merge_isolation_recovery_index_lock::may_install;
 /// The three facts that decide what a command says about an index it cannot write.
 use crate::merge_isolation_recovery_steps::IndexHeldAt;
-use crate::test_support::{git, git_text, remove};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    git,
+    git_text,
+    remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  A writer that lets another program's `index.lock` go the first time the wait says what it waits for,
@@ -46,7 +63,10 @@ struct ReleasingSink<'a> {
 }
 
 impl std::io::Write for ReleasingSink<'_> {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
         self.said.extend_from_slice(bytes);
         // A wait that has said what it waits for is waiting; the other program lets go at that instant.
         if self.lock.exists() {
@@ -77,18 +97,51 @@ impl std::io::Write for ReleasingSink<'_> {
 #[test]
 fn recovery_waits_for_another_programs_index_lock() {
     let world: World = world("merge-recovery-waits-for-lock");
-    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let _record: PathBuf = record_of(&world, dead_owner("12121212-0000-4000-8000-000000000012"), Some("refs/heads/main"));
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            "-u",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let _record: PathBuf = record_of(
+        &world,
+        dead_owner("12121212-0000-4000-8000-000000000012"),
+        Some("refs/heads/main"),
+    );
     let lock: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(lock.as_path(), b"").expect("another program holds the index");
-    let mut sink: ReleasingSink<'_> = ReleasingSink { lock: lock.as_path(), said: Vec::new() };
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut sink).expect("recovery");
-    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge is finished once the lock is free");
+    let mut sink: ReleasingSink<'_> = ReleasingSink {
+        lock: lock.as_path(),
+        said: Vec::new(),
+    };
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut sink)
+        .expect("recovery");
+    assert_eq!(
+        outcomes[0].action,
+        MergeRecoveryAction::Completed,
+        "the merge is finished once the lock is free"
+    );
     let said: String = String::from_utf8(sink.said).expect("the notices are UTF-8");
-    assert!(said.contains(lock.to_string_lossy().as_ref()), "the lock is named: {said}");
-    assert!(said.contains("waits for the index lock"), "it says what it waits for: {said}");
-    assert!(!lock.exists(), "the lock was the other program's and nothing removed it on the wrapper's side");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    assert!(
+        said.contains(lock.to_string_lossy().as_ref()),
+        "the lock is named: {said}"
+    );
+    assert!(
+        said.contains("waits for the index lock"),
+        "it says what it waits for: {said}"
+    );
+    assert!(
+        !lock.exists(),
+        "the lock was the other program's and nothing removed it on the wrapper's side"
+    );
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.new_oid
+    );
     remove(world.parent.as_path());
 }
 
@@ -115,22 +168,40 @@ fn only_a_lock_that_is_free_or_left_by_a_gone_process_lets_the_merge_be_written(
     let second: std::time::Duration = std::time::Duration::from_secs(1);
     let world: World = world("merge-recovery-may-install");
     assert!(may_install(world.git_dir.as_path(), IndexWait::NotHeld));
-    assert!(may_install(world.git_dir.as_path(), IndexWait::Released(second)));
-    assert!(!may_install(world.git_dir.as_path(), IndexWait::GaveUp(second)));
+    assert!(may_install(
+        world.git_dir.as_path(),
+        IndexWait::Released(second)
+    ));
+    assert!(!may_install(
+        world.git_dir.as_path(),
+        IndexWait::GaveUp(second)
+    ));
 
     // A lock whose PID file names a process that no longer runs is nobody's to release, so it is removed.
     let dead: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(dead.as_path(), b"").expect("a killed Git left its empty lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
-        .expect("the PID file of a process that is gone");
-    assert!(may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)), "a dead Git's lock is cleared and the merge goes on");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()),
+        b"pid 4294967\n",
+    )
+    .expect("the PID file of a process that is gone");
+    assert!(
+        may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)),
+        "a dead Git's lock is cleared and the merge goes on"
+    );
     assert!(!dead.exists(), "the lock of a Git nothing runs was removed");
 
     // A lock a program that lives holds is not the recovery's to remove.
     std::fs::write(dead.as_path(), b"").expect("a program holds the index");
-    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
-        .expect("the PID file names this process, which runs");
-    assert!(!may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)), "a live holder's lock stays");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("the PID file names this process, which runs");
+    assert!(
+        !may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)),
+        "a live holder's lock stays"
+    );
     assert!(dead.exists(), "the live holder's lock is not removed");
     remove(world.parent.as_path());
 }
@@ -157,10 +228,27 @@ fn only_a_lock_that_is_free_or_left_by_a_gone_process_lets_the_merge_be_written(
 fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one() {
     // A merge that was already installed is not deferred: a command that went on would read it as staged work, so it stops.
     let installed: World = world("merge-recovery-dead-holder-lock-installed");
-    git(installed.repo.as_path(), &["read-tree", "-m", "-u", installed.old_oid.as_str(), installed.new_oid.as_str()]);
-    let installed_record: PathBuf = record_of(&installed, dead_owner("13131313-0000-4000-8000-000000000013"), Some("refs/heads/main"));
-    let installed_intent: MergeIntent =
-        parse_merge_intent(std::fs::read(installed_record.as_path()).expect("read").as_slice()).expect("intent");
+    git(
+        installed.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            "-u",
+            installed.old_oid.as_str(),
+            installed.new_oid.as_str(),
+        ],
+    );
+    let installed_record: PathBuf = record_of(
+        &installed,
+        dead_owner("13131313-0000-4000-8000-000000000013"),
+        Some("refs/heads/main"),
+    );
+    let installed_intent: MergeIntent = parse_merge_intent(
+        std::fs::read(installed_record.as_path())
+            .expect("read")
+            .as_slice(),
+    )
+    .expect("intent");
     std::fs::write(installed.git_dir.join("index.lock"), b"").expect("a Git left the index lock");
     // The holder is this process, which runs, so nothing may remove the lock and the wait ends at its ceiling.
     std::fs::write(
@@ -169,11 +257,18 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     )
     .expect("the PID file of a process that runs");
     let mut installed_said: Vec<u8> = Vec::new();
-    let settled = crate::index_holder_wait::RECOVERY_LOCK_CEILING_FOR_THIS_THREAD.with(|shortened| {
-        shortened.set(Some(std::time::Duration::from_millis(100)));
-        return settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said);
-    });
-    let refused: MergeRefusal = settled.expect_err("an installed merge behind a held index stops the command");
+    let settled =
+        crate::index_holder_wait::RECOVERY_LOCK_CEILING_FOR_THIS_THREAD.with(|shortened| {
+            shortened.set(Some(std::time::Duration::from_millis(100)));
+            return settle_failed_merge(
+                &place(&installed),
+                installed_record.as_path(),
+                &installed_intent,
+                &mut installed_said,
+            );
+        });
+    let refused: MergeRefusal =
+        settled.expect_err("an installed merge behind a held index stops the command");
     assert!(refused.began, "it reports that the merge is installed");
     assert!(installed_record.exists(), "the record stays");
     remove(installed.parent.as_path());
@@ -181,18 +276,41 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     // A merge that was saved and installed nothing is deferred: the next command finishes it.
     let world: World = world("merge-recovery-dead-holder-lock");
     let before = snapshot(&world);
-    let record: PathBuf = record_of(&world, dead_owner("13131313-0000-4000-8000-000000000014"), Some("refs/heads/main"));
-    let intent: MergeIntent = parse_merge_intent(std::fs::read(record.as_path()).expect("read").as_slice()).expect("intent");
+    let record: PathBuf = record_of(
+        &world,
+        dead_owner("13131313-0000-4000-8000-000000000014"),
+        Some("refs/heads/main"),
+    );
+    let intent: MergeIntent =
+        parse_merge_intent(std::fs::read(record.as_path()).expect("read").as_slice())
+            .expect("intent");
     let lock: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(lock.as_path(), b"").expect("a Git left the index lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()),
+        b"pid 4294967\n",
+    )
+    .expect("the PID file of a process that is gone");
     let mut said: Vec<u8> = Vec::new();
-    let action = settle_failed_merge(&place(&world), record.as_path(), &intent, &mut said).expect("settled");
-    assert_eq!(action, MergeRecoveryAction::Discarded, "nothing of it was installed, so the record only goes");
+    let action =
+        settle_failed_merge(&place(&world), record.as_path(), &intent, &mut said).expect("settled");
+    assert_eq!(
+        action,
+        MergeRecoveryAction::Discarded,
+        "nothing of it was installed, so the record only goes"
+    );
     assert!(!record.exists(), "the record goes");
     assert!(lock.exists(), "the lock is not the recovery's to remove");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
-    assert_eq!(snapshot(&world), before, "the index and the worktree are exactly as they were");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.old_oid,
+        "the branch did not move"
+    );
+    assert_eq!(
+        snapshot(&world),
+        before,
+        "the index and the worktree are exactly as they were"
+    );
     remove(world.parent.as_path());
 }
 
@@ -223,18 +341,41 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
 fn recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merge() {
     let world: World = world("merge-recovery-dead-git-lock");
     // Git had updated the checkout and had not moved the branch when it was killed with the lock.
-    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
-    let record: PathBuf = record_of(&world, dead_owner("15151515-0000-4000-8000-000000000015"), Some("refs/heads/main"));
+    git(
+        world.repo.as_path(),
+        &[
+            "read-tree",
+            "-m",
+            "-u",
+            world.old_oid.as_str(),
+            world.new_oid.as_str(),
+        ],
+    );
+    let record: PathBuf = record_of(
+        &world,
+        dead_owner("15151515-0000-4000-8000-000000000015"),
+        Some("refs/heads/main"),
+    );
     let lock: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(lock.as_path(), b"").expect("a killed Git left its empty lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
-        .expect("the PID file of a process that is gone");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()),
+        b"pid 4294967\n",
+    )
+    .expect("the PID file of a process that is gone");
     let mut said: Vec<u8> = Vec::new();
-    let outcomes =
-        recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the merge is finished, not refused");
-    assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::Completed));
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the merge is finished, not refused");
+    assert_eq!(
+        the_action_for(&outcomes, record.as_path()),
+        Some(MergeRecoveryAction::Completed)
+    );
     assert!(!lock.exists(), "the lock of a Git nothing runs was removed");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch moved onto the merge");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "main"]),
+        world.new_oid,
+        "the branch moved onto the merge"
+    );
     remove(world.parent.as_path());
 }
 
@@ -267,27 +408,51 @@ fn recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merg
 fn a_saved_merge_behind_a_live_lock_is_left_for_the_next_command_at_once() {
     let world: World = world("merge-recovery-saved-live-lock");
     let side_ref: &str = "refs/cli-git/kept/1";
-    let record: PathBuf = deferred_record_of(&world, "16161616-0000-4000-8000-000000000016", side_ref);
+    let record: PathBuf =
+        deferred_record_of(&world, "16161616-0000-4000-8000-000000000016", side_ref);
     let lock: PathBuf = world.git_dir.join("index.lock");
     std::fs::write(lock.as_path(), b"").expect("another program holds the index");
     // The holder is this process, which runs: nothing may remove the lock, and waiting gains nothing.
-    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
-        .expect("the PID file of a process that runs");
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("the PID file of a process that runs");
     let before = snapshot(&world);
     let mut said: Vec<u8> = Vec::new();
     let began: std::time::Instant = std::time::Instant::now();
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
+        .expect("the command goes on");
     let took: std::time::Duration = began.elapsed();
     assert_eq!(
         the_action_for(&outcomes, record.as_path()),
-        Some(MergeRecoveryAction::IndexHeld(IndexHeldAt { the_merges_entries_in_the_checkout: false, landed: false, branch_moved: false }))
+        Some(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+            the_merges_entries_in_the_checkout: false,
+            landed: false,
+            branch_moved: false
+        }))
     );
-    assert!(took < std::time::Duration::from_secs(2), "the command does not wait for a lock that stands over a merge nothing of which is installed: {took:?}");
-    assert!(record.exists(), "the record stays for the command that finishes the merge");
+    assert!(
+        took < std::time::Duration::from_secs(2),
+        "the command does not wait for a lock that stands over a merge nothing of which is installed: {took:?}"
+    );
+    assert!(
+        record.exists(),
+        "the record stays for the command that finishes the merge"
+    );
     assert_eq!(snapshot(&world), before, "nothing was written");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(text.contains(side_ref), "the line says where the merge is saved: {text}");
-    assert!(text.contains(lock.to_string_lossy().as_ref()), "the line names what it waits for: {text}");
-    assert!(text.contains("goes on"), "the line says this command goes on: {text}");
+    assert!(
+        text.contains(side_ref),
+        "the line says where the merge is saved: {text}"
+    );
+    assert!(
+        text.contains(lock.to_string_lossy().as_ref()),
+        "the line names what it waits for: {text}"
+    );
+    assert!(
+        text.contains("goes on"),
+        "the line says this command goes on: {text}"
+    );
     remove(world.parent.as_path());
 }

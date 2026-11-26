@@ -125,7 +125,10 @@ pub fn shared_permission(value: Option<&[u8]>) -> Option<i32> {
 /// The last entry of `listed` whose key is `key`,
 /// or `None`;
 /// later lines of a configuration win.
-fn last_entry<'a>(listed: &'a [ListedEntry], key: &str) -> Option<&'a crate::repo_read_config_text::ConfigEntry> {
+fn last_entry<'a>(
+    listed: &'a [ListedEntry],
+    key: &str,
+) -> Option<&'a crate::repo_read_config_text::ConfigEntry> {
     for item in listed.iter().rev() {
         if item.entry.key == key {
             return Some(&item.entry);
@@ -203,7 +206,11 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
     //   ? untrackedDefault
     //   : readBoolean(last('core.untrackedCache')); // undefined: ask Git
     // ```
-    let untracked_default: UntrackedMode = if many_files { UntrackedMode::Write } else { UntrackedMode::Keep };
+    let untracked_default: UntrackedMode = if many_files {
+        UntrackedMode::Write
+    } else {
+        UntrackedMode::Keep
+    };
     let untracked: UntrackedMode = match last_entry(listed, "core.untrackedcache") {
         None => untracked_default,
         Some(entry) => match entry.value.as_deref() {
@@ -233,7 +240,12 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
         None => many_files,
         Some(entry) => parse_bool(entry.value.as_deref())?,
     };
-    return Some(IndexSettings { monitor, untracked, shared_repository, skip_hash });
+    return Some(IndexSettings {
+        monitor,
+        untracked,
+        shared_repository,
+        skip_hash,
+    });
 }
 
 #[cfg(test)]

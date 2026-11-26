@@ -14,10 +14,20 @@
 /// Import the decision under test,
 ///  the fixtures and the helpers shared with the forwarding controls.
 use super::plan_invocation;
-use super::tests::{forward, inputs, stopped, text};
+use super::tests::{
+    forward,
+    inputs,
+    stopped,
+    text,
+};
 use crate::child_environment::FORWARD_TARGET_VARIABLE;
 use crate::real_git::ResolutionInputs;
-use crate::test_support::{REAL_GIT, executable, fixture, remove};
+use crate::test_support::{
+    REAL_GIT,
+    executable,
+    fixture,
+    remove,
+};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -98,9 +108,18 @@ fn missing_real_git_stops_with_resolution_evidence() {
             "{arguments:?}: {said}"
         );
         // Every candidate is listed with its verdict, and the fix names the PATH of the program that ran the command.
-        assert!(said.contains(root.join("only-wrapper/git").to_string_lossy().as_ref()), "{said}");
-        assert!(said.contains("leads back to monochromatic-git-policy-cli"), "{said}");
-        assert!(said.contains("is missing, not an executable file, or unreadable"), "{said}");
+        assert!(
+            said.contains(root.join("only-wrapper/git").to_string_lossy().as_ref()),
+            "{said}"
+        );
+        assert!(
+            said.contains("leads back to monochromatic-git-policy-cli"),
+            "{said}"
+        );
+        assert!(
+            said.contains("is missing, not an executable file, or unreadable"),
+            "{said}"
+        );
         assert!(said.contains("To fix it, install Git"), "{said}");
     }
     remove(root.as_path());

@@ -14,12 +14,22 @@
 //! using step = enterStep(commandText); // writes the step file until the guard is dropped
 //! ```
 
+use crate::landing_state_carried_by_its_task::{
+    LandingState,
+    on_the_landing_state,
+};
+use crate::service_busy::{
+    LandingBoard,
+    STEP_FILE,
+    now_millis,
+};
 use std::cell::RefCell;
-use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
-use crate::service_busy::{LandingBoard, STEP_FILE, now_millis};
 
 /// What:
 ///  Whether the calling thread has a landing board.
@@ -51,29 +61,44 @@ pub(crate) fn one_line(text: &str) -> String {
 }
 
 /// Whether the landing in `state` has a board.
-fn landing_has_a_board(state: &LandingState, (): ()) -> bool {
+fn landing_has_a_board(
+    state: &LandingState,
+    (): (),
+) -> bool {
     return board_is_set(&state.board);
 }
 
 /// Keeps `board` as the record of the landing in `state`.
-fn keep_the_board(state: &LandingState, board: Arc<LandingBoard>) {
+fn keep_the_board(
+    state: &LandingState,
+    board: Arc<LandingBoard>,
+) {
     *state.board.borrow_mut() = Some(board);
 }
 
 /// Keeps what the landing knows about the next write that is never ended,
 /// or nothing.
-fn keep_the_detail(state: &LandingState, detail: Option<String>) {
+fn keep_the_detail(
+    state: &LandingState,
+    detail: Option<String>,
+) {
     *state.detail.borrow_mut() = detail;
 }
 
 /// The board of the landing in `state`,
 /// when it has one.
-fn board_of_the_landing(state: &LandingState, (): ()) -> Option<Arc<LandingBoard>> {
+fn board_of_the_landing(
+    state: &LandingState,
+    (): (),
+) -> Option<Arc<LandingBoard>> {
     return state.board.borrow().clone();
 }
 
 /// What the landing in `state` knows about the next write that is never ended.
-fn detail_of_the_landing(state: &LandingState, (): ()) -> Option<String> {
+fn detail_of_the_landing(
+    state: &LandingState,
+    (): (),
+) -> Option<String> {
     return state.detail.borrow().clone();
 }
 
@@ -122,7 +147,10 @@ impl Drop for StepGuard {
 
 /// Write `text` to `path` as a complete file or not at all:
 /// a rename of a file written beside it.
-pub(crate) fn publish(path: &Path, text: &str) -> bool {
+pub(crate) fn publish(
+    path: &Path,
+    text: &str,
+) -> bool {
     let beside: PathBuf = path.with_extension("tmp");
     let written: bool = match std::fs::File::create(beside.as_path()) {
         Ok(mut file) => file.write_all(text.as_bytes()).is_ok(),
@@ -149,8 +177,15 @@ pub fn enter_step(command: String) -> Option<StepGuard> {
     let board: Arc<LandingBoard> = on_the_landing_state((), board_of_the_landing)?;
     let detail: Option<String> = on_the_landing_state((), detail_of_the_landing);
     let file: PathBuf = board.directory.join(STEP_FILE);
-    let text: String = format!("{}\n{}\n{}\n", now_millis(), one_line(command.as_str()), detail.as_deref().map_or_else(String::new, one_line));
+    let text: String = format!(
+        "{}\n{}\n{}\n",
+        now_millis(),
+        one_line(command.as_str()),
+        detail.as_deref().map_or_else(String::new, one_line)
+    );
     // A step that cannot be recorded is still run; the clients just are not told about it.
     let _recorded = publish(file.as_path(), text.as_str());
-    return Some(StepGuard { file });
+    return Some(StepGuard {
+        file,
+    });
 }

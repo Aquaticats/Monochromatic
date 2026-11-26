@@ -19,10 +19,27 @@
 //! ```
 
 /// Import the shared fixtures and the commit controls' helpers.
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
-use super::support::{Fixture, Observed, fixture, repository, run_wrapped, stderr_of, stderr_without_wait_notices};
+use super::commit::{
+    assert_nothing_left,
+    git_text,
+    keep_maintenance_in_the_foreground,
+    remove_settled,
+    run_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    repository,
+    run_wrapped,
+    stderr_of,
+    stderr_without_wait_notices,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A manifest with a literal version.
 const LITERAL: &str = "{\n  \"dependencies\": {\n    \"zod\": \"^4.6.7\"\n  }\n}\n";
@@ -35,7 +52,10 @@ const ERROR_CONFIGURATION: &str = "{ \"policies\": { \"mono/catalog-specifiers\"
 
 /// The pre-forward finding of `LITERAL` at `severity`,
 /// as the event line with its newline.
-fn literal_finding(trigger: &str, severity: &str) -> String {
+fn literal_finding(
+    trigger: &str,
+    severity: &str,
+) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"{trigger}\",\
          \"policyId\":\"mono/catalog-specifiers\",\"severity\":\"{severity}\",\
@@ -49,19 +69,31 @@ fn literal_finding(trigger: &str, severity: &str) -> String {
 /// A repository with one commit and the configuration text,
 /// when there is one,
 /// and a manifest in the worktree.
-fn configured(fixture: &Fixture, configuration: Option<&str>, manifest: &str) -> PathBuf {
+fn configured(
+    fixture: &Fixture,
+    configuration: Option<&str>,
+    manifest: &str,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     if let Some(text) = configuration {
-        std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), text).expect("repository configuration");
+        std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), text)
+            .expect("repository configuration");
     }
     std::fs::write(repo.join("package.json"), manifest).expect("manifest");
     return repo;
 }
 
 /// The wrapped commit of the manifest alone.
-fn commit_manifest(fixture: &Fixture, repo: &Path) -> Observed {
-    return run_commit(fixture, repo, &["commit", "--message=manifest", "--", "package.json"]);
+fn commit_manifest(
+    fixture: &Fixture,
+    repo: &Path,
+) -> Observed {
+    return run_commit(
+        fixture,
+        repo,
+        &["commit", "--message=manifest", "--", "package.json"],
+    );
 }
 
 /// A listed `error` policy blocks a real commit that holds a literal version and nothing lands;
@@ -73,15 +105,27 @@ fn an_error_policy_blocks_a_literal_version_and_lets_a_catalog_one_land() {
     let repo: PathBuf = configured(&fixture, Some(ERROR_CONFIGURATION), LITERAL);
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let blocked: Observed = commit_manifest(&fixture, repo.as_path());
-    assert_eq!((blocked.code, stderr_of(&blocked)), (Some(1), literal_finding("pre-forward", "error")));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head);
+    assert_eq!(
+        (blocked.code, stderr_of(&blocked)),
+        (Some(1), literal_finding("pre-forward", "error"))
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]),
+        head
+    );
     assert_nothing_left(&fixture, repo.as_path());
     std::fs::write(repo.join("package.json"), CATALOG).expect("fixed manifest");
     let landed: Observed = commit_manifest(&fixture, repo.as_path());
     // A loaded host stretches the service's branch write past a beat, and the client then reads the service's
     //  notice about the write it is inside; this control means the policy's words, so it drops that notice.
-    assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), CATALOG);
+    assert_eq!(
+        (landed.code, stderr_without_wait_notices(&landed)),
+        (Some(0), String::new())
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]),
+        CATALOG
+    );
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
@@ -93,10 +137,17 @@ fn an_error_policy_blocks_an_unsupported_manifest_name() {
     let fixture: Fixture = fixture("catalog-commit-yaml");
     let repo: PathBuf = configured(&fixture, Some(ERROR_CONFIGURATION), CATALOG);
     std::fs::write(repo.join("package.yaml"), b"\xff\xfe not yaml, never read").expect("yaml");
-    let blocked: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=yaml", "--", "package.yaml"]);
+    let blocked: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--message=yaml", "--", "package.yaml"],
+    );
     let stderr: String = stderr_of(&blocked);
     assert_eq!(blocked.code, Some(1), "{stderr}");
-    assert!(stderr.contains("\"code\":\"mono/catalog-specifiers/unsupported-manifest-format\""), "{stderr}");
+    assert!(
+        stderr.contains("\"code\":\"mono/catalog-specifiers/unsupported-manifest-format\""),
+        "{stderr}"
+    );
     assert!(stderr.contains("\"path\":\"package.yaml\""), "{stderr}");
     assert_eq!(stderr.matches('\n').count(), 1, "{stderr}");
     assert_nothing_left(&fixture, repo.as_path());
@@ -107,14 +158,24 @@ fn an_error_policy_blocks_an_unsupported_manifest_name() {
 #[test]
 fn a_warn_policy_reports_and_lets_the_commit_land() {
     let fixture: Fixture = fixture("catalog-commit-warn");
-    let repo: PathBuf = configured(&fixture, Some("{ \"policies\": { \"mono/catalog-specifiers\": \"warn\" } }\n"), LITERAL);
+    let repo: PathBuf = configured(
+        &fixture,
+        Some("{ \"policies\": { \"mono/catalog-specifiers\": \"warn\" } }\n"),
+        LITERAL,
+    );
     let landed: Observed = commit_manifest(&fixture, repo.as_path());
     // The commit lands however slow its landing is, so a beat's "inside a write" notice is not this control's subject.
     let stderr: String = stderr_without_wait_notices(&landed);
     assert_eq!(landed.code, Some(0), "{stderr}");
-    assert!(stderr.starts_with(literal_finding("pre-forward", "warn").as_str()), "{stderr}");
+    assert!(
+        stderr.starts_with(literal_finding("pre-forward", "warn").as_str()),
+        "{stderr}"
+    );
     assert!(stderr.contains("\"code\":\"warn-unsafe\""), "{stderr}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), LITERAL);
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]),
+        LITERAL
+    );
     remove_settled(&fixture);
 }
 
@@ -130,16 +191,32 @@ fn a_configuration_that_does_not_name_the_policy_commits_as_before() {
     for (name, configuration) in [
         ("none", None),
         ("empty", Some("{}\n")),
-        ("older", Some("{ \"policies\": { \"mono/forbidden-root-context\": \"error\", \"mono/dependent-version-bump\": \"error\" } }\n")),
-        ("off", Some("{ \"policies\": { \"mono/catalog-specifiers\": \"off\" } }\n")),
+        (
+            "older",
+            Some(
+                "{ \"policies\": { \"mono/forbidden-root-context\": \"error\", \"mono/dependent-version-bump\": \"error\" } }\n",
+            ),
+        ),
+        (
+            "off",
+            Some("{ \"policies\": { \"mono/catalog-specifiers\": \"off\" } }\n"),
+        ),
     ] {
         let fixture: Fixture = fixture(format!("catalog-commit-before-{name}").as_str());
         let repo: PathBuf = configured(&fixture, configuration, LITERAL);
         let landed: Observed = commit_manifest(&fixture, repo.as_path());
         // A landing that runs past a beat of the service prints the owner's "inside a write" notice (2026-11-04,
         //  "Short extra wait"), so the control means the words the command said and not the host's speed.
-        assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()), "{name}");
-        assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), LITERAL, "{name}");
+        assert_eq!(
+            (landed.code, stderr_without_wait_notices(&landed)),
+            (Some(0), String::new()),
+            "{name}"
+        );
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]),
+            LITERAL,
+            "{name}"
+        );
         remove_settled(&fixture);
     }
 }
@@ -151,7 +228,13 @@ fn a_configuration_that_does_not_name_the_policy_commits_as_before() {
 fn a_direct_check_of_the_policy_follows_its_severity() {
     let fixture: Fixture = fixture("catalog-direct");
     let repo: PathBuf = configured(&fixture, None, LITERAL);
-    let arguments: [&str; 5] = ["monochromatic-git-policy-cli", "check", "--all", "--policy", "mono/catalog-specifiers"];
+    let arguments: [&str; 5] = [
+        "monochromatic-git-policy-cli",
+        "check",
+        "--all",
+        "--policy",
+        "mono/catalog-specifiers",
+    ];
     let off: Observed = run_wrapped(&fixture, repo.as_path(), &arguments);
     let stdout: String = String::from_utf8_lossy(off.stdout.as_slice()).into_owned();
     assert_eq!((off.code, stderr_of(&off)), (Some(2), String::new()));
@@ -166,18 +249,38 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
         .expect("configuration");
         let ran: Observed = run_wrapped(&fixture, repo.as_path(), &arguments);
         let printed: String = String::from_utf8_lossy(ran.stdout.as_slice()).into_owned();
-        assert_eq!((ran.code, stderr_of(&ran)), (Some(code), String::new()), "{severity}");
-        assert!(printed.starts_with(literal_finding("direct-check", severity).as_str()), "{severity}: {printed}");
+        assert_eq!(
+            (ran.code, stderr_of(&ran)),
+            (Some(code), String::new()),
+            "{severity}"
+        );
+        assert!(
+            printed.starts_with(literal_finding("direct-check", severity).as_str()),
+            "{severity}: {printed}"
+        );
     }
     // The policy is on at `error`, but a direct fix does not run it: that is a refusal, not a clean exit.
     let fix: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["monochromatic-git-policy-cli", "fix", "--all", "--policy", "mono/catalog-specifiers"],
+        &[
+            "monochromatic-git-policy-cli",
+            "fix",
+            "--all",
+            "--policy",
+            "mono/catalog-specifiers",
+        ],
     );
     let refusal: String = String::from_utf8_lossy(fix.stdout.as_slice()).into_owned();
-    assert_eq!((fix.code, stderr_of(&fix)), (Some(2), String::new()), "{refusal}");
-    assert!(refusal.contains("does not run for monochromatic-git-policy-cli fix"), "{refusal}");
+    assert_eq!(
+        (fix.code, stderr_of(&fix)),
+        (Some(2), String::new()),
+        "{refusal}"
+    );
+    assert!(
+        refusal.contains("does not run for monochromatic-git-policy-cli fix"),
+        "{refusal}"
+    );
     remove_settled(&fixture);
 }
 
@@ -199,9 +302,18 @@ fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let fixture: Fixture = fixture("catalog-real-configuration");
     let repo: PathBuf = configured(&fixture, None, LITERAL);
     // The file is found by the wrapper's own lookup (current name, then the earlier one) and copied under the current name.
-    let shipped: PathBuf = git_policy_cli::config_file::settings_file_of(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").as_path());
-    std::fs::copy(&shipped, repo.join(git_policy_cli::config_file::CONFIG_FILE_NAME)).expect("the repository's own configuration");
-    let shipped_text: String = std::fs::read_to_string(&shipped).expect("the repository's own configuration text");
+    let shipped: PathBuf = git_policy_cli::config_file::settings_file_of(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .as_path(),
+    );
+    std::fs::copy(
+        &shipped,
+        repo.join(git_policy_cli::config_file::CONFIG_FILE_NAME),
+    )
+    .expect("the repository's own configuration");
+    let shipped_text: String =
+        std::fs::read_to_string(&shipped).expect("the repository's own configuration text");
     // On means listed with a value other than "off"; a line's `//` comment is not configuration.
     let lists_catalog: bool = shipped_text.lines().any(|line| {
         let code: &str = line.split("//").next().unwrap_or_default();
@@ -210,19 +322,38 @@ fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let listed: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["monochromatic-git-policy-cli", "check", "--all", "--policy", "mono/forbidden-root-context"],
+        &[
+            "monochromatic-git-policy-cli",
+            "check",
+            "--all",
+            "--policy",
+            "mono/forbidden-root-context",
+        ],
     );
     assert_eq!((listed.code, stderr_of(&listed)), (Some(0), String::new()));
-    assert!(listed.stdout.is_empty(), "{}", String::from_utf8_lossy(listed.stdout.as_slice()));
+    assert!(
+        listed.stdout.is_empty(),
+        "{}",
+        String::from_utf8_lossy(listed.stdout.as_slice())
+    );
     let selected: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["monochromatic-git-policy-cli", "check", "--all", "--policy", "mono/catalog-specifiers"],
+        &[
+            "monochromatic-git-policy-cli",
+            "check",
+            "--all",
+            "--policy",
+            "mono/catalog-specifiers",
+        ],
     );
     let stdout: String = String::from_utf8_lossy(selected.stdout.as_slice()).into_owned();
     if lists_catalog {
         assert_eq!(selected.code, Some(1), "{stdout}");
-        assert!(stdout.contains("mono/catalog-specifiers/disallowed-specifier"), "{stdout}");
+        assert!(
+            stdout.contains("mono/catalog-specifiers/disallowed-specifier"),
+            "{stdout}"
+        );
     } else {
         // Not listed and listed as "off" both refuse with exit 2 and name the policy.
         assert_eq!(selected.code, Some(2), "{stdout}");

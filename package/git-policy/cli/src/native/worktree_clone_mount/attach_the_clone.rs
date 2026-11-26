@@ -39,10 +39,22 @@
 //! unmountThroughDescriptor(heldSlot.target);
 //! ```
 
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{
+    debug,
+    warn,
+};
 use crate::fs_beneath_mount_facts::mount_id_of;
-use std::ffi::{CString, c_int, c_uint};
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+use std::ffi::{
+    CString,
+    c_int,
+    c_uint,
+};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+    RawFd,
+};
 use std::path::PathBuf;
 
 /// Module tag for diagnostics.
@@ -204,7 +216,9 @@ impl AttachRefusal {
     /// what became of the mount and every way forward.
     pub fn message(&self) -> String {
         let placement: &str = match self.placement {
-            Placement::NothingPlaced => "Nothing was mounted, moved or recorded by this call, and this clone's mount intent stands so a later sweep may act on it.",
+            Placement::NothingPlaced => {
+                "Nothing was mounted, moved or recorded by this call, and this clone's mount intent stands so a later sweep may act on it."
+            }
             Placement::PlacedThenTakenDown => {
                 "A mount had been placed at the slot by this attempt and the route took it down again through the descriptor it acted on, so the slot holds no mount and this clone's mount intent stands."
             }
@@ -217,7 +231,11 @@ impl AttachRefusal {
             self.source,
             self.call.call_name(),
             self.detail,
-            if self.errno == 0 { String::new() } else { format!(" (errno {})", self.errno) },
+            if self.errno == 0 {
+                String::new()
+            } else {
+                format!(" (errno {})", self.errno)
+            },
         );
     }
 }
@@ -242,21 +260,47 @@ pub struct AttachedMount {
 }
 
 /// One failed call with its errno and the kernel's own words.
-fn refused(call: AttachCall, source: &str, said: std::io::Error) -> AttachRefusal {
-    warn(TAG, format!("{} for `{source}` refused: {said}", call.word()).as_str());
-    return AttachRefusal { call, source: String::from(source), errno: said.raw_os_error().unwrap_or(0), detail: said.to_string(), placement: Placement::NothingPlaced };
+fn refused(
+    call: AttachCall,
+    source: &str,
+    said: std::io::Error,
+) -> AttachRefusal {
+    warn(
+        TAG,
+        format!("{} for `{source}` refused: {said}", call.word()).as_str(),
+    );
+    return AttachRefusal {
+        call,
+        source: String::from(source),
+        errno: said.raw_os_error().unwrap_or(0),
+        detail: said.to_string(),
+        placement: Placement::NothingPlaced,
+    };
 }
 
 /// The open file-system context of one filesystem type.
 ///
 /// # Errors
 /// `fsopen` refused.
-fn open_context(filesystem: &str, source: &str) -> Result<OwnedFd, AttachRefusal> {
+fn open_context(
+    filesystem: &str,
+    source: &str,
+) -> Result<OwnedFd, AttachRefusal> {
     let file_system_type: CString = CString::new(filesystem).expect("no NUL in a filesystem type");
     // SAFETY: the type string is this call's own and outlives it; the descriptor it returns is checked before it is owned.
-    let context: c_int = unsafe { libc::syscall(libc::SYS_fsopen, file_system_type.as_ptr(), ATTACH_CLOSE_ON_EXEC.0) as c_int };
+    let context: c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsopen,
+            file_system_type.as_ptr(),
+            ATTACH_CLOSE_ON_EXEC.0,
+        ) as c_int
+    };
     if context < 0 {
-        return Err(refused(AttachCall::FileSystemContext, source, std::io::Error::last_os_error()));
+        return Err(refused(
+            AttachCall::FileSystemContext,
+            source,
+            std::io::Error::last_os_error(),
+        ));
     }
     // SAFETY: the call answered a descriptor this process owns, and it is owned exactly once.
     return Ok(unsafe { OwnedFd::from_raw_fd(context) });
@@ -266,33 +310,88 @@ fn open_context(filesystem: &str, source: &str) -> Result<OwnedFd, AttachRefusal
 ///
 /// # Errors
 /// `fsconfig` refused the option.
-fn set_source(context: RawFd, source: &str) -> Result<(), AttachRefusal> {
+fn set_source(
+    context: RawFd,
+    source: &str,
+) -> Result<(), AttachRefusal> {
     let key: CString = CString::new(SOURCE_OPTION).expect("no NUL in an option name");
     let value: CString = CString::new(source).expect("no NUL in a dataset name");
     // SAFETY: the context descriptor is the caller's, and both strings outlive the call.
-    let set: c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, libc::FSCONFIG_SET_STRING, key.as_ptr(), value.as_ptr(), 0) as c_int };
-    return if set == 0 { Ok(()) } else { Err(refused(AttachCall::SourceOption, source, std::io::Error::last_os_error())) };
+    let set: c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsconfig,
+            context,
+            libc::FSCONFIG_SET_STRING,
+            key.as_ptr(),
+            value.as_ptr(),
+            0,
+        ) as c_int
+    };
+    return if set == 0 {
+        Ok(())
+    } else {
+        Err(refused(
+            AttachCall::SourceOption,
+            source,
+            std::io::Error::last_os_error(),
+        ))
+    };
 }
 
 /// Create the superblock from the context.
 ///
 /// # Errors
 /// `fsconfig` refused the create.
-fn create(context: RawFd, source: &str) -> Result<(), AttachRefusal> {
+fn create(
+    context: RawFd,
+    source: &str,
+) -> Result<(), AttachRefusal> {
     // SAFETY: the context descriptor is the caller's and the call reads no pointer here.
-    let created: c_int = unsafe { libc::syscall(libc::SYS_fsconfig, context, libc::FSCONFIG_CMD_CREATE, std::ptr::null::<std::ffi::c_char>(), std::ptr::null::<std::ffi::c_char>(), 0) as c_int };
-    return if created == 0 { Ok(()) } else { Err(refused(AttachCall::Create, source, std::io::Error::last_os_error())) };
+    let created: c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsconfig,
+            context,
+            libc::FSCONFIG_CMD_CREATE,
+            std::ptr::null::<std::ffi::c_char>(),
+            std::ptr::null::<std::ffi::c_char>(),
+            0,
+        ) as c_int
+    };
+    return if created == 0 {
+        Ok(())
+    } else {
+        Err(refused(
+            AttachCall::Create,
+            source,
+            std::io::Error::last_os_error(),
+        ))
+    };
 }
 
 /// Make the mount descriptor with the attributes the caller resolved.
 ///
 /// # Errors
 /// `fsmount` refused.
-fn make_mount(context: RawFd, source: &str, attributes: u64) -> Result<OwnedFd, AttachRefusal> {
+fn make_mount(
+    context: RawFd,
+    source: &str,
+    attributes: u64,
+) -> Result<OwnedFd, AttachRefusal> {
     // SAFETY: the context descriptor is the caller's and has been created; the returned descriptor is owned once.
-    let mount: c_int = unsafe { libc::syscall(libc::SYS_fsmount, context, ATTACH_CLOSE_ON_EXEC.1, attributes) as c_int };
+    let mount: c_int = unsafe {
+        libc::syscall(
+            libc::SYS_fsmount,
+            context,
+            ATTACH_CLOSE_ON_EXEC.1,
+            attributes,
+        ) as c_int
+    };
     if mount < 0 {
-        return Err(refused(AttachCall::MountDescriptor, source, std::io::Error::last_os_error()));
+        return Err(refused(
+            AttachCall::MountDescriptor,
+            source,
+            std::io::Error::last_os_error(),
+        ));
     }
     // SAFETY: the call answered a descriptor this process owns, and it is owned exactly once.
     return Ok(unsafe { OwnedFd::from_raw_fd(mount) });
@@ -314,8 +413,17 @@ fn make_mount(context: RawFd, source: &str, attributes: u64) -> Result<OwnedFd, 
 /// # Errors
 /// Every call's own refusal,
 /// with the step a person must look at.
-pub fn attach_the_clone(source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
-    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target, ATTACH_FSMOUNT_ATTRIBUTES, &mount_id_of);
+pub fn attach_the_clone(
+    source: &str,
+    target: &std::fs::File,
+) -> Result<AttachedMount, AttachRefusal> {
+    return attach_with(
+        ZFS_FILE_SYSTEM_TYPE,
+        source,
+        target,
+        ATTACH_FSMOUNT_ATTRIBUTES,
+        &mount_id_of,
+    );
 }
 
 /// What:
@@ -337,8 +445,18 @@ pub fn attach_the_clone(source: &str, target: &std::fs::File) -> Result<Attached
 /// # Errors
 /// Every call's own refusal,
 /// with the step a person must look at.
-pub fn attach_with_attributes(source: &str, target: &std::fs::File, attributes: u64) -> Result<AttachedMount, AttachRefusal> {
-    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target, attributes, &mount_id_of);
+pub fn attach_with_attributes(
+    source: &str,
+    target: &std::fs::File,
+    attributes: u64,
+) -> Result<AttachedMount, AttachRefusal> {
+    return attach_with(
+        ZFS_FILE_SYSTEM_TYPE,
+        source,
+        target,
+        attributes,
+        &mount_id_of,
+    );
 }
 
 /// What:
@@ -361,7 +479,13 @@ pub fn attach_with_attributes(source: &str, target: &std::fs::File, attributes: 
 ///
 /// # Errors
 /// Every call's own refusal.
-fn attach_with<ReadMountNumber>(filesystem: &str, source: &str, target: &std::fs::File, attributes: u64, read_mount_number: &ReadMountNumber) -> Result<AttachedMount, AttachRefusal>
+fn attach_with<ReadMountNumber>(
+    filesystem: &str,
+    source: &str,
+    target: &std::fs::File,
+    attributes: u64,
+    read_mount_number: &ReadMountNumber,
+) -> Result<AttachedMount, AttachRefusal>
 where
     ReadMountNumber: Fn(&std::fs::File) -> std::io::Result<u64>,
 {
@@ -377,11 +501,21 @@ where
     // SAFETY: both descriptors are open, and the two empty paths are the NUL-terminated strings the flags tell the
     // call to read from those descriptors.
     let moved: c_int = unsafe {
-        libc::syscall(libc::SYS_move_mount, held.as_raw_fd(), empty.as_ptr(), target.as_raw_fd(), empty.as_ptr(), libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH)
-            as c_int
+        libc::syscall(
+            libc::SYS_move_mount,
+            held.as_raw_fd(),
+            empty.as_ptr(),
+            target.as_raw_fd(),
+            empty.as_ptr(),
+            libc::MOVE_MOUNT_F_EMPTY_PATH | libc::MOVE_MOUNT_T_EMPTY_PATH,
+        ) as c_int
     };
     if moved < 0 {
-        return Err(refused(AttachCall::Place, source, std::io::Error::last_os_error()));
+        return Err(refused(
+            AttachCall::Place,
+            source,
+            std::io::Error::last_os_error(),
+        ));
     }
     let mount_id: u64 = match read_mount_number(&held) {
         Ok(found) => found,
@@ -405,8 +539,14 @@ where
             });
         }
     };
-    debug(TAG, format!("attached `{source}` as mount {mount_id}").as_str());
-    return Ok(AttachedMount { mount_id, source: String::from(source) });
+    debug(
+        TAG,
+        format!("attached `{source}` as mount {mount_id}").as_str(),
+    );
+    return Ok(AttachedMount {
+        mount_id,
+        source: String::from(source),
+    });
 }
 
 /// What:
@@ -427,20 +567,26 @@ where
 /// The unmount's refusal,
 /// which is a `EBUSY` while another process holds the mount.
 pub fn unmount_through_descriptor(target: &std::fs::File) -> Result<(), AttachRefusal> {
-    let named: CString = CString::new(format!("/proc/self/fd/{}", target.as_raw_fd())).expect("no NUL in a descriptor path");
+    let named: CString = CString::new(format!("/proc/self/fd/{}", target.as_raw_fd()))
+        .expect("no NUL in a descriptor path");
     // SAFETY: `named` is a NUL-terminated string that outlives the call, and no flag asks for force or lazy detach.
     let taken: c_int = unsafe { libc::umount2(named.as_ptr(), 0) };
     return if taken == 0 {
         Ok(())
     } else {
-        Err(refused(AttachCall::Unmount, target_place(target).as_str(), std::io::Error::last_os_error()))
+        Err(refused(
+            AttachCall::Unmount,
+            target_place(target).as_str(),
+            std::io::Error::last_os_error(),
+        ))
     };
 }
 
 /// The path a refusal names for the folder a descriptor holds,
 /// or a word for the descriptor itself when the kernel keeps the path out of reach.
 fn target_place(target: &std::fs::File) -> String {
-    let path: PathBuf = std::fs::read_link(format!("/proc/self/fd/{}", target.as_raw_fd())).unwrap_or_else(|_error| return PathBuf::from("the held slot"));
+    let path: PathBuf = std::fs::read_link(format!("/proc/self/fd/{}", target.as_raw_fd()))
+        .unwrap_or_else(|_error| return PathBuf::from("the held slot"));
     return path.display().to_string();
 }
 

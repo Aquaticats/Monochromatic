@@ -22,15 +22,30 @@
 
 use crate::auto_push_single_flight::PushAttempt;
 use crate::bounded_push::{
-    DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, PUSH_MINIMUM_RATE_VARIABLE, Patience, STOPPED_EXIT_CODE, push_patience, run_bounded_push,
+    DEFAULT_PUSH_DEADLINE,
+    PUSH_DEADLINE_VARIABLE,
+    PUSH_MINIMUM_RATE_VARIABLE,
+    Patience,
+    STOPPED_EXIT_CODE,
+    push_patience,
+    run_bounded_push,
 };
 use crate::push_progress::tests::disk_wait_command;
-use crate::test_support::{fixture, git, remove, repository, scratch_environment};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+    scratch_environment,
+};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The stall window of the controls:
 /// several sampling intervals,
@@ -75,7 +90,9 @@ impl Hook {
         return match self {
             // One process that starts none: a loop would start a `sleep` each turn, and the meter counts that as work.
             Hook::Silent => String::from("#!/bin/sh\nexec sleep 600\n"),
-            Hook::ProgressThenAccept => format!("#!/bin/sh\ni=0\nwhile [ $i -lt 20 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"),
+            Hook::ProgressThenAccept => format!(
+                "#!/bin/sh\ni=0\nwhile [ $i -lt 20 ]; do echo tick >&2; sleep {TICK}; i=$((i+1)); done\nexit 0\n"
+            ),
         };
     }
 }
@@ -95,35 +112,64 @@ struct Stage {
 }
 
 /// Build the stage.
-fn stage(name: &str, hook: Hook) -> Stage {
+fn stage(
+    name: &str,
+    hook: Hook,
+) -> Stage {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let remote: PathBuf = root.join("remote.git");
-    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(
+        root.as_path(),
+        &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")],
+    );
     let script: PathBuf = remote.join("hooks").join("pre-receive");
     std::fs::write(script.as_path(), hook.script()).expect("hook");
-    std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
-    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
-    return Stage { root, repo, extra_environment: Vec::new() };
+    std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("hook mode");
+    git(
+        repo.as_path(),
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
+    return Stage {
+        root,
+        repo,
+        extra_environment: Vec::new(),
+    };
 }
 
 /// Make the remote's `post-receive` hook hold a thread in disk wait for `hold` after the push was accepted:
 /// the phase after
 ///  the hook is shaped exactly,
 /// where it would otherwise be whatever the disk under the test makes of the ref update.
-fn hold_disk_wait_after_hook(stage: &mut Stage, hold: Duration) {
+fn hold_disk_wait_after_hook(
+    stage: &mut Stage,
+    hold: Duration,
+) {
     let probe: Command = disk_wait_command(hold, "exit", None);
     let line: String = std::iter::once(probe.get_program().to_string_lossy().into_owned())
-        .chain(probe.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }))
-        .map(|word| { return format!("'{word}'"); })
+        .chain(probe.get_args().map(|argument| {
+            return argument.to_string_lossy().into_owned();
+        }))
+        .map(|word| {
+            return format!("'{word}'");
+        })
         .collect::<Vec<String>>()
         .join(" ");
-    let script: PathBuf = stage.root.join("remote.git").join("hooks").join("post-receive");
+    let script: PathBuf = stage
+        .root
+        .join("remote.git")
+        .join("hooks")
+        .join("post-receive");
     std::fs::write(script.as_path(), format!("#!/bin/sh\nexec {line}\n")).expect("hook");
-    std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
+    std::fs::set_permissions(script.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("hook mode");
     for (name, setting) in probe.get_envs() {
         if let Some(value) = setting {
-            stage.extra_environment.push((name.to_string_lossy().into_owned(), value.to_string_lossy().into_owned()));
+            stage.extra_environment.push((
+                name.to_string_lossy().into_owned(),
+                value.to_string_lossy().into_owned(),
+            ));
         }
     }
 }
@@ -155,13 +201,18 @@ fn push_command(stage: &Stage) -> Command {
 /// not from
 ///  the child's,
 /// so a control that sets a floor must give it here.
-fn run(stage: &Stage, patience: Patience) -> (PushAttempt, Duration) {
+fn run(
+    stage: &Stage,
+    patience: Patience,
+) -> (PushAttempt, Duration) {
     let mut environment: Vec<(OsString, OsString)> = scratch_environment();
     for (name, value) in &stage.extra_environment {
         environment.push((OsString::from(name), OsString::from(value)));
     }
     let started: Instant = Instant::now();
-    let attempt: PushAttempt = run_bounded_push(push_command(stage), patience, GRACE, environment.as_slice()).expect("runs");
+    let attempt: PushAttempt =
+        run_bounded_push(push_command(stage), patience, GRACE, environment.as_slice())
+            .expect("runs");
     return (attempt, started.elapsed());
 }
 
@@ -177,10 +228,24 @@ fn a_push_that_keeps_moving_data_past_the_stall_window_is_not_stopped() {
     hold_disk_wait_after_hook(&mut stage, POST_PHASE_HOLD);
     // The hook prints a few bytes every quarter second, which is a trickle under the shipped floor; this control is about the
     //  stall window alone, so its floor is one that traffic meets.
-    stage.extra_environment.push((String::from(PUSH_MINIMUM_RATE_VARIABLE), String::from("8")));
-    let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: PROGRESS_STALL });
-    assert!(elapsed > PROGRESS_STALL + POST_PHASE_HOLD, "both phases run, and the second is longer than the window alone: {elapsed:?}");
-    assert_eq!(attempt.exit_code, 0, "a push that moves data finishes: {}", attempt.output);
+    stage
+        .extra_environment
+        .push((String::from(PUSH_MINIMUM_RATE_VARIABLE), String::from("8")));
+    let (attempt, elapsed): (PushAttempt, Duration) = run(
+        &stage,
+        Patience::Progress {
+            stall: PROGRESS_STALL,
+        },
+    );
+    assert!(
+        elapsed > PROGRESS_STALL + POST_PHASE_HOLD,
+        "both phases run, and the second is longer than the window alone: {elapsed:?}"
+    );
+    assert_eq!(
+        attempt.exit_code, 0,
+        "a push that moves data finishes: {}",
+        attempt.output
+    );
     remove(stage.root.as_path());
 }
 
@@ -190,14 +255,34 @@ fn a_push_that_keeps_moving_data_past_the_stall_window_is_not_stopped() {
 #[test]
 fn a_push_that_moves_nothing_is_stopped_after_the_stall_window() {
     let stage: Stage = stage("patience-stall", Hook::Silent);
-    let (attempt, elapsed): (PushAttempt, Duration) = run(&stage, Patience::Progress { stall: STALL });
+    let (attempt, elapsed): (PushAttempt, Duration) = run(
+        &stage,
+        Patience::Progress {
+            stall: STALL,
+        },
+    );
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
     assert!(elapsed >= STALL, "not before the stall window: {elapsed:?}");
-    assert!(elapsed < STALL + GRACE + STOP_SLACK, "not long after it: {elapsed:?}");
-    assert!(attempt.output.contains("made no progress for 2 seconds"), "{}", attempt.output);
+    assert!(
+        elapsed < STALL + GRACE + STOP_SLACK,
+        "not long after it: {elapsed:?}"
+    );
+    assert!(
+        attempt.output.contains("made no progress for 2 seconds"),
+        "{}",
+        attempt.output
+    );
     assert!(attempt.output.contains("limit=stall"), "{}", attempt.output);
-    assert!(attempt.output.contains("bytes_moved="), "{}", attempt.output);
-    assert!(attempt.output.contains("elapsed_seconds="), "{}", attempt.output);
+    assert!(
+        attempt.output.contains("bytes_moved="),
+        "{}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.contains("elapsed_seconds="),
+        "{}",
+        attempt.output
+    );
     remove(stage.root.as_path());
 }
 
@@ -206,9 +291,20 @@ fn a_push_that_moves_nothing_is_stopped_after_the_stall_window() {
 /// and no total time is carried.
 #[test]
 fn the_patience_of_a_push_comes_from_the_stall_variable() {
-    assert_eq!(push_patience(&[]), Patience::Progress { stall: DEFAULT_PUSH_DEADLINE });
-    let seven: Vec<(OsString, OsString)> = vec![(OsString::from(PUSH_DEADLINE_VARIABLE), OsString::from("7"))];
-    assert_eq!(push_patience(&seven), Patience::Progress { stall: Duration::from_secs(7) });
+    assert_eq!(
+        push_patience(&[]),
+        Patience::Progress {
+            stall: DEFAULT_PUSH_DEADLINE
+        }
+    );
+    let seven: Vec<(OsString, OsString)> =
+        vec![(OsString::from(PUSH_DEADLINE_VARIABLE), OsString::from("7"))];
+    assert_eq!(
+        push_patience(&seven),
+        Patience::Progress {
+            stall: Duration::from_secs(7)
+        }
+    );
 }
 
 /// A push that waits for its disk for longer than the stall window (an fsync of an object or a ref on a slow volume) moves no
@@ -224,11 +320,17 @@ fn a_push_in_disk_wait_longer_than_the_stall_window_is_not_stopped() {
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         disk_wait_command(hold, "exit", None),
-        Patience::Progress { stall: STALL },
+        Patience::Progress {
+            stall: STALL,
+        },
         GRACE,
         scratch_environment().as_slice(),
     )
     .expect("runs");
-    assert!(started.elapsed() >= hold, "the push waited for its disk the whole hold: {:?}", started.elapsed());
+    assert!(
+        started.elapsed() >= hold,
+        "the push waited for its disk the whole hold: {:?}",
+        started.elapsed()
+    );
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
 }

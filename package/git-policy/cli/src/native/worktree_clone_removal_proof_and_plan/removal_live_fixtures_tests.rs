@@ -26,17 +26,42 @@
 //! fixture.writeTheAddsRecords(fixture.recorded());
 //! ```
 
-use crate::worktree_clone_binding_record::binding_encoding::{FolderIdentity, bytes_as_hexadecimal, path_as_hexadecimal};
-use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
+use crate::worktree_clone_binding_record::binding_encoding::{
+    FolderIdentity,
+    bytes_as_hexadecimal,
+    path_as_hexadecimal,
+};
+use crate::worktree_clone_binding_record::binding_inventory::{
+    EntryKind,
+    InventoryEntry,
+    InventoryKind,
+    InventoryRecord,
+};
 use crate::worktree_clone_binding_record::binding_words::BINDING_HEADER;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, home_folder, origin_inventory_name};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    home_folder,
+    origin_inventory_name,
+};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
-use crate::worktree_clone_removal_proof_and_plan::removal_reads::{LiveRemovalReads, RemovalPoolReads};
+use crate::worktree_clone_removal_proof_and_plan::removal_reads::{
+    LiveRemovalReads,
+    RemovalPoolReads,
+};
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DeviceError, NvList};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DeviceError,
+    NvList,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// The slot every guest arm removes.
 pub(crate) const SLOT: &str = "fix-flaky-test";
@@ -103,21 +128,37 @@ impl LivePoolFixture {
     /// The fixture the environment names,
     /// or nothing on a host run,
     /// where no pool command may be made.
-    pub(crate) fn from_environment(test: &str, variables: &PoolVariables) -> Option<LivePoolFixture> {
+    pub(crate) fn from_environment(
+        test: &str,
+        variables: &PoolVariables,
+    ) -> Option<LivePoolFixture> {
         let Some(named) = std::env::var_os(variables.guest) else {
-            println!("SKIPPED {test}: {} is not set, so this machine has no guest fixture and no live arm ran", variables.guest);
+            println!(
+                "SKIPPED {test}: {} is not set, so this machine has no guest fixture and no live arm ran",
+                variables.guest
+            );
             return None;
         };
         let guest: String = named.to_string_lossy().into_owned();
         let host: String = Self::hostname();
         if host != guest {
-            panic!("{test}: {} names the guest `{guest}` and this machine calls itself `{host}`, so a live arm would reach the wrong pool", variables.guest);
+            panic!(
+                "{test}: {} names the guest `{guest}` and this machine calls itself `{host}`, so a live arm would reach the wrong pool",
+                variables.guest
+            );
         }
         return Some(LivePoolFixture {
             guest,
-            pool: std::env::var(variables.pool).unwrap_or_else(|_| return String::from(variables.default_pool)),
-            prefix: PathBuf::from(std::env::var(variables.prefix).unwrap_or_else(|_| return String::from("/opt/openzfs-2.4.4"))),
-            root: PathBuf::from(std::env::var(variables.root).unwrap_or_else(|_| return String::from(variables.default_root))),
+            pool: std::env::var(variables.pool)
+                .unwrap_or_else(|_| return String::from(variables.default_pool)),
+            prefix: PathBuf::from(
+                std::env::var(variables.prefix)
+                    .unwrap_or_else(|_| return String::from("/opt/openzfs-2.4.4")),
+            ),
+            root: PathBuf::from(
+                std::env::var(variables.root)
+                    .unwrap_or_else(|_| return String::from(variables.default_root)),
+            ),
             origin_name: String::from("origin"),
         });
     }
@@ -134,30 +175,50 @@ impl LivePoolFixture {
     /// ```ts
     /// const fixture = fixture.withOriginName('git-worktree-clone-origin-2f2f…');
     /// ```
-    pub(crate) fn with_origin_name(mut self, name: &str) -> LivePoolFixture {
+    pub(crate) fn with_origin_name(
+        mut self,
+        name: &str,
+    ) -> LivePoolFixture {
         self.origin_name = String::from(name);
         return self;
     }
 
     /// This machine's own host name.
     fn hostname() -> String {
-        let output: Output = Command::new("hostname").output().expect("the guest has `hostname`");
-        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+        let output: Output = Command::new("hostname")
+            .output()
+            .expect("the guest has `hostname`");
+        return String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_string();
     }
 
     /// The `PATH` the guest's OpenZFS userspace needs.
     pub(crate) fn search_path(&self) -> String {
-        return format!("{}:{}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", self.prefix.join("sbin").display(), self.prefix.join("bin").display());
+        return format!(
+            "{}:{}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            self.prefix.join("sbin").display(),
+            self.prefix.join("bin").display()
+        );
     }
 
     /// One pool command,
     /// whose failure names the command and what it wrote.
-    pub(crate) fn run(&self, program: &str, arguments: &[&str]) -> String {
+    pub(crate) fn run(
+        &self,
+        program: &str,
+        arguments: &[&str],
+    ) -> String {
         let output: Output = Command::new(program)
             .args(arguments)
             .env("PATH", self.search_path())
             .output()
-            .unwrap_or_else(|error| panic!("`{program} {}` could not start in the guest: {error}", arguments.join(" ")));
+            .unwrap_or_else(|error| {
+                panic!(
+                    "`{program} {}` could not start in the guest: {error}",
+                    arguments.join(" ")
+                )
+            });
         assert!(
             output.status.success(),
             "`{program} {}` exited {}: {}{}",
@@ -166,23 +227,41 @@ impl LivePoolFixture {
             String::from_utf8_lossy(output.stdout.as_slice()),
             String::from_utf8_lossy(output.stderr.as_slice())
         );
-        return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+        return String::from_utf8_lossy(output.stdout.as_slice())
+            .trim()
+            .to_string();
     }
 
     /// One pool command whose answer is printed whole,
     /// whether it worked or not.
-    pub(crate) fn ask(&self, program: &str, arguments: &[&str]) -> String {
+    pub(crate) fn ask(
+        &self,
+        program: &str,
+        arguments: &[&str],
+    ) -> String {
         let output: Output = Command::new(program)
             .args(arguments)
             .env("PATH", self.search_path())
             .output()
-            .unwrap_or_else(|error| panic!("`{program} {}` could not start in the guest: {error}", arguments.join(" ")));
-        return format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+            .unwrap_or_else(|error| {
+                panic!(
+                    "`{program} {}` could not start in the guest: {error}",
+                    arguments.join(" ")
+                )
+            });
+        return format!(
+            "{}{}",
+            String::from_utf8_lossy(output.stdout.as_slice()),
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
     }
 
     /// Whether the named dataset,
     /// snapshot or bookmark exists.
-    pub(crate) fn exists(&self, name: &str) -> bool {
+    pub(crate) fn exists(
+        &self,
+        name: &str,
+    ) -> bool {
         let mut arguments: Vec<&str> = vec!["list", "-H", "-o", "name"];
         if name.contains('#') {
             arguments.extend_from_slice(&["-t", "bookmark"]);
@@ -200,16 +279,35 @@ impl LivePoolFixture {
     ///
     /// A `zfs get` of two properties prints one line per property,
     /// so the values are read as lines and never as one separated row.
-    pub(crate) fn identity(&self, name: &str) -> (u64, u64) {
-        let printed: String = self.run("zfs", &["get", "-H", "-p", "-o", "value", "guid,createtxg", name]);
+    pub(crate) fn identity(
+        &self,
+        name: &str,
+    ) -> (u64, u64) {
+        let printed: String = self.run(
+            "zfs",
+            &["get", "-H", "-p", "-o", "value", "guid,createtxg", name],
+        );
         let mut values = printed.lines();
-        let guid: u64 = values.next().expect("the GUID is printed").trim().parse().expect("the GUID is a number");
-        let createtxg: u64 = values.next().expect("the group is printed").trim().parse().expect("the group is a number");
+        let guid: u64 = values
+            .next()
+            .expect("the GUID is printed")
+            .trim()
+            .parse()
+            .expect("the GUID is a number");
+        let createtxg: u64 = values
+            .next()
+            .expect("the group is printed")
+            .trim()
+            .parse()
+            .expect("the group is a number");
         return (guid, createtxg);
     }
 
     /// The full name of one dataset in this pool.
-    pub(crate) fn named(&self, below: &str) -> String {
+    pub(crate) fn named(
+        &self,
+        below: &str,
+    ) -> String {
         return format!("{}/{below}", self.pool);
     }
 
@@ -227,8 +325,17 @@ impl LivePoolFixture {
     /// ```ts
     /// fixture.build(['manual-2026-11-21', 'sanoid-hourly-2026-11-22']);
     /// ```
-    pub(crate) fn build(&self, snapshots: &[&str]) {
-        self.run("mkdir", &["--parents", self.root.to_str().expect("the fixture root is text")]);
+    pub(crate) fn build(
+        &self,
+        snapshots: &[&str],
+    ) {
+        self.run(
+            "mkdir",
+            &[
+                "--parents",
+                self.root.to_str().expect("the fixture root is text"),
+            ],
+        );
         let image: PathBuf = self.root.join("pool.img");
         let image_text: &str = image.to_str().expect("the image path is text");
         if Path::new(image_text).exists() {
@@ -238,11 +345,40 @@ impl LivePoolFixture {
         self.run("zpool", &["create", "-f", self.pool.as_str(), image_text]);
         let checkout: String = self.named("checkout");
         let clones: String = self.named("clones");
-        self.run("zfs", &["create", "-o", "mountpoint=legacy", checkout.as_str()]);
-        self.run("zfs", &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", clones.as_str()]);
-        self.run("zfs", &["snapshot", format!("{checkout}@earliest").as_str()]);
-        self.run("zfs", &["bookmark", format!("{checkout}@earliest").as_str(), format!("{checkout}#from-earliest").as_str()]);
-        self.run("zfs", &["snapshot", format!("{checkout}@{}", self.origin_name).as_str()]);
+        self.run(
+            "zfs",
+            &["create", "-o", "mountpoint=legacy", checkout.as_str()],
+        );
+        self.run(
+            "zfs",
+            &[
+                "create",
+                "-o",
+                "mountpoint=legacy",
+                "-o",
+                "canmount=off",
+                clones.as_str(),
+            ],
+        );
+        self.run(
+            "zfs",
+            &["snapshot", format!("{checkout}@earliest").as_str()],
+        );
+        self.run(
+            "zfs",
+            &[
+                "bookmark",
+                format!("{checkout}@earliest").as_str(),
+                format!("{checkout}#from-earliest").as_str(),
+            ],
+        );
+        self.run(
+            "zfs",
+            &[
+                "snapshot",
+                format!("{checkout}@{}", self.origin_name).as_str(),
+            ],
+        );
         let clone: String = self.clone();
         self.run("zfs", &["clone", self.origin().as_str(), clone.as_str()]);
         for snapshot in snapshots {
@@ -299,7 +435,8 @@ impl LivePoolFixture {
     pub(crate) fn recorded(&self) -> RecordedBinding {
         let (clone_guid, clone_createtxg) = self.identity(self.clone().as_str());
         let (origin_dataset_guid, _) = self.identity(self.checkout().as_str());
-        let (origin_snapshot_guid, origin_snapshot_createtxg) = self.identity(self.origin().as_str());
+        let (origin_snapshot_guid, origin_snapshot_createtxg) =
+            self.identity(self.origin().as_str());
         let (pool_guid, _) = self.identity(self.pool.as_str());
         return RecordedBinding {
             slot: String::from(SLOT),
@@ -328,7 +465,12 @@ impl LivePoolFixture {
 
     /// The fixture repository's slot path.
     pub(crate) fn slot_path(&self) -> PathBuf {
-        return self.root.join("repo").join(".claude").join("worktrees").join(SLOT);
+        return self
+            .root
+            .join("repo")
+            .join(".claude")
+            .join("worktrees")
+            .join(SLOT);
     }
 
     /// The registration directory the fixture repository holds.
@@ -339,7 +481,9 @@ impl LivePoolFixture {
     /// How many entries the removal's plan folder holds,
     /// which is zero before a removal writes one.
     pub(crate) fn plan_entries(&self) -> usize {
-        let folder: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(self.common().as_path());
+        let folder: PathBuf = crate::worktree_clone_binding_record::registration_home::plans_folder(
+            self.common().as_path(),
+        );
         return std::fs::read_dir(folder.as_path()).map_or(0, |entries| return entries.count());
     }
 
@@ -356,13 +500,19 @@ impl LivePoolFixture {
     /// ```ts
     /// fixture.writeTheAddsRecords(recorded);
     /// ```
-    pub(crate) fn write_the_adds_records(&self, recorded: &RecordedBinding) {
+    pub(crate) fn write_the_adds_records(
+        &self,
+        recorded: &RecordedBinding,
+    ) {
         std::fs::create_dir_all(self.slot_path().as_path()).expect("the slot folder");
         std::fs::create_dir_all(self.registration().as_path()).expect("the registration");
-        let registration_identity: FolderIdentity = FolderIdentity::of_folder(self.registration().as_path()).expect("the registration's identity");
+        let registration_identity: FolderIdentity =
+            FolderIdentity::of_folder(self.registration().as_path())
+                .expect("the registration's identity");
         // The settle compares the underlay's identity with the one the binding records, so the record carries the
         // slot folder's own identity and not the registration's.
-        let slot_identity: FolderIdentity = FolderIdentity::of_folder(self.slot_path().as_path()).expect("the slot's identity");
+        let slot_identity: FolderIdentity =
+            FolderIdentity::of_folder(self.slot_path().as_path()).expect("the slot's identity");
         let home: PathBuf = home_folder(self.common().as_path());
         std::fs::create_dir_all(home.as_path()).expect("the binding home");
         let lines: Vec<String> = vec![
@@ -372,28 +522,56 @@ impl LivePoolFixture {
             format!("request=branch {}", bytes_as_hexadecimal(b"main")),
             String::from("phase=filled"),
             format!("checkoutDataset={}", recorded.origin_dataset),
-            format!("checkoutDatasetGuid={}", recorded.origin_dataset_guid.file_name()),
-            format!("repository={}", path_as_hexadecimal(self.common().as_path())),
-            format!("repositoryIdentity={}", FolderIdentity::of_folder(self.common().as_path()).expect("the common directory's identity").encode()),
+            format!(
+                "checkoutDatasetGuid={}",
+                recorded.origin_dataset_guid.file_name()
+            ),
+            format!(
+                "repository={}",
+                path_as_hexadecimal(self.common().as_path())
+            ),
+            format!(
+                "repositoryIdentity={}",
+                FolderIdentity::of_folder(self.common().as_path())
+                    .expect("the common directory's identity")
+                    .encode()
+            ),
             format!("slot={}", path_as_hexadecimal(self.slot_path().as_path())),
             format!("slotIdentity={}", slot_identity.encode()),
-            format!("registration={}", path_as_hexadecimal(self.registration().as_path())),
+            format!(
+                "registration={}",
+                path_as_hexadecimal(self.registration().as_path())
+            ),
             format!("registrationIdentity={}", registration_identity.encode()),
             format!("pool={}", recorded.pool),
             format!("poolGuid={}", recorded.pool_guid.file_name()),
             format!("originSnapshot={}", recorded.origin_snapshot),
-            format!("originSnapshotGuid={}", recorded.origin_snapshot_guid.file_name()),
-            format!("originSnapshotCreatetxg={}", recorded.origin_snapshot_createtxg),
+            format!(
+                "originSnapshotGuid={}",
+                recorded.origin_snapshot_guid.file_name()
+            ),
+            format!(
+                "originSnapshotCreatetxg={}",
+                recorded.origin_snapshot_createtxg
+            ),
             format!("originDataset={}", recorded.origin_dataset),
-            format!("originDatasetGuid={}", recorded.origin_dataset_guid.file_name()),
+            format!(
+                "originDatasetGuid={}",
+                recorded.origin_dataset_guid.file_name()
+            ),
             format!("cloneDataset={}", recorded.clone_dataset),
             format!("cloneGuid={}", recorded.clone_guid.file_name()),
             format!("cloneCreatetxg={}", recorded.clone_createtxg),
             format!("pointer={}", bytes_as_hexadecimal(b"gitdir: /nowhere\n")),
         ];
-        std::fs::write(home.join(binding_name(SLOT)), format!("{}\n", lines.join("\n"))).expect("the binding record");
+        std::fs::write(
+            home.join(binding_name(SLOT)),
+            format!("{}\n", lines.join("\n")),
+        )
+        .expect("the binding record");
         let inventory: InventoryRecord = self.the_origin_inventory(recorded);
-        std::fs::write(home.join(origin_inventory_name(SLOT)), inventory.encode()).expect("the origin inventory");
+        std::fs::write(home.join(origin_inventory_name(SLOT)), inventory.encode())
+            .expect("the origin inventory");
     }
 
     /// What:
@@ -407,16 +585,35 @@ impl LivePoolFixture {
     /// ```ts
     /// const inventory = fixture.theOriginInventory(recorded);
     /// ```
-    pub(crate) fn the_origin_inventory(&self, recorded: &RecordedBinding) -> InventoryRecord {
+    pub(crate) fn the_origin_inventory(
+        &self,
+        recorded: &RecordedBinding,
+    ) -> InventoryRecord {
         let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
         let mut entries: Vec<InventoryEntry> = Vec::new();
-        for snapshot in reads.snapshots_of(self.checkout().as_str(), recorded.origin_dataset_guid).expect("the checkout's snapshots list") {
+        for snapshot in reads
+            .snapshots_of(self.checkout().as_str(), recorded.origin_dataset_guid)
+            .expect("the checkout's snapshots list")
+        {
             if snapshot.createtxg <= recorded.origin_snapshot_createtxg {
-                entries.push(InventoryEntry { kind: EntryKind::Snapshot, guid: snapshot.guid, createtxg: snapshot.createtxg, name: snapshot.name });
+                entries.push(InventoryEntry {
+                    kind: EntryKind::Snapshot,
+                    guid: snapshot.guid,
+                    createtxg: snapshot.createtxg,
+                    name: snapshot.name,
+                });
             }
         }
-        for bookmark in reads.bookmarks_of(self.checkout().as_str(), recorded.origin_dataset_guid).expect("the checkout's bookmarks list") {
-            entries.push(InventoryEntry { kind: EntryKind::Bookmark, guid: bookmark.guid, createtxg: bookmark.createtxg, name: bookmark.name });
+        for bookmark in reads
+            .bookmarks_of(self.checkout().as_str(), recorded.origin_dataset_guid)
+            .expect("the checkout's bookmarks list")
+        {
+            entries.push(InventoryEntry {
+                kind: EntryKind::Bookmark,
+                guid: bookmark.guid,
+                createtxg: bookmark.createtxg,
+                name: bookmark.name,
+            });
         }
         return InventoryRecord {
             kind: InventoryKind::Origin,
@@ -447,7 +644,20 @@ impl LivePoolFixture {
         let mut found: Vec<String> = Vec::new();
         for dataset in [self.checkout(), self.clone()] {
             for kind in ["snapshot", "bookmark"] {
-                let printed: String = self.ask("zfs", &["list", "-H", "-p", "-o", "guid,createtxg", "-r", "-t", kind, dataset.as_str()]);
+                let printed: String = self.ask(
+                    "zfs",
+                    &[
+                        "list",
+                        "-H",
+                        "-p",
+                        "-o",
+                        "guid,createtxg",
+                        "-r",
+                        "-t",
+                        kind,
+                        dataset.as_str(),
+                    ],
+                );
                 for line in printed.lines() {
                     if line.trim().is_empty() || line.contains("no datasets available") {
                         continue;
@@ -467,7 +677,8 @@ impl LivePoolFixture {
 
 /// One live GUID as this route holds it.
 pub(crate) fn guid_of(value: u64) -> DatasetGuid {
-    return DatasetGuid::parse(value.to_string().as_str()).expect("the kernel reports a canonical GUID");
+    return DatasetGuid::parse(value.to_string().as_str())
+        .expect("the kernel reports a canonical GUID");
 }
 
 /// What:
@@ -496,7 +707,11 @@ pub(crate) struct HookedDevice<'a> {
 }
 
 impl SnapshotDestroyDevice for HookedDevice<'_> {
-    fn destroy_snaps(&self, pool: &str, names: &[&str]) -> Result<Option<NvList>, DeviceError> {
+    fn destroy_snaps(
+        &self,
+        pool: &str,
+        names: &[&str],
+    ) -> Result<Option<NvList>, DeviceError> {
         let answer: Result<Option<NvList>, DeviceError> = self.live.destroy_snaps(pool, names);
         let seen: usize = self.calls.get();
         self.calls.set(seen + 1);

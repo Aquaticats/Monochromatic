@@ -2,8 +2,14 @@
 //!  each in its own disposable directory.
 
 use super::*;
-use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_child_under_file_size_limit};
-use crate::test_support::{fixture, remove};
+use crate::file_size_limit_child_test_support::{
+    LIMITED_DIRECTORY_VARIABLE,
+    run_child_under_file_size_limit,
+};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// The permission bits of a path,
@@ -81,7 +87,10 @@ fn the_scratch_writer_creates_an_exclusive_private_file() {
         let link: PathBuf = root.join("link.bin");
         std::os::unix::fs::symlink(root.join("target"), &link).expect("plant link");
         assert!(write_exclusive_scratch(link.as_path(), b"x").is_err());
-        assert!(!root.join("target").exists(), "the link target must not be created");
+        assert!(
+            !root.join("target").exists(),
+            "the link target must not be created"
+        );
     }
     remove(root.as_path());
 }
@@ -129,10 +138,15 @@ fn protection_sets_the_requested_mode() {
 #[test]
 #[ignore = "started as a child process, under a file-size limit, by the controls of the writers"]
 fn child_writes_a_record_past_the_size_limit() {
-    let directory: PathBuf = PathBuf::from(std::env::var_os(LIMITED_DIRECTORY_VARIABLE).expect("directory"));
+    let directory: PathBuf =
+        PathBuf::from(std::env::var_os(LIMITED_DIRECTORY_VARIABLE).expect("directory"));
     let record: Vec<u8> = vec![b'x'; 1000];
-    assert!(write_private_file(directory.join("private.json").as_path(), record.as_slice()).is_err());
-    assert!(write_exclusive_synced(directory.join("synced.json").as_path(), record.as_slice()).is_err());
+    assert!(
+        write_private_file(directory.join("private.json").as_path(), record.as_slice()).is_err()
+    );
+    assert!(
+        write_exclusive_synced(directory.join("synced.json").as_path(), record.as_slice()).is_err()
+    );
 }
 
 /// A record whose write is cut half way by a full disk or a size limit leaves nothing at its name,
@@ -149,13 +163,22 @@ fn a_write_cut_half_way_leaves_nothing_behind() {
         100,
         root.as_path(),
     );
-    assert!(status.success(), "the child's writers must both fail: {status:?}");
+    assert!(
+        status.success(),
+        "the child's writers must both fail: {status:?}"
+    );
     let left: Vec<String> = std::fs::read_dir(&root)
         .expect("directory")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .map(|entry| {
+            return entry.file_name().to_string_lossy().into_owned();
+        })
         .collect();
-    assert_eq!(left, Vec::<String>::new(), "no record and no half-written staging file stays");
+    assert_eq!(
+        left,
+        Vec::<String>::new(),
+        "no record and no half-written staging file stays"
+    );
     remove(root.as_path());
 }
 
@@ -171,8 +194,13 @@ fn a_directory_that_cannot_be_synced_is_not_an_error() {
         eprintln!("skipped: no procfs on this system");
         return;
     }
-    let direct: std::io::Result<()> = std::fs::File::open(procfs).and_then(|handle| { return handle.sync_all(); });
-    assert!(direct.is_err(), "the control: procfs refuses to sync a directory");
+    let direct: std::io::Result<()> = std::fs::File::open(procfs).and_then(|handle| {
+        return handle.sync_all();
+    });
+    assert!(
+        direct.is_err(),
+        "the control: procfs refuses to sync a directory"
+    );
     sync_directory(procfs).expect("an unsupported directory sync is skipped");
 }
 
@@ -311,7 +339,8 @@ const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 #[cfg(unix)]
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(result, 0, "mkfifo {}", path.display());
@@ -375,10 +404,16 @@ fn the_durability_answer_decides_whether_a_file_is_flushed() {
     let read_end: libc::c_int = ends[0];
     let write_end: File = unsafe { File::from_raw_fd(ends[1]) };
     let refused: std::io::Result<()> = flush_file_when_faithful(&write_end, Path::new("a pipe"));
-    assert!(refused.is_err(), "a pipe holds no data to flush: {refused:?}");
+    assert!(
+        refused.is_err(),
+        "a pipe holds no data to flush: {refused:?}"
+    );
     crate::private_storage::skip_the_durability_syncs_here();
     let kept: std::io::Result<()> = flush_file_when_faithful(&write_end, Path::new("a pipe"));
-    assert!(kept.is_ok(), "the answer skips the flush the pipe refuses: {kept:?}");
+    assert!(
+        kept.is_ok(),
+        "the answer skips the flush the pipe refuses: {kept:?}"
+    );
     // SAFETY: the read end is a descriptor this control opened and closes once.
     let closed: libc::c_int = unsafe { libc::close(read_end) };
     assert_eq!(closed, 0, "the read end is closed");

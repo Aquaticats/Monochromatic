@@ -16,7 +16,10 @@
 //! ```
 
 use crate::service_claim_renewal::HeldClaims;
-use crate::service_work_handlers_replanning_and_acceptance::{Verdict, WorkHandlers};
+use crate::service_work_handlers_replanning_and_acceptance::{
+    Verdict,
+    WorkHandlers,
+};
 use crate::service_work_settling_with_words::settle_with_the_words;
 use crate::service_work_storage_awaited::still_held_awaiting;
 use crate::work_item::Claimed;

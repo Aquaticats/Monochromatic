@@ -34,12 +34,24 @@
 //! ```
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all,
+    write_private_file_unsynced,
+};
 use crate::push_failure_notice::fnv_hex;
-use crate::push_failure_notice_claimed_by_one_command::{ClaimToken, claim, claimed_by_a_live_command, record_of_claim, take_over};
+use crate::push_failure_notice_claimed_by_one_command::{
+    ClaimToken,
+    claim,
+    claimed_by_a_live_command,
+    record_of_claim,
+    take_over,
+};
 use crate::push_failure_notice_shown_then_removed::Notice;
 use crate::shell_quote::shell_quote;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Directory under the common Git directory that holds the worktrees a removal kept.
 pub const KEPT_NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/kept-worktree-notices";
@@ -89,7 +101,10 @@ pub fn kept_notice_directory(common_dir: &Path) -> PathBuf {
 /// const name = `kept-${fnvHex(path)}${RECORD_SUFFIX}`;
 /// ```
 fn record_name(worktree: &Path) -> String {
-    return format!("kept-{}{RECORD_SUFFIX}", fnv_hex(worktree.display().to_string().as_str()));
+    return format!(
+        "kept-{}{RECORD_SUFFIX}",
+        fnv_hex(worktree.display().to_string().as_str())
+    );
 }
 
 /// What:
@@ -105,7 +120,11 @@ fn record_name(worktree: &Path) -> String {
 /// ```ts
 /// const words = `${PREFIX}the commit service left the worktree ${worktree} of branch ${branch} in place after its branch landed: ${why}. Remove it with ...`
 /// ```
-fn words_of(worktree: &Path, branch: &str, why: &str) -> String {
+fn words_of(
+    worktree: &Path,
+    branch: &str,
+    why: &str,
+) -> String {
     let quoted: String = shell_quote(worktree.as_os_str().as_encoded_bytes());
     return format!(
         "{PREFIX}the commit service left the worktree {} of branch {} in place though its branch landed: {}. Remove it with `git worktree remove {quoted}` when nothing there is yours.",
@@ -137,13 +156,21 @@ fn trim_reason(why: &str) -> &str {
 /// # Errors
 ///
 /// The words for a directory or a record that cannot be written.
-pub fn record_kept_worktree(common_dir: &Path, worktree: &Path, branch: &str, why: &str) -> Result<(), String> {
+pub fn record_kept_worktree(
+    common_dir: &Path,
+    worktree: &Path,
+    branch: &str,
+    why: &str,
+) -> Result<(), String> {
     let directory: PathBuf = kept_notice_directory(common_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(record_name(worktree));
-    let text: String = format!("{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n\n{why}\n", worktree.display());
+    let text: String = format!(
+        "{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n\n{why}\n",
+        worktree.display()
+    );
     let _removed = std::fs::remove_file(path.as_path());
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
@@ -200,7 +227,9 @@ fn parse_record(text: &str) -> Option<(PathBuf, String, String)> {
 /// const notices = keptWorktreeNotices(commonDir); // Notice[], each claimed
 /// ```
 pub fn kept_worktree_notices(common_dir: &Path) -> Vec<Notice> {
-    let Ok(listing) = std::fs::read_dir(kept_notice_directory(common_dir)) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(kept_notice_directory(common_dir)) else {
+        return Vec::new();
+    };
     let token: ClaimToken = ClaimToken::of_this_command();
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
@@ -209,12 +238,19 @@ pub fn kept_worktree_notices(common_dir: &Path) -> Vec<Notice> {
     paths.sort();
     let mut notices: Vec<Notice> = Vec::new();
     for path in paths {
-        let Some(name) = path.file_name().map(|found| return found.to_string_lossy().into_owned()) else { continue };
+        let Some(name) = path
+            .file_name()
+            .map(|found| return found.to_string_lossy().into_owned())
+        else {
+            continue;
+        };
         if record_of_claim(name.as_str()).is_some() {
             if claimed_by_a_live_command(name.as_str()) {
                 continue;
             }
-            let Some(claimed) = take_over(path.as_path(), &token) else { continue };
+            let Some(claimed) = take_over(path.as_path(), &token) else {
+                continue;
+            };
             if let Some(notice) = notice_at(claimed.as_path()) {
                 notices.push(notice);
             }
@@ -225,9 +261,17 @@ pub fn kept_worktree_notices(common_dir: &Path) -> Vec<Notice> {
         }
         // The record is read before it is claimed, so a file this program did not write is neither shown nor moved:
         // renaming it first and finding it unreadable would take something of the person's out of its own name.
-        let Some((worktree, branch, why)) = parsed_file(path.as_path()) else { continue };
-        let Some(claimed) = claim(path.as_path(), &token) else { continue };
-        notices.push(Notice { record: path, claim: claimed, text: words_of(worktree.as_path(), branch.as_str(), why.as_str()) });
+        let Some((worktree, branch, why)) = parsed_file(path.as_path()) else {
+            continue;
+        };
+        let Some(claimed) = claim(path.as_path(), &token) else {
+            continue;
+        };
+        notices.push(Notice {
+            record: path,
+            claim: claimed,
+            text: words_of(worktree.as_path(), branch.as_str(), why.as_str()),
+        });
     }
     return notices;
 }
@@ -264,8 +308,14 @@ fn parsed_file(path: &Path) -> Option<(PathBuf, String, String)> {
 fn notice_at(claimed: &Path) -> Option<Notice> {
     let text: String = crate::plain_file::read_plain_text(claimed).ok()?;
     let (worktree, branch, why) = parse_record(text.as_str())?;
-    let record: PathBuf = claimed.with_file_name(record_of_claim(claimed.file_name()?.to_string_lossy().as_ref())?);
-    return Some(Notice { record, claim: claimed.to_path_buf(), text: words_of(worktree.as_path(), branch.as_str(), why.as_str()) });
+    let record: PathBuf = claimed.with_file_name(record_of_claim(
+        claimed.file_name()?.to_string_lossy().as_ref(),
+    )?);
+    return Some(Notice {
+        record,
+        claim: claimed.to_path_buf(),
+        text: words_of(worktree.as_path(), branch.as_str(), why.as_str()),
+    });
 }
 
 /// Notice controls stay out of the release executable.

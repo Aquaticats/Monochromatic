@@ -20,11 +20,22 @@
 //! const checkedOut = await symbolicRef({ place, root }); const current = await resolveCommit({ place, root, reference });
 //! ```
 
-use crate::merge_isolation_changes::{Change, parse_raw_changes};
-use crate::merge_isolation_recovery_steps::{Judged, MergeRefusal, RecoveryPlace, Standing};
+use crate::merge_isolation_changes::{
+    Change,
+    parse_raw_changes,
+};
+use crate::merge_isolation_recovery_steps::{
+    Judged,
+    MergeRefusal,
+    RecoveryPlace,
+    Standing,
+};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
-use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
+use crate::transaction_git_awaiting::{
+    run_git_awaiting,
+    run_git_checked_awaiting,
+};
 use std::path::Path;
 
 /// What:
@@ -71,16 +82,25 @@ pub fn holds_the_merge(judged: &Judged) -> bool {
 /// ```ts
 /// const named = await git(['symbolic-ref', '--quiet', 'HEAD']); return named.succeeded ? named.stdout.trim() : undefined;
 /// ```
-pub async fn symbolic_ref_awaiting(place: &RecoveryPlace, root: &Path) -> Result<Option<String>, RecoveryError> {
+pub async fn symbolic_ref_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+) -> Result<Option<String>, RecoveryError> {
     let request: GitRequest = GitRequest::new(root, &["symbolic-ref", "--quiet", "HEAD"]);
     let output = match run_git_awaiting(&place.git, &request).await {
         Ok(done) => done,
-        Err(error) => return Err(RecoveryError(format!("git symbolic-ref could not start: {error}"))),
+        Err(error) => {
+            return Err(RecoveryError(format!(
+                "git symbolic-ref could not start: {error}"
+            )));
+        }
     };
     if !output.succeeded() {
         return Ok(None);
     }
-    return Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+    return Ok(Some(
+        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+    ));
 }
 
 /// What:
@@ -93,17 +113,30 @@ pub async fn symbolic_ref_awaiting(place: &RecoveryPlace, root: &Path) -> Result
 /// ```ts
 /// async function resolveCommit(reference: string): Promise<string | undefined>;
 /// ```
-pub async fn resolve_commit_awaiting(place: &RecoveryPlace, root: &Path, reference: &str) -> Result<Option<String>, RecoveryError> {
+pub async fn resolve_commit_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    reference: &str,
+) -> Result<Option<String>, RecoveryError> {
     let revision: String = format!("{reference}^{{commit}}");
-    let request: GitRequest = GitRequest::new(root, &["rev-parse", "--verify", "--quiet", revision.as_str()]);
+    let request: GitRequest = GitRequest::new(
+        root,
+        &["rev-parse", "--verify", "--quiet", revision.as_str()],
+    );
     let output = match run_git_awaiting(&place.git, &request).await {
         Ok(done) => done,
-        Err(error) => return Err(RecoveryError(format!("git rev-parse could not start: {error}"))),
+        Err(error) => {
+            return Err(RecoveryError(format!(
+                "git rev-parse could not start: {error}"
+            )));
+        }
     };
     if !output.succeeded() {
         return Ok(None);
     }
-    return Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+    return Ok(Some(
+        String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+    ));
 }
 
 /// What:
@@ -128,13 +161,23 @@ pub async fn paths_the_branch_does_not_hold_awaiting(
 ) -> Result<Vec<bool>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
-        &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", tip, next_oid],
+        &[
+            "diff-tree",
+            "-r",
+            "-z",
+            "--raw",
+            "--no-renames",
+            "--no-abbrev",
+            tip,
+            next_oid,
+        ],
     );
     let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(error.to_string())),
     };
-    let differing: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
+    let differing: Vec<Change> =
+        parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
     let mut found: Vec<bool> = Vec::with_capacity(changes.len());
     for change in changes {
         let mut lacks: bool = false;
@@ -185,11 +228,18 @@ pub async fn the_paths_hold_only_the_persons_own_bytes_awaiting(
         }
         // A directory or another entry has no bytes of its own to judge, and a mode of the person's over a side's bytes is not an
         //  edit this answer covers.
-        let Some(content) = judged.content.as_deref() else { return false };
+        let Some(content) = judged.content.as_deref() else {
+            return false;
+        };
         for side in [change.old_oid.as_str(), change.new_oid.as_str()] {
-            if crate::merge_isolation_take_asides::the_file_form_of_awaiting(&place.git, root, change.path.as_slice(), side)
-                .await
-                .as_deref()
+            if crate::merge_isolation_take_asides::the_file_form_of_awaiting(
+                &place.git,
+                root,
+                change.path.as_slice(),
+                side,
+            )
+            .await
+            .as_deref()
                 == Some(content)
             {
                 return false;
@@ -222,8 +272,14 @@ pub async fn the_paths_hold_only_the_persons_own_bytes_awaiting(
 /// ```ts
 /// const theCaptureHoldsThem = (intent, changes, judgements) => everyForeignPathHasContentAndModeIn(intent.carried);
 /// ```
-pub fn the_capture_holds_every_file_in_the_way(intent: &crate::merge_isolation_journal::MergeIntent, changes: &[Change], judgements: &[Judged]) -> bool {
-    let Some(capture) = intent.carried.as_ref() else { return false };
+pub fn the_capture_holds_every_file_in_the_way(
+    intent: &crate::merge_isolation_journal::MergeIntent,
+    changes: &[Change],
+    judgements: &[Judged],
+) -> bool {
+    let Some(capture) = intent.carried.as_ref() else {
+        return false;
+    };
     let mut found_one: bool = false;
     for (change, judged) in changes.iter().zip(judgements.iter()) {
         if judged.standing != Standing::Foreign {
@@ -236,7 +292,9 @@ pub fn the_capture_holds_every_file_in_the_way(intent: &crate::merge_isolation_j
             }
         }
         let Some(entry) = named else { return false };
-        let Some(file) = entry.worktree.as_ref() else { return false };
+        let Some(file) = entry.worktree.as_ref() else {
+            return false;
+        };
         if judged.content.as_deref() != Some(file.blob.as_str()) {
             return false;
         }
@@ -272,7 +330,12 @@ pub fn the_capture_holds_every_file_in_the_way(intent: &crate::merge_isolation_j
 /// ```ts
 /// function isAncestor(place, root, ancestor, commit): boolean | undefined; // git merge-base --is-ancestor
 /// ```
-pub(crate) async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
+pub(crate) async fn is_ancestor_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    ancestor: &str,
+    commit: &str,
+) -> Result<bool, MergeRefusal> {
     let arguments: [&str; 4] = ["merge-base", "--is-ancestor", ancestor, commit];
     // The status is read from the start itself: `git merge-base --is-ancestor` answers "no" with status 1 and nothing on standard
     //  error, and a failure message carries only what Git printed, so a "no" read from that text was a refusal that stopped every
@@ -282,7 +345,18 @@ pub(crate) async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, anc
         // The one answer `--is-ancestor` gives for "no".
         Ok(found) if found.code == Some(1) => Ok(false),
         // Any other status is a failure to read, and the words name what Git said and the command that said it.
-        Ok(found) => Err(MergeRefusal { error: RecoveryError(format!("git merge-base --is-ancestor failed: {}", found.error_text())), began: true }),
-        Err(error) => Err(MergeRefusal { error: RecoveryError(format!("git merge-base --is-ancestor could not start: {error}")), began: true }),
+        Ok(found) => Err(MergeRefusal {
+            error: RecoveryError(format!(
+                "git merge-base --is-ancestor failed: {}",
+                found.error_text()
+            )),
+            began: true,
+        }),
+        Err(error) => Err(MergeRefusal {
+            error: RecoveryError(format!(
+                "git merge-base --is-ancestor could not start: {error}"
+            )),
+            began: true,
+        }),
     };
 }

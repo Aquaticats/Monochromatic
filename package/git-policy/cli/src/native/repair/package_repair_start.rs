@@ -35,15 +35,29 @@
 use crate::blocking_job::run_blocking_job;
 /// The descriptor a stop names a process by,
 /// and the signal it sends through it.
-use crate::member_signalled_through_its_pidfd::{Delivered, pidfd_of, signal_through};
+use crate::member_signalled_through_its_pidfd::{
+    Delivered,
+    pidfd_of,
+    signal_through,
+};
 /// The start that rides out a refused start of a child.
 use crate::start_retry::RetryStart;
 /// The thread that collects a child no wait of the run will reach.
 use crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon;
 use std::io::Write as _;
-use std::os::fd::{AsRawFd as _, OwnedFd, RawFd};
-use std::process::{Child, Command};
-use std::time::{Duration, Instant};
+use std::os::fd::{
+    AsRawFd as _,
+    OwnedFd,
+    RawFd,
+};
+use std::process::{
+    Child,
+    Command,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 use tokio::io::AsyncReadExt as _;
 use tokio::net::unix::pipe::Receiver;
 
@@ -127,7 +141,9 @@ impl AChildNotYetTaken {
     /// const notYetTaken = new AChildNotYetTaken(child);
     /// ```
     pub(crate) fn new(child: Child) -> Self {
-        return Self { child: Some(child) };
+        return Self {
+            child: Some(child),
+        };
     }
 
     /// What:
@@ -141,7 +157,10 @@ impl AChildNotYetTaken {
     /// const child = notYetTaken.taken();
     /// ```
     pub(crate) fn taken(mut self) -> Child {
-        return self.child.take().expect("a child not yet taken is taken once, and this value stops it otherwise");
+        return self
+            .child
+            .take()
+            .expect("a child not yet taken is taken once, and this value stops it otherwise");
     }
 }
 
@@ -180,7 +199,10 @@ impl Drop for AChildNotYetTaken {
 /// ```ts
 /// const start = await startWithin(ceilingMs, command);
 /// ```
-pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> ToolStart {
+pub(crate) async fn start_within(
+    ceiling: Duration,
+    mut command: Command,
+) -> ToolStart {
     let began: Instant = Instant::now();
     // A control holds the child before it reports itself, or after the run lets it go, which are the two places a start
     // can be made to take time; the run that ships holds neither. A control can also name the file its fixture's tool
@@ -194,9 +216,14 @@ pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> Too
     #[cfg(not(test))]
     let held_after_the_let_go: Option<Duration> = None;
     let (mut gate, the_childs_start): (TheStartGate, TheChildsStart) =
-        match TheStartGate::made(TheStartsHolds { before_the_report: held_before_the_report, after_the_let_go: held_after_the_let_go }) {
+        match TheStartGate::made(TheStartsHolds {
+            before_the_report: held_before_the_report,
+            after_the_let_go: held_after_the_let_go,
+        }) {
             Ok(made) => made,
-            Err(error) => return ToolStart::Refused(format!("no place to watch the start ({error})")),
+            Err(error) => {
+                return ToolStart::Refused(format!("no place to watch the start ({error})"));
+            }
         };
     the_childs_start.arms(&mut command);
     // The job is no part of the runtime's workers, and the value it returns is the child: a child nothing takes is kept
@@ -257,7 +284,9 @@ pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> Too
     return match tokio::time::timeout(left_of_the_ceiling, job).await {
         Ok(Ok(Ok(taken))) => ToolStart::Running(taken),
         Ok(Ok(Err(error))) => ToolStart::Refused(error.to_string()),
-        Ok(Err(refusal)) => ToolStart::Refused(format!("the pool could not make its start ({refusal})")),
+        Ok(Err(refusal)) => {
+            ToolStart::Refused(format!("the pool could not make its start ({refusal})"))
+        }
         Err(_past_the_ceiling) => {
             // The child was let go and its own `exec` did not answer: it is stopped through the descriptor the kernel made
             // for it at its report, and the job that started it keeps the child it is still waiting for.
@@ -344,13 +373,23 @@ impl TheStartGate {
     /// ```
     fn made(holds: TheStartsHolds) -> std::io::Result<(TheStartGate, TheChildsStart)> {
         let (report, report_writer): (std::io::PipeReader, std::io::PipeWriter) = std::io::pipe()?;
-        let (release_reader, release): (std::io::PipeReader, std::io::PipeWriter) = std::io::pipe()?;
+        let (release_reader, release): (std::io::PipeReader, std::io::PipeWriter) =
+            std::io::pipe()?;
         // The ends a child keeps are its own, and the ends the run keeps are closed in it, so the child's wait for the
         // release sees the end of its pipe when this gate is dropped.
         let the_runs_ends: [RawFd; 2] = [report.as_raw_fd(), release.as_raw_fd()];
         let watching: Receiver = Receiver::from_owned_fd(OwnedFd::from(report))?;
-        let gate: TheStartGate = TheStartGate { report: watching, release, reported: None };
-        let the_childs_start: TheChildsStart = TheChildsStart { report: report_writer, release: release_reader, the_runs_ends, holds };
+        let gate: TheStartGate = TheStartGate {
+            report: watching,
+            release,
+            reported: None,
+        };
+        let the_childs_start: TheChildsStart = TheChildsStart {
+            report: report_writer,
+            release: release_reader,
+            the_runs_ends,
+            holds,
+        };
         return Ok((gate, the_childs_start));
     }
 
@@ -371,15 +410,23 @@ impl TheStartGate {
     /// ```ts
     /// const reported = await withTimeout(ceilingMs, readExactly(gate.report, 4)); gate.reported = { pid: decode(reported) };
     /// ```
-    async fn the_child_within(&mut self, ceiling: Duration) -> bool {
+    async fn the_child_within(
+        &mut self,
+        ceiling: Duration,
+    ) -> bool {
         let mut reported: [u8; REPORTED_BYTES] = [0; REPORTED_BYTES];
         // A read that leaves bytes of the report unread is the start that never said which process it is, which is no answer.
-        let Ok(Ok(REPORTED_BYTES..)) = tokio::time::timeout(ceiling, self.report.read_exact(&mut reported)).await else {
+        let Ok(Ok(REPORTED_BYTES..)) =
+            tokio::time::timeout(ceiling, self.report.read_exact(&mut reported)).await
+        else {
             return false;
         };
         let number: i32 = i32::from_le_bytes(reported);
         let descriptor: Option<OwnedFd> = pidfd_of(number);
-        self.reported = Some(TheReportedChild { number, descriptor });
+        self.reported = Some(TheReportedChild {
+            number,
+            descriptor,
+        });
         return true;
     }
 
@@ -480,7 +527,10 @@ struct TheChildsStart {
 
 impl TheChildsStart {
     /// Installs the child's own part of the start on `command`.
-    fn arms(self, command: &mut Command) {
+    fn arms(
+        self,
+        command: &mut Command,
+    ) {
         use std::os::unix::process::CommandExt as _;
         let childs_start: TheChildsStart = self;
         // SAFETY: the hook reports this child's own number and waits for one byte, with calls that only touch the child's
@@ -516,7 +566,13 @@ impl TheChildsStart {
             let _closed: i32 = unsafe { libc::close(end) };
         }
         // SAFETY: `write` hands four bytes of this child's own stack to a pipe it inherited, and touches no other memory.
-        let written: isize = unsafe { libc::write(self.report.as_raw_fd(), reported.as_ptr().cast(), REPORTED_BYTES) };
+        let written: isize = unsafe {
+            libc::write(
+                self.report.as_raw_fd(),
+                reported.as_ptr().cast(),
+                REPORTED_BYTES,
+            )
+        };
         if written != REPORTED_BYTES as isize {
             // The run stopped waiting for this start, so nothing of the tool may run. The standard library sets `SIGPIPE`
             // back to its default before this hook (`sys/process/unix/unix.rs`, the block above the closures), so a pipe
@@ -526,7 +582,8 @@ impl TheChildsStart {
         }
         let mut released: u8 = 0;
         // SAFETY: `read` fills one byte of this child's own stack from a pipe it inherited.
-        let read: isize = unsafe { libc::read(self.release.as_raw_fd(), (&raw mut released).cast(), 1) };
+        let read: isize =
+            unsafe { libc::read(self.release.as_raw_fd(), (&raw mut released).cast(), 1) };
         if read != 1 || released != THE_RUN_LETS_THE_CHILD_GO {
             // SAFETY: `_exit` ends this forked child and returns to nothing.
             unsafe { libc::_exit(EXITED_BEFORE_ITS_EXEC) };
@@ -549,7 +606,10 @@ fn pause_for(held: Option<Duration>) {
     let Some(how_long) = held else {
         return;
     };
-    let pause: libc::timespec = libc::timespec { tv_sec: libc::time_t::try_from(how_long.as_secs()).unwrap_or(0), tv_nsec: how_long.subsec_nanos() as libc::c_long };
+    let pause: libc::timespec = libc::timespec {
+        tv_sec: libc::time_t::try_from(how_long.as_secs()).unwrap_or(0),
+        tv_nsec: how_long.subsec_nanos() as libc::c_long,
+    };
     // SAFETY: `nanosleep` only pauses this forked child and touches no memory of the parent.
     let _paused: i32 = unsafe { libc::nanosleep(&pause, std::ptr::null_mut()) };
 }
@@ -565,7 +625,9 @@ fn pause_for(held: Option<Duration>) {
 /// process.kill(-child.pid, 'SIGKILL');
 /// ```
 pub(crate) fn stop_group(leader_id: u32) {
-    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
+    let Ok(leader) = libc::pid_t::try_from(leader_id) else {
+        return;
+    };
     // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
     let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
 }
@@ -646,7 +708,8 @@ async fn wait_for_the_number_in_before_giving_up(number_file: std::path::PathBuf
     let waiting_since: Instant = Instant::now();
     while waiting_since.elapsed() < THE_TOOLS_FIRST_WRITE_WAIT {
         let looking_at: std::path::PathBuf = number_file.clone();
-        let looked = run_blocking_job(move || return the_number_written_to(looking_at.as_path())).await;
+        let looked =
+            run_blocking_job(move || return the_number_written_to(looking_at.as_path())).await;
         if let Ok(Some(_number)) = looked {
             return;
         }

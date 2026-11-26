@@ -21,8 +21,16 @@
 //! const where = slotMount.whereTheCloneStands(cloneDataset, slotPath);
 //! ```
 
-use crate::worktree_clone_slot_state::slot_state_mounts::{CloneMount, clone_mount_of, read_mount_rows, slot_mount_of};
-use crate::zfs_mounted_dataset::mounted_dataset_instance::{LiveMountedDatasets, MountedDatasets};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    CloneMount,
+    clone_mount_of,
+    read_mount_rows,
+    slot_mount_of,
+};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    LiveMountedDatasets,
+    MountedDatasets,
+};
 use std::path::Path;
 
 /// What:
@@ -40,7 +48,11 @@ use std::path::Path;
 pub trait TheSlotMount {
     /// Where this clone stands,
     /// as one mount table proves it.
-    fn where_the_clone_stands(&self, clone_dataset: &str, slot_path: &Path) -> CloneMount;
+    fn where_the_clone_stands(
+        &self,
+        clone_dataset: &str,
+        slot_path: &Path,
+    ) -> CloneMount;
 }
 
 /// What:
@@ -59,7 +71,11 @@ pub trait TheSlotMount {
 pub struct LiveTheSlotMount;
 
 impl TheSlotMount for LiveTheSlotMount {
-    fn where_the_clone_stands(&self, clone_dataset: &str, slot_path: &Path) -> CloneMount {
+    fn where_the_clone_stands(
+        &self,
+        clone_dataset: &str,
+        slot_path: &Path,
+    ) -> CloneMount {
         return of_a_table(&LiveMountedDatasets, clone_dataset, slot_path);
     }
 }
@@ -74,8 +90,17 @@ impl TheSlotMount for LiveTheSlotMount {
 /// ```ts
 /// const where = ofATable(scripted, 'pool/clones/one', slotPath);
 /// ```
-pub fn of_a_table(mounts: &dyn MountedDatasets, clone_dataset: &str, slot_path: &Path) -> CloneMount {
-    return clone_mount_of(&read_mount_rows(mounts), &slot_mount_of(mounts, slot_path), clone_dataset, slot_path);
+pub fn of_a_table(
+    mounts: &dyn MountedDatasets,
+    clone_dataset: &str,
+    slot_path: &Path,
+) -> CloneMount {
+    return clone_mount_of(
+        &read_mount_rows(mounts),
+        &slot_mount_of(mounts, slot_path),
+        clone_dataset,
+        slot_path,
+    );
 }
 
 /// What:
@@ -98,9 +123,15 @@ pub fn word(state: &CloneMount) -> String {
     return match state {
         CloneMount::AtItsSlot => String::from("mounted at its slot"),
         CloneMount::Nowhere => String::from("mounted nowhere"),
-        CloneMount::Elsewhere { described } => format!("mounted elsewhere ({described})"),
-        CloneMount::SomethingElseAtTheSlot { described } => format!("with `{described}` at its slot"),
-        CloneMount::Unreadable { reason } => format!("with a mount table that could not be read ({reason})"),
+        CloneMount::Elsewhere {
+            described,
+        } => format!("mounted elsewhere ({described})"),
+        CloneMount::SomethingElseAtTheSlot {
+            described,
+        } => format!("with `{described}` at its slot"),
+        CloneMount::Unreadable {
+            reason,
+        } => format!("with a mount table that could not be read ({reason})"),
     };
 }
 

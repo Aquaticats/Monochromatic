@@ -10,12 +10,26 @@
 //!  (`scratch_location.rs`,
 //! `service_scratch_abandonment.rs`).
 
-use super::commit::{remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, repository};
+use super::commit::{
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    fixture,
+    git,
+    repository,
+};
 use git_policy_cli::wrapper_names_old_and_new::SHADOW_POOL_FOLDER;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for the removal the service starts beside its loop.
 const PATIENCE: Duration = Duration::from_secs(60);
@@ -25,8 +39,16 @@ fn edited_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    git(fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=base"],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["config", "maintenance.autoDetach", "false"],
+    );
     return repo;
 }
 
@@ -40,8 +62,19 @@ fn a_commit_leaves_no_scratch_directory_once_its_landing_is_over() {
     let repo: PathBuf = edited_repository(&fixture);
     std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit");
     git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    let output: std::process::Output = wrapped_commit(&fixture, &repo, &["commit", "--quiet", "--message=edit", "--", "a.txt"]).output().expect("the commit runs");
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    let output: std::process::Output = wrapped_commit(
+        &fixture,
+        &repo,
+        &["commit", "--quiet", "--message=edit", "--", "a.txt"],
+    )
+    .output()
+    .expect("the commit runs");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     // The service starts the removal after its landing, so the control waits for it within its own bound.
     let began: Instant = Instant::now();
     loop {
@@ -49,10 +82,16 @@ fn a_commit_leaves_no_scratch_directory_once_its_landing_is_over() {
         if left.is_empty() {
             break;
         }
-        assert!(began.elapsed() < PATIENCE, "the tree of a finished commit stayed: {left:?}");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the tree of a finished commit stayed: {left:?}"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
-    assert!(the_scratch_directory_holds_nothing(repo.as_path()), "the repository scratch directory holds nothing");
+    assert!(
+        the_scratch_directory_holds_nothing(repo.as_path()),
+        "the repository scratch directory holds nothing"
+    );
     remove_settled(&fixture);
 }
 
@@ -70,8 +109,15 @@ fn a_commit_leaves_no_scratch_directory_once_its_landing_is_over() {
 /// const empty = (repo) => (await readdir(scratch(repo))).length === 0;
 /// ```
 fn the_scratch_directory_holds_nothing(repo: &Path) -> bool {
-    let Some(directory) = scratch_directory(repo) else { return true };
-    return std::fs::read_dir(directory).map(|entries| { return entries.count(); }).unwrap_or(0) == 0;
+    let Some(directory) = scratch_directory(repo) else {
+        return true;
+    };
+    return std::fs::read_dir(directory)
+        .map(|entries| {
+            return entries.count();
+        })
+        .unwrap_or(0)
+        == 0;
 }
 
 /// The emptiness check the control above ends with is a check:
@@ -83,8 +129,12 @@ fn a_scratch_directory_that_holds_an_entry_the_prefixes_do_not_name_is_not_empty
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let directory: PathBuf = repo.join(".git/monochromatic-git-policy-cli-scratch");
     std::fs::create_dir_all(directory.as_path()).expect("the repository scratch directory");
-    std::fs::write(directory.join("commit.index"), b"a private index").expect("an entry left behind");
-    assert!(!the_scratch_directory_holds_nothing(repo.as_path()), "an entry `left_behind` does not name still means the directory holds something");
+    std::fs::write(directory.join("commit.index"), b"a private index")
+        .expect("an entry left behind");
+    assert!(
+        !the_scratch_directory_holds_nothing(repo.as_path()),
+        "an entry `left_behind` does not name still means the directory holds something"
+    );
     remove_settled(&fixture);
 }
 
@@ -117,14 +167,29 @@ fn a_landed_commit_leaves_the_pool_of_finished_shadows_alone() {
     let pool: PathBuf = repo.join(".git").join(SHADOW_POOL_FOLDER).join("main");
     std::fs::create_dir_all(pool.as_path()).expect("the pool's folder");
     let standing: PathBuf = pool.join("a-mark-of-standing-state");
-    std::fs::write(standing.as_path(), b"a member nobody has claimed yet\n").expect("standing state");
+    std::fs::write(standing.as_path(), b"a member nobody has claimed yet\n")
+        .expect("standing state");
     std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit");
     git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
-    let output: std::process::Output = wrapped_commit(&fixture, &repo, &["commit", "--quiet", "--message=edit", "--", "a.txt"]).output().expect("the commit runs");
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    let output: std::process::Output = wrapped_commit(
+        &fixture,
+        &repo,
+        &["commit", "--quiet", "--message=edit", "--", "a.txt"],
+    )
+    .output()
+    .expect("the commit runs");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let began: Instant = Instant::now();
     while !the_scratch_directory_holds_nothing(repo.as_path()) {
-        assert!(began.elapsed() < PATIENCE, "the scratch directory of a landed commit still holds something");
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the scratch directory of a landed commit still holds something"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     assert_eq!(

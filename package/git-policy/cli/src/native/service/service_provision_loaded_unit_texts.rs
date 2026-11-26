@@ -41,11 +41,14 @@
 //! ```
 
 use crate::private_storage::create_private_directory_all;
+use crate::service_files_of_a_stopped_instance::NOTES_FOLDER;
 use crate::service_instance::digest_of_bytes;
 use crate::service_provision_host_and_manager::runtime_unit_dir;
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
-use crate::service_files_of_a_stopped_instance::NOTES_FOLDER;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The ending of the record of one instance inside the notes folder,
@@ -72,8 +75,13 @@ const FIELD_SEPARATOR: u8 = 0;
 /// ```ts
 /// unitTextsRecordPath(runtimeDir, instance) // join(runtimeDir, 'systemd/user/<notes>', instance + LOADED_TEXTS_ENDING)
 /// ```
-pub fn record_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).join(format!("{instance}{LOADED_TEXTS_ENDING}"));
+pub fn record_path(
+    runtime_dir: &Path,
+    instance: &str,
+) -> PathBuf {
+    return runtime_unit_dir(runtime_dir)
+        .join(NOTES_FOLDER)
+        .join(format!("{instance}{LOADED_TEXTS_ENDING}"));
 }
 
 /// What:
@@ -115,7 +123,11 @@ fn digest(texts: &[(&'static str, String)]) -> String {
 /// ```ts
 /// readFileSync(recordPath(runtimeDir, instance)) === digestOf(texts)
 /// ```
-pub fn remembers(runtime_dir: &Path, instance: &str, texts: &[(&'static str, String)]) -> bool {
+pub fn remembers(
+    runtime_dir: &Path,
+    instance: &str,
+    texts: &[(&'static str, String)],
+) -> bool {
     // A record that is a named pipe is no record, and it answers at once rather than waiting for a writer.
     return match crate::plain_file::read_plain_text(&record_path(runtime_dir, instance)) {
         Ok(record) => record.trim_end() == digest(texts),
@@ -139,7 +151,10 @@ pub fn remembers(runtime_dir: &Path, instance: &str, texts: &[(&'static str, Str
 /// ```ts
 /// rmSync(recordPath(runtimeDir, instance), { force: true })
 /// ```
-pub fn forget(runtime_dir: &Path, instance: &str) {
+pub fn forget(
+    runtime_dir: &Path,
+    instance: &str,
+) {
     let _removed = std::fs::remove_file(record_path(runtime_dir, instance));
 }
 
@@ -158,7 +173,11 @@ pub fn forget(runtime_dir: &Path, instance: &str) {
 /// ```ts
 /// mkdir(recordDir, { recursive: true, mode: 0o700 }); writeFileSync(recordPath(runtimeDir, instance), digestOf(texts) + '\n')
 /// ```
-pub fn record(runtime_dir: &Path, instance: &str, texts: &[(&'static str, String)]) -> std::io::Result<()> {
+pub fn record(
+    runtime_dir: &Path,
+    instance: &str,
+    texts: &[(&'static str, String)],
+) -> std::io::Result<()> {
     let path: PathBuf = record_path(runtime_dir, instance);
     if let Some(folder) = path.parent() {
         create_private_directory_all(folder)?;

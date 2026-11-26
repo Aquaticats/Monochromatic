@@ -27,8 +27,21 @@ use crate::auto_push_single_flight::PushGit;
 /// ```ts
 /// const answer = await branchExistsOnTheRuntime(git, item.branch_ref);
 /// ```
-pub(crate) async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> Option<bool> {
-    let asked = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", branch_ref])).await.ok()?;
+pub(crate) async fn branch_exists_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Option<bool> {
+    let asked = crate::auto_push_single_flight::run_query_awaiting(
+        git,
+        &crate::auto_push_reconcile_basics_and_limits::argv(&[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            branch_ref,
+        ]),
+    )
+    .await
+    .ok()?;
     return match asked.code {
         Some(0) => Some(true),
         Some(1) => Some(false),
@@ -49,12 +62,27 @@ pub(crate) async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> O
 /// ```ts
 /// const tip = await branchTipOnTheRuntime(git, item.branchRef);
 /// ```
-pub(crate) async fn branch_tip_awaiting(git: &PushGit, branch_ref: &str) -> Option<String> {
+pub(crate) async fn branch_tip_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Option<String> {
     let asked: String = format!("{branch_ref}^{{commit}}");
-    let answer = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", asked.as_str()])).await.ok()?;
+    let answer = crate::auto_push_single_flight::run_query_awaiting(
+        git,
+        &crate::auto_push_reconcile_basics_and_limits::argv(&[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            asked.as_str(),
+        ]),
+    )
+    .await
+    .ok()?;
     if answer.code != Some(0) {
         return None;
     }
-    let named: String = String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_owned();
+    let named: String = String::from_utf8_lossy(answer.stdout.as_slice())
+        .trim()
+        .to_owned();
     return (!named.is_empty()).then_some(named);
 }

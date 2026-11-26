@@ -29,14 +29,17 @@
 /// The configuration as the invocation read it,
 /// and the object that the carried file is built from.
 use crate::config_snapshot::ConfigSnapshot;
-/// Owned argument text.
-use std::ffi::OsString;
 /// The bytes of a path,
 /// for a value that is not text.
 use crate::path_bytes::os_from_path_bytes;
+/// Owned argument text.
+use std::ffi::OsString;
 /// The directory the carried file is written into,
 /// and the path of that file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name the carried configuration takes in the commit's scratch directory.
 pub const NATIVE_COMMIT_CONFIGURATION_NAME: &str = "native-commit.config";
@@ -94,7 +97,9 @@ const NATIVE_COMMIT_KEYS: [&str; 9] = [
 ///   NATIVE_COMMIT_KEYS.includes(key) || key.startsWith('trailer.') || key.startsWith('gpg.');
 /// ```
 pub fn is_native_commit_key(key: &str) -> bool {
-    return NATIVE_COMMIT_KEYS.contains(&key) || key.starts_with("trailer.") || key.starts_with("gpg.");
+    return NATIVE_COMMIT_KEYS.contains(&key)
+        || key.starts_with("trailer.")
+        || key.starts_with("gpg.");
 }
 
 /// What:
@@ -120,8 +125,13 @@ pub fn is_native_commit_key(key: &str) -> bool {
 /// # Errors
 ///
 /// The error of writing the file.
-pub fn native_commit_configuration(snapshot: Option<&ConfigSnapshot>, scratch: &Path) -> std::io::Result<Vec<OsString>> {
-    let Some(found) = snapshot else { return Ok(Vec::new()) };
+pub fn native_commit_configuration(
+    snapshot: Option<&ConfigSnapshot>,
+    scratch: &Path,
+) -> std::io::Result<Vec<OsString>> {
+    let Some(found) = snapshot else {
+        return Ok(Vec::new());
+    };
     let text: Vec<u8> = native_commit_configuration_text(found);
     if text.is_empty() {
         return Ok(Vec::new());
@@ -191,8 +201,14 @@ fn native_commit_configuration_text(found: &ConfigSnapshot) -> Vec<u8> {
 /// // text += `[${section}${subsection === undefined ? '' : ` "${quotedSubsection}"`}]\n\t${name}`
 /// // text += value === undefined ? '\n' : ` = "${quotedValue}"\n`; return true;
 /// ```
-fn push_entry(text: &mut Vec<u8>, key: &str, value: Option<&[u8]>) -> bool {
-    let Some((section, subsection, name)) = key_parts(key) else { return false };
+fn push_entry(
+    text: &mut Vec<u8>,
+    key: &str,
+    value: Option<&[u8]>,
+) -> bool {
+    let Some((section, subsection, name)) = key_parts(key) else {
+        return false;
+    };
     // Only shapes Git's own file parser reads back are written,
     // so the file is never one Git refuses and no commit fails over a setting.
     if !is_section_name(section.as_bytes()) || !is_variable_name(name.as_bytes()) {
@@ -338,7 +354,9 @@ fn is_section_name(text: &[u8]) -> bool {
 /// const isVariableName = (text) => /^[A-Za-z][A-Za-z0-9-]*$/.test(text);
 /// ```
 fn is_variable_name(text: &[u8]) -> bool {
-    let Some(first) = text.first() else { return false };
+    let Some(first) = text.first() else {
+        return false;
+    };
     return first.is_ascii_alphabetic() && text[1..].iter().all(is_variable_byte);
 }
 
@@ -352,7 +370,10 @@ fn is_variable_name(text: &[u8]) -> bool {
 /// ```ts
 /// subsection.replace(/[\"\\]/g, (c) => `\\${c}`);
 /// ```
-fn push_quoted_subsection(text: &mut Vec<u8>, subsection: &[u8]) {
+fn push_quoted_subsection(
+    text: &mut Vec<u8>,
+    subsection: &[u8],
+) {
     for byte in subsection {
         if matches!(byte, b'\\' | b'"') {
             text.push(b'\\');
@@ -381,7 +402,10 @@ fn push_quoted_subsection(text: &mut Vec<u8>, subsection: &[u8]) {
 /// const escapes = { '\\': '\\\\', '"': '\\"', '\n': '\\n', '\t': '\\t', '\b': '\\b' };
 /// value.replace(/[\\"\n\t\b]/g, (c) => escapes[c]);
 /// ```
-fn push_quoted_value(text: &mut Vec<u8>, value: &[u8]) {
+fn push_quoted_value(
+    text: &mut Vec<u8>,
+    value: &[u8],
+) {
     for byte in value {
         match byte {
             b'\\' => text.extend_from_slice(b"\\\\"),

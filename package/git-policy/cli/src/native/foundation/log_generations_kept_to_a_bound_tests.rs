@@ -19,14 +19,35 @@
 //! // await rotate(auditFile); expect(await generations(dir)).toEqual([1, 2]);
 //! ```
 
-use super::{ROTATE_AT_BYTES, RotationStep, append_line, move_aside_between};
+use super::{
+    ROTATE_AT_BYTES,
+    RotationStep,
+    append_line,
+    move_aside_between,
+};
 use crate::add_timing::ADD_TIMING_FILE;
-use crate::command_test_support::{fixture, remove};
+use crate::command_test_support::{
+    fixture,
+    remove,
+};
 use crate::commit_timing::TIMING_FILE;
-use crate::log_generations_kept_to_a_bound::{LOG_HISTORY_BYTES, UNPINNED_LOG, a_pass_is_running, claim_a_pass, pass_ended, trim_generations};
+use crate::log_generations_kept_to_a_bound::{
+    LOG_HISTORY_BYTES,
+    UNPINNED_LOG,
+    a_pass_is_running,
+    claim_a_pass,
+    pass_ended,
+    trim_generations,
+};
 use crate::push_trigger_log::TRIGGER_FILE;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A log name that no shipped log uses,
 /// so a control never reads a real log's path.
@@ -59,7 +80,11 @@ fn marker(name: &str) -> String {
 }
 
 /// Writes the file `target.<number>` as a generation made of the lines and filler.
-fn write_generation(target: &Path, number: u64, lines: &[String]) {
+fn write_generation(
+    target: &Path,
+    number: u64,
+    lines: &[String],
+) {
     let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
     name.push(format!(".{number}"));
     std::fs::write(PathBuf::from(name), full_file(lines)).expect("a generation");
@@ -69,7 +94,10 @@ fn write_generation(target: &Path, number: u64, lines: &[String]) {
 /// then appends one line,
 /// and waits for the pass the rotation schedules,
 /// so what the control reads afterwards is the state the shipped code settles at.
-fn rotate_once(target: &Path, name: &str) {
+fn rotate_once(
+    target: &Path,
+    name: &str,
+) {
     std::fs::write(target, full_file(&[marker(name)])).expect("a full live file");
     append_line(target, b"{\"live\":1}\n", &UNPINNED_LOG).expect("the append that rotates");
     wait_for_the_pass(target);
@@ -86,7 +114,11 @@ fn rotate_once(target: &Path, name: &str) {
 fn wait_for_the_pass(target: &Path) {
     let deadline: Instant = Instant::now() + Duration::from_secs(120);
     while a_pass_is_running(target) {
-        assert!(Instant::now() < deadline, "the pass for {} did not end within its deadline", target.display());
+        assert!(
+            Instant::now() < deadline,
+            "the pass for {} did not end within its deadline",
+            target.display()
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -99,8 +131,14 @@ fn generations(target: &Path) -> Vec<u64> {
     let mut numbers: Vec<u64> = std::fs::read_dir(directory)
         .expect("directory")
         .filter_map(|entry| {
-            let name: String = entry.expect("entry").file_name().to_string_lossy().into_owned();
-            return name.strip_prefix(prefix.as_str()).and_then(|rest| { return rest.parse::<u64>().ok(); });
+            let name: String = entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+            return name.strip_prefix(prefix.as_str()).and_then(|rest| {
+                return rest.parse::<u64>().ok();
+            });
         })
         .collect();
     numbers.sort_unstable();
@@ -108,10 +146,15 @@ fn generations(target: &Path) -> Vec<u64> {
 }
 
 /// The first line of generation `number`.
-fn first_line_of(target: &Path, number: u64) -> String {
+fn first_line_of(
+    target: &Path,
+    number: u64,
+) -> String {
     let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
     name.push(format!(".{number}"));
-    let text: String = String::from_utf8_lossy(&std::fs::read(PathBuf::from(name)).expect("a generation")).into_owned();
+    let text: String =
+        String::from_utf8_lossy(&std::fs::read(PathBuf::from(name)).expect("a generation"))
+            .into_owned();
     return text.lines().next().unwrap_or_default().to_string();
 }
 
@@ -119,22 +162,39 @@ fn first_line_of(target: &Path, number: u64) -> String {
 /// each file's first line,
 /// in number order.
 fn first_lines(target: &Path) -> Vec<String> {
-    return generations(target).into_iter().map(|number| { return first_line_of(target, number); }).collect();
+    return generations(target)
+        .into_iter()
+        .map(|number| {
+            return first_line_of(target, number);
+        })
+        .collect();
 }
 
 /// The names in the directory that hold a file taken off the log's name and not yet put anywhere.
 fn private_names(root: &Path) -> Vec<String> {
     return std::fs::read_dir(root)
         .expect("directory")
-        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.contains(".moving-"); })
+        .map(|entry| {
+            return entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned();
+        })
+        .filter(|name| {
+            return name.contains(".moving-");
+        })
         .collect();
 }
 
 /// A writer that opens the full file at `target`,
 /// ready to rotate it.
 fn opened_full_file(target: &Path) -> std::fs::File {
-    return std::fs::OpenOptions::new().read(true).append(true).open(target).expect("open");
+    return std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .open(target)
+        .expect("open");
 }
 
 /// Each rotation keeps the file it moved,
@@ -150,7 +210,11 @@ fn each_rotation_keeps_its_own_generation() {
     assert_eq!(generations(target.as_path()), vec![1, 2, 3]);
     assert_eq!(first_line_of(target.as_path(), 1), marker("first"));
     assert_eq!(first_line_of(target.as_path(), 3), marker("third"));
-    assert_eq!(std::fs::read(&target).expect("live file"), b"{\"live\":1}\n", "the live file holds only what came after");
+    assert_eq!(
+        std::fs::read(&target).expect("live file"),
+        b"{\"live\":1}\n",
+        "the live file holds only what came after"
+    );
     remove(root.as_path());
 }
 
@@ -168,7 +232,12 @@ fn over_the_bound_the_oldest_generation_goes() {
     rotate_once(target.as_path(), "newest");
     let newest: u64 = kept_generations() + extra;
     let expected: Vec<u64> = (extra + 1..=newest).collect();
-    assert_eq!(generations(target.as_path()), expected, "the oldest {extra} went and {} stay", kept_generations());
+    assert_eq!(
+        generations(target.as_path()),
+        expected,
+        "the oldest {extra} went and {} stay",
+        kept_generations()
+    );
     assert_eq!(first_line_of(target.as_path(), newest), marker("newest"));
     remove(root.as_path());
 }
@@ -196,17 +265,36 @@ fn a_file_left_by_a_killed_rotation_becomes_a_generation_that_readers_find() {
         });
     }));
     assert!(killed.is_err(), "the stand-in kill happened");
-    assert_eq!(private_names(root.as_path()).len(), 1, "the file waits at its private name");
+    assert_eq!(
+        private_names(root.as_path()).len(),
+        1,
+        "the file waits at its private name"
+    );
     for number in 1..=kept_generations() + extra - 1 {
         write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
     }
     rotate_once(target.as_path(), "newest");
-    assert_eq!(private_names(root.as_path()), Vec::<String>::new(), "no file stays at a name that no reader looks at");
+    assert_eq!(
+        private_names(root.as_path()),
+        Vec::<String>::new(),
+        "no file stays at a name that no reader looks at"
+    );
     let numbered: Vec<u64> = generations(target.as_path());
     let adopted: u64 = *numbered.last().expect("a generation");
-    assert_eq!(first_line_of(target.as_path(), adopted), marker("killed"), "the killed writer's lines are in a numbered generation");
-    assert_eq!(first_line_of(target.as_path(), adopted - 1), marker("newest"), "the rotation that found it kept its own file first");
-    assert!(numbered.len() < usize::try_from(adopted).expect("small"), "its bytes took part of the bound, so older generations went: {numbered:?}");
+    assert_eq!(
+        first_line_of(target.as_path(), adopted),
+        marker("killed"),
+        "the killed writer's lines are in a numbered generation"
+    );
+    assert_eq!(
+        first_line_of(target.as_path(), adopted - 1),
+        marker("newest"),
+        "the rotation that found it kept its own file first"
+    );
+    assert!(
+        numbered.len() < usize::try_from(adopted).expect("small"),
+        "its bytes took part of the bound, so older generations went: {numbered:?}"
+    );
     remove(root.as_path());
 }
 
@@ -219,7 +307,8 @@ fn a_file_left_by_a_killed_rotation_becomes_a_generation_that_readers_find() {
 /// no
 /// record is lost and none is doubled.
 #[test]
-fn a_pass_that_finds_a_live_rotation_between_its_take_and_its_install_neither_loses_nor_doubles_the_file() {
+fn a_pass_that_finds_a_live_rotation_between_its_take_and_its_install_neither_loses_nor_doubles_the_file()
+ {
     let root: PathBuf = fixture("generations-live");
     let target: PathBuf = root.join(LOG_FILE);
     std::fs::write(&target, full_file(&[marker("mid-flight")])).expect("a full live file");
@@ -231,7 +320,11 @@ fn a_pass_that_finds_a_live_rotation_between_its_take_and_its_install_neither_lo
         }
     });
     assert_eq!(private_names(root.as_path()), Vec::<String>::new());
-    assert_eq!(first_lines(target.as_path()), vec![marker("mid-flight")], "one generation holds the file");
+    assert_eq!(
+        first_lines(target.as_path()),
+        vec![marker("mid-flight")],
+        "one generation holds the file"
+    );
     remove(root.as_path());
 }
 
@@ -244,7 +337,11 @@ fn two_generation_numbers_for_one_file_are_reduced_to_the_lowest() {
     let root: PathBuf = fixture("generations-twice");
     let target: PathBuf = root.join(LOG_FILE);
     write_generation(target.as_path(), 1, &[marker("once")]);
-    std::fs::hard_link(root.join(format!("{LOG_FILE}.1")), root.join(format!("{LOG_FILE}.2"))).expect("a second number");
+    std::fs::hard_link(
+        root.join(format!("{LOG_FILE}.1")),
+        root.join(format!("{LOG_FILE}.2")),
+    )
+    .expect("a second number");
     rotate_once(target.as_path(), "newest");
     assert_eq!(generations(target.as_path()), vec![1, 3]);
     assert_eq!(first_line_of(target.as_path(), 1), marker("once"));
@@ -258,11 +355,23 @@ fn a_second_name_left_by_a_killed_rotation_is_removed_and_the_generation_kept() 
     let root: PathBuf = fixture("generations-two-names");
     let target: PathBuf = root.join(LOG_FILE);
     write_generation(target.as_path(), 1, &[marker("g1")]);
-    std::fs::hard_link(root.join(format!("{LOG_FILE}.1")), root.join(format!("{LOG_FILE}.moving-4242-0"))).expect("second name");
+    std::fs::hard_link(
+        root.join(format!("{LOG_FILE}.1")),
+        root.join(format!("{LOG_FILE}.moving-4242-0")),
+    )
+    .expect("second name");
     rotate_once(target.as_path(), "newest");
-    assert_eq!(private_names(root.as_path()), Vec::<String>::new(), "the extra name is gone");
+    assert_eq!(
+        private_names(root.as_path()),
+        Vec::<String>::new(),
+        "the extra name is gone"
+    );
     assert_eq!(generations(target.as_path()), vec![1, 2]);
-    assert_eq!(first_line_of(target.as_path(), 1), marker("g1"), "the generation keeps every line");
+    assert_eq!(
+        first_line_of(target.as_path(), 1),
+        marker("g1"),
+        "the generation keeps every line"
+    );
     remove(root.as_path());
 }
 
@@ -295,13 +404,18 @@ fn a_rotation_that_fails_does_not_drop_the_record() {
     let root: PathBuf = fixture("generations-fails");
     let target: PathBuf = root.join(LOG_FILE);
     std::fs::write(&target, full_file(&[marker("full")])).expect("a full live file");
-    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o500)).expect("a directory that takes no new name");
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o500))
+        .expect("a directory that takes no new name");
     let appended = append_line(target.as_path(), b"{\"kept\":1}\n", &UNPINNED_LOG);
-    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).expect("writable again");
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+        .expect("writable again");
     appended.expect("the record is appended whatever the rotation did");
     let text: Vec<u8> = std::fs::read(&target).expect("target");
     assert!(text.ends_with(b"{\"kept\":1}\n"));
-    assert!(text.starts_with(&full_file(&[marker("full")])), "the history is still in the file at the name");
+    assert!(
+        text.starts_with(&full_file(&[marker("full")])),
+        "the history is still in the file at the name"
+    );
     remove(root.as_path());
 }
 
@@ -316,9 +430,21 @@ fn every_log_keeps_every_rotation_as_a_generation() {
         for name in ["first", "second", "third"] {
             rotate_once(target.as_path(), name);
         }
-        assert_eq!(generations(target.as_path()), vec![1, 2, 3], "{file} keeps every rotation");
-        assert_eq!(first_line_of(target.as_path(), 1), marker("first"), "{file}: the oldest rotation still reads");
-        assert_eq!(first_line_of(target.as_path(), 3), marker("third"), "{file}: and the newest");
+        assert_eq!(
+            generations(target.as_path()),
+            vec![1, 2, 3],
+            "{file} keeps every rotation"
+        );
+        assert_eq!(
+            first_line_of(target.as_path(), 1),
+            marker("first"),
+            "{file}: the oldest rotation still reads"
+        );
+        assert_eq!(
+            first_line_of(target.as_path(), 3),
+            marker("third"),
+            "{file}: and the newest"
+        );
         remove(root.as_path());
     }
 }
@@ -335,7 +461,11 @@ fn a_timing_log_keeps_generations_up_to_the_bound() {
     }
     rotate_once(target.as_path(), "newest");
     let newest: u64 = kept_generations() + extra;
-    assert_eq!(generations(target.as_path()), (extra + 1..=newest).collect::<Vec<u64>>(), "the oldest {extra} went");
+    assert_eq!(
+        generations(target.as_path()),
+        (extra + 1..=newest).collect::<Vec<u64>>(),
+        "the oldest {extra} went"
+    );
     remove(root.as_path());
 }
 
@@ -355,16 +485,37 @@ fn a_rotation_that_loses_the_race_with_more_than_one_generation_keeps_them_all()
     move_aside_between(target.as_path(), &seen_full, &mut |step| {
         if step == RotationStep::BeforeMove {
             // The other writer's whole rotation, and its own line after it.
-            move_aside_between(target.as_path(), &seen_full, &mut |_inner: RotationStep| {}).expect("the other writer's rotation");
+            move_aside_between(target.as_path(), &seen_full, &mut |_inner: RotationStep| {})
+                .expect("the other writer's rotation");
             std::fs::write(&target, b"{\"theirs\":1}\n").expect("the other writer's new file");
         }
     })
     .expect("no error");
-    assert_eq!(generations(target.as_path()), vec![1, 2, 3, 4], "no generation was replaced or lost");
-    assert_eq!(first_line_of(target.as_path(), 1), marker("g1"), "the oldest generation keeps its line");
-    assert_eq!(first_line_of(target.as_path(), 4), marker("full"), "the other writer's rotation kept the full file");
-    assert_eq!(std::fs::read(&target).expect("live file"), b"{\"theirs\":1}\n", "the new file is back at its name");
-    assert_eq!(private_names(root.as_path()), Vec::<String>::new(), "nothing stays at a private name");
+    assert_eq!(
+        generations(target.as_path()),
+        vec![1, 2, 3, 4],
+        "no generation was replaced or lost"
+    );
+    assert_eq!(
+        first_line_of(target.as_path(), 1),
+        marker("g1"),
+        "the oldest generation keeps its line"
+    );
+    assert_eq!(
+        first_line_of(target.as_path(), 4),
+        marker("full"),
+        "the other writer's rotation kept the full file"
+    );
+    assert_eq!(
+        std::fs::read(&target).expect("live file"),
+        b"{\"theirs\":1}\n",
+        "the new file is back at its name"
+    );
+    assert_eq!(
+        private_names(root.as_path()),
+        Vec::<String>::new(),
+        "nothing stays at a private name"
+    );
     remove(root.as_path());
 }
 
@@ -388,8 +539,16 @@ fn a_number_taken_by_another_writer_beside_three_generations_keeps_both() {
     })
     .expect("moved");
     assert_eq!(generations(target.as_path()), vec![1, 2, 3, 4, 5]);
-    assert_eq!(first_line_of(target.as_path(), 4), marker("theirs"), "the other writer keeps the number it took");
-    assert_eq!(first_line_of(target.as_path(), 5), marker("ours"), "and this writer the one after");
+    assert_eq!(
+        first_line_of(target.as_path(), 4),
+        marker("theirs"),
+        "the other writer keeps the number it took"
+    );
+    assert_eq!(
+        first_line_of(target.as_path(), 5),
+        marker("ours"),
+        "and this writer the one after"
+    );
     remove(root.as_path());
 }
 
@@ -400,11 +559,15 @@ fn a_number_taken_by_another_writer_beside_three_generations_keeps_both() {
 fn a_directory_at_a_generation_name_ends_the_numbering() {
     let root: PathBuf = fixture("generations-directory");
     let target: PathBuf = root.join(LOG_FILE);
-    std::fs::create_dir(root.join(format!("{LOG_FILE}.1"))).expect("a directory where a generation belongs");
+    std::fs::create_dir(root.join(format!("{LOG_FILE}.1")))
+        .expect("a directory where a generation belongs");
     std::fs::write(&target, full_file(&[marker("full")])).expect("a full live file");
     let opened: std::fs::File = opened_full_file(target.as_path());
     let rotated = move_aside_between(target.as_path(), &opened, &mut |_step: RotationStep| {});
-    assert!(rotated.is_err(), "the rotation gives up instead of trying every number: {rotated:?}");
+    assert!(
+        rotated.is_err(),
+        "the rotation gives up instead of trying every number: {rotated:?}"
+    );
     remove(root.as_path());
 }
 
@@ -416,10 +579,19 @@ fn a_directory_at_a_generation_name_ends_the_numbering() {
 fn one_log_has_one_pass_at_a_time() {
     let root: PathBuf = fixture("generations-one-pass");
     let target: PathBuf = root.join(LOG_FILE);
-    assert!(claim_a_pass(target.as_path()), "the first rotation claims the pass");
-    assert!(!claim_a_pass(target.as_path()), "a second rotation leaves the running pass alone");
+    assert!(
+        claim_a_pass(target.as_path()),
+        "the first rotation claims the pass"
+    );
+    assert!(
+        !claim_a_pass(target.as_path()),
+        "a second rotation leaves the running pass alone"
+    );
     pass_ended(target.as_path());
-    assert!(claim_a_pass(target.as_path()), "once the pass ends, the next rotation claims another");
+    assert!(
+        claim_a_pass(target.as_path()),
+        "once the pass ends, the next rotation claims another"
+    );
     pass_ended(target.as_path());
     remove(root.as_path());
 }
@@ -436,10 +608,19 @@ fn a_rotation_over_the_bound_appends_at_once_and_lets_a_pass_settle_the_generati
         write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
     }
     std::fs::write(&target, full_file(&[marker("newest")])).expect("a full live file");
-    append_line(target.as_path(), b"{\"live\":1}\n", &UNPINNED_LOG).expect("the append that rotates");
-    assert_eq!(std::fs::read(&target).expect("live file"), b"{\"live\":1}\n", "the line is in a file of its own at the name, before any pass");
+    append_line(target.as_path(), b"{\"live\":1}\n", &UNPINNED_LOG)
+        .expect("the append that rotates");
+    assert_eq!(
+        std::fs::read(&target).expect("live file"),
+        b"{\"live\":1}\n",
+        "the line is in a file of its own at the name, before any pass"
+    );
     wait_for_the_pass(target.as_path());
     let newest: u64 = kept_generations() + extra;
-    assert_eq!(generations(target.as_path()), (extra + 1..=newest).collect::<Vec<u64>>(), "and the pass brings the generations back to the bound");
+    assert_eq!(
+        generations(target.as_path()),
+        (extra + 1..=newest).collect::<Vec<u64>>(),
+        "and the pass brings the generations back to the bound"
+    );
     remove(root.as_path());
 }

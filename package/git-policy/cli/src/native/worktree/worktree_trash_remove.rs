@@ -40,13 +40,34 @@
 //! await removeTreeBeneath({ label, parent, name, expected }); // throws a reason; the entry is left as it is when it is not the expected object
 //! ```
 
-use crate::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
-use crate::subvolume_remove_walk::{refused_as_not_empty, refused_because_not_empty, verify_below};
+use crate::fs_beneath::{
+    ObjectId,
+    device_of,
+    handle_path,
+    identity_at,
+    identity_of,
+    open_directory_at,
+    remove_at,
+};
+use crate::subvolume_remove_walk::{
+    refused_as_not_empty,
+    refused_because_not_empty,
+    verify_below,
+};
 use crate::worktree_path_failure_message::path_failure;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrashRemove";
@@ -91,13 +112,26 @@ struct Describe<'a> {
 
 impl<'a> Describe<'a> {
     /// The description of the directory reached from `top` by `names`.
-    fn new(top: &'a Path, names: &'a [OsString]) -> Self {
-        return Self { top, names, entry: None };
+    fn new(
+        top: &'a Path,
+        names: &'a [OsString],
+    ) -> Self {
+        return Self {
+            top,
+            names,
+            entry: None,
+        };
     }
 
     /// The description of the entry `entry` of the directory this one names.
-    fn with_entry(self, entry: &'a OsStr) -> Self {
-        return Self { entry: Some(entry), ..self };
+    fn with_entry(
+        self,
+        entry: &'a OsStr,
+    ) -> Self {
+        return Self {
+            entry: Some(entry),
+            ..self
+        };
     }
 
     /// The path the message names;
@@ -125,7 +159,11 @@ impl<'a> Describe<'a> {
 /// ```ts
 /// function failedAt<T>(outcome: () => T, shown: Describe, what: string): T { try { return outcome(); } catch (error) { throw `${shown.path()} ${what} (${error})`; } }
 /// ```
-fn failed_at<T>(outcome: std::io::Result<T>, shown: &Describe<'_>, what: &str) -> Result<T, String> {
+fn failed_at<T>(
+    outcome: std::io::Result<T>,
+    shown: &Describe<'_>,
+    what: &str,
+) -> Result<T, String> {
     return match outcome {
         Ok(value) => Ok(value),
         Err(error) => Err(format!("{} {what} ({error})", shown.path().display())),
@@ -154,13 +192,25 @@ fn is_gone(error: &std::io::Error) -> bool {
 
 /// The names in an open directory,
 /// each with whether it is a directory (a link is not one).
-fn list_entries(dir: &File, shown: Describe<'_>) -> Result<Vec<(OsString, bool)>, String> {
-    let listing = failed_at(std::fs::read_dir(handle_path(dir)), &shown, "cannot be listed")?;
+fn list_entries(
+    dir: &File,
+    shown: Describe<'_>,
+) -> Result<Vec<(OsString, bool)>, String> {
+    let listing = failed_at(
+        std::fs::read_dir(handle_path(dir)),
+        &shown,
+        "cannot be listed",
+    )?;
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for listed in listing {
         let entry: std::fs::DirEntry = failed_at(listed, &shown, "cannot be listed")?;
         let name: OsString = entry.file_name();
-        let is_directory: bool = failed_at(entry.file_type(), &shown.with_entry(name.as_os_str()), "cannot be examined")?.is_dir();
+        let is_directory: bool = failed_at(
+            entry.file_type(),
+            &shown.with_entry(name.as_os_str()),
+            "cannot be examined",
+        )?
+        .is_dir();
         entries.push((name, is_directory));
     }
     return Ok(entries);
@@ -170,30 +220,52 @@ fn list_entries(dir: &File, shown: Describe<'_>) -> Result<Vec<(OsString, bool)>
 /// write and search permission on an open directory;
 /// a directory it cannot be given them on keeps its
 ///  mode and the removal that follows reports the operating system's refusal.
-fn make_writable(dir: &File, shown: Describe<'_>) {
+fn make_writable(
+    dir: &File,
+    shown: Describe<'_>,
+) {
     let Ok(metadata) = dir.metadata() else { return };
     let mode: u32 = metadata.permissions().mode();
     if mode & 0o700 == 0o700 {
         return;
     }
     if let Err(error) = dir.set_permissions(std::fs::Permissions::from_mode(mode | 0o700)) {
-        crate::diagnostic_log::debug(TAG, format!("{} keeps its mode ({error})", shown.path().display()).as_str());
+        crate::diagnostic_log::debug(
+            TAG,
+            format!("{} keeps its mode ({error})", shown.path().display()).as_str(),
+        );
     }
 }
 
 /// Open the directory `name` below `parent` and describe it as a frame;
 /// the reason is the error.
-fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Result<Frame, String> {
-    let dir: File = failed_at(open_directory_at(parent, name), &shown, "is not a plain directory that can be entered, so it is left alone")?;
+fn enter(
+    parent: &File,
+    name: &OsStr,
+    device: u64,
+    shown: Describe<'_>,
+) -> Result<Frame, String> {
+    let dir: File = failed_at(
+        open_directory_at(parent, name),
+        &shown,
+        "is not a plain directory that can be entered, so it is left alone",
+    )?;
     let facts: std::fs::Metadata = failed_at(dir.metadata(), &shown, "cannot be examined")?;
     // A stand-in of a nested subvolume is the one directory here with a device of its own that is no boundary: btrfs
     //  builds it for a subvolume a snapshot left out, it holds nothing, and it belongs to the tree being removed.
     if facts.dev() != device && facts.ino() != BTRFS_STAND_IN_INODE {
-        return Err(format!("{} is on another device, so it is left alone", shown.path().display()));
+        return Err(format!(
+            "{} is on another device, so it is left alone",
+            shown.path().display()
+        ));
     }
     make_writable(&dir, shown);
     let entries: Vec<(OsString, bool)> = list_entries(&dir, shown)?;
-    return Ok(Frame { dir, name: name.to_os_string(), entries });
+    return Ok(Frame {
+        dir,
+        name: name.to_os_string(),
+        entries,
+    });
 }
 
 /// What:
@@ -221,13 +293,29 @@ fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Resul
 /// ```ts
 /// const removal = await removeTreeBeneath({ label, parent, name, expected }); // 'removed' | 'absent'
 /// ```
-pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: Option<ObjectId>) -> Result<Removal, String> {
+pub fn remove_tree_beneath(
+    label: &Path,
+    parent: &File,
+    name: &OsStr,
+    expected: Option<ObjectId>,
+) -> Result<Removal, String> {
     let top: PathBuf = label.join(name);
-    let device: u64 = failed_at(device_of(parent), &Describe::new(label, &[]), "cannot be examined")?;
+    let device: u64 = failed_at(
+        device_of(parent),
+        &Describe::new(label, &[]),
+        "cannot be examined",
+    )?;
     match identity_at(parent, name) {
         Ok(found) => {
-            if let Some(wanted) = expected && found != wanted {
-                return Err(format!("{} is not the object that was set aside ({} instead of {}), so it is left alone", top.display(), found.encode(), wanted.encode()));
+            if let Some(wanted) = expected
+                && found != wanted
+            {
+                return Err(format!(
+                    "{} is not the object that was set aside ({} instead of {}), so it is left alone",
+                    top.display(),
+                    found.encode(),
+                    wanted.encode()
+                ));
             }
         }
         Err(error) if is_gone(&error) => return Ok(Removal::Absent),
@@ -235,16 +323,29 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
     }
     let first: Frame = enter(parent, name, device, Describe::new(top.as_path(), &[]))?;
     if let Some(wanted) = expected {
-        let opened: ObjectId = failed_at(identity_of(&first.dir), &Describe::new(top.as_path(), &[]), "cannot be examined")?;
+        let opened: ObjectId = failed_at(
+            identity_of(&first.dir),
+            &Describe::new(top.as_path(), &[]),
+            "cannot be examined",
+        )?;
         if opened != wanted {
-            return Err(format!("{} is not the object that was set aside ({} instead of {}), so it is left alone", top.display(), opened.encode(), wanted.encode()));
+            return Err(format!(
+                "{} is not the object that was set aside ({} instead of {}), so it is left alone",
+                top.display(),
+                opened.encode(),
+                wanted.encode()
+            ));
         }
     }
     // The whole tree is looked at first, and nothing is deleted: a nested subvolume or a mount point anywhere in it
     //  refuses the removal before one entry is unlinked, so the person still has every file the removal was not allowed
     //  to destroy. The walk below checks the same boundary again at each directory, which catches one that appeared in
     //  between.
-    path_failure(verify_below(&first.dir, top.as_path()), top.as_path(), "cannot be removed")?;
+    path_failure(
+        verify_below(&first.dir, top.as_path()),
+        top.as_path(),
+        "cannot be removed",
+    )?;
     let mut stack: Vec<Frame> = vec![first];
     // The names from the top directory down to the frame being worked on, for messages.
     let mut shown: Vec<OsString> = Vec::new();
@@ -253,16 +354,33 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
         let Some(frame) = stack.last_mut() else { break };
         match frame.entries.pop() {
             Some((entry, true)) => {
-                let next: Frame = enter(&frame.dir, entry.as_os_str(), device, Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()))?;
+                let next: Frame = enter(
+                    &frame.dir,
+                    entry.as_os_str(),
+                    device,
+                    Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()),
+                )?;
                 shown.push(entry);
                 stack.push(next);
                 #[cfg(test)]
-                crate::subvolume_remove_listing_test_support::after_listing(Describe::new(top.as_path(), shown.as_slice()).path().as_path());
+                crate::subvolume_remove_listing_test_support::after_listing(
+                    Describe::new(top.as_path(), shown.as_slice())
+                        .path()
+                        .as_path(),
+                );
             }
             Some((entry, false)) => match remove_at(&frame.dir, entry.as_os_str(), false) {
                 Ok(()) => {}
                 Err(error) if is_gone(&error) => {}
-                Err(error) => return Err(format!("{} cannot be removed ({error})", Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()).path().display())),
+                Err(error) => {
+                    return Err(format!(
+                        "{} cannot be removed ({error})",
+                        Describe::new(top.as_path(), shown.as_slice())
+                            .with_entry(entry.as_os_str())
+                            .path()
+                            .display()
+                    ));
+                }
             },
             None => {
                 let Some(done) = stack.pop() else { break };
@@ -276,9 +394,23 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
                     // A directory that was listed and emptied is not the directory the kernel was asked to remove when it is not
                     //  empty there, so the reason says what stands there now rather than the kernel's words alone.
                     Err(error) if refused_as_not_empty(&error) => {
-                        return Err(refused_because_not_empty(&done.dir, Describe::new(top.as_path(), shown.as_slice()).path().as_path(), top.as_path()).to_string());
+                        return Err(refused_because_not_empty(
+                            &done.dir,
+                            Describe::new(top.as_path(), shown.as_slice())
+                                .path()
+                                .as_path(),
+                            top.as_path(),
+                        )
+                        .to_string());
                     }
-                    Err(error) => return Err(format!("{} cannot be removed ({error})", Describe::new(top.as_path(), shown.as_slice()).path().display())),
+                    Err(error) => {
+                        return Err(format!(
+                            "{} cannot be removed ({error})",
+                            Describe::new(top.as_path(), shown.as_slice())
+                                .path()
+                                .display()
+                        ));
+                    }
                 }
                 shown.pop();
             }

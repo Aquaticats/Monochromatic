@@ -22,18 +22,43 @@
 
 /// Import the module under test.
 use super::{
-    InstallChange, Prepared, content_of, install_corrections, install_prepared, read_index,
+    InstallChange,
+    Prepared,
+    content_of,
+    install_corrections,
+    install_prepared,
+    read_index,
+};
+use crate::candidate_object::CandidateMode;
+use crate::direct_fix_install_attributes::{
+    Attribute,
+    attributes_of,
+};
+use crate::direct_fix_install_journal::{
+    RECORD_FILE,
+    read_record,
 };
 use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
-use crate::candidate_object::CandidateMode;
-use crate::direct_fix_install_attributes::{Attribute, attributes_of};
-use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
-use crate::direct_fix_install_writes::{Kept, write_new};
-use crate::test_support::{fixture, git, remove, repository};
+use crate::direct_fix_install_writes::{
+    Kept,
+    write_new,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// What:
@@ -47,8 +72,15 @@ use std::rc::Rc;
 /// ```ts
 /// // const planted = (path, name, value) => { try { setxattrSync(path, name, value); return true } catch { return false } };
 /// ```
-fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
-    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+fn set_attribute(
+    path: &Path,
+    name: &[u8],
+    value: &[u8],
+) -> bool {
+    let (Ok(name_text), Ok(path_text)) = (
+        CString::new(name),
+        CString::new(path.as_os_str().as_bytes()),
+    ) else {
         return false;
     };
     // SAFETY: both strings are NUL-terminated and outlive the call; `value` holds `value.len()` initialised bytes.
@@ -75,12 +107,25 @@ fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
 /// ```ts
 /// // const attribute = (path, name) => { try { return getxattrSync(path, name) } catch { return undefined } };
 /// ```
-fn attribute(path: &Path, name: &[u8]) -> Option<Vec<u8>> {
-    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+fn attribute(
+    path: &Path,
+    name: &[u8],
+) -> Option<Vec<u8>> {
+    let (Ok(name_text), Ok(path_text)) = (
+        CString::new(name),
+        CString::new(path.as_os_str().as_bytes()),
+    ) else {
         return None;
     };
     // SAFETY: a null buffer with size 0 asks the system for the length of the value.
-    let size: isize = unsafe { libc::lgetxattr(path_text.as_ptr(), name_text.as_ptr(), std::ptr::null_mut(), 0) };
+    let size: isize = unsafe {
+        libc::lgetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            std::ptr::null_mut(),
+            0,
+        )
+    };
     if size < 0 {
         return None;
     }
@@ -129,7 +174,11 @@ fn tree(name: &str) -> Tree {
     .expect("executable");
     let index: PathBuf = root.join("index");
     std::fs::write(&index, b"index bytes").expect("index");
-    return Tree { root, top, index };
+    return Tree {
+        root,
+        top,
+        index,
+    };
 }
 
 /// The two corrections of a tree.
@@ -149,7 +198,6 @@ fn changes() -> Vec<InstallChange> {
         },
     ];
 }
-
 
 /// What:
 ///  An access-control list that grants a second entry beside the owner's,
@@ -180,7 +228,10 @@ fn access_list() -> Vec<u8> {
 /// ```ts
 /// // const blob = acl(2, [[1, ownerPermission, -1], [2, 4, namedAccount], [4, 4, -1], [0x10, 4, -1], [0x20, 0, -1]])
 /// ```
-fn access_list_with_owner(owner_permission: u16, named_account: u32) -> Vec<u8> {
+fn access_list_with_owner(
+    owner_permission: u16,
+    named_account: u32,
+) -> Vec<u8> {
     let mut blob: Vec<u8> = u32::to_le_bytes(2).to_vec();
     let entries: [(u16, u16, u32); 5] = [
         (0x01, owner_permission, u32::MAX),
@@ -279,7 +330,12 @@ fn journals(git_dir: &Path) -> Vec<PathBuf> {
 fn corrections_are_installed_with_their_modes() {
     let fixture_tree: Tree = tree("install-ok");
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            changes().as_slice()
+        ),
         Ok(super::InstallOutcome::default())
     );
     assert_eq!(
@@ -306,7 +362,12 @@ fn corrections_are_installed_with_their_modes() {
     std::fs::remove_file(&fixture_tree.index).expect("no index");
     assert_eq!(read_index(&fixture_tree.index).expect("absent"), None);
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, &[]),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            &[]
+        ),
         Ok(super::InstallOutcome::default())
     );
     let again: Vec<InstallChange> = vec![InstallChange {
@@ -316,7 +377,12 @@ fn corrections_are_installed_with_their_modes() {
         replacement: Rc::from(&b"b\n"[..]),
     }];
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, again.as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            again.as_slice()
+        ),
         Ok(super::InstallOutcome::default())
     );
     assert_eq!(
@@ -347,16 +413,26 @@ fn the_mode_owner_and_kind_of_a_file_survive_a_fix() {
     let private: PathBuf = fixture_tree.top.join("a.txt");
     let script: PathBuf = fixture_tree.top.join("sub/run.sh");
     std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o6400)).expect("private");
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o6755)).expect("special bits");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o6755))
+        .expect("special bits");
     let before: std::fs::Metadata = std::fs::metadata(&private).expect("a");
     let (owner_before, group_before): (u32, u32) = (before.uid(), before.gid());
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            changes().as_slice()
+        ),
         Ok(super::InstallOutcome::default())
     );
     let kept: u32 = std::fs::metadata(&private).expect("a").permissions().mode() & 0o7777;
     assert_eq!(kept, 0o6400, "{kept:o}");
-    let kept_script: u32 = std::fs::metadata(&script).expect("script").permissions().mode() & 0o7777;
+    let kept_script: u32 = std::fs::metadata(&script)
+        .expect("script")
+        .permissions()
+        .mode()
+        & 0o7777;
     assert_eq!(kept_script, 0o6755, "{kept_script:o}");
     let after: std::fs::Metadata = std::fs::metadata(&private).expect("a");
     assert_eq!((after.uid(), after.gid()), (owner_before, group_before));
@@ -389,7 +465,12 @@ fn the_extended_attributes_of_a_file_survive_a_fix() {
         return;
     }
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            changes().as_slice()
+        ),
         Ok(super::InstallOutcome::default())
     );
     assert_eq!(
@@ -405,7 +486,6 @@ fn the_extended_attributes_of_a_file_survive_a_fix() {
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     remove(fixture_tree.root.as_path());
 }
-
 
 /// What:
 ///  The access-control list of a file survives a fix,
@@ -438,10 +518,19 @@ fn the_access_control_list_of_a_file_survives_a_fix() {
         "the list is on the file before the fix"
     );
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, one_change().as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            one_change().as_slice()
+        ),
         Ok(super::InstallOutcome::default())
     );
-    assert_eq!(std::fs::read(&path).expect("a"), b"a\n", "the fix installed its correction");
+    assert_eq!(
+        std::fs::read(&path).expect("a"),
+        b"a\n",
+        "the fix installed its correction"
+    );
     assert_eq!(
         attribute(path.as_path(), b"system.posix_acl_access"),
         Some(list),
@@ -494,10 +583,19 @@ fn a_replacement_never_gains_an_access_control_list_the_file_never_had() {
     );
     let mode: u32 = std::fs::metadata(&path).expect("a").permissions().mode() & 0o7777;
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, one_change().as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            one_change().as_slice()
+        ),
         Ok(super::InstallOutcome::default())
     );
-    assert_eq!(std::fs::read(&path).expect("a"), b"a\n", "the fix installed its correction");
+    assert_eq!(
+        std::fs::read(&path).expect("a"),
+        b"a\n",
+        "the fix installed its correction"
+    );
     assert_eq!(
         attribute(path.as_path(), b"system.posix_acl_access"),
         None,
@@ -521,20 +619,29 @@ fn a_file_that_is_not_a_regular_file_stops_before_any_change() {
     let linked: PathBuf = fixture_tree.top.join("sub/run.sh");
     std::fs::remove_file(&linked).expect("remove");
     std::os::unix::fs::symlink("../a.txt", &linked).expect("link");
-    let refused: String =
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice())
-            .expect_err("a symbolic link");
+    let refused: String = install_corrections(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        &fixture_tree.index,
+        changes().as_slice(),
+    )
+    .expect_err("a symbolic link");
     assert_eq!(
         refused,
         String::from(
             "monochromatic-git-policy-cli fix could not install its corrections: a selected file is not a regular file (a symbolic link, a directory or a device), and putting corrected bytes at its path would remove what is there, so no file was changed."
         )
     );
-    assert!(std::fs::symlink_metadata(&linked)
-        .expect("link")
-        .file_type()
-        .is_symlink());
-    assert_eq!(std::fs::read(fixture_tree.top.join("a.txt")).expect("a"), b"a");
+    assert!(
+        std::fs::symlink_metadata(&linked)
+            .expect("link")
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
+        b"a"
+    );
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     remove(fixture_tree.root.as_path());
 }
@@ -548,7 +655,12 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     let fixture_tree: Tree = tree("install-stale");
     std::fs::write(fixture_tree.top.join("sub/run.sh"), b"edited").expect("edit");
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            changes().as_slice()
+        ),
         Err(String::from(
             "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran, so no file was changed. Run monochromatic-git-policy-cli fix again."
         ))
@@ -559,9 +671,13 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     );
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     std::fs::remove_file(fixture_tree.top.join("sub/run.sh")).expect("remove");
-    let missing: String =
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice())
-            .expect_err("missing file");
+    let missing: String = install_corrections(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        &fixture_tree.index,
+        changes().as_slice(),
+    )
+    .expect_err("missing file");
     assert_eq!(
         missing,
         String::from(
@@ -572,7 +688,12 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     let mut nameless: Vec<InstallChange> = changes();
     nameless[1].path = Vec::new();
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, nameless.as_slice()),
+        install_corrections(
+            &fixture_tree.top,
+            &fixture_tree.root,
+            &fixture_tree.index,
+            nameless.as_slice()
+        ),
         Err(String::from(
             "monochromatic-git-policy-cli fix could not install its corrections: Git named a corrected file this system cannot represent, so no file was changed."
         ))
@@ -602,9 +723,12 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
 fn a_permission_change_made_while_the_fix_ran_is_refused_and_kept() {
     let fixture_tree: Tree = tree("install-mode-change");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     std::fs::set_permissions(
         fixture_tree.top.join("a.txt"),
         std::fs::Permissions::from_mode(0o600),
@@ -638,7 +762,6 @@ fn a_permission_change_made_while_the_fix_ran_is_refused_and_kept() {
     remove(fixture_tree.root.as_path());
 }
 
-
 /// What:
 ///  An attribute the person changed while the fix ran is refused and kept,
 ///  like a change of its bytes or its mode.
@@ -669,10 +792,16 @@ fn an_attribute_change_made_while_the_fix_ran_is_refused_and_kept() {
         return;
     }
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
-    assert!(set_attribute(path.as_path(), b"user.draft", b"second"), "the person saves a newer value");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
+    assert!(
+        set_attribute(path.as_path(), b"user.draft", b"second"),
+        "the person saves a newer value"
+    );
     let mut notices: Vec<String> = Vec::new();
     let refused: String = install_prepared(
         prepared.as_slice(),
@@ -692,7 +821,11 @@ fn an_attribute_change_made_while_the_fix_ran_is_refused_and_kept() {
         Some(b"second".to_vec()),
         "the person's newer value is back on the file"
     );
-    assert_eq!(std::fs::read(&path).expect("a"), b"a", "the fix left the person's bytes alone");
+    assert_eq!(
+        std::fs::read(&path).expect("a"),
+        b"a",
+        "the fix left the person's bytes alone"
+    );
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     remove(fixture_tree.root.as_path());
 }
@@ -736,7 +869,7 @@ fn a_save_to_a_corrected_path_before_a_rollback_is_kept() {
         &mut notices,
     )
     .expect_err("the second site fails");
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     assert!(
         refused.contains("the corrected files this command still owned were restored, and what it does not own stays"),
         "{refused}"
@@ -797,9 +930,12 @@ fn a_save_to_a_corrected_path_before_a_rollback_is_kept() {
 fn a_write_through_an_open_descriptor_is_kept_and_named() {
     let fixture_tree: Tree = tree("install-descriptor");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let destination: PathBuf = fixture_tree.top.join("a.txt");
     /// `Write` adds `write_all` to the borrowed file.
     use std::io::Write;
@@ -823,7 +959,7 @@ fn a_write_through_an_open_descriptor_is_kept_and_named() {
         &mut notices,
     )
     .expect("the correction goes in");
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     assert_eq!(
         std::fs::read(&destination).expect("a"),
         b"a\n".to_vec(),
@@ -864,9 +1000,12 @@ fn a_write_through_an_open_descriptor_is_kept_and_named() {
 #[test]
 fn a_kill_between_the_swap_and_the_judgement_is_reported_and_kept() {
     let fixture_tree: Tree = tree("install-killed");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     // The person's newer edit is what the swap displaces.
     std::fs::write(fixture_tree.top.join("a.txt"), b"newer edit\n").expect("a save");
     super::exchange(
@@ -914,9 +1053,12 @@ fn a_kill_between_the_swap_and_the_judgement_is_reported_and_kept() {
 #[test]
 fn a_journal_is_removed_only_when_nothing_of_the_person_is_in_it() {
     let fixture_tree: Tree = tree("install-journal-judged");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     mark_writer_dead(prepared[0].journal.as_path());
     let mut notices: Vec<String> = Vec::new();
     reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
@@ -926,9 +1068,12 @@ fn a_journal_is_removed_only_when_nothing_of_the_person_is_in_it() {
         "{notices:?}"
     );
     // Now a swap happens and the owner dies: the journal holds the person's bytes and must stay.
-    let swapped: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let swapped: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     std::fs::write(fixture_tree.top.join("a.txt"), b"newer edit\n").expect("a save");
     super::exchange(
         content_of(swapped[0].journal.as_path()).as_path(),
@@ -1058,9 +1203,13 @@ fn an_index_that_is_not_as_read_restores_every_file() {
     );
     assert_eq!(contents(&fixture_tree.top), untouched());
     // The first read failing changes nothing at all.
-    let first: String =
-        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice())
-            .expect_err("unreadable index");
+    let first: String = install_corrections(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        &fixture_tree.index,
+        changes().as_slice(),
+    )
+    .expect_err("unreadable index");
     assert!(
         first.starts_with(
             "monochromatic-git-policy-cli fix could not install its corrections: reading the index failed ("
@@ -1089,12 +1238,13 @@ fn a_git_directory_that_cannot_hold_a_journal_stops_before_any_change() {
     let read_only: PathBuf = fixture_tree.root.join("read-only");
     std::fs::create_dir(&read_only).expect("directory");
     std::fs::write(read_only.join("index"), b"index bytes").expect("index");
-    std::fs::set_permissions(&read_only, std::fs::Permissions::from_mode(0o555)).expect("read-only");
-    let probe: std::io::Result<std::fs::File> =
-        std::fs::File::create(read_only.join("probe"));
+    std::fs::set_permissions(&read_only, std::fs::Permissions::from_mode(0o555))
+        .expect("read-only");
+    let probe: std::io::Result<std::fs::File> = std::fs::File::create(read_only.join("probe"));
     // Positive control: a process that ignores permissions cannot run this control.
     if probe.is_ok() {
-        std::fs::set_permissions(&read_only, std::fs::Permissions::from_mode(0o755)).expect("restore");
+        std::fs::set_permissions(&read_only, std::fs::Permissions::from_mode(0o755))
+            .expect("restore");
         remove(fixture_tree.root.as_path());
         panic!("the read-only directory accepted a new file, so this control cannot run here");
     }
@@ -1131,7 +1281,8 @@ fn a_git_directory_that_cannot_hold_a_journal_stops_before_any_change() {
 fn a_fix_leaves_nothing_in_the_worktree_that_git_could_stage() {
     let root: PathBuf = fixture("install-no-worktree-files");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    std::fs::write(repo.join(".gitignore"), b"!.cli-git-direct-fix-*\n").expect("a rule that outranks");
+    std::fs::write(repo.join(".gitignore"), b"!.cli-git-direct-fix-*\n")
+        .expect("a rule that outranks");
     std::fs::write(repo.join("keep.txt"), b"a").expect("keep");
     git(repo.as_path(), &["add", "--", "keep.txt", ".gitignore"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=keep"]);
@@ -1160,22 +1311,32 @@ fn a_fix_leaves_nothing_in_the_worktree_that_git_could_stage() {
                         .to_string_lossy()
                         .starts_with("cli-git-direct-fix-")
                     {
-                        std::fs::write(path.join("content"), b"a late save\n").expect("a late write");
+                        std::fs::write(path.join("content"), b"a late save\n")
+                            .expect("a late write");
                     }
                 }
             }
         }));
     });
-    let outcome: super::InstallOutcome =
-        install_corrections(repo.as_path(), repo.join(".git").as_path(), &index, changes.as_slice()).expect("the correction goes in");
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    let outcome: super::InstallOutcome = install_corrections(
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        &index,
+        changes.as_slice(),
+    )
+    .expect("the correction goes in");
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     assert_eq!(outcome.notices.len(), 1, "{outcome:?}");
     assert_eq!(
         leftovers(repo.as_path()),
         Vec::<String>::new(),
         "a fix keeps nothing in the worktree, not even a journal it must keep"
     );
-    assert_eq!(journals(&git_dir).len(), 1, "the journal is inside the Git directory");
+    assert_eq!(
+        journals(&git_dir).len(),
+        1,
+        "the journal is inside the Git directory"
+    );
     git(repo.as_path(), &["add", "--all"]);
     let staged: std::process::Output = git(repo.as_path(), &["ls-files"]);
     assert_eq!(
@@ -1231,7 +1392,8 @@ fn a_journal_never_lands_beside_an_alternate_index() {
                         .to_string_lossy()
                         .starts_with("cli-git-direct-fix-")
                     {
-                        std::fs::write(path.join("content"), b"a late save\n").expect("a late write");
+                        std::fs::write(path.join("content"), b"a late save\n")
+                            .expect("a late write");
                     }
                 }
             }
@@ -1244,7 +1406,7 @@ fn a_journal_never_lands_beside_an_alternate_index() {
         changes.as_slice(),
     )
     .expect("the correction goes in");
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     assert_eq!(outcome.notices.len(), 1, "a journal stays: {outcome:?}");
     assert_eq!(
         std::fs::read(repo.join("a.txt")).expect("a"),
@@ -1293,7 +1455,10 @@ fn a_replacement_never_changes_the_owner() {
         // A process that may give the file away gives it.
         Ok(()) => {
             let owner: u32 = std::fs::metadata(&path).expect("written").uid();
-            assert_eq!(owner, 0, "an accepted write keeps the owner it was asked for");
+            assert_eq!(
+                owner, 0,
+                "an accepted write keeps the owner it was asked for"
+            );
         }
         Err(refusal) => {
             let text: String = refusal.to_string();
@@ -1327,9 +1492,12 @@ fn a_replacement_never_changes_the_owner() {
 #[test]
 fn a_recovery_never_exchanges_and_changes_nothing_twice() {
     let fixture_tree: Tree = tree("install-recovery-safe");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let content: PathBuf = content_of(prepared[0].journal.as_path());
     // A kill in the middle of writing the corrected bytes: the journal's content says nothing.
     std::fs::write(&content, b"").expect("a half-written content");
@@ -1375,9 +1543,12 @@ fn a_recovery_never_exchanges_and_changes_nothing_twice() {
 fn a_save_that_lands_after_a_rollbacks_check_is_kept() {
     let fixture_tree: Tree = tree("install-rollback-late-save");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let destination: PathBuf = fixture_tree.top.join("a.txt");
     super::BEFORE_ROLLBACK_SWAP.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move |rolled_back: &Path| {
@@ -1397,12 +1568,16 @@ fn a_save_that_lands_after_a_rollbacks_check_is_kept() {
         &mut notices,
     )
     .expect_err("the index changed");
-    super::BEFORE_ROLLBACK_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::BEFORE_ROLLBACK_SWAP.with(|hook| *hook.borrow_mut() = None);
     assert!(failed.contains("the index changed"), "{failed}");
     // The save is never deleted: it is at the file or in a journal the message names.
-    let at_the_file: bool = std::fs::read(&destination).is_ok_and(|bytes| { return bytes == b"newer edit\n"; });
+    let at_the_file: bool = std::fs::read(&destination).is_ok_and(|bytes| {
+        return bytes == b"newer edit\n";
+    });
     let in_a_journal: bool = journals(&fixture_tree.root).iter().any(|journal| {
-        return std::fs::read(content_of(journal.as_path())).is_ok_and(|bytes| { return bytes == b"newer edit\n"; });
+        return std::fs::read(content_of(journal.as_path())).is_ok_and(|bytes| {
+            return bytes == b"newer edit\n";
+        });
     });
     assert!(
         at_the_file || in_a_journal,
@@ -1431,9 +1606,12 @@ fn a_save_that_lands_after_a_rollbacks_check_is_kept() {
 fn a_rollback_never_takes_a_mode_change_and_never_follows_a_link() {
     let fixture_tree: Tree = tree("install-rollback-mode");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     super::AFTER_SWAP.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
             if swapped.ends_with("a.txt") {
@@ -1453,7 +1631,7 @@ fn a_rollback_never_takes_a_mode_change_and_never_follows_a_link() {
         &mut notices,
     )
     .expect_err("the index changed");
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     // The narrowed inode is on disk, in the journal the message names.
     let kept: Vec<PathBuf> = journals(&fixture_tree.root);
     assert_eq!(kept.len(), 1, "{notices:?}");
@@ -1464,7 +1642,9 @@ fn a_rollback_never_takes_a_mode_change_and_never_follows_a_link() {
         & 0o7777;
     assert_eq!(kept_mode, 0o600, "the person's mode is kept: {kept_mode:o}");
     assert!(
-        notices.iter().any(|notice| return notice.contains("cli-git-direct-fix-")),
+        notices
+            .iter()
+            .any(|notice| return notice.contains("cli-git-direct-fix-")),
         "{notices:?}"
     );
     remove(fixture_tree.root.as_path());
@@ -1485,9 +1665,12 @@ fn a_rollback_never_takes_a_mode_change_and_never_follows_a_link() {
 fn a_rollback_never_removes_a_symbolic_link_it_did_not_make() {
     let fixture_tree: Tree = tree("install-rollback-link");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let destination: PathBuf = fixture_tree.top.join("a.txt");
     // A file elsewhere whose bytes are the correction, and a link to it where the corrected file is.
     let elsewhere: PathBuf = fixture_tree.top.join("elsewhere.txt");
@@ -1510,7 +1693,7 @@ fn a_rollback_never_removes_a_symbolic_link_it_did_not_make() {
         &mut notices,
     )
     .expect_err("the index changed");
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     // The link is not the fix's file: it stays, either at the path or in the journal the message names.
     let at_the_path: bool = std::fs::symlink_metadata(&destination)
         .is_ok_and(|found| return found.file_type().is_symlink());
@@ -1543,9 +1726,12 @@ fn a_rollback_never_removes_a_symbolic_link_it_did_not_make() {
 fn a_journal_a_fix_cannot_remove_is_named() {
     let fixture_tree: Tree = tree("install-cleanup-fails");
     let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let journal: PathBuf = prepared[0].journal.clone();
     let for_the_hook: PathBuf = journal.clone();
     super::AFTER_SWAP.with(|hook| {
@@ -1564,11 +1750,13 @@ fn a_journal_a_fix_cannot_remove_is_named() {
         &before,
         &mut notices,
     );
-    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    super::AFTER_SWAP.with(|hook| *hook.borrow_mut() = None);
     std::fs::set_permissions(&journal, std::fs::Permissions::from_mode(0o700)).expect("restore");
     assert_eq!(outcome, Ok(()), "the correction is installed");
     assert!(
-        notices.iter().any(|notice| return notice.contains("could not be removed")),
+        notices
+            .iter()
+            .any(|notice| return notice.contains("could not be removed")),
         "the journal that stays is named: {notices:?}"
     );
     remove(fixture_tree.root.as_path());
@@ -1601,7 +1789,10 @@ fn a_replacement_keeps_the_group_the_file_had() {
     let counted: libc::c_int = unsafe { libc::getgroups(32, groups.as_mut_ptr()) };
     assert!(counted >= 0, "the group list cannot be read");
     let own: u32 = unsafe { libc::getegid() };
-    let other: Option<u32> = groups[..usize::try_from(counted).expect("a count")].iter().map(|id| return *id).find(|id| return *id != own);
+    let other: Option<u32> = groups[..usize::try_from(counted).expect("a count")]
+        .iter()
+        .map(|id| return *id)
+        .find(|id| return *id != own);
     let Some(other_gid) = other else {
         // Positive control: without a second group this control cannot run, and says so.
         eprintln!(
@@ -1616,8 +1807,13 @@ fn a_replacement_keeps_the_group_the_file_had() {
         .arg(&shared)
         .output()
         .expect("chgrp runs");
-    assert!(changed.status.success(), "{}", String::from_utf8_lossy(&changed.stderr));
-    std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o2755)).expect("set-group-ID");
+    assert!(
+        changed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&changed.stderr)
+    );
+    std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o2755))
+        .expect("set-group-ID");
     let path: PathBuf = shared.join("kept.txt");
     let asked: Kept = Kept {
         mode: 0o640,
@@ -1629,7 +1825,10 @@ fn a_replacement_keeps_the_group_the_file_had() {
     /// `MetadataExt` adds the group.
     use std::os::unix::fs::MetadataExt;
     let actual: u32 = std::fs::metadata(&path).expect("written").gid();
-    assert_eq!(actual, own, "the replacement keeps the group it was asked for");
+    assert_eq!(
+        actual, own,
+        "the replacement keeps the group it was asked for"
+    );
     remove(root.as_path());
 }
 
@@ -1648,7 +1847,8 @@ fn a_replacement_keeps_the_group_the_file_had() {
 fn carried_by_a_new_file_in(directory: &Path) -> Vec<Attribute> {
     let prototype: PathBuf = directory.join("prototype.txt");
     std::fs::write(&prototype, b"x\n").expect("a prototype");
-    let carried: Vec<Attribute> = attributes_of(prototype.as_path(), "reading a file").expect("read");
+    let carried: Vec<Attribute> =
+        attributes_of(prototype.as_path(), "reading a file").expect("read");
     std::fs::remove_file(&prototype).expect("the prototype is removed");
     return carried;
 }
@@ -1674,9 +1874,12 @@ fn carried_by_a_new_file_in(directory: &Path) -> Vec<Attribute> {
 #[test]
 fn a_reap_never_removes_a_permission_change_the_person_made() {
     let fixture_tree: Tree = tree("install-reap-mode");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let journal: PathBuf = prepared[0].journal.clone();
     let destination: PathBuf = fixture_tree.top.join("a.txt");
     // The person saves the correction's own bytes and narrows the file.
@@ -1687,7 +1890,11 @@ fn a_reap_never_removes_a_permission_change_the_person_made() {
     mark_writer_dead(journal.as_path());
     let mut notices: Vec<String> = Vec::new();
     reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
-    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays: {notices:?}");
+    assert_eq!(
+        journals(&fixture_tree.root).len(),
+        1,
+        "the journal stays: {notices:?}"
+    );
     let kept_mode: u32 = std::fs::metadata(content_of(journal.as_path()))
         .expect("the kept bytes")
         .permissions()
@@ -1695,7 +1902,9 @@ fn a_reap_never_removes_a_permission_change_the_person_made() {
         & 0o7777;
     assert_eq!(kept_mode, 0o600, "the person's mode is kept: {kept_mode:o}");
     assert!(
-        notices.iter().any(|notice| return notice.contains("cli-git-direct-fix-")),
+        notices
+            .iter()
+            .any(|notice| return notice.contains("cli-git-direct-fix-")),
         "{notices:?}"
     );
     remove(fixture_tree.root.as_path());
@@ -1722,9 +1931,12 @@ fn a_reap_never_removes_a_permission_change_the_person_made() {
 #[test]
 fn a_journal_holding_a_fifo_never_waits_and_is_kept() {
     let fixture_tree: Tree = tree("install-reap-fifo");
-    let prepared: Vec<Prepared> =
-        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
-            .expect("prepared");
+    let prepared: Vec<Prepared> = super::prepare_replacements(
+        &fixture_tree.top,
+        &fixture_tree.root,
+        one_change().as_slice(),
+    )
+    .expect("prepared");
     let journal: PathBuf = prepared[0].journal.clone();
     let destination: PathBuf = fixture_tree.top.join("a.txt");
     // Another command puts a FIFO where the corrected file is, and the swap moves it into the journal.
@@ -1733,12 +1945,19 @@ fn a_journal_holding_a_fifo_never_waits_and_is_kept() {
         .arg(&destination)
         .output()
         .expect("mkfifo runs");
-    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    assert!(
+        made.status.success(),
+        "{}",
+        String::from_utf8_lossy(&made.stderr)
+    );
     super::exchange(content_of(journal.as_path()).as_path(), &destination).expect("the swap");
     let displaced: std::fs::FileType = std::fs::symlink_metadata(content_of(journal.as_path()))
         .expect("the displaced entry")
         .file_type();
-    assert!(!displaced.is_file(), "the control needs a non-regular entry");
+    assert!(
+        !displaced.is_file(),
+        "the control needs a non-regular entry"
+    );
     mark_writer_dead(journal.as_path());
     // The sweep runs on another thread, so a sweep that blocks cannot hold this control for ever.
     let (sender, receiver) = std::sync::mpsc::channel::<Vec<String>>();
@@ -1753,9 +1972,15 @@ fn a_journal_holding_a_fifo_never_waits_and_is_kept() {
         Ok(found) => found,
         Err(_) => panic!("the sweep opened the FIFO and never returned"),
     };
-    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays: {notices:?}");
+    assert_eq!(
+        journals(&fixture_tree.root).len(),
+        1,
+        "the journal stays: {notices:?}"
+    );
     assert!(
-        notices.iter().any(|notice| return notice.contains("cli-git-direct-fix-")),
+        notices
+            .iter()
+            .any(|notice| return notice.contains("cli-git-direct-fix-")),
         "{notices:?}"
     );
     remove(fixture_tree.root.as_path());

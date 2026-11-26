@@ -56,10 +56,20 @@ static GAPS: Mutex<Vec<(String, Duration)>> = Mutex::new(Vec::new());
 /// ```ts
 /// note('git rev-parse', 1200, false);
 /// ```
-pub fn note(step: &str, gap: Duration, ended_for_being_quiet: bool) {
-    let name: String = if ended_for_being_quiet { format!("{step}{ENDED_SUFFIX}") } else { step.to_owned() };
+pub fn note(
+    step: &str,
+    gap: Duration,
+    ended_for_being_quiet: bool,
+) {
+    let name: String = if ended_for_being_quiet {
+        format!("{step}{ENDED_SUFFIX}")
+    } else {
+        step.to_owned()
+    };
     // A poisoned lock means another thread panicked while holding it; the list is still a list of gaps.
-    let mut gaps = GAPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut gaps = GAPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // The first entry with this name keeps the longest gap seen; no entry means a new one.
     for (known, longest) in gaps.iter_mut() {
         if *known == name {
@@ -82,7 +92,9 @@ pub fn note(step: &str, gap: Duration, ended_for_being_quiet: bool) {
 /// const figures = drain();
 /// ```
 pub fn drain() -> Vec<(String, Duration)> {
-    let mut gaps = GAPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut gaps = GAPS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut taken: Vec<(String, Duration)> = std::mem::take(&mut *gaps);
     taken.sort();
     return taken;

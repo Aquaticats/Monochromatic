@@ -16,9 +16,19 @@ use crate::config_error::ConfigError;
 /// The typed settings of the policy,
 /// the rule names it accepts,
 /// and the defaults a missing key keeps.
-use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig, markdown_rule_from_name};
+use crate::config_schema::{
+    MarkdownAutofixOptions,
+    MarkdownRule,
+    PolicyConfig,
+    markdown_rule_from_name,
+};
 /// The shared value readers.
-use crate::config_values::{member_keys, member_path, strings, wrong_kind};
+use crate::config_values::{
+    member_keys,
+    member_path,
+    strings,
+    wrong_kind,
+};
 /// The repository's JSONC value type,
 /// which the reader walks directly.
 use monochromatic_jsonc_edit::JsoncValue;
@@ -36,7 +46,10 @@ use monochromatic_jsonc_edit::JsoncValue;
 /// ```ts
 /// function markdownRules(value: JsoncValue, path: string): MarkdownRule[];
 /// ```
-fn markdown_rules(value: &JsoncValue, path: &str) -> Result<Vec<MarkdownRule>, ConfigError> {
+fn markdown_rules(
+    value: &JsoncValue,
+    path: &str,
+) -> Result<Vec<MarkdownRule>, ConfigError> {
     let names: Vec<String> = strings(value, path)?;
     if names.is_empty() {
         return Err(ConfigError::new(

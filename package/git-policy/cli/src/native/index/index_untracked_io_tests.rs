@@ -20,7 +20,10 @@ fn an_invalidated_cache_still_reads_back() {
     let bytes: Vec<u8> = untracked_extension("untracked-io-invalidate");
     let mut cache = read_untracked(bytes.as_slice(), 20).expect("read");
     let root = cache.root.as_ref().expect("a status run filled the cache");
-    assert!(root.valid && !root.untracked.is_empty(), "the fixture's cache lists untracked files");
+    assert!(
+        root.valid && !root.untracked.is_empty(),
+        "the fixture's cache lists untracked files"
+    );
     cache.invalidate_path(b"d/sub-untracked/file");
     let written: Vec<u8> = write_untracked(&cache);
     assert_ne!(written, bytes, "the invalidation changed the bytes");
@@ -33,7 +36,8 @@ fn an_invalidated_cache_still_reads_back() {
 /// and Git writes only a zero count for it.
 #[test]
 fn a_cache_without_directories_round_trips() {
-    let mut cache = read_untracked(untracked_extension("untracked-io-empty").as_slice(), 20).expect("read");
+    let mut cache =
+        read_untracked(untracked_extension("untracked-io-empty").as_slice(), 20).expect("read");
     cache.root = None;
     let bytes: Vec<u8> = write_untracked(&cache);
     assert_eq!(bytes.last(), Some(&0));
@@ -57,7 +61,11 @@ fn irregular_forms_are_not_read() {
 /// An untracked cache whose first bitmap names more directories than the cache has is refused instead of expanded.
 #[test]
 fn a_bitmap_longer_than_the_directory_list_is_refused() {
-    let cache = read_untracked(untracked_extension("untracked-io-long-bitmap").as_slice(), 20).expect("read");
+    let cache = read_untracked(
+        untracked_extension("untracked-io-long-bitmap").as_slice(),
+        20,
+    )
+    .expect("read");
     let mut lone: Untracked = cache;
     if let Some(root) = lone.root.as_mut() {
         root.dirs.clear();
@@ -66,7 +74,10 @@ fn a_bitmap_longer_than_the_directory_list_is_refused() {
         root.exclude_id = vec![0; 20];
     }
     let written: Vec<u8> = write_untracked(&lone);
-    assert!(read_untracked(written.as_slice(), 20).is_some(), "the control reads");
+    assert!(
+        read_untracked(written.as_slice(), 20).is_some(),
+        "the control reads"
+    );
     // One directory and three empty bitmaps end the extension, then the guard byte.
     let mut empty: Vec<u8> = Vec::new();
     crate::index_ewah::Ewah::new().serialize(&mut empty);

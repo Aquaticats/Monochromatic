@@ -14,7 +14,11 @@
 //! expect(readLocalProperty(reply, 'pool/clone', 'org...').kind).toBe('inherited');
 //! ```
 
-use super::{PropertyReading, PropertyRefusal, read_local_property};
+use super::{
+    PropertyReading,
+    PropertyRefusal,
+    read_local_property,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 /// The property every control reads.
@@ -27,7 +31,10 @@ const CLONE: &str = "zpcachyos/nosnap/clones/one";
 const PARENT: &str = "zpcachyos/nosnap/clones";
 
 /// A reply with the given value and source.
-fn reply_with(value: Option<&str>, source: Option<&str>) -> NvList {
+fn reply_with(
+    value: Option<&str>,
+    source: Option<&str>,
+) -> NvList {
     let mut pair: NvList = NvList::new();
     if let Some(word) = value {
         pair.add_str("value", word);
@@ -43,8 +50,14 @@ fn reply_with(value: Option<&str>, source: Option<&str>) -> NvList {
 /// A missing reply and a reply without the property are both absent.
 #[test]
 fn an_absent_property_is_absent() {
-    assert_eq!(read_local_property(None, CLONE, PROPERTY), PropertyReading::Absent);
-    assert_eq!(read_local_property(Some(&NvList::new()), CLONE, PROPERTY), PropertyReading::Absent);
+    assert_eq!(
+        read_local_property(None, CLONE, PROPERTY),
+        PropertyReading::Absent
+    );
+    assert_eq!(
+        read_local_property(Some(&NvList::new()), CLONE, PROPERTY),
+        PropertyReading::Absent
+    );
 }
 
 /// The dataset's own name as source is a local value,
@@ -52,11 +65,18 @@ fn an_absent_property_is_absent() {
 #[test]
 fn a_local_value_is_told_from_an_inherited_one() {
     let local: NvList = reply_with(Some("v1:00:mount"), Some(CLONE));
-    assert_eq!(read_local_property(Some(&local), CLONE, PROPERTY), PropertyReading::Local { value: "v1:00:mount" });
+    assert_eq!(
+        read_local_property(Some(&local), CLONE, PROPERTY),
+        PropertyReading::Local {
+            value: "v1:00:mount"
+        }
+    );
     let inherited: NvList = reply_with(Some("v1:00:mount"), Some(PARENT));
     assert_eq!(
         read_local_property(Some(&inherited), CLONE, PROPERTY),
-        PropertyReading::Inherited { from: String::from(PARENT) }
+        PropertyReading::Inherited {
+            from: String::from(PARENT)
+        }
     );
 }
 
@@ -66,7 +86,10 @@ fn a_local_value_is_told_from_an_inherited_one() {
 fn a_source_that_only_resembles_the_dataset_is_inherited() {
     let deeper: String = format!("{CLONE}/child");
     let reply: NvList = reply_with(Some("v1:00:mount"), Some(deeper.as_str()));
-    assert!(matches!(read_local_property(Some(&reply), CLONE, PROPERTY), PropertyReading::Inherited { .. }));
+    assert!(matches!(
+        read_local_property(Some(&reply), CLONE, PROPERTY),
+        PropertyReading::Inherited { .. }
+    ));
 }
 
 /// Each unreadable shape is its own refusal.
@@ -76,18 +99,29 @@ fn each_unreadable_shape_is_named() {
     bare.add_str(PROPERTY, "v1:00:mount");
     assert_eq!(
         read_local_property(Some(&bare), CLONE, PROPERTY),
-        PropertyReading::Malformed(PropertyRefusal::NotAPropertyPair { dataset: String::from(CLONE) })
+        PropertyReading::Malformed(PropertyRefusal::NotAPropertyPair {
+            dataset: String::from(CLONE)
+        })
     );
     let no_value: NvList = reply_with(None, Some(CLONE));
-    assert_eq!(read_local_property(Some(&no_value), CLONE, PROPERTY), PropertyReading::Malformed(PropertyRefusal::MissingValue));
+    assert_eq!(
+        read_local_property(Some(&no_value), CLONE, PROPERTY),
+        PropertyReading::Malformed(PropertyRefusal::MissingValue)
+    );
     let no_source: NvList = reply_with(Some("v1:00:mount"), None);
-    assert_eq!(read_local_property(Some(&no_source), CLONE, PROPERTY), PropertyReading::Malformed(PropertyRefusal::MissingSource));
+    assert_eq!(
+        read_local_property(Some(&no_source), CLONE, PROPERTY),
+        PropertyReading::Malformed(PropertyRefusal::MissingSource)
+    );
     let mut number: NvList = NvList::new();
     let mut pair: NvList = NvList::new();
     pair.add_u64("value", 1);
     pair.add_str("source", CLONE);
     number.add_nvlist(PROPERTY, pair);
-    assert_eq!(read_local_property(Some(&number), CLONE, PROPERTY), PropertyReading::Malformed(PropertyRefusal::ValueNotText));
+    assert_eq!(
+        read_local_property(Some(&number), CLONE, PROPERTY),
+        PropertyReading::Malformed(PropertyRefusal::ValueNotText)
+    );
     let mut pair_source: NvList = NvList::new();
     pair_source.add_str("value", "v1:00:mount");
     pair_source.add_u64("source", 1);
@@ -103,7 +137,9 @@ fn each_unreadable_shape_is_named() {
 #[test]
 fn every_refusal_names_the_property_and_authorizes_nothing() {
     for refusal in [
-        PropertyRefusal::NotAPropertyPair { dataset: String::from(CLONE) },
+        PropertyRefusal::NotAPropertyPair {
+            dataset: String::from(CLONE),
+        },
         PropertyRefusal::MissingValue,
         PropertyRefusal::MissingSource,
         PropertyRefusal::ValueNotText,

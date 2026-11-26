@@ -3,7 +3,10 @@
 //! and a record an earlier release wrote still names its worktree.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 
@@ -19,11 +22,25 @@ fn a_record_keeps_the_bytes_of_the_paths_it_names() {
     let journal: PathBuf = fixture("scratch-record-non-utf8");
     let repository: PathBuf = journal.join(OsStr::from_bytes(b"w\xffrktree"));
     let git_dir: PathBuf = journal.join(OsStr::from_bytes(b"c\xffmmon"));
-    record_scratch_ref(journal.as_path(), 4, repository.as_path(), git_dir.as_path());
-    let read: String = std::fs::read_to_string(record_path(journal.as_path(), 4)).expect("the record");
+    record_scratch_ref(
+        journal.as_path(),
+        4,
+        repository.as_path(),
+        git_dir.as_path(),
+    );
+    let read: String =
+        std::fs::read_to_string(record_path(journal.as_path(), 4)).expect("the record");
     let named: (PathBuf, PathBuf) = decode(read.as_str()).expect("the record names a worktree");
-    assert_eq!(named, (repository, git_dir.clone()), "the record names the worktree it was written for");
-    assert_eq!(instance_of(named.1.as_path()), instance_of(git_dir.as_path()), "the instance the sweep compares is that directory's");
+    assert_eq!(
+        named,
+        (repository, git_dir.clone()),
+        "the record names the worktree it was written for"
+    );
+    assert_eq!(
+        instance_of(named.1.as_path()),
+        instance_of(git_dir.as_path()),
+        "the instance the sweep compares is that directory's"
+    );
     remove(journal.as_path());
 }
 
@@ -35,7 +52,10 @@ fn a_record_keeps_the_bytes_of_the_paths_it_names() {
 #[test]
 fn a_record_of_plain_text_paths_is_still_read() {
     let earlier: &str = "{\"v\":1,\"repository\":\"/srv/repo\",\"gitDir\":\"/srv/repo/.git\"}\n";
-    assert_eq!(decode(earlier), Some((PathBuf::from("/srv/repo"), PathBuf::from("/srv/repo/.git"))));
+    assert_eq!(
+        decode(earlier),
+        Some((PathBuf::from("/srv/repo"), PathBuf::from("/srv/repo/.git")))
+    );
 }
 
 /// A record that names no worktree,

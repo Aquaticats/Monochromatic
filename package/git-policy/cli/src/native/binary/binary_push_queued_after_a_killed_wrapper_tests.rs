@@ -21,16 +21,34 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, fixture, git, repository, run_wrapped, start_fixture_service, FixtureService};
+use super::support::{
+    Fixture,
+    FixtureService,
+    Observed,
+    fixture,
+    git,
+    repository,
+    run_wrapped,
+    start_fixture_service,
+};
 use git_policy_cli::service_claim_watch::LOOK_AGAIN_AFTER;
 use git_policy_cli::service_fault::AFTER_PROMOTE;
 use git_policy_cli::service_handoff::PUSH_QUEUED_AFTER;
 use git_policy_cli::service_work::work_directory;
-use git_policy_cli::work_item::{PENDING, state_directory};
+use git_policy_cli::work_item::{
+    PENDING,
+    state_directory,
+};
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Command, Output};
-use std::time::{Duration, Instant};
+use std::process::{
+    Command,
+    Output,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The longest a control waits for anything,
 /// far beyond what a healthy run needs.
@@ -50,16 +68,43 @@ fn setup(name: &str) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            remote.to_str().expect("UTF-8"),
+        ],
+    );
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        &repo,
+        &["config", "maintenance.autoDetach", "false"],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("UTF-8")],
+    );
+    git(
+        &fixture,
+        &repo,
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, remote, service };
+    return Setup {
+        fixture,
+        repo,
+        remote,
+        service,
+    };
 }
 
 fn git_dir(setup: &Setup) -> PathBuf {
@@ -74,13 +119,24 @@ fn git_dir(setup: &Setup) -> PathBuf {
 /// it is inert unless the variable names it,
 /// so no
 ///  command of a person reaches it.
-fn commit_and_die_after_promote(setup: &Setup, content: &str) -> String {
+fn commit_and_die_after_promote(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     command.env(git_policy_cli::service_fault::FAULT_VARIABLE, AFTER_PROMOTE);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(!output.status.success(), "the wrapper was killed at the fault point: {:?}", output.status);
+    assert!(
+        !output.status.success(),
+        "the wrapper was killed at the fault point: {:?}",
+        output.status
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
@@ -88,18 +144,31 @@ fn commit_and_die_after_promote(setup: &Setup, content: &str) -> String {
 /// The push record the killed wrapper left runnable,
 /// as the queue holds it.
 fn pending_push_records(setup: &Setup) -> Vec<String> {
-    let pending: PathBuf = state_directory(work_directory(git_dir(setup).as_path()).as_path(), PENDING);
+    let pending: PathBuf =
+        state_directory(work_directory(git_dir(setup).as_path()).as_path(), PENDING);
     let mut names: Vec<String> = std::fs::read_dir(pending)
-        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .map(|listing| {
+            return listing
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        })
         .unwrap_or_default();
-    names.retain(|name| { return name.starts_with("push-"); });
+    names.retain(|name| {
+        return name.starts_with("push-");
+    });
     return names;
 }
 
 /// Whether the bare remote holds `commit`.
 /// The question is asked of real Git and a "no" is an answer,
 /// not a failure of the command.
-fn remote_has(setup: &Setup, commit: &str) -> bool {
+fn remote_has(
+    setup: &Setup,
+    commit: &str,
+) -> bool {
     let asked: Output = super::support::direct(&setup.fixture)
         .current_dir(setup.remote.as_path())
         .args(["cat-file", "-e", format!("{commit}^{{commit}}").as_str()])
@@ -108,7 +177,10 @@ fn remote_has(setup: &Setup, commit: &str) -> bool {
     return asked.status.success();
 }
 
-fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
+fn wait_until(
+    what: &str,
+    condition: &dyn Fn() -> bool,
+) {
     let began: Instant = Instant::now();
     while !condition() {
         assert!(began.elapsed() < PATIENCE, "never happened: {what}");
@@ -127,11 +199,19 @@ fn stderr_of(observed: &Observed) -> String {
 /// and this control is about a record
 ///  that nothing has settled:
 /// the wait would time out and fail the control for the state it checks.
-fn run_without_settling(setup: &Setup, arguments: &[&str]) -> Observed {
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), arguments);
+fn run_without_settling(
+    setup: &Setup,
+    arguments: &[&str],
+) -> Observed {
+    let mut command: Command =
+        super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), arguments);
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let output: Output = command.output().expect("the wrapped command runs");
-    return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+    return Observed {
+        code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    };
 }
 
 /// What:
@@ -152,26 +232,60 @@ fn run_without_settling(setup: &Setup, arguments: &[&str]) -> Observed {
 fn the_command_after_the_kill_says_the_push_is_queued() {
     let setup: Setup = setup("push-queued-after-promote");
     let commit: String = commit_and_die_after_promote(&setup, "one\n");
-    assert_eq!(pending_push_records(&setup).len(), 1, "the promotion left one runnable record");
-    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed the commit: the wake never happened");
+    assert_eq!(
+        pending_push_records(&setup).len(),
+        1,
+        "the promotion left one runnable record"
+    );
+    assert!(
+        !remote_has(&setup, commit.as_str()),
+        "nothing pushed the commit: the wake never happened"
+    );
     // A record that has just been queued is a push in flight, not a push that waits: the line is said once the bound is past.
     let early: Observed = run_without_settling(&setup, &["status", "--short"]);
-    assert!(!stderr_of(&early).contains(commit.as_str()), "a record younger than the bound is not named: {}", stderr_of(&early));
+    assert!(
+        !stderr_of(&early).contains(commit.as_str()),
+        "a record younger than the bound is not named: {}",
+        stderr_of(&early)
+    );
     // The service that would take the record ends here, so the record keeps waiting while it is aged, as one a service that
     //  went away left. A record older than the naming bound is then the state the line speaks of.
     setup.service.stop_all();
-    let pending: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING).join(pending_push_records(&setup)[0].as_str());
+    let pending: PathBuf =
+        state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING)
+            .join(pending_push_records(&setup)[0].as_str());
     // The wait is made by the clock rather than by sleeping the bound: the record is aged, and everything else is real.
-    let aged: std::time::SystemTime = std::time::SystemTime::now() - PUSH_QUEUED_AFTER - Duration::from_secs(1);
-    std::fs::File::options().write(true).open(pending.as_path()).expect("the record opens").set_modified(aged).expect("the record is aged");
+    let aged: std::time::SystemTime =
+        std::time::SystemTime::now() - PUSH_QUEUED_AFTER - Duration::from_secs(1);
+    std::fs::File::options()
+        .write(true)
+        .open(pending.as_path())
+        .expect("the record opens")
+        .set_modified(aged)
+        .expect("the record is aged");
     let said: Observed = run_without_settling(&setup, &["status", "--short"]);
     let text: String = stderr_of(&said);
     assert_eq!(said.code, Some(0), "{text}");
-    assert!(text.contains(commit.as_str()), "the line names the commit: {text}");
-    assert!(text.contains("is queued for its push from refs/heads/main"), "the line says the push is queued: {text}");
-    assert!(text.contains("has not been made yet"), "and that it has not been made: {text}");
-    assert!(text.contains("needs no further commit"), "and that the service needs no further commit: {text}");
-    assert!(!remote_has(&setup, commit.as_str()), "still nothing pushed it");
+    assert!(
+        text.contains(commit.as_str()),
+        "the line names the commit: {text}"
+    );
+    assert!(
+        text.contains("is queued for its push from refs/heads/main"),
+        "the line says the push is queued: {text}"
+    );
+    assert!(
+        text.contains("has not been made yet"),
+        "and that it has not been made: {text}"
+    );
+    assert!(
+        text.contains("needs no further commit"),
+        "and that the service needs no further commit: {text}"
+    );
+    assert!(
+        !remote_has(&setup, commit.as_str()),
+        "still nothing pushed it"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -193,18 +307,40 @@ fn the_queued_line_names_the_bound_and_how_long_the_record_has_waited() {
     let setup: Setup = setup("push-queued-line-words");
     let commit: String = commit_and_die_after_promote(&setup, "one\n");
     setup.service.stop_all();
-    let pending: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING).join(pending_push_records(&setup)[0].as_str());
+    let pending: PathBuf =
+        state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING)
+            .join(pending_push_records(&setup)[0].as_str());
     // Waiting longer than the bound the service looks in, and longer than the bound a record must pass to be named at all.
     let waited: Duration = PUSH_QUEUED_AFTER + Duration::from_secs(2 * 60);
     let aged: std::time::SystemTime = std::time::SystemTime::now() - waited;
-    std::fs::File::options().write(true).open(pending.as_path()).expect("the record opens").set_modified(aged).expect("the record is aged");
+    std::fs::File::options()
+        .write(true)
+        .open(pending.as_path())
+        .expect("the record opens")
+        .set_modified(aged)
+        .expect("the record is aged");
     let said: Observed = run_without_settling(&setup, &["status", "--short"]);
     let text: String = stderr_of(&said);
-    assert!(text.contains(commit.as_str()), "the line names the commit: {text}");
-    assert!(text.contains(git_policy_cli::kept_reference_words::span_words(LOOK_AGAIN_AFTER).as_str()), "the line names the bound the service looks in: {text}");
-    assert!(text.contains("has waited"), "the line says how long the record has waited: {text}");
-    assert!(text.contains(git_policy_cli::kept_reference_words::age_words(waited.as_millis()).as_str()), "and gives the wait as it is: {text}");
-    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed it while no service ran");
+    assert!(
+        text.contains(commit.as_str()),
+        "the line names the commit: {text}"
+    );
+    assert!(
+        text.contains(git_policy_cli::kept_reference_words::span_words(LOOK_AGAIN_AFTER).as_str()),
+        "the line names the bound the service looks in: {text}"
+    );
+    assert!(
+        text.contains("has waited"),
+        "the line says how long the record has waited: {text}"
+    );
+    assert!(
+        text.contains(git_policy_cli::kept_reference_words::age_words(waited.as_millis()).as_str()),
+        "and gives the wait as it is: {text}"
+    );
+    assert!(
+        !remote_has(&setup, commit.as_str()),
+        "nothing pushed it while no service ran"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -220,16 +356,34 @@ fn the_queued_line_names_the_bound_and_how_long_the_record_has_waited() {
 fn a_service_that_starts_pushes_the_queued_record_with_no_further_commit() {
     let setup: Setup = setup("push-queued-service-starts");
     let commit: String = commit_and_die_after_promote(&setup, "one\n");
-    let head: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]).stdout).trim().to_string();
+    let head: String =
+        String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]).stdout)
+            .trim()
+            .to_string();
     assert_eq!(head, commit, "the commit landed");
-    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed it before the restart");
+    assert!(
+        !remote_has(&setup, commit.as_str()),
+        "nothing pushed it before the restart"
+    );
     // The manager starting the service again after it ended: the fixture has no manager, so it does what one does.
     setup.service.stop_all();
-    setup.service.serve(&setup.fixture, git_dir(&setup).as_path());
-    wait_until("the restarted service pushed the queued record", &|| { return remote_has(&setup, commit.as_str()); });
+    setup
+        .service
+        .serve(&setup.fixture, git_dir(&setup).as_path());
+    wait_until("the restarted service pushed the queued record", &|| {
+        return remote_has(&setup, commit.as_str());
+    });
     // No commit was made for it: the branch is still the one the killed wrapper left.
-    assert_eq!(String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]).stdout).trim(), commit, "no further commit was needed");
-    assert!(pending_push_records(&setup).is_empty(), "the record is no longer waiting");
+    assert_eq!(
+        String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]).stdout)
+            .trim(),
+        commit,
+        "no further commit was needed"
+    );
+    assert!(
+        pending_push_records(&setup).is_empty(),
+        "the record is no longer waiting"
+    );
     remove_settled(&setup.fixture);
 }
 
@@ -254,21 +408,57 @@ fn a_queued_record_whose_commit_a_person_pushed_is_settled_and_not_named() {
     let commit: String = commit_and_die_after_promote(&setup, "one\n");
     // No service runs, so nothing takes the record while the person pushes by hand.
     setup.service.stop_all();
-    git(&setup.fixture, &setup.repo, &["push", "--quiet", "origin", "main"]);
-    assert!(remote_has(&setup, commit.as_str()), "the hand push made the commit");
-    assert_eq!(pending_push_records(&setup).len(), 1, "the record still waits");
+    git(
+        &setup.fixture,
+        &setup.repo,
+        &["push", "--quiet", "origin", "main"],
+    );
+    assert!(
+        remote_has(&setup, commit.as_str()),
+        "the hand push made the commit"
+    );
+    assert_eq!(
+        pending_push_records(&setup).len(),
+        1,
+        "the record still waits"
+    );
     // The record is older than the bound a record must pass to be named, so a command that did not settle it would name it.
-    let pending: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING).join(pending_push_records(&setup)[0].as_str());
-    let aged: std::time::SystemTime = std::time::SystemTime::now() - PUSH_QUEUED_AFTER - Duration::from_secs(1);
-    std::fs::File::options().write(true).open(pending.as_path()).expect("the record opens").set_modified(aged).expect("the record is aged");
+    let pending: PathBuf =
+        state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING)
+            .join(pending_push_records(&setup)[0].as_str());
+    let aged: std::time::SystemTime =
+        std::time::SystemTime::now() - PUSH_QUEUED_AFTER - Duration::from_secs(1);
+    std::fs::File::options()
+        .write(true)
+        .open(pending.as_path())
+        .expect("the record opens")
+        .set_modified(aged)
+        .expect("the record is aged");
     let said: Observed = run_without_settling(&setup, &["status", "--short"]);
     let text: String = stderr_of(&said);
     assert_eq!(said.code, Some(0), "{text}");
-    assert!(!text.contains("is queued for its push"), "a commit the remote holds is not named as queued: {text}");
-    assert!(pending_push_records(&setup).is_empty(), "the record was settled: {:?}", pending_push_records(&setup));
-    let done: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), git_policy_cli::work_item::DONE);
     assert!(
-        std::fs::read_dir(done.as_path()).is_ok_and(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().starts_with(format!("push-{commit}").as_str()); }); }),
+        !text.contains("is queued for its push"),
+        "a commit the remote holds is not named as queued: {text}"
+    );
+    assert!(
+        pending_push_records(&setup).is_empty(),
+        "the record was settled: {:?}",
+        pending_push_records(&setup)
+    );
+    let done: PathBuf = state_directory(
+        work_directory(git_dir(&setup).as_path()).as_path(),
+        git_policy_cli::work_item::DONE,
+    );
+    assert!(
+        std::fs::read_dir(done.as_path()).is_ok_and(|listing| {
+            return listing.flatten().any(|entry| {
+                return entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(format!("push-{commit}").as_str());
+            });
+        }),
         "the record is where a push that was made is kept"
     );
     remove_settled(&setup.fixture);
@@ -286,20 +476,39 @@ fn a_queued_record_whose_commit_a_person_pushed_is_settled_and_not_named() {
 fn a_commit_that_never_landed_a_runnable_push_is_not_named_as_queued() {
     let setup: Setup = setup("push-queued-negative");
     let commit: String = commit_through(&setup, "one\n");
-    wait_until("the push settled", &|| { return pending_push_records(&setup).is_empty(); });
-    wait_until("the remote has the commit", &|| { return remote_has(&setup, commit.as_str()); });
+    wait_until("the push settled", &|| {
+        return pending_push_records(&setup).is_empty();
+    });
+    wait_until("the remote has the commit", &|| {
+        return remote_has(&setup, commit.as_str());
+    });
     let said: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
-    assert!(!stderr_of(&said).contains(commit.as_str()), "a delivered commit is not named as queued: {}", stderr_of(&said));
+    assert!(
+        !stderr_of(&said).contains(commit.as_str()),
+        "a delivered commit is not named as queued: {}",
+        stderr_of(&said)
+    );
     remove_settled(&setup.fixture);
 }
 
 /// Commits `content` to `a.txt` through the service and returns the new commit's name.
-fn commit_through(setup: &Setup, content: &str) -> String {
+fn commit_through(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
@@ -311,11 +520,23 @@ fn commit_through(setup: &Setup, content: &str) -> String {
 ///  The state the command is about lives in the records,
 ///  so a case reads them rather than what a command printed.
 fn held_push_records(setup: &Setup) -> Vec<String> {
-    let held: PathBuf = state_directory(work_directory(git_dir(setup).as_path()).as_path(), git_policy_cli::work_item::HELD);
+    let held: PathBuf = state_directory(
+        work_directory(git_dir(setup).as_path()).as_path(),
+        git_policy_cli::work_item::HELD,
+    );
     let mut names: Vec<String> = std::fs::read_dir(held)
-        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .map(|listing| {
+            return listing
+                .flatten()
+                .map(|entry| {
+                    return entry.file_name().to_string_lossy().into_owned();
+                })
+                .collect();
+        })
         .unwrap_or_default();
-    names.retain(|name| { return name.starts_with("push-"); });
+    names.retain(|name| {
+        return name.starts_with("push-");
+    });
     return names;
 }
 
@@ -327,13 +548,27 @@ fn held_push_records(setup: &Setup) -> Vec<String> {
 ///  the record says the checks passed,
 ///  its command is gone,
 ///  and nothing has been woken for it.
-fn commit_and_die_after_the_verdict(setup: &Setup, content: &str) -> String {
+fn commit_and_die_after_the_verdict(
+    setup: &Setup,
+    content: &str,
+) -> String {
     std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    let mut command: Command = super::commit::wrapped_commit(
+        &setup.fixture,
+        setup.repo.as_path(),
+        &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"],
+    );
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
-    command.env(git_policy_cli::service_fault::FAULT_VARIABLE, git_policy_cli::service_fault::AFTER_THE_VERDICT);
+    command.env(
+        git_policy_cli::service_fault::FAULT_VARIABLE,
+        git_policy_cli::service_fault::AFTER_THE_VERDICT,
+    );
     let output: Output = command.output().expect("the wrapped commit runs");
-    assert!(!output.status.success(), "the wrapper was killed at the fault point: {:?}", output.status);
+    assert!(
+        !output.status.success(),
+        "the wrapper was killed at the fault point: {:?}",
+        output.status
+    );
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
@@ -352,18 +587,41 @@ fn commit_and_die_after_the_verdict(setup: &Setup, content: &str) -> String {
 fn a_machine_read_command_releases_a_held_push_whose_command_left_a_pass() {
     let setup: Setup = setup("push-held-released-by-a-program");
     let commit: String = commit_and_die_after_the_verdict(&setup, "one\n");
-    assert_eq!(held_push_records(&setup).len(), 1, "the killed command left one held record");
-    assert!(pending_push_records(&setup).is_empty(), "and nothing runnable");
-    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed the commit yet");
+    assert_eq!(
+        held_push_records(&setup).len(),
+        1,
+        "the killed command left one held record"
+    );
+    assert!(
+        pending_push_records(&setup).is_empty(),
+        "and nothing runnable"
+    );
+    assert!(
+        !remote_has(&setup, commit.as_str()),
+        "nothing pushed the commit yet"
+    );
 
     // `rev-parse` is a command whose output a program reads.
     let read: Observed = run_without_settling(&setup, &["rev-parse", "HEAD"]);
 
     assert_eq!(read.code, Some(0), "{}", stderr_of(&read));
-    assert_eq!(String::from_utf8_lossy(read.stdout.as_slice()).trim(), commit, "the command's own answer is unchanged");
-    assert_eq!(held_push_records(&setup).len(), 0, "the record the command found is settled");
+    assert_eq!(
+        String::from_utf8_lossy(read.stdout.as_slice()).trim(),
+        commit,
+        "the command's own answer is unchanged"
+    );
+    assert_eq!(
+        held_push_records(&setup).len(),
+        0,
+        "the record the command found is settled"
+    );
     // The record became runnable and the service was woken for it: the service claims it at once, so the record's own state
     //  is read from the push it makes rather than from `pending`, which the service empties as fast as it fills.
-    wait_until("the service pushed the record the program's command released", &|| { return remote_has(&setup, commit.as_str()); });
+    wait_until(
+        "the service pushed the record the program's command released",
+        &|| {
+            return remote_has(&setup, commit.as_str());
+        },
+    );
     remove_settled(&setup.fixture);
 }

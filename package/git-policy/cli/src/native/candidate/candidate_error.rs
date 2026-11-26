@@ -112,7 +112,10 @@ impl CandidateError {
     /// ```ts
     /// constructor(failure: CandidateFailure, message: string) { super(message); }
     /// ```
-    pub fn new(failure: CandidateFailure, message: &str) -> CandidateError {
+    pub fn new(
+        failure: CandidateFailure,
+        message: &str,
+    ) -> CandidateError {
         // What: `return CandidateError { ... };` builds the struct and hands it back.
         // Why:  Rust never copies a borrowed string into an owning field implicitly.
         //
@@ -151,7 +154,10 @@ impl std::fmt::Display for CandidateError {
     /// ```ts
     /// format(out: Writer): void { out.write(this.message); }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // `.as_str()` lends the owned message as a borrowed view for the writer.
         return formatter.write_str(self.message.as_str());
     }

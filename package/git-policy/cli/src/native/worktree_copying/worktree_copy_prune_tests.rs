@@ -5,21 +5,33 @@
 //! and the run-record toggle.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// The rule with run records skipped,
 /// which is what the crate ships.
-const SKIPPING: Prune = Prune::MainCheckout { run_records: false };
+const SKIPPING: Prune = Prune::MainCheckout {
+    run_records: false,
+};
 
 /// The rule with run records copied,
 /// which the toggle allows.
-const COPYING: Prune = Prune::MainCheckout { run_records: true };
+const COPYING: Prune = Prune::MainCheckout {
+    run_records: true,
+};
 
 /// The shipped toggle skips run records,
 /// and the shipped rule is built from it.
 #[test]
 fn shipped_rule_follows_the_toggle() {
-    assert_eq!(Prune::main_checkout(), Prune::MainCheckout { run_records: COPY_RUN_RECORDS });
+    assert_eq!(
+        Prune::main_checkout(),
+        Prune::MainCheckout {
+            run_records: COPY_RUN_RECORDS
+        }
+    );
     // The owner answered 2026-11-02 "Skip run records (Recommended)", so the shipped rule leaves a run record out.
     assert!(Prune::main_checkout().skips_path(b"node_modules/.monochromatic/2026-11-01/log.jsonl"));
 }
@@ -45,7 +57,10 @@ fn dependencies_and_builds_are_kept() {
             "mise.local.toml",
             ".env.local.json",
         ] {
-            assert!(!prune.skips_path(kept.as_bytes()), "{kept} is needed by a new worktree");
+            assert!(
+                !prune.skips_path(kept.as_bytes()),
+                "{kept} is needed by a new worktree"
+            );
         }
     }
 }
@@ -110,8 +125,14 @@ fn run_records_follow_the_toggle() {
         "test-results/a.json",
         ".serena/cache/symbols",
     ] {
-        assert!(SKIPPING.skips_path(record.as_bytes()), "{record} is a run record that is skipped");
-        assert!(!COPYING.skips_path(record.as_bytes()), "{record} is a run record that the toggle copies");
+        assert!(
+            SKIPPING.skips_path(record.as_bytes()),
+            "{record} is a run record that is skipped"
+        );
+        assert!(
+            !COPYING.skips_path(record.as_bytes()),
+            "{record} is a run record that the toggle copies"
+        );
     }
 }
 
@@ -121,8 +142,17 @@ fn run_records_follow_the_toggle() {
 /// `.serena` are ordinary names.
 #[test]
 fn record_names_need_their_parents() {
-    for kept in [".monochromatic", "package/x/.monochromatic/a", "package/x/verification/a", "package/x/cache/a", "target/debug/verification"] {
-        assert!(!SKIPPING.skips_path(kept.as_bytes()), "{kept} is not a run record");
+    for kept in [
+        ".monochromatic",
+        "package/x/.monochromatic/a",
+        "package/x/verification/a",
+        "package/x/cache/a",
+        "target/debug/verification",
+    ] {
+        assert!(
+            !SKIPPING.skips_path(kept.as_bytes()),
+            "{kept} is not a run record"
+        );
     }
 }
 
@@ -159,11 +189,20 @@ fn a_stage_container_of_another_command_is_never_carried() {
             format!(".claude/worktrees/{container}"),
             format!(".claude/worktrees/{container}/payload/node_modules/pkg/index.js"),
         ] {
-            assert!(prune.skips_path(path.as_bytes()), "{path} is another command's stage container");
+            assert!(
+                prune.skips_path(path.as_bytes()),
+                "{path} is another command's stage container"
+            );
         }
     }
-    assert!(!SKIPPING.skips_path(b"package/x/node_modules"), "a dependency tree of the source is not a stage");
-    assert!(!SKIPPING.skips_path(b"package/x/cli-git-worktree-copy-notes.md"), "a name that merely holds the prefix is not a stage");
+    assert!(
+        !SKIPPING.skips_path(b"package/x/node_modules"),
+        "a dependency tree of the source is not a stage"
+    );
+    assert!(
+        !SKIPPING.skips_path(b"package/x/cli-git-worktree-copy-notes.md"),
+        "a name that merely holds the prefix is not a stage"
+    );
 }
 
 /// A directory holding `.git`,
@@ -206,12 +245,30 @@ fn a_directory_holding_dot_git_is_another_checkout() {
 fn a_directory_below_the_trash_parent_that_is_no_trash_name_is_state_of_the_source() {
     let trash: String = format!(".claude/cli-git-trash/{}", "a".repeat(40));
     for prune in [SKIPPING, COPYING, Prune::Never] {
-        assert!(prune.skips_path(trash.as_bytes()), "{trash} is a trash the wrapper made");
-        assert!(prune.skips_path(format!("{trash}/d0/payload").as_bytes()), "and everything below it is its own");
-        assert!(!prune.skips_path(b".claude/cli-git-trash"), "the parent is walked, so the person's own directories below it are seen");
-        assert!(!prune.skips_path(b".claude/cli-git-trash/personal/important-notes.txt"), "a directory of the person's own below the parent is copied");
-        assert!(!prune.skips_path(format!(".claude/cli-git-trash/{}", "b".repeat(39)).as_bytes()), "a name one digit short is not one the wrapper makes");
-        assert!(!prune.skips_path(format!(".claude/cli-git-trash/{}", "A".repeat(40)).as_bytes()), "and neither is one in upper case");
+        assert!(
+            prune.skips_path(trash.as_bytes()),
+            "{trash} is a trash the wrapper made"
+        );
+        assert!(
+            prune.skips_path(format!("{trash}/d0/payload").as_bytes()),
+            "and everything below it is its own"
+        );
+        assert!(
+            !prune.skips_path(b".claude/cli-git-trash"),
+            "the parent is walked, so the person's own directories below it are seen"
+        );
+        assert!(
+            !prune.skips_path(b".claude/cli-git-trash/personal/important-notes.txt"),
+            "a directory of the person's own below the parent is copied"
+        );
+        assert!(
+            !prune.skips_path(format!(".claude/cli-git-trash/{}", "b".repeat(39)).as_bytes()),
+            "a name one digit short is not one the wrapper makes"
+        );
+        assert!(
+            !prune.skips_path(format!(".claude/cli-git-trash/{}", "A".repeat(40)).as_bytes()),
+            "and neither is one in upper case"
+        );
     }
 }
 
@@ -240,35 +297,71 @@ fn a_directory_below_the_trash_parent_that_is_no_trash_name_is_state_of_the_sour
 fn a_folder_that_holds_nothing_but_a_stage_container_is_left_out_whole() {
     let root: PathBuf = fixture("prune-stage-only");
     let worktrees: PathBuf = root.join(".claude/worktrees");
-    let container: PathBuf = worktrees.join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
+    let container: PathBuf =
+        worktrees.join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
     std::fs::create_dir_all(container.join("payload")).expect("the stage container");
     std::fs::write(container.join("payload/credentials"), b"token\n").expect("its payload");
-    assert!(holds_only_private_stages(root.join(".claude").as_path()), "the folders around a container hold nothing else");
-    assert!(holds_only_private_stages(worktrees.as_path()), "and the folder the container sits in holds nothing else");
+    assert!(
+        holds_only_private_stages(root.join(".claude").as_path()),
+        "the folders around a container hold nothing else"
+    );
+    assert!(
+        holds_only_private_stages(worktrees.as_path()),
+        "and the folder the container sits in holds nothing else"
+    );
     // A file of the person's own beside the container is state, so the folders above it stay.
     std::fs::write(worktrees.join("notes.txt"), b"mine\n").expect("a file of the person's own");
-    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a file beside the container is state");
+    assert!(
+        !holds_only_private_stages(root.join(".claude").as_path()),
+        "a file beside the container is state"
+    );
     std::fs::remove_file(worktrees.join("notes.txt")).expect("drop the file");
     // An empty folder is state of its own, so it keeps the folders above it.
     std::fs::create_dir(worktrees.join("keep")).expect("an empty folder");
-    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "an empty folder is state of its own");
+    assert!(
+        !holds_only_private_stages(root.join(".claude").as_path()),
+        "an empty folder is state of its own"
+    );
     std::fs::remove_dir(worktrees.join("keep")).expect("drop the empty folder");
     // A link to the container is not followed: the folder it names is somewhere else.
-    std::os::unix::fs::symlink(&container, root.join(".claude/elsewhere")).expect("a link to the container");
-    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a link is state, and nothing below it is looked at");
+    std::os::unix::fs::symlink(&container, root.join(".claude/elsewhere"))
+        .expect("a link to the container");
+    assert!(
+        !holds_only_private_stages(root.join(".claude").as_path()),
+        "a link is state, and nothing below it is looked at"
+    );
     std::fs::remove_file(root.join(".claude/elsewhere")).expect("drop the link");
     // A name that merely begins the prefix is the person's own, as `names_a_private_stage` decides.
-    std::fs::write(worktrees.join("cli-git-worktree-copy-notes.md"), b"notes\n").expect("a name without the leading dot");
-    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a name that merely begins the prefix is state");
-    std::fs::remove_file(worktrees.join("cli-git-worktree-copy-notes.md")).expect("drop the lookalike");
+    std::fs::write(worktrees.join("cli-git-worktree-copy-notes.md"), b"notes\n")
+        .expect("a name without the leading dot");
+    assert!(
+        !holds_only_private_stages(root.join(".claude").as_path()),
+        "a name that merely begins the prefix is state"
+    );
+    std::fs::remove_file(worktrees.join("cli-git-worktree-copy-notes.md"))
+        .expect("drop the lookalike");
     // A folder this user cannot list is not proven to hold nothing but a container, so the answer is no.
     let closed: PathBuf = worktrees.join("closed");
     std::fs::create_dir(closed.as_path()).expect("a folder");
-    std::fs::set_permissions(closed.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("close it");
-    assert!(!holds_only_private_stages(root.join(".claude").as_path()), "a folder nothing can look inside is state");
-    std::fs::set_permissions(closed.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("open it again");
+    std::fs::set_permissions(
+        closed.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o000),
+    )
+    .expect("close it");
+    assert!(
+        !holds_only_private_stages(root.join(".claude").as_path()),
+        "a folder nothing can look inside is state"
+    );
+    std::fs::set_permissions(
+        closed.as_path(),
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )
+    .expect("open it again");
     std::fs::remove_dir(closed.as_path()).expect("drop it");
-    assert!(holds_only_private_stages(worktrees.as_path()), "with only the container left it is left out whole again");
+    assert!(
+        holds_only_private_stages(worktrees.as_path()),
+        "with only the container left it is left out whole again"
+    );
     remove(root.as_path());
 }
 
@@ -287,29 +380,58 @@ fn a_folder_that_holds_nothing_but_a_stage_container_is_left_out_whole() {
 fn a_folder_the_copy_left_out_carries_nothing_but_containers_and_empty_folders() {
     let root: PathBuf = fixture("prune-nothing-carried");
     let worktrees: PathBuf = root.join(".claude/worktrees");
-    let container: PathBuf = worktrees.join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
+    let container: PathBuf =
+        worktrees.join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
     std::fs::create_dir_all(container.join("payload")).expect("the stage container");
     std::fs::write(container.join("payload/credentials"), b"token\n").expect("its payload");
-    assert!(holds_nothing_a_copy_carries(root.join(".claude").as_path()), "a folder holding only a container carries nothing");
+    assert!(
+        holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "a folder holding only a container carries nothing"
+    );
     // A folder of the person's own that happens to be empty carries nothing either: a copy makes a folder for it, and one the
     // installed worktree does not hold at all was left out of the copy.
     std::fs::create_dir(worktrees.join("empty-of-their-own")).expect("an empty folder");
-    assert!(holds_nothing_a_copy_carries(root.join(".claude").as_path()), "an empty folder holds nothing a copy carries");
+    assert!(
+        holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "an empty folder holds nothing a copy carries"
+    );
     std::fs::remove_dir(worktrees.join("empty-of-their-own")).expect("drop the empty folder");
     // The container another command removed leaves the folder it stood in empty, and that carries nothing.
-    std::fs::remove_dir_all(container.as_path()).expect("the other command removes only its container");
-    assert!(holds_nothing_a_copy_carries(root.join(".claude").as_path()), "the folder it emptied carries nothing");
+    std::fs::remove_dir_all(container.as_path())
+        .expect("the other command removes only its container");
+    assert!(
+        holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "the folder it emptied carries nothing"
+    );
     // A file is state, whatever its name, and so is a link.
-    std::fs::write(worktrees.join(format!("{STAGE_PREFIX}notes.md")), b"mine\n").expect("a file whose name begins the prefix");
-    assert!(!holds_nothing_a_copy_carries(root.join(".claude").as_path()), "a prefix-named file is not a container and is state");
+    std::fs::write(worktrees.join(format!("{STAGE_PREFIX}notes.md")), b"mine\n")
+        .expect("a file whose name begins the prefix");
+    assert!(
+        !holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "a prefix-named file is not a container and is state"
+    );
     std::fs::remove_file(worktrees.join(format!("{STAGE_PREFIX}notes.md"))).expect("drop the file");
-    std::os::unix::fs::symlink(worktrees.as_path(), root.join(".claude/elsewhere")).expect("a link");
-    assert!(!holds_nothing_a_copy_carries(root.join(".claude").as_path()), "a link is state");
+    std::os::unix::fs::symlink(worktrees.as_path(), root.join(".claude/elsewhere"))
+        .expect("a link");
+    assert!(
+        !holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "a link is state"
+    );
     std::fs::remove_file(root.join(".claude/elsewhere")).expect("drop the link");
     // A link whose name begins the prefix is state as well: a container is a directory.
-    std::os::unix::fs::symlink(worktrees.as_path(), worktrees.join(format!("{STAGE_PREFIX}link")).as_path()).expect("a prefix-named link");
-    assert!(!holds_nothing_a_copy_carries(root.join(".claude").as_path()), "a prefix-named link is state");
+    std::os::unix::fs::symlink(
+        worktrees.as_path(),
+        worktrees.join(format!("{STAGE_PREFIX}link")).as_path(),
+    )
+    .expect("a prefix-named link");
+    assert!(
+        !holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "a prefix-named link is state"
+    );
     std::fs::remove_file(worktrees.join(format!("{STAGE_PREFIX}link"))).expect("drop the link");
-    assert!(holds_nothing_a_copy_carries(root.join(".claude").as_path()), "with only empty folders left it carries nothing again");
+    assert!(
+        holds_nothing_a_copy_carries(root.join(".claude").as_path()),
+        "with only empty folders left it carries nothing again"
+    );
     remove(root.as_path());
 }

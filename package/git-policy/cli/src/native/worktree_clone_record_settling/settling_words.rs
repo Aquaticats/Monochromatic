@@ -40,7 +40,9 @@ pub const PLACEHOLDER_MARK: char = '<';
 /// The whole invocation the usage sentence prints,
 /// with both values shown as placeholders.
 pub fn the_usage_line() -> String {
-    return format!("{SETTLING_COMMAND_WORDS} <slot> {CONFIRM_REMOVAL_FLAG} <slot> {CONFIRM_GUID_FLAG} <the last {GUID_DIGITS_SHOWN} decimal digits of cloneGuid=>");
+    return format!(
+        "{SETTLING_COMMAND_WORDS} <slot> {CONFIRM_REMOVAL_FLAG} <slot> {CONFIRM_GUID_FLAG} <the last {GUID_DIGITS_SHOWN} decimal digits of cloneGuid=>"
+    );
 }
 
 /// What:

@@ -4,9 +4,15 @@
 //! and the store token round-trips.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
 use std::path::PathBuf;
 
 /// The version of the kernel's ACL extended-attribute header
@@ -58,7 +64,11 @@ fn acl_blob(entries: &[AclEntry]) -> Vec<u8> {
 
 /// The three-entry ACL a folder of mode `0750` has once one is written.
 fn basic_access_acl() -> Vec<u8> {
-    return acl_blob(&[(ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID), (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID), (ACL_OTHER, 0o0, ACL_UNDEFINED_ID)]);
+    return acl_blob(&[
+        (ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID),
+        (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID),
+        (ACL_OTHER, 0o0, ACL_UNDEFINED_ID),
+    ]);
 }
 
 /// What:
@@ -68,13 +78,30 @@ fn basic_access_acl() -> Vec<u8> {
 /// Why:
 ///   The route reads ACLs byte for byte and no library here writes them,
 /// so the control composes the kernel's own encoding.
-fn set_access_acl(folder: &std::fs::File, blob: &[u8]) {
+fn set_access_acl(
+    folder: &std::fs::File,
+    blob: &[u8],
+) {
     use std::ffi::CString;
-    let name: CString = CString::new("system.posix_acl_access").expect("no NUL in an attribute name");
+    let name: CString =
+        CString::new("system.posix_acl_access").expect("no NUL in an attribute name");
     // SAFETY: `name` is NUL-terminated and outlives the call, `blob` holds the bytes the call reads, and `folder` is an
     // open descriptor.
-    let result: libc::c_int = unsafe { libc::fsetxattr(folder.as_raw_fd(), name.as_ptr(), blob.as_ptr().cast::<libc::c_void>(), blob.len(), 0) };
-    assert_eq!(result, 0, "the fixture's access ACL is written: {}", std::io::Error::last_os_error());
+    let result: libc::c_int = unsafe {
+        libc::fsetxattr(
+            folder.as_raw_fd(),
+            name.as_ptr(),
+            blob.as_ptr().cast::<libc::c_void>(),
+            blob.len(),
+            0,
+        )
+    };
+    assert_eq!(
+        result,
+        0,
+        "the fixture's access ACL is written: {}",
+        std::io::Error::last_os_error()
+    );
 }
 
 /// What:
@@ -95,9 +122,16 @@ fn capture_reads_the_folder_the_descriptor_holds() {
     assert_eq!(identity.inode, named.ino());
     assert_eq!(identity.owner, named.uid());
     assert_eq!(identity.mode, 0o755);
-    assert_eq!(identity.access_acl, None, "a folder without an ACL has none");
+    assert_eq!(
+        identity.access_acl, None,
+        "a folder without an ACL has none"
+    );
     assert_eq!(identity.default_acl, None);
-    assert_eq!(CloneFolderIdentity::capture(&opened).expect("again"), identity, "the same folder reads the same way twice");
+    assert_eq!(
+        CloneFolderIdentity::capture(&opened).expect("again"),
+        identity,
+        "the same folder reads the same way twice"
+    );
     remove(root.as_path());
 }
 
@@ -118,14 +152,36 @@ fn each_field_alone_is_told_apart() {
         access_acl: Some(vec![2, 0, 0, 0]),
         default_acl: Some(vec![3, 0, 0, 0]),
     };
-    assert_eq!(base.differences(&base.clone()), Vec::<CloneFolderField>::new(), "the same folder differs in nothing");
+    assert_eq!(
+        base.differences(&base.clone()),
+        Vec::<CloneFolderField>::new(),
+        "the same folder differs in nothing"
+    );
     let changed: [CloneFolderIdentity; 6] = [
-        CloneFolderIdentity { device: base.device + 1, ..base.clone() },
-        CloneFolderIdentity { inode: base.inode + 1, ..base.clone() },
-        CloneFolderIdentity { owner: base.owner + 1, ..base.clone() },
-        CloneFolderIdentity { mode: 0o750, ..base.clone() },
-        CloneFolderIdentity { access_acl: Some(vec![2, 0, 0, 1]), ..base.clone() },
-        CloneFolderIdentity { default_acl: None, ..base.clone() },
+        CloneFolderIdentity {
+            device: base.device + 1,
+            ..base.clone()
+        },
+        CloneFolderIdentity {
+            inode: base.inode + 1,
+            ..base.clone()
+        },
+        CloneFolderIdentity {
+            owner: base.owner + 1,
+            ..base.clone()
+        },
+        CloneFolderIdentity {
+            mode: 0o750,
+            ..base.clone()
+        },
+        CloneFolderIdentity {
+            access_acl: Some(vec![2, 0, 0, 1]),
+            ..base.clone()
+        },
+        CloneFolderIdentity {
+            default_acl: None,
+            ..base.clone()
+        },
     ];
     let expected: [CloneFolderField; 6] = [
         CloneFolderField::Device,
@@ -136,11 +192,28 @@ fn each_field_alone_is_told_apart() {
         CloneFolderField::DefaultAcl,
     ];
     for (other, field) in changed.iter().zip(expected.iter()) {
-        assert_eq!(base.differences(other), vec![*field], "only {} moved", field.name());
-        assert_eq!(other.differences(&base), vec![*field], "the report is the same in either direction");
+        assert_eq!(
+            base.differences(other),
+            vec![*field],
+            "only {} moved",
+            field.name()
+        );
+        assert_eq!(
+            other.differences(&base),
+            vec![*field],
+            "the report is the same in either direction"
+        );
     }
-    let two: CloneFolderIdentity = CloneFolderIdentity { mode: 0o700, default_acl: None, ..base.clone() };
-    assert_eq!(base.differences(&two), vec![CloneFolderField::Mode, CloneFolderField::DefaultAcl], "every field that moved is reported");
+    let two: CloneFolderIdentity = CloneFolderIdentity {
+        mode: 0o700,
+        default_acl: None,
+        ..base.clone()
+    };
+    assert_eq!(
+        base.differences(&two),
+        vec![CloneFolderField::Mode, CloneFolderField::DefaultAcl],
+        "every field that moved is reported"
+    );
 }
 
 /// What:
@@ -164,25 +237,70 @@ fn a_permission_change_and_each_acl_are_seen_apart() {
     assert_eq!(plain.differences(&tightened), vec![CloneFolderField::Mode]);
     // A folder whose access ACL is exactly its mode keeps no ACL: the kernel stores the mode alone, so the control
     // writes one named user's entry, which no mode can express, and the mask the mode shows stays as it was.
-    let first: Vec<u8> = acl_blob(&[(ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID), (ACL_USER, 0o4, 1000), (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID), (ACL_MASK, 0o5, ACL_UNDEFINED_ID), (ACL_OTHER, 0o0, ACL_UNDEFINED_ID)]);
-    let second: Vec<u8> = acl_blob(&[(ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID), (ACL_USER, 0o5, 1000), (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID), (ACL_MASK, 0o5, ACL_UNDEFINED_ID), (ACL_OTHER, 0o0, ACL_UNDEFINED_ID)]);
+    let first: Vec<u8> = acl_blob(&[
+        (ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID),
+        (ACL_USER, 0o4, 1000),
+        (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID),
+        (ACL_MASK, 0o5, ACL_UNDEFINED_ID),
+        (ACL_OTHER, 0o0, ACL_UNDEFINED_ID),
+    ]);
+    let second: Vec<u8> = acl_blob(&[
+        (ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID),
+        (ACL_USER, 0o5, 1000),
+        (ACL_GROUP_OBJ, 0o5, ACL_UNDEFINED_ID),
+        (ACL_MASK, 0o5, ACL_UNDEFINED_ID),
+        (ACL_OTHER, 0o0, ACL_UNDEFINED_ID),
+    ]);
     set_access_acl(&opened, &first);
     let one_user: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
-    assert_eq!(one_user.mode, plain.mode, "the fixture keeps one mode as its ACL appears");
-    assert_eq!(plain.differences(&one_user), vec![CloneFolderField::AccessAcl], "the access ACL alone moved");
+    assert_eq!(
+        one_user.mode, plain.mode,
+        "the fixture keeps one mode as its ACL appears"
+    );
+    assert_eq!(
+        plain.differences(&one_user),
+        vec![CloneFolderField::AccessAcl],
+        "the access ACL alone moved"
+    );
     set_access_acl(&opened, &second);
-    let another_user: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
-    assert_eq!(one_user.mode, another_user.mode, "the mode is unchanged by the entry that changed");
-    assert_eq!(one_user.differences(&another_user), vec![CloneFolderField::AccessAcl], "an ACL drift passes a mode-only check, and this compare is not mode-only");
+    let another_user: CloneFolderIdentity =
+        CloneFolderIdentity::capture(&opened).expect("identity");
+    assert_eq!(
+        one_user.mode, another_user.mode,
+        "the mode is unchanged by the entry that changed"
+    );
+    assert_eq!(
+        one_user.differences(&another_user),
+        vec![CloneFolderField::AccessAcl],
+        "an ACL drift passes a mode-only check, and this compare is not mode-only"
+    );
     // A default ACL appears on the same folder, its access ACL untouched.
     let default_blob: Vec<u8> = basic_access_acl();
-    let without_default: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
+    let without_default: CloneFolderIdentity =
+        CloneFolderIdentity::capture(&opened).expect("identity");
     let name: std::ffi::CString = std::ffi::CString::new("system.posix_acl_default").expect("name");
     // SAFETY: `name` is NUL-terminated and outlives the call, the blob holds what the call reads, and `opened` is live.
-    let written: libc::c_int = unsafe { libc::fsetxattr(opened.as_raw_fd(), name.as_ptr(), default_blob.as_ptr().cast::<libc::c_void>(), default_blob.len(), 0) };
-    assert_eq!(written, 0, "the default ACL is written: {}", std::io::Error::last_os_error());
-    let with_default: CloneFolderIdentity = CloneFolderIdentity::capture(&opened).expect("identity");
-    assert_eq!(without_default.differences(&with_default), vec![CloneFolderField::DefaultAcl]);
+    let written: libc::c_int = unsafe {
+        libc::fsetxattr(
+            opened.as_raw_fd(),
+            name.as_ptr(),
+            default_blob.as_ptr().cast::<libc::c_void>(),
+            default_blob.len(),
+            0,
+        )
+    };
+    assert_eq!(
+        written,
+        0,
+        "the default ACL is written: {}",
+        std::io::Error::last_os_error()
+    );
+    let with_default: CloneFolderIdentity =
+        CloneFolderIdentity::capture(&opened).expect("identity");
+    assert_eq!(
+        without_default.differences(&with_default),
+        vec![CloneFolderField::DefaultAcl]
+    );
 }
 
 /// What:
@@ -193,10 +311,30 @@ fn a_permission_change_and_each_acl_are_seen_apart() {
 ///  so a token that lost a field would silently widen what a later run accepts.
 #[test]
 fn an_identity_round_trips_through_its_store_token() {
-    let recorded: CloneFolderIdentity = CloneFolderIdentity { device: 66304, inode: 306, owner: 1000, mode: 0o750, access_acl: Some(basic_access_acl()), default_acl: None };
-    assert_eq!(CloneFolderIdentity::decode(recorded.encode().as_str()), Some(recorded.clone()));
-    assert!(recorded.encode().ends_with(":-"), "no default ACL is the `-` token: {}", recorded.encode());
-    assert_eq!(CloneFolderIdentity::decode(&format!("66304:306:1000:0750:{}:-", acl_token(Some(&basic_access_acl())))), Some(recorded.clone()));
+    let recorded: CloneFolderIdentity = CloneFolderIdentity {
+        device: 66304,
+        inode: 306,
+        owner: 1000,
+        mode: 0o750,
+        access_acl: Some(basic_access_acl()),
+        default_acl: None,
+    };
+    assert_eq!(
+        CloneFolderIdentity::decode(recorded.encode().as_str()),
+        Some(recorded.clone())
+    );
+    assert!(
+        recorded.encode().ends_with(":-"),
+        "no default ACL is the `-` token: {}",
+        recorded.encode()
+    );
+    assert_eq!(
+        CloneFolderIdentity::decode(&format!(
+            "66304:306:1000:0750:{}:-",
+            acl_token(Some(&basic_access_acl()))
+        )),
+        Some(recorded.clone())
+    );
     // An empty ACL field and an uppercase digit are not tokens `acl_token` writes, so a line holding one is a
     // line this repository did not write and the identity is refused rather than read.
     let broken: [&str; 10] = [
@@ -215,8 +353,20 @@ fn an_identity_round_trips_through_its_store_token() {
         assert_eq!(CloneFolderIdentity::decode(token), None, "{token}");
     }
     let described: String = recorded.describe();
-    for field in [CloneFolderField::Device, CloneFolderField::Inode, CloneFolderField::Owner, CloneFolderField::Mode, CloneFolderField::AccessAcl, CloneFolderField::DefaultAcl] {
-        assert!(described.contains(field.name()), "{} names {}", described, field.name());
+    for field in [
+        CloneFolderField::Device,
+        CloneFolderField::Inode,
+        CloneFolderField::Owner,
+        CloneFolderField::Mode,
+        CloneFolderField::AccessAcl,
+        CloneFolderField::DefaultAcl,
+    ] {
+        assert!(
+            described.contains(field.name()),
+            "{} names {}",
+            described,
+            field.name()
+        );
     }
     assert!(described.contains("0750"));
     assert!(described.contains("none"), "a missing ACL is said in words");

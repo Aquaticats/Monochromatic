@@ -29,11 +29,23 @@
 //! await emptyDirectory(top); // checks again at every directory, then unlinks everything below
 //! ```
 
-use crate::fs_beneath::{device_of, handle_path, open_directory_widening, remove_at, widen_directory};
-use std::os::unix::fs::MetadataExt;
-use std::ffi::{OsStr, OsString};
+use crate::fs_beneath::{
+    device_of,
+    handle_path,
+    open_directory_widening,
+    remove_at,
+    widen_directory,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::MetadataExt;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The inode number btrfs gives the empty directory that stands for a nested subvolume in a snapshot (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`):
 ///  it reports a device of its own,
@@ -100,7 +112,10 @@ struct Frame {
 /// The entries of an open directory,
 /// each with whether it is a directory;
 /// only the directories when `directories_only`.
-pub(crate) fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
+pub(crate) fn list(
+    directory: &File,
+    directories_only: bool,
+) -> std::io::Result<Vec<(OsString, bool)>> {
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for found in std::fs::read_dir(handle_path(directory))? {
         let item: std::fs::DirEntry = found?;
@@ -124,7 +139,10 @@ pub(crate) fn list(directory: &File, directories_only: bool) -> std::io::Result<
 /// ```ts
 /// const own = isTheCallersOwn(except, path); // boolean
 /// ```
-fn is_the_callers_own(except: &[&Path], path: &Path) -> bool {
+fn is_the_callers_own(
+    except: &[&Path],
+    path: &Path,
+) -> bool {
     for owned in except {
         if *owned == path {
             return true;
@@ -135,7 +153,10 @@ fn is_the_callers_own(except: &[&Path], path: &Path) -> bool {
 
 /// The path of the entry `name` inside the directory the frame holds,
 /// for messages and for the question whether a caller owns it.
-fn shown_path(frame: &Frame, name: &OsStr) -> PathBuf {
+fn shown_path(
+    frame: &Frame,
+    name: &OsStr,
+) -> PathBuf {
     return frame.path.join(name);
 }
 
@@ -148,7 +169,10 @@ fn shown_path(frame: &Frame, name: &OsStr) -> PathBuf {
 /// which the command that refuses here cannot see.
 /// So the two commands that keep what stands there come first,
 /// and the one that destroys is named for what it does.
-fn ways_forward(top: &Path, found: &Path) -> String {
+fn ways_forward(
+    top: &Path,
+    found: &Path,
+) -> String {
     return format!(
         "To go on: move {found} out of {top}, which keeps every file of it, and run the removal again; a mount point of it goes with `umount {found}`, which keeps its contents. `btrfs subvolume delete {found}` destroys everything inside that subvolume, so use it only for one you know holds nothing of yours; to keep it where it is, remove the other entries of {top} by hand.",
         found = found.display(),
@@ -171,7 +195,10 @@ fn ways_forward(top: &Path, found: &Path) -> String {
 /// ```ts
 /// const error = boundaryError(top, found); // an Error naming both ways forward
 /// ```
-fn boundary_error(top: &Path, found: &Boundary) -> std::io::Error {
+fn boundary_error(
+    top: &Path,
+    found: &Boundary,
+) -> std::io::Error {
     return std::io::Error::new(
         std::io::ErrorKind::CrossesDevices,
         format!(
@@ -186,7 +213,11 @@ fn boundary_error(top: &Path, found: &Boundary) -> std::io::Error {
 }
 
 /// The error that names a boundary the removal met after it had listed and emptied the directory holding it.
-fn boundary_met_after_the_listing(listed: &Path, top: &Path, found: &Boundary) -> std::io::Error {
+fn boundary_met_after_the_listing(
+    listed: &Path,
+    top: &Path,
+    found: &Boundary,
+) -> std::io::Error {
     return std::io::Error::new(
         std::io::ErrorKind::CrossesDevices,
         format!(
@@ -260,10 +291,20 @@ pub(crate) fn refused_as_not_empty(error: &std::io::Error) -> bool {
 /// ```ts
 /// const refusal = refusedBecauseNotEmpty(dir, listed, top); // names the boundary, the entries that appeared, or the name that changed
 /// ```
-pub(crate) fn refused_because_not_empty(directory: &File, listed: &Path, top: &Path) -> std::io::Error {
+pub(crate) fn refused_because_not_empty(
+    directory: &File,
+    listed: &Path,
+    top: &Path,
+) -> std::io::Error {
     return match walk(directory, listed, Pass::Check, &[]) {
         Err(WalkRefusal::Boundary(found)) => boundary_met_after_the_listing(listed, top, &found),
-        Err(WalkRefusal::Failed(error)) => std::io::Error::new(error.kind(), format!("{listed} cannot be removed although the entries it listed are already removed, and what is in it now cannot be examined ({error})", listed = listed.display())),
+        Err(WalkRefusal::Failed(error)) => std::io::Error::new(
+            error.kind(),
+            format!(
+                "{listed} cannot be removed although the entries it listed are already removed, and what is in it now cannot be examined ({error})",
+                listed = listed.display()
+            ),
+        ),
         Ok(()) => what_is_there_now(directory, listed, top),
     };
 }
@@ -281,18 +322,38 @@ pub(crate) fn refused_because_not_empty(directory: &File, listed: &Path, top: &P
 /// ```ts
 /// const refusal = whatIsThereNow(dir, listed, top); // the entries that appeared, or the name that no longer leads to it
 /// ```
-pub(crate) fn what_is_there_now(directory: &File, listed: &Path, top: &Path) -> std::io::Error {
+pub(crate) fn what_is_there_now(
+    directory: &File,
+    listed: &Path,
+    top: &Path,
+) -> std::io::Error {
     let mut appeared: Vec<String> = Vec::new();
     match std::fs::read_dir(handle_path(directory)) {
         Ok(listing) => {
             for found in listing {
                 match found {
                     Ok(entry) => appeared.push(entry.file_name().to_string_lossy().into_owned()),
-                    Err(error) => return std::io::Error::new(error.kind(), format!("{listed} cannot be removed although the entries it listed are already removed, and what is in it now cannot be listed ({error})", listed = listed.display())),
+                    Err(error) => {
+                        return std::io::Error::new(
+                            error.kind(),
+                            format!(
+                                "{listed} cannot be removed although the entries it listed are already removed, and what is in it now cannot be listed ({error})",
+                                listed = listed.display()
+                            ),
+                        );
+                    }
                 }
             }
         }
-        Err(error) => return std::io::Error::new(error.kind(), format!("{listed} cannot be removed although the entries it listed are already removed, and it cannot be listed now ({error})", listed = listed.display())),
+        Err(error) => {
+            return std::io::Error::new(
+                error.kind(),
+                format!(
+                    "{listed} cannot be removed although the entries it listed are already removed, and it cannot be listed now ({error})",
+                    listed = listed.display()
+                ),
+            );
+        }
     }
     if !appeared.is_empty() {
         return std::io::Error::new(
@@ -340,11 +401,21 @@ pub(crate) fn what_is_there_now(directory: &File, listed: &Path, top: &Path) -> 
 /// ```ts
 /// const stopped = walk(top, shown, Pass.Remove, []); // a WalkRefusal, or nothing refused when the whole tree went
 /// ```
-fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), WalkRefusal> {
+fn walk(
+    top: &File,
+    shown: &Path,
+    pass: Pass,
+    except: &[&Path],
+) -> Result<(), WalkRefusal> {
     let baseline: u64 = device_of(top).map_err(WalkRefusal::Failed)?;
     // A directory the user does not own keeps its mode; the removal below then reports the operating system's refusal.
     let _top_widened = widen_directory(top);
-    let mut stack: Vec<Frame> = vec![Frame { directory: top.try_clone().map_err(WalkRefusal::Failed)?, name: None, path: shown.to_path_buf(), pending: list(top, pass == Pass::Check).map_err(WalkRefusal::Failed)? }];
+    let mut stack: Vec<Frame> = vec![Frame {
+        directory: top.try_clone().map_err(WalkRefusal::Failed)?,
+        name: None,
+        path: shown.to_path_buf(),
+        pending: list(top, pass == Pass::Check).map_err(WalkRefusal::Failed)?,
+    }];
     while let Some(frame) = stack.last_mut() {
         let Some((name, is_directory)) = frame.pending.pop() else {
             let Some(done) = stack.pop() else { break };
@@ -355,9 +426,16 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
                 // A directory that was listed and emptied is not the directory the kernel was asked to remove when it is not
                 //  empty there, so the look below says what stands there now and leaves it as it is.
                 if refused_as_not_empty(&error) {
-                    return Err(WalkRefusal::Failed(refused_because_not_empty(&done.directory, done.path.as_path(), shown)));
+                    return Err(WalkRefusal::Failed(refused_because_not_empty(
+                        &done.directory,
+                        done.path.as_path(),
+                        shown,
+                    )));
                 }
-                return Err(WalkRefusal::Failed(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", done.path.display()))));
+                return Err(WalkRefusal::Failed(std::io::Error::new(
+                    error.kind(),
+                    format!("{} cannot be removed ({error})", done.path.display()),
+                )));
             }
             continue;
         };
@@ -368,7 +446,10 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
         }
         if !is_directory {
             if let Err(error) = remove_at(&frame.directory, &name, false) {
-                return Err(WalkRefusal::Failed(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", path.display()))));
+                return Err(WalkRefusal::Failed(std::io::Error::new(
+                    error.kind(),
+                    format!("{} cannot be removed ({error})", path.display()),
+                )));
             }
             continue;
         }
@@ -376,21 +457,39 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
         let child: File = match opened {
             Ok(child) => child,
             Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
-                return Err(WalkRefusal::Boundary(Boundary { path, what: A_MOUNT_POINT }));
+                return Err(WalkRefusal::Boundary(Boundary {
+                    path,
+                    what: A_MOUNT_POINT,
+                }));
             }
             Err(error) => {
-                return Err(WalkRefusal::Failed(std::io::Error::new(error.kind(), format!("{} cannot be opened without following a link ({error})", path.display()))));
+                return Err(WalkRefusal::Failed(std::io::Error::new(
+                    error.kind(),
+                    format!(
+                        "{} cannot be opened without following a link ({error})",
+                        path.display()
+                    ),
+                )));
             }
         };
         let child_facts: std::fs::Metadata = child.metadata().map_err(WalkRefusal::Failed)?;
         if child_facts.dev() != baseline && child_facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
-            return Err(WalkRefusal::Boundary(Boundary { path, what: ANOTHER_FILESYSTEM }));
+            return Err(WalkRefusal::Boundary(Boundary {
+                path,
+                what: ANOTHER_FILESYSTEM,
+            }));
         }
         let _child_widened = widen_directory(&child);
-        let pending: Vec<(OsString, bool)> = list(&child, pass == Pass::Check).map_err(WalkRefusal::Failed)?;
+        let pending: Vec<(OsString, bool)> =
+            list(&child, pass == Pass::Check).map_err(WalkRefusal::Failed)?;
         #[cfg(test)]
         let just_listed: PathBuf = path.clone();
-        stack.push(Frame { directory: child, name: Some(name), path, pending });
+        stack.push(Frame {
+            directory: child,
+            name: Some(name),
+            path,
+            pending,
+        });
         #[cfg(test)]
         {
             if pass == Pass::Remove {
@@ -408,7 +507,10 @@ fn walk(top: &File, shown: &Path, pass: Pass, except: &[&Path]) -> Result<(), Wa
 /// which says that nothing below the tree was changed
 ///  before the refusal came;
 /// a refused step keeps the words it made.
-fn refused_words(outcome: Result<(), WalkRefusal>, shown: &Path) -> std::io::Result<()> {
+fn refused_words(
+    outcome: Result<(), WalkRefusal>,
+    shown: &Path,
+) -> std::io::Result<()> {
     return match outcome {
         Ok(()) => Ok(()),
         Err(WalkRefusal::Boundary(found)) => Err(boundary_error(shown, &found)),
@@ -428,7 +530,10 @@ fn refused_words(outcome: Result<(), WalkRefusal>, shown: &Path) -> std::io::Res
 /// ```ts
 /// await verifyBelow(top, shown);
 /// ```
-pub fn verify_below(top: &File, shown: &Path) -> std::io::Result<()> {
+pub fn verify_below(
+    top: &File,
+    shown: &Path,
+) -> std::io::Result<()> {
     return refused_words(walk(top, shown, Pass::Check, &[]), shown);
 }
 
@@ -443,7 +548,10 @@ pub fn verify_below(top: &File, shown: &Path) -> std::io::Result<()> {
 /// ```ts
 /// await emptyDirectory(top, shown);
 /// ```
-pub fn empty_directory(top: &File, shown: &Path) -> std::io::Result<()> {
+pub fn empty_directory(
+    top: &File,
+    shown: &Path,
+) -> std::io::Result<()> {
     return refused_words(walk(top, shown, Pass::Remove, &[]), shown);
 }
 
@@ -462,7 +570,10 @@ pub fn empty_directory(top: &File, shown: &Path) -> std::io::Result<()> {
 /// ```ts
 /// const found = findBoundaryBelow(top, shown); // Boundary | undefined
 /// ```
-pub fn find_boundary_below(top: &File, shown: &Path) -> std::io::Result<Option<Boundary>> {
+pub fn find_boundary_below(
+    top: &File,
+    shown: &Path,
+) -> std::io::Result<Option<Boundary>> {
     return find_boundary_below_except(top, shown, &[]);
 }
 
@@ -480,7 +591,11 @@ pub fn find_boundary_below(top: &File, shown: &Path) -> std::io::Result<Option<B
 /// ```ts
 /// const found = findBoundaryBelowExcept(top, shown, [callingFolder]); // Boundary | undefined
 /// ```
-pub fn find_boundary_below_except(top: &File, shown: &Path, except: &[&Path]) -> std::io::Result<Option<Boundary>> {
+pub fn find_boundary_below_except(
+    top: &File,
+    shown: &Path,
+    except: &[&Path],
+) -> std::io::Result<Option<Boundary>> {
     return match walk(top, shown, Pass::Check, except) {
         Ok(()) => Ok(None),
         Err(WalkRefusal::Boundary(found)) => Ok(Some(found)),

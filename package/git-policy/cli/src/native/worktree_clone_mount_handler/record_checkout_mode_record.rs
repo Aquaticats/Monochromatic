@@ -206,7 +206,9 @@ impl RecordCheckoutFailure {
     pub fn message(&self) -> String {
         let prefix: String = format!("{}: ", root_modes_name());
         return match self {
-            RecordCheckoutFailure::NotRoot { effective_user } => {
+            RecordCheckoutFailure::NotRoot {
+                effective_user,
+            } => {
                 return NotRootRefusal {
                     mode: "record-checkout",
                     nothing: "read or recorded",
@@ -224,54 +226,94 @@ impl RecordCheckoutFailure {
                 "{prefix}the checkout's own mount was not read, so nothing was recorded: {}. Ways forward: check that the checkout dataset is mounted at that path, then run the mode again.",
                 refusal.message()
             ),
-            RecordCheckoutFailure::DatasetRead { dataset, failure } => format!(
+            RecordCheckoutFailure::DatasetRead {
+                dataset,
+                failure,
+            } => format!(
                 "{prefix}`{dataset}` could not be read from the kernel, so nothing was recorded: {}. Ways forward: check that the dataset exists in an imported pool, then run the mode again.",
                 failure.message()
             ),
-            RecordCheckoutFailure::NotAMountPoint { checkout, found } => format!(
+            RecordCheckoutFailure::NotAMountPoint {
+                checkout,
+                found,
+            } => format!(
                 "{prefix}checkout-not-a-mount-point: {} {found}. Nothing was recorded. Ways forward: mount the checkout dataset at that path as its own `mountpoint`, then run the mode again.",
                 checkout.display()
             ),
-            RecordCheckoutFailure::NotOnZfs { checkout, filesystem_type } => format!(
+            RecordCheckoutFailure::NotOnZfs {
+                checkout,
+                filesystem_type,
+            } => format!(
                 "{prefix}checkout-not-on-zfs: {} is on a `{filesystem_type}` mount, and this route serves ZFS. Nothing was recorded. Ways forward: run the mode on a checkout whose path is a ZFS dataset's own mountpoint, or leave the route off this checkout.",
                 checkout.display()
             ),
-            RecordCheckoutFailure::ContainerNotBesideTheCheckout { dataset, container, because } => format!(
+            RecordCheckoutFailure::ContainerNotBesideTheCheckout {
+                dataset,
+                container,
+                because,
+            } => format!(
                 "{prefix}container-not-beside-the-checkout: `{container}` is not a dataset beside `{dataset}`: {because}. Nothing was recorded. Ways forward: give `{CLONE_MOUNTS}.{PARENT}` a dataset in the same pool that is neither inside the checkout nor holds it, then run the mode again.",
-                CLONE_MOUNTS = crate::worktree_clone_mount_handler::sweep_configuration::CLONE_MOUNTS_KEY,
+                CLONE_MOUNTS =
+                    crate::worktree_clone_mount_handler::sweep_configuration::CLONE_MOUNTS_KEY,
                 PARENT = crate::worktree_clone_mount_handler::sweep_configuration::PARENT_KEY,
             ),
-            RecordCheckoutFailure::RecordDiffers { recorded, kernel, field } => {
+            RecordCheckoutFailure::RecordDiffers {
+                recorded,
+                kernel,
+                field,
+            } => {
                 return match field {
-                    DifferingField::Guid { .. } => format!(
+                    DifferingField::Guid {
+                        ..
+                    } => format!(
                         "{prefix}checkout-record-differs: the record's GUID is {recorded} and the kernel shows {kernel}. Nothing was written. Ways forward: run this command again with `--replace {kernel}` to record this dataset, or restore the dataset the record names, which answers the recorded GUID again."
                     ),
-                    DifferingField::Path { .. } => format!(
+                    DifferingField::Path {
+                        ..
+                    } => format!(
                         "{prefix}checkout-record-differs: the record's checkout is {recorded} and this run names {kernel}. Nothing was written. Ways forward: run the mode for the checkout the record names, or remove the record after the checkout has moved on purpose and record the new path."
                     ),
-                    DifferingField::Dataset { .. } => format!(
+                    DifferingField::Dataset {
+                        ..
+                    } => format!(
                         "{prefix}checkout-record-differs: the record's dataset is `{recorded}` and the kernel shows `{kernel}` mounted at the checkout. Nothing was written. Ways forward: restore the dataset the record names, or remove the record and record the checkout again once you know which dataset the route should serve."
                     ),
-                    DifferingField::Container { .. } => format!(
+                    DifferingField::Container {
+                        ..
+                    } => format!(
                         "{prefix}checkout-record-differs: the record's container is `{recorded}` and the configuration names `{kernel}`. Nothing was written. Ways forward: give the configuration the container the record names, or remove the record and record the checkout again once the configuration holds the container you mean."
                     ),
                 };
             }
-            RecordCheckoutFailure::ReplaceTokenDiffers { kernel, typed } => format!(
+            RecordCheckoutFailure::ReplaceTokenDiffers {
+                kernel,
+                typed,
+            } => format!(
                 "{prefix}replace-token-differs: the kernel shows {kernel}, and `--replace` was given {typed}. Nothing was written. Ways forward: read the kernel's GUID from this refusal and pass it whole, or run the command without `--replace` to read the difference again."
             ),
-            RecordCheckoutFailure::NothingToReplace { record } => format!(
+            RecordCheckoutFailure::NothingToReplace {
+                record,
+            } => format!(
                 "{prefix}nothing-to-replace: `--replace` was given and {} holds no record. Nothing was written. Ways forward: run the command without `--replace`, which records the checkout.",
                 record.display()
             ),
-            RecordCheckoutFailure::RecordUnreadable { path, reason } => format!(
+            RecordCheckoutFailure::RecordUnreadable {
+                path,
+                reason,
+            } => format!(
                 "{prefix}checkout-record-unreadable: {} could not be read as the record this route writes ({reason}). Nothing was written. Ways forward: check that the file is root's regular file with no group or other write bit, or remove it after checking what it holds and record the checkout again.",
                 path.display()
             ),
-            RecordCheckoutFailure::RecordUnwritable { path, reason } => format!(
+            RecordCheckoutFailure::RecordUnwritable {
+                path,
+                reason,
+            } => format!(
                 "{prefix}checkout-record-unwritable: {} could not be written ({reason}). Nothing was written. Ways forward: check that {} is root's folder with no group or other write bit, then run the mode again.",
                 path.display(),
-                path.parent().map_or(String::from("the record's folder"), |folder| return folder.display().to_string())
+                path.parent()
+                    .map_or(String::from("the record's folder"), |folder| return folder
+                        .display()
+                        .to_string())
             ),
         };
     }

@@ -13,18 +13,38 @@
 //! await assertFinalSourceEquivalence({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries });
 //! ```
 
+use crate::json_record::quote;
 use crate::side_by_side_on_the_runtime::run_beside_the_caller_on_the_runtime;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    failure_with_cause,
+    raw_failure,
+    raw_failure_of,
+};
 use crate::worktree_copy_manifest::{
-    EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
+    EntryKind,
+    FileStamp,
+    WorktreeCopyEntry,
+    collect_entry_manifest,
+    collect_pruned_manifest,
+    retained_mode,
+    stamp_of,
 };
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
+use crate::worktree_copy_selection::{
+    filesystem_path,
+    shown_repository_path,
+};
 use crate::worktree_copy_symlink_target::names_the_same_place;
-use crate::json_record::quote;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The size of one comparison read.
@@ -77,7 +97,12 @@ fn opened_regular_file(path: &Path) -> Result<Option<std::fs::File>, WorktreeCop
         Ok(file) => Ok(Some(file)),
         // The plain-file reader refuses a path that is not a plain file with `InvalidInput` and the words the person reads,
         //  and a link it may not follow with `ELOOP`; neither holds a regular file's bytes.
-        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput || error.raw_os_error() == Some(libc::ELOOP) => Ok(None),
+        Err(error)
+            if error.kind() == std::io::ErrorKind::InvalidInput
+                || error.raw_os_error() == Some(libc::ELOOP) =>
+        {
+            Ok(None)
+        }
         Err(error) => Err(raw_failure(&error)),
     };
 }
@@ -105,14 +130,8 @@ fn regular_file_bytes_equal(
     ) else {
         return Ok(false);
     };
-    let left_size: u64 = left
-        .metadata()
-        .map_err(raw_failure_of)?
-        .len();
-    let right_size: u64 = right
-        .metadata()
-        .map_err(raw_failure_of)?
-        .len();
+    let left_size: u64 = left.metadata().map_err(raw_failure_of)?.len();
+    let right_size: u64 = right.metadata().map_err(raw_failure_of)?.len();
     if left_size != right_size {
         return Ok(false);
     }
@@ -254,9 +273,15 @@ pub fn entry_matches_stamped(
 /// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
 /// ```
 fn walk_source_pruned(
-    (source_root, selected_roots, excluded_source_roots, prune): (PathBuf, Vec<Vec<u8>>, Vec<PathBuf>, Prune),
+    (source_root, selected_roots, excluded_source_roots, prune): (
+        PathBuf,
+        Vec<Vec<u8>>,
+        Vec<PathBuf>,
+        Prune,
+    )
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut left_out: crate::worktree_copy_manifest::LeftOut = crate::worktree_copy_manifest::LeftOut::default();
+    let mut left_out: crate::worktree_copy_manifest::LeftOut =
+        crate::worktree_copy_manifest::LeftOut::default();
     return collect_pruned_manifest(
         source_root.as_path(),
         selected_roots.as_slice(),
@@ -282,7 +307,7 @@ fn walk_source_pruned(
 /// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
 /// ```
 fn walk_stage(
-    (stage_root, selected_roots): (PathBuf, Vec<Vec<u8>>),
+    (stage_root, selected_roots): (PathBuf, Vec<Vec<u8>>)
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     return collect_entry_manifest(stage_root.as_path(), selected_roots.as_slice(), &[]);
 }
@@ -311,7 +336,10 @@ pub fn assert_final_source_equivalence(
         selected_roots,
         excluded_source_roots,
         staged_entries,
-        &FinalCheck { prune: Prune::Never, stamps: &[] },
+        &FinalCheck {
+            prune: Prune::Never,
+            stamps: &[],
+        },
     );
 }
 
@@ -396,7 +424,15 @@ async fn assert_final_source_equivalence_pruned_awaiting(
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
-    let differences: Differences = differences_from_the_source(source_root, stage_root, selected_roots, excluded_source_roots, staged_entries, check).await?;
+    let differences: Differences = differences_from_the_source(
+        source_root,
+        stage_root,
+        selected_roots,
+        excluded_source_roots,
+        staged_entries,
+        check,
+    )
+    .await?;
     if !differences.gone.is_empty() || !differences.appeared.is_empty() {
         return Err(failure_with_cause(
             "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
@@ -468,16 +504,36 @@ pub async fn differences_from_the_source(
     check: &FinalCheck<'_>,
 ) -> Result<Differences, WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
-    let (source_joined, stage_walked): (Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>, crate::blocking_job::BlockingJobError>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
-        run_beside_the_caller_on_the_runtime(
-            ((source_root.to_path_buf(), selected_roots.to_vec(), excluded_source_roots.to_vec(), check.prune), walk_source_pruned),
-            ((stage_root.to_path_buf(), selected_roots.to_vec()), walk_stage),
-        )
-        .await;
+    let (source_joined, stage_walked): (
+        Result<
+            Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>,
+            crate::blocking_job::BlockingJobError,
+        >,
+        Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>,
+    ) = run_beside_the_caller_on_the_runtime(
+        (
+            (
+                source_root.to_path_buf(),
+                selected_roots.to_vec(),
+                excluded_source_roots.to_vec(),
+                check.prune,
+            ),
+            walk_source_pruned,
+        ),
+        (
+            (stage_root.to_path_buf(), selected_roots.to_vec()),
+            walk_stage,
+        ),
+    )
+    .await;
     let source_walked: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = match source_joined {
         Ok(walked) => walked,
-        Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
-        Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a manifest walk did not run ({refused})")))),
+        Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(
+            &std::io::Error::other("a manifest walk panicked"),
+        )),
+        Err(refused) => Err(raw_failure(&std::io::Error::other(format!(
+            "a manifest walk did not run ({refused})"
+        )))),
     };
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;

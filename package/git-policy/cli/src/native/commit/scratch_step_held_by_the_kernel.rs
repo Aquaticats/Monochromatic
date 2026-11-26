@@ -31,12 +31,12 @@
 //! aStallIsWaitedFor({ step, waited, until, held }); heldByTheKernelLine({ step, waited, held })
 //! ```
 
-/// Time spans,
-/// for the figures each line names.
-use std::time::Duration;
 /// Why a ceiling stood aside for a step,
 /// which the line about a waiting stall says.
 use crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor;
+/// Time spans,
+/// for the figures each line names.
+use std::time::Duration;
 
 /// What:
 ///  What the line is built from,
@@ -108,7 +108,11 @@ pub struct HeldProgram {
 /// `monochromatic-git-policy-cli: ... (process ${step}) ... the kernel has not released it ...`
 /// ```
 pub fn held_by_the_kernel_line(held: HeldByTheKernel) -> String {
-    let HeldByTheKernel { step, waited, held: the_held } = held;
+    let HeldByTheKernel {
+        step,
+        waited,
+        held: the_held,
+    } = held;
     let seconds: u64 = waited.as_secs();
     if the_held.number == step {
         return format!(
@@ -117,7 +121,10 @@ pub fn held_by_the_kernel_line(held: HeldByTheKernel) -> String {
              Nothing was committed, and nothing of yours is at risk: your index and files are as they were. The terminal stays here until the kernel lets go.\n"
         );
     }
-    let HeldProgram { number, name } = the_held;
+    let HeldProgram {
+        number,
+        name,
+    } = the_held;
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository (process {step}) was sent `SIGKILL` when its ceiling came \
          after {seconds} seconds, and the kernel has not released it: the program it started, `{name}` (process {number}), is in uninterruptible sleep (state `D`), \
@@ -174,7 +181,12 @@ pub struct AStall {
 /// `monochromatic-git-policy-cli: ... reached its ceiling ... waiting for the disk ... waits ...`
 /// ```
 pub fn a_stall_is_waited_for(stall: AStall) -> String {
-    let AStall { step, waited, until, why } = stall;
+    let AStall {
+        step,
+        waited,
+        until,
+        why,
+    } = stall;
     let seconds: u64 = waited.as_secs();
     let bound: u64 = until.as_secs();
     // What the ceiling could not do, said as the fact the look gave:
@@ -182,15 +194,17 @@ pub fn a_stall_is_waited_for(stall: AStall) -> String {
     // and a step whose state could not be read is one no signal can be aimed at either.
     let what_the_ceiling_could_not_do: String = match why {
         WhyTheStepWasWaitedFor::TheKernelHeldIt(the_held) if the_held.number == step => {
-            String::from("it is in uninterruptible sleep (state `D`), which a signal cannot end, so the step is waiting for the disk rather than stuck in its own work")
+            String::from(
+                "it is in uninterruptible sleep (state `D`), which a signal cannot end, so the step is waiting for the disk rather than stuck in its own work",
+            )
         }
         WhyTheStepWasWaitedFor::TheKernelHeldIt(the_held) => format!(
             "the program it started, `{}` (process {}), is in uninterruptible sleep (state `D`), which a signal cannot end, so the step is waiting for the disk rather than stuck in its own work",
             the_held.name, the_held.number
         ),
-        WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead => {
-            String::from("its state could not be read (a look at `/proc` failed), so this commit cannot tell whether the disk is holding it")
-        }
+        WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead => String::from(
+            "its state could not be read (a look at `/proc` failed), so this commit cannot tell whether the disk is holding it",
+        ),
     };
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository (process {step}) reached its ceiling after {seconds} seconds and was not stopped: \

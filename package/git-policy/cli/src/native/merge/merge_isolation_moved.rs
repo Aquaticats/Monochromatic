@@ -30,24 +30,42 @@
 //! ```
 
 /// The raw differences and the worktree states.
-use crate::merge_isolation_changes::{Change, parse_raw_changes};
+use crate::merge_isolation_changes::{
+    Change,
+    parse_raw_changes,
+};
+use crate::merge_isolation_index_reading::{
+    entries_by_path,
+    index_entries_awaiting,
+    standing_of_index,
+};
 /// The intent record.
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
 use crate::merge_isolation_recovery_steps::{
-    IndexHeldAt, Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge_awaiting,
-    install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes_awaiting, remove_record,
+    IndexHeldAt,
+    Installed,
+    Judged,
+    MergeRecoveryAction,
+    MergeRefusal,
+    RecoveryPlace,
+    Standing,
+    index_holds_the_merge_awaiting,
+    install_entries_awaiting,
+    judge_changes_awaiting,
+    merge_changes_awaiting,
+    put_back_stranded_takes_awaiting,
+    remove_record,
 };
-use crate::merge_isolation_index_reading::{entries_by_path, index_entries_awaiting, standing_of_index};
-/// The maps of records a settling asks by path.
-use std::collections::HashMap;
 /// The fail-closed recovery failure,
 /// and the refusal that says whether the merge began.
 use crate::recovery_error::RecoveryError;
 /// Running real Git.
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
+/// The maps of records a settling asks by path.
+use std::collections::HashMap;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -83,22 +101,54 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     // A merge whose own commits cannot be read may still be half installed, so the refusal says so.
     let changes: Vec<Change> = match merge_changes_awaiting(place, root, intent).await {
         Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error, began: true }),
+        Err(error) => {
+            return Err(MergeRefusal {
+                error,
+                began: true,
+            });
+        }
     };
-    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;
+    put_back_stranded_takes_awaiting(
+        &place.git,
+        root,
+        place.git_dir.as_path(),
+        changes.as_slice(),
+        intent.carried.as_ref(),
+        intent.owner.transaction_id.as_str(),
+        out,
+    )
+    .await;
     // The installed state is read once here too,
     // the index first and the worktree second,
     // so a worktree that cannot be read is reported by what
     //  the index holds.
-    let index_began: bool = match index_holds_the_merge_awaiting(place, root, intent.old_oid.as_str(), changes.as_slice()).await {
+    let index_began: bool = match index_holds_the_merge_awaiting(
+        place,
+        root,
+        intent.old_oid.as_str(),
+        changes.as_slice(),
+    )
+    .await
+    {
         Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error, began: true }),
+        Err(error) => {
+            return Err(MergeRefusal {
+                error,
+                began: true,
+            });
+        }
     };
     // The same judgement the straight completion makes,
     // so a directory the branch's own files explain is read the same way here.
-    let worktree: Vec<Judged> = match judge_changes_awaiting(place, root, changes.as_slice()).await {
+    let worktree: Vec<Judged> = match judge_changes_awaiting(place, root, changes.as_slice()).await
+    {
         Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error, began: index_began }),
+        Err(error) => {
+            return Err(MergeRefusal {
+                error,
+                began: index_began,
+            });
+        }
     };
     // A path holding the merge is what writing began,
     // because nothing but this merge puts the merge's own content in the checkout:
@@ -117,16 +167,35 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     // What each path ends as: the moved head's entry, which is the merge's own entry where the moved head left the path alone.
     let request: GitRequest = GitRequest::new(
         root,
-        &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.new_oid.as_str(), moved_to],
+        &[
+            "diff-tree",
+            "-r",
+            "-z",
+            "--raw",
+            "--no-renames",
+            "--no-abbrev",
+            intent.new_oid.as_str(),
+            moved_to,
+        ],
     );
     let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
         // The moved head cannot be read, so a path holding the merge cannot be told from an independent commit of its content.
-        Err(error) => return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: index_began || worktree_shows_the_merge }),
+        Err(error) => {
+            return Err(MergeRefusal {
+                error: RecoveryError(error.to_string()),
+                began: index_began || worktree_shows_the_merge,
+            });
+        }
     };
     let beyond: Vec<Change> = match parse_raw_changes(output.stdout.as_slice()) {
         Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error: RecoveryError(error), began: index_began || worktree_shows_the_merge }),
+        Err(error) => {
+            return Err(MergeRefusal {
+                error: RecoveryError(error),
+                began: index_began || worktree_shows_the_merge,
+            });
+        }
     };
     // A file holding the merge is evidence of an install only where the moved head does not already hold that content:
     // an
@@ -138,7 +207,9 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     let beyond_by_path: HashMap<&[u8], &Change> = entries_by_path(beyond.as_slice());
     let mut wrote_a_file: bool = false;
     for (judged, change) in worktree.iter().zip(changes.iter()) {
-        if holds_the_merge(judged) && moved_head_holds_its_own_entry(&beyond_by_path, change.path.as_slice()) {
+        if holds_the_merge(judged)
+            && moved_head_holds_its_own_entry(&beyond_by_path, change.path.as_slice())
+        {
             wrote_a_file = true;
             break;
         }
@@ -164,10 +235,16 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     }
     // A staged version of a path the merge changes has no other name, so it is never written over here either: the settling
     //  stops and names the paths, and the staged content stays in the index.
-    let staged_index: Vec<Change> = match index_entries_awaiting(place, root, intent.old_oid.as_str()).await {
-        Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error, began }),
-    };
+    let staged_index: Vec<Change> =
+        match index_entries_awaiting(place, root, intent.old_oid.as_str()).await {
+            Ok(found) => found,
+            Err(error) => {
+                return Err(MergeRefusal {
+                    error,
+                    began,
+                });
+            }
+        };
     let staged_by_path: HashMap<&[u8], &Change> = entries_by_path(staged_index.as_slice());
     let mut staged: Vec<String> = Vec::new();
     for end in &ends {
@@ -179,12 +256,12 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     if !staged.is_empty() {
         return Err(MergeRefusal {
             error: RecoveryError(format!(
-            "A merge in {} lost the branch to a newer commit, and the index holds staged content for these paths that the \
+                "A merge in {} lost the branch to a newer commit, and the index holds staged content for these paths that the \
              settling would replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the \
              index. Commit or unstage it, then run any git command again.",
-            root.display(),
-            staged.join(", "),
-            record.display()
+                root.display(),
+                staged.join(", "),
+                record.display()
             )),
             began,
         });
@@ -209,22 +286,37 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
         } else {
             Standing::Old
         };
-        held.push(Judged { standing: settled, identity: judged.identity, content: judged.content.clone() });
+        held.push(Judged {
+            standing: settled,
+            identity: judged.identity,
+            content: judged.content.clone(),
+        });
     }
     if !foreign.is_empty() {
         return Err(MergeRefusal {
             error: RecoveryError(format!(
-            "A merge in {} lost the branch to a newer commit while Git updated these files, and they now hold neither \
+                "A merge in {} lost the branch to a newer commit while Git updated these files, and they now hold neither \
              their old content, the merge's nor the newer commit's: {}. Nothing was changed and the record {} was kept. \
              Save your edits to them elsewhere, restore them with `git restore --no-enforce-worktree -- <path>`, then run any git command again.",
-            root.display(),
-            foreign.join(", "),
-            record.display()
+                root.display(),
+                foreign.join(", "),
+                record.display()
             )),
             began,
         });
     }
-    if install_entries_awaiting(place, root, ends.as_slice(), held.as_slice(), began, intent.owner.transaction_id.as_str(), out).await? == Installed::IndexHeld {
+    if install_entries_awaiting(
+        place,
+        root,
+        ends.as_slice(),
+        held.as_slice(),
+        began,
+        intent.owner.transaction_id.as_str(),
+        out,
+    )
+    .await?
+        == Installed::IndexHeld
+    {
         // A settling that had already begun has nothing to defer: the command is stopped rather than read the merge as
         //  another session's staged work.
         if began {
@@ -259,7 +351,10 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
 /// const partlyInstalled = (error: RecoveryError): MergeRefusal => ({ error, began: true });
 /// ```
 fn partly_installed(error: RecoveryError) -> MergeRefusal {
-    return MergeRefusal { error, began: true };
+    return MergeRefusal {
+        error,
+        began: true,
+    };
 }
 
 /// Whether one judgement holds the merge's content,
@@ -283,7 +378,10 @@ fn holds_the_merge(judged: &Judged) -> bool {
 /// ```ts
 /// function movedHeadHoldsItsOwnEntry(beyond, path): boolean; // beyond.has(path)
 /// ```
-fn moved_head_holds_its_own_entry(beyond: &HashMap<&[u8], &Change>, path: &[u8]) -> bool {
+fn moved_head_holds_its_own_entry(
+    beyond: &HashMap<&[u8], &Change>,
+    path: &[u8],
+) -> bool {
     crate::collected_elements_looked_at::note_looked_at(1);
     return beyond.contains_key(path);
 }
@@ -301,9 +399,16 @@ fn moved_head_holds_its_own_entry(beyond: &HashMap<&[u8], &Change>, path: &[u8])
 /// ```ts
 /// function onlyTheRecordGoes(record, began): 'branch-moved'; // rm(record)
 /// ```
-fn only_the_record_goes(record: &Path, began: bool, keep_record: bool) -> Result<MergeRecoveryAction, MergeRefusal> {
+fn only_the_record_goes(
+    record: &Path,
+    began: bool,
+    keep_record: bool,
+) -> Result<MergeRecoveryAction, MergeRefusal> {
     if !keep_record && let Err(error) = remove_record(record) {
-        return Err(MergeRefusal { error, began });
+        return Err(MergeRefusal {
+            error,
+            began,
+        });
     }
     return Ok(MergeRecoveryAction::BranchMoved);
 }

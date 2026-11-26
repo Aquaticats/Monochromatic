@@ -17,16 +17,37 @@
 ///  the tables,
 ///  the oracles and the real-Git fixture helpers.
 use super::BranchCreationCommand::Branch;
-use super::{BranchCreationRegion, parse_branch_creation_region};
-use crate::command_branch_table::BRANCH_TABLE;
-use crate::command_checkout_table::{CHECKOUT_TABLE, SWITCH_TABLE};
-use crate::command_options::OptionError;
-use crate::command_test_cases::{across_workers, copy_tree};
-use crate::command_test_completion::{git_completion, render_completion};
-use crate::command_test_support::{
-    assert_table_invariants, fixture, git, git_status, os_arguments, remove, repository,
+use super::{
+    BranchCreationRegion,
+    parse_branch_creation_region,
 };
-use std::path::{Path, PathBuf};
+use crate::command_branch_table::BRANCH_TABLE;
+use crate::command_checkout_table::{
+    CHECKOUT_TABLE,
+    SWITCH_TABLE,
+};
+use crate::command_options::OptionError;
+use crate::command_test_cases::{
+    across_workers,
+    copy_tree,
+};
+use crate::command_test_completion::{
+    git_completion,
+    render_completion,
+};
+use crate::command_test_support::{
+    assert_table_invariants,
+    fixture,
+    git,
+    git_status,
+    os_arguments,
+    remove,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// One entry per `;`:
@@ -132,7 +153,11 @@ fn branch_fixture(name: &str) -> (PathBuf, PathBuf) {
 
 /// The space of one worker:
 /// its own scratch directory and an empty tally.
-fn lane(directory: &Path, pristine: &Path, number: usize) -> Lane {
+fn lane(
+    directory: &Path,
+    pristine: &Path,
+    number: usize,
+) -> Lane {
     let scratch: PathBuf = directory.join(format!("lane-{number}"));
     std::fs::create_dir_all(scratch.as_path()).expect("lane directory");
     return Lane {
@@ -150,7 +175,10 @@ fn lane(directory: &Path, pristine: &Path, number: usize) -> Lane {
 ///  Report whether a branch appeared beside `main` and `other`
 /// (a rename or a deletion removes one of them) and Git's exit code,
 ///  then drop the copy.
-fn observe(lane: &Lane, arguments: &[&str]) -> (bool, Option<i32>) {
+fn observe(
+    lane: &Lane,
+    arguments: &[&str],
+) -> (bool, Option<i32>) {
     let case: PathBuf = lane.scratch.join("case");
     copy_tree(lane.pristine.as_path(), case.as_path());
     let mut full: Vec<&str> = vec!["branch"];
@@ -164,7 +192,12 @@ fn observe(lane: &Lane, arguments: &[&str]) -> (bool, Option<i32>) {
 }
 
 /// Require the parser's answer for one argument list to be what Git did.
-fn check(arguments: &[&str], created: bool, code: Option<i32>, tally: &mut Tally) {
+fn check(
+    arguments: &[&str],
+    created: bool,
+    code: Option<i32>,
+    tally: &mut Tally,
+) {
     let parsed: Result<BranchCreationRegion, OptionError> =
         parse_branch_creation_region(Branch, os_arguments(arguments).as_slice(), &[]);
     tally.runs += 1;
@@ -184,14 +217,20 @@ fn check(arguments: &[&str], created: bool, code: Option<i32>, tally: &mut Tally
 }
 
 /// Two argument groups as one list.
-fn joined<'a>(first: &[&'a str], second: &[&'a str]) -> Vec<&'a str> {
+fn joined<'a>(
+    first: &[&'a str],
+    second: &[&'a str],
+) -> Vec<&'a str> {
     let mut all: Vec<&'a str> = first.to_vec();
     all.extend_from_slice(second);
     return all;
 }
 
 /// Run one argument list and compare it.
-fn compare(lane: &mut Lane, arguments: &[&str]) {
+fn compare(
+    lane: &mut Lane,
+    arguments: &[&str],
+) {
     let (created, code): (bool, Option<i32>) = observe(lane, arguments);
     check(arguments, created, code, &mut lane.tally);
 }
@@ -202,7 +241,10 @@ fn compare(lane: &mut Lane, arguments: &[&str]) {
 ///  so Git creates in one of the two orders;
 ///  the parser reads
 /// counts and must give both orders that same answer.
-fn compare_two_names(lane: &mut Lane, options: &[&str]) {
+fn compare_two_names(
+    lane: &mut Lane,
+    options: &[&str],
+) {
     let forward: Vec<&str> = joined(options, &["fresh", "other"]);
     let backward: Vec<&str> = joined(options, &["other", "fresh"]);
     let (created_forward, code_forward): (bool, Option<i32>) = observe(lane, forward.as_slice());
@@ -233,7 +275,10 @@ fn merged(lanes: Vec<Lane>) -> Tally {
 fn assert_reached_every_outcome(tally: &Tally) {
     assert!(tally.created > 0, "no case created a branch");
     assert!(tally.refused > 0, "no case was refused");
-    assert!(tally.created + tally.refused < tally.runs, "every case created or was refused");
+    assert!(
+        tally.created + tally.refused < tally.runs,
+        "every case created or was refused"
+    );
 }
 
 /// Every option alone,

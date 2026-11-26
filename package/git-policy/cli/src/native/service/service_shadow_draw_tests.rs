@@ -5,16 +5,36 @@
 //! is controlled where a connection is (`service_server_connection_handling_tests.rs`).
 
 use super::*;
-use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
+use crate::capture_invocation::{
+    InvocationCapture,
+    capture_invocation_base,
+    capture_invocation_layout,
+};
 use crate::shadow_create::ShadowTemplate;
 use crate::shadow_drawn::drawn_root_for;
-use crate::shadow_pool::{fill, members, pool_root_for};
-use crate::test_support::{fixture, git, git_context, repository, remove};
-use std::path::{Path, PathBuf};
+use crate::shadow_pool::{
+    fill,
+    members,
+    pool_root_for,
+};
+use crate::test_support::{
+    fixture,
+    git,
+    git_context,
+    remove,
+    repository,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A tree of this test's own,
 /// made where a drawn tree of the worktree would be.
-fn a_tree(root: &Path, name: &str) -> PathBuf {
+fn a_tree(
+    root: &Path,
+    name: &str,
+) -> PathBuf {
     let tree: PathBuf = root.join(name);
     std::fs::create_dir_all(tree.as_path()).expect("a tree to hand out");
     return tree;
@@ -33,11 +53,23 @@ fn a_tree_leaves_the_stock_with_the_answer_that_takes_it() {
     let first: PathBuf = a_tree(root.as_path(), "drawn-00000000000000000000000000000001");
     let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
     assert_eq!(stock.ready(), 0, "a service starts with nothing drawn");
-    assert_eq!(stock.hand_out(), None, "and is asked for nothing it has not drawn");
+    assert_eq!(
+        stock.hand_out(),
+        None,
+        "and is asked for nothing it has not drawn"
+    );
     stock.note_ready(first.clone());
     assert_eq!(stock.ready(), 1);
-    assert_eq!(stock.hand_out(), Some(first.clone()), "the tree is handed out");
-    assert_eq!(stock.hand_out(), None, "and a second commit is told there is none");
+    assert_eq!(
+        stock.hand_out(),
+        Some(first.clone()),
+        "the tree is handed out"
+    );
+    assert_eq!(
+        stock.hand_out(),
+        None,
+        "and a second commit is told there is none"
+    );
     assert_eq!(stock.ready(), 0);
     remove(root.as_path());
 }
@@ -58,19 +90,38 @@ fn a_draw_fills_the_stock_from_the_pool() {
     git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
     let context: GitContext = git_context();
     let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let capture: InvocationCapture =
+        capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
     let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
-    let member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let member: PathBuf = fill(&context, &template)
+        .expect("a fill")
+        .expect("a member");
     let common_dir: PathBuf = template.common_dir.clone();
     let git_dir: PathBuf = template.git_dir.clone();
     let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
-    draw_one(&context, common_dir.as_path(), git_dir.as_path(), repo.as_path(), stock.as_ref()).expect("a draw");
+    draw_one(
+        &context,
+        common_dir.as_path(),
+        git_dir.as_path(),
+        repo.as_path(),
+        stock.as_ref(),
+    )
+    .expect("a draw");
     assert_eq!(stock.ready(), 1, "the member became the stock's tree");
-    assert!(members(pool_root_for(common_dir.as_path(), git_dir.as_path()).as_path()).is_empty(), "and the pool gave it up");
+    assert!(
+        members(pool_root_for(common_dir.as_path(), git_dir.as_path()).as_path()).is_empty(),
+        "and the pool gave it up"
+    );
     let handed: PathBuf = stock.hand_out().expect("the tree it drew");
-    assert!(handed.starts_with(drawn_root_for(common_dir.as_path(), git_dir.as_path())), "the tree is where a drawn tree lives");
+    assert!(
+        handed.starts_with(drawn_root_for(common_dir.as_path(), git_dir.as_path())),
+        "the tree is where a drawn tree lives"
+    );
     // The member is the one that moved: the pool no longer holds it, and the tree the stock held is not a new one.
-    assert!(!member.exists(), "the member is no longer where the fill published it");
+    assert!(
+        !member.exists(),
+        "the member is no longer where the fill published it"
+    );
     remove(root.as_path());
 }
 
@@ -89,17 +140,38 @@ fn a_stock_that_is_already_held_leaves_the_pool_alone() {
     git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
     let context: GitContext = git_context();
     let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
-    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let capture: InvocationCapture =
+        capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
     let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
-    let first: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
-    let second: PathBuf = fill(&context, &template).expect("a second fill").expect("a second member");
+    let first: PathBuf = fill(&context, &template)
+        .expect("a fill")
+        .expect("a member");
+    let second: PathBuf = fill(&context, &template)
+        .expect("a second fill")
+        .expect("a second member");
     let common_dir: PathBuf = template.common_dir.clone();
     let git_dir: PathBuf = template.git_dir.clone();
     let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
-    draw_one(&context, common_dir.as_path(), git_dir.as_path(), repo.as_path(), stock.as_ref()).expect("a draw");
+    draw_one(
+        &context,
+        common_dir.as_path(),
+        git_dir.as_path(),
+        repo.as_path(),
+        stock.as_ref(),
+    )
+    .expect("a draw");
     let held: Option<PathBuf> = stock.hand_out();
     assert!(held.is_some(), "the draw filled the stock");
-    assert_eq!(members(pool_root_for(common_dir.as_path(), git_dir.as_path()).as_path()).len(), 1, "one member was drawn and one stays");
-    assert!([first.as_path(), second.as_path()].iter().any(|path| { return path.exists(); }), "the member the draw left is a pool member");
+    assert_eq!(
+        members(pool_root_for(common_dir.as_path(), git_dir.as_path()).as_path()).len(),
+        1,
+        "one member was drawn and one stays"
+    );
+    assert!(
+        [first.as_path(), second.as_path()].iter().any(|path| {
+            return path.exists();
+        }),
+        "the member the draw left is a pool member"
+    );
     remove(root.as_path());
 }

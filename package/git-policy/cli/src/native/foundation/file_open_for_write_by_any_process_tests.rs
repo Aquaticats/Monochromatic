@@ -26,10 +26,19 @@ fn planted(name: &str) -> (PathBuf, PathBuf) {
 #[test]
 fn a_file_with_a_writer_open_is_held_and_the_same_file_after_it_closed_is_free() {
     let (root, file) = planted("writer");
-    let writer = std::fs::OpenOptions::new().append(true).open(file.as_path()).expect("writer");
-    assert_eq!(writer_check(file.as_path()).expect("probe with a writer"), WriterCheck::WriterHolds);
+    let writer = std::fs::OpenOptions::new()
+        .append(true)
+        .open(file.as_path())
+        .expect("writer");
+    assert_eq!(
+        writer_check(file.as_path()).expect("probe with a writer"),
+        WriterCheck::WriterHolds
+    );
     drop(writer);
-    assert_eq!(writer_check(file.as_path()).expect("probe after the writer closed"), WriterCheck::NoWriter);
+    assert_eq!(
+        writer_check(file.as_path()).expect("probe after the writer closed"),
+        WriterCheck::NoWriter
+    );
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
@@ -40,7 +49,10 @@ fn readers_do_not_hold_a_file() {
     let (root, file) = planted("readers");
     let first = std::fs::File::open(file.as_path()).expect("first reader");
     let second = std::fs::File::open(file.as_path()).expect("second reader");
-    assert_eq!(writer_check(file.as_path()).expect("probe"), WriterCheck::NoWriter);
+    assert_eq!(
+        writer_check(file.as_path()).expect("probe"),
+        WriterCheck::NoWriter
+    );
     drop((first, second));
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
@@ -51,10 +63,19 @@ fn readers_do_not_hold_a_file() {
 #[test]
 fn a_probe_leaves_no_lease_behind() {
     let (root, file) = planted("no-lease-left");
-    assert_eq!(writer_check(file.as_path()).expect("first probe"), WriterCheck::NoWriter);
-    let writer = std::fs::OpenOptions::new().append(true).open(file.as_path()).expect("writer opens without waiting");
+    assert_eq!(
+        writer_check(file.as_path()).expect("first probe"),
+        WriterCheck::NoWriter
+    );
+    let writer = std::fs::OpenOptions::new()
+        .append(true)
+        .open(file.as_path())
+        .expect("writer opens without waiting");
     drop(writer);
-    assert_eq!(writer_check(file.as_path()).expect("second probe"), WriterCheck::NoWriter);
+    assert_eq!(
+        writer_check(file.as_path()).expect("second probe"),
+        WriterCheck::NoWriter
+    );
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
@@ -67,7 +88,10 @@ fn a_missing_file_and_a_symbolic_link_are_errors() {
     assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
     let link: PathBuf = root.join("link");
     std::os::unix::fs::symlink(file.as_path(), link.as_path()).expect("link");
-    assert!(writer_check(link.as_path()).is_err(), "a final symbolic link is not followed");
+    assert!(
+        writer_check(link.as_path()).is_err(),
+        "a final symbolic link is not followed"
+    );
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
@@ -87,15 +111,24 @@ fn a_writer_opening_during_the_lease_does_not_end_the_process_that_holds_it() {
     use std::os::fd::AsRawFd;
     let (root, file) = planted("break");
     let held = std::fs::File::open(file.as_path()).expect("reader");
-    assert!(read_lease_granted(&held).expect("lease"), "no writer exists, so the lease is granted");
+    assert!(
+        read_lease_granted(&held).expect("lease"),
+        "no writer exists, so the lease is granted"
+    );
     let target: PathBuf = file.clone();
     let opener = std::thread::spawn(move || {
-        return std::fs::OpenOptions::new().append(true).open(target.as_path()).expect("writer opens once the lease is given back");
+        return std::fs::OpenOptions::new()
+            .append(true)
+            .open(target.as_path())
+            .expect("writer opens once the lease is given back");
     });
     let began: std::time::Instant = std::time::Instant::now();
     // SAFETY: the descriptor is open for the call, which reads or writes no memory.
     while unsafe { libc::fcntl(held.as_raw_fd(), libc::F_GETLEASE) } != libc::F_UNLCK {
-        assert!(began.elapsed() < BREAK_START_CEILING, "the writer's open started no lease break");
+        assert!(
+            began.elapsed() < BREAK_START_CEILING,
+            "the writer's open started no lease break"
+        );
         std::thread::yield_now();
     }
     lease_given_back(&held).expect("give back");

@@ -22,18 +22,38 @@
 //! ```
 #![cfg(unix)]
 
-use crate::auto_push_single_flight::{PushAttempt, PushGit};
-use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, Patience, STOPPED_EXIT_CODE, WAIT_NOTE_PHRASE, run_bounded_push};
+use crate::auto_push_single_flight::{
+    PushAttempt,
+    PushGit,
+};
+use crate::bounded_push::{
+    PUSH_DEADLINE_VARIABLE,
+    Patience,
+    STOPPED_EXIT_CODE,
+    WAIT_NOTE_PHRASE,
+    run_bounded_push,
+};
 use crate::lfs_bounded_push::run_push;
 use crate::smart_http_support::SmartHttp;
-use crate::test_support::{REAL_GIT, fixture, git, git_text, remove, repository, scratch_environment};
+use crate::test_support::{
+    REAL_GIT,
+    fixture,
+    git,
+    git_text,
+    remove,
+    repository,
+    scratch_environment,
+};
+use std::ffi::OsString;
 use std::io::Read;
 use std::net::TcpListener;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::ffi::OsString;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The stall window of the controls,
 /// a whole second as the environment variable of the push takes it.
@@ -62,14 +82,25 @@ enum Reached {
 }
 
 /// A bare remote whose `pre-receive` hook sleeps for `silence` and whose server sends no keepalive.
-fn silent_remote(projects: &std::path::Path, silence: Duration) -> PathBuf {
+fn silent_remote(
+    projects: &std::path::Path,
+    silence: Duration,
+) -> PathBuf {
     let remote: PathBuf = projects.join("remote.git");
-    git(projects, &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(
+        projects,
+        &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")],
+    );
     git(remote.as_path(), &["config", "http.receivepack", "true"]);
     git(remote.as_path(), &["config", "receive.keepAlive", "0"]);
     let hook: PathBuf = remote.join("hooks").join("pre-receive");
-    std::fs::write(hook.as_path(), format!("#!/bin/sh\nexec sleep {}\n", silence.as_secs())).expect("hook");
-    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook mode");
+    std::fs::write(
+        hook.as_path(),
+        format!("#!/bin/sh\nexec sleep {}\n", silence.as_secs()),
+    )
+    .expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755))
+        .expect("hook mode");
     return remote;
 }
 
@@ -90,9 +121,18 @@ fn push_command(repo: &std::path::Path) -> Command {
 
 /// Run the push under a patience,
 /// with its time.
-fn run(repo: &std::path::Path, patience: Patience) -> (PushAttempt, Duration) {
+fn run(
+    repo: &std::path::Path,
+    patience: Patience,
+) -> (PushAttempt, Duration) {
     let started: Instant = Instant::now();
-    let attempt: PushAttempt = run_bounded_push(push_command(repo), patience, GRACE, scratch_environment().as_slice()).expect("runs");
+    let attempt: PushAttempt = run_bounded_push(
+        push_command(repo),
+        patience,
+        GRACE,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
     return (attempt, started.elapsed());
 }
 
@@ -107,12 +147,36 @@ fn a_push_over_http_waits_for_a_silent_server_check_and_lands() {
     let remote: PathBuf = silent_remote(projects.as_path(), STALL * SILENCE_WINDOWS);
     let server: SmartHttp = SmartHttp::start(projects.as_path());
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{}/remote.git", server.port()).as_str()]);
-    let (attempt, elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Progress { stall: STALL });
+    git(
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            format!("http://127.0.0.1:{}/remote.git", server.port()).as_str(),
+        ],
+    );
+    let (attempt, elapsed): (PushAttempt, Duration) = run(
+        repo.as_path(),
+        Patience::Progress {
+            stall: STALL,
+        },
+    );
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
-    assert!(elapsed >= STALL * SILENCE_WINDOWS, "the push waited out the server's silence: {elapsed:?}");
-    assert!(attempt.output.contains(WAIT_NOTE_PHRASE), "the output names the wait: {}", attempt.output);
-    assert_eq!(git_text(remote.as_path(), &["rev-parse", "main"]), git_text(repo.as_path(), &["rev-parse", "main"]), "the commit arrived");
+    assert!(
+        elapsed >= STALL * SILENCE_WINDOWS,
+        "the push waited out the server's silence: {elapsed:?}"
+    );
+    assert!(
+        attempt.output.contains(WAIT_NOTE_PHRASE),
+        "the output names the wait: {}",
+        attempt.output
+    );
+    assert_eq!(
+        git_text(remote.as_path(), &["rev-parse", "main"]),
+        git_text(repo.as_path(), &["rev-parse", "main"]),
+        "the commit arrived"
+    );
     drop(server);
     remove(root.as_path());
 }
@@ -126,13 +190,28 @@ fn the_same_silence_behind_a_local_path_is_still_a_stall() {
     let root: PathBuf = fixture("slow-server-local");
     let remote: PathBuf = silent_remote(root.as_path(), STALL * SILENCE_WINDOWS);
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
-    let (attempt, elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Progress { stall: STALL });
+    git(
+        repo.as_path(),
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
+    let (attempt, elapsed): (PushAttempt, Duration) = run(
+        repo.as_path(),
+        Patience::Progress {
+            stall: STALL,
+        },
+    );
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
     assert!(attempt.output.contains("limit=stall"), "{}", attempt.output);
-    assert!(!attempt.output.contains(WAIT_NOTE_PHRASE), "{}", attempt.output);
+    assert!(
+        !attempt.output.contains(WAIT_NOTE_PHRASE),
+        "{}",
+        attempt.output
+    );
     assert!(elapsed >= STALL, "{elapsed:?}");
-    assert!(elapsed < STALL * SILENCE_WINDOWS + GRACE + STOP_SLACK, "{elapsed:?}");
+    assert!(
+        elapsed < STALL * SILENCE_WINDOWS + GRACE + STOP_SLACK,
+        "{elapsed:?}"
+    );
     remove(root.as_path());
 }
 
@@ -165,7 +244,9 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
         //  A fixture that holds one connection and refuses to take another leaves the second one to the kernel's backlog,
         //  where nobody answers it, and an accept that failed used to end the thread in silence,
         // which is a push that failed for the fixture's sake and read as a wrapper that stopped it.
-        listener.set_nonblocking(true).expect("the fixture's listener can be looked at between two readers");
+        listener
+            .set_nonblocking(true)
+            .expect("the fixture's listener can be looked at between two readers");
         let mut held: Vec<std::net::TcpStream> = Vec::new();
         let mut told: bool = false;
         let mut sink: [u8; 4096] = [0; 4096];
@@ -197,9 +278,24 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
     });
     let root: PathBuf = fixture("slow-server-holds-connection");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            format!("http://127.0.0.1:{port}/silent.git").as_str(),
+        ],
+    );
     std::thread::scope(|scope| {
-        let push = scope.spawn(|| { return run(repo.as_path(), Patience::Progress { stall: STALL }); });
+        let push = scope.spawn(|| {
+            return run(
+                repo.as_path(),
+                Patience::Progress {
+                    stall: STALL,
+                },
+            );
+        });
         // The arrival is waited for as long as the push runs and no longer: a push that ends first is reported with its own
         //  output, which is the difference between a fixture that lost the connection and a Git that gave up.
         let arrival: Reached = loop {
@@ -207,7 +303,8 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
                 Ok(answer) => break answer,
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     let _let_go = let_go.send(());
-                    let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+                    let (attempt, elapsed): (PushAttempt, Duration) =
+                        push.join().expect("the push thread ends");
                     panic!(
                         "the fixture's server thread ended before this control let the connection go, and the push ended after {elapsed:?} with {}: {}",
                         attempt.exit_code, attempt.output
@@ -215,7 +312,8 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) if push.is_finished() => {
                     let _let_go = let_go.send(());
-                    let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+                    let (attempt, elapsed): (PushAttempt, Duration) =
+                        push.join().expect("the push thread ends");
                     panic!(
                         "the push ended before the fixture's listener took its connection: after {elapsed:?} with {}: {}",
                         attempt.exit_code, attempt.output
@@ -226,7 +324,8 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
         };
         if let Reached::Failed(error) = arrival {
             let _let_go = let_go.send(());
-            let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+            let (attempt, elapsed): (PushAttempt, Duration) =
+                push.join().expect("the push thread ends");
             panic!(
                 "the fixture's listener refused the push's connection ({error}), and the push ended after {elapsed:?} with {}: {}",
                 attempt.exit_code, attempt.output
@@ -237,16 +336,29 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
         std::thread::sleep(silence);
         let ended_while_held: bool = push.is_finished();
         let _let_go = let_go.send(());
-        let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+        let (attempt, elapsed): (PushAttempt, Duration) =
+            push.join().expect("the push thread ends");
         assert!(
             !ended_while_held,
             "the push ended while the server still held the connection, so the wrapper stopped it or Git gave up on its own: after {elapsed:?} \
              with {}: {}",
             attempt.exit_code, attempt.output
         );
-        assert_ne!(attempt.exit_code, STOPPED_EXIT_CODE, "the wrapper did not stop a connected push: {}", attempt.output);
-        assert!(!attempt.output.contains("limit=stall"), "{}", attempt.output);
-        assert!(attempt.output.contains(WAIT_NOTE_PHRASE), "the output names the wait: {}", attempt.output);
+        assert_ne!(
+            attempt.exit_code, STOPPED_EXIT_CODE,
+            "the wrapper did not stop a connected push: {}",
+            attempt.output
+        );
+        assert!(
+            !attempt.output.contains("limit=stall"),
+            "{}",
+            attempt.output
+        );
+        assert!(
+            attempt.output.contains(WAIT_NOTE_PHRASE),
+            "the output names the wait: {}",
+            attempt.output
+        );
     });
     server.join().expect("the fixture's server thread ends");
     remove(root.as_path());
@@ -266,13 +378,19 @@ const WINDOWS_HELD: u32 = 3;
 
 /// Run the push under a patience and the environment a control needs besides,
 /// with its time.
-fn run_with(repo: &std::path::Path, patience: Patience, extra: &[(&str, &str)]) -> (PushAttempt, Duration) {
+fn run_with(
+    repo: &std::path::Path,
+    patience: Patience,
+    extra: &[(&str, &str)],
+) -> (PushAttempt, Duration) {
     let mut environment: Vec<(OsString, OsString)> = scratch_environment();
     for (name, value) in extra {
         environment.push((OsString::from(name), OsString::from(value)));
     }
     let started: Instant = Instant::now();
-    let attempt: PushAttempt = run_bounded_push(push_command(repo), patience, GRACE, environment.as_slice()).expect("runs");
+    let attempt: PushAttempt =
+        run_bounded_push(push_command(repo), patience, GRACE, environment.as_slice())
+            .expect("runs");
     return (attempt, started.elapsed());
 }
 
@@ -290,13 +408,16 @@ fn run_with(repo: &std::path::Path, patience: Patience, extra: &[(&str, &str)]) 
 /// so an ending before that is the wrapper's and never the server's.
 #[test]
 fn a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connected_window() {
-    let listener: std::net::TcpListener = TcpListener::bind("127.0.0.1:0").expect("a local listener");
+    let listener: std::net::TcpListener =
+        TcpListener::bind("127.0.0.1:0").expect("a local listener");
     let port: u16 = listener.local_addr().expect("its address").port();
     let (reached, arriving) = std::sync::mpsc::channel::<Reached>();
     let (let_go, letting_go) = std::sync::mpsc::channel::<()>();
     let server = std::thread::spawn(move || {
         // Take the connection, read what the push sends, answer nothing, and hold it until this control lets go.
-        listener.set_nonblocking(true).expect("the fixture's listener can be looked at between two readers");
+        listener
+            .set_nonblocking(true)
+            .expect("the fixture's listener can be looked at between two readers");
         let mut held: Vec<std::net::TcpStream> = Vec::new();
         let mut told: bool = false;
         let mut sink: [u8; 4096] = [0; 4096];
@@ -328,22 +449,45 @@ fn a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connec
     });
     let root: PathBuf = fixture("silent-server-window");
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            format!("http://127.0.0.1:{port}/silent.git").as_str(),
+        ],
+    );
     let window: Duration = Duration::from_secs(CONTROL_WINDOW_SECONDS);
     let window_value: String = CONTROL_WINDOW_SECONDS.to_string();
     let extra: [(&str, &str); 1] = [(WINDOW_VARIABLE, window_value.as_str())];
     std::thread::scope(|scope| {
-        let push = scope.spawn(|| return run_with(repo.as_path(), Patience::Progress { stall: STALL }, extra.as_slice()));
-        let arrival: Reached = arriving.recv_timeout(STOP_SLACK).expect("the fixture's listener took the push's connection");
+        let push = scope.spawn(|| {
+            return run_with(
+                repo.as_path(),
+                Patience::Progress {
+                    stall: STALL,
+                },
+                extra.as_slice(),
+            );
+        });
+        let arrival: Reached = arriving
+            .recv_timeout(STOP_SLACK)
+            .expect("the fixture's listener took the push's connection");
         if let Reached::Failed(error) = arrival {
             let _let_go = let_go.send(());
-            let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
-            panic!("the fixture's listener refused the push's connection ({error}), and the push ended after {elapsed:?} with {}: {}", attempt.exit_code, attempt.output);
+            let (attempt, elapsed): (PushAttempt, Duration) =
+                push.join().expect("the push thread ends");
+            panic!(
+                "the fixture's listener refused the push's connection ({error}), and the push ended after {elapsed:?} with {}: {}",
+                attempt.exit_code, attempt.output
+            );
         }
         std::thread::sleep(window * WINDOWS_HELD);
         let ended_while_held: bool = push.is_finished();
         let _let_go = let_go.send(());
-        let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+        let (attempt, elapsed): (PushAttempt, Duration) =
+            push.join().expect("the push thread ends");
         assert!(
             ended_while_held,
             "the push was still running while the server held the connection open and silent for {:?}, so the wrapper did not end it at its window: {}: {}",
@@ -352,20 +496,35 @@ fn a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connec
             attempt.output
         );
         assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
-        assert!(attempt.output.contains("limit=connected"), "the stop names the connected window: {}", attempt.output);
         assert!(
-            attempt.output.contains(&format!("to the server `127.0.0.1:{port}`")),
+            attempt.output.contains("limit=connected"),
+            "the stop names the connected window: {}",
+            attempt.output
+        );
+        assert!(
+            attempt
+                .output
+                .contains(&format!("to the server `127.0.0.1:{port}`")),
             "the stop names the server: {}",
             attempt.output
         );
         // The line names the window that ended it, which is the one this control set and not the stall window beside it.
         assert!(
-            attempt.output.contains(&format!("open for {CONTROL_WINDOW_SECONDS} seconds with nothing moving")),
+            attempt.output.contains(&format!(
+                "open for {CONTROL_WINDOW_SECONDS} seconds with nothing moving"
+            )),
             "the stop names the window it was ended by: {}",
             attempt.output
         );
-        assert!(attempt.output.contains(WAIT_NOTE_PHRASE), "the output names the wait: {}", attempt.output);
-        assert!(elapsed >= window && elapsed < window + STOP_SLACK, "ended near its window: {elapsed:?}");
+        assert!(
+            attempt.output.contains(WAIT_NOTE_PHRASE),
+            "the output names the wait: {}",
+            attempt.output
+        );
+        assert!(
+            elapsed >= window && elapsed < window + STOP_SLACK,
+            "ended near its window: {elapsed:?}"
+        );
     });
     server.join().expect("the fixture's server thread ends");
     remove(root.as_path());
@@ -382,11 +541,31 @@ fn a_push_over_http_is_not_stopped_for_time_while_the_server_checks() {
     let remote: PathBuf = silent_remote(projects.as_path(), STALL * SILENCE_WINDOWS);
     let server: SmartHttp = SmartHttp::start(projects.as_path());
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{}/remote.git", server.port()).as_str()]);
-    let (attempt, elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Progress { stall: STALL });
+    git(
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            format!("http://127.0.0.1:{}/remote.git", server.port()).as_str(),
+        ],
+    );
+    let (attempt, elapsed): (PushAttempt, Duration) = run(
+        repo.as_path(),
+        Patience::Progress {
+            stall: STALL,
+        },
+    );
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
-    assert!(elapsed >= STALL * SILENCE_WINDOWS, "the push waited out the server's silence: {elapsed:?}");
-    assert_eq!(git_text(remote.as_path(), &["rev-parse", "main"]), git_text(repo.as_path(), &["rev-parse", "main"]), "the commit arrived");
+    assert!(
+        elapsed >= STALL * SILENCE_WINDOWS,
+        "the push waited out the server's silence: {elapsed:?}"
+    );
+    assert_eq!(
+        git_text(remote.as_path(), &["rev-parse", "main"]),
+        git_text(repo.as_path(), &["rev-parse", "main"]),
+        "the commit arrived"
+    );
     drop(server);
     remove(root.as_path());
 }
@@ -414,7 +593,10 @@ const PERSON_SILENCE_FACTOR: u32 = 6;
 /// the stall window of the controls in
 ///  its environment,
 /// and whatever the person set besides.
-fn push_git(repo: &std::path::Path, person: &[(&str, &str)]) -> PushGit {
+fn push_git(
+    repo: &std::path::Path,
+    person: &[(&str, &str)],
+) -> PushGit {
     let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
@@ -424,22 +606,40 @@ fn push_git(repo: &std::path::Path, person: &[(&str, &str)]) -> PushGit {
     ]
     .iter()
     .chain(person.iter())
-    .map(|(name, value)| { return (OsString::from(name), OsString::from(value)); })
+    .map(|(name, value)| {
+        return (OsString::from(name), OsString::from(value));
+    })
     .collect();
     environment.extend(scratch_environment());
-    return PushGit { real_git: PathBuf::from(REAL_GIT), cwd: repo.to_path_buf(), environment, lfs: false };
+    return PushGit {
+        real_git: PathBuf::from(REAL_GIT),
+        cwd: repo.to_path_buf(),
+        environment,
+        lfs: false,
+    };
 }
 
 /// A silent HTTP server and a repository that pushes to it,
 /// for a silence of `silence`.
-fn http_stage(name: &str, silence: Duration) -> (PathBuf, PathBuf, PathBuf, SmartHttp) {
+fn http_stage(
+    name: &str,
+    silence: Duration,
+) -> (PathBuf, PathBuf, PathBuf, SmartHttp) {
     let root: PathBuf = fixture(name);
     let projects: PathBuf = root.join("projects");
     std::fs::create_dir(&projects).expect("projects");
     let remote: PathBuf = silent_remote(projects.as_path(), silence);
     let server: SmartHttp = SmartHttp::start(projects.as_path());
     let repo: PathBuf = repository(root.as_path(), "repo");
-    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{}/remote.git", server.port()).as_str()]);
+    git(
+        repo.as_path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            format!("http://127.0.0.1:{}/remote.git", server.port()).as_str(),
+        ],
+    );
     return (root, repo, remote, server);
 }
 
@@ -447,7 +647,10 @@ fn http_stage(name: &str, silence: Duration) -> (PathBuf, PathBuf, PathBuf, Smar
 /// as the service runs it.
 fn run_wrapper_push(git: &PushGit) -> (PushAttempt, Duration) {
     let started: Instant = Instant::now();
-    let arguments: Vec<OsString> = ["push", "origin", "main"].iter().map(OsString::from).collect();
+    let arguments: Vec<OsString> = ["push", "origin", "main"]
+        .iter()
+        .map(OsString::from)
+        .collect();
     let attempt: PushAttempt = run_push(git, arguments.as_slice()).expect("runs");
     return (attempt, started.elapsed());
 }
@@ -459,12 +662,25 @@ fn run_wrapper_push(git: &PushGit) -> (PushAttempt, Duration) {
 #[test]
 fn a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands() {
     let cutoff: Duration = Duration::from_secs(FORMER_LOW_SPEED_SECONDS);
-    let (root, repo, remote, server) = http_stage("slow-server-past-cutoff", cutoff + PAST_THE_CUTOFF);
-    let (attempt, elapsed): (PushAttempt, Duration) = run_wrapper_push(&push_git(repo.as_path(), &[]));
+    let (root, repo, remote, server) =
+        http_stage("slow-server-past-cutoff", cutoff + PAST_THE_CUTOFF);
+    let (attempt, elapsed): (PushAttempt, Duration) =
+        run_wrapper_push(&push_git(repo.as_path(), &[]));
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
-    assert!(elapsed >= cutoff, "the push waited past the cutoff: {elapsed:?}");
-    assert!(attempt.output.contains(WAIT_NOTE_PHRASE), "{}", attempt.output);
-    assert_eq!(git_text(remote.as_path(), &["rev-parse", "main"]), git_text(repo.as_path(), &["rev-parse", "main"]), "the commit arrived");
+    assert!(
+        elapsed >= cutoff,
+        "the push waited past the cutoff: {elapsed:?}"
+    );
+    assert!(
+        attempt.output.contains(WAIT_NOTE_PHRASE),
+        "{}",
+        attempt.output
+    );
+    assert_eq!(
+        git_text(remote.as_path(), &["rev-parse", "main"]),
+        git_text(repo.as_path(), &["rev-parse", "main"]),
+        "the commit arrived"
+    );
     drop(server);
     remove(root.as_path());
 }
@@ -480,12 +696,29 @@ fn a_low_speed_setting_the_person_made_still_ends_a_silent_http_wait() {
     let silence: Duration = person_time * PERSON_SILENCE_FACTOR;
     let (root, repo, _remote, server) = http_stage("slow-server-person-cutoff", silence);
     let seconds: String = PERSON_LOW_SPEED_SECONDS.to_string();
-    let git: PushGit = push_git(repo.as_path(), &[("GIT_HTTP_LOW_SPEED_LIMIT", FORMER_LOW_SPEED_BYTES), ("GIT_HTTP_LOW_SPEED_TIME", seconds.as_str())]);
+    let git: PushGit = push_git(
+        repo.as_path(),
+        &[
+            ("GIT_HTTP_LOW_SPEED_LIMIT", FORMER_LOW_SPEED_BYTES),
+            ("GIT_HTTP_LOW_SPEED_TIME", seconds.as_str()),
+        ],
+    );
     let (attempt, elapsed): (PushAttempt, Duration) = run_wrapper_push(&git);
     assert_ne!(attempt.exit_code, 0, "{}", attempt.output);
-    assert_ne!(attempt.exit_code, STOPPED_EXIT_CODE, "Git ended it, not the wrapper: {}", attempt.output);
-    assert!(attempt.output.to_lowercase().contains("too slow"), "{}", attempt.output);
-    assert!(elapsed < silence, "the person's cutoff ended the wait before the server's check did: {elapsed:?}");
+    assert_ne!(
+        attempt.exit_code, STOPPED_EXIT_CODE,
+        "Git ended it, not the wrapper: {}",
+        attempt.output
+    );
+    assert!(
+        attempt.output.to_lowercase().contains("too slow"),
+        "{}",
+        attempt.output
+    );
+    assert!(
+        elapsed < silence,
+        "the person's cutoff ended the wait before the server's check did: {elapsed:?}"
+    );
     drop(server);
     remove(root.as_path());
 }

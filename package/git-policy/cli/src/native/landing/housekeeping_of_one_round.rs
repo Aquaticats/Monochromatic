@@ -41,7 +41,10 @@
 //! const slice = new HousekeepingOfOneRound(HOUSEKEEPING_OF_ONE_ROUND); for (const item of trashes) { if (slice.spent()) left.push(item); else await empty(item); } if (left.length) await within(LOOK_AGAIN_AFTER_DEFERRING, lookAgain)
 //! ```
 
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// How long one round of the after-commit work may spend starting housekeeping:
 /// thirty seconds.
@@ -93,7 +96,10 @@ pub struct HousekeepingOfOneRound {
 impl HousekeepingOfOneRound {
     /// A slice that begins now and lasts `bound`.
     pub fn starting_now(bound: Duration) -> Self {
-        return Self { began: Instant::now(), bound };
+        return Self {
+            began: Instant::now(),
+            bound,
+        };
     }
 
     /// Whether this round may still start housekeeping work.

@@ -20,7 +20,10 @@
 
 #![cfg(unix)]
 
-use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
+use crate::repo_read_tree::{
+    FlatEntry,
+    MODE_GITLINK,
+};
 
 /// One changed path.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -52,7 +55,10 @@ fn type_of(mode: u32) -> u32 {
 }
 
 /// Whether some entry of the sorted `list` lies below the directory `path/`.
-fn has_entry_below(list: &[FlatEntry], path: &[u8]) -> bool {
+fn has_entry_below(
+    list: &[FlatEntry],
+    path: &[u8],
+) -> bool {
     let mut prefix: Vec<u8> = path.to_vec();
     prefix.push(b'/');
     // A binary search over the sorted list, the same split `partition_point` finds.
@@ -82,7 +88,10 @@ fn has_entry_below(list: &[FlatEntry], path: &[u8]) -> bool {
 /// ```ts
 /// function diffSorted(oldList: FlatEntry[], newList: FlatEntry[]): Change[] | undefined;
 /// ```
-pub fn diff_sorted(old: &[FlatEntry], new: &[FlatEntry]) -> Option<Vec<Change>> {
+pub fn diff_sorted(
+    old: &[FlatEntry],
+    new: &[FlatEntry],
+) -> Option<Vec<Change>> {
     let mut changes: Vec<Change> = Vec::new();
     let (mut left, mut right): (usize, usize) = (0, 0);
     while left < old.len() || right < new.len() {
@@ -97,7 +106,14 @@ pub fn diff_sorted(old: &[FlatEntry], new: &[FlatEntry]) -> Option<Vec<Change>> 
                 if has_entry_below(new, gone.path.as_slice()) {
                     return None;
                 }
-                changes.push(Change { path: gone.path.clone(), old_mode: gone.mode, new_mode: 0, old_id: gone.id.clone(), new_id: Vec::new(), status: b'D' });
+                changes.push(Change {
+                    path: gone.path.clone(),
+                    old_mode: gone.mode,
+                    new_mode: 0,
+                    old_id: gone.id.clone(),
+                    new_id: Vec::new(),
+                    status: b'D',
+                });
                 left += 1;
             }
             std::cmp::Ordering::Greater => {
@@ -105,14 +121,32 @@ pub fn diff_sorted(old: &[FlatEntry], new: &[FlatEntry]) -> Option<Vec<Change>> 
                 if has_entry_below(old, added.path.as_slice()) {
                     return None;
                 }
-                changes.push(Change { path: added.path.clone(), old_mode: 0, new_mode: added.mode, old_id: Vec::new(), new_id: added.id.clone(), status: b'A' });
+                changes.push(Change {
+                    path: added.path.clone(),
+                    old_mode: 0,
+                    new_mode: added.mode,
+                    old_id: Vec::new(),
+                    new_id: added.id.clone(),
+                    status: b'A',
+                });
                 right += 1;
             }
             std::cmp::Ordering::Equal => {
                 let (before, after): (&FlatEntry, &FlatEntry) = (&old[left], &new[right]);
                 if before.mode != after.mode || before.id != after.id {
-                    let status: u8 = if type_of(before.mode) == type_of(after.mode) { b'M' } else { b'T' };
-                    changes.push(Change { path: before.path.clone(), old_mode: before.mode, new_mode: after.mode, old_id: before.id.clone(), new_id: after.id.clone(), status });
+                    let status: u8 = if type_of(before.mode) == type_of(after.mode) {
+                        b'M'
+                    } else {
+                        b'T'
+                    };
+                    changes.push(Change {
+                        path: before.path.clone(),
+                        old_mode: before.mode,
+                        new_mode: after.mode,
+                        old_id: before.id.clone(),
+                        new_id: after.id.clone(),
+                        status,
+                    });
                 }
                 left += 1;
                 right += 1;
@@ -152,7 +186,10 @@ pub struct PathFilter {
 impl PathFilter {
     /// Read the pathspec arguments;
     /// `at_top` says whether the command runs at the top of the worktree.
-    pub fn parse(specs: &[&[u8]], at_top: bool) -> Option<PathFilter> {
+    pub fn parse(
+        specs: &[&[u8]],
+        at_top: bool,
+    ) -> Option<PathFilter> {
         let mut names: Vec<Vec<u8>> = Vec::new();
         let mut everything: bool = false;
         for spec in specs {
@@ -180,16 +217,23 @@ impl PathFilter {
         if everything {
             names.clear();
         }
-        return Some(PathFilter { names });
+        return Some(PathFilter {
+            names,
+        });
     }
 
     /// Whether `path` is named by the filter.
-    pub fn matches(&self, path: &[u8]) -> bool {
+    pub fn matches(
+        &self,
+        path: &[u8],
+    ) -> bool {
         if self.names.is_empty() {
             return true;
         }
         for name in &self.names {
-            if path == name.as_slice() || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/')) {
+            if path == name.as_slice()
+                || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/'))
+            {
                 return true;
             }
         }
@@ -239,7 +283,11 @@ pub fn parse_diff_filter(text: &str) -> Option<Vec<u8>> {
 }
 
 /// Keep the changes the filter and statuses name.
-pub fn select(changes: Vec<Change>, filter: &PathFilter, statuses: Option<&[u8]>) -> Vec<Change> {
+pub fn select(
+    changes: Vec<Change>,
+    filter: &PathFilter,
+    statuses: Option<&[u8]>,
+) -> Vec<Change> {
     let mut selected: Vec<Change> = Vec::new();
     for change in changes {
         if !filter.matches(change.path.as_slice()) {
@@ -258,12 +306,31 @@ pub fn select(changes: Vec<Change>, filter: &PathFilter, statuses: Option<&[u8]>
 
 /// The `-z` raw lines:
 /// `:<old mode> <new mode> <old id> <new id> <status>\0<path>\0`.
-pub fn raw_lines(changes: &[Change], zero_id: &str) -> Vec<u8> {
+pub fn raw_lines(
+    changes: &[Change],
+    zero_id: &str,
+) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for change in changes {
-        let old_id: String = if change.old_id.is_empty() { zero_id.to_string() } else { crate::repo_read_object::to_hex(change.old_id.as_slice()) };
-        let new_id: String = if change.new_id.is_empty() { zero_id.to_string() } else { crate::repo_read_object::to_hex(change.new_id.as_slice()) };
-        out.extend_from_slice(format!(":{:06o} {:06o} {old_id} {new_id} {}", change.old_mode, change.new_mode, char::from(change.status)).as_bytes());
+        let old_id: String = if change.old_id.is_empty() {
+            zero_id.to_string()
+        } else {
+            crate::repo_read_object::to_hex(change.old_id.as_slice())
+        };
+        let new_id: String = if change.new_id.is_empty() {
+            zero_id.to_string()
+        } else {
+            crate::repo_read_object::to_hex(change.new_id.as_slice())
+        };
+        out.extend_from_slice(
+            format!(
+                ":{:06o} {:06o} {old_id} {new_id} {}",
+                change.old_mode,
+                change.new_mode,
+                char::from(change.status)
+            )
+            .as_bytes(),
+        );
         out.push(0);
         out.extend_from_slice(change.path.as_slice());
         out.push(0);

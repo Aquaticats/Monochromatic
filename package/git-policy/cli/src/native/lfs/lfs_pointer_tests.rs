@@ -20,11 +20,23 @@ fn pointer(size: &str) -> String {
 fn pointers_in_every_accepted_spelling_name_their_object() {
     let expected: Verdict = Verdict::Pointer(OID.to_owned());
     assert_eq!(decode_pointer(pointer("12345").as_bytes()), expected);
-    assert_eq!(decode_pointer(pointer("12345").trim_end().as_bytes()), expected);
+    assert_eq!(
+        decode_pointer(pointer("12345").trim_end().as_bytes()),
+        expected
+    );
     assert_eq!(decode_pointer(pointer("+7").as_bytes()), expected);
-    assert_eq!(decode_pointer(pointer("12345").replace('\n', "\r\n").as_bytes()), expected);
-    assert_eq!(decode_pointer(format!("\n\n{}\n\n", pointer("1")).as_bytes()), expected);
-    for version in ["http://git-media.io/v/2", "https://hawser.github.com/spec/v1"] {
+    assert_eq!(
+        decode_pointer(pointer("12345").replace('\n', "\r\n").as_bytes()),
+        expected
+    );
+    assert_eq!(
+        decode_pointer(format!("\n\n{}\n\n", pointer("1")).as_bytes()),
+        expected
+    );
+    for version in [
+        "http://git-media.io/v/2",
+        "https://hawser.github.com/spec/v1",
+    ] {
         let text: String = pointer("5").replace("https://git-lfs.github.com/spec/v1", version);
         assert_eq!(decode_pointer(text.as_bytes()), expected, "{version}");
     }
@@ -35,8 +47,14 @@ fn pointers_in_every_accepted_spelling_name_their_object() {
 #[test]
 fn white_space_around_the_text_is_ignored() {
     let expected: Verdict = Verdict::Pointer(OID.to_owned());
-    assert_eq!(decode_pointer(format!("{}  \n\t\n ", pointer("5")).as_bytes()), expected);
-    assert_eq!(decode_pointer(format!("  \n{}", pointer("5")).as_bytes()), expected);
+    assert_eq!(
+        decode_pointer(format!("{}  \n\t\n ", pointer("5")).as_bytes()),
+        expected
+    );
+    assert_eq!(
+        decode_pointer(format!("  \n{}", pointer("5")).as_bytes()),
+        expected
+    );
     assert_eq!(decode_pointer(pointer("5").trim_end().as_bytes()), expected);
 }
 
@@ -61,18 +79,39 @@ fn text_that_git_lfs_would_not_take_for_a_pointer_uploads_nothing() {
         ("size with letters", pointer("12a")),
         ("size beyond i64", pointer("99999999999999999999")),
         ("wrong version", canonical.replace("spec/v1", "spec/v2")),
-        ("upper-case oid", canonical.replace(OID, OID.to_uppercase().as_str())),
+        (
+            "upper-case oid",
+            canonical.replace(OID, OID.to_uppercase().as_str()),
+        ),
         ("short oid", canonical.replace(OID, &OID[1..])),
         ("other hash", canonical.replace("sha256:", "sha1:")),
-        ("keys out of order", format!("version https://git-lfs.github.com/spec/v1\nsize 9\noid sha256:{OID}\n")),
-        ("missing size", format!("version https://git-lfs.github.com/spec/v1\noid sha256:{OID}\n")),
+        (
+            "keys out of order",
+            format!("version https://git-lfs.github.com/spec/v1\nsize 9\noid sha256:{OID}\n"),
+        ),
+        (
+            "missing size",
+            format!("version https://git-lfs.github.com/spec/v1\noid sha256:{OID}\n"),
+        ),
         ("missing version", format!("oid sha256:{OID}\nsize 9\n")),
         ("extra line", format!("{canonical}other value\n")),
-        ("a line without a space", format!("version https://git-lfs.github.com/spec/v1\nlonely\nsize 9\n")),
-        ("no header word", canonical.replace("git-lfs.github.com", "example.invalid").replace("spec/v1", "v1")),
+        (
+            "a line without a space",
+            format!("version https://git-lfs.github.com/spec/v1\nlonely\nsize 9\n"),
+        ),
+        (
+            "no header word",
+            canonical
+                .replace("git-lfs.github.com", "example.invalid")
+                .replace("spec/v1", "v1"),
+        ),
     ];
     for (name, text) in cases {
-        assert_eq!(decode_pointer(text.as_bytes()), Verdict::NotUploadable, "{name}");
+        assert_eq!(
+            decode_pointer(text.as_bytes()),
+            Verdict::NotUploadable,
+            "{name}"
+        );
     }
 }
 
@@ -83,11 +122,24 @@ fn the_size_cutoff_is_exclusive() {
     let canonical: String = pointer("9");
     // Leading line feeds pad the blob to the size wanted and read as blank lines.
     let padding_for = |total: usize| -> String {
-        return format!("{}{}", "\n".repeat(total - canonical.trim_end().len()), canonical.trim_end());
+        return format!(
+            "{}{}",
+            "\n".repeat(total - canonical.trim_end().len()),
+            canonical.trim_end()
+        );
     };
-    assert_eq!(decode_pointer(padding_for(BLOB_SIZE_CUTOFF - 1).as_bytes()), Verdict::Pointer(OID.to_owned()));
-    assert_eq!(decode_pointer(padding_for(BLOB_SIZE_CUTOFF).as_bytes()), Verdict::NotUploadable);
-    assert_eq!(decode_pointer(&vec![b'a'; BLOB_SIZE_CUTOFF * 4]), Verdict::NotUploadable);
+    assert_eq!(
+        decode_pointer(padding_for(BLOB_SIZE_CUTOFF - 1).as_bytes()),
+        Verdict::Pointer(OID.to_owned())
+    );
+    assert_eq!(
+        decode_pointer(padding_for(BLOB_SIZE_CUTOFF).as_bytes()),
+        Verdict::NotUploadable
+    );
+    assert_eq!(
+        decode_pointer(&vec![b'a'; BLOB_SIZE_CUTOFF * 4]),
+        Verdict::NotUploadable
+    );
 }
 
 /// Extension lines and non-ASCII edges around a text the port cannot judge are declined,
@@ -107,12 +159,18 @@ fn spellings_the_port_cannot_judge_are_declined() {
 /// The real `git-lfs` on the test process's PATH,
 /// or nothing with the line that says the real decoder was not consulted.
 fn real_git_lfs() -> Option<std::path::PathBuf> {
-    return crate::testing::real_git_lfs_the_run_requires::required("the real `git-lfs` pointer decoder");
+    return crate::testing::real_git_lfs_the_run_requires::required(
+        "the real `git-lfs` pointer decoder",
+    );
 }
 
 /// Whether `git-lfs pointer --check` takes the text for a pointer (`DecodePointerFromFile`,
 /// the decoder `git-lfs` uses).
-fn oracle_accepts(program: &std::path::Path, directory: &std::path::Path, text: &[u8]) -> bool {
+fn oracle_accepts(
+    program: &std::path::Path,
+    directory: &std::path::Path,
+    text: &[u8],
+) -> bool {
     let file: std::path::PathBuf = directory.join("blob.txt");
     std::fs::write(&file, text).expect("blob");
     let output = std::process::Command::new(program)
@@ -127,7 +185,10 @@ fn oracle_accepts(program: &std::path::Path, directory: &std::path::Path, text: 
     return match output.status.code() {
         Some(0) => true,
         Some(1) => false,
-        other => panic!("git-lfs pointer --check ended with {other:?}: {}", String::from_utf8_lossy(output.stderr.as_slice())),
+        other => panic!(
+            "git-lfs pointer --check ended with {other:?}: {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        ),
     };
 }
 
@@ -185,10 +246,19 @@ fn the_port_agrees_with_the_real_decoder() {
         let accepted: bool = oracle_accepts(program.as_path(), root.as_path(), text.as_slice());
         let shown: String = String::from_utf8_lossy(text.as_slice()).into_owned();
         match verdict {
-            Verdict::Pointer(_) => assert!(accepted, "named as a pointer but git-lfs rejects it: {shown:?}"),
+            Verdict::Pointer(_) => assert!(
+                accepted,
+                "named as a pointer but git-lfs rejects it: {shown:?}"
+            ),
             Verdict::NotUploadable => {
-                let uploads_nothing: bool = text.is_empty() || shown.lines().any(|line| { return line == "size 0"; });
-                assert!(!accepted || uploads_nothing, "git-lfs accepts it but the port names nothing: {shown:?}");
+                let uploads_nothing: bool = text.is_empty()
+                    || shown.lines().any(|line| {
+                        return line == "size 0";
+                    });
+                assert!(
+                    !accepted || uploads_nothing,
+                    "git-lfs accepts it but the port names nothing: {shown:?}"
+                );
             }
             Verdict::Decline => {}
         }
@@ -210,9 +280,10 @@ fn the_port_agrees_with_the_real_decoder() {
 #[test]
 #[should_panic(expected = "CLI_GIT_REQUIRE_REAL_GIT_LFS")]
 fn the_decoder_comparison_fails_where_the_run_requires_the_program_and_path_finds_none() {
-    let _absent: Option<std::path::PathBuf> = crate::testing::real_git_lfs_the_run_requires::decided(
-        "the real `git-lfs` pointer decoder",
-        None,
-        true,
-    );
+    let _absent: Option<std::path::PathBuf> =
+        crate::testing::real_git_lfs_the_run_requires::decided(
+            "the real `git-lfs` pointer decoder",
+            None,
+            true,
+        );
 }

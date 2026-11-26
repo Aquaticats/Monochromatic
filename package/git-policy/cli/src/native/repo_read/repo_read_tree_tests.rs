@@ -9,7 +9,11 @@ use super::*;
 /// name,
 /// NUL,
 /// raw name.
-fn stored(mode: &str, name: &str, id: u8) -> Vec<u8> {
+fn stored(
+    mode: &str,
+    name: &str,
+    id: u8,
+) -> Vec<u8> {
     let mut bytes: Vec<u8> = format!("{mode} {name}").into_bytes();
     bytes.push(0);
     bytes.extend_from_slice(&[id; 20]);
@@ -32,11 +36,26 @@ fn trees_parse_and_malformed_ones_are_refused() {
     assert_eq!(entries.len(), 2);
     assert!(is_tree_mode(entries[1].mode));
     assert!(!is_tree_mode(entries[0].mode));
-    assert!(parse_tree(&bytes[..bytes.len() - 1], 20).is_none(), "a short name");
-    assert!(parse_tree(stored("0100644", "a", 1).as_slice(), 20).is_none(), "a leading zero");
-    assert!(parse_tree(stored("100644", "a/b", 1).as_slice(), 20).is_none(), "a slash in a name");
-    assert!(parse_tree(stored("10x644", "a", 1).as_slice(), 20).is_none(), "a non-octal mode");
-    assert!(parse_tree(stored("100664", "a", 1).as_slice(), 20).is_none(), "a mode Git canonicalizes to 100644");
+    assert!(
+        parse_tree(&bytes[..bytes.len() - 1], 20).is_none(),
+        "a short name"
+    );
+    assert!(
+        parse_tree(stored("0100644", "a", 1).as_slice(), 20).is_none(),
+        "a leading zero"
+    );
+    assert!(
+        parse_tree(stored("100644", "a/b", 1).as_slice(), 20).is_none(),
+        "a slash in a name"
+    );
+    assert!(
+        parse_tree(stored("10x644", "a", 1).as_slice(), 20).is_none(),
+        "a non-octal mode"
+    );
+    assert!(
+        parse_tree(stored("100664", "a", 1).as_slice(), 20).is_none(),
+        "a mode Git canonicalizes to 100644"
+    );
     assert!(parse_subject_with_nul().is_none(), "a message with a NUL");
 }
 
@@ -47,11 +66,15 @@ fn trees_parse_and_malformed_ones_are_refused() {
 fn commits_parse_and_encodings_are_declined() {
     let tree = "1".repeat(40);
     let parent = "2".repeat(40);
-    let text = format!("tree {tree}\nparent {parent}\nauthor A <a@e> 1 +0000\ncommitter A <a@e> 1 +0000\n\nsubject\n\nbody\n");
+    let text = format!(
+        "tree {tree}\nparent {parent}\nauthor A <a@e> 1 +0000\ncommitter A <a@e> 1 +0000\n\nsubject\n\nbody\n"
+    );
     let fields = parse_commit(text.as_bytes(), ObjectFormat::Sha1).expect("commit");
     assert_eq!(fields.parents.len(), 1);
     assert_eq!(fields.message, b"subject\n\nbody\n".to_vec());
-    let encoded = format!("tree {tree}\nauthor A <a@e> 1 +0000\ncommitter A <a@e> 1 +0000\nencoding latin1\n\nsubject\n");
+    let encoded = format!(
+        "tree {tree}\nauthor A <a@e> 1 +0000\ncommitter A <a@e> 1 +0000\nencoding latin1\n\nsubject\n"
+    );
     assert!(parse_commit(encoded.as_bytes(), ObjectFormat::Sha1).is_none());
     assert!(parse_commit(b"no header", ObjectFormat::Sha1).is_none());
 }
@@ -75,27 +98,53 @@ fn subjects_join_the_first_paragraph() {
 #[test]
 fn a_tree_listed_before_is_not_read_again() {
     use crate::repo_read_object::from_hex;
-    use crate::test_support::{fixture, git, git_output, remove};
+    use crate::test_support::{
+        fixture,
+        git,
+        git_output,
+        remove,
+    };
     let root = fixture("repo-read-tree-shared");
     let repo = root.join("repo");
     std::fs::create_dir(&repo).expect("dir");
-    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(
+        repo.as_path(),
+        &["init", "--quiet", "--initial-branch=main"],
+    );
     for directory in 0..30 {
         std::fs::create_dir_all(repo.join(format!("d{directory}/sub"))).expect("dirs");
-        std::fs::write(repo.join(format!("d{directory}/sub/f.txt")), format!("{directory}\n")).expect("file");
+        std::fs::write(
+            repo.join(format!("d{directory}/sub/f.txt")),
+            format!("{directory}\n"),
+        )
+        .expect("file");
     }
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
     git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
     git(repo.as_path(), &["prune-packed"]);
-    let named = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD^{tree}"]).stdout).expect("UTF-8");
+    let named = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD^{tree}"]).stdout)
+        .expect("UTF-8");
     let tree = from_hex(named.trim().as_bytes(), ObjectFormat::Sha1).expect("name");
-    let first_database = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1).expect("database");
-    let first = flatten_tree_shared(&first_database, tree.as_slice(), ObjectFormat::Sha1).expect("listing");
-    assert!(first_database.decoded_entries() > 0, "the first listing reads the pack");
-    let second_database = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1).expect("database");
-    let second = flatten_tree_shared(&second_database, tree.as_slice(), ObjectFormat::Sha1).expect("listing");
-    assert_eq!(second_database.decoded_entries(), 0, "the second listing decodes nothing");
+    let first_database =
+        ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1)
+            .expect("database");
+    let first =
+        flatten_tree_shared(&first_database, tree.as_slice(), ObjectFormat::Sha1).expect("listing");
+    assert!(
+        first_database.decoded_entries() > 0,
+        "the first listing reads the pack"
+    );
+    let second_database =
+        ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1)
+            .expect("database");
+    let second = flatten_tree_shared(&second_database, tree.as_slice(), ObjectFormat::Sha1)
+        .expect("listing");
+    assert_eq!(
+        second_database.decoded_entries(),
+        0,
+        "the second listing decodes nothing"
+    );
     assert_eq!(first, second);
     remove(root.as_path());
 }

@@ -38,9 +38,16 @@
 //! const repaired = bringUpToDate(git, 'refs/remotes/origin/main', delivered); // true when the reference names the commit
 //! ```
 
-use crate::auto_push::{PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES};
+use crate::auto_push::{
+    PUSH_LOCK_PAUSE,
+    PUSH_LOCK_RETRIES,
+};
 use crate::auto_push_reconcile_basics_and_limits::is_ancestor;
-use crate::auto_push_single_flight::{PushGit, run_query, run_query_awaiting};
+use crate::auto_push_single_flight::{
+    PushGit,
+    run_query,
+    run_query_awaiting,
+};
 use crate::diagnostic_log::warn;
 use std::ffi::OsString;
 
@@ -106,9 +113,15 @@ fn argv(parts: &[&str]) -> Vec<OsString> {
 /// ```ts
 /// const ask = (git, parts) => { try { const out = runQuery(git, argv(parts)); return { code: out.code, stdout: text(out.stdout) } } catch { return undefined } };
 /// ```
-fn ask(git: &PushGit, parts: &[&str]) -> Option<Answer> {
+fn ask(
+    git: &PushGit,
+    parts: &[&str],
+) -> Option<Answer> {
     let output = run_query(git, argv(parts).as_slice()).ok()?;
-    return Some(Answer { code: output.code, stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned() });
+    return Some(Answer {
+        code: output.code,
+        stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+    });
 }
 
 /// The same query as a task of the runtime.
@@ -117,9 +130,15 @@ fn ask(git: &PushGit, parts: &[&str]) -> Option<Answer> {
 /// ```ts
 /// const askAwaiting = async (git, parts) => { try { const out = await runQueryAwaiting(git, argv(parts)); return { code: out.code, stdout: text(out.stdout) } } catch { return undefined } };
 /// ```
-async fn ask_awaiting(git: &PushGit, parts: &[&str]) -> Option<Answer> {
+async fn ask_awaiting(
+    git: &PushGit,
+    parts: &[&str],
+) -> Option<Answer> {
     let output = run_query_awaiting(git, argv(parts).as_slice()).await.ok()?;
-    return Some(Answer { code: output.code, stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned() });
+    return Some(Answer {
+        code: output.code,
+        stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+    });
 }
 
 /// What:
@@ -138,7 +157,10 @@ async fn ask_awaiting(git: &PushGit, parts: &[&str]) -> Option<Answer> {
 /// ```ts
 /// const fullRef = (git, name) => { const answer = ask(git, ['rev-parse', '--symbolic-full-name', '--verify', name]); const full = answer?.text(); return answer?.ok() && full.startsWith('refs/') ? full : undefined; };
 /// ```
-pub fn resolve(git: &PushGit, name: &str) -> Option<String> {
+pub fn resolve(
+    git: &PushGit,
+    name: &str,
+) -> Option<String> {
     return full_ref_from(git, name, ask);
 }
 
@@ -158,10 +180,19 @@ pub fn resolve(git: &PushGit, name: &str) -> Option<String> {
 /// ```ts
 /// for (const candidate of [name, `refs/remotes/${name}`]) { const said = ask(candidate); if (said?.ok() && said.text().startsWith('refs/')) return said.text() } return undefined;
 /// ```
-fn full_ref_from(git: &PushGit, name: &str, query: fn(&PushGit, &[&str]) -> Option<Answer>) -> Option<String> {
+fn full_ref_from(
+    git: &PushGit,
+    name: &str,
+    query: fn(&PushGit, &[&str]) -> Option<Answer>,
+) -> Option<String> {
     let under_remote: String = format!("refs/remotes/{name}");
     for candidate in [name, under_remote.as_str()] {
-        let Some(answer) = query(git, &["rev-parse", "--symbolic-full-name", "--verify", candidate]) else { continue };
+        let Some(answer) = query(
+            git,
+            &["rev-parse", "--symbolic-full-name", "--verify", candidate],
+        ) else {
+            continue;
+        };
         let full: String = answer.text();
         if answer.ok() && full.starts_with("refs/") {
             return Some(full);
@@ -177,10 +208,20 @@ fn full_ref_from(git: &PushGit, name: &str, query: fn(&PushGit, &[&str]) -> Opti
 /// ```ts
 /// const fullRefAwaiting = async (git, name) => { const answer = await askAwaiting(git, ['rev-parse', '--symbolic-full-name', '--verify', name]); const full = answer?.text(); return answer?.ok() && full.startsWith('refs/') ? full : undefined; };
 /// ```
-pub async fn resolve_awaiting(git: &PushGit, name: &str) -> Option<String> {
+pub async fn resolve_awaiting(
+    git: &PushGit,
+    name: &str,
+) -> Option<String> {
     let under_remote: String = format!("refs/remotes/{name}");
     for candidate in [name, under_remote.as_str()] {
-        let Some(answer) = ask_awaiting(git, &["rev-parse", "--symbolic-full-name", "--verify", candidate]).await else { continue };
+        let Some(answer) = ask_awaiting(
+            git,
+            &["rev-parse", "--symbolic-full-name", "--verify", candidate],
+        )
+        .await
+        else {
+            continue;
+        };
         let full: String = answer.text();
         if answer.ok() && full.starts_with("refs/") {
             return Some(full);
@@ -196,7 +237,10 @@ pub async fn resolve_awaiting(git: &PushGit, name: &str) -> Option<String> {
 /// ```ts
 /// const valueOf = (git, full) => { const answer = ask(git, ['rev-parse', '--verify', '--quiet', full + '^{commit}']); return answer?.ok() ? answer.text() : undefined; };
 /// ```
-fn value_of(git: &PushGit, full: &str) -> Option<String> {
+fn value_of(
+    git: &PushGit,
+    full: &str,
+) -> Option<String> {
     let peeled: String = format!("{full}^{{commit}}");
     let answer: Answer = ask(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()])?;
     return match answer.ok() {
@@ -212,9 +256,13 @@ fn value_of(git: &PushGit, full: &str) -> Option<String> {
 /// ```ts
 /// const valueAwaiting = async (git, full) => { const answer = await askAwaiting(git, ['rev-parse', '--verify', '--quiet', full + '^{commit}']); return answer?.ok() ? answer.text() : undefined; };
 /// ```
-async fn value_of_awaiting(git: &PushGit, full: &str) -> Option<String> {
+async fn value_of_awaiting(
+    git: &PushGit,
+    full: &str,
+) -> Option<String> {
     let peeled: String = format!("{full}^{{commit}}");
-    let answer: Answer = ask_awaiting(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()]).await?;
+    let answer: Answer =
+        ask_awaiting(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()]).await?;
     return match answer.ok() {
         true => Some(answer.text()),
         false => None,
@@ -234,7 +282,11 @@ async fn value_of_awaiting(git: &PushGit, full: &str) -> Option<String> {
 /// ```ts
 /// const alreadyThere = (git, full, delivered) => isAncestor(git, delivered, full) === true;
 /// ```
-fn already_there(git: &PushGit, full: &str, delivered: &str) -> bool {
+fn already_there(
+    git: &PushGit,
+    full: &str,
+    delivered: &str,
+) -> bool {
     return matches!(is_ancestor(git, delivered, full), Ok(Some(true)));
 }
 
@@ -252,8 +304,16 @@ fn already_there(git: &PushGit, full: &str, delivered: &str) -> bool {
 /// ```ts
 /// const wrote = ask(git, ['update-ref', '-m', 'update by push', full, delivered, old])?.ok() === true;
 /// ```
-fn write_the_reference(git: &PushGit, full: &str, delivered: &str, old: &str) -> bool {
-    let answer: Option<Answer> = ask(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old]);
+fn write_the_reference(
+    git: &PushGit,
+    full: &str,
+    delivered: &str,
+    old: &str,
+) -> bool {
+    let answer: Option<Answer> = ask(
+        git,
+        &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old],
+    );
     return matches!(answer, Some(said) if said.ok());
 }
 
@@ -264,8 +324,17 @@ fn write_the_reference(git: &PushGit, full: &str, delivered: &str, old: &str) ->
 /// ```ts
 /// const wroteAwaiting = async (git, full, delivered, old) => (await askAwaiting(git, ['update-ref', '-m', 'update by push', full, delivered, old]))?.ok() === true;
 /// ```
-async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str, old: &str) -> bool {
-    let answer: Option<Answer> = ask_awaiting(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old]).await;
+async fn write_the_reference_awaiting(
+    git: &PushGit,
+    full: &str,
+    delivered: &str,
+    old: &str,
+) -> bool {
+    let answer: Option<Answer> = ask_awaiting(
+        git,
+        &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old],
+    )
+    .await;
     return matches!(answer, Some(said) if said.ok());
 }
 
@@ -287,7 +356,11 @@ async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str
 /// for (let attempt = 0; attempt <= RETRIES; attempt += 1) { const old = valueOf(git, full); if (old && write(git, full, delivered, old)) return true; if (attempt < RETRIES) sleep(PAUSE * (attempt + 1)); }
 /// warn(stillBehind(full, delivered)); return false;
 /// ```
-pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
+pub fn bring_up_to_date(
+    git: &PushGit,
+    full: &str,
+    delivered: &str,
+) -> bool {
     if !full.starts_with("refs/") || delivered.is_empty() {
         return false;
     }
@@ -295,7 +368,9 @@ pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
         return true;
     }
     for attempt in 0..=PUSH_LOCK_RETRIES {
-        let Some(old) = value_of(git, full) else { return false };
+        let Some(old) = value_of(git, full) else {
+            return false;
+        };
         if write_the_reference(git, full, delivered, old.as_str()) {
             return true;
         }
@@ -320,12 +395,18 @@ pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
 /// ```ts
 /// await bringUpToDateAwaiting(git, upstream, delivered)
 /// ```
-pub async fn bring_up_to_date_awaiting(git: &PushGit, full: &str, delivered: &str) -> bool {
+pub async fn bring_up_to_date_awaiting(
+    git: &PushGit,
+    full: &str,
+    delivered: &str,
+) -> bool {
     if !full.starts_with("refs/") || delivered.is_empty() {
         return false;
     }
     for attempt in 0..=PUSH_LOCK_RETRIES {
-        let Some(old) = value_of_awaiting(git, full).await else { return false };
+        let Some(old) = value_of_awaiting(git, full).await else {
+            return false;
+        };
         if write_the_reference_awaiting(git, full, delivered, old.as_str()).await {
             return true;
         }
@@ -350,7 +431,10 @@ pub async fn bring_up_to_date_awaiting(git: &PushGit, full: &str, delivered: &st
 /// ```ts
 /// const stillBehind = (full, delivered) => `the push delivered ${delivered}, but Git could not update ${full} ...`;
 /// ```
-pub fn still_behind(full: &str, delivered: &str) -> String {
+pub fn still_behind(
+    full: &str,
+    delivered: &str,
+) -> String {
     return format!(
         "the push delivered {delivered}, but Git could not update the tracking reference {full} while another Git holds its lock, so {full} names an \
          older commit until a push or a fetch writes it"

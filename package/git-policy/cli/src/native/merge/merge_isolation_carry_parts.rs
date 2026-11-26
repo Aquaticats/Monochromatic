@@ -21,7 +21,10 @@
 //! ```
 
 /// Records parsed as JSON.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What:
 ///  The worktree's file at one captured path:
@@ -175,7 +178,10 @@ fn permissions_of(text: &str) -> Option<u32> {
 /// Why:
 ///   Two layers of one path can name the same object,
 ///  and one flat tree names each object once.
-fn holds(found: &[Slot], oid: &str) -> bool {
+fn holds(
+    found: &[Slot],
+    oid: &str,
+) -> bool {
     for slot in found {
         if slot.oid == oid {
             return true;
@@ -212,7 +218,10 @@ pub fn slots(paths: &[CapturedPath]) -> Vec<Slot> {
             if holds(found.as_slice(), oid) {
                 continue;
             }
-            found.push(Slot { name: slot_name(found.len()), oid: String::from(oid) });
+            found.push(Slot {
+                name: slot_name(found.len()),
+                oid: String::from(oid),
+            });
         }
     }
     return found;
@@ -230,7 +239,10 @@ fn file_json(file: &CapturedFile) -> Value {
     map.insert(String::from("raw"), Value::String(file.raw.clone()));
     map.insert(String::from("blob"), Value::String(file.blob.clone()));
     if let Some(permissions) = file.permissions {
-        map.insert(String::from("permissions"), Value::String(permissions.to_string()));
+        map.insert(
+            String::from("permissions"),
+            Value::String(permissions.to_string()),
+        );
     }
     return Value::Object(map);
 }
@@ -262,15 +274,26 @@ fn index_json(staged: &CapturedIndex) -> Value {
 /// ```
 pub fn encode(capture: &Capture) -> String {
     let mut map: Map<String, Value> = Map::new();
-    map.insert(String::from("commit"), Value::String(capture.commit.clone()));
+    map.insert(
+        String::from("commit"),
+        Value::String(capture.commit.clone()),
+    );
     if let Some(reference) = &capture.reference {
         map.insert(String::from("reference"), Value::String(reference.clone()));
     }
     let mut paths: Vec<Value> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let mut path: Map<String, Value> = Map::new();
-        path.insert(String::from("path"), Value::String(String::from_utf8_lossy(entry.path.as_slice()).into_owned()));
-        path.insert(String::from("pathHex"), Value::String(crate::path_bytes_in_records::hex_of_bytes(entry.path.as_slice())));
+        path.insert(
+            String::from("path"),
+            Value::String(String::from_utf8_lossy(entry.path.as_slice()).into_owned()),
+        );
+        path.insert(
+            String::from("pathHex"),
+            Value::String(crate::path_bytes_in_records::hex_of_bytes(
+                entry.path.as_slice(),
+            )),
+        );
         if let Some(file) = &entry.worktree {
             path.insert(String::from("worktree"), file_json(file));
         }
@@ -285,7 +308,10 @@ pub fn encode(capture: &Capture) -> String {
 
 /// The text of a JSON object's field,
 /// when it is a non-empty string.
-fn field<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
+fn field<'a>(
+    map: &'a Map<String, Value>,
+    key: &str,
+) -> Option<&'a str> {
     let text: &'a str = map.get(key)?.as_str()?;
     if text.is_empty() {
         return None;
@@ -294,7 +320,10 @@ fn field<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
 }
 
 /// The object of one nested field.
-fn object<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a Map<String, Value>> {
+fn object<'a>(
+    map: &'a Map<String, Value>,
+    key: &str,
+) -> Option<&'a Map<String, Value>> {
     return map.get(key)?.as_object();
 }
 
@@ -316,7 +345,8 @@ pub fn decode(value: &Value) -> Option<Capture> {
     let mut paths: Vec<CapturedPath> = Vec::new();
     for item in map.get("paths")?.as_array()? {
         let entry: &Map<String, Value> = item.as_object()?;
-        let decoded: std::path::PathBuf = crate::path_bytes_in_records::path_of_hex(field(entry, "pathHex")?)?;
+        let decoded: std::path::PathBuf =
+            crate::path_bytes_in_records::path_of_hex(field(entry, "pathHex")?)?;
         let path: Vec<u8> = crate::path_bytes::path_bytes_of(decoded.as_path()).to_vec();
         let worktree: Option<CapturedFile> = match object(entry, "worktree") {
             Some(file) => Some(CapturedFile {
@@ -328,11 +358,18 @@ pub fn decode(value: &Value) -> Option<Capture> {
             None => None,
         };
         let index: Option<CapturedIndex> = match object(entry, "index") {
-            Some(staged) => Some(CapturedIndex { mode: String::from(field(staged, "mode")?), oid: String::from(field(staged, "oid")?) }),
+            Some(staged) => Some(CapturedIndex {
+                mode: String::from(field(staged, "mode")?),
+                oid: String::from(field(staged, "oid")?),
+            }),
             None => None,
         };
         // A path with neither layer is the person's deletion of it, which the merge must not put back.
-        paths.push(CapturedPath { path, worktree, index });
+        paths.push(CapturedPath {
+            path,
+            worktree,
+            index,
+        });
     }
     return Some(Capture {
         commit: String::from(commit),

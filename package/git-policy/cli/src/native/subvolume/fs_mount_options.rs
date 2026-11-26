@@ -31,7 +31,10 @@
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the kernel lists the mounts of this process's mount namespace.
 pub const MOUNTINFO_PATH: &str = "/proc/self/mountinfo";
@@ -95,8 +98,12 @@ impl MountFacts {
     /// ```ts
     /// const hasOption = (m: MountFacts, name: string) => m.mountOptions.includes(name) || m.superOptions.includes(name);
     /// ```
-    pub fn has_option(&self, name: &str) -> bool {
-        return list_has(self.mount_options.as_slice(), name) || list_has(self.super_options.as_slice(), name);
+    pub fn has_option(
+        &self,
+        name: &str,
+    ) -> bool {
+        return list_has(self.mount_options.as_slice(), name)
+            || list_has(self.super_options.as_slice(), name);
     }
 
     /// What:
@@ -111,13 +118,23 @@ impl MountFacts {
     /// ```ts
     /// const shared = mount.optionalFields.find((field) => field.startsWith('shared:'));
     /// ```
-    pub fn optional_field(&self, prefix: &str) -> Option<&str> {
-        return self.optional_fields.iter().find(|field| return field.starts_with(prefix)).map(|field| return field.as_str());
+    pub fn optional_field(
+        &self,
+        prefix: &str,
+    ) -> Option<&str> {
+        return self
+            .optional_fields
+            .iter()
+            .find(|field| return field.starts_with(prefix))
+            .map(|field| return field.as_str());
     }
 }
 
 /// Whether one of the option texts is exactly `name`.
-fn list_has(options: &[String], name: &str) -> bool {
+fn list_has(
+    options: &[String],
+    name: &str,
+) -> bool {
     for option in options {
         if option == name {
             return true;
@@ -199,10 +216,14 @@ fn parse_line(line: &[u8]) -> Option<MountFacts> {
         mount_id: String::from_utf8_lossy(fields[0]).parse::<u64>().ok()?,
         parent_id: String::from_utf8_lossy(fields[1]).parse::<u64>().ok()?,
         root: PathBuf::from(OsStr::from_bytes(unmangle_octal(fields[3]).as_slice())),
-        optional_fields: fields[6..separator].iter().map(|field| return String::from_utf8_lossy(field).into_owned()).collect(),
+        optional_fields: fields[6..separator]
+            .iter()
+            .map(|field| return String::from_utf8_lossy(field).into_owned())
+            .collect(),
         mount_point: PathBuf::from(OsStr::from_bytes(unmangle_octal(fields[4]).as_slice())),
         filesystem_type: String::from_utf8_lossy(fields[separator + 1]).into_owned(),
-        source: String::from_utf8_lossy(unmangle_octal(fields[separator + 2]).as_slice()).into_owned(),
+        source: String::from_utf8_lossy(unmangle_octal(fields[separator + 2]).as_slice())
+            .into_owned(),
         mount_options: split_options(fields[5]),
         super_options: split_options(fields[separator + 3]),
     });
@@ -220,10 +241,7 @@ fn parse_line(line: &[u8]) -> Option<MountFacts> {
 /// const parseMountTable = (text: Uint8Array): MountFacts[] => lines(text).map(parseLine).filter(Boolean);
 /// ```
 pub fn parse_mount_table(text: &[u8]) -> Vec<MountFacts> {
-    return text
-        .split(is_newline)
-        .filter_map(parse_line)
-        .collect();
+    return text.split(is_newline).filter_map(parse_line).collect();
 }
 
 /// What:
@@ -240,14 +258,19 @@ pub fn parse_mount_table(text: &[u8]) -> Vec<MountFacts> {
 /// ```ts
 /// const longest = (table: MountFacts[], path: string) => table.filter(m => isAncestor(m.mountPoint, path)).sort(byLength).at(-1);
 /// ```
-fn longest_mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option<&'table MountFacts> {
+fn longest_mount_holding<'table>(
+    table: &'table [MountFacts],
+    path: &Path,
+) -> Option<&'table MountFacts> {
     let mut best: Option<&MountFacts> = None;
     for candidate in table {
         if !path.starts_with(candidate.mount_point.as_path()) {
             continue;
         }
         let longer_or_equal: bool = match best {
-            Some(current) => candidate.mount_point.as_os_str().len() >= current.mount_point.as_os_str().len(),
+            Some(current) => {
+                candidate.mount_point.as_os_str().len() >= current.mount_point.as_os_str().len()
+            }
             None => true,
         };
         if longer_or_equal {
@@ -279,7 +302,10 @@ fn longest_mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Op
 /// ```ts
 /// const mountOf = (table: MountFacts[], path: string) => walkFromRoot(table, path) ?? longestMount(table, path);
 /// ```
-pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option<&'table MountFacts> {
+pub fn mount_holding<'table>(
+    table: &'table [MountFacts],
+    path: &Path,
+) -> Option<&'table MountFacts> {
     let mut known: std::collections::HashSet<u64> = std::collections::HashSet::new();
     for mount in table {
         known.insert(mount.mount_id);
@@ -295,7 +321,11 @@ pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option
                 Some(held) => held.mount_point != prefix,
                 None => false,
             };
-            let unlinked: Option<&MountFacts> = if linked.is_none() && placed_elsewhere { topmost_unplaced(table, prefix, &known) } else { None };
+            let unlinked: Option<&MountFacts> = if linked.is_none() && placed_elsewhere {
+                topmost_unplaced(table, prefix, &known)
+            } else {
+                None
+            };
             match linked.or(unlinked) {
                 Some(found) if is_new_mount(current, found) => current = Some(found),
                 _ => break,
@@ -313,7 +343,12 @@ pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option
 /// with none reached,
 /// whose
 /// parent is not in the table (`known` holds every id).
-fn topmost_linked<'table>(table: &'table [MountFacts], prefix: &Path, current: Option<&MountFacts>, known: &std::collections::HashSet<u64>) -> Option<&'table MountFacts> {
+fn topmost_linked<'table>(
+    table: &'table [MountFacts],
+    prefix: &Path,
+    current: Option<&MountFacts>,
+    known: &std::collections::HashSet<u64>,
+) -> Option<&'table MountFacts> {
     for mount in table.iter().rev() {
         if mount.mount_point != prefix {
             continue;
@@ -330,7 +365,11 @@ fn topmost_linked<'table>(table: &'table [MountFacts], prefix: &Path, current: O
 }
 
 /// The last mount of the table made at `prefix` whose parent id is not in the table.
-fn topmost_unplaced<'table>(table: &'table [MountFacts], prefix: &Path, known: &std::collections::HashSet<u64>) -> Option<&'table MountFacts> {
+fn topmost_unplaced<'table>(
+    table: &'table [MountFacts],
+    prefix: &Path,
+    known: &std::collections::HashSet<u64>,
+) -> Option<&'table MountFacts> {
     for mount in table.iter().rev() {
         if mount.mount_point == prefix && !known.contains(&mount.parent_id) {
             return Some(mount);
@@ -341,7 +380,10 @@ fn topmost_unplaced<'table>(table: &'table [MountFacts], prefix: &Path, known: &
 
 /// Whether `found` is a different mount from the one reached so far,
 /// so the walk moved on.
-fn is_new_mount(current: Option<&MountFacts>, found: &MountFacts) -> bool {
+fn is_new_mount(
+    current: Option<&MountFacts>,
+    found: &MountFacts,
+) -> bool {
     return match current {
         Some(held) => !std::ptr::eq(held, found),
         None => true,
@@ -368,7 +410,10 @@ pub fn read_mount_facts(path: &Path) -> Result<Option<MountFacts>, String> {
     };
     // The table's length is the system's state: another process's namespace can hold tens of thousands of mounts, and a
     //  table past the bound is refused rather than read whole (`crate::plain_file::MOUNT_TABLE_LIMIT`).
-    let text: Vec<u8> = match crate::plain_file::read_plain_file(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT) {
+    let text: Vec<u8> = match crate::plain_file::read_plain_file(
+        Path::new(MOUNTINFO_PATH),
+        crate::plain_file::MOUNT_TABLE_LIMIT,
+    ) {
         Ok(bytes) => bytes,
         Err(error) => return Err(format!("cannot read {MOUNTINFO_PATH}: {error}")),
     };

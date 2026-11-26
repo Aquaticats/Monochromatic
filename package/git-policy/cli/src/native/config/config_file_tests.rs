@@ -13,12 +13,22 @@
 
 /// Import the loader under test and the settings it produces.
 use super::{
-    CONFIG_FILE_NAME, LoadedConfig, MAX_CONFIG_BYTES, ignored_legacy_notice, load_repository_config,
+    CONFIG_FILE_NAME,
+    LoadedConfig,
+    MAX_CONFIG_BYTES,
+    ignored_legacy_notice,
+    load_repository_config,
 };
 use crate::config_schema::CliGitConfig;
-use crate::policy_registry::{PolicyId, Severity};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Create one empty fixture directory owned by this test process and test name.
 fn fixture(name: &str) -> PathBuf {
@@ -50,7 +60,7 @@ fn absent_and_empty_configuration_load_the_same_defaults() {
             config: CliGitConfig::defaults(),
             source: None,
             ignored_legacy: Vec::<PathBuf>::new(),
-        earlier_name_notice: None,
+            earlier_name_notice: None,
         })
     );
     assert_eq!(
@@ -306,7 +316,9 @@ fn unreadable_file_is_an_error() {
 #[cfg(unix)]
 #[test]
 fn non_utf8_repository_root_is_supported() {
-    if !in_a_fixture_root_taking_any_name("config::config_file::tests::non_utf8_repository_root_is_supported") {
+    if !in_a_fixture_root_taking_any_name(
+        "config::config_file::tests::non_utf8_repository_root_is_supported",
+    ) {
         return;
     }
     use std::os::unix::ffi::OsStringExt;

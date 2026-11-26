@@ -32,10 +32,8 @@ const POLL: std::time::Duration = std::time::Duration::from_millis(20);
 ///  the wrapper writes that when it keeps the text a person typed,
 ///  nothing removes it,
 ///  and the command's own message names the file it is in.
-const REMOVED_BY_THE_WRAPPER: [&str; 2] = [
-    "monochromatic-git-policy-cli-service-",
-    "cli-git-service-",
-];
+const REMOVED_BY_THE_WRAPPER: [&str; 2] =
+    ["monochromatic-git-policy-cli-service-", "cli-git-service-"];
 
 /// What:
 ///  Everything the wrapper would have removed and did not,
@@ -66,13 +64,18 @@ fn names_left_now(repo: &std::path::Path) -> Vec<String> {
     let mut left: Vec<String> = Vec::new();
     let places: [std::path::PathBuf; 2] = [
         repo.join(".git"),
-        repo.join(".git").join("monochromatic-git-policy-cli-scratch"),
+        repo.join(".git")
+            .join("monochromatic-git-policy-cli-scratch"),
     ];
     for place in places {
-        let Ok(entries) = std::fs::read_dir(&place) else { continue };
+        let Ok(entries) = std::fs::read_dir(&place) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let name: String = entry.file_name().to_string_lossy().into_owned();
-            if REMOVED_BY_THE_WRAPPER.iter().any(|prefix| { return name.starts_with(prefix); }) {
+            if REMOVED_BY_THE_WRAPPER.iter().any(|prefix| {
+                return name.starts_with(prefix);
+            }) {
                 left.push(format!("{}/{}", place.display(), name));
             }
         }

@@ -9,8 +9,14 @@
 
 use super::*;
 use crate::test_support::remove;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The instance of the controls.
 const INSTANCE: &str = "0000000000000000000000000000000c";
@@ -31,7 +37,10 @@ const CHECK: Duration = Duration::from_millis(20);
 
 /// A stop that names no manager and writes who it was asked about instead,
 /// so a control reads it from the journal it shares with the service.
-fn record_the_stop(instance: &str, journal: &Path) -> bool {
+fn record_the_stop(
+    instance: &str,
+    journal: &Path,
+) -> bool {
     std::fs::write(journal.join(STOPPED_FILE), instance).expect("the control's stop is recorded");
     return true;
 }
@@ -50,14 +59,21 @@ struct World {
 fn world(name: &str) -> World {
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"));
     // The socket's path must fit the kernel's 108 bytes, which the fixture tree's depth does not allow.
-    let root: PathBuf = home.join("temp/agent").join(format!("ow-{}-{name}", std::process::id()));
+    let root: PathBuf = home
+        .join("temp/agent")
+        .join(format!("ow-{}-{name}", std::process::id()));
     let _stale = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("short directory");
     let git_dir: PathBuf = root.join("checkout/.git");
     std::fs::create_dir_all(&git_dir).expect("the worktree's Git directory");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(&journal).expect("journal");
-    return World { socket: root.join("s"), root, git_dir, journal };
+    return World {
+        socket: root.join("s"),
+        root,
+        git_dir,
+        journal,
+    };
 }
 
 impl World {
@@ -81,7 +97,9 @@ impl World {
             lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
         };
         let settings: ServeSettings = self.settings();
-        return std::thread::spawn(move || { serve(listener, &context, &settings); });
+        return std::thread::spawn(move || {
+            serve(listener, &context, &settings);
+        });
     }
 
     /// The instance the control's stop was asked about,
@@ -108,15 +126,27 @@ fn ended_within(thread: std::thread::JoinHandle<()>) -> bool {
 /// the service asks for its own socket to be stopped and ends,
 /// rather than listen on for a directory that is gone.
 #[test]
-fn a_service_whose_worktree_is_deleted_while_it_serves_ends_and_asks_for_its_socket_to_be_stopped() {
+fn a_service_whose_worktree_is_deleted_while_it_serves_ends_and_asks_for_its_socket_to_be_stopped()
+{
     let world: World = world("gone");
     let thread: std::thread::JoinHandle<()> = world.serve();
     // Long enough for several checks with the worktree still there: nothing may be stopped for it.
     std::thread::sleep(CHECK * 5);
-    assert_eq!(world.stopped(), None, "a worktree that is there is not stopped");
+    assert_eq!(
+        world.stopped(),
+        None,
+        "a worktree that is there is not stopped"
+    );
     std::fs::remove_dir_all(world.git_dir.as_path()).expect("the worktree's Git directory is gone");
-    assert!(ended_within(thread), "the service kept serving a worktree that is gone");
-    assert_eq!(world.stopped().as_deref(), Some(INSTANCE), "the service asks for its own socket to be stopped");
+    assert!(
+        ended_within(thread),
+        "the service kept serving a worktree that is gone"
+    );
+    assert_eq!(
+        world.stopped().as_deref(),
+        Some(INSTANCE),
+        "the service asks for its own socket to be stopped"
+    );
     remove(world.root.as_path());
 }
 
@@ -154,7 +184,14 @@ fn a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted() {
         },
         attempt: 149,
     };
-    crate::push_retry_store::save(world.journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &plan).expect("the plan is kept");
+    crate::push_retry_store::save(
+        world
+            .journal
+            .join(crate::push_retry::PLAN_DIRECTORY)
+            .as_path(),
+        &plan,
+    )
+    .expect("the plan is kept");
     std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
     let mut settings: ServeSettings = world.settings();
     settings.own_git_dir = Some(git_dir);
@@ -165,9 +202,18 @@ fn a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted() {
         on_objects_written: None,
         lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
     };
-    let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || { serve(listener, &context, &settings); });
-    assert!(ended_within(thread), "a planned push for a repository that is gone kept the service alive after its check");
-    assert_eq!(world.stopped().as_deref(), Some(INSTANCE), "the service asks for its own socket to be stopped");
+    let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        serve(listener, &context, &settings);
+    });
+    assert!(
+        ended_within(thread),
+        "a planned push for a repository that is gone kept the service alive after its check"
+    );
+    assert_eq!(
+        world.stopped().as_deref(),
+        Some(INSTANCE),
+        "the service asks for its own socket to be stopped"
+    );
     remove(world.root.as_path());
 }
 
@@ -178,7 +224,10 @@ fn a_service_whose_worktree_is_there_keeps_serving() {
     let world: World = world("present");
     let thread: std::thread::JoinHandle<()> = world.serve();
     std::thread::sleep(CHECK * 10);
-    assert!(!thread.is_finished(), "a worktree that is there keeps its service");
+    assert!(
+        !thread.is_finished(),
+        "a worktree that is there keeps its service"
+    );
     assert_eq!(world.stopped(), None);
     remove(world.root.as_path());
 }
@@ -201,9 +250,14 @@ fn a_service_whose_worktree_is_on_a_device_that_is_not_mounted_keeps_serving() {
         on_objects_written: None,
         lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
     };
-    let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || { serve(listener, &context, &settings); });
+    let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        serve(listener, &context, &settings);
+    });
     std::thread::sleep(CHECK * 10);
-    assert!(!thread.is_finished(), "a worktree on a device that is not mounted is not gone");
+    assert!(
+        !thread.is_finished(),
+        "a worktree on a device that is not mounted is not gone"
+    );
     assert_eq!(world.stopped(), None);
     remove(world.root.as_path());
 }

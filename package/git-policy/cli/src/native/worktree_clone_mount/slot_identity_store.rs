@@ -26,12 +26,18 @@
 //! ```
 
 use super::slot_identity_store_control::check_under_root_control;
-use super::slot_identity_store_reading::{listed_slot_names, read_record};
-use crate::entries_of_one_open_folder::open_folder;
-use super::slot_identity_store_records::{PARENT_RECORD_NAME, StoredIdentity};
+use super::slot_identity_store_reading::{
+    listed_slot_names,
+    read_record,
+};
+use super::slot_identity_store_records::{
+    PARENT_RECORD_NAME,
+    StoredIdentity,
+};
 use super::slot_identity_store_refusals::StoreRefusal;
 use super::slot_name::slot_name_refusal;
 use crate::diagnostic_log::debug;
+use crate::entries_of_one_open_folder::open_folder;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -41,7 +47,8 @@ const TAG: &str = "slotIdentityStore";
 /// Where the route keeps the identities it recorded,
 /// under root control:
 /// a folder holding one record file per slot and `.parent` for the parent folder.
-pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities";
+pub const SLOT_IDENTITY_STORE_PATH: &str =
+    "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities";
 
 #[cfg(test)]
 thread_local! {
@@ -98,13 +105,28 @@ impl SlotIdentityStore {
     /// and `Unreadable` when the name holds a link or another non-folder.
     pub fn open(path: &Path) -> Result<SlotIdentityStore, StoreRefusal> {
         #[cfg(test)]
-        BEFORE_THE_STORE_OPENS.with(|hook| { if let Some(before) = hook.borrow().as_ref() { before(); } });
-        let folder: std::fs::File = open_folder(path).map_err(|error| return match error.kind() {
-            std::io::ErrorKind::NotFound => StoreRefusal::Missing { path: path.to_path_buf() },
-            _ => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
+        BEFORE_THE_STORE_OPENS.with(|hook| {
+            if let Some(before) = hook.borrow().as_ref() {
+                before();
+            }
+        });
+        let folder: std::fs::File = open_folder(path).map_err(|error| {
+            return match error.kind() {
+                std::io::ErrorKind::NotFound => StoreRefusal::Missing {
+                    path: path.to_path_buf(),
+                },
+                _ => StoreRefusal::Unreadable {
+                    path: path.to_path_buf(),
+                    reason: error.to_string(),
+                },
+            };
         })?;
         debug(TAG, "opened the recorded slot identities folder");
-        return Ok(SlotIdentityStore { folder, path: path.to_path_buf(), under_root_control: false });
+        return Ok(SlotIdentityStore {
+            folder,
+            path: path.to_path_buf(),
+            under_root_control: false,
+        });
     }
 
     /// What:
@@ -128,7 +150,11 @@ impl SlotIdentityStore {
     pub fn open_under_root_control(path: &Path) -> Result<SlotIdentityStore, StoreRefusal> {
         let store: SlotIdentityStore = SlotIdentityStore::open(path)?;
         check_under_root_control(path, "the store folder", &store.folder)?;
-        return Ok(SlotIdentityStore { folder: store.folder, path: store.path, under_root_control: true });
+        return Ok(SlotIdentityStore {
+            folder: store.folder,
+            path: store.path,
+            under_root_control: true,
+        });
     }
 
     /// The store folder's path,
@@ -158,11 +184,19 @@ impl SlotIdentityStore {
     /// # Errors
     /// Everything the record's read refuses,
     /// and `NoParentRecord` when nothing is filed under `.parent`.
-    pub fn parent(&self) -> Result<super::clone_folder_identity::CloneFolderIdentity, StoreRefusal> {
+    pub fn parent(
+        &self
+    ) -> Result<super::clone_folder_identity::CloneFolderIdentity, StoreRefusal> {
         return match self.read(PARENT_RECORD_NAME)? {
             Some(StoredIdentity::Parent(identity)) => Ok(identity),
-            Some(other) => Err(StoreRefusal::RecordUnderAnotherName { path: self.path.join(PARENT_RECORD_NAME), filed_under: String::from(PARENT_RECORD_NAME), recorded: other.key().to_string() }),
-            None => Err(StoreRefusal::NoParentRecord { path: self.path.clone() }),
+            Some(other) => Err(StoreRefusal::RecordUnderAnotherName {
+                path: self.path.join(PARENT_RECORD_NAME),
+                filed_under: String::from(PARENT_RECORD_NAME),
+                recorded: other.key().to_string(),
+            }),
+            None => Err(StoreRefusal::NoParentRecord {
+                path: self.path.clone(),
+            }),
         };
     }
 
@@ -182,21 +216,45 @@ impl SlotIdentityStore {
     /// Everything the record's read refuses,
     /// a name that is no plain slot name,
     /// and `NoSlotRecord` when nothing is filed under it.
-    pub fn slot(&self, name: &str) -> Result<super::clone_folder_identity::CloneFolderIdentity, StoreRefusal> {
+    pub fn slot(
+        &self,
+        name: &str,
+    ) -> Result<super::clone_folder_identity::CloneFolderIdentity, StoreRefusal> {
         if let Some(reason) = slot_name_refusal(name) {
-            return Err(StoreRefusal::SlotName { slot: name.to_string(), reason });
+            return Err(StoreRefusal::SlotName {
+                slot: name.to_string(),
+                reason,
+            });
         }
         return match self.read(name)? {
-            Some(StoredIdentity::Slot { identity, .. }) => Ok(identity),
-            Some(other) => Err(StoreRefusal::RecordUnderAnotherName { path: self.path.join(name), filed_under: name.to_string(), recorded: other.key().to_string() }),
-            None => Err(StoreRefusal::NoSlotRecord { path: self.path.clone(), slot: name.to_string() }),
+            Some(StoredIdentity::Slot {
+                identity,
+                ..
+            }) => Ok(identity),
+            Some(other) => Err(StoreRefusal::RecordUnderAnotherName {
+                path: self.path.join(name),
+                filed_under: name.to_string(),
+                recorded: other.key().to_string(),
+            }),
+            None => Err(StoreRefusal::NoSlotRecord {
+                path: self.path.clone(),
+                slot: name.to_string(),
+            }),
         };
     }
 
     /// The record filed under `name`,
     /// or nothing when the folder holds no such file.
-    fn read(&self, name: &str) -> Result<Option<StoredIdentity>, StoreRefusal> {
-        return read_record(&self.folder, self.path.as_path(), name, self.under_root_control);
+    fn read(
+        &self,
+        name: &str,
+    ) -> Result<Option<StoredIdentity>, StoreRefusal> {
+        return read_record(
+            &self.folder,
+            self.path.as_path(),
+            name,
+            self.under_root_control,
+        );
     }
 
     /// What:
@@ -238,7 +296,10 @@ impl SlotIdentityStore {
     /// # Errors
     /// Everything the listing or a removal refuses.
     pub(crate) fn list_and_remove_staging_entries(&self) -> Result<Vec<String>, StoreRefusal> {
-        return super::slot_identity_store_reading::listed_slot_names_removing_staging_entries(&self.folder, self.path.as_path());
+        return super::slot_identity_store_reading::listed_slot_names_removing_staging_entries(
+            &self.folder,
+            self.path.as_path(),
+        );
     }
 
     /// What:
@@ -262,7 +323,10 @@ impl SlotIdentityStore {
     /// # Errors
     /// Everything the listing or a removal refuses.
     pub fn remove_staging_entries(&self) -> Result<Vec<String>, StoreRefusal> {
-        return super::slot_identity_store_reading::remove_known_staging_entries(&self.folder, self.path.as_path());
+        return super::slot_identity_store_reading::remove_known_staging_entries(
+            &self.folder,
+            self.path.as_path(),
+        );
     }
 }
 

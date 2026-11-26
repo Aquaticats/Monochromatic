@@ -8,28 +8,60 @@
 //! lets the intent go.
 
 use super::head_tests::blind_context;
-use super::tests::{World, land_with_failed_index, request, world};
+use super::tests::{
+    World,
+    land_with_failed_index,
+    request,
+    world,
+};
 use super::*;
 use crate::service_instance::instance_of;
-use crate::service_journal::{OPEN_EXTENSION, batch_path, parse_intent, write_intent};
-use crate::test_support::{git, git_text, remove};
+use crate::service_journal::{
+    OPEN_EXTENSION,
+    batch_path,
+    parse_intent,
+    write_intent,
+};
+use crate::test_support::{
+    git,
+    git_text,
+    remove,
+};
 
 /// The context of the world's journal with a Git that fails every question with status 128.
 fn blind_land_context(world: &World) -> LandContext {
-    return LandContext { git: blind_context(world.root.as_path()), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: world.context.lock_ceiling };
+    return LandContext {
+        git: blind_context(world.root.as_path()),
+        journal: world.context.journal.clone(),
+        on_objects_written: None,
+        lock_ceiling: world.context.lock_ceiling,
+    };
 }
 
 /// The intent of batch `seq`,
 /// as the journal holds it.
-fn open_intent(world: &World, seq: u64) -> Intent {
-    let text: String = std::fs::read_to_string(batch_path(world.context.journal.as_path(), seq, OPEN_EXTENSION)).expect("the open intent");
+fn open_intent(
+    world: &World,
+    seq: u64,
+) -> Intent {
+    let text: String = std::fs::read_to_string(batch_path(
+        world.context.journal.as_path(),
+        seq,
+        OPEN_EXTENSION,
+    ))
+    .expect("the open intent");
     return parse_intent(text.as_str()).expect("a readable intent");
 }
 
 /// The decisions a recovery made,
 /// by batch.
 fn decisions(reports: &[RecoveryReport]) -> Vec<(u64, Recovery)> {
-    return reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    return reports
+        .iter()
+        .map(|report| {
+            return (report.seq, report.decision);
+        })
+        .collect();
 }
 
 /// A batch that landed stays open when the Git question about its branch fails,
@@ -44,12 +76,26 @@ fn a_git_that_fails_does_not_make_a_landed_batch_look_unmoved() {
         land_with_failed_index(&world, 1, &[landed]);
         let blind: LandContext = blind_land_context(&world);
         let instance: String = instance_of(world.repo.join(".git").as_path());
-        let reports: Vec<RecoveryReport> = if name == "all" { recover(&blind) } else { recover_instance(&blind, instance.as_str()) };
-        assert!(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "{name}: the intent of a landed batch is not dropped on a Git failure");
-        assert!(reports.is_empty(), "{name}: no decision is made without an answer: {reports:?}");
+        let reports: Vec<RecoveryReport> = if name == "all" {
+            recover(&blind)
+        } else {
+            recover_instance(&blind, instance.as_str())
+        };
+        assert!(
+            batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+            "{name}: the intent of a landed batch is not dropped on a Git failure"
+        );
+        assert!(
+            reports.is_empty(),
+            "{name}: no decision is made without an answer: {reports:?}"
+        );
         let later: Vec<RecoveryReport> = recover(&world.context);
         assert_eq!(decisions(&later), vec![(1, Recovery::Finish)], "{name}");
-        assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "{name}: the index shows the landing");
+        assert_eq!(
+            git_text(world.repo.as_path(), &["status", "--short"]),
+            "",
+            "{name}: the index shows the landing"
+        );
         remove(world.root.as_path());
     }
 }
@@ -66,9 +112,15 @@ fn a_reference_git_warns_about_is_not_a_missing_reference() {
     let reference_file: PathBuf = world.repo.join(".git/refs/heads/main");
     std::fs::write(&reference_file, "not a commit name\n").expect("break the reference");
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert!(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent stays: {reports:?}");
+    assert!(
+        batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(),
+        "the intent stays: {reports:?}"
+    );
     std::fs::write(&reference_file, format!("{new}\n")).expect("restore the reference");
-    assert_eq!(decisions(&recover(&world.context)), vec![(1, Recovery::Finish)]);
+    assert_eq!(
+        decisions(&recover(&world.context)),
+        vec![(1, Recovery::Finish)]
+    );
     remove(world.root.as_path());
 }
 
@@ -82,7 +134,10 @@ fn a_reference_that_is_missing_still_drops_the_intent() {
     let mut intent: Intent = open_intent(&world, 1);
     intent.reference = crate::ref_name::RefName::from_text("refs/heads/no-such-branch");
     write_intent(world.context.journal.as_path(), &intent).expect("rewritten intent");
-    assert_eq!(decisions(&recover(&world.context)), vec![(1, Recovery::Drop)]);
+    assert_eq!(
+        decisions(&recover(&world.context)),
+        vec![(1, Recovery::Drop)]
+    );
     assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists());
     remove(world.root.as_path());
 }
@@ -97,19 +152,46 @@ fn a_failed_ancestry_question_keeps_the_batch_and_a_clean_no_drops_it() {
     let landed: CommitRequest = request(&world, "ancestry", "ancestry.txt", "ancestry\n");
     land_with_failed_index(&world, 1, &[landed]);
     let first: Intent = open_intent(&world, 1);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved on"]);
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=moved on"],
+    );
     // The branch is now past the new commit: the batch landed.
-    assert_eq!(decisions(&recover(&world.context)), vec![(1, Recovery::Finish)]);
-    let unknown: Intent = Intent { seq: 2, new: "e".repeat(40), transports: Vec::new(), ..first.clone() };
-    write_intent(world.context.journal.as_path(), &unknown).expect("intent of a commit Git does not have");
+    assert_eq!(
+        decisions(&recover(&world.context)),
+        vec![(1, Recovery::Finish)]
+    );
+    let unknown: Intent = Intent {
+        seq: 2,
+        new: "e".repeat(40),
+        transports: Vec::new(),
+        ..first.clone()
+    };
+    write_intent(world.context.journal.as_path(), &unknown)
+        .expect("intent of a commit Git does not have");
     let reports: Vec<RecoveryReport> = recover(&world.context);
-    assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "an object Git cannot find is no proof: {reports:?}");
-    git(world.repo.as_path(), &["checkout", "--quiet", "--detach", first.old.as_str()]);
-    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=side"]);
+    assert!(
+        batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(),
+        "an object Git cannot find is no proof: {reports:?}"
+    );
+    git(
+        world.repo.as_path(),
+        &["checkout", "--quiet", "--detach", first.old.as_str()],
+    );
+    git(
+        world.repo.as_path(),
+        &["commit", "--quiet", "--allow-empty", "--message=side"],
+    );
     let side: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    let elsewhere: Intent = Intent { seq: 3, new: side, transports: Vec::new(), ..first };
-    write_intent(world.context.journal.as_path(), &elsewhere).expect("intent of a commit off the branch");
+    let elsewhere: Intent = Intent {
+        seq: 3,
+        new: side,
+        transports: Vec::new(),
+        ..first
+    };
+    write_intent(world.context.journal.as_path(), &elsewhere)
+        .expect("intent of a commit off the branch");
     let after: Vec<(u64, Recovery)> = decisions(&recover(&world.context));
     assert!(after.contains(&(3, Recovery::Drop)), "{after:?}");
     assert!(!batch_path(world.context.journal.as_path(), 3, OPEN_EXTENSION).exists());

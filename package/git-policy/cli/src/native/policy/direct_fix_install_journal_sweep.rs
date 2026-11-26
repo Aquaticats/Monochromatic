@@ -16,16 +16,24 @@
 //! // reapInterruptedInstalls(gitDir, notices);
 //! ```
 
+/// The journal's own shape,
+/// record and removal.
+use crate::direct_fix_install_journal::{
+    JOURNAL_PREFIX,
+    content_of,
+    read_record,
+    remove,
+};
 /// The permission bits,
 ///  owner and extended attributes a journal's record names.
 use crate::direct_fix_install_writes::Kept;
-/// The journal's own shape,
-/// record and removal.
-use crate::direct_fix_install_journal::{JOURNAL_PREFIX, content_of, read_record, remove};
 /// The proof that the process which wrote a record still runs.
 use crate::worktree_copy_owner::token_owner_is_dead;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directories of a Git directory that start with the journal prefix,
 ///  sorted by name.
@@ -36,7 +44,11 @@ fn journals_below(git_dir: &Path) -> Vec<PathBuf> {
     };
     for entry in listed.flatten() {
         let path: PathBuf = entry.path();
-        if !entry.file_name().to_string_lossy().starts_with(JOURNAL_PREFIX) {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(JOURNAL_PREFIX)
+        {
             continue;
         }
         if path.is_dir() {
@@ -83,7 +95,10 @@ fn journals_below(git_dir: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// for (const journal of journalsBelow(gitDir)) { if (!provenGone(journal)) continue; if (digestOf(journal.content) === journal.record.replacement) removeOrName(journal); else notices.push(reportedLeftover(journal)); }
 /// ```
-pub(crate) fn reap_interrupted_installs(git_dir: &Path, notices: &mut Vec<String>) {
+pub(crate) fn reap_interrupted_installs(
+    git_dir: &Path,
+    notices: &mut Vec<String>,
+) {
     for journal in journals_below(git_dir) {
         let Some(record) = read_record(journal.as_path()) else {
             notices.push(format!(
@@ -142,7 +157,10 @@ pub(crate) fn reap_interrupted_installs(git_dir: &Path, notices: &mut Vec<String
                 continue;
             }
             Err(detail) => {
-                notices.push(format!("{detail}; {}", reported_leftover(journal.as_path())));
+                notices.push(format!(
+                    "{detail}; {}",
+                    reported_leftover(journal.as_path())
+                ));
                 continue;
             }
         }

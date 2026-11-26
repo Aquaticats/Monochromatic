@@ -80,63 +80,74 @@
 //! if (!beforeTheAdd().theManagedAttachGoesAhead()) return null; // the slot takes the reflink or Git route
 //! ```
 
-/// The calls a record can name.
-pub mod companion_calls;
-/// The steps in the child's order.
-pub mod companion_steps;
 /// Every name and line the child writes.
 pub mod companion_buffers;
-/// One step's record.
-pub mod companion_records;
-/// The three settings the skip line prints.
-pub mod companion_settings;
+/// The calls a record can name.
+pub mod companion_calls;
+/// The child's sequence.
+pub mod companion_child;
+/// The attach and the second child.
+pub mod companion_child_attach;
+/// The four refusal controls.
+pub mod companion_child_controls;
+/// The scratch tree and the walk to the slot.
+pub mod companion_child_tree;
+/// The bound the parent enforces.
+pub mod companion_deadline;
+/// The walk,
+/// the attach and the two moves.
+pub mod companion_descriptor_calls;
 /// The file and identity calls.
 pub mod companion_file_calls;
+/// The verdict and its lines.
+pub mod companion_lines;
 /// The namespace,
 /// tmpfs,
 /// bind and unmount calls.
 pub mod companion_mount_calls;
-/// The walk,
-/// the attach and the two moves.
-pub mod companion_descriptor_calls;
 /// The mount ID and the mount table's facts.
 pub mod companion_mount_table;
+/// One run and its verdict.
+pub mod companion_parent;
 /// The pipe,
 /// the fork,
 /// the wait,
 /// the kill and the ending a wait answers.
 pub mod companion_process_calls;
-/// The scratch tree and the walk to the slot.
-pub mod companion_child_tree;
-/// The four refusal controls.
-pub mod companion_child_controls;
-/// The attach and the second child.
-pub mod companion_child_attach;
-/// The child's sequence.
-pub mod companion_child;
+/// One step's record.
+pub mod companion_records;
 /// The run's directory and its sweep.
 pub mod companion_scratch;
-/// The bound the parent enforces.
-pub mod companion_deadline;
+/// The three settings the skip line prints.
+pub mod companion_settings;
+/// The steps in the child's order.
+pub mod companion_steps;
 /// The test-only switch.
 pub mod companion_test_switch;
-/// The verdict and its lines.
-pub mod companion_lines;
-/// One run and its verdict.
-pub mod companion_parent;
 
+/// The bound the parent enforces.
+pub use companion_deadline::{
+    COMPANION_DEADLINE,
+    COMPANION_DEADLINE_MARGIN,
+};
+/// What one run means for the add.
+pub use companion_lines::{
+    CompanionVerdict,
+    Refusal,
+    Skip,
+    THE_FALLBACK_ROUTE,
+};
+/// The add's answer when the environment names no runtime folder,
+/// with the line a person reads.
+pub use companion_parent::the_accounts_runtime_folder;
 /// The check the add's preflight runs before its first write,
 /// printing every line it carries.
 pub use companion_parent::the_managed_attach_may_go_ahead;
 /// The account's runtime folder,
 /// which the add route resolves once and hands to the check.
 pub use companion_scratch::RuntimeFolder;
-/// The add's answer when the environment names no runtime folder,
-/// with the line a person reads.
-pub use companion_parent::the_accounts_runtime_folder;
-/// What one run means for the add.
-pub use companion_lines::{CompanionVerdict, Refusal, Skip, THE_FALLBACK_ROUTE};
-/// The bound the parent enforces.
-pub use companion_deadline::{COMPANION_DEADLINE, COMPANION_DEADLINE_MARGIN};
 /// The test-only switch the controls set.
-pub use companion_test_switch::{Switch, TEST_SWITCH_VARIABLE};
+pub use companion_test_switch::{
+    Switch,
+    TEST_SWITCH_VARIABLE,
+};

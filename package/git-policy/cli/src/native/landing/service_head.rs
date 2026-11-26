@@ -32,18 +32,32 @@
 //! const names = await headNames({ repository, index, commonDir, reference }) // false after a switch or a detach
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+use crate::blocking_jobs_within_the_budget::{
+    TheAnswerOfAJobAwaited,
+    run_a_job_awaited_no_longer_than,
+};
 /// The one reader of a Git directory's `commondir` file.
 use crate::common_directory_of_a_git_directory::common_directory_named_by;
 /// The reader that cannot wait on a named pipe, and the bound a `HEAD` file is read to.
-use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
-use crate::service_protocol::FailureCode;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use crate::transaction_git_awaiting::run_git_awaiting;
-use crate::wait_ceilings::LANDING_STATE_CEILING;
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 /// A reference name as the bytes Git printed it.
 use crate::ref_name::RefName;
-use std::path::{Path, PathBuf};
+use crate::service_protocol::FailureCode;
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
+use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::LANDING_STATE_CEILING;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::time::Duration;
 
 /// What a `HEAD` file says on its own.
@@ -124,12 +138,19 @@ fn trim_ascii_end(bytes: &[u8]) -> &[u8] {
 ///  which opens it as a plain file:
 /// a named pipe there answers as a directory that is no worktree of this repository at once,
 ///  and the caller asks Git rather than waiting for ever.
-fn belongs_to(directory: &Path, common_dir: &Path) -> bool {
-    let Ok(expected) = std::fs::canonicalize(common_dir) else { return false };
+fn belongs_to(
+    directory: &Path,
+    common_dir: &Path,
+) -> bool {
+    let Ok(expected) = std::fs::canonicalize(common_dir) else {
+        return false;
+    };
     if matches!(std::fs::canonicalize(directory), Ok(found) if found == expected) {
         return true;
     }
-    let Some(named) = common_directory_named_by(directory) else { return false };
+    let Some(named) = common_directory_named_by(directory) else {
+        return false;
+    };
     return matches!(std::fs::canonicalize(named), Ok(found) if found == expected);
 }
 
@@ -142,7 +163,10 @@ fn belongs_to(directory: &Path, common_dir: &Path) -> bool {
 /// an alternate index can sit in
 ///  another worktree's Git directory,
 /// whose head is another worktree's.
-fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
+fn head_file(
+    git_dir: &Path,
+    common_dir: &Path,
+) -> HeadFile {
     if !belongs_to(git_dir, common_dir) {
         return HeadFile::Unreadable;
     }
@@ -190,8 +214,15 @@ fn read_the_head_file(question: HeadFileQuestion) -> HeadFile {
 /// ```ts
 /// async function headFileWithin(ceilingMs: number, gitDir: string, commonDir: string): Promise<HeadFile>;
 /// ```
-async fn head_file_within(ceiling: Duration, git_dir: &Path, common_dir: &Path) -> HeadFile {
-    let question: HeadFileQuestion = HeadFileQuestion { git_dir: git_dir.to_path_buf(), common_dir: common_dir.to_path_buf() };
+async fn head_file_within(
+    ceiling: Duration,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> HeadFile {
+    let question: HeadFileQuestion = HeadFileQuestion {
+        git_dir: git_dir.to_path_buf(),
+        common_dir: common_dir.to_path_buf(),
+    };
     return match run_a_job_awaited_no_longer_than(ceiling, question, read_the_head_file).await {
         TheAnswerOfAJobAwaited::Ran(answer) => answer,
         // No thread was given, or the job outlasted its ceiling: the file said nothing this task may wait for.
@@ -202,7 +233,10 @@ async fn head_file_within(ceiling: Duration, git_dir: &Path, common_dir: &Path) 
 /// `head_file_within` with the wait a landing's own state step is granted
 /// (`wait_ceilings.rs`,
 /// `LANDING_STATE_CEILING`).
-async fn head_file_awaiting(git_dir: &Path, common_dir: &Path) -> HeadFile {
+async fn head_file_awaiting(
+    git_dir: &Path,
+    common_dir: &Path,
+) -> HeadFile {
     return head_file_within(LANDING_STATE_CEILING, git_dir, common_dir).await;
 }
 
@@ -226,7 +260,10 @@ async fn head_file_awaiting(git_dir: &Path, common_dir: &Path) -> HeadFile {
 /// # Errors
 ///
 /// `Unavailable` when Git cannot be started or ends with a status other than 0 and 1.
-fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<RefName>, FailureCode> {
+fn symbolic_head(
+    git: &GitContext,
+    repository: &Path,
+) -> Result<Option<RefName>, FailureCode> {
     return named_of(run_git(git, &symbolic_head_request(repository)));
 }
 
@@ -292,7 +329,10 @@ fn named_of(answered: std::io::Result<GitOutput>) -> Result<Option<RefName>, Fai
 /// ```ts
 /// async function symbolicHeadAwaiting(git: GitContext, repository: string): Promise<string | undefined>;
 /// ```
-async fn symbolic_head_awaiting(git: &GitContext, repository: &Path) -> Result<Option<RefName>, FailureCode> {
+async fn symbolic_head_awaiting(
+    git: &GitContext,
+    repository: &Path,
+) -> Result<Option<RefName>, FailureCode> {
     return named_of(run_git_awaiting(git, &symbolic_head_request(repository)).await);
 }
 
@@ -321,7 +361,14 @@ async fn symbolic_head_awaiting(git: &GitContext, repository: &Path) -> Result<O
 /// # Errors
 ///
 /// The failure code when Git must be asked and cannot answer.
-pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName, new: &str) -> Result<bool, FailureCode> {
+pub fn follows_move(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    reference: &RefName,
+    new: &str,
+) -> Result<bool, FailureCode> {
     if !reference.is_head() {
         return head_names(git, repository, git_dir, common_dir, reference);
     }
@@ -336,14 +383,24 @@ pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_
 /// # Errors
 ///
 /// As `follows_move`.
-pub async fn follows_move_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName, new: &str) -> Result<bool, FailureCode> {
+pub async fn follows_move_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    reference: &RefName,
+    new: &str,
+) -> Result<bool, FailureCode> {
     if !reference.is_head() {
         return head_names_awaiting(git, repository, git_dir, common_dir, reference).await;
     }
     if let HeadFile::Detached(value) = head_file_awaiting(git_dir, common_dir).await {
         return Ok(value == new);
     }
-    return shows_the_commit(run_git_awaiting(git, &head_commit_request(repository)).await, new);
+    return shows_the_commit(
+        run_git_awaiting(git, &head_commit_request(repository)).await,
+        new,
+    );
 }
 
 /// The question `follows_move` asks Git for a `HEAD` whose file cannot answer.
@@ -366,7 +423,10 @@ fn head_commit_request(repository: &Path) -> GitRequest {
 /// # Errors
 ///
 /// `Unavailable` when Git could not be started or ended with a status other than 0 and 1.
-fn shows_the_commit(answered: std::io::Result<GitOutput>, moved_to: &str) -> Result<bool, FailureCode> {
+fn shows_the_commit(
+    answered: std::io::Result<GitOutput>,
+    moved_to: &str,
+) -> Result<bool, FailureCode> {
     let output: GitOutput = match answered {
         Ok(finished) => finished,
         Err(_unstartable) => return Err(FailureCode::Unavailable),
@@ -389,7 +449,13 @@ fn shows_the_commit(answered: std::io::Result<GitOutput>, moved_to: &str) -> Res
 /// ```ts
 /// await headNames(git, { repository, gitDir, commonDir }, reference)
 /// ```
-pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
+pub fn head_names(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    reference: &RefName,
+) -> Result<bool, FailureCode> {
     match head_file(git_dir, common_dir) {
         HeadFile::Branch(named) => return Ok(named == *reference),
         HeadFile::Detached(_) => return Ok(false),
@@ -403,7 +469,13 @@ pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_di
 /// # Errors
 ///
 /// As `head_names`.
-pub async fn head_names_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
+pub async fn head_names_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    reference: &RefName,
+) -> Result<bool, FailureCode> {
     match head_file_awaiting(git_dir, common_dir).await {
         HeadFile::Branch(named) => return Ok(named == *reference),
         HeadFile::Detached(_) => return Ok(false),
@@ -423,7 +495,10 @@ pub async fn head_names_awaiting(git: &GitContext, repository: &Path, git_dir: &
 /// ```ts
 /// function namesOf(named: string | undefined, wanted: string): boolean;
 /// ```
-fn names_of(named: Option<RefName>, wanted: &RefName) -> Result<bool, FailureCode> {
+fn names_of(
+    named: Option<RefName>,
+    wanted: &RefName,
+) -> Result<bool, FailureCode> {
     return match named {
         Some(found) => Ok(found == *wanted),
         None => Ok(false),
@@ -452,7 +527,13 @@ fn names_of(named: Option<RefName>, wanted: &RefName) -> Result<bool, FailureCod
 /// # Errors
 ///
 /// The failure code when Git must be asked and cannot be started.
-pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
+pub fn still_checked_out(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    reference: &RefName,
+) -> Result<bool, FailureCode> {
     if !reference.is_head() {
         return head_names(git, repository, git_dir, common_dir, reference);
     }
@@ -469,7 +550,13 @@ pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, co
 /// # Errors
 ///
 /// As `still_checked_out`.
-pub async fn still_checked_out_awaiting(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &RefName) -> Result<bool, FailureCode> {
+pub async fn still_checked_out_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+    reference: &RefName,
+) -> Result<bool, FailureCode> {
     if !reference.is_head() {
         return head_names_awaiting(git, repository, git_dir, common_dir, reference).await;
     }

@@ -18,7 +18,10 @@
 //! unshareMountNamespace(); makeMountsPrivate(); mountScratchTmpfs(scratch);
 //! ```
 
-use super::probe_call_error::{CallError, failed};
+use super::probe_call_error::{
+    CallError,
+    failed,
+};
 use std::ffi::CString;
 use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
@@ -36,7 +39,12 @@ use std::path::Path;
 /// # Errors
 /// The `mount_setattr` and its `mount` fallback both refused.
 pub fn make_mounts_private() -> Result<(), CallError> {
-    let attributes: libc::mount_attr = libc::mount_attr { attr_set: 0, attr_clr: 0, propagation: libc::MS_PRIVATE as u64, userns_fd: 0 };
+    let attributes: libc::mount_attr = libc::mount_attr {
+        attr_set: 0,
+        attr_clr: 0,
+        propagation: libc::MS_PRIVATE as u64,
+        userns_fd: 0,
+    };
     let root: CString = CString::new("/").expect("no NUL in the root path");
     // SAFETY: the root path and the attribute structure are this call's own and outlive it.
     let set: libc::c_int = unsafe {
@@ -54,7 +62,15 @@ pub fn make_mounts_private() -> Result<(), CallError> {
     }
     let answered: CallError = failed("mount_setattr");
     // SAFETY: every argument is this call's own: the empty source, the root path and no data pointer.
-    let mounted: libc::c_int = unsafe { libc::mount(std::ptr::null(), root.as_ptr(), std::ptr::null(), libc::MS_REC | libc::MS_PRIVATE, std::ptr::null()) };
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            std::ptr::null(),
+            root.as_ptr(),
+            std::ptr::null(),
+            libc::MS_REC | libc::MS_PRIVATE,
+            std::ptr::null(),
+        )
+    };
     return if mounted == 0 { Ok(()) } else { Err(answered) };
 }
 
@@ -82,8 +98,20 @@ pub fn mount_scratch_tmpfs(target: &Path) -> Result<(), CallError> {
     let filesystem: CString = CString::new("tmpfs").expect("no NUL in a filesystem type");
     let data: CString = CString::new(SCRATCH_TMPFS_OPTIONS).expect("no NUL in a mount option");
     // SAFETY: every pointer is this call's own and outlives it.
-    let mounted: libc::c_int = unsafe { libc::mount(filesystem.as_ptr(), target_path.as_ptr(), filesystem.as_ptr(), libc::MS_NOSUID | libc::MS_NODEV, data.as_ptr().cast::<libc::c_void>()) };
-    return if mounted == 0 { Ok(()) } else { Err(failed("mount tmpfs")) };
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            filesystem.as_ptr(),
+            target_path.as_ptr(),
+            filesystem.as_ptr(),
+            libc::MS_NOSUID | libc::MS_NODEV,
+            data.as_ptr().cast::<libc::c_void>(),
+        )
+    };
+    return if mounted == 0 {
+        Ok(())
+    } else {
+        Err(failed("mount tmpfs"))
+    };
 }
 
 /// What:
@@ -98,7 +126,11 @@ pub fn mount_scratch_tmpfs(target: &Path) -> Result<(), CallError> {
 pub fn unshare_mount_namespace() -> Result<(), CallError> {
     // SAFETY: `unshare` reads the one flag word and touches no memory of ours.
     let made: libc::c_int = unsafe { libc::unshare(libc::CLONE_NEWNS) };
-    return if made == 0 { Ok(()) } else { Err(failed("unshare")) };
+    return if made == 0 {
+        Ok(())
+    } else {
+        Err(failed("unshare"))
+    };
 }
 
 /// What:
@@ -114,7 +146,11 @@ pub fn unmount(target: &Path) -> Result<(), CallError> {
     let target_path: CString = c_path(target);
     // SAFETY: the path is this call's own and outlives it; no lazy detach is asked for.
     let unmounted: libc::c_int = unsafe { libc::umount2(target_path.as_ptr(), 0) };
-    return if unmounted == 0 { Ok(()) } else { Err(failed("umount2")) };
+    return if unmounted == 0 {
+        Ok(())
+    } else {
+        Err(failed("umount2"))
+    };
 }
 
 /// What:
@@ -126,12 +162,27 @@ pub fn unmount(target: &Path) -> Result<(), CallError> {
 ///
 /// # Errors
 /// The call refused.
-pub fn bind_mount(source: &Path, target: &Path) -> Result<(), CallError> {
+pub fn bind_mount(
+    source: &Path,
+    target: &Path,
+) -> Result<(), CallError> {
     let source_path: CString = c_path(source);
     let target_path: CString = c_path(target);
     // SAFETY: both paths are this call's own and outlive it; a bind mount reads no data pointer.
-    let mounted: libc::c_int = unsafe { libc::mount(source_path.as_ptr(), target_path.as_ptr(), std::ptr::null(), libc::MS_BIND, std::ptr::null()) };
-    return if mounted == 0 { Ok(()) } else { Err(failed("mount bind")) };
+    let mounted: libc::c_int = unsafe {
+        libc::mount(
+            source_path.as_ptr(),
+            target_path.as_ptr(),
+            std::ptr::null(),
+            libc::MS_BIND,
+            std::ptr::null(),
+        )
+    };
+    return if mounted == 0 {
+        Ok(())
+    } else {
+        Err(failed("mount bind"))
+    };
 }
 
 /// What:
@@ -146,16 +197,27 @@ pub fn bind_mount(source: &Path, target: &Path) -> Result<(), CallError> {
 /// The descriptor's `fdinfo` could not be read or carries no mount ID.
 pub fn mount_id_of(fd: RawFd) -> Result<u64, CallError> {
     let path: String = format!("/proc/self/fdinfo/{fd}");
-    let text: String = std::fs::read_to_string(path.as_str()).map_err(|_| return CallError { call: "fdinfo", errno: libc::ENOENT })?;
+    let text: String = std::fs::read_to_string(path.as_str()).map_err(|_| {
+        return CallError {
+            call: "fdinfo",
+            errno: libc::ENOENT,
+        };
+    })?;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("mnt_id:") {
             let Ok(number) = rest.trim().parse::<u64>() else {
-                return Err(CallError { call: "fdinfo", errno: libc::EINVAL });
+                return Err(CallError {
+                    call: "fdinfo",
+                    errno: libc::EINVAL,
+                });
             };
             return Ok(number);
         }
     }
-    return Err(CallError { call: "fdinfo", errno: libc::ENOENT });
+    return Err(CallError {
+        call: "fdinfo",
+        errno: libc::ENOENT,
+    });
 }
 
 /// What:
@@ -170,8 +232,16 @@ pub fn mount_id_of(fd: RawFd) -> Result<u64, CallError> {
 /// # Errors
 /// The table could not be read or is longer than the bound.
 pub fn read_own_mount_table() -> Result<Vec<crate::fs_mount_options::MountFacts>, CallError> {
-    let text: Vec<u8> = crate::plain_file::read_plain_file(Path::new(crate::fs_mount_options::MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT)
-        .map_err(|_| return CallError { call: "mountinfo", errno: libc::E2BIG })?;
+    let text: Vec<u8> = crate::plain_file::read_plain_file(
+        Path::new(crate::fs_mount_options::MOUNTINFO_PATH),
+        crate::plain_file::MOUNT_TABLE_LIMIT,
+    )
+    .map_err(|_| {
+        return CallError {
+            call: "mountinfo",
+            errno: libc::E2BIG,
+        };
+    })?;
     return Ok(crate::fs_mount_options::parse_mount_table(text.as_slice()));
 }
 
@@ -179,7 +249,6 @@ pub fn read_own_mount_table() -> Result<Vec<crate::fs_mount_options::MountFacts>
 fn c_path(path: &Path) -> CString {
     return CString::new(path.as_os_str().as_bytes()).expect("a path holds no NUL");
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

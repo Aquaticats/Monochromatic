@@ -64,13 +64,19 @@ impl NamesToBeLost {
     /// const lines = names.lines();
     /// ```
     pub fn lines(&self) -> Vec<String> {
-        let mut lines: Vec<String> = Vec::with_capacity(self.snapshots.len() + self.bookmarks.len() + 4);
-        lines.push(format!("removing the ZFS worktree clone at `{}` (dataset `{}`) loses:", self.slot, self.dataset));
+        let mut lines: Vec<String> =
+            Vec::with_capacity(self.snapshots.len() + self.bookmarks.len() + 4);
+        lines.push(format!(
+            "removing the ZFS worktree clone at `{}` (dataset `{}`) loses:",
+            self.slot, self.dataset
+        ));
         for snapshot in &self.snapshots {
             lines.push(format!("  snapshot {snapshot}"));
         }
         for bookmark in &self.bookmarks {
-            lines.push(format!("  bookmark {bookmark}, which goes with the clone's head and cannot be restored"));
+            lines.push(format!(
+                "  bookmark {bookmark}, which goes with the clone's head and cannot be restored"
+            ));
         }
         lines.push(format!(
             "{} snapshot(s) and {} bookmark(s) above cannot be restored by this wrapper, and the main checkout keeps every snapshot it holds.",

@@ -27,12 +27,18 @@
 //! const [args, notice] = withSkipRepo(stripped.arguments, inRepository); // `git lfs install --skip-repo`
 //! ```
 
-/// The global-option layout,
-/// to find the command word behind the caller's global options.
-use crate::global_arguments::{GlobalOutcome, global_layout};
 /// The request one `git lfs install` makes,
 /// read from the words after its `install` word.
-use super::lfs_install_request::{InstallAsk, InstallRequest};
+use super::lfs_install_request::{
+    InstallAsk,
+    InstallRequest,
+};
+/// The global-option layout,
+/// to find the command word behind the caller's global options.
+use crate::global_arguments::{
+    GlobalOutcome,
+    global_layout,
+};
 /// Owned operating-system text for the arguments.
 use std::ffi::OsString;
 
@@ -65,7 +71,10 @@ pub const SKIP_REPO_OPTION: &str = "--skip-repo";
 /// ```ts
 /// if (words.slice(installIndex, installIndex + 2).join(' ') !== 'lfs install') return [args, '']; const request = read(args); if (request.asksForHelp()) return [args, '']; const at = request.skipRepoInsertion(installIndex); return [at === undefined ? args : inserted(args, at), notice(request)];
 /// ```
-pub fn with_skip_repo(arguments: Vec<OsString>, in_a_repository: bool) -> (Vec<OsString>, String) {
+pub fn with_skip_repo(
+    arguments: Vec<OsString>,
+    in_a_repository: bool,
+) -> (Vec<OsString>, String) {
     if !in_a_repository {
         return (arguments, String::new());
     }
@@ -121,7 +130,10 @@ fn notice(request: &InstallRequest) -> String {
     let ask: InstallAsk = request.ask();
     let asked: String = match &ask {
         InstallAsk::Writes(scope) => {
-            format!("This command asks git-lfs to put the `filter.lfs.*` keys in {}. ", scope.where_it_writes())
+            format!(
+                "This command asks git-lfs to put the `filter.lfs.*` keys in {}. ",
+                scope.where_it_writes()
+            )
         }
         InstallAsk::Refused(refusal) => match request.named_reason(refusal) {
             Some(reason) => format!(
@@ -201,7 +213,9 @@ fn install_word(arguments: &[OsString]) -> Option<usize> {
     if arguments.get(install)? != "install" {
         return None;
     }
-    if arguments.get(install + 1).is_some_and(|word| { return word == "hooks"; }) {
+    if arguments.get(install + 1).is_some_and(|word| {
+        return word == "hooks";
+    }) {
         return None;
     }
     return Some(install);

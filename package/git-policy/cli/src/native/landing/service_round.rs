@@ -25,20 +25,45 @@
 //! const retries = await drainDirectories({ directories, handlers, now, host });
 //! ```
 
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+use crate::blocking_jobs_within_the_budget::{
+    TheAnswerOfAJobAwaited,
+    run_a_job_awaited_no_longer_than,
+};
 use crate::claim_time::ClaimTime;
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_budget::{
+    BudgetRequest,
+    HostResources,
+    worker_budget,
+};
 use crate::parallel_runner::Event;
 use crate::parallel_runner::OrderedEvents;
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 use crate::parallel_runner_on_the_runtime::OrderedRunError;
-use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
-use crate::push_retry::{RetryChange, Retrying};
-use crate::service_work::{CLAIM_LEASE, Drained, PUSH_KINDS, WorkHandlers, common_directory_of, drain_common_records_planned_awaiting, drain_planned_awaiting};
+use crate::parallel_runner_on_the_runtime_awaiting::{
+    OrderedAwaitingWork,
+    OrderedRunOfAwaitingOwned,
+    run_ordered_awaiting_on_the_runtime,
+};
+use crate::push_retry::{
+    RetryChange,
+    Retrying,
+};
+use crate::service_work::{
+    CLAIM_LEASE,
+    Drained,
+    PUSH_KINDS,
+    WorkHandlers,
+    common_directory_of,
+    drain_common_records_planned_awaiting,
+    drain_planned_awaiting,
+};
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -95,7 +120,10 @@ impl Assignment {
     /// A directory with no plan:
     /// a push that could pass is reported as failed.
     pub fn plain(directory: PathBuf) -> Self {
-        return Self { directory, retrying: Retrying::none() };
+        return Self {
+            directory,
+            retrying: Retrying::none(),
+        };
     }
 }
 
@@ -189,7 +217,8 @@ async fn lane_keys_awaiting(directories: &[Assignment]) -> TheAnswerOfAJobAwaite
     for assignment in directories {
         asked.push(assignment.directory.clone());
     }
-    return run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, asked, lane_keys_in_a_job).await;
+    return run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, asked, lane_keys_in_a_job)
+        .await;
 }
 
 /// `lane_keys_awaiting`'s work,
@@ -268,11 +297,37 @@ fn lanes_of(keys: &[PathBuf]) -> Vec<Vec<usize>> {
 /// ```ts
 /// const [wait, changes] = await drainOne(handlers, now, assignment)
 /// ```
-async fn drain_one<H: WorkHandlers + Sync>(handlers: &H, now: &ClaimTime, assignment: &Assignment) -> (Option<Duration>, Vec<RetryChange>) {
-    let own: Drained = drain_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying, &PUSH_KINDS).await;
-    let common: Drained = drain_common_records_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying, &PUSH_KINDS).await;
+async fn drain_one<H: WorkHandlers + Sync>(
+    handlers: &H,
+    now: &ClaimTime,
+    assignment: &Assignment,
+) -> (Option<Duration>, Vec<RetryChange>) {
+    let own: Drained = drain_planned_awaiting(
+        assignment.directory.as_path(),
+        handlers,
+        now,
+        CLAIM_LEASE,
+        &assignment.retrying,
+        &PUSH_KINDS,
+    )
+    .await;
+    let common: Drained = drain_common_records_planned_awaiting(
+        assignment.directory.as_path(),
+        handlers,
+        now,
+        CLAIM_LEASE,
+        &assignment.retrying,
+        &PUSH_KINDS,
+    )
+    .await;
     let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
-    return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
+    return (
+        wait,
+        own.changes
+            .into_iter()
+            .chain(common.changes)
+            .collect::<Vec<RetryChange>>(),
+    );
 }
 
 /// What:
@@ -298,14 +353,19 @@ struct DrainEachDirectory<H> {
     now: ClaimTime,
 }
 
-impl<H: WorkHandlers + Sync + Send> OrderedAwaitingWork<Assignment, (Option<Duration>, Vec<RetryChange>)> for DrainEachDirectory<H> {
+impl<H: WorkHandlers + Sync + Send>
+    OrderedAwaitingWork<Assignment, (Option<Duration>, Vec<RetryChange>)>
+    for DrainEachDirectory<H>
+{
     fn run<'a>(
         &'a self,
         _index: usize,
         assignment: &'a Assignment,
         _say: LinesToTheConsumer<(Option<Duration>, Vec<RetryChange>)>,
     ) -> Pin<Box<dyn Future<Output = (Option<Duration>, Vec<RetryChange>)> + Send + 'a>> {
-        return Box::pin(async move { return drain_one(self.handlers.as_ref(), &self.now, assignment).await; });
+        return Box::pin(async move {
+            return drain_one(self.handlers.as_ref(), &self.now, assignment).await;
+        });
     }
 }
 
@@ -330,10 +390,15 @@ struct CollectWaitsAndChanges<'a> {
 }
 
 impl OrderedEvents<(Option<Duration>, Vec<RetryChange>)> for CollectWaitsAndChanges<'_> {
-    fn on_event(&mut self, event: Event<'_, (Option<Duration>, Vec<RetryChange>)>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, (Option<Duration>, Vec<RetryChange>)>,
+    ) {
         if let Event::End(index, (wait, changes)) = event {
             if let Some(lease_wait) = wait {
-                self.answer.waits.push((self.directories[index].directory.clone(), lease_wait));
+                self.answer
+                    .waits
+                    .push((self.directories[index].directory.clone(), lease_wait));
             }
             self.answer.changes.extend(changes);
         }
@@ -365,7 +430,9 @@ impl OrderedEvents<(Option<Duration>, Vec<RetryChange>)> for CollectWaitsAndChan
 /// ```ts
 /// const [answer, notFinished] = await drainDirectoriesAwaiting({ directories, handlers, now, host });
 /// ```
-pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>(request: &RoundDrain<'_, H>) -> (RoundAnswer, Option<OrderedRunError>) {
+pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>(
+    request: &RoundDrain<'_, H>
+) -> (RoundAnswer, Option<OrderedRunError>) {
     let directories: &[Assignment] = request.directories;
     let now: &ClaimTime = request.now;
     let host: &HostResources = request.host;
@@ -374,24 +441,41 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
     let lanes: Vec<Vec<usize>> = match lane_keys_awaiting(directories).await {
         TheAnswerOfAJobAwaited::Ran(keys) => lanes_of(keys.as_slice()),
         TheAnswerOfAJobAwaited::NotRun => {
-            crate::service_warn!("the common directory of each repository of this round was not read, because the system gave no thread for it, so the round drains its directories one after another");
+            crate::service_warn!(
+                "the common directory of each repository of this round was not read, because the system gave no thread for it, so the round drains its directories one after another"
+            );
             one_lane_of(directories.len())
         }
         TheAnswerOfAJobAwaited::NoAnswer => {
-            crate::service_warn!("the common directory of each repository of this round gave no answer, so the round drains its directories one after another");
+            crate::service_warn!(
+                "the common directory of each repository of this round gave no answer, so the round drains its directories one after another"
+            );
             one_lane_of(directories.len())
         }
     };
-    let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host });
+    let workers: usize = worker_budget(&BudgetRequest {
+        items: lanes.len(),
+        per_item_memory: REPOSITORY_MEMORY,
+        ceiling: None,
+        cap: None,
+        host,
+    });
     let mut answer: RoundAnswer = RoundAnswer::default();
-    let finished: Result<(), OrderedRunError> = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
-        items: Arc::from(directories.to_vec()),
-        lanes: Arc::from(lanes),
-        workers,
-        work: Arc::new(DrainEachDirectory { handlers: Arc::clone(&request.handlers), now: now.clone() }),
-        on_event: &mut CollectWaitsAndChanges { directories, answer: &mut answer },
-    })
-    .await;
+    let finished: Result<(), OrderedRunError> =
+        run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+            items: Arc::from(directories.to_vec()),
+            lanes: Arc::from(lanes),
+            workers,
+            work: Arc::new(DrainEachDirectory {
+                handlers: Arc::clone(&request.handlers),
+                now: now.clone(),
+            }),
+            on_event: &mut CollectWaitsAndChanges {
+                directories,
+                answer: &mut answer,
+            },
+        })
+        .await;
     return (answer, finished.err());
 }
 
@@ -411,7 +495,9 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
 /// ```ts
 /// const [answer, stopped] = runOnRuntime(drainDirectoriesAwaiting(request)); if (stopped) warn(stopped)
 /// ```
-pub fn drain_directories<H: WorkHandlers + Sync + Send + 'static>(request: &RoundDrain<'_, H>) -> RoundAnswer {
+pub fn drain_directories<H: WorkHandlers + Sync + Send + 'static>(
+    request: &RoundDrain<'_, H>
+) -> RoundAnswer {
     return match crate::lazy_runtime::run_on_runtime(drain_directories_awaiting(request)) {
         Ok((answer, stopped)) => {
             if let Some(reason) = stopped {

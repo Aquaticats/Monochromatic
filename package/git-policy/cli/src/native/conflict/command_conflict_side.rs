@@ -28,9 +28,21 @@
 //! ```
 
 use crate::command_checkout_table::{
-    CHECKOUT_TABLE, DETACH, FORCE, NEW_BRANCH, NEW_BRANCH_FORCE, ORPHAN, PATCH, PATHSPEC_FROM_FILE,
+    CHECKOUT_TABLE,
+    DETACH,
+    FORCE,
+    NEW_BRANCH,
+    NEW_BRANCH_FORCE,
+    ORPHAN,
+    PATCH,
+    PATHSPEC_FROM_FILE,
 };
-use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
+use crate::command_options::{
+    Boundary,
+    DEFAULT_MODE,
+    ParsedOptions,
+    parse_options,
+};
 use crate::command_options_query::is_stated;
 use crate::diagnostic_log::debug;
 use std::ffi::OsString;
@@ -50,8 +62,17 @@ const TAG: &str = "conflictSideRequest";
 /// ```ts
 /// function declined(word: string, reason: string, region: string[]): undefined;
 /// ```
-fn declined(word: &str, reason: &str, region: &[OsString]) -> Option<SideRequest> {
-    debug(TAG, &format!("git {word} {region:?} is not read as taking a side of a conflicted file: {reason}"));
+fn declined(
+    word: &str,
+    reason: &str,
+    region: &[OsString],
+) -> Option<SideRequest> {
+    debug(
+        TAG,
+        &format!(
+            "git {word} {region:?} is not read as taking a side of a conflicted file: {reason}"
+        ),
+    );
     return None;
 }
 
@@ -81,25 +102,45 @@ pub struct SideRequest {
 /// function checkoutSideRequest(region: string[]): SideRequest | undefined;
 /// ```
 fn checkout_request(region: &[OsString]) -> Option<SideRequest> {
-    let Ok(parsed): Result<ParsedOptions, _> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]) else {
+    let Ok(parsed): Result<ParsedOptions, _> =
+        parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[])
+    else {
         return declined("checkout", "an option is not one Git's table lists", region);
     };
     let Boundary::DashDash(at) = parsed.boundary else {
         return declined("checkout", "there is no `--` before the paths", region);
     };
-    for forbidden in [NEW_BRANCH, NEW_BRANCH_FORCE, ORPHAN, DETACH, PATCH, FORCE, PATHSPEC_FROM_FILE] {
+    for forbidden in [
+        NEW_BRANCH,
+        NEW_BRANCH_FORCE,
+        ORPHAN,
+        DETACH,
+        PATCH,
+        FORCE,
+        PATHSPEC_FROM_FILE,
+    ] {
         if is_stated(&parsed, forbidden) {
-            return declined("checkout", "it forces, patches, makes a branch, detaches or reads paths from a file", region);
+            return declined(
+                "checkout",
+                "it forces, patches, makes a branch, detaches or reads paths from a file",
+                region,
+            );
         }
     }
     if parsed.leading.len() > 1 {
-        return declined("checkout", "it names more than one thing before `--`", region);
+        return declined(
+            "checkout",
+            "it names more than one thing before `--`",
+            region,
+        );
     }
     let paths: Vec<OsString> = region[at + 1..].to_vec();
     if paths.is_empty() {
         return declined("checkout", "no path follows `--`", region);
     }
-    return Some(SideRequest { paths });
+    return Some(SideRequest {
+        paths,
+    });
 }
 
 /// Whether a byte separates an option's name from its inline value.
@@ -156,13 +197,19 @@ fn restore_request(region: &[OsString]) -> Option<SideRequest> {
         if token == b"--" {
             // `--staged` beside `--worktree` still writes files; `--staged` alone does not, and is not accepted.
             if staged && !worktree {
-                return declined("restore", "it restores the index only, which writes no worktree file", region);
+                return declined(
+                    "restore",
+                    "it restores the index only, which writes no worktree file",
+                    region,
+                );
             }
             let paths: Vec<OsString> = region[at + 1..].to_vec();
             if paths.is_empty() {
                 return declined("restore", "no path follows `--`", region);
             }
-            return Some(SideRequest { paths });
+            return Some(SideRequest {
+                paths,
+            });
         }
         if token == b"-W" || token == b"--worktree" {
             worktree = true;
@@ -184,7 +231,15 @@ fn restore_request(region: &[OsString]) -> Option<SideRequest> {
             at += if name.len() < token.len() { 1 } else { 2 };
             continue;
         }
-        return declined("restore", format!("`{}` is not a spelling this reading lists", region[at].to_string_lossy()).as_str(), region);
+        return declined(
+            "restore",
+            format!(
+                "`{}` is not a spelling this reading lists",
+                region[at].to_string_lossy()
+            )
+            .as_str(),
+            region,
+        );
     }
     // No `--`: the paths could be mistaken for option values, so this form is left to the usual rejection.
     return declined("restore", "there is no `--` before the paths", region);
@@ -201,7 +256,10 @@ fn restore_request(region: &[OsString]) -> Option<SideRequest> {
 /// ```ts
 /// function conflictSideRequest(word: string, region: string[]): SideRequest | undefined;
 /// ```
-pub fn conflict_side_request(word: &[u8], region: &[OsString]) -> Option<SideRequest> {
+pub fn conflict_side_request(
+    word: &[u8],
+    region: &[OsString],
+) -> Option<SideRequest> {
     if word == b"checkout" {
         return checkout_request(region);
     }

@@ -36,7 +36,14 @@ fn the_editor_follows_the_environment_then_the_terminal() {
 /// The markers of other operations in progress are the ones Git itself reports.
 #[test]
 fn the_operations_in_progress_are_the_ones_git_checks() {
-    for name in ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer"] {
+    for name in [
+        "MERGE_HEAD",
+        "CHERRY_PICK_HEAD",
+        "REVERT_HEAD",
+        "rebase-merge",
+        "rebase-apply",
+        "sequencer",
+    ] {
         assert!(IN_PROGRESS_MARKERS.contains(&name), "{name}");
     }
 }

@@ -17,23 +17,51 @@
 //! interface WorkHandlers { review(...); push(...); maintenance(...); trash(...) }; function isAcceptable(item, gitDir): boolean
 //! ```
 
-use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
+use crate::push_retry::{
+    Due,
+    RetryChange,
+    Retrying,
+    pause_before,
+};
 use crate::push_retry_cause_line::cause_or_silence;
-use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
-use crate::service_instance::GitDirUnreachable;
-use crate::unreachable_git_dir_proven_gone::Gone;
+use crate::push_retry_failure::{
+    PROTECTED_BRANCH_TRIES,
+    protected_branch_refusal,
+};
 use crate::service_claim_renewal::HeldClaims;
+use crate::service_instance::GitDirUnreachable;
 use crate::service_review_key::ReviewKey;
 use crate::service_timing::log_entry;
-use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use crate::unreachable_git_dir_proven_gone::Gone;
+use crate::work_item::{
+    Claimed,
+    WORK_DIRECTORY,
+    WorkItem,
+    WorkKind,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 /// The kinds of work the service runs itself:
 /// the push and every slow kind.
-pub const SERVICE_KINDS: [WorkKind; 8] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead];
+pub const SERVICE_KINDS: [WorkKind; 8] = [
+    WorkKind::Push,
+    WorkKind::Maintenance,
+    WorkKind::Review,
+    WorkKind::Trash,
+    WorkKind::Prewarm,
+    WorkKind::Relink,
+    WorkKind::SubvolumeDelete,
+    WorkKind::SnapshotAhead,
+];
 
 /// The kinds the round that answers a wake claims:
 /// the push,
@@ -141,7 +169,10 @@ pub trait WorkHandlers {
     /// Push the branch of these items,
     /// which share a repository and a branch;
     /// the last is the newest.
-    fn push(&self, items: &[WorkItem]) -> Verdict;
+    fn push(
+        &self,
+        items: &[WorkItem],
+    ) -> Verdict;
     /// The same push,
     /// awaited by a caller that is itself a task of the runtime.
     /// Why:
@@ -153,11 +184,17 @@ pub trait WorkHandlers {
     /// ```ts
     /// pushAwaiting(items: WorkItem[]): Promise<Verdict>
     /// ```
-    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn push_awaiting<'a>(
+        &'a self,
+        items: &'a [WorkItem],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.push(items)));
     }
     /// Run the repository's automatic upkeep.
-    fn maintenance(&self, item: &WorkItem) -> Verdict;
+    fn maintenance(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict;
     /// The same upkeep,
     /// awaited by a caller that is itself a task of the runtime.
     /// Why:
@@ -169,11 +206,17 @@ pub trait WorkHandlers {
     /// ```ts
     /// maintenanceAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn maintenance_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.maintenance(item)));
     }
     /// Review one landed commit into the repository's shadow log.
-    fn review(&self, item: &WorkItem) -> Verdict;
+    fn review(
+        &self,
+        item: &WorkItem,
+    ) -> Verdict;
     /// The same review,
     /// awaited by a caller that is itself a task of the runtime.
     /// Why:
@@ -185,13 +228,21 @@ pub trait WorkHandlers {
     /// ```ts
     /// reviewAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn review_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn review_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.review(item)));
     }
     /// Empty the directory of left-out files a snapshot-made worktree set aside;
     /// a handler that does not know it skips.
-    fn trash(&self, _item: &WorkItem) -> Verdict {
-        return Verdict::Skipped(String::from("this handler does not empty trash directories"));
+    fn trash(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
+        return Verdict::Skipped(String::from(
+            "this handler does not empty trash directories",
+        ));
     }
     /// The same emptying,
     /// awaited by a caller that is itself a task of the runtime.
@@ -207,13 +258,21 @@ pub trait WorkHandlers {
     /// ```ts
     /// trashAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn trash_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.trash(item)));
     }
     /// Fill a new worktree's Cargo build directory from the build state of the checkout it was copied from;
     /// a handler that does not know it skips.
-    fn prewarm(&self, _item: &WorkItem) -> Verdict {
-        return Verdict::Skipped(String::from("this handler does not fill Cargo build directories"));
+    fn prewarm(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
+        return Verdict::Skipped(String::from(
+            "this handler does not fill Cargo build directories",
+        ));
     }
     /// The same filling,
     /// awaited by a caller that is itself a task of the runtime.
@@ -227,13 +286,21 @@ pub trait WorkHandlers {
     /// ```ts
     /// prewarmAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn prewarm_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.prewarm(item)));
     }
     /// Relink the copied package state of a new worktree with each tool's own install;
     /// a handler that does not know it skips.
-    fn relink(&self, _item: &WorkItem) -> Verdict {
-        return Verdict::Skipped(String::from("this handler does not relink the package state of a worktree"));
+    fn relink(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
+        return Verdict::Skipped(String::from(
+            "this handler does not relink the package state of a worktree",
+        ));
     }
     /// The same relinking,
     /// awaited by a caller that is itself a task of the runtime.
@@ -246,12 +313,18 @@ pub trait WorkHandlers {
     /// ```ts
     /// relinkAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn relink_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn relink_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.relink(item)));
     }
     /// Delete the subvolume of a removed worktree that the removal handed over;
     /// a handler that does not know it skips.
-    fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
+    fn subvolume_delete(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Skipped(String::from("this handler does not delete subvolumes"));
     }
     /// The same delete,
@@ -262,12 +335,18 @@ pub trait WorkHandlers {
     /// ```ts
     /// subvolumeDeleteAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn subvolume_delete_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.subvolume_delete(item)));
     }
     /// Make a snapshot of a worktree ahead of the next add;
     /// a handler that does not know it skips.
-    fn snapshot_ahead(&self, _item: &WorkItem) -> Verdict {
+    fn snapshot_ahead(
+        &self,
+        _item: &WorkItem,
+    ) -> Verdict {
         return Verdict::Skipped(String::from("this handler makes no snapshots ahead"));
     }
     /// The same snapshot,
@@ -283,7 +362,10 @@ pub trait WorkHandlers {
     /// ```ts
     /// snapshotAheadAwaiting(item: WorkItem): Promise<Verdict>
     /// ```
-    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+    fn snapshot_ahead_awaiting<'a>(
+        &'a self,
+        item: &'a WorkItem,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.snapshot_ahead(item)));
     }
 }
@@ -305,7 +387,10 @@ pub fn work_directory(git_dir: &Path) -> PathBuf {
 /// ```ts
 /// isAcceptable(item, gitDir)
 /// ```
-pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
+pub fn is_acceptable(
+    item: &WorkItem,
+    git_dir: &Path,
+) -> bool {
     return item.repository.is_absolute()
         && item.repository.is_dir()
         && item.git_dir.as_path() == git_dir
@@ -318,7 +403,12 @@ pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
 /// Moves the claims to `state` and stops renewing them;
 /// a claim that another instance took over is said,
 /// and left to it.
-pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &str) {
+pub(crate) fn settle_all(
+    work_dir: &Path,
+    held: &HeldClaims,
+    claimed: &[Claimed],
+    state: &str,
+) {
     for item in claimed {
         if let Err(reason) = held.settle(work_dir, item.id.as_str(), state) {
             crate::service_warn!("{reason}");
@@ -341,7 +431,11 @@ pub(crate) fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed]
 /// ```ts
 /// claimed.filter((c) => held.isHeld(c.id))
 /// ```
-pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claimed>) -> Vec<Claimed> {
+pub(crate) fn still_held(
+    held: &HeldClaims,
+    work_dir: &Path,
+    claimed: Vec<Claimed>,
+) -> Vec<Claimed> {
     let mut mine: Vec<Claimed> = Vec::new();
     let mut lost: Vec<Claimed> = Vec::new();
     for item in claimed {
@@ -352,7 +446,8 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
         }
     }
     for item in lost {
-        crate::service_warn!("the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
+        crate::service_warn!(
+            "the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
             item.id
         );
         held.release(item.id.as_str());
@@ -379,10 +474,22 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 /// ```ts
 /// const tell = (item, drain, text) => recordInto(noticeTarget(drain, item.repository, item.created)) || recordInto(drain, text);
 /// ```
-fn tell_one_abandoned_relink(item: &WorkItem, drain_git_dir: &Path, text: &str) -> bool {
-    let target: Option<PathBuf> = crate::package_repair_relink_notice::notice_target_of_a_worktree(drain_git_dir, item.repository.as_path(), item.created.as_str());
+fn tell_one_abandoned_relink(
+    item: &WorkItem,
+    drain_git_dir: &Path,
+    text: &str,
+) -> bool {
+    let target: Option<PathBuf> = crate::package_repair_relink_notice::notice_target_of_a_worktree(
+        drain_git_dir,
+        item.repository.as_path(),
+        item.created.as_str(),
+    );
     if let Some(worktree_git_dir) = target.as_ref() {
-        match crate::package_repair_relink_notice::record_notice(worktree_git_dir.as_path(), item.id().as_str(), text) {
+        match crate::package_repair_relink_notice::record_notice(
+            worktree_git_dir.as_path(),
+            item.id().as_str(),
+            text,
+        ) {
             Ok(()) => return true,
             Err(problem) => crate::service_error!(
                 "the abandoned relink of {} {} could not be recorded in the worktree's own Git directory ({}), so it is recorded where the record was drained from instead: {problem}",
@@ -392,7 +499,11 @@ fn tell_one_abandoned_relink(item: &WorkItem, drain_git_dir: &Path, text: &str) 
             ),
         }
     }
-    match crate::package_repair_relink_notice::record_notice(drain_git_dir, item.id().as_str(), text) {
+    match crate::package_repair_relink_notice::record_notice(
+        drain_git_dir,
+        item.id().as_str(),
+        text,
+    ) {
         Ok(()) => return true,
         Err(problem) => {
             crate::service_error!(
@@ -433,7 +544,10 @@ fn tell_one_abandoned_relink(item: &WorkItem, drain_git_dir: &Path, text: &str) 
 /// ```ts
 /// for (const item of givenUp.filter(isPush)) if (!(await recordPushSkip(gitDir, item, reason))) return false; return true;
 /// ```
-pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool {
+pub(crate) fn tell_about_given_up(
+    git_dir: &Path,
+    given_up: &[WorkItem],
+) -> bool {
     let mut told: bool = true;
     for item in given_up {
         // A relink given up on leaves the worktree's links naming the checkout the copy came from, and nothing reads `failed`;
@@ -468,7 +582,12 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
             "monochromatic-git-policy-cli: the commit service stopped {MAX_TRIES} times before it finished pushing {} (a restart, a kill or a crash each time), so it gave up on that push.",
             item.branch_ref
         );
-        if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
+        if let Err(problem) = record_push_skip(
+            git_dir,
+            item.branch_ref.as_str(),
+            item.oid.as_str(),
+            reason.as_str(),
+        ) {
             crate::service_error!(
                 "the abandoned push of {} {} could not be recorded for the person: {problem}",
                 item.oid,
@@ -496,7 +615,10 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
 pub(crate) struct SkipNotice<'a>(pub(crate) &'a Path);
 
 impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
-    fn tell(&self, given_up: &WorkItem) -> bool {
+    fn tell(
+        &self,
+        given_up: &WorkItem,
+    ) -> bool {
         return tell_about_given_up(self.0, std::slice::from_ref(given_up));
     }
 
@@ -519,12 +641,21 @@ impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
     /// ```ts
     /// settled(item) { if (item.kind === 'relink') forget(item.gitDir, item.id()); if (item.kind === 'push') forgetPrograms(item.gitDir, item.id()); }
     /// ```
-    fn settled(&self, given_up: &WorkItem) {
+    fn settled(
+        &self,
+        given_up: &WorkItem,
+    ) {
         if given_up.kind == WorkKind::Relink {
-            crate::package_repair_relink_failure::forget(given_up.git_dir.as_path(), given_up.id().as_str());
+            crate::package_repair_relink_failure::forget(
+                given_up.git_dir.as_path(),
+                given_up.id().as_str(),
+            );
         }
         if given_up.kind == WorkKind::Push {
-            crate::service_push_programs_held_in_memory::forget(given_up.git_dir.as_path(), given_up.id().as_str());
+            crate::service_push_programs_held_in_memory::forget(
+                given_up.git_dir.as_path(),
+                given_up.id().as_str(),
+            );
         }
     }
 }
@@ -608,7 +739,11 @@ impl Replanning {
     /// ```ts
     /// await forget(gitDir, branch): await removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
     /// ```
-    pub(crate) async fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+    pub(crate) async fn forget(
+        &mut self,
+        git_dir: &Path,
+        branch_ref: &str,
+    ) {
         self.take_the_plan_file(git_dir, branch_ref).await;
         self.push_forget(git_dir, branch_ref, false, None);
     }
@@ -638,11 +773,21 @@ impl Replanning {
     ///   if (!isDirectory(gitDir)) await removePlans(this.plans, gitDir, due.item.branchRef);
     ///   this.changes.push({ forget: { gitDir, branchRef: due.item.branchRef, onlyWhileUnreachable: true, taken: due } });
     /// ```
-    pub(crate) async fn forget_when_unreachable(&mut self, git_dir: &Path, due: &Due) {
+    pub(crate) async fn forget_when_unreachable(
+        &mut self,
+        git_dir: &Path,
+        due: &Due,
+    ) {
         if !git_dir.is_dir() {
-            self.take_the_plan_file(git_dir, due.item.branch_ref.as_str()).await;
+            self.take_the_plan_file(git_dir, due.item.branch_ref.as_str())
+                .await;
         }
-        self.push_forget(git_dir, due.item.branch_ref.as_str(), true, Some(due.clone()));
+        self.push_forget(
+            git_dir,
+            due.item.branch_ref.as_str(),
+            true,
+            Some(due.clone()),
+        );
     }
 
     /// Removes the plan's file of a branch from the journal,
@@ -656,10 +801,23 @@ impl Replanning {
     /// a lock or a mount that stopped answering.
     /// The caller is a task of the runtime,
     /// which may not make that wait itself.
-    async fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
-        let Some(plans) = self.plans.clone() else { return };
-        let (repository, branch): (PathBuf, String) = (git_dir.to_path_buf(), String::from(branch_ref));
-        if let Err(reason) = crate::push_retry_store::remove_awaiting(plans.as_path(), repository.as_path(), branch.as_str()).await {
+    async fn take_the_plan_file(
+        &mut self,
+        git_dir: &Path,
+        branch_ref: &str,
+    ) {
+        let Some(plans) = self.plans.clone() else {
+            return;
+        };
+        let (repository, branch): (PathBuf, String) =
+            (git_dir.to_path_buf(), String::from(branch_ref));
+        if let Err(reason) = crate::push_retry_store::remove_awaiting(
+            plans.as_path(),
+            repository.as_path(),
+            branch.as_str(),
+        )
+        .await
+        {
             crate::service_warn!(
                 "the retry plan file of {branch} {} could not be removed, so the next start reads it again: {reason}",
                 crate::service_timing::in_the_repository_at(repository.as_path())
@@ -669,8 +827,19 @@ impl Replanning {
 
     /// The one place a forget is added,
     /// so both kinds name the directory and the branch the same way.
-    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool, taken: Option<Due>) {
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable, taken });
+    fn push_forget(
+        &mut self,
+        git_dir: &Path,
+        branch_ref: &str,
+        only_while_unreachable: bool,
+        taken: Option<Due>,
+    ) {
+        self.changes.push(RetryChange::Forget {
+            git_dir: git_dir.to_path_buf(),
+            branch_ref: branch_ref.to_string(),
+            only_while_unreachable,
+            taken,
+        });
     }
 
     /// What:
@@ -693,12 +862,21 @@ impl Replanning {
     /// ```ts
     /// return savePlans(this.plans, { gitDir, item, attempt });
     /// ```
-    pub(crate) async fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) -> bool {
+    pub(crate) async fn keep_the_plan(
+        &self,
+        git_dir: &Path,
+        item: &WorkItem,
+        attempt: u32,
+    ) -> bool {
         let Some(directory) = self.plans.as_deref() else {
             // A plan kept in memory only is kept as long as the service that keeps it lives.
             return true;
         };
-        let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt };
+        let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
+            git_dir: git_dir.to_path_buf(),
+            item: item.clone(),
+            attempt,
+        };
         return match crate::push_retry_store::save_awaiting(directory, &plan).await {
             Ok(()) => true,
             Err(reason) => {
@@ -760,12 +938,24 @@ pub(crate) struct PlannedRetry {
     pub(crate) kept: bool,
 }
 
-pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> PlannedRetry {
+pub(crate) async fn planned_retry(
+    git_dir: &Path,
+    replanning: &mut Replanning,
+    first: Duration,
+    item: &WorkItem,
+    attempt: u32,
+    text: &str,
+) -> PlannedRetry {
     let pause: Duration = pause_before(attempt, first);
     // The notice below says the service keeps trying, so the plan that keeps it is written first,
     // and its answer says whether the words may promise it.
     let kept: bool = replanning.keep_the_plan(git_dir, item, attempt).await;
-    replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
+    replanning.changes.push(RetryChange::Plan {
+        git_dir: git_dir.to_path_buf(),
+        item: item.clone(),
+        attempt,
+        due: Instant::now() + pause,
+    });
     // A protected-branch refusal is retried a fixed number of times, so a record that promised tries until the push lands would be
     //  untrue for the one cause that stops on its own; its words name the last try instead.
     let plan: String = match protected_branch_refusal(text) {
@@ -786,7 +976,10 @@ pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, f
         ("CLI_GIT_BRANCH", item.branch_ref.clone()),
         ("CLI_GIT_OID", item.oid.clone()),
         ("CLI_GIT_OUTCOME", String::from("retrying")),
-        ("CLI_GIT_REPOSITORY", item.repository.to_string_lossy().into_owned()),
+        (
+            "CLI_GIT_REPOSITORY",
+            item.repository.to_string_lossy().into_owned(),
+        ),
     ];
     // The line names the repository: one journal covers every worktree of the machine, and a branch name is the same in all of
     //  them, so a retry line without it cannot say which worktree's push it plans.
@@ -806,8 +999,15 @@ pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, f
     );
     // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
     //  its place would not know it, so the person is left with Git's own words and pushing by hand.
-    let words: String = if kept { format!("{plan}\n{text}") } else { text.to_string() };
-    return PlannedRetry { words, kept };
+    let words: String = if kept {
+        format!("{plan}\n{text}")
+    } else {
+        text.to_string()
+    };
+    return PlannedRetry {
+        words,
+        kept,
+    };
 }
 
 /// What:
@@ -835,8 +1035,17 @@ pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, f
 /// ```ts
 /// const gone = prove(gitDir, mounts); if (gone) { log(goneLine(gitDir, gone, branches)); for (const due of dueOf(gitDir)) await forget(due); }
 /// ```
-pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable, gone: &Gone) -> Drained {
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(
+    git_dir: &Path,
+    retrying: &Retrying,
+    unreachable: &GitDirUnreachable,
+    gone: &Gone,
+) -> Drained {
+    let mut replanning: Replanning = Replanning {
+        first: retrying.first,
+        changes: Vec::new(),
+        plans: retrying.plans.clone(),
+    };
     let mut named: Vec<String> = Vec::new();
     for due in &retrying.due {
         if due.git_dir != git_dir {
@@ -849,13 +1058,19 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
     //  repository is still missing, and the change drops the branch from the list the loop reads. A repository that is
     //  back by the time the change lands keeps its file, and the change puts its plan back (`PushRetries::apply`).
     if !named.is_empty() {
-        crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
+        crate::service_warn!(
+            "{} ({unreachable})",
+            crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice())
+        );
     }
     // What: Every value held against a push record of that repository is given up with its plans.
     // Why:  A repository the filesystem proves gone has no push that can run, and a value of a record nothing will run keeps a
     //  command line that can hold a password (`service_push_programs_held_in_memory`).
     crate::service_push_programs_held_in_memory::forget_every(git_dir);
-    return Drained { wait: None, changes: replanning.changes };
+    return Drained {
+        wait: None,
+        changes: replanning.changes,
+    };
 }
 
 /// What:
@@ -875,17 +1090,44 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
 /// ```ts
 /// for (const due of retrying.due) if (due.gitDir === gitDir) await plan(gitDir, due.item, due.attempt + 1, pauseBefore(due.attempt + 1))
 /// ```
-pub(crate) async fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable) -> Drained {
-    crate::service_warn!("{unreachable}; its work stays where it is for the next command, nothing runs, and its push plans keep their pauses");
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+pub(crate) async fn keep_plans_while_unreachable(
+    git_dir: &Path,
+    retrying: &Retrying,
+    unreachable: &GitDirUnreachable,
+) -> Drained {
+    crate::service_warn!(
+        "{unreachable}; its work stays where it is for the next command, nothing runs, and its push plans keep their pauses"
+    );
+    let mut replanning: Replanning = Replanning {
+        first: retrying.first,
+        changes: Vec::new(),
+        plans: retrying.plans.clone(),
+    };
     let Some(first) = retrying.first else {
-        return Drained { wait: None, changes: replanning.changes };
+        return Drained {
+            wait: None,
+            changes: replanning.changes,
+        };
     };
     for due in &retrying.due {
         if due.git_dir == git_dir {
-            let cause: String = format!("the repository at {} is not reachable now (is its drive mounted?)", git_dir.display());
-            let _said: PlannedRetry = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str()).await;
+            let cause: String = format!(
+                "the repository at {} is not reachable now (is its drive mounted?)",
+                git_dir.display()
+            );
+            let _said: PlannedRetry = planned_retry(
+                git_dir,
+                &mut replanning,
+                first,
+                &due.item,
+                due.attempt + 1,
+                cause.as_str(),
+            )
+            .await;
         }
     }
-    return Drained { wait: None, changes: replanning.changes };
+    return Drained {
+        wait: None,
+        changes: replanning.changes,
+    };
 }

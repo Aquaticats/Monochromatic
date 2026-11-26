@@ -5,9 +5,20 @@
 //! so a reading that drifts from Git's fails here.
 
 use super::*;
-use crate::test_support::{fixture, git_context, remove, repository};
-use crate::transaction_git::{GitRequest, run_git};
-use std::path::{Path, PathBuf};
+use crate::test_support::{
+    fixture,
+    git_context,
+    remove,
+    repository,
+};
+use crate::transaction_git::{
+    GitRequest,
+    run_git,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The values checked:
 /// every word,
@@ -17,9 +28,28 @@ use std::path::{Path, PathBuf};
 ///  prefixes,
 /// and words Git ignores.
 const VALUES: [&str; 22] = [
-    "", "none", "all", "added", "committed", "objects", "loose-object", "pack", "-pack", "-all", "all,-pack", "pack-metadata",
-    "derived-metadata", "loose-object,none", "none,loose-object", "p", "reference,-reference", "bogus", "  pack ,\tnone", "-",
-    "pack,-pack-metadata", "commit-graph,pack-metadata,none",
+    "",
+    "none",
+    "all",
+    "added",
+    "committed",
+    "objects",
+    "loose-object",
+    "pack",
+    "-pack",
+    "-all",
+    "all,-pack",
+    "pack-metadata",
+    "derived-metadata",
+    "loose-object,none",
+    "none,loose-object",
+    "p",
+    "reference,-reference",
+    "bogus",
+    "  pack ,\tnone",
+    "-",
+    "pack,-pack-metadata",
+    "commit-graph,pack-metadata,none",
 ];
 
 /// What:
@@ -44,7 +74,9 @@ const VALUES: [&str; 22] = [
 ///     return kept.some(([, seen]) => seen === spelled) ? kept : [...kept, [value, spelled, parse(value)]];
 /// }, []);
 /// ```
-fn spellings_of(spell: fn(FsyncComponents) -> FsyncComponents) -> Vec<(&'static str, String, FsyncComponents)> {
+fn spellings_of(
+    spell: fn(FsyncComponents) -> FsyncComponents
+) -> Vec<(&'static str, String, FsyncComponents)> {
     let mut kept: Vec<(&'static str, String, FsyncComponents)> = Vec::new();
     for value in VALUES {
         let set: FsyncComponents = FsyncComponents::parse(value);
@@ -62,8 +94,13 @@ fn spellings_of(spell: fn(FsyncComponents) -> FsyncComponents) -> Vec<(&'static 
 /// the flush counts are a question about
 ///  Git and are the same for one string.
 /// Returns false for a spelling already asked.
-fn ask_once(asked: &mut Vec<String>, spelled: &str) -> bool {
-    if asked.iter().any(|seen: &String| { return seen == spelled; }) {
+fn ask_once(
+    asked: &mut Vec<String>,
+    spelled: &str,
+) -> bool {
+    if asked.iter().any(|seen: &String| {
+        return seen == spelled;
+    }) {
         return false;
     }
     asked.push(String::from(spelled));
@@ -73,40 +110,77 @@ fn ask_once(asked: &mut Vec<String>, spelled: &str) -> bool {
 /// How many flushes Git reports (trace2 `fsync` counters) for one start of `arguments` with `core.fsync` set to `value`,
 /// or
 ///  not set at all for `None`.
-fn flushes(repo: &Path, trace: &Path, value: Option<&str>, arguments: &[&str], input: Option<&[u8]>) -> u64 {
+fn flushes(
+    repo: &Path,
+    trace: &Path,
+    value: Option<&str>,
+    arguments: &[&str],
+    input: Option<&[u8]>,
+) -> u64 {
     let _gone = std::fs::remove_file(trace);
-    let setting: String = value.map(|text| { return format!("core.fsync={text}"); }).unwrap_or_default();
+    let setting: String = value
+        .map(|text| {
+            return format!("core.fsync={text}");
+        })
+        .unwrap_or_default();
     let mut full: Vec<&str> = Vec::new();
     if value.is_some() {
         full.extend(["-c", setting.as_str()]);
     }
     full.extend(arguments);
     let mut request: GitRequest = GitRequest::new(repo, full.as_slice());
-    request.environment.push((std::ffi::OsString::from("GIT_TRACE2_EVENT"), trace.as_os_str().to_os_string()));
+    request.environment.push((
+        std::ffi::OsString::from("GIT_TRACE2_EVENT"),
+        trace.as_os_str().to_os_string(),
+    ));
     request.input = input.map(<[u8]>::to_vec);
     let output = run_git(&git_context(), &request).expect("Git starts");
     assert!(output.succeeded(), "{full:?}: {}", output.error_text());
     let events: String = std::fs::read_to_string(trace).unwrap_or_default();
     return events
         .lines()
-        .filter(|line| { return line.contains("\"event\":\"counter\"") && line.contains("\"category\":\"fsync\""); })
-        .filter_map(|line| { return line.split("\"count\":").nth(1)?.trim_end_matches('}').parse::<u64>().ok(); })
+        .filter(|line| {
+            return line.contains("\"event\":\"counter\"")
+                && line.contains("\"category\":\"fsync\"");
+        })
+        .filter_map(|line| {
+            return line
+                .split("\"count\":")
+                .nth(1)?
+                .trim_end_matches('}')
+                .parse::<u64>()
+                .ok();
+        })
         .sum();
 }
 
 /// The flushes of `index-pack` storing `pack`:
 /// the pack and its index,
 /// no reference.
-fn pack_flushes(repo: &Path, trace: &Path, value: Option<&str>, pack: &[u8]) -> u64 {
-    return flushes(repo, trace, value, &["index-pack", "--stdin", "--strict"], Some(pack));
+fn pack_flushes(
+    repo: &Path,
+    trace: &Path,
+    value: Option<&str>,
+    pack: &[u8],
+) -> u64 {
+    return flushes(
+        repo,
+        trace,
+        value,
+        &["index-pack", "--stdin", "--strict"],
+        Some(pack),
+    );
 }
 
 /// A pack of the repository's history,
 /// to give `index-pack`.
 fn history_pack(repo: &Path) -> Vec<u8> {
-    let mut request: GitRequest = GitRequest::new(repo, &["pack-objects", "--stdout", "--revs", "--quiet"]);
+    let mut request: GitRequest =
+        GitRequest::new(repo, &["pack-objects", "--stdout", "--revs", "--quiet"]);
     request.input = Some(b"HEAD\n".to_vec());
-    return run_git(&git_context(), &request).expect("pack-objects starts").stdout;
+    return run_git(&git_context(), &request)
+        .expect("pack-objects starts")
+        .stdout;
 }
 
 /// The flushes of the import step of a landing,
@@ -118,19 +192,61 @@ fn history_pack(repo: &Path) -> Vec<u8> {
 /// so no earlier
 ///  probe wrote the same objects (an object that exists is not written again,
 /// and a pack of none is not made).
-fn import_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str) -> u64 {
-    let stream: String = format!("commit refs/probe/import-{name}\nmark :1\ncommitter T <t@example.invalid> 1793535889 +0000\ndata {length}\n{name}\nM 100644 inline f\ndata {length}\n{name}\n\ndone\n", length = name.len());
-    return flushes(repo, trace, value, &["-c", "fastimport.unpackLimit=0", "fast-import", "--quiet", "--done"], Some(stream.as_bytes()));
+fn import_flushes(
+    repo: &Path,
+    trace: &Path,
+    value: Option<&str>,
+    name: &str,
+) -> u64 {
+    let stream: String = format!(
+        "commit refs/probe/import-{name}\nmark :1\ncommitter T <t@example.invalid> 1793535889 +0000\ndata {length}\n{name}\nM 100644 inline f\ndata {length}\n{name}\n\ndone\n",
+        length = name.len()
+    );
+    return flushes(
+        repo,
+        trace,
+        value,
+        &[
+            "-c",
+            "fastimport.unpackLimit=0",
+            "fast-import",
+            "--quiet",
+            "--done",
+        ],
+        Some(stream.as_bytes()),
+    );
 }
 
 /// The flushes of one loose object written by `hash-object`.
-fn loose_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str) -> u64 {
-    return flushes(repo, trace, value, &["hash-object", "-w", "--stdin"], Some(format!("loose object {name}").as_bytes()));
+fn loose_flushes(
+    repo: &Path,
+    trace: &Path,
+    value: Option<&str>,
+    name: &str,
+) -> u64 {
+    return flushes(
+        repo,
+        trace,
+        value,
+        &["hash-object", "-w", "--stdin"],
+        Some(format!("loose object {name}").as_bytes()),
+    );
 }
 
 /// The flushes of one reference written by `update-ref`.
-fn reference_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str) -> u64 {
-    return flushes(repo, trace, value, &["update-ref", format!("refs/probe/{name}").as_str(), "HEAD"], None);
+fn reference_flushes(
+    repo: &Path,
+    trace: &Path,
+    value: Option<&str>,
+    name: &str,
+) -> u64 {
+    return flushes(
+        repo,
+        trace,
+        value,
+        &["update-ref", format!("refs/probe/{name}").as_str(), "HEAD"],
+        None,
+    );
 }
 
 /// Each value agrees with Git:
@@ -148,12 +264,33 @@ fn a_value_names_the_components_git_flushes() {
     for (position, value) in VALUES.iter().enumerate() {
         let set: FsyncComponents = FsyncComponents::parse(value);
         let name: String = format!("v{position}");
-        assert_eq!(loose_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0, set.names_loose_object(), "loose objects under {value:?}");
-        assert_eq!(reference_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0, set.names_reference(), "references under {value:?}");
-        assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), Some(value), pack.as_slice()) > 0, set.names_pack(), "packs under {value:?}");
+        assert_eq!(
+            loose_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0,
+            set.names_loose_object(),
+            "loose objects under {value:?}"
+        );
+        assert_eq!(
+            reference_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0,
+            set.names_reference(),
+            "references under {value:?}"
+        );
+        assert_eq!(
+            pack_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(value),
+                pack.as_slice()
+            ) > 0,
+            set.names_pack(),
+            "packs under {value:?}"
+        );
         // The import also writes a reference, so its pack is only told apart where the reference is not flushed.
         if !set.names_reference() {
-            assert_eq!(import_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0, set.names_pack(), "the import's pack under {value:?}");
+            assert_eq!(
+                import_flushes(repo.as_path(), trace.as_path(), Some(value), name.as_str()) > 0,
+                set.names_pack(),
+                "the import's pack under {value:?}"
+            );
         }
     }
     remove(root.as_path());
@@ -168,10 +305,22 @@ fn an_unset_key_is_the_default_set() {
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
     let set: FsyncComponents = FsyncComponents::default_set();
-    assert_eq!(loose_flushes(repo.as_path(), trace.as_path(), None, "unset") > 0, set.names_loose_object());
-    assert_eq!(reference_flushes(repo.as_path(), trace.as_path(), None, "unset") > 0, set.names_reference());
-    assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), None, pack.as_slice()) > 0, set.names_pack());
-    assert!(set.names_pack() && !set.names_loose_object(), "the default flushes packs and not loose objects");
+    assert_eq!(
+        loose_flushes(repo.as_path(), trace.as_path(), None, "unset") > 0,
+        set.names_loose_object()
+    );
+    assert_eq!(
+        reference_flushes(repo.as_path(), trace.as_path(), None, "unset") > 0,
+        set.names_reference()
+    );
+    assert_eq!(
+        pack_flushes(repo.as_path(), trace.as_path(), None, pack.as_slice()) > 0,
+        set.names_pack()
+    );
+    assert!(
+        set.names_pack() && !set.names_loose_object(),
+        "the default flushes packs and not loose objects"
+    );
     remove(root.as_path());
 }
 
@@ -188,22 +337,54 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
     let pack: Vec<u8> = history_pack(repo.as_path());
     let mut asked: Vec<String> = Vec::new();
     for (value, spelled, set) in spellings_of(FsyncComponents::without_packs) {
-        assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.without_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?} reads back the same, but for the mapping between hash algorithms that no word names alone");
+        assert_eq!(
+            FsyncComponents::parse(spelled.as_str()).bits,
+            set.without_packs().bits & !OBJECT_MAP,
+            "{value:?} spelled as {spelled:?} reads back the same, but for the mapping between hash algorithms that no word names alone"
+        );
         if !ask_once(&mut asked, spelled.as_str()) {
             continue;
         }
         let name: String = format!("w{}", asked.len());
-        assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()), 0, "no pack flush under {spelled:?} (from {value:?})");
+        assert_eq!(
+            pack_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(spelled.as_str()),
+                pack.as_slice()
+            ),
+            0,
+            "no pack flush under {spelled:?} (from {value:?})"
+        );
         if !set.names_reference() {
-            assert_eq!(import_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()), 0, "the import flushes nothing under {spelled:?} (from {value:?})");
+            assert_eq!(
+                import_flushes(
+                    repo.as_path(),
+                    trace.as_path(),
+                    Some(spelled.as_str()),
+                    name.as_str()
+                ),
+                0,
+                "the import flushes nothing under {spelled:?} (from {value:?})"
+            );
         }
         assert_eq!(
-            loose_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()) > 0,
+            loose_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(spelled.as_str()),
+                name.as_str()
+            ) > 0,
             set.names_loose_object(),
             "loose objects under {spelled:?} (from {value:?})"
         );
         assert_eq!(
-            reference_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()) > 0,
+            reference_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(spelled.as_str()),
+                name.as_str()
+            ) > 0,
             set.names_reference(),
             "references under {spelled:?} (from {value:?})"
         );
@@ -230,7 +411,11 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
 fn every_values_spelling_reaches_its_round_trip() {
     for spell in [FsyncComponents::without_packs, FsyncComponents::with_packs] {
         let spellings: Vec<(&'static str, String, FsyncComponents)> = spellings_of(spell);
-        assert_eq!(spellings.len(), VALUES.len(), "every value is spelled, so every value's round trip runs");
+        assert_eq!(
+            spellings.len(),
+            VALUES.len(),
+            "every value is spelled, so every value's round trip runs"
+        );
         for (value, spelled, set) in spellings {
             assert_eq!(
                 FsyncComponents::parse(spelled.as_str()).bits,
@@ -246,13 +431,18 @@ fn every_values_spelling_reaches_its_round_trip() {
 #[test]
 fn only_index_added_and_all_name_the_index() {
     for value in VALUES {
-        let named: bool = ["index", "added", "all"].iter().any(|word| { return value.contains(word); });
+        let named: bool = ["index", "added", "all"].iter().any(|word| {
+            return value.contains(word);
+        });
         let set: FsyncComponents = FsyncComponents::parse(value);
         if !named {
             assert!(!set.names_index(), "{value:?}");
         }
     }
-    assert!(FsyncComponents::parse("added,-index").names_index(), "an added component stays when it is also removed, as in Git");
+    assert!(
+        FsyncComponents::parse("added,-index").names_index(),
+        "an added component stays when it is also removed, as in Git"
+    );
     assert!(!FsyncComponents::parse("-index").names_index());
 }
 
@@ -267,10 +457,19 @@ fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_compo
     let repo: PathBuf = repository(root.as_path(), "repo");
     let trace: PathBuf = root.join("trace.json");
     let pack: Vec<u8> = history_pack(repo.as_path());
-    let packed_by_name: u64 = pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice());
+    let packed_by_name: u64 = pack_flushes(
+        repo.as_path(),
+        trace.as_path(),
+        Some("pack,pack-metadata,none"),
+        pack.as_slice(),
+    );
     let mut asked: Vec<String> = Vec::new();
     for (value, spelled, set) in spellings_of(FsyncComponents::with_packs) {
-        assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.with_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?}");
+        assert_eq!(
+            FsyncComponents::parse(spelled.as_str()).bits,
+            set.with_packs().bits & !OBJECT_MAP,
+            "{value:?} spelled as {spelled:?}"
+        );
         if !ask_once(&mut asked, spelled.as_str()) {
             continue;
         }
@@ -278,17 +477,32 @@ fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_compo
         assert!(set.with_packs().names_pack_and_metadata());
         // The same flushes as a value that names the packs alone make (the pack, its index and what Git writes beside it).
         assert_eq!(
-            pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()),
+            pack_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(spelled.as_str()),
+                pack.as_slice()
+            ),
             packed_by_name,
             "the pack and its index under {spelled:?} (from {value:?})"
         );
         assert_eq!(
-            loose_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()) > 0,
+            loose_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(spelled.as_str()),
+                name.as_str()
+            ) > 0,
             set.names_loose_object(),
             "loose objects under {spelled:?} (from {value:?})"
         );
         assert_eq!(
-            reference_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()) > 0,
+            reference_flushes(
+                repo.as_path(),
+                trace.as_path(),
+                Some(spelled.as_str()),
+                name.as_str()
+            ) > 0,
             set.names_reference(),
             "references under {spelled:?} (from {value:?})"
         );

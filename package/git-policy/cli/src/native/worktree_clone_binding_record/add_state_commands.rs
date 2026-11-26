@@ -192,7 +192,8 @@ pub enum NextCommand {
 
 /// The settling command's program and subcommand,
 /// which the wrapper's own executable answers.
-pub const SETTLING_COMMAND_WORDS: &str = "git monochromatic-git-policy-cli settle-worktree-clone-record";
+pub const SETTLING_COMMAND_WORDS: &str =
+    "git monochromatic-git-policy-cli settle-worktree-clone-record";
 
 /// The words every refusal and report prints where a removal would be the way
 /// out.
@@ -204,7 +205,8 @@ pub const SETTLING_COMMAND_WORDS: &str = "git monochromatic-git-policy-cli settl
 ///  and it says here that this one is not built
 ///  (`SPEC.md`,
 ///  "Removal of a ZFS worktree clone").
-pub const NO_REMOVAL_WORDS: &str = "this release has no removal for a clone, so the clone and its record stay until it does";
+pub const NO_REMOVAL_WORDS: &str =
+    "this release has no removal for a clone, so the clone and its record stay until it does";
 
 /// What:
 ///  The command one state names.
@@ -230,14 +232,29 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
                 true => NextCommand::TheAddAgain,
                 false => NextCommand::TheSettlingCommand,
             },
-            Some(ClonePresence::GoneUnprovable { .. } | ClonePresence::TheNameAnswersAnotherClone { .. }) => NextCommand::TheSettlingCommand,
+            Some(
+                ClonePresence::GoneUnprovable {
+                    ..
+                }
+                | ClonePresence::TheNameAnswersAnotherClone {
+                    ..
+                },
+            ) => NextCommand::TheSettlingCommand,
             None => NextCommand::TheAddAgain,
         };
     }
     if facts.phase == Phase::Filled {
         return match facts.clone.as_ref() {
             Some(ClonePresence::Stands) | None => NextCommand::None,
-            Some(ClonePresence::GoneProved | ClonePresence::GoneUnprovable { .. } | ClonePresence::TheNameAnswersAnotherClone { .. }) => NextCommand::TheSettlingCommand,
+            Some(
+                ClonePresence::GoneProved
+                | ClonePresence::GoneUnprovable {
+                    ..
+                }
+                | ClonePresence::TheNameAnswersAnotherClone {
+                    ..
+                },
+            ) => NextCommand::TheSettlingCommand,
         };
     }
     if matches!(facts.phase, Phase::Cloned | Phase::Mounted) {
@@ -245,7 +262,15 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
             Some(ClonePresence::Stands) => NextCommand::None,
             // A clone the phase records and the pool cannot answer for is the settling command's,
             // proved gone or not: the refusal names the same command either way.
-            Some(ClonePresence::GoneProved | ClonePresence::GoneUnprovable { .. } | ClonePresence::TheNameAnswersAnotherClone { .. }) => NextCommand::TheSettlingCommand,
+            Some(
+                ClonePresence::GoneProved
+                | ClonePresence::GoneUnprovable {
+                    ..
+                }
+                | ClonePresence::TheNameAnswersAnotherClone {
+                    ..
+                },
+            ) => NextCommand::TheSettlingCommand,
             None => NextCommand::TheAddAgain,
         };
     }
@@ -284,42 +309,63 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
 /// ```ts
 /// const command = commandBesideAStandingPlan(facts, head);
 /// ```
-fn command_beside_a_standing_plan(facts: &StateFacts, head: PlanHeadWord) -> NextCommand {
+fn command_beside_a_standing_plan(
+    facts: &StateFacts,
+    head: PlanHeadWord,
+) -> NextCommand {
     if matches!(facts.clone.as_ref(), Some(ClonePresence::Stands)) {
         return NextCommand::TheRemoval;
     }
-    if matches!(facts.clone.as_ref(), Some(ClonePresence::TheNameAnswersAnotherClone { .. })) {
+    if matches!(
+        facts.clone.as_ref(),
+        Some(ClonePresence::TheNameAnswersAnotherClone { .. })
+    ) {
         return NextCommand::APersonReadsTheRecords;
     }
-    if matches!(facts.clone.as_ref(), Some(ClonePresence::GoneUnprovable { .. })) {
+    if matches!(
+        facts.clone.as_ref(),
+        Some(ClonePresence::GoneUnprovable { .. })
+    ) {
         return match head {
             PlanHeadWord::Gone => NextCommand::TheFinishPass,
-            PlanHeadWord::Present | PlanHeadWord::Requested | PlanHeadWord::Refused | PlanHeadWord::Unknown => NextCommand::TheSettlingCommand,
+            PlanHeadWord::Present
+            | PlanHeadWord::Requested
+            | PlanHeadWord::Refused
+            | PlanHeadWord::Unknown => NextCommand::TheSettlingCommand,
         };
     }
     return match head {
         PlanHeadWord::Present | PlanHeadWord::Refused => NextCommand::TheSettlingCommand,
-        PlanHeadWord::Requested | PlanHeadWord::Gone | PlanHeadWord::Unknown => NextCommand::TheRemoval,
+        PlanHeadWord::Requested | PlanHeadWord::Gone | PlanHeadWord::Unknown => {
+            NextCommand::TheRemoval
+        }
     };
 }
 
 impl NextCommand {
     /// The sentence a refusal or a report prints,
     /// with the slot filled in and the settling command's flags left as placeholders.
-    pub fn printed_line(self, slot: &str) -> String {
+    pub fn printed_line(
+        self,
+        slot: &str,
+    ) -> String {
         return match self {
             NextCommand::TheAddAgain => format!("run the add again at `{slot}`"),
             NextCommand::TheSettlingCommand => format!(
                 "run `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, after reading the evidence above"
             ),
-            NextCommand::GitWorktreeRemove => format!("run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"),
+            NextCommand::GitWorktreeRemove => format!(
+                "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"
+            ),
             NextCommand::TheRemoval => format!(
                 "the removal this slot's destruction plan belongs to resumes from the plan and ends it, and {NO_REMOVAL_WORDS}"
             ),
             NextCommand::TheFinishPass => String::from(
                 "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",
             ),
-            NextCommand::None => String::from("nothing: the add continues at the step its phase names"),
+            NextCommand::None => {
+                String::from("nothing: the add continues at the step its phase names")
+            }
             NextCommand::APersonReadsTheRecords => String::from(
                 "read the two records before acting: the plan's recorded clone name now answers another clone, so no command of this release settles the state, and `git monochromatic-git-policy-cli doctor` names the plan, its registration and the slot",
             ),

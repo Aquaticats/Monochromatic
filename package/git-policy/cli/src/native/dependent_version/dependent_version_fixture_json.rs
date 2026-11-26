@@ -20,17 +20,26 @@
 /// Quoting that matches the incumbent's.
 use crate::dependent_version_release::json_quote_units;
 /// The crate's JSONC parser reads fixtures.
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+};
 
 /// The member of a fixture object;
 /// a missing member is a broken fixture.
-pub fn field<'value>(value: &'value JsoncValue, key: &str) -> &'value JsoncValue {
+pub fn field<'value>(
+    value: &'value JsoncValue,
+    key: &str,
+) -> &'value JsoncValue {
     return optional_field(value, key).unwrap_or_else(|| panic!("fixture lacks {key:?}"));
 }
 
 /// The member of a fixture object,
 /// if present.
-pub fn optional_field<'value>(value: &'value JsoncValue, key: &str) -> Option<&'value JsoncValue> {
+pub fn optional_field<'value>(
+    value: &'value JsoncValue,
+    key: &str,
+) -> Option<&'value JsoncValue> {
     return value.entries().and_then(|entries| {
         return entries
             .iter()
@@ -73,7 +82,12 @@ pub fn is_null(value: &JsoncValue) -> bool {
 
 /// Whether a fixture value is `true`.
 pub fn is_true(value: &JsoncValue) -> bool {
-    return matches!(value.kind, JsoncKind::Boolean { value: true });
+    return matches!(
+        value.kind,
+        JsoncKind::Boolean {
+            value: true
+        }
+    );
 }
 
 /// The bytes of a lower-case hexadecimal fixture string.
@@ -107,7 +121,10 @@ pub fn quote(value: &str) -> String {
 
 /// Bytes as a quoted lower-case hexadecimal string.
 pub fn quote_hex(bytes: &[u8]) -> String {
-    return format!("\"{}\"", crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes));
+    return format!(
+        "\"{}\"",
+        crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes)
+    );
 }
 
 /// A canonical JSON array of already canonical items.
@@ -130,13 +147,25 @@ pub fn object(members: &[(&str, String)]) -> String {
 pub fn canonical(value: &JsoncValue) -> String {
     match &value.kind {
         JsoncKind::Null => return String::from("null"),
-        JsoncKind::Boolean { value: flag } => return flag.to_string(),
-        JsoncKind::Number { raw, .. } => return raw.clone(),
-        JsoncKind::Text { units, .. } => return json_quote_units(units),
-        JsoncKind::Array { elements } => {
+        JsoncKind::Boolean {
+            value: flag,
+        } => return flag.to_string(),
+        JsoncKind::Number {
+            raw,
+            ..
+        } => return raw.clone(),
+        JsoncKind::Text {
+            units,
+            ..
+        } => return json_quote_units(units),
+        JsoncKind::Array {
+            elements,
+        } => {
             return array(&elements.iter().map(canonical).collect::<Vec<String>>());
         }
-        JsoncKind::Record { entries } => {
+        JsoncKind::Record {
+            entries,
+        } => {
             let rendered: Vec<String> = entries
                 .iter()
                 .map(|entry| {

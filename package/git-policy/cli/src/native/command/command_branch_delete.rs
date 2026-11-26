@@ -14,9 +14,22 @@
 //! // branchDeletions(['-D', 'gone']) === ['gone']
 //! ```
 
-use crate::command_branch_table::{BRANCH_TABLE, DELETE, DELETE_FORCE, REMOTES};
-use crate::command_options::{DEFAULT_MODE, ParsedOptions, parse_options};
-use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
+use crate::command_branch_table::{
+    BRANCH_TABLE,
+    DELETE,
+    DELETE_FORCE,
+    REMOTES,
+};
+use crate::command_options::{
+    DEFAULT_MODE,
+    ParsedOptions,
+    parse_options,
+};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    positional_tokens,
+};
 use std::ffi::OsString;
 
 /// What:

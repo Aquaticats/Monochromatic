@@ -16,8 +16,15 @@
 
 /// The policy under test.
 use super::{
-    LintRequest, MARKDOWN_AUTOFIX_CODE, MARKDOWN_VIOLATION_CODE, MarkdownLinter, MarkdownState,
-    UNCHECKED_REMEDY, check_markdown, is_markdown_path, markdown_state,
+    LintRequest,
+    MARKDOWN_AUTOFIX_CODE,
+    MARKDOWN_VIOLATION_CODE,
+    MarkdownLinter,
+    MarkdownState,
+    UNCHECKED_REMEDY,
+    check_markdown,
+    is_markdown_path,
+    markdown_state,
 };
 use crate::candidate_object::CandidateMode;
 use crate::candidate_prediction::CandidateRequest;
@@ -25,17 +32,40 @@ use crate::candidate_version::CandidateVersion;
 use crate::config_schema::MarkdownRule;
 use crate::diagnostics::EngineFailureCode;
 use crate::event_path::EventPath;
-use crate::markdown_linter_output::{LintRun, RemainingFinding};
-use crate::policy_content::{ContentState, Correction, LifecycleContent};
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
-use crate::policy_test_support::{ScriptedFacts, outside_worktree, scripted_facts};
+use crate::markdown_linter_output::{
+    LintRun,
+    RemainingFinding,
+};
+use crate::policy_content::{
+    ContentState,
+    Correction,
+    LifecycleContent,
+};
+use crate::policy_engine::{
+    PolicyFinding,
+    PolicyOutcome,
+};
+use crate::policy_test_support::{
+    ScriptedFacts,
+    outside_worktree,
+    scripted_facts,
+};
 use crate::policy_trigger::Trigger;
-use crate::test_support::{executable, fixture, git, remove, repository};
+use crate::test_support::{
+    executable,
+    fixture,
+    git,
+    remove,
+    repository,
+};
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 /// How the scripted linter answers a request.
@@ -64,7 +94,10 @@ struct ScriptedLinter {
 /// The scripted linter logs,
 ///  then answers.
 impl MarkdownLinter for ScriptedLinter {
-    fn lint(&mut self, request: &LintRequest<'_>) -> Result<LintRun, String> {
+    fn lint(
+        &mut self,
+        request: &LintRequest<'_>,
+    ) -> Result<LintRun, String> {
         self.log.borrow_mut().push(Linted {
             top_level: request.top_level.to_path_buf(),
             path: request.path.to_vec(),
@@ -129,7 +162,10 @@ fn refuse(_request: &LintRequest<'_>) -> Result<LintRun, String> {
 /// A state with the scripted linter,
 ///  the LFS rule and `exclude`,
 ///  and the shared log.
-fn scripted_state(answer: Answer, exclude: &[&str]) -> (MarkdownState, Rc<RefCell<Vec<Linted>>>) {
+fn scripted_state(
+    answer: Answer,
+    exclude: &[&str],
+) -> (MarkdownState, Rc<RefCell<Vec<Linted>>>) {
     let log: Rc<RefCell<Vec<Linted>>> = Rc::new(RefCell::new(Vec::new()));
     let mut state: MarkdownState = markdown_state(Box::new(ScriptedLinter {
         answer,
@@ -182,7 +218,10 @@ fn mixed_repository(root: &Path) -> PathBuf {
 
 /// The autofix finding about `path`,
 ///  offering a fix or not.
-fn autofix(path: &[u8], fix_available: bool) -> PolicyFinding {
+fn autofix(
+    path: &[u8],
+    fix_available: bool,
+) -> PolicyFinding {
     let event: EventPath = EventPath::from_git_bytes(path);
     return PolicyFinding {
         code: MARKDOWN_AUTOFIX_CODE,
@@ -197,7 +236,11 @@ fn autofix(path: &[u8], fix_available: bool) -> PolicyFinding {
 }
 
 /// The correction of `path` from `before` to its rewritten bytes.
-fn correction(path: &[u8], mode: CandidateMode, before: &[u8]) -> Correction {
+fn correction(
+    path: &[u8],
+    mode: CandidateMode,
+    before: &[u8],
+) -> Correction {
     return Correction {
         path: path.to_vec(),
         mode,
@@ -217,7 +260,9 @@ fn correction(path: &[u8], mode: CandidateMode, before: &[u8]) -> Correction {
 ///  and corrected only by a direct fix.
 #[test]
 fn each_eligible_candidate_reaches_the_linter_once_in_order() {
-    if !in_a_fixture_root_taking_any_name("markdown::policy_markdown::tests::each_eligible_candidate_reaches_the_linter_once_in_order") {
+    if !in_a_fixture_root_taking_any_name(
+        "markdown::policy_markdown::tests::each_eligible_candidate_reaches_the_linter_once_in_order",
+    ) {
         return;
     }
     let root: PathBuf = fixture("markdown-eligible");
@@ -232,7 +277,14 @@ fn each_eligible_candidate_reaches_the_linter_once_in_order() {
     ];
     for trigger in [Trigger::PreForward, Trigger::DirectCheck] {
         assert_eq!(
-            check_markdown(&mut content, &add_all(), &mut facts, &mut state, trigger, false),
+            check_markdown(
+                &mut content,
+                &add_all(),
+                &mut facts,
+                &mut state,
+                trigger,
+                false
+            ),
             PolicyOutcome::Findings(expected.clone()),
             "{trigger:?}"
         );
@@ -257,7 +309,8 @@ fn each_eligible_candidate_reaches_the_linter_once_in_order() {
         &add_all(),
         &mut facts,
         &mut state,
-        Trigger::DirectFix, false,
+        Trigger::DirectFix,
+        false,
     );
     assert_eq!(
         fixed,
@@ -287,7 +340,10 @@ fn single_repository(root: &Path) -> PathBuf {
 
 /// The policy's outcome for `a.md` under `answer`,
 ///  at `trigger`.
-fn single(answer: Answer, trigger: Trigger) -> PolicyOutcome {
+fn single(
+    answer: Answer,
+    trigger: Trigger,
+) -> PolicyOutcome {
     let root: PathBuf = fixture(format!("markdown-single-{trigger:?}").as_str());
     let repo: PathBuf = single_repository(root.as_path());
     let (mut state, _log) = scripted_state(answer, &[]);
@@ -296,7 +352,8 @@ fn single(answer: Answer, trigger: Trigger) -> PolicyOutcome {
         &add_all(),
         &mut facts_for(repo.as_path()),
         &mut state,
-        trigger, false,
+        trigger,
+        false,
     );
     remove(root.as_path());
     return outcome;
@@ -343,7 +400,8 @@ fn a_candidate_the_linter_cannot_check_fails_the_policy() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::PreForward, false
+            Trigger::PreForward,
+            false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::PolicyIncomplete,
@@ -373,7 +431,8 @@ fn exclude_patterns_that_do_not_compile_fail_the_policy() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::PreForward, false,
+            Trigger::PreForward,
+            false,
         ) {
             PolicyOutcome::Failed {
                 code: EngineFailureCode::PolicyIncomplete,
@@ -407,7 +466,8 @@ fn nothing_to_lint_lints_nothing() {
             &LifecycleContent::None,
             &mut idle,
             &mut state,
-            Trigger::DirectFix, false
+            Trigger::DirectFix,
+            false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -418,7 +478,8 @@ fn nothing_to_lint_lints_nothing() {
             &add_all(),
             &mut scripted_facts(),
             &mut state,
-            Trigger::PreForward, false
+            Trigger::PreForward,
+            false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -435,7 +496,8 @@ fn nothing_to_lint_lints_nothing() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::DirectFix, false
+            Trigger::DirectFix,
+            false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -460,7 +522,8 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut text_only,
             &mut state,
-            Trigger::PreForward, false
+            Trigger::PreForward,
+            false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -474,7 +537,8 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut unlocated,
             &mut state,
-            Trigger::PreForward, false
+            Trigger::PreForward,
+            false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -490,7 +554,8 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut bare,
             &mut state,
-            Trigger::PreForward, false
+            Trigger::PreForward,
+            false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -533,9 +598,13 @@ fn unreadable_candidate_bytes_are_content_unavailable() {
         &add_all(),
         &mut facts,
         &mut state,
-        Trigger::PreForward, false,
+        Trigger::PreForward,
+        false,
     ) {
-        PolicyOutcome::Failed { code, .. } => {
+        PolicyOutcome::Failed {
+            code,
+            ..
+        } => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable)
         }
         other => panic!("{other:?}"),
@@ -594,11 +663,15 @@ fn a_literal_brace_in_an_exclude_pattern_excludes_only_its_own_file() {
         &add_all(),
         &mut facts_for(repo.as_path()),
         &mut state,
-        Trigger::DirectCheck, false,
+        Trigger::DirectCheck,
+        false,
     );
     assert_eq!(
         outcome,
-        PolicyOutcome::Findings(vec![autofix(b"a.md", false), autofix(b"notesold.md", false)]),
+        PolicyOutcome::Findings(vec![
+            autofix(b"a.md", false),
+            autofix(b"notesold.md", false)
+        ]),
         "the file the pattern names is excluded and the one it does not name is checked"
     );
     let linted: Vec<Vec<u8>> = log

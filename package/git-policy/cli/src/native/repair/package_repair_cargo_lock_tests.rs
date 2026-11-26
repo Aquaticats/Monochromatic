@@ -4,7 +4,10 @@
 //! and a lock no clean touched must not be written again.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 use std::path::PathBuf;
 
 /// The bytes the checkout left,
@@ -41,14 +44,23 @@ fn git_directory(root: &Path) -> PathBuf {
 /// ```ts
 /// const copies = readdirSync(copiesDirectory(gitDir, lock)); assert.equal(copies.length, 1); return join(directory, copies[0]);
 /// ```
-fn the_kept_copy(git_dir: &Path, lock: &Path) -> PathBuf {
+fn the_kept_copy(
+    git_dir: &Path,
+    lock: &Path,
+) -> PathBuf {
     let directory: PathBuf = copies_directory(git_dir, lock);
     let mut entries: Vec<PathBuf> = std::fs::read_dir(directory.as_path())
         .expect("the copies directory")
         .flatten()
-        .map(|entry| { return entry.path(); })
+        .map(|entry| {
+            return entry.path();
+        })
         .collect();
-    assert_eq!(entries.len(), 1, "one displacement makes one copy: {entries:?}");
+    assert_eq!(
+        entries.len(),
+        1,
+        "one displacement makes one copy: {entries:?}"
+    );
     return entries.remove(0);
 }
 
@@ -72,12 +84,24 @@ fn a_lock_another_command_wrote_is_kept_before_the_checked_out_one_comes_back() 
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     // A command that is not this clean writes the lock while the clean runs.
     std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("a newer lock");
-    let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
-    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), CHECKED_OUT, "the lock is back as checked out");
+    let said: Option<String> =
+        restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    assert_eq!(
+        std::fs::read(lock.as_path()).expect("the lock"),
+        CHECKED_OUT,
+        "the lock is back as checked out"
+    );
     let kept: PathBuf = the_kept_copy(git_dir.as_path(), lock.as_path());
-    assert_eq!(std::fs::read(kept.as_path()).expect("the kept bytes"), ANOTHER_COMMAND, "the bytes that stood there are kept whole");
+    assert_eq!(
+        std::fs::read(kept.as_path()).expect("the kept bytes"),
+        ANOTHER_COMMAND,
+        "the bytes that stood there are kept whole"
+    );
     let words: String = said.expect("the person is told what was kept and where");
-    assert!(words.contains(kept.display().to_string().as_str()), "{words}: the line names the copy the person can read");
+    assert!(
+        words.contains(kept.display().to_string().as_str()),
+        "{words}: the line names the copy the person can read"
+    );
     remove(root.as_path());
 }
 
@@ -93,9 +117,27 @@ fn a_lock_no_clean_touched_is_not_written_again() {
     let lock: PathBuf = root.join(LOCK_FILE);
     std::fs::write(lock.as_path(), CHECKED_OUT).expect("the checked-out lock");
     let before: Option<Vec<u8>> = read_lock(root.as_path());
-    let time: std::time::SystemTime = std::fs::metadata(lock.as_path()).expect("the lock").modified().expect("a change time");
-    assert_eq!(restore_lock(root.as_path(), before.as_deref(), Some(git_directory(root.as_path()).as_path())), None, "nothing changed, so nothing is said");
-    assert_eq!(std::fs::metadata(lock.as_path()).expect("the lock").modified().expect("a change time"), time, "the file keeps its time");
+    let time: std::time::SystemTime = std::fs::metadata(lock.as_path())
+        .expect("the lock")
+        .modified()
+        .expect("a change time");
+    assert_eq!(
+        restore_lock(
+            root.as_path(),
+            before.as_deref(),
+            Some(git_directory(root.as_path()).as_path())
+        ),
+        None,
+        "nothing changed, so nothing is said"
+    );
+    assert_eq!(
+        std::fs::metadata(lock.as_path())
+            .expect("the lock")
+            .modified()
+            .expect("a change time"),
+        time,
+        "the file keeps its time"
+    );
     remove(root.as_path());
 }
 
@@ -113,9 +155,20 @@ fn a_lock_the_clean_removed_is_put_back_as_checked_out() {
     std::fs::write(lock.as_path(), CHECKED_OUT).expect("the checked-out lock");
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     std::fs::remove_file(lock.as_path()).expect("a clean that removed the lock");
-    let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_directory(root.as_path()).as_path()));
-    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), CHECKED_OUT, "the checked-out lock is back");
-    assert!(said.is_none(), "no bytes were displaced, so the person has nothing to be told");
+    let said: Option<String> = restore_lock(
+        root.as_path(),
+        before.as_deref(),
+        Some(git_directory(root.as_path()).as_path()),
+    );
+    assert_eq!(
+        std::fs::read(lock.as_path()).expect("the lock"),
+        CHECKED_OUT,
+        "the checked-out lock is back"
+    );
+    assert!(
+        said.is_none(),
+        "no bytes were displaced, so the person has nothing to be told"
+    );
     remove(root.as_path());
 }
 
@@ -128,10 +181,17 @@ fn a_lock_the_clean_removed_is_put_back_as_checked_out() {
 /// ```ts
 /// const names = readdirSync(copiesDirectory(gitDir, lock));
 /// ```
-fn names_beside_the_lock(git_dir: &Path, lock: &Path) -> Vec<PathBuf> {
+fn names_beside_the_lock(
+    git_dir: &Path,
+    lock: &Path,
+) -> Vec<PathBuf> {
     let copies: PathBuf = copies_directory(git_dir, lock);
-    let Ok(entries) = std::fs::read_dir(copies.as_path()) else { return Vec::new() };
-    return entries.filter_map(|listed| return listed.ok().map(|entry| return entry.path())).collect();
+    let Ok(entries) = std::fs::read_dir(copies.as_path()) else {
+        return Vec::new();
+    };
+    return entries
+        .filter_map(|listed| return listed.ok().map(|entry| return entry.path()))
+        .collect();
 }
 
 /// What:
@@ -158,16 +218,34 @@ fn a_lock_whose_displaced_directory_is_on_another_filesystem_is_written_over() {
     std::fs::write(lock.as_path(), CHECKED_OUT).expect("the checked-out lock");
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("a newer lock");
-    THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| { flag.set(true); });
-    let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
-    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), CHECKED_OUT, "the checked-out bytes are written over the lock");
+    THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| {
+        flag.set(true);
+    });
+    let said: Option<String> =
+        restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    assert_eq!(
+        std::fs::read(lock.as_path()).expect("the lock"),
+        CHECKED_OUT,
+        "the checked-out bytes are written over the lock"
+    );
     let words: String = said.expect("the person is told where the bytes that stood there are kept");
     assert!(words.contains("back as checked out"), "{words}");
     let kept: PathBuf = the_kept_copy(git_dir.as_path(), lock.as_path());
-    assert_eq!(std::fs::read(kept.as_path()).expect("the kept bytes"), ANOTHER_COMMAND, "the bytes that stood there are kept whole");
+    assert_eq!(
+        std::fs::read(kept.as_path()).expect("the kept bytes"),
+        ANOTHER_COMMAND,
+        "the bytes that stood there are kept whole"
+    );
     for path in names_beside_the_lock(git_dir.as_path(), lock.as_path()).iter() {
-        let name: String = path.file_name().map(|name| return name.to_string_lossy().into_owned()).unwrap_or_default();
-        assert!(!name.contains(STAGING_SUFFIX), "the copy staged for the exchange is taken away, and only the kept bytes stay: {}", path.display());
+        let name: String = path
+            .file_name()
+            .map(|name| return name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        assert!(
+            !name.contains(STAGING_SUFFIX),
+            "the copy staged for the exchange is taken away, and only the kept bytes stay: {}",
+            path.display()
+        );
     }
     let spent: bool = THE_NEXT_EXCHANGE_FINDS_ANOTHER_FILESYSTEM.with(|flag| return flag.get());
     assert!(!spent, "the planted refusal is spent on the one exchange");
@@ -190,11 +268,20 @@ fn a_lock_whose_bytes_cannot_be_kept_is_left_as_it_was_found() {
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("a newer lock");
     // A Git directory that is a file cannot hold a copy of anything.
-    std::fs::write(git_dir.as_path(), b"not a directory\n").expect("a Git directory that cannot be written in");
-    let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
-    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), ANOTHER_COMMAND, "the bytes that could not be kept are still there");
+    std::fs::write(git_dir.as_path(), b"not a directory\n")
+        .expect("a Git directory that cannot be written in");
+    let said: Option<String> =
+        restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    assert_eq!(
+        std::fs::read(lock.as_path()).expect("the lock"),
+        ANOTHER_COMMAND,
+        "the bytes that could not be kept are still there"
+    );
     let words: String = said.expect("the person is told what happened");
-    assert!(words.contains(lock.display().to_string().as_str()), "{words}: the line names the file it left alone");
+    assert!(
+        words.contains(lock.display().to_string().as_str()),
+        "{words}: the line names the file it left alone"
+    );
     remove(root.as_path());
 }
 
@@ -212,8 +299,15 @@ fn a_lock_displaced_with_no_place_to_keep_it_is_left_as_it_was_found() {
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("a newer lock");
     let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), None);
-    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), ANOTHER_COMMAND, "the lock is left as the clean left it");
-    assert!(said.is_some(), "the person is told why the worktree shows a difference");
+    assert_eq!(
+        std::fs::read(lock.as_path()).expect("the lock"),
+        ANOTHER_COMMAND,
+        "the lock is left as the clean left it"
+    );
+    assert!(
+        said.is_some(),
+        "the person is told why the worktree shows a difference"
+    );
     remove(root.as_path());
 }
 
@@ -232,20 +326,34 @@ fn a_second_displacement_of_one_lock_keeps_its_own_copy() {
     std::fs::write(lock.as_path(), CHECKED_OUT).expect("the checked-out lock");
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("a newer lock");
-    let _first: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    let _first: Option<String> =
+        restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
     // A later clean of the same workspace finds the checked-out lock and a command's newer write again.
     std::fs::write(lock.as_path(), b"# a third lock\n").expect("another newer lock");
-    let _second: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    let _second: Option<String> =
+        restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
     let directory: PathBuf = copies_directory(git_dir.as_path(), lock.as_path());
     let mut written: Vec<Vec<u8>> = std::fs::read_dir(directory.as_path())
         .expect("the copies directory")
         .flatten()
-        .map(|entry| { return std::fs::read(entry.path()).expect("a kept copy"); })
+        .map(|entry| {
+            return std::fs::read(entry.path()).expect("a kept copy");
+        })
         .collect();
     written.sort();
-    assert_eq!(written.len(), 2, "one copy per displacement, and neither is replaced");
-    assert!(written.contains(&ANOTHER_COMMAND.to_vec()), "the first displacement's bytes are still there");
-    assert!(written.contains(&b"# a third lock\n".to_vec()), "the second displacement's bytes are there too");
+    assert_eq!(
+        written.len(),
+        2,
+        "one copy per displacement, and neither is replaced"
+    );
+    assert!(
+        written.contains(&ANOTHER_COMMAND.to_vec()),
+        "the first displacement's bytes are still there"
+    );
+    assert!(
+        written.contains(&b"# a third lock\n".to_vec()),
+        "the second displacement's bytes are there too"
+    );
     remove(root.as_path());
 }
 
@@ -262,10 +370,18 @@ fn a_lock_the_clean_created_is_kept_and_removed_again() {
     let before: Option<Vec<u8>> = read_lock(root.as_path());
     assert!(before.is_none(), "the checkout has no lock");
     std::fs::write(lock.as_path(), ANOTHER_COMMAND).expect("the lock the clean created");
-    let said: Option<String> = restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
-    assert!(!lock.exists(), "the worktree no longer holds a file the checkout does not");
+    let said: Option<String> =
+        restore_lock(root.as_path(), before.as_deref(), Some(git_dir.as_path()));
+    assert!(
+        !lock.exists(),
+        "the worktree no longer holds a file the checkout does not"
+    );
     let kept: PathBuf = the_kept_copy(git_dir.as_path(), lock.as_path());
-    assert_eq!(std::fs::read(kept.as_path()).expect("the kept bytes"), ANOTHER_COMMAND, "what the clean resolved is kept");
+    assert_eq!(
+        std::fs::read(kept.as_path()).expect("the kept bytes"),
+        ANOTHER_COMMAND,
+        "what the clean resolved is kept"
+    );
     assert!(said.is_some(), "the person is told what was kept");
     remove(root.as_path());
 }
@@ -287,9 +403,16 @@ const WRITTEN_AFTER_THE_READING: &[u8] = b"# the person's newest write\n";
 /// ```ts
 /// readdirSync(copiesDirectory(gitDir, lock)).map(join).find((copy) => readFileSync(copy).equals(bytes));
 /// ```
-fn the_copy_holding(git_dir: &Path, lock: &Path, bytes: &[u8]) -> PathBuf {
+fn the_copy_holding(
+    git_dir: &Path,
+    lock: &Path,
+    bytes: &[u8],
+) -> PathBuf {
     let directory: PathBuf = copies_directory(git_dir, lock);
-    for entry in std::fs::read_dir(directory.as_path()).expect("the copies directory").flatten() {
+    for entry in std::fs::read_dir(directory.as_path())
+        .expect("the copies directory")
+        .flatten()
+    {
         if std::fs::read(entry.path()).expect("a kept copy") == bytes {
             return entry.path();
         }
@@ -323,15 +446,29 @@ fn a_lock_written_after_the_reading_stays_as_the_person_wrote_it() {
     let persons: PathBuf = lock.clone();
     BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move || {
-            std::fs::write(persons.as_path(), WRITTEN_AFTER_THE_READING).expect("the person's write");
+            std::fs::write(persons.as_path(), WRITTEN_AFTER_THE_READING)
+                .expect("the person's write");
         }));
     });
-    let said: Option<String> = restore_only_the_cleans_own(root.as_path(), before.as_deref(), Some(git_dir.as_path()), THE_CLEANS_OWN);
-    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| { *hook.borrow_mut() = None; });
+    let said: Option<String> = restore_only_the_cleans_own(
+        root.as_path(),
+        before.as_deref(),
+        Some(git_dir.as_path()),
+        THE_CLEANS_OWN,
+    );
+    BETWEEN_THE_READING_AND_THE_RESTORE.with(|hook| {
+        *hook.borrow_mut() = None;
+    });
     let standing: Vec<u8> = std::fs::read(lock.as_path()).expect("the lock");
-    assert_eq!(standing, WRITTEN_AFTER_THE_READING, "the person's write stays in their own lock");
+    assert_eq!(
+        standing, WRITTEN_AFTER_THE_READING,
+        "the person's write stays in their own lock"
+    );
     let words: String = said.expect("the person is told where the checked-out lock is kept");
     let kept: PathBuf = the_copy_holding(git_dir.as_path(), lock.as_path(), CHECKED_OUT);
-    assert!(words.contains(kept.display().to_string().as_str()), "{words}: the line names where the checked-out lock is kept");
+    assert!(
+        words.contains(kept.display().to_string().as_str()),
+        "{words}: the line names where the checked-out lock is kept"
+    );
     remove(root.as_path());
 }

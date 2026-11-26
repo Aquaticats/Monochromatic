@@ -15,11 +15,13 @@
 //! // queue.ts: type Queued, GroupKey, Job; function placeInGroups(); function send(stream, message)
 //! ```
 
-use crate::service_timing::Arrival;
-use crate::service_reply::Reply;
 use crate::service_protocol::{
-    CommitRequest, ServiceMessage, encode_service,
+    CommitRequest,
+    ServiceMessage,
+    encode_service,
 };
+use crate::service_reply::Reply;
+use crate::service_timing::Arrival;
 /// A request waiting to be landed:
 /// what the client sent,
 /// the connection to answer it on,
@@ -51,7 +53,11 @@ pub(crate) type GroupKey = (std::path::PathBuf, String, bool);
 /// const joined = groups.findLast((group) => group.common === key.common && group.reference === key.reference)
 /// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key, members: [member] }) }
 /// ```
-pub(crate) fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, member: T) {
+pub(crate) fn place_in_groups<T>(
+    groups: &mut Vec<(GroupKey, Vec<T>)>,
+    key: GroupKey,
+    member: T,
+) {
     // The newest group of the same repository and reference, if any.
     let mut joins: Option<&mut (GroupKey, Vec<T>)> = None;
     for entry in groups.iter_mut().rev() {
@@ -81,7 +87,10 @@ pub(crate) enum Job {
 
 /// Writes `message` and a newline to `stream`;
 /// a client that went away has nothing to be told.
-pub(crate) async fn send<Stream: tokio::io::AsyncWrite + Unpin>(stream: &mut Stream, message: &ServiceMessage) {
+pub(crate) async fn send<Stream: tokio::io::AsyncWrite + Unpin>(
+    stream: &mut Stream,
+    message: &ServiceMessage,
+) {
     use tokio::io::AsyncWriteExt;
     let mut line: String = encode_service(message);
     line.push('\n');

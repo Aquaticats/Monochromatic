@@ -10,10 +10,22 @@
 //!  loses a person's commit.
 //!  The controls use disposable directories under the test root and start no Git.
 
-use super::{HELD_EXTENSION, Held, Holding, directory_of, hold, list, path_of, write};
+use super::{
+    HELD_EXTENSION,
+    Held,
+    Holding,
+    directory_of,
+    hold,
+    list,
+    path_of,
+    write,
+};
 use crate::service_journal::Intent;
 use crate::test_support::remove;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A directory of this control's own,
 /// holding a Git directory with nothing in it.
@@ -25,7 +37,12 @@ fn fixture(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// The intent of a batch whose branch was `old` and is `new` after it.
-fn intent_of(sequence: u64, old: &str, new: &str, commits: &[&str]) -> Intent {
+fn intent_of(
+    sequence: u64,
+    old: &str,
+    new: &str,
+    commits: &[&str],
+) -> Intent {
     return Intent {
         seq: sequence,
         repository: PathBuf::from("/repo"),
@@ -34,7 +51,12 @@ fn intent_of(sequence: u64, old: &str, new: &str, commits: &[&str]) -> Intent {
         old: old.to_string(),
         new: new.to_string(),
         ids: vec![String::from("request-1")],
-        commits: commits.iter().map(|commit| { return commit.to_string(); }).collect(),
+        commits: commits
+            .iter()
+            .map(|commit| {
+                return commit.to_string();
+            })
+            .collect(),
         holders: Vec::new(),
         paths: vec![b"f.txt".to_vec()],
         derived: false,
@@ -47,8 +69,16 @@ fn intent_of(sequence: u64, old: &str, new: &str, commits: &[&str]) -> Intent {
 
 /// A held batch of one commit,
 /// with no lock standing yet.
-fn held_of(git_dir: &Path, sequence: u64) -> Held {
-    let intent: Intent = intent_of(sequence, "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a", "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b", &["2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"]);
+fn held_of(
+    git_dir: &Path,
+    sequence: u64,
+) -> Held {
+    let intent: Intent = intent_of(
+        sequence,
+        "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+        &["2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"],
+    );
     return Held {
         seq: sequence,
         journal: Path::new("/state/service/instance").to_path_buf(),
@@ -94,8 +124,17 @@ fn two_records_are_listed_oldest_first() {
     let (root, git_dir) = fixture("held-record-order");
     write(git_dir.as_path(), &held_of(git_dir.as_path(), 9)).expect("the later record");
     write(git_dir.as_path(), &held_of(git_dir.as_path(), 4)).expect("the earlier record");
-    assert_eq!(path_of(git_dir.as_path(), 4), directory_of(git_dir.as_path()).join(format!("4.{HELD_EXTENSION}")));
-    let numbers: Vec<u64> = list(git_dir.as_path()).0.iter().map(|held| { return held.seq; }).collect();
+    assert_eq!(
+        path_of(git_dir.as_path(), 4),
+        directory_of(git_dir.as_path()).join(format!("4.{HELD_EXTENSION}"))
+    );
+    let numbers: Vec<u64> = list(git_dir.as_path())
+        .0
+        .iter()
+        .map(|held| {
+            return held.seq;
+        })
+        .collect();
     assert_eq!(numbers, vec![4, 9]);
     remove(root.as_path());
 }
@@ -112,11 +151,18 @@ fn a_record_that_cannot_be_read_is_kept_and_named() {
     let (root, git_dir) = fixture("held-record-damaged");
     let path: PathBuf = path_of(git_dir.as_path(), 3);
     std::fs::create_dir_all(directory_of(git_dir.as_path()).as_path()).expect("the folder");
-    std::fs::write(path.as_path(), "seq=3\nref=refs/heads/main\n").expect("a record that stops early");
+    std::fs::write(path.as_path(), "seq=3\nref=refs/heads/main\n")
+        .expect("a record that stops early");
     let (found, damaged) = list(git_dir.as_path());
-    assert!(found.is_empty(), "nothing is read from a record that stops early: {found:?}");
+    assert!(
+        found.is_empty(),
+        "nothing is read from a record that stops early: {found:?}"
+    );
     assert_eq!(damaged, vec![path.clone()]);
-    assert!(path.exists(), "a record that cannot be read is left where it is");
+    assert!(
+        path.exists(),
+        "a record that cannot be read is left where it is"
+    );
     remove(root.as_path());
 }
 
@@ -129,7 +175,12 @@ fn a_record_that_cannot_be_read_is_kept_and_named() {
 #[test]
 fn holding_writes_the_record_the_intent_describes() {
     let (root, git_dir) = fixture("held-record-holding");
-    let intent: Intent = intent_of(5, "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a", "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b", &["2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"]);
+    let intent: Intent = intent_of(
+        5,
+        "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+        "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+        &["2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"],
+    );
     let lock: PathBuf = git_dir.join("refs/heads/main.lock");
     let holding: Holding<'_> = Holding {
         journal: Path::new("/state/service/instance"),

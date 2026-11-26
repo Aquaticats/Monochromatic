@@ -87,12 +87,18 @@ impl WritesKeptInMemory {
     /// Use the answer of a platform that says `flushes_to_disk` until the value goes.
     pub(crate) fn for_flush_policy(flushes_to_disk: bool) -> WritesKeptInMemory {
         #[cfg(test)]
-        return WritesKeptInMemory { before: KEEPING_WRITES_IN_MEMORY.with(|flag| { return flag.replace(!flushes_to_disk); }) };
+        return WritesKeptInMemory {
+            before: KEEPING_WRITES_IN_MEMORY.with(|flag| {
+                return flag.replace(!flushes_to_disk);
+            }),
+        };
         // A build that is not a test keeps every write on its way to the disk and has no switch to set.
         #[cfg(not(test))]
         let _ = flushes_to_disk;
         #[cfg(not(test))]
-        return WritesKeptInMemory { before: false };
+        return WritesKeptInMemory {
+            before: false,
+        };
     }
 
     /// Turn the switch on for the calling thread until the value goes.
@@ -107,7 +113,9 @@ impl Drop for WritesKeptInMemory {
     /// which is the only thing this value does.
     fn drop(&mut self) {
         #[cfg(test)]
-        KEEPING_WRITES_IN_MEMORY.with(|flag| { flag.set(self.before); });
+        KEEPING_WRITES_IN_MEMORY.with(|flag| {
+            flag.set(self.before);
+        });
         // A build that is not a test has no switch, so there is nothing to put back.
         #[cfg(not(test))]
         let _ = self.before;
@@ -124,7 +132,10 @@ impl Drop for WritesKeptInMemory {
 /// ```ts
 /// async function writeAllThenSync(file: FileHandle, bytes: Uint8Array): Promise<void>; // rejects with the first failure
 /// ```
-pub fn write_all_then_sync(file: &mut std::fs::File, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_all_then_sync(
+    file: &mut std::fs::File,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     file.write_all(bytes)?;
     let keeping: bool = keeping_writes_in_memory();
     #[cfg(test)]
@@ -175,7 +186,10 @@ pub fn sync_directory_to_disk(directory: &Path) -> std::io::Result<()> {
 /// ```ts
 /// await writeBesideThenRename(listPath, bytes); // O_EXCL sibling, fsync, rename, fsync the directory
 /// ```
-pub fn write_beside_then_rename(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn write_beside_then_rename(
+    target: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     use std::os::unix::fs::OpenOptionsExt as _;
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),
@@ -184,7 +198,11 @@ pub fn write_beside_then_rename(target: &Path, bytes: &[u8]) -> std::io::Result<
     let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
     name.push(format!(".tmp.{}.{nanos}", std::process::id()));
     let sibling: std::path::PathBuf = std::path::PathBuf::from(name);
-    let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(sibling.as_path())?;
+    let mut file: std::fs::File = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(sibling.as_path())?;
     if let Err(error) = write_all_then_sync(&mut file, bytes) {
         drop(file);
         let _removed: std::io::Result<()> = std::fs::remove_file(sibling.as_path());
@@ -213,4 +231,7 @@ mod tests;
 mod sync_counts;
 
 #[cfg(test)]
-pub(crate) use sync_counts::{SyncCounts, take_sync_counts};
+pub(crate) use sync_counts::{
+    SyncCounts,
+    take_sync_counts,
+};

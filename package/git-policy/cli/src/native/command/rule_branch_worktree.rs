@@ -35,7 +35,9 @@
 /// import { parseBranchCreationRegion } from './command_branch_create.ts';
 /// ```
 use crate::command_branch_create::{
-    BranchCreationCommand, BranchCreationRegion, branch_creation_command,
+    BranchCreationCommand,
+    BranchCreationRegion,
+    branch_creation_command,
     parse_branch_creation_region,
 };
 use crate::command_options::OptionError;
@@ -54,7 +56,10 @@ use crate::global_arguments::command_tokens;
 /// ```ts
 /// // string, but byte-preserving.
 /// ```
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// What:
 ///  The finding code of a branch-worktree rejection.
@@ -194,7 +199,10 @@ fn command_word(command: BranchCreationCommand) -> &'static str {
 /// ```ts
 /// function branchCreationMessage({ subcommand, target }): string;
 /// ```
-pub fn branch_creation_message(command: BranchCreationCommand, target: Option<&OsStr>) -> String {
+pub fn branch_creation_message(
+    command: BranchCreationCommand,
+    target: Option<&OsStr>,
+) -> String {
     // `String::new()` is empty owned text; `mut` allows filling it below.
     let mut target_clause: String = String::new();
     // `if let Some(name) = target` runs only for a guessed branch.
@@ -230,7 +238,10 @@ pub fn branch_creation_message(command: BranchCreationCommand, target: Option<&O
 /// ```ts
 /// const args = [...pre, 'for-each-ref', '--format=%(refname)', `refs/heads/${target}`, `refs/remotes/*/${target}`];
 /// ```
-pub fn remote_guess_query_arguments(global_prefix: &[OsString], target: &OsStr) -> Vec<OsString> {
+pub fn remote_guess_query_arguments(
+    global_prefix: &[OsString],
+    target: &OsStr,
+) -> Vec<OsString> {
     // `.to_vec()` copies the borrowed prefix into an owned, growable list.
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     arguments.push(OsString::from("for-each-ref"));
@@ -269,7 +280,10 @@ fn is_slash(byte: &u8) -> bool {
 /// ```ts
 /// const isRemote = line.startsWith('refs/remotes/') && line.slice(line.indexOf('/', 13) + 1) === target;
 /// ```
-fn is_remote_branch_of(line: &[u8], target: &[u8]) -> bool {
+fn is_remote_branch_of(
+    line: &[u8],
+    target: &[u8],
+) -> bool {
     // `.strip_prefix` is `Some(rest)` when the bytes start with the prefix.
     let Some(rest) = line.strip_prefix(REMOTE_BRANCH_PREFIX) else {
         return false;
@@ -296,7 +310,10 @@ fn is_remote_branch_of(line: &[u8], target: &[u8]) -> bool {
 /// ```ts
 /// const creates = !lines.includes(`refs/heads/${target}`) && remoteMatches.length === 1 && target !== 'HEAD';
 /// ```
-pub fn remote_guess_creates_branch(stdout: &[u8], target: &[u8]) -> bool {
+pub fn remote_guess_creates_branch(
+    stdout: &[u8],
+    target: &[u8],
+) -> bool {
     if target == b"HEAD" {
         return false;
     }

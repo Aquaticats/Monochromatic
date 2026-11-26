@@ -90,15 +90,23 @@ pub enum ProcessIdentityError {
 /// ```
 impl std::fmt::Display for ProcessIdentityError {
     /// Writes one sentence naming the process and what went wrong.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
-            Self::MalformedStat { pid } => {
+            Self::MalformedStat {
+                pid,
+            } => {
                 return write!(
                     formatter,
                     "the Linux process record of PID {pid} is malformed"
                 );
             }
-            Self::Io { pid, error } => {
+            Self::Io {
+                pid,
+                error,
+            } => {
                 return write!(
                     formatter,
                     "the process record of PID {pid} could not be read: {error}"
@@ -128,7 +136,10 @@ impl std::fmt::Display for ProcessIdentityError {
                     "the PID namespace of this process cannot be read from /proc/self/ns/pid, so a lock could not say which numbering its process number belongs to"
                 );
             }
-            Self::ProcMismatch { procfs, own } => {
+            Self::ProcMismatch {
+                procfs,
+                own,
+            } => {
                 return write!(
                     formatter,
                     "the /proc this process sees describes another PID namespace: it reports PID {procfs} for the process that has PID {own}"
@@ -178,7 +189,11 @@ pub(crate) const LINUX_IDENTITY_PREFIX: &str = "linux:";
 #[cfg(target_os = "linux")]
 fn is_kernel_tick(text: &str) -> bool {
     let no_leading_zero: bool = text.len() == 1 || !text.starts_with('0');
-    return !text.is_empty() && text.bytes().all(|byte| { return byte.is_ascii_digit(); }) && no_leading_zero;
+    return !text.is_empty()
+        && text.bytes().all(|byte| {
+            return byte.is_ascii_digit();
+        })
+        && no_leading_zero;
 }
 
 /// What:
@@ -209,7 +224,11 @@ pub(crate) fn is_birth_identity(birth: &str) -> bool {
     {
         let Some(tick) = birth.strip_prefix(LINUX_IDENTITY_PREFIX) else {
             // A birth that carries this platform's start tick behind a space names it too, in another spelling.
-            let named_behind_space: bool = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); }).starts_with(LINUX_IDENTITY_PREFIX);
+            let named_behind_space: bool = birth
+                .trim_start_matches(|character: char| {
+                    return character.is_ascii_whitespace();
+                })
+                .starts_with(LINUX_IDENTITY_PREFIX);
             return !named_behind_space;
         };
         return is_kernel_tick(tick);
@@ -256,7 +275,9 @@ pub fn linux_identity_from_stat(stat: &str) -> Result<Option<String>, MalformedS
         return Ok(None);
     }
     match fields.get(LINUX_START_FIELD_INDEX) {
-        Some(tick) if !tick.is_empty() => return Ok(Some(format!("{LINUX_IDENTITY_PREFIX}{tick}"))),
+        Some(tick) if !tick.is_empty() => {
+            return Ok(Some(format!("{LINUX_IDENTITY_PREFIX}{tick}")));
+        }
         Some(_) | None => return Err(MalformedStat),
     }
 }
@@ -276,7 +297,10 @@ pub fn linux_identity_from_stat(stat: &str) -> Result<Option<String>, MalformedS
 /// ```ts
 /// function commandIdentity(prefix: string, stdout: string): string | typeof ABSENT;
 /// ```
-pub fn command_identity(prefix: &str, stdout: &[u8]) -> Option<String> {
+pub fn command_identity(
+    prefix: &str,
+    stdout: &[u8],
+) -> Option<String> {
     // `from_utf8_lossy` decodes as Node does for a child's output, replacing invalid bytes.
     let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(stdout);
     let value: &str = trim_javascript(text.as_ref());
@@ -347,7 +371,11 @@ pub fn darwin_identity_arguments(pid: i64) -> Vec<String> {
         reason = "the release build uses it on macOS and Windows only"
     )
 )]
-fn inspector_identity(command: &str, arguments: &[String], prefix: &str) -> Option<String> {
+fn inspector_identity(
+    command: &str,
+    arguments: &[String],
+    prefix: &str,
+) -> Option<String> {
     let output: std::process::Output = std::process::Command::new(command)
         .args(arguments)
         .env("LC_ALL", "C")
@@ -376,7 +404,8 @@ fn inspector_identity(command: &str, arguments: &[String], prefix: &str) -> Opti
 /// ```
 #[cfg(target_os = "linux")]
 pub(crate) fn record_is_gone(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+    return error.kind() == std::io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(libc::ESRCH);
 }
 
 /// What:
@@ -410,13 +439,22 @@ pub(crate) fn linux_identity_read_by(
     let bytes: Vec<u8> = match read_record(format!("/proc/{pid}/stat")) {
         Ok(read) => read,
         Err(error) if record_is_gone(&error) => return Ok(None),
-        Err(error) => return Err(ProcessIdentityError::Io { pid, error }),
+        Err(error) => {
+            return Err(ProcessIdentityError::Io {
+                pid,
+                error,
+            });
+        }
     };
     // Node reads the file as UTF-8, replacing invalid bytes in the command name.
     let stat: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
     match linux_identity_from_stat(stat.as_ref()) {
         Ok(identity) => return Ok(identity),
-        Err(MalformedStat) => return Err(ProcessIdentityError::MalformedStat { pid }),
+        Err(MalformedStat) => {
+            return Err(ProcessIdentityError::MalformedStat {
+                pid,
+            });
+        }
     }
 }
 

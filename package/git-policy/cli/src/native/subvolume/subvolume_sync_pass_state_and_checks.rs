@@ -19,15 +19,30 @@
 //! ```
 
 use crate::subvolume_anchor::Anchor;
-use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_error::{
+    Interrupt,
+    MigrateError,
+};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_remove::remove_tree;
-use crate::subvolume_sync_attrs::{AttributeFailure, AttributeLosses};
-use std::collections::{HashMap, HashSet};
-use std::ffi::{OsStr, OsString};
+use crate::subvolume_sync_attrs::{
+    AttributeFailure,
+    AttributeLosses,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::fs::Metadata;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The name an entry is written under before it is renamed to its own,
 /// unless the source has an entry of that name.
@@ -165,7 +180,10 @@ pub(crate) struct Directory {
 
 impl Directory {
     /// The path of a name in the directory.
-    pub(crate) fn child(&self, name: &OsStr) -> PathBuf {
+    pub(crate) fn child(
+        &self,
+        name: &OsStr,
+    ) -> PathBuf {
         return self.anchor.child(name);
     }
 
@@ -203,7 +221,10 @@ pub(crate) struct Pass<'a> {
 /// modification
 ///  time and permission bits (owner is not compared,
 /// because an unprivileged copy cannot set a foreign owner).
-pub(crate) fn file_is_equal(copy: &Metadata, original: &Metadata) -> bool {
+pub(crate) fn file_is_equal(
+    copy: &Metadata,
+    original: &Metadata,
+) -> bool {
     return copy.is_file()
         && copy.len() == original.len()
         && copy.mtime() == original.mtime()
@@ -212,26 +233,38 @@ pub(crate) fn file_is_equal(copy: &Metadata, original: &Metadata) -> bool {
 }
 
 /// Whether the first entry's modification time is later than the second's.
-pub(crate) fn is_newer(left: &Metadata, right: &Metadata) -> bool {
+pub(crate) fn is_newer(
+    left: &Metadata,
+    right: &Metadata,
+) -> bool {
     return (left.mtime(), left.mtime_nsec()) > (right.mtime(), right.mtime_nsec());
 }
 
 /// Whether a file looks the same before and after it was copied:
 /// size,
 /// modification time and change time.
-pub(crate) fn is_settled(before: &Metadata, after: &Metadata) -> bool {
+pub(crate) fn is_settled(
+    before: &Metadata,
+    after: &Metadata,
+) -> bool {
     return before.len() == after.len()
         && (before.mtime(), before.mtime_nsec()) == (after.mtime(), after.mtime_nsec())
         && (before.ctime(), before.ctime_nsec()) == (after.ctime(), after.ctime_nsec());
 }
 
 /// Remove a destination entry of any kind.
-pub(crate) fn remove_entry(path: &Path, shown: &Path) -> Result<(), MigrateError> {
+pub(crate) fn remove_entry(
+    path: &Path,
+    shown: &Path,
+) -> Result<(), MigrateError> {
     return MigrateError::from_io_result(remove_tree(path), "remove", shown);
 }
 
 /// Remove a path that may not exist.
-pub(crate) fn remove_if_present(path: &Path, shown: &Path) -> Result<(), MigrateError> {
+pub(crate) fn remove_if_present(
+    path: &Path,
+    shown: &Path,
+) -> Result<(), MigrateError> {
     return match std::fs::symlink_metadata(path) {
         Ok(_) => remove_entry(path, shown),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -241,7 +274,10 @@ pub(crate) fn remove_if_present(path: &Path, shown: &Path) -> Result<(), Migrate
 
 /// The success of an attribute step as it is,
 /// its failure as the migration's error for `shown`.
-pub(crate) fn attribute_result<T>(result: Result<T, AttributeFailure>, shown: &Path) -> Result<T, MigrateError> {
+pub(crate) fn attribute_result<T>(
+    result: Result<T, AttributeFailure>,
+    shown: &Path,
+) -> Result<T, MigrateError> {
     return match result {
         Ok(value) => Ok(value),
         Err(failure) => Err(attribute_error(failure, shown)),
@@ -249,13 +285,19 @@ pub(crate) fn attribute_result<T>(result: Result<T, AttributeFailure>, shown: &P
 }
 
 /// An attribute failure as the migration's error for `shown`.
-pub(crate) fn attribute_error(failure: AttributeFailure, shown: &Path) -> MigrateError {
+pub(crate) fn attribute_error(
+    failure: AttributeFailure,
+    shown: &Path,
+) -> MigrateError {
     return MigrateError::io(failure.action, shown, &failure.error);
 }
 
 /// Whether opening a destination directory failed because it is no longer a directory of the tree.
 pub(crate) fn is_replaced(error: &std::io::Error) -> bool {
-    return matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR | libc::ENOENT));
+    return matches!(
+        error.raw_os_error(),
+        Some(libc::ELOOP | libc::ENOTDIR | libc::ENOENT)
+    );
 }
 
 /// What:
@@ -275,7 +317,10 @@ pub(crate) fn is_replaced(error: &std::io::Error) -> bool {
 /// ```ts
 /// try { return await read(); } catch (error) { if (error.code === 'ENOENT') { vanished += 1; return undefined; } throw error; }
 /// ```
-pub(crate) fn vanished_is_counted<T>(outcome: std::io::Result<T>, vanished: &mut u64) -> std::io::Result<Option<T>> {
+pub(crate) fn vanished_is_counted<T>(
+    outcome: std::io::Result<T>,
+    vanished: &mut u64,
+) -> std::io::Result<Option<T>> {
     return match outcome {
         Ok(found) => Ok(Some(found)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -289,7 +334,10 @@ pub(crate) fn vanished_is_counted<T>(outcome: std::io::Result<T>, vanished: &mut
 impl Pass<'_> {
     /// The destination path of a relative path,
     /// for messages.
-    pub(crate) fn shown(&self, relative: &Path) -> PathBuf {
+    pub(crate) fn shown(
+        &self,
+        relative: &Path,
+    ) -> PathBuf {
         return self.destination.join(relative);
     }
 
@@ -297,7 +345,12 @@ impl Pass<'_> {
     /// An update-only pass keeps a
     ///  directory and any entry not older than the source,
     /// and lists it.
-    pub(crate) fn replace_allowed(&mut self, relative: &Path, found: &Metadata, original: &Metadata) -> bool {
+    pub(crate) fn replace_allowed(
+        &mut self,
+        relative: &Path,
+        found: &Metadata,
+        original: &Metadata,
+    ) -> bool {
         if !self.options.update_only {
             return true;
         }
@@ -309,23 +362,45 @@ impl Pass<'_> {
     }
 
     /// Put the finished temporary entry in place of the destination name.
-    pub(crate) fn publish(&self, directory: &Directory, relative: &Path, existing: Option<&Metadata>) -> Result<(), MigrateError> {
+    pub(crate) fn publish(
+        &self,
+        directory: &Directory,
+        relative: &Path,
+        existing: Option<&Metadata>,
+    ) -> Result<(), MigrateError> {
         let name: &OsStr = relative.file_name().unwrap_or_default();
         let destination: PathBuf = directory.child(name);
-        if let Some(found) = existing && found.is_dir() {
+        if let Some(found) = existing
+            && found.is_dir()
+        {
             remove_entry(destination.as_path(), self.shown(relative).as_path())?;
         }
-        return MigrateError::from_io_result(std::fs::rename(directory.partial(), &destination), "put the finished copy in place of", self.shown(relative).as_path());
+        return MigrateError::from_io_result(
+            std::fs::rename(directory.partial(), &destination),
+            "put the finished copy in place of",
+            self.shown(relative).as_path(),
+        );
     }
 }
 
 /// Make an existing destination directory writable for the pass;
 /// its final attributes come with `Finish`.
-pub(crate) fn make_writable(anchor: &Anchor, shown: &Path) -> Result<(), MigrateError> {
-    let metadata: Metadata = MigrateError::from_io_result(anchor.file().metadata(), "examine", shown)?;
+pub(crate) fn make_writable(
+    anchor: &Anchor,
+    shown: &Path,
+) -> Result<(), MigrateError> {
+    let metadata: Metadata =
+        MigrateError::from_io_result(anchor.file().metadata(), "examine", shown)?;
     if metadata.mode() & 0o700 != 0o700 {
-        MigrateError::from_io_result(anchor.file().set_permissions(std::os::unix::fs::PermissionsExt::from_mode(metadata.mode() | 0o700))
-            , "make writable", shown)?;
+        MigrateError::from_io_result(
+            anchor
+                .file()
+                .set_permissions(std::os::unix::fs::PermissionsExt::from_mode(
+                    metadata.mode() | 0o700,
+                )),
+            "make writable",
+            shown,
+        )?;
     }
     return Ok(());
 }

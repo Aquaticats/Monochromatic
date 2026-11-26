@@ -30,16 +30,37 @@
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_binding_record::registration_home::home_folder;
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{IntentReading, read_intent};
-use crate::worktree_clone_slot_state::slot_state_mounts::{read_mount_rows, slot_mount_of};
-use crate::worktree_clone_slot_state::slot_state_readings::{
-    BindingReading, IntentFacts, PlanReading, SlotReadings, intent_facts_of, read_binding_reading, read_plan,
+use crate::worktree_clone_mount_protocol::clone_mount_intent::{
+    IntentReading,
+    read_intent,
 };
-use crate::zfs_compatibility_gate::gate_verdict::{BeforeRequests, Verdict};
+use crate::worktree_clone_slot_state::slot_state_mounts::{
+    read_mount_rows,
+    slot_mount_of,
+};
+use crate::worktree_clone_slot_state::slot_state_readings::{
+    BindingReading,
+    IntentFacts,
+    PlanReading,
+    SlotReadings,
+    intent_facts_of,
+    read_binding_reading,
+    read_plan,
+};
+use crate::zfs_compatibility_gate::gate_verdict::{
+    BeforeRequests,
+    Verdict,
+};
 use crate::zfs_compatibility_gate::verdict_line;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, ZfsDevice};
-use std::path::{Path, PathBuf};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    DatasetIdentity,
+    ZfsDevice,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One clone's desired-state property,
@@ -61,7 +82,10 @@ pub trait CloneIntentReads {
     /// The gate refused,
     /// the device could not be opened,
     /// or the dataset could not be read.
-    fn intent_of(&self, clone: &str) -> Result<IntentReading, String>;
+    fn intent_of(
+        &self,
+        clone: &str,
+    ) -> Result<IntentReading, String>;
 }
 
 /// What:
@@ -86,18 +110,29 @@ pub struct GatedCloneIntentReads<'a> {
 impl<'a> GatedCloneIntentReads<'a> {
     /// The reader that asks this gate before any property read.
     pub fn new(gate: &'a dyn BeforeRequests) -> Self {
-        return GatedCloneIntentReads { gate };
+        return GatedCloneIntentReads {
+            gate,
+        };
     }
 }
 
 impl CloneIntentReads for GatedCloneIntentReads<'_> {
-    fn intent_of(&self, clone: &str) -> Result<IntentReading, String> {
+    fn intent_of(
+        &self,
+        clone: &str,
+    ) -> Result<IntentReading, String> {
         let verdict: Verdict = self.gate.verdict();
         if let Verdict::Refused(_) = verdict {
-            return Err(format!("{}\nthe compatibility gate refused, so no property was read", verdict_line(&verdict)));
+            return Err(format!(
+                "{}\nthe compatibility gate refused, so no property was read",
+                verdict_line(&verdict)
+            ));
         }
-        let device: ZfsDevice = ZfsDevice::open().map_err(|error| return format!("the ZFS device could not be opened ({error})"))?;
-        let identity: DatasetIdentity = device.objset_stats(clone).map_err(|error| return format!("`{clone}` could not be read ({error})"))?;
+        let device: ZfsDevice = ZfsDevice::open()
+            .map_err(|error| return format!("the ZFS device could not be opened ({error})"))?;
+        let identity: DatasetIdentity = device
+            .objset_stats(clone)
+            .map_err(|error| return format!("`{clone}` could not be read ({error})"))?;
         return Ok(read_intent(Some(&identity.properties), clone));
     }
 }
@@ -149,13 +184,18 @@ fn registration_stands(record: &BindingRecord) -> Option<bool> {
 /// ```ts
 /// const intent = askedIntent(record, reads.intents);
 /// ```
-fn asked_intent(record: &BindingRecord, intents: &dyn CloneIntentReads) -> IntentFacts {
+fn asked_intent(
+    record: &BindingRecord,
+    intents: &dyn CloneIntentReads,
+) -> IntentFacts {
     if !matches!(record.phase, Phase::Mounted | Phase::Filled) {
         return IntentFacts::Unasked;
     }
     return match intents.intent_of(record.clone_dataset.as_str()) {
         Ok(reading) => intent_facts_of(&reading),
-        Err(reason) => IntentFacts::Unreadable { reason },
+        Err(reason) => IntentFacts::Unreadable {
+            reason,
+        },
     };
 }
 
@@ -173,7 +213,12 @@ fn asked_intent(record: &BindingRecord, intents: &dyn CloneIntentReads) -> Inten
 /// ```ts
 /// const readings = readSlot(commonDir, slot, slotPath, reads);
 /// ```
-pub fn read_slot(common_dir: &Path, slot: &str, slot_path: &Path, reads: &SlotReadingSources<'_>) -> SlotReadings {
+pub fn read_slot(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+    reads: &SlotReadingSources<'_>,
+) -> SlotReadings {
     let home: PathBuf = home_folder(common_dir);
     let binding: BindingReading = read_binding_reading(home.as_path(), slot);
     let mounts = read_mount_rows(reads.mounts);
@@ -184,7 +229,10 @@ pub fn read_slot(common_dir: &Path, slot: &str, slot_path: &Path, reads: &SlotRe
             asked_intent(record, reads.intents),
             registration_stands(record),
         ),
-        BindingReading::Absent | BindingReading::Unreadable { .. } => (PlanReading::NotAsked, IntentFacts::Unasked, None),
+        BindingReading::Absent
+        | BindingReading::Unreadable {
+            ..
+        } => (PlanReading::NotAsked, IntentFacts::Unasked, None),
     };
     // One mount reading serves the clone's question and the slot's, so the two can never disagree about the same table.
     return SlotReadings {

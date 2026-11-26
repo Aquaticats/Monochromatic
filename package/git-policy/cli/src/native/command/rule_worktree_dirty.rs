@@ -16,7 +16,10 @@
 //! ```
 
 use crate::git_metadata::MetadataOutput;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 use std::path::Path;
 
 /// What:
@@ -61,7 +64,10 @@ pub enum DirtyScope {
 /// ```ts
 /// const args = [...preSubcommandArgs, '--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no'];
 /// ```
-pub fn dirty_query_arguments(global_prefix: &[OsString], scope: DirtyScope) -> Vec<OsString> {
+pub fn dirty_query_arguments(
+    global_prefix: &[OsString],
+    scope: DirtyScope,
+) -> Vec<OsString> {
     // `.to_vec()` copies the borrowed prefix into a list this function owns.
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     for token in ["--no-optional-locks", "status", "--porcelain=v1"] {
@@ -160,9 +166,11 @@ pub fn with_ancestors(paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
 /// ```ts
 /// function isBelow(path: Buffer, directory: Buffer): boolean;
 /// ```
-fn is_below(path: &[u8], directory: &[u8]) -> bool {
-    return path.starts_with(directory)
-        && path.get(directory.len()) == Some(&b'/');
+fn is_below(
+    path: &[u8],
+    directory: &[u8],
+) -> bool {
+    return path.starts_with(directory) && path.get(directory.len()) == Some(&b'/');
 }
 
 /// What:
@@ -176,7 +184,10 @@ fn is_below(path: &[u8], directory: &[u8]) -> bool {
 /// ```ts
 /// function askedAt(asked: Buffer[], path: Buffer): boolean;
 /// ```
-fn asked_at(asked: &[Vec<u8>], path: &[u8]) -> bool {
+fn asked_at(
+    asked: &[Vec<u8>],
+    path: &[u8],
+) -> bool {
     for known in asked {
         if known == path {
             return true;
@@ -197,7 +208,10 @@ fn asked_at(asked: &[Vec<u8>], path: &[u8]) -> bool {
 /// ```ts
 /// function belowATrackedPath(tracked: Buffer[], path: Buffer): boolean;
 /// ```
-fn below_a_tracked_path(tracked: &[Vec<u8>], path: &[u8]) -> bool {
+fn below_a_tracked_path(
+    tracked: &[Vec<u8>],
+    path: &[u8],
+) -> bool {
     for known in tracked {
         if is_below(path, known) {
             return true;
@@ -226,7 +240,11 @@ fn below_a_tracked_path(tracked: &[Vec<u8>], path: &[u8]) -> bool {
 /// ```ts
 /// function replacedAnswers(asked: Buffer[][], tracked: Buffer[][], answer: Buffer[]): Buffer[][];
 /// ```
-pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8>]) -> Vec<Vec<u8>> {
+pub fn replaced_answers(
+    asked: &[Vec<u8>],
+    tracked: &[Vec<u8>],
+    answer: &[Vec<u8>],
+) -> Vec<Vec<u8>> {
     let mut named: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in answer {
         if asked_at(asked, path) || below_a_tracked_path(tracked, path) {
@@ -259,7 +277,10 @@ pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8
 /// ```ts
 /// function ignoredPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
-pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+pub fn ignored_paths_queries(
+    global_prefix: &[OsString],
+    paths: &[Vec<u8>],
+) -> Vec<Vec<OsString>> {
     return others_paths_queries(global_prefix, paths, &["--ignored"]);
 }
 
@@ -276,7 +297,10 @@ pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> V
 /// ```ts
 /// function untrackedPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
-pub fn untracked_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+pub fn untracked_paths_queries(
+    global_prefix: &[OsString],
+    paths: &[Vec<u8>],
+) -> Vec<Vec<OsString>> {
     return others_paths_queries(global_prefix, paths, &[]);
 }
 
@@ -293,9 +317,18 @@ pub fn untracked_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) ->
 /// ```ts
 /// function othersPathsQueries(globalPrefix: string[], paths: string[], modes: string[]): string[][];
 /// ```
-fn others_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>], modes: &[&str]) -> Vec<Vec<OsString>> {
+fn others_paths_queries(
+    global_prefix: &[OsString],
+    paths: &[Vec<u8>],
+    modes: &[&str],
+) -> Vec<Vec<OsString>> {
     let mut head: Vec<OsString> = global_prefix.to_vec();
-    for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "--others"] {
+    for token in [
+        "--no-optional-locks",
+        "--no-literal-pathspecs",
+        "ls-files",
+        "--others",
+    ] {
         head.push(OsString::from(token));
     }
     for token in modes {
@@ -467,7 +500,10 @@ pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
 /// ```ts
 /// function indexFileIsAbsent(gitDirectory?: string, indexFileVariable?: string): boolean;
 /// ```
-pub fn index_file_is_absent(git_directory: Option<&Path>, index_file_variable: Option<&OsStr>) -> bool {
+pub fn index_file_is_absent(
+    git_directory: Option<&Path>,
+    index_file_variable: Option<&OsStr>,
+) -> bool {
     if index_file_variable.is_some() {
         return false;
     }

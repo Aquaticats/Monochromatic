@@ -68,7 +68,10 @@ pub const INITIAL_BACKOFF: BackoffState = BackoffState {
 /// ```ts
 /// Math.floor(((750 + Math.floor(random * 500)) * state.multiplier) / 1000);
 /// ```
-pub fn jittered_wait(state: BackoffState, random: f64) -> u64 {
+pub fn jittered_wait(
+    state: BackoffState,
+    random: f64,
+) -> u64 {
     let span: u64 = (random * (JITTER_SPAN_PERMILLE as f64)).floor() as u64;
     return (JITTER_FLOOR_PERMILLE + span) * state.multiplier / PERMILLE;
 }

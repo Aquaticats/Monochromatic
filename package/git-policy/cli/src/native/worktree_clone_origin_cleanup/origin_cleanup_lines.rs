@@ -21,7 +21,10 @@
 //! if (reasonChanged(previous, next)) console.error(lineOfABlock(next, detail));
 //! ```
 
-use crate::worktree_clone_origin_cleanup::origin_cleanup_record::{CleanupBlock, OriginCleanupRecord};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_record::{
+    CleanupBlock,
+    OriginCleanupRecord,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_refusal::CleanupRefusal;
 use std::path::Path;
 
@@ -52,8 +55,14 @@ pub fn line_of_a_destruction(snapshot: &str) -> String {
 /// ```ts
 /// lineOfABlock(record, detail);
 /// ```
-pub fn line_of_a_block(record: &OriginCleanupRecord, path: &Path, detail: &str) -> String {
-    let reason: &str = record.block.map_or("blocked", |held| return held.reason.clause());
+pub fn line_of_a_block(
+    record: &OriginCleanupRecord,
+    path: &Path,
+    detail: &str,
+) -> String {
+    let reason: &str = record
+        .block
+        .map_or("blocked", |held| return held.reason.clause());
     return format!(
         "the origin cleanup of the snapshot `{}` is not finished: {reason} ({detail}); the record at {} keeps the work, a later worktree command tries it again, and nothing expires it.",
         record.full_snapshot_name(),
@@ -71,8 +80,15 @@ pub fn line_of_a_block(record: &OriginCleanupRecord, path: &Path, detail: &str) 
 /// ```ts
 /// lineOfARefusal(name, refusal, path);
 /// ```
-pub fn line_of_a_refusal(name: &str, refusal: &CleanupRefusal, path: &Path) -> String {
-    return format!("the origin cleanup record `{name}` cannot be used, so nothing was destroyed: {}", refusal.message(path));
+pub fn line_of_a_refusal(
+    name: &str,
+    refusal: &CleanupRefusal,
+    path: &Path,
+) -> String {
+    return format!(
+        "the origin cleanup record `{name}` cannot be used, so nothing was destroyed: {}",
+        refusal.message(path)
+    );
 }
 
 /// What:
@@ -88,7 +104,10 @@ pub fn line_of_a_refusal(name: &str, refusal: &CleanupRefusal, path: &Path) -> S
 /// ```ts
 /// const speaks = reasonChanged(previous, next);
 /// ```
-pub fn the_reason_changed(previous: Option<&OriginCleanupRecord>, next: &OriginCleanupRecord) -> bool {
+pub fn the_reason_changed(
+    previous: Option<&OriginCleanupRecord>,
+    next: &OriginCleanupRecord,
+) -> bool {
     let before: Option<CleanupBlock> = previous.and_then(|held| return held.block);
     return before != next.block;
 }

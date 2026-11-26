@@ -35,8 +35,17 @@
 
 use crate::child_environment::service_child_overlay;
 use crate::lfs_program_search::PUSH_FROM_SERVICE;
-use crate::service_push_programs_held_in_memory::{CARRIED, FROM_THE_REQUEST, FROM_THE_SERVICE, PushPrograms, TRANSPORT};
-use std::ffi::{OsStr, OsString};
+use crate::service_push_programs_held_in_memory::{
+    CARRIED,
+    FROM_THE_REQUEST,
+    FROM_THE_SERVICE,
+    PushPrograms,
+    TRANSPORT,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// What:
 ///  The list every Git child of a push receives,
@@ -65,7 +74,10 @@ use std::ffi::{OsStr, OsString};
 /// ```ts
 /// const [inherited, overlay] = pushEnvironment(extra, programs);
 /// ```
-pub fn push_environment_of(extra: &[(OsString, OsString)], programs: Option<&PushPrograms>) -> (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) {
+pub fn push_environment_of(
+    extra: &[(OsString, OsString)],
+    programs: Option<&PushPrograms>,
+) -> (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) {
     let mut inherited: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     inherited.extend(extra.iter().cloned());
     let mut overlay: Vec<(OsString, OsString)> = service_child_overlay(inherited.as_slice());
@@ -81,7 +93,9 @@ pub fn push_environment_of(extra: &[(OsString, OsString)], programs: Option<&Pus
     // Why:  A name the request left out is a name that shell had unset, and the manager's value for it names a program or a
     //  transport nobody asked for; replacing only the names that travelled would let the manager's `GIT_SSH_COMMAND` speak
     //  for a push whose command had none.
-    inherited.retain(|(name, _value)| { return kept_from_the_service(carried, name.as_os_str()); });
+    inherited.retain(|(name, _value)| {
+        return kept_from_the_service(carried, name.as_os_str());
+    });
     overlay.extend(carried.as_pairs());
     // What: The marker names the list this push really searched.
     // Why:  A `PATH` whose value could not travel leaves the service's own list in the environment, so a refusal has to name
@@ -107,12 +121,19 @@ pub fn push_environment_of(extra: &[(OsString, OsString)], programs: Option<&Pus
 ///  A transport name is never kept from the manager:
 /// a way out of the network the person did not choose may carry none of the credentials the chosen one needs,
 /// so the push stops instead (`service_work`).
-fn kept_from_the_service(carried: &PushPrograms, name: &OsStr) -> bool {
-    let Some(known) = CARRIED.iter().copied().find(|known| { return name == OsStr::new(known); }) else {
+fn kept_from_the_service(
+    carried: &PushPrograms,
+    name: &OsStr,
+) -> bool {
+    let Some(known) = CARRIED.iter().copied().find(|known| {
+        return name == OsStr::new(known);
+    }) else {
         return true;
     };
     if TRANSPORT.contains(&known) {
         return false;
     }
-    return carried.not_text.iter().any(|dropped| { return dropped.as_str() == known; });
+    return carried.not_text.iter().any(|dropped| {
+        return dropped.as_str() == known;
+    });
 }

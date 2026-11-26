@@ -41,12 +41,28 @@
 
 use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
-use crate::lazy_runtime::{RuntimeError, run_on_runtime};
+use crate::lazy_runtime::{
+    RuntimeError,
+    run_on_runtime,
+};
 use crate::line_sink::LineSink;
-use crate::parallel_runner::{Cursor, Message, OrderedEvents, OrderedWork, refuse_lanes_that_do_not_cover_every_item};
+use crate::parallel_runner::{
+    Cursor,
+    Message,
+    OrderedEvents,
+    OrderedWork,
+    refuse_lanes_that_do_not_cover_every_item,
+};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use tokio::sync::mpsc::{
+    UnboundedReceiver,
+    UnboundedSender,
+    unbounded_channel,
+};
 
 /// What:
 ///  Everything one ordered run on the runtime needs.
@@ -119,7 +135,10 @@ pub enum OrderedRunError {
 }
 
 impl std::fmt::Display for OrderedRunError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             OrderedRunError::NoThreadToStart => write!(
                 formatter,
@@ -141,8 +160,14 @@ impl std::fmt::Display for OrderedRunError {
                  here. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, and check what that worktree \
                  looks like before running the command again"
             ),
-            OrderedRunError::Panicked => write!(formatter, "a step of this run panicked, so the items after it in its lane were not run"),
-            OrderedRunError::Cancelled => write!(formatter, "a step of this run was cancelled because the runtime was ending"),
+            OrderedRunError::Panicked => write!(
+                formatter,
+                "a step of this run panicked, so the items after it in its lane were not run"
+            ),
+            OrderedRunError::Cancelled => write!(
+                formatter,
+                "a step of this run was cancelled because the runtime was ending"
+            ),
             OrderedRunError::NoRuntime(reason) => write!(formatter, "{reason}"),
         };
     }
@@ -152,8 +177,12 @@ impl From<BlockingJobError> for OrderedRunError {
     fn from(error: BlockingJobError) -> Self {
         return match error {
             BlockingJobError::NoThreadToStart => OrderedRunError::NoThreadToStart,
-            BlockingJobError::MayStillRunAfterItsThreadWasRefused => OrderedRunError::MayStillRunAfterItsThreadWasRefused,
-            BlockingJobError::StartedAfterItsThreadWasRefused => OrderedRunError::StartedAfterItsThreadWasRefused,
+            BlockingJobError::MayStillRunAfterItsThreadWasRefused => {
+                OrderedRunError::MayStillRunAfterItsThreadWasRefused
+            }
+            BlockingJobError::StartedAfterItsThreadWasRefused => {
+                OrderedRunError::StartedAfterItsThreadWasRefused
+            }
             BlockingJobError::Panicked => OrderedRunError::Panicked,
             BlockingJobError::Cancelled => OrderedRunError::Cancelled,
         };
@@ -180,7 +209,12 @@ struct OneItem<T, R> {
 impl<T: Send + Sync + 'static, R: Send + 'static> OneItem<T, R> {
     /// Do the item and hand its result to the consumer.
     fn run(self) {
-        let OneItem { items, work, sender, index } = self;
+        let OneItem {
+            items,
+            work,
+            sender,
+            index,
+        } = self;
         let Some(item) = items.get(index) else { return };
         let mut say: LinesToTheConsumer<R> = LinesToTheConsumer::new(&sender, index);
         let result: R = work.run(index, item, &mut say);
@@ -216,15 +250,26 @@ pub struct LinesToTheConsumer<R> {
 
 impl<R> LinesToTheConsumer<R> {
     /// The lines of the item at `index` of the run whose consumer reads `sender`.
-    pub(crate) fn new(sender: &UnboundedSender<Message<R>>, index: usize) -> Self {
-        return LinesToTheConsumer { sender: sender.clone(), index };
+    pub(crate) fn new(
+        sender: &UnboundedSender<Message<R>>,
+        index: usize,
+    ) -> Self {
+        return LinesToTheConsumer {
+            sender: sender.clone(),
+            index,
+        };
     }
 }
 
 impl<R> LineSink for LinesToTheConsumer<R> {
-    fn say(&mut self, text: &str) {
+    fn say(
+        &mut self,
+        text: &str,
+    ) {
         // The consumer is gone only when the calling task was ended, and that end is the answer of the run.
-        let _sent = self.sender.send(Message::Line(self.index, text.to_string()));
+        let _sent = self
+            .sender
+            .send(Message::Line(self.index, text.to_string()));
     }
 }
 
@@ -268,7 +313,9 @@ where
 {
     loop {
         let lane_index: usize = slot.next_lane.fetch_add(1, Ordering::Relaxed);
-        let Some(lane) = slot.lanes.get(lane_index) else { return Ok(()) };
+        let Some(lane) = slot.lanes.get(lane_index) else {
+            return Ok(());
+        };
         for &index in lane {
             let one: OneItem<T, R> = OneItem {
                 items: Arc::clone(&slot.items),
@@ -276,7 +323,10 @@ where
                 sender: slot.sender.clone(),
                 index,
             };
-            run_blocking_job_within_the_budget(move || { one.run(); }).await?;
+            run_blocking_job_within_the_budget(move || {
+                one.run();
+            })
+            .await?;
         }
     }
 }
@@ -293,7 +343,10 @@ pub(crate) struct SlotsStillRunning {
 impl SlotsStillRunning {
     /// A count of `count` jobs that have not returned.
     pub(crate) fn counting(count: usize) -> Arc<Self> {
-        return Arc::new(SlotsStillRunning { running: AtomicUsize::new(count), changed: tokio::sync::Notify::new() });
+        return Arc::new(SlotsStillRunning {
+            running: AtomicUsize::new(count),
+            changed: tokio::sync::Notify::new(),
+        });
     }
 }
 
@@ -326,7 +379,10 @@ impl Drop for CountedOut {
 ///  measured),
 /// so a channel that waits for its sending ends would never close.
 ///
-async fn run_counted<T, R>(slot: Slot<T, R>, counted: Arc<SlotsStillRunning>) -> Result<(), BlockingJobError>
+async fn run_counted<T, R>(
+    slot: Slot<T, R>,
+    counted: Arc<SlotsStillRunning>,
+) -> Result<(), BlockingJobError>
 where
     T: Send + Sync + 'static,
     R: Send + 'static,
@@ -352,12 +408,20 @@ where
 /// # Panics
 /// When a lane names an index that is not an item,
 /// or the lanes do not cover every item exactly once.
-pub async fn run_ordered_on_the_runtime<T, R>(run: OrderedRunOfOwned<'_, T, R>) -> Result<(), OrderedRunError>
+pub async fn run_ordered_on_the_runtime<T, R>(
+    run: OrderedRunOfOwned<'_, T, R>
+) -> Result<(), OrderedRunError>
 where
     T: Send + Sync + 'static,
     R: Send + 'static,
 {
-    let OrderedRunOfOwned { items, lanes, workers, work, on_event } = run;
+    let OrderedRunOfOwned {
+        items,
+        lanes,
+        workers,
+        work,
+        on_event,
+    } = run;
     refuse_lanes_that_do_not_cover_every_item(items.len(), lanes.as_ref());
     let next_lane: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let (sender, receiver) = unbounded_channel::<Message<R>>();
@@ -438,7 +502,11 @@ where
                 failure.get_or_insert(OrderedRunError::from(refused));
             }
             Err(join_error) => {
-                failure.get_or_insert(if join_error.is_panic() { OrderedRunError::Panicked } else { OrderedRunError::Cancelled });
+                failure.get_or_insert(if join_error.is_panic() {
+                    OrderedRunError::Panicked
+                } else {
+                    OrderedRunError::Cancelled
+                });
             }
         }
     }
@@ -499,7 +567,9 @@ pub(crate) async fn wait_for_a_message_or_a_return<R>(
 /// # Panics
 /// When a lane names an index that is not an item,
 /// or the lanes do not cover every item exactly once.
-pub fn run_ordered_and_wait_here<T, R>(run: OrderedRunOfOwned<'_, T, R>) -> Result<(), OrderedRunError>
+pub fn run_ordered_and_wait_here<T, R>(
+    run: OrderedRunOfOwned<'_, T, R>
+) -> Result<(), OrderedRunError>
 where
     T: Send + Sync + 'static,
     R: Send + 'static,

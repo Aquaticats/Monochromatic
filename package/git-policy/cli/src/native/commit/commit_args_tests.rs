@@ -12,9 +12,18 @@ fn args(items: &[&str]) -> Vec<OsString> {
 /// a pathspec tail is kept verbatim.
 #[test]
 fn normalise_splits_inline_values_and_keeps_the_tail() {
-    assert_eq!(normalise_commit_args(&args(&["-amhello"])), args(&["-a", "-m", "hello"]));
-    assert_eq!(normalise_commit_args(&args(&["-m", "x"])), args(&["-m", "x"]));
-    assert_eq!(normalise_commit_args(&args(&["--message=x"])), args(&["--message=x"]));
+    assert_eq!(
+        normalise_commit_args(&args(&["-amhello"])),
+        args(&["-a", "-m", "hello"])
+    );
+    assert_eq!(
+        normalise_commit_args(&args(&["-m", "x"])),
+        args(&["-m", "x"])
+    );
+    assert_eq!(
+        normalise_commit_args(&args(&["--message=x"])),
+        args(&["--message=x"])
+    );
     assert_eq!(
         normalise_commit_args(&args(&["-m", "x", "--", "-mfoo"])),
         args(&["-m", "x", "--", "-mfoo"])
@@ -28,12 +37,27 @@ fn normalise_splits_inline_values_and_keeps_the_tail() {
 /// the tail of such a token is a value and never a cluster of flags.
 #[test]
 fn normalise_keeps_attached_optional_values_whole() {
-    assert_eq!(normalise_commit_args(&args(&["-S6ABCDEF"])), args(&["-S6ABCDEF"]));
-    assert_eq!(normalise_commit_args(&args(&["-unormal"])), args(&["-unormal"]));
-    assert_eq!(normalise_commit_args(&args(&["-aS6ABCDEF"])), args(&["-aS6ABCDEF"]));
-    assert_eq!(normalise_commit_args(&args(&["-Sanother", "file.txt"])), args(&["-Sanother", "file.txt"]));
+    assert_eq!(
+        normalise_commit_args(&args(&["-S6ABCDEF"])),
+        args(&["-S6ABCDEF"])
+    );
+    assert_eq!(
+        normalise_commit_args(&args(&["-unormal"])),
+        args(&["-unormal"])
+    );
+    assert_eq!(
+        normalise_commit_args(&args(&["-aS6ABCDEF"])),
+        args(&["-aS6ABCDEF"])
+    );
+    assert_eq!(
+        normalise_commit_args(&args(&["-Sanother", "file.txt"])),
+        args(&["-Sanother", "file.txt"])
+    );
     assert_eq!(without_all_flag(&args(&["-aunormal"])), args(&["-unormal"]));
-    assert_eq!(without_all_flag(&args(&["-aS6ABCDEF"])), args(&["-S6ABCDEF"]));
+    assert_eq!(
+        without_all_flag(&args(&["-aS6ABCDEF"])),
+        args(&["-S6ABCDEF"])
+    );
 }
 
 /// Global options that redirect Git are dropped with their values;
@@ -41,7 +65,15 @@ fn normalise_keeps_attached_optional_values_whole() {
 #[test]
 fn split_drops_redirecting_globals_and_keeps_the_rest() {
     let input: Vec<OsString> = args(&[
-        "-C", "r", "-c", "a.b=1", "--git-dir=g", "--bare", "commit", "-m", "x",
+        "-C",
+        "r",
+        "-c",
+        "a.b=1",
+        "--git-dir=g",
+        "--bare",
+        "commit",
+        "-m",
+        "x",
     ]);
     let (globals, commit) = split_commit_invocation(&input, 6);
     assert_eq!(globals, args(&["-c", "a.b=1"]));
@@ -54,7 +86,10 @@ fn split_drops_redirecting_globals_and_keeps_the_rest() {
 #[test]
 fn without_all_flag_removes_only_the_all_letter() {
     assert_eq!(without_all_flag(&args(&["-am", "x"])), args(&["-m", "x"]));
-    assert_eq!(without_all_flag(&args(&["-a", "-m", "x"])), args(&["-m", "x"]));
+    assert_eq!(
+        without_all_flag(&args(&["-a", "-m", "x"])),
+        args(&["-m", "x"])
+    );
     assert_eq!(without_all_flag(&args(&["--all"])), Vec::<OsString>::new());
     assert_eq!(without_all_flag(&args(&["-aSkey"])), args(&["-Skey"]));
     assert_eq!(without_all_flag(&args(&["-a"])), Vec::<OsString>::new());
@@ -64,7 +99,10 @@ fn without_all_flag_removes_only_the_all_letter() {
 /// as the incumbent keeps it.
 #[test]
 fn without_all_flag_keeps_an_all_spelled_as_a_message() {
-    assert_eq!(without_all_flag(&args(&["-m", "--all"])), args(&["-m", "--all"]));
+    assert_eq!(
+        without_all_flag(&args(&["-m", "--all"])),
+        args(&["-m", "--all"])
+    );
 }
 
 /// What:
@@ -82,7 +120,10 @@ fn without_all_flag_keeps_an_all_spelled_as_a_message() {
 fn a_cluster_whose_value_is_not_text_keeps_the_value_bytes() {
     let cluster: OsString = crate::path_bytes::os_from_path_bytes(b"-amnote-\xff");
     let value: OsString = crate::path_bytes::os_from_path_bytes(b"note-\xff");
-    assert_eq!(without_all_flag(&[cluster]), vec![OsString::from("-m"), value]);
+    assert_eq!(
+        without_all_flag(&[cluster]),
+        vec![OsString::from("-m"), value]
+    );
 }
 
 /// After the pathspec separator,
@@ -141,7 +182,8 @@ fn an_abbreviated_value_option_takes_the_next_token() {
 /// The pathspec-file controls,
 /// the separator and `--only` never reach the real commit.
 #[test]
-fn explicit_removal_drops_pathspec_file_controls_and_only() {    assert_eq!(
+fn explicit_removal_drops_pathspec_file_controls_and_only() {
+    assert_eq!(
         private_explicit_commit_args(
             &args(&["--pathspec-from-file=f", "--pathspec-file-nul", "-m", "x"]),
             &[],
@@ -211,13 +253,25 @@ fn resolve_chooses_the_arguments_by_mode() {
 /// and a value attached to its option or a letter that takes it attached leaves the next token in option position.
 #[test]
 fn the_separator_is_read_in_option_position_only() {
-    assert_eq!(separator_index(&args(&["-m", "--", "--", "a.txt"])), Some(2));
-    assert_eq!(separator_index(&args(&["--message", "--", "--", "a.txt"])), Some(2));
-    assert_eq!(separator_index(&args(&["--mess", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(
+        separator_index(&args(&["-m", "--", "--", "a.txt"])),
+        Some(2)
+    );
+    assert_eq!(
+        separator_index(&args(&["--message", "--", "--", "a.txt"])),
+        Some(2)
+    );
+    assert_eq!(
+        separator_index(&args(&["--mess", "--", "--", "a.txt"])),
+        Some(2)
+    );
     assert_eq!(separator_index(&args(&["-qm", "--", "--"])), Some(2));
     assert_eq!(separator_index(&args(&["-m", "--"])), None);
     assert_eq!(separator_index(&args(&["-m--", "--", "a.txt"])), Some(1));
-    assert_eq!(separator_index(&args(&["--message=--", "--", "a.txt"])), Some(1));
+    assert_eq!(
+        separator_index(&args(&["--message=--", "--", "a.txt"])),
+        Some(1)
+    );
     assert_eq!(separator_index(&args(&["-S", "--", "a.txt"])), Some(1));
     assert_eq!(separator_index(&args(&["-u", "--", "a.txt"])), Some(1));
     assert_eq!(separator_index(&args(&["-a", "x", "--"])), Some(2));
@@ -228,9 +282,15 @@ fn the_separator_is_read_in_option_position_only() {
 /// and never ends the options.
 #[test]
 fn a_value_that_looks_like_a_cluster_or_a_separator_is_kept_whole() {
-    assert_eq!(normalise_commit_args(&args(&["-m", "-cut", "--", "-mfoo"])), args(&["-m", "-cut", "--", "-mfoo"]));
+    assert_eq!(
+        normalise_commit_args(&args(&["-m", "-cut", "--", "-mfoo"])),
+        args(&["-m", "-cut", "--", "-mfoo"])
+    );
     // The message `--` is a value; the cluster after it is in option position, and the tail after the real separator is verbatim.
-    assert_eq!(normalise_commit_args(&args(&["-m", "--", "-amx", "--", "-amx"])), args(&["-m", "--", "-a", "-m", "x", "--", "-amx"]));
+    assert_eq!(
+        normalise_commit_args(&args(&["-m", "--", "-amx", "--", "-amx"])),
+        args(&["-m", "--", "-a", "-m", "x", "--", "-amx"])
+    );
 }
 
 /// A message that is `--` stays,
@@ -244,10 +304,19 @@ fn the_private_commit_arguments_drop_the_typed_separator_and_nothing_else() {
         private_explicit_commit_args(&args(&["-o", "-m", "--", "--", "a.txt"]), &args(&["a.txt"])),
         args(&["-m", "--"])
     );
-    assert_eq!(private_explicit_commit_args(&args(&["-m", "-o", "--", "a.txt"]), &args(&["a.txt"])), args(&["-m", "-o"]));
     assert_eq!(
-        private_explicit_commit_args(&args(&["--only", "--message=x", "--", "-o"]), &args(&["-o"])),
+        private_explicit_commit_args(&args(&["-m", "-o", "--", "a.txt"]), &args(&["a.txt"])),
+        args(&["-m", "-o"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(
+            &args(&["--only", "--message=x", "--", "-o"]),
+            &args(&["-o"])
+        ),
         args(&["--message=x"])
     );
-    assert_eq!(private_explicit_commit_args(&args(&["--message=x"]), &[]), args(&["--message=x"]));
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--message=x"]), &[]),
+        args(&["--message=x"])
+    );
 }

@@ -11,10 +11,19 @@
 //! const probe = probeOf(world); // `probeOf` in check-link.unit.test.ts
 //! ```
 
-use crate::repository_link_probe::{EntryKind, LinkProbe};
+use crate::repository_link_probe::{
+    EntryKind,
+    LinkProbe,
+};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
 
 /// What:
@@ -63,7 +72,10 @@ fn kind_named(name: &str) -> EntryKind {
 
 /// An object of text values,
 /// as a map.
-fn text_map(world: &Value, key: &str) -> BTreeMap<String, String> {
+fn text_map(
+    world: &Value,
+    key: &str,
+) -> BTreeMap<String, String> {
     let mut map: BTreeMap<String, String> = BTreeMap::new();
     if let Some(Value::Object(entries)) = world.get(key) {
         for (name, value) in entries {
@@ -119,7 +131,10 @@ pub(crate) struct FixtureProbe {
 impl FixtureProbe {
     /// A probe over a world.
     pub(crate) fn over(world: World) -> FixtureProbe {
-        return FixtureProbe { world, asked: Mutex::new(Vec::new()) };
+        return FixtureProbe {
+            world,
+            asked: Mutex::new(Vec::new()),
+        };
     }
 
     /// The names of the questions asked so far.
@@ -128,7 +143,10 @@ impl FixtureProbe {
     }
 
     /// Records one question.
-    fn note(&self, name: &'static str) {
+    fn note(
+        &self,
+        name: &'static str,
+    ) {
         self.asked.lock().expect("question log").push(name);
     }
 }
@@ -139,32 +157,70 @@ fn key(path: &Path) -> String {
 }
 
 impl LinkProbe for FixtureProbe {
-    fn lstat(&self, path: &Path) -> EntryKind {
+    fn lstat(
+        &self,
+        path: &Path,
+    ) -> EntryKind {
         self.note("lstat");
-        return self.world.entries.get(&key(path)).copied().unwrap_or(EntryKind::Missing);
+        return self
+            .world
+            .entries
+            .get(&key(path))
+            .copied()
+            .unwrap_or(EntryKind::Missing);
     }
 
-    fn readlink(&self, path: &Path) -> String {
+    fn readlink(
+        &self,
+        path: &Path,
+    ) -> String {
         self.note("readlink");
-        return self.world.links.get(&key(path)).cloned().unwrap_or_default();
+        return self
+            .world
+            .links
+            .get(&key(path))
+            .cloned()
+            .unwrap_or_default();
     }
 
-    fn realpath(&self, path: &Path) -> Option<PathBuf> {
+    fn realpath(
+        &self,
+        path: &Path,
+    ) -> Option<PathBuf> {
         self.note("realpath");
         return self.world.real.get(&key(path)).map(PathBuf::from);
     }
 
-    fn read_text(&self, path: &Path) -> String {
+    fn read_text(
+        &self,
+        path: &Path,
+    ) -> String {
         self.note("read_text");
-        return self.world.texts.get(&key(path)).cloned().unwrap_or_default();
+        return self
+            .world
+            .texts
+            .get(&key(path))
+            .cloned()
+            .unwrap_or_default();
     }
 
-    fn uuid_of(&self, path: &Path) -> String {
+    fn uuid_of(
+        &self,
+        path: &Path,
+    ) -> String {
         self.note("uuid_of");
-        return self.world.uuids.get(&key(path)).cloned().unwrap_or_default();
+        return self
+            .world
+            .uuids
+            .get(&key(path))
+            .cloned()
+            .unwrap_or_default();
     }
 
-    fn is_mount_point(&self, path: &Path) -> bool {
+    fn is_mount_point(
+        &self,
+        path: &Path,
+    ) -> bool {
         self.note("is_mount_point");
         return self.world.mounted.contains(&key(path));
     }

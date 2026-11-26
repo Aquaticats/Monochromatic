@@ -24,18 +24,33 @@
 
 use crate::branch_delete_audit::deletion_facts;
 use crate::command_branch_delete::branch_deletion;
-use crate::command_worktree::{WorktreeRemoval, worktree_removal};
-use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
+use crate::command_worktree::{
+    WorktreeRemoval,
+    worktree_removal,
+};
+use crate::discard_audit::{
+    AuditOutcome,
+    record_audit_with_facts,
+};
 use crate::discard_audit_facts::AuditFact;
 use crate::global_arguments::command_tokens;
 use crate::repository_facts::RepositoryFacts;
-use crate::repository_location::{RepositoryLocation, effective_directory};
+use crate::repository_location::{
+    RepositoryLocation,
+    effective_directory,
+};
 use crate::rule_linked_worktree::AuditedCommand;
 use crate::transaction_git::GitContext;
-use crate::worktree_audit::{removal_facts, removal_target};
+use crate::worktree_audit::{
+    removal_facts,
+    removal_target,
+};
 use crate::worktree_identity::worktree_root;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Record one audited command and change nothing else.
@@ -72,10 +87,22 @@ pub fn record_audited(
                 // The directory this command was started in, and the empty path when the caller named none.
                 None => start.map_or_else(std::path::PathBuf::new, std::path::Path::to_path_buf),
             };
-            let target: PathBuf = removal_target(&context, removal.target.as_os_str(), directory.as_path());
-            let read: Vec<AuditFact> =
-                removal_facts(&context, target.as_path(), removal.target.as_os_str(), removal.force);
-            record_audit_with_facts(&location.identity, audited, AuditOutcome::Logged, arguments, None, read.as_slice());
+            let target: PathBuf =
+                removal_target(&context, removal.target.as_os_str(), directory.as_path());
+            let read: Vec<AuditFact> = removal_facts(
+                &context,
+                target.as_path(),
+                removal.target.as_os_str(),
+                removal.force,
+            );
+            record_audit_with_facts(
+                &location.identity,
+                audited,
+                AuditOutcome::Logged,
+                arguments,
+                None,
+                read.as_slice(),
+            );
         }
         AuditedCommand::BranchDelete => {
             let root: Option<PathBuf> = worktree_root(&location.identity).map(Path::to_path_buf);
@@ -84,10 +111,22 @@ pub fn record_audited(
             };
             for name in &deletion.names {
                 // A name with no reference in that namespace deletes nothing, and Git's own error is the answer: no line.
-                let Some(read) = deletion_facts(&context, root.as_deref(), name.as_os_str(), deletion.remotes) else {
+                let Some(read) = deletion_facts(
+                    &context,
+                    root.as_deref(),
+                    name.as_os_str(),
+                    deletion.remotes,
+                ) else {
                     continue;
                 };
-                record_audit_with_facts(&location.identity, audited, AuditOutcome::Logged, arguments, None, read.as_slice());
+                record_audit_with_facts(
+                    &location.identity,
+                    audited,
+                    AuditOutcome::Logged,
+                    arguments,
+                    None,
+                    read.as_slice(),
+                );
             }
         }
     }

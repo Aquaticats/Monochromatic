@@ -109,7 +109,9 @@ impl Problem {
                 "monochromatic-git-policy-cli: {path} was only partly removed ({detail}). The audit file lists the copies that went and the rest are still there; \
                  fix the cause and the next pass finishes the removal.\n"
             ),
-            ProblemKind::NotRemoved => format!("monochromatic-git-policy-cli: {path} could not be removed and was left whole ({detail}). The next pass tries again.\n"),
+            ProblemKind::NotRemoved => format!(
+                "monochromatic-git-policy-cli: {path} could not be removed and was left whole ({detail}). The next pass tries again.\n"
+            ),
             ProblemKind::AuditUnwritable => format!(
                 "monochromatic-git-policy-cli: no saved copy was removed because the audit file {path} cannot be appended to ({detail}); every removal needs its \
                  line there. Fix the file or its permissions and the next pass removes what the limits allow.\n"

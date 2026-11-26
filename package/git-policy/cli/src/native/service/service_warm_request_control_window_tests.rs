@@ -9,8 +9,17 @@ use super::*;
 #[test]
 fn the_two_files_of_one_control_sit_beside_its_path() {
     let held: PathBuf = PathBuf::from("/a/control/held");
-    assert_eq!(marker(held.as_path(), "answered"), PathBuf::from("/a/control/held.answered"));
-    assert_eq!(marker(held.as_path(), "release"), PathBuf::from("/a/control/held.release"));
+    assert_eq!(
+        marker(held.as_path(), "answered"),
+        PathBuf::from("/a/control/held.answered")
+    );
+    assert_eq!(
+        marker(held.as_path(), "release"),
+        PathBuf::from("/a/control/held.release")
+    );
     let named_like_a_folder: PathBuf = PathBuf::from("/a/control/held/");
-    assert_eq!(marker(named_like_a_folder.as_path(), "release"), PathBuf::from("/a/control/held.release"));
+    assert_eq!(
+        marker(named_like_a_folder.as_path(), "release"),
+        PathBuf::from("/a/control/held.release")
+    );
 }

@@ -18,10 +18,18 @@
 use crate::auto_push_dirty_paths::status_paths;
 /// The merge messages.
 use crate::merge_isolation_message::fetch_head_merge_heads;
-/// Real Git.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// Owned operating-system text.
-use crate::merge_isolation_run_types::{Bail, MergeConfig};
+use crate::merge_isolation_run_types::{
+    Bail,
+    MergeConfig,
+};
+/// Real Git.
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::Path;
 
@@ -66,7 +74,10 @@ pub fn parse_maybe_bool(text: &str) -> Option<bool> {
 /// ```ts
 /// function editorWouldOpen({ autoEdit, sameTerminal }): boolean | undefined;
 /// ```
-pub fn editor_would_open(auto_edit: Option<&str>, same_terminal: bool) -> Option<bool> {
+pub fn editor_would_open(
+    auto_edit: Option<&str>,
+    same_terminal: bool,
+) -> Option<bool> {
     match auto_edit {
         Some(text) => return parse_maybe_bool(text),
         None => return Some(same_terminal),
@@ -101,7 +112,8 @@ pub fn stdin_and_stdout_are_one_terminal() -> bool {
     #[cfg(unix)]
     {
         use std::os::fd::AsFd;
-        return device_and_inode(std::io::stdin().as_fd()) == device_and_inode(std::io::stdout().as_fd());
+        return device_and_inode(std::io::stdin().as_fd())
+            == device_and_inode(std::io::stdout().as_fd());
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
@@ -119,30 +131,50 @@ pub struct Session {
 /// Queries.
 impl Session {
     /// Run Git and return its output whatever the exit status.
-    pub fn run(&self, arguments: &[&str]) -> Result<GitOutput, String> {
+    pub fn run(
+        &self,
+        arguments: &[&str],
+    ) -> Result<GitOutput, String> {
         return match run_git(&self.context, &GitRequest::new(Path::new("."), arguments)) {
             Ok(output) => Ok(output),
-            Err(error) => Err(format!("git {} could not start: {error}", arguments.join(" "))),
+            Err(error) => Err(format!(
+                "git {} could not start: {error}",
+                arguments.join(" ")
+            )),
         };
     }
 
     /// Run Git with bytes on standard input.
-    pub fn run_with_input(&self, arguments: &[&str], input: Vec<u8>) -> Result<GitOutput, String> {
+    pub fn run_with_input(
+        &self,
+        arguments: &[&str],
+        input: Vec<u8>,
+    ) -> Result<GitOutput, String> {
         let mut request: GitRequest = GitRequest::new(Path::new("."), arguments);
         request.input = Some(input);
         return match run_git(&self.context, &request) {
             Ok(output) => Ok(output),
-            Err(error) => Err(format!("git {} could not start: {error}", arguments.join(" "))),
+            Err(error) => Err(format!(
+                "git {} could not start: {error}",
+                arguments.join(" ")
+            )),
         };
     }
 
     /// Run Git,
     /// require success,
     /// and return its trimmed standard output.
-    pub fn text(&self, arguments: &[&str]) -> Result<String, String> {
+    pub fn text(
+        &self,
+        arguments: &[&str],
+    ) -> Result<String, String> {
         let output: GitOutput = self.run(arguments)?;
         if !output.succeeded() {
-            return Err(format!("git {} failed: {}", arguments.join(" "), output.error_text()));
+            return Err(format!(
+                "git {} failed: {}",
+                arguments.join(" "),
+                output.error_text()
+            ));
         }
         return Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned());
     }
@@ -171,7 +203,10 @@ pub fn read_config(session: &Session) -> Result<MergeConfig, String> {
     if output.code != Some(0) && output.code != Some(1) {
         return Err(format!("git config failed: {}", output.error_text()));
     }
-    let mut config: MergeConfig = MergeConfig { stat: true, ..MergeConfig::default() };
+    let mut config: MergeConfig = MergeConfig {
+        stat: true,
+        ..MergeConfig::default()
+    };
     for entry in output.stdout.split(is_nul_byte) {
         if entry.is_empty() {
             continue;
@@ -234,15 +269,24 @@ pub fn unsaved_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
         "--untracked-files=no",
     ])?;
     if !status.succeeded() {
-        return Err(Bail::from(format!("git status failed: {}", status.error_text())));
+        return Err(Bail::from(format!(
+            "git status failed: {}",
+            status.error_text()
+        )));
     }
     let mut entries = status.stdout.split(is_nul_byte);
     while let Some(entry) = entries.next() {
-        if entry.len() >= 2 && (entry[0] == b'U' || entry[1] == b'U' || entry[..2] == *b"AA" || entry[..2] == *b"DD") {
+        if entry.len() >= 2
+            && (entry[0] == b'U'
+                || entry[1] == b'U'
+                || entry[..2] == *b"AA"
+                || entry[..2] == *b"DD")
+        {
             return Err(Bail::Forward(None));
         }
         // A rename or copy is followed by its original path, which carries no status letters.
-        if entry.len() >= 2 && (matches!(entry[0], b'R' | b'C') || matches!(entry[1], b'R' | b'C')) {
+        if entry.len() >= 2 && (matches!(entry[0], b'R' | b'C') || matches!(entry[1], b'R' | b'C'))
+        {
             entries.next();
         }
     }
@@ -273,7 +317,10 @@ pub fn unsaved_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
 /// ```
 pub fn read_fetch_head(git_dir: &Path) -> Result<(String, String), Bail> {
     // A missing, unreadable or over-long file is native Git's to report.
-    let Ok(text) = crate::plain_file::read_plain_text_at(git_dir.join("FETCH_HEAD").as_path(), crate::plain_file::SMALL_FILE_LIMIT) else {
+    let Ok(text) = crate::plain_file::read_plain_text_at(
+        git_dir.join("FETCH_HEAD").as_path(),
+        crate::plain_file::SMALL_FILE_LIMIT,
+    ) else {
         return Err(Bail::Forward(None));
     };
     let mut heads: Vec<String> = fetch_head_merge_heads(text.as_str());

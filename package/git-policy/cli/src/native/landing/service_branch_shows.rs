@@ -23,30 +23,36 @@
 //! const shows = await whatTheBranchShowsAwaiting(context, cwd, reference, prepared);
 //! ```
 
+/// A command that stops without a result.
+use crate::commit_transaction::TransactionStop;
+/// A request with the private index and object directory of a capture.
+use crate::private_index_request::indexed_request;
+/// The words of a failure.
+/// The name of a reference as a message states it.
+use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
+/// What the branch shows,
+/// and the failure that prints it.
+use crate::service_messages::{
+    ClientFailure,
+    WhatTheBranchShows,
+};
+/// The prepared commit the service lands.
+use crate::service_prepare::Ready;
 /// The context a Git read runs in.
 use crate::transaction_git::GitContext;
 /// Git,
 /// started once and answered without failing the command when Git says no.
 use crate::transaction_git::run_git;
+/// The output one bounded read of the branch gives.
+use crate::transaction_git::{
+    GitOutput,
+    GitRequest,
+};
 /// The same run awaited on the runtime,
 /// for a caller that is a task.
 use crate::transaction_git_awaiting::run_git_awaiting;
-/// The output one bounded read of the branch gives.
-use crate::transaction_git::{GitOutput, GitRequest};
-/// A request with the private index and object directory of a capture.
-use crate::private_index_request::indexed_request;
-/// What the branch shows,
-/// and the failure that prints it.
-use crate::service_messages::{ClientFailure, WhatTheBranchShows};
 /// A path on the filesystem.
 use std::path::Path;
-/// The prepared commit the service lands.
-use crate::service_prepare::Ready;
-/// A command that stops without a result.
-use crate::commit_transaction::TransactionStop;
-/// The words of a failure.
-/// The name of a reference as a message states it.
-use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 
 /// What:
 ///  The question one read of the branch asks Git.
@@ -60,7 +66,12 @@ use crate::service_commit_input_notes_and_embedded_commit::switched_branch_name;
 /// ```ts
 /// const request = indexedRequest(context, cwd, ['merge-base', '--is-ancestor', prepared, reference]);
 /// ```
-fn branch_shows_request(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> GitRequest {
+fn branch_shows_request(
+    context: &GitContext,
+    cwd: &Path,
+    reference: &crate::ref_name::RefName,
+    prepared: &str,
+) -> GitRequest {
     // Whether the branch holds the commit, which the tip itself does and so does every commit under it:
     // `merge-base --is-ancestor` answers 0 for both, 1 for a commit the branch does not hold, and anything else is a read
     // that failed (finding 5 of the third review).
@@ -110,8 +121,16 @@ fn shows_answered_by(asked: std::io::Result<GitOutput>) -> WhatTheBranchShows {
 /// ```ts
 /// const shows = whatTheBranchShows(context, cwd, reference, prepared);
 /// ```
-pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> WhatTheBranchShows {
-    return shows_answered_by(run_git(context, &branch_shows_request(context, cwd, reference, prepared)));
+pub fn what_the_branch_shows(
+    context: &GitContext,
+    cwd: &Path,
+    reference: &crate::ref_name::RefName,
+    prepared: &str,
+) -> WhatTheBranchShows {
+    return shows_answered_by(run_git(
+        context,
+        &branch_shows_request(context, cwd, reference, prepared),
+    ));
 }
 
 /// What:
@@ -129,14 +148,27 @@ pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &crate
 /// ```ts
 /// const shows = await whatTheBranchShowsAwaiting(context, cwd, reference, prepared);
 /// ```
-pub async fn what_the_branch_shows_awaiting(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> WhatTheBranchShows {
-    return shows_answered_by(run_git_awaiting(context, &branch_shows_request(context, cwd, reference, prepared)).await);
+pub async fn what_the_branch_shows_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    reference: &crate::ref_name::RefName,
+    prepared: &str,
+) -> WhatTheBranchShows {
+    return shows_answered_by(
+        run_git_awaiting(
+            context,
+            &branch_shows_request(context, cwd, reference, prepared),
+        )
+        .await,
+    );
 }
 
 /// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
 pub(crate) fn branch_moved(ready: &Ready) -> TransactionStop {
     let branch: String = ready.reference.short().spoken();
-    return crate::commit_transaction::client_stop(ClientFailure::BranchMoved { branch });
+    return crate::commit_transaction::client_stop(ClientFailure::BranchMoved {
+        branch,
+    });
 }
 
 /// What:
@@ -196,7 +228,12 @@ pub(crate) fn refused_when_the_branch_switched(
 /// ```ts
 /// const failure = theSilentServiceAfterAPrepare(context, cwd, reference, prepared);
 /// ```
-pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: Option<&str>) -> Option<ClientFailure> {
+pub fn the_silent_service_after_a_prepare(
+    context: &GitContext,
+    cwd: &Path,
+    reference: &crate::ref_name::RefName,
+    prepared: Option<&str>,
+) -> Option<ClientFailure> {
     let shows: WhatTheBranchShows = match prepared {
         Some(made) => what_the_branch_shows(context, cwd, reference, made),
         None => WhatTheBranchShows::Unread,
@@ -219,7 +256,12 @@ pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, refe
 /// ```ts
 /// const failure = await theSilentServiceAfterAPrepareAwaiting(context, cwd, reference, prepared);
 /// ```
-pub async fn the_silent_service_after_a_prepare_awaiting(context: &GitContext, cwd: &Path, reference: &crate::ref_name::RefName, prepared: Option<&str>) -> Option<ClientFailure> {
+pub async fn the_silent_service_after_a_prepare_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    reference: &crate::ref_name::RefName,
+    prepared: Option<&str>,
+) -> Option<ClientFailure> {
     let shows: WhatTheBranchShows = match prepared {
         Some(made) => what_the_branch_shows_awaiting(context, cwd, reference, made).await,
         None => WhatTheBranchShows::Unread,
@@ -242,7 +284,9 @@ fn the_silence_means(shows: WhatTheBranchShows) -> Option<ClientFailure> {
     return match shows {
         // The branch holds the commit: the command did what it was asked, so it reports nothing and succeeds.
         WhatTheBranchShows::Made => None,
-        what_the_branch_shows => Some(ClientFailure::ServiceSilentAfterPreparing { shows: what_the_branch_shows }),
+        what_the_branch_shows => Some(ClientFailure::ServiceSilentAfterPreparing {
+            shows: what_the_branch_shows,
+        }),
     };
 }
 

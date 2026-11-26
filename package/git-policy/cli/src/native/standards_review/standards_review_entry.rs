@@ -15,8 +15,8 @@
 //! entry('- Date:'); entry(`  ${new Date().toISOString()}`); // ...
 //! ```
 
-use crate::standards_review_request::ROUTE;
 use crate::standards_review_input::CAP_LINES;
+use crate::standards_review_request::ROUTE;
 use crate::standards_review_text::on_one_line;
 
 /// The label of the line that records a finished review,
@@ -114,8 +114,16 @@ fn short(sha: &str) -> String {
 /// ```ts
 /// entry('- Skipped:'); entry(`  ${sha.slice(0, 12)} (no code files):`); entry(`  \`${subject}\``); entry(receiptLine(sha));
 /// ```
-pub fn render_skipped(sha: &str, subject: &str) -> String {
-    return format!("- Skipped:\n  {} (no code files):\n  `{}`\n{}\n", short(sha), on_one_line(subject), receipt_line(sha));
+pub fn render_skipped(
+    sha: &str,
+    subject: &str,
+) -> String {
+    return format!(
+        "- Skipped:\n  {} (no code files):\n  `{}`\n{}\n",
+        short(sha),
+        on_one_line(subject),
+        receipt_line(sha)
+    );
 }
 
 /// What:
@@ -140,7 +148,11 @@ pub fn render_skipped(sha: &str, subject: &str) -> String {
 /// entry('- Date:'); // ... entry(receiptLine(entry.sha)); entry('')
 /// ```
 pub fn render_review(entry: &ReviewEntry) -> String {
-    let capped: String = if entry.truncated { format!(", capped at {CAP_LINES}") } else { String::new() };
+    let capped: String = if entry.truncated {
+        format!(", capped at {CAP_LINES}")
+    } else {
+        String::new()
+    };
     let judged: String = match entry.top.as_str() {
         "partial" => String::from("  partial (cost gestured as unverified,\n  not named)"),
         "yes" | "no" => format!("  {}", entry.top),

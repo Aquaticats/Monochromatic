@@ -26,7 +26,12 @@
 //! for (const line of reportLines('feature', report)) stderr.write(`${line}\n`);
 //! ```
 
-use crate::merge_isolation_carry_kept_path::{Kept, Staged, kept_line, kept_path};
+use crate::merge_isolation_carry_kept_path::{
+    Kept,
+    Staged,
+    kept_line,
+    kept_path,
+};
 
 /// What:
 ///  Everything one carry did,
@@ -74,7 +79,10 @@ impl Report {
     /// ```ts
     /// report.aPathWrittenAgain(written.changed);
     /// ```
-    pub(crate) fn a_path_written_again(&mut self, paths: Vec<Vec<u8>>) {
+    pub(crate) fn a_path_written_again(
+        &mut self,
+        paths: Vec<Vec<u8>>,
+    ) {
         for path in paths {
             self.merged = without_path(std::mem::take(&mut self.merged), path.as_slice());
             self.conflicts = without_path(std::mem::take(&mut self.conflicts), path.as_slice());
@@ -92,7 +100,10 @@ impl Report {
 /// a loop with a named function keeps that reading
 ///  plain,
 /// where a closure would keep the path it compares against.
-fn without_path(entries: Vec<Vec<u8>>, path: &[u8]) -> Vec<Vec<u8>> {
+fn without_path(
+    entries: Vec<Vec<u8>>,
+    path: &[u8],
+) -> Vec<Vec<u8>> {
     let mut kept: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
     for entry in entries {
         if entry.as_slice() != path {
@@ -103,7 +114,10 @@ fn without_path(entries: Vec<Vec<u8>>, path: &[u8]) -> Vec<Vec<u8>> {
 }
 
 /// The kept entries of a list that are not this path's.
-fn without_kept(entries: Vec<Kept>, path: &[u8]) -> Vec<Kept> {
+fn without_kept(
+    entries: Vec<Kept>,
+    path: &[u8],
+) -> Vec<Kept> {
     let mut kept: Vec<Kept> = Vec::with_capacity(entries.len());
     for entry in entries {
         if entry.path.as_slice() != path {
@@ -126,7 +140,10 @@ fn without_kept(entries: Vec<Kept>, path: &[u8]) -> Vec<Kept> {
 /// ```ts
 /// function reportLines(reference: string, report: Report): string[];
 /// ```
-pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
+pub fn report_lines(
+    reference: &str,
+    report: &Report,
+) -> Vec<String> {
     // A command that finished a merge an earlier one began is not running that merge, so its lines name the merge the person
     //  started rather than a command they did not type.
     let command: String = if reference.is_empty() {
@@ -178,7 +195,10 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
 /// ```ts
 /// say(`${path} changed after this merge captured it, so it was left as it is and the change that came after stands`);
 /// ```
-pub(crate) fn note_left_alone<W: std::io::Write + ?Sized>(out: &mut W, path: &[u8]) {
+pub(crate) fn note_left_alone<W: std::io::Write + ?Sized>(
+    out: &mut W,
+    path: &[u8],
+) {
     let named: String = text(path);
     let _noted = out.write_all(
         format!(
@@ -250,8 +270,12 @@ pub(crate) fn add_to_the_report(
     }
     match note {
         crate::merge_isolation_carry_plans::Note::Merged => report.merged.push(entry.path.clone()),
-        crate::merge_isolation_carry_plans::Note::Conflict => report.conflicts.push(entry.path.clone()),
-        crate::merge_isolation_carry_plans::Note::Kept(why) => report.kept.push(kept_path(entry, change, why, staged)),
+        crate::merge_isolation_carry_plans::Note::Conflict => {
+            report.conflicts.push(entry.path.clone())
+        }
+        crate::merge_isolation_carry_plans::Note::Kept(why) => {
+            report.kept.push(kept_path(entry, change, why, staged))
+        }
         crate::merge_isolation_carry_plans::Note::None => {}
     }
 }

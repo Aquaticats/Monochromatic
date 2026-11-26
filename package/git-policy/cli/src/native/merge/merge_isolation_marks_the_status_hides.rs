@@ -38,19 +38,32 @@
 //! const hidden = pathsTheStatusHides(context, root, touched); // marked entries whose bytes or mode differ from the index
 //! ```
 
-use crate::command::rule_worktree_dirty::{IGNORED_PATHS_QUERY_BYTES, TOP_LITERAL_PATHSPEC};
+use crate::command::rule_worktree_dirty::{
+    IGNORED_PATHS_QUERY_BYTES,
+    TOP_LITERAL_PATHSPEC,
+};
 use crate::lazy_runtime::run_on_runtime;
-use crate::merge_isolation_carry::{WorktreeEntry, object_name_awaiting, worktree_entry_at};
+use crate::merge_isolation_carry::{
+    WorktreeEntry,
+    object_name_awaiting,
+    worktree_entry_at,
+};
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_changes::worktree_path;
 /// One path's exact bytes,
 /// as the system reads them.
 use crate::policy::path_bytes::os_from_path_bytes;
-use crate::transaction_git::{GitContext, GitOutput};
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+};
 /// `OsString` spells a path Git reads as bytes that need not be text.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The tag `git ls-files -v` prints for a `skip-worktree` entry,
 /// upper case when that bit stands alone and lower case when the assume-unchanged bit is set with it.
@@ -132,7 +145,11 @@ impl HiddenMark {
 /// ```ts
 /// const hidden = await pathsTheStatusHides({ context, root, touched });
 /// ```
-pub fn paths_the_status_hides(context: &GitContext, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+pub fn paths_the_status_hides(
+    context: &GitContext,
+    root: &Path,
+    touched: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, String> {
     return match run_on_runtime(paths_the_status_hides_awaiting(context, root, touched)) {
         Ok(found) => found,
         Err(refusal) => Err(format!("{refusal}")),
@@ -151,7 +168,11 @@ pub fn paths_the_status_hides(context: &GitContext, root: &Path, touched: &[Vec<
 /// ```ts
 /// const hidden = await pathsTheStatusHides({ context, root, touched });
 /// ```
-async fn paths_the_status_hides_awaiting(context: &GitContext, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+async fn paths_the_status_hides_awaiting(
+    context: &GitContext,
+    root: &Path,
+    touched: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, String> {
     if touched.is_empty() {
         return Ok(Vec::new());
     }
@@ -166,11 +187,13 @@ async fn paths_the_status_hides_awaiting(context: &GitContext, root: &Path, touc
             OsString::from("--"),
         ];
         arguments.extend(query);
-        let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
+        let output: GitOutput =
+            run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
         if !output.succeeded() {
             return Err(format!("git ls-files failed: {}", output.error_text()));
         }
-        let found: Vec<Vec<u8>> = hidden_work_awaiting(context, root, touched, output.stdout.as_slice()).await?;
+        let found: Vec<Vec<u8>> =
+            hidden_work_awaiting(context, root, touched, output.stdout.as_slice()).await?;
         hidden.extend(found);
     }
     return Ok(hidden);
@@ -199,7 +222,12 @@ async fn paths_the_status_hides_awaiting(context: &GitContext, root: &Path, touc
 /// ```ts
 /// for (const entry of markedEntries(stdout)) if (touched.has(entry.path) && differs(entry)) hidden.push(entry.path);
 /// ```
-async fn hidden_work_awaiting(context: &GitContext, root: &Path, touched: &[Vec<u8>], listing: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+async fn hidden_work_awaiting(
+    context: &GitContext,
+    root: &Path,
+    touched: &[Vec<u8>],
+    listing: &[u8],
+) -> Result<Vec<Vec<u8>>, String> {
     let mut hidden: Vec<Vec<u8>> = Vec::new();
     for entry in marked_entries(listing) {
         // A listing answer that names a path outside the merge's own is not one of its paths.
@@ -213,7 +241,11 @@ async fn hidden_work_awaiting(context: &GitContext, root: &Path, touched: &[Vec<
             Err(reason) => return Err(reason),
         };
         let (bytes, mode): (Vec<u8>, &'static str) = match found {
-            WorktreeEntry::Holds { bytes, mode, .. } => (bytes, mode),
+            WorktreeEntry::Holds {
+                bytes,
+                mode,
+                ..
+            } => (bytes, mode),
             WorktreeEntry::NoBytes(_) => continue,
             // Nothing at the path is an edit only when the mark is not the reason it is gone: a sparse checkout leaves
             //  the file out, while an `assume-unchanged` entry with nothing at its path is a deletion of the person's.
@@ -225,7 +257,8 @@ async fn hidden_work_awaiting(context: &GitContext, root: &Path, touched: &[Vec<
             }
         };
         if mode == entry.mode.as_str()
-            && object_name_awaiting(context, root, entry.path.as_slice(), bytes.as_slice()).await? == entry.object
+            && object_name_awaiting(context, root, entry.path.as_slice(), bytes.as_slice()).await?
+                == entry.object
         {
             continue;
         }
@@ -305,7 +338,12 @@ fn marked_entries(output: &[u8]) -> Vec<Marked> {
         let Some(mark) = hidden_mark_of(tag) else {
             continue;
         };
-        found.push(Marked { mark, mode: String::from(*mode), object: String::from(*object), path: field[tab + 1..].to_vec() });
+        found.push(Marked {
+            mark,
+            mode: String::from(*mode),
+            object: String::from(*object),
+            path: field[tab + 1..].to_vec(),
+        });
     }
     return found;
 }

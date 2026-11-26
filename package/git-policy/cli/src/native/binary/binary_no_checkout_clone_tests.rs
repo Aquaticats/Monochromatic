@@ -20,9 +20,21 @@
 //! // spawnSync(wrapper, ['checkout', sha], { cwd: clone }).status === 0
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, remove, repository, run_wrapped, stderr_of};
+use super::support::{
+    Fixture,
+    Observed,
+    fixture,
+    git,
+    remove,
+    repository,
+    run_wrapped,
+    stderr_of,
+};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Output;
 
 /// A repository with one committed file `tracked.txt` and a second branch `topic` at the same commit.
@@ -30,20 +42,28 @@ fn source_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("source"));
     std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
     git(fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
-    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=tracked"],
+    );
     git(fixture, repo.as_path(), &["branch", "topic"]);
     return repo;
 }
 
 /// The commit `HEAD` names in `repo`.
-fn head_commit(fixture: &Fixture, repo: &Path) -> String {
+fn head_commit(
+    fixture: &Fixture,
+    repo: &Path,
+) -> String {
     let output: Output = git(fixture, repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&output.stdout).trim().to_string();
 }
 
 /// Whether the wrapper itself rejected the command.
 fn rejected_by_policy(observed: &Observed) -> bool {
-    return observed.code == Some(1) && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
+    return observed.code == Some(1)
+        && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
 }
 
 /// In a `--no-checkout` clone,
@@ -54,13 +74,23 @@ fn a_commit_is_checked_out_in_a_clone_made_without_checkout() {
     let fixture: Fixture = fixture("no-checkout-clone-passes");
     let source: PathBuf = source_repository(&fixture);
     let commit: String = head_commit(&fixture, source.as_path());
-    git(&fixture, fixture.root.as_path(), &["clone", "--quiet", "--no-checkout", "source", "clone"]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &["clone", "--quiet", "--no-checkout", "source", "clone"],
+    );
     let clone: PathBuf = fixture.root.join("clone");
-    assert!(!clone.join(".git").join("index").exists(), "a no-checkout clone has no index file");
+    assert!(
+        !clone.join(".git").join("index").exists(),
+        "a no-checkout clone has no index file"
+    );
     let observed: Observed = run_wrapped(&fixture, clone.as_path(), &["checkout", commit.as_str()]);
     assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
-    assert_eq!(std::fs::read(clone.join("tracked.txt")).expect("the checkout wrote the file"), b"one\n");
+    assert_eq!(
+        std::fs::read(clone.join("tracked.txt")).expect("the checkout wrote the file"),
+        b"one\n"
+    );
     remove(&fixture);
 }
 
@@ -73,7 +103,10 @@ fn a_checkout_is_refused_while_a_tracked_file_is_modified() {
     std::fs::write(repo.join("tracked.txt"), b"two\n").expect("edit");
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "topic"]);
     assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
-    assert_eq!(std::fs::read(repo.join("tracked.txt")).expect("tracked file"), b"two\n");
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"two\n"
+    );
     remove(&fixture);
 }
 
@@ -87,9 +120,19 @@ fn a_checkout_is_refused_while_a_tracked_file_is_modified() {
 fn a_checkout_is_refused_while_a_deletion_is_staged_and_the_file_is_gone() {
     let fixture: Fixture = fixture("no-checkout-clone-staged-deletion");
     let repo: PathBuf = source_repository(&fixture);
-    git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "tracked.txt"]);
-    assert!(!repo.join("tracked.txt").exists(), "the file is gone from the working tree");
-    assert!(repo.join(".git").join("index").exists(), "the index file exists");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["rm", "--quiet", "--", "tracked.txt"],
+    );
+    assert!(
+        !repo.join("tracked.txt").exists(),
+        "the file is gone from the working tree"
+    );
+    assert!(
+        repo.join(".git").join("index").exists(),
+        "the index file exists"
+    );
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "topic"]);
     assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
     remove(&fixture);

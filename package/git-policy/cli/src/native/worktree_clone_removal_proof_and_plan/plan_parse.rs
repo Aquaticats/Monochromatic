@@ -26,24 +26,50 @@
 //! const plan = parsePlan(headerBytes, attemptBytes, fileName);
 //! ```
 
-use crate::worktree_clone_binding_record::binding_encoding::{hexadecimal_as_bytes, path_from_hexadecimal};
+use crate::subvolume::fs_beneath::ObjectId;
+use crate::worktree_clone_binding_record::binding_encoding::{
+    hexadecimal_as_bytes,
+    path_from_hexadecimal,
+};
 use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use crate::worktree_clone_removal_proof_and_plan::canonical_decimal::{is_canonical_decimal, parse_canonical_u64};
-use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{ATTEMPT_COUNT_MAXIMUM_DIGITS, NUMBER_MAXIMUM_DIGITS};
+use crate::worktree_clone_removal_proof_and_plan::canonical_decimal::{
+    is_canonical_decimal,
+    parse_canonical_u64,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_attempt_parse::parse_attempts;
+use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{
+    ATTEMPT_COUNT_MAXIMUM_DIGITS,
+    NUMBER_MAXIMUM_DIGITS,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_lines::take_line;
-use crate::worktree_clone_removal_proof_and_plan::plan_name::{is_a_snapshot_of, is_dataset_name, is_snapshot_name};
-use crate::worktree_clone_removal_proof_and_plan::plan_record::{DestructionPlan, PlanAttempt, PlanFacts};
-use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{PlanRefusal, PlanRefusalCause};
-use crate::worktree_clone_removal_proof_and_plan::plan_words::{HeadWord, NO_MOUNT_ID, PLAN_HEADER, PLAN_KEYS_IN_ORDER};
+use crate::worktree_clone_removal_proof_and_plan::plan_name::{
+    is_a_snapshot_of,
+    is_dataset_name,
+    is_snapshot_name,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+    PlanFacts,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_refusal::{
+    PlanRefusal,
+    PlanRefusalCause,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_words::{
+    HeadWord,
+    NO_MOUNT_ID,
+    PLAN_HEADER,
+    PLAN_KEYS_IN_ORDER,
+};
 use crate::worktree_clone_removal_proof_and_plan::started_moment::is_seconds_with_offset;
-use crate::subvolume::fs_beneath::ObjectId;
 
 /// The bytes of the header line's own prefix,
 /// which stay the same while the version after them may not.
-const HEADER_PREFIX: &str = "# monochromatic-git-policy-cli zfs worktree clone destruction plan, version ";
+const HEADER_PREFIX: &str =
+    "# monochromatic-git-policy-cli zfs worktree clone destruction plan, version ";
 
 /// The fields one header region holds while they are parsed.
 struct HeaderValues {
@@ -100,7 +126,8 @@ fn owner_is_shaped(value: &str) -> bool {
     let Some(start) = identity.strip_prefix("linux:") else {
         return false;
     };
-    return is_canonical_decimal(pid, ATTEMPT_COUNT_MAXIMUM_DIGITS) && is_canonical_decimal(start, NUMBER_MAXIMUM_DIGITS);
+    return is_canonical_decimal(pid, ATTEMPT_COUNT_MAXIMUM_DIGITS)
+        && is_canonical_decimal(start, NUMBER_MAXIMUM_DIGITS);
 }
 
 /// What:
@@ -118,26 +145,47 @@ fn owner_is_shaped(value: &str) -> bool {
 /// const header = parseHeader(headerBytes);
 /// ```
 fn parse_header(header: &[u8]) -> Result<(HeaderValues, HeadWord, u64), PlanRefusal> {
-    let text: &str = std::str::from_utf8(header).map_err(|_| return PlanRefusal::at(PlanRefusalCause::NotCanonical, "header", "bytes that are not text"))?;
+    let text: &str = std::str::from_utf8(header).map_err(|_| {
+        return PlanRefusal::at(
+            PlanRefusalCause::NotCanonical,
+            "header",
+            "bytes that are not text",
+        );
+    })?;
     let mut region: &str = text;
     let first: &str = take_line(&mut region, PlanRefusalCause::EndsEarly)?;
     if first != PLAN_HEADER {
         let found: String = match first.strip_prefix(HEADER_PREFIX) {
             Some(version) => {
-                return Err(PlanRefusal::at(PlanRefusalCause::UnknownVersion, "version", version));
+                return Err(PlanRefusal::at(
+                    PlanRefusalCause::UnknownVersion,
+                    "version",
+                    version,
+                ));
             }
             None => String::from(first),
         };
-        return Err(PlanRefusal::at(PlanRefusalCause::NotThisRecord, "header", found));
+        return Err(PlanRefusal::at(
+            PlanRefusalCause::NotThisRecord,
+            "header",
+            found,
+        ));
     }
     let mut values: HeaderValues = HeaderValues::empty();
     for (place, expected) in PLAN_KEYS_IN_ORDER.iter().enumerate() {
         let line: &str = take_line(&mut region, PlanRefusalCause::EndsEarly)?;
         let Some((key, value)) = line.split_once('=') else {
-            return Err(PlanRefusal::at(PlanRefusalCause::NotCanonical, "line", line));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::NotCanonical,
+                "line",
+                line,
+            ));
         };
         if key != *expected {
-            let seen: PlanRefusalCause = match PLAN_KEYS_IN_ORDER.iter().position(|known| return known == &key) {
+            let seen: PlanRefusalCause = match PLAN_KEYS_IN_ORDER
+                .iter()
+                .position(|known| return known == &key)
+            {
                 Some(at) if at < place => PlanRefusalCause::RepeatedKey,
                 Some(_) => PlanRefusalCause::OutOfOrderKey,
                 None => PlanRefusalCause::UnknownKey,
@@ -147,10 +195,18 @@ fn parse_header(header: &[u8]) -> Result<(HeaderValues, HeadWord, u64), PlanRefu
         assign_field(&mut values, *expected, value)?;
     }
     if !region.is_empty() {
-        return Err(PlanRefusal::at(PlanRefusalCause::UnknownKey, "line", region.lines().next().unwrap_or(region)));
+        return Err(PlanRefusal::at(
+            PlanRefusalCause::UnknownKey,
+            "line",
+            region.lines().next().unwrap_or(region),
+        ));
     }
-    let head: HeadWord = values.head.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "head"))?;
-    let count: u64 = values.attempts.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "attempts"))?;
+    let head: HeadWord = values
+        .head
+        .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "head"))?;
+    let count: u64 = values
+        .attempts
+        .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "attempts"))?;
     return Ok((values, head, count));
 }
 
@@ -179,10 +235,17 @@ pub struct PlanHeader {
 
 /// One field's value,
 /// parsed into its own type and refused when it is not that type's canonical spelling.
-fn assign_field(values: &mut HeaderValues, key: &str, value: &str) -> Result<(), PlanRefusal> {
-    let not_canonical = |found: &str| return PlanRefusal::at(PlanRefusalCause::NotCanonical, key, found);
+fn assign_field(
+    values: &mut HeaderValues,
+    key: &str,
+    value: &str,
+) -> Result<(), PlanRefusal> {
+    let not_canonical =
+        |found: &str| return PlanRefusal::at(PlanRefusalCause::NotCanonical, key, found);
     match key {
-        "run" => values.run = Some(RequestNonce::parse(value).map_err(|_| return not_canonical(value))?),
+        "run" => {
+            values.run = Some(RequestNonce::parse(value).map_err(|_| return not_canonical(value))?)
+        }
         "owner" => {
             if !owner_is_shaped(value) {
                 return Err(not_canonical(value));
@@ -201,15 +264,26 @@ fn assign_field(values: &mut HeaderValues, key: &str, value: &str) -> Result<(),
             }
             values.clone_dataset = Some(String::from(value));
         }
-        "cloneGuid" => values.clone_guid = Some(DatasetGuid::parse(value).map_err(|_| return not_canonical(value))?),
-        "cloneCreatetxg" => values.clone_createtxg = Some(parse_canonical_u64(value, NUMBER_MAXIMUM_DIGITS).ok_or_else(|| return not_canonical(value))?),
+        "cloneGuid" => {
+            values.clone_guid =
+                Some(DatasetGuid::parse(value).map_err(|_| return not_canonical(value))?)
+        }
+        "cloneCreatetxg" => {
+            values.clone_createtxg = Some(
+                parse_canonical_u64(value, NUMBER_MAXIMUM_DIGITS)
+                    .ok_or_else(|| return not_canonical(value))?,
+            )
+        }
         "originDataset" => {
             if !is_dataset_name(value) {
                 return Err(not_canonical(value));
             }
             values.origin_dataset = Some(String::from(value));
         }
-        "originDatasetGuid" => values.origin_dataset_guid = Some(DatasetGuid::parse(value).map_err(|_| return not_canonical(value))?),
+        "originDatasetGuid" => {
+            values.origin_dataset_guid =
+                Some(DatasetGuid::parse(value).map_err(|_| return not_canonical(value))?)
+        }
         "originSnapshot" => {
             let Some(dataset) = values.origin_dataset.as_deref() else {
                 return Err(not_canonical(value));
@@ -219,9 +293,15 @@ fn assign_field(values: &mut HeaderValues, key: &str, value: &str) -> Result<(),
             }
             values.origin_snapshot = Some(String::from(value));
         }
-        "originSnapshotGuid" => values.origin_snapshot_guid = Some(DatasetGuid::parse(value).map_err(|_| return not_canonical(value))?),
+        "originSnapshotGuid" => {
+            values.origin_snapshot_guid =
+                Some(DatasetGuid::parse(value).map_err(|_| return not_canonical(value))?)
+        }
         "originSnapshotCreatetxg" => {
-            values.origin_snapshot_createtxg = Some(parse_canonical_u64(value, NUMBER_MAXIMUM_DIGITS).ok_or_else(|| return not_canonical(value))?);
+            values.origin_snapshot_createtxg = Some(
+                parse_canonical_u64(value, NUMBER_MAXIMUM_DIGITS)
+                    .ok_or_else(|| return not_canonical(value))?,
+            );
         }
         "registrationIdHex" => {
             let Some(bytes) = hexadecimal_as_bytes(value) else {
@@ -235,18 +315,34 @@ fn assign_field(values: &mut HeaderValues, key: &str, value: &str) -> Result<(),
             };
             values.admin = Some(identity.encode());
         }
-        "targetHex" => values.target = Some(path_from_hexadecimal(value).ok_or_else(|| return not_canonical(value))?),
-        "unmountNonce" => values.unmount_nonce = Some(RequestNonce::parse(value).map_err(|_| return not_canonical(value))?),
+        "targetHex" => {
+            values.target =
+                Some(path_from_hexadecimal(value).ok_or_else(|| return not_canonical(value))?)
+        }
+        "unmountNonce" => {
+            values.unmount_nonce =
+                Some(RequestNonce::parse(value).map_err(|_| return not_canonical(value))?)
+        }
         "unmountMountId" => {
             if value == NO_MOUNT_ID {
                 values.unmount_mount_id = Some(None);
             } else {
-                values.unmount_mount_id = Some(Some(parse_canonical_u64(value, NUMBER_MAXIMUM_DIGITS).ok_or_else(|| return not_canonical(value))?));
+                values.unmount_mount_id = Some(Some(
+                    parse_canonical_u64(value, NUMBER_MAXIMUM_DIGITS)
+                        .ok_or_else(|| return not_canonical(value))?,
+                ));
             }
         }
-        "head" => values.head = Some(HeadWord::parse(value).ok_or_else(|| return PlanRefusal::at(PlanRefusalCause::UnknownHead, key, value))?),
+        "head" => {
+            values.head = Some(HeadWord::parse(value).ok_or_else(|| {
+                return PlanRefusal::at(PlanRefusalCause::UnknownHead, key, value);
+            })?)
+        }
         "attempts" => {
-            values.attempts = Some(parse_canonical_u64(value, ATTEMPT_COUNT_MAXIMUM_DIGITS).ok_or_else(|| return not_canonical(value))?);
+            values.attempts = Some(
+                parse_canonical_u64(value, ATTEMPT_COUNT_MAXIMUM_DIGITS)
+                    .ok_or_else(|| return not_canonical(value))?,
+            );
         }
         other => return Err(PlanRefusal::at(PlanRefusalCause::UnknownKey, other, value)),
     }
@@ -271,24 +367,60 @@ fn assign_field(values: &mut HeaderValues, key: &str, value: &str) -> Result<(),
 pub fn parse_plan_header(header: &[u8]) -> Result<PlanHeader, PlanRefusal> {
     let (values, head, count) = parse_header(header)?;
     let facts: PlanFacts = PlanFacts {
-        run: values.run.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "run"))?,
-        owner: values.owner.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "owner"))?,
-        started: values.started.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "started"))?,
-        clone_dataset: values.clone_dataset.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "cloneDataset"))?,
-        clone_guid: values.clone_guid.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "cloneGuid"))?,
-        clone_createtxg: values.clone_createtxg.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "cloneCreatetxg"))?,
-        origin_dataset: values.origin_dataset.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "originDataset"))?,
-        origin_dataset_guid: values.origin_dataset_guid.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "originDatasetGuid"))?,
-        origin_snapshot: values.origin_snapshot.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "originSnapshot"))?,
-        origin_snapshot_guid: values.origin_snapshot_guid.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "originSnapshotGuid"))?,
-        origin_snapshot_createtxg: values.origin_snapshot_createtxg.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "originSnapshotCreatetxg"))?,
-        registration_id: values.registration_id.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "registrationIdHex"))?,
-        admin: values.admin.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "admin"))?,
-        target: values.target.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "targetHex"))?,
-        unmount_nonce: values.unmount_nonce.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "unmountNonce"))?,
-        unmount_mount_id: values.unmount_mount_id.ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "unmountMountId"))?,
+        run: values
+            .run
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "run"))?,
+        owner: values
+            .owner
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "owner"))?,
+        started: values
+            .started
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "started"))?,
+        clone_dataset: values
+            .clone_dataset
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "cloneDataset"))?,
+        clone_guid: values
+            .clone_guid
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "cloneGuid"))?,
+        clone_createtxg: values.clone_createtxg.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "cloneCreatetxg");
+        })?,
+        origin_dataset: values
+            .origin_dataset
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "originDataset"))?,
+        origin_dataset_guid: values.origin_dataset_guid.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "originDatasetGuid");
+        })?,
+        origin_snapshot: values.origin_snapshot.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "originSnapshot");
+        })?,
+        origin_snapshot_guid: values.origin_snapshot_guid.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "originSnapshotGuid");
+        })?,
+        origin_snapshot_createtxg: values.origin_snapshot_createtxg.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "originSnapshotCreatetxg");
+        })?,
+        registration_id: values.registration_id.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "registrationIdHex");
+        })?,
+        admin: values
+            .admin
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "admin"))?,
+        target: values
+            .target
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "targetHex"))?,
+        unmount_nonce: values
+            .unmount_nonce
+            .ok_or_else(|| return PlanRefusal::of(PlanRefusalCause::MissingKey, "unmountNonce"))?,
+        unmount_mount_id: values.unmount_mount_id.ok_or_else(|| {
+            return PlanRefusal::of(PlanRefusalCause::MissingKey, "unmountMountId");
+        })?,
     };
-    return Ok(PlanHeader { facts, head, count });
+    return Ok(PlanHeader {
+        facts,
+        head,
+        count,
+    });
 }
 
 /// What:
@@ -306,19 +438,36 @@ pub fn parse_plan_header(header: &[u8]) -> Result<PlanHeader, PlanRefusal> {
 /// ```ts
 /// const plan = parsePlan(header, attempts, name);
 /// ```
-pub fn parse_plan(header: &[u8], attempt_lines: &[u8], filed_under: Option<&str>) -> Result<DestructionPlan, PlanRefusal> {
+pub fn parse_plan(
+    header: &[u8],
+    attempt_lines: &[u8],
+    filed_under: Option<&str>,
+) -> Result<DestructionPlan, PlanRefusal> {
     let parsed: PlanHeader = parse_plan_header(header)?;
     let facts: PlanFacts = parsed.facts;
     if let Some(name) = filed_under {
         if !is_canonical_guid_name(name) {
-            return Err(PlanRefusal::at(PlanRefusalCause::ForeignName, "file name", name));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::ForeignName,
+                "file name",
+                name,
+            ));
         }
         if name != facts.clone_guid.file_name() {
-            return Err(PlanRefusal::at(PlanRefusalCause::NameDisagreesWithTheRecord, "cloneGuid", facts.clone_guid.file_name()));
+            return Err(PlanRefusal::at(
+                PlanRefusalCause::NameDisagreesWithTheRecord,
+                "cloneGuid",
+                facts.clone_guid.file_name(),
+            ));
         }
     }
-    let attempts: Vec<PlanAttempt> = parse_attempts(attempt_lines, parsed.count, facts.clone_dataset.as_str())?;
-    return Ok(DestructionPlan { facts, head: parsed.head, attempts });
+    let attempts: Vec<PlanAttempt> =
+        parse_attempts(attempt_lines, parsed.count, facts.clone_dataset.as_str())?;
+    return Ok(DestructionPlan {
+        facts,
+        head: parsed.head,
+        attempts,
+    });
 }
 
 /// Controls stay out of the release executable.

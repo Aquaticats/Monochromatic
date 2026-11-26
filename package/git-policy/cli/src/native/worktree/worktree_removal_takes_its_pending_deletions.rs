@@ -36,10 +36,16 @@
 //! ```
 
 use crate::fs_kind::is_subvolume_root;
-use crate::subvolume_remove_around::{BoundaryLook, look_for_boundaries};
+use crate::subvolume_remove_around::{
+    BoundaryLook,
+    look_for_boundaries,
+};
 use crate::subvolume_remove_walk::Boundary;
 use crate::worktree_removal_holds_the_worktree::Held;
-use crate::worktree_remove_hand_over::{DELETING_PREFIX, leave_a_subvolume_for_the_service};
+use crate::worktree_remove_hand_over::{
+    DELETING_PREFIX,
+    leave_a_subvolume_for_the_service,
+};
 use std::path::Path;
 
 /// The number of hexadecimal digits the subvolume id in a leaving name takes.
@@ -91,9 +97,16 @@ pub(crate) enum VolumesBelow {
 /// const mine = /^cli-git-deleting-[0-9a-f]{16}$/.test(name);
 /// ```
 pub(crate) fn is_a_leaving_name(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(|name| { return name.to_str() }) else { return false };
-    let Some(identifier) = name.strip_prefix(DELETING_PREFIX) else { return false };
-    return identifier.len() == IDENTIFIER_DIGITS && identifier.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) });
+    let Some(name) = path.file_name().and_then(|name| return name.to_str()) else {
+        return false;
+    };
+    let Some(identifier) = name.strip_prefix(DELETING_PREFIX) else {
+        return false;
+    };
+    return identifier.len() == IDENTIFIER_DIGITS
+        && identifier
+            .bytes()
+            .all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
 }
 
 /// What:
@@ -126,7 +139,11 @@ pub(crate) fn is_a_leaving_name(path: &Path) -> bool {
 /// The words for a leftover that cannot be recorded or moved,
 /// which is the reason the removal refuses while
 ///  nothing of the worktree has changed.
-pub(crate) fn take_the_pending_deletions_below(common_dir: &Path, held: &Held, target: &Path) -> Result<VolumesBelow, String> {
+pub(crate) fn take_the_pending_deletions_below(
+    common_dir: &Path,
+    held: &Held,
+    target: &Path,
+) -> Result<VolumesBelow, String> {
     loop {
         let look: BoundaryLook = look_for_boundaries(&held.target, target);
         let mut foreign: Vec<Boundary> = Vec::new();
@@ -134,8 +151,14 @@ pub(crate) fn take_the_pending_deletions_below(common_dir: &Path, held: &Held, t
         for found in look.found {
             // What stands at the name is asked of the entry itself: a directory this program renamed is a subvolume,
             // and anything else at that name is somebody else's.
-            if is_a_leaving_name(found.path.as_path()) && is_subvolume_root(found.path.as_path()).unwrap_or(false) {
-                leave_a_subvolume_for_the_service(common_dir, found.path.as_path(), held.parent_path.as_path())?;
+            if is_a_leaving_name(found.path.as_path())
+                && is_subvolume_root(found.path.as_path()).unwrap_or(false)
+            {
+                leave_a_subvolume_for_the_service(
+                    common_dir,
+                    found.path.as_path(),
+                    held.parent_path.as_path(),
+                )?;
                 moved = true;
                 continue;
             }
@@ -150,7 +173,10 @@ pub(crate) fn take_the_pending_deletions_below(common_dir: &Path, held: &Held, t
             return Ok(VolumesBelow::Foreign(found));
         }
         return match look.unreadable {
-            Some(reason) => Ok(VolumesBelow::Unreadable(format!("the tree of {} cannot be walked for a subvolume of its own ({reason})", target.display()))),
+            Some(reason) => Ok(VolumesBelow::Unreadable(format!(
+                "the tree of {} cannot be walked for a subvolume of its own ({reason})",
+                target.display()
+            ))),
             None => Ok(VolumesBelow::Clear),
         };
     }

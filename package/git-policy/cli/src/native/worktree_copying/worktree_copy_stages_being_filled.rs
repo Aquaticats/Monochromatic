@@ -18,10 +18,16 @@
 
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_journal::journal_root;
-use crate::worktree_copy_owner::{CopyOwner, token_owner_is_dead};
+use crate::worktree_copy_owner::{
+    CopyOwner,
+    token_owner_is_dead,
+};
 use crate::worktree_copy_stage_claim::claim_names;
 use crate::worktree_copy_stage_claim_reaping::read_claim;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One stage container a live command is filling.
@@ -60,7 +66,9 @@ fn filled_stages(common_dir: &Path) -> Result<Vec<FilledStage>, WorktreeCopyErro
     let mut stages: Vec<FilledStage> = Vec::new();
     for name in claim_names(root.as_path())? {
         let claim: PathBuf = root.join(name.as_str());
-        let Some((container, owner)) = read_claim(claim.as_path())? else { continue };
+        let Some((container, owner)) = read_claim(claim.as_path())? else {
+            continue;
+        };
         if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
             continue;
         }
@@ -68,7 +76,10 @@ fn filled_stages(common_dir: &Path) -> Result<Vec<FilledStage>, WorktreeCopyErro
             Some(found) => Some(found.pid),
             None => None,
         };
-        stages.push(FilledStage { container, owner: filling });
+        stages.push(FilledStage {
+            container,
+            owner: filling,
+        });
     }
     return Ok(stages);
 }
@@ -92,7 +103,11 @@ fn filled_stages(common_dir: &Path) -> Result<Vec<FilledStage>, WorktreeCopyErro
 /// ```ts
 /// await filledStagesBelow(commonDir, worktree, converting); // [{ container: join(converting, relative), owner }]
 /// ```
-pub fn filled_stages_below(common_dir: &Path, named_below: &Path, standing_below: &Path) -> Result<Vec<FilledStage>, WorktreeCopyError> {
+pub fn filled_stages_below(
+    common_dir: &Path,
+    named_below: &Path,
+    standing_below: &Path,
+) -> Result<Vec<FilledStage>, WorktreeCopyError> {
     let stages: Vec<FilledStage> = filled_stages(common_dir)?;
     // The worktree's own name is resolved once, so a claim's resolved place and it are compared the same way.
     let named: PathBuf = match std::fs::canonicalize(named_below) {
@@ -101,12 +116,17 @@ pub fn filled_stages_below(common_dir: &Path, named_below: &Path, standing_below
     };
     let mut found: Vec<FilledStage> = Vec::new();
     for stage in stages {
-        let Some(relative) = below(stage.container.as_path(), named.as_path()) else { continue };
+        let Some(relative) = below(stage.container.as_path(), named.as_path()) else {
+            continue;
+        };
         let here: PathBuf = standing_below.join(relative);
         if std::fs::symlink_metadata(here.as_path()).is_err() {
             continue;
         }
-        found.push(FilledStage { container: here, owner: stage.owner });
+        found.push(FilledStage {
+            container: here,
+            owner: stage.owner,
+        });
     }
     return Ok(found);
 }
@@ -124,7 +144,10 @@ pub fn filled_stages_below(common_dir: &Path, named_below: &Path, standing_below
 /// ```ts
 /// below('/w/inside/.cli-x', '/w') // 'inside/.cli-x'
 /// ```
-fn below(path: &Path, named: &Path) -> Option<PathBuf> {
+fn below(
+    path: &Path,
+    named: &Path,
+) -> Option<PathBuf> {
     let mut missing: Vec<std::ffi::OsString> = Vec::new();
     let mut probe: PathBuf = path.to_path_buf();
     let resolved: PathBuf = loop {

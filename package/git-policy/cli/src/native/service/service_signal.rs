@@ -29,10 +29,23 @@
 //! process.on('SIGTERM', () => { console.error(`cli-git-service: exiting reason=signal-15 uptime_ms=${uptime()}`); process.exit(143); });
 //! ```
 
-use crate::journald_native::{IDENTIFIER, Priority, raw_address, send_without_waiting};
-use crate::service_timing::{LOG_PREFIX, sink};
+use crate::journald_native::{
+    IDENTIFIER,
+    Priority,
+    raw_address,
+    send_without_waiting,
+};
+use crate::service_timing::{
+    LOG_PREFIX,
+    sink,
+};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicI32,
+    AtomicU64,
+    Ordering,
+};
 
 /// The signals that end the service without a word otherwise.
 pub const HANDLED: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
@@ -84,25 +97,37 @@ const NATIVE_TIME_FIELD: &str = "\nCLI_GIT_AT_MS=";
 /// The wall clock in whole milliseconds since the epoch,
 /// zero when the clock cannot be read.
 fn wall_millis_signal_safe() -> u64 {
-    let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    let mut now: libc::timespec = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
     // SAFETY: `now` is valid for the call to write one `timespec`, and `clock_gettime` is safe in a signal handler.
     let status: libc::c_int = unsafe { libc::clock_gettime(libc::CLOCK_REALTIME, &raw mut now) };
     if status != 0 {
         return 0;
     }
-    return u64::try_from(now.tv_sec).unwrap_or(0).saturating_mul(1_000).saturating_add(u64::try_from(now.tv_nsec).unwrap_or(0) / 1_000_000);
+    return u64::try_from(now.tv_sec)
+        .unwrap_or(0)
+        .saturating_mul(1_000)
+        .saturating_add(u64::try_from(now.tv_nsec).unwrap_or(0) / 1_000_000);
 }
 
 /// The monotonic clock in nanoseconds,
 /// zero when the clock cannot be read.
 fn monotonic_nanos() -> u64 {
-    let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    let mut now: libc::timespec = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
     // SAFETY: `now` is valid for the call to write one `timespec`, and `clock_gettime` is safe in a signal handler.
     let status: libc::c_int = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &raw mut now) };
     if status != 0 {
         return 0;
     }
-    return u64::try_from(now.tv_sec).unwrap_or(0).saturating_mul(1_000_000_000).saturating_add(u64::try_from(now.tv_nsec).unwrap_or(0));
+    return u64::try_from(now.tv_sec)
+        .unwrap_or(0)
+        .saturating_mul(1_000_000_000)
+        .saturating_add(u64::try_from(now.tv_nsec).unwrap_or(0));
 }
 
 /// What:
@@ -117,7 +142,11 @@ fn monotonic_nanos() -> u64 {
 /// ```ts
 /// line.write(String(value), used)
 /// ```
-fn push_number(line: &mut [u8; LINE_CAPACITY], used: usize, value: u64) -> usize {
+fn push_number(
+    line: &mut [u8; LINE_CAPACITY],
+    used: usize,
+    value: u64,
+) -> usize {
     let mut digits: [u8; 20] = [0; 20];
     let mut count: usize = 0;
     let mut rest: u64 = value;
@@ -139,7 +168,11 @@ fn push_number(line: &mut [u8; LINE_CAPACITY], used: usize, value: u64) -> usize
 
 /// Appends `text` to `line` at `used`,
 /// and returns the new length.
-fn push_text(line: &mut [u8; LINE_CAPACITY], used: usize, text: &str) -> usize {
+fn push_text(
+    line: &mut [u8; LINE_CAPACITY],
+    used: usize,
+    text: &str,
+) -> usize {
     let bytes: &[u8] = text.as_bytes();
     line[used..used + bytes.len()].copy_from_slice(bytes);
     return used + bytes.len();
@@ -155,7 +188,12 @@ fn push_text(line: &mut [u8; LINE_CAPACITY], used: usize, text: &str) -> usize {
 /// ```ts
 /// `cli-git-service: exiting reason=signal-${signal} uptime_ms=${uptimeMs} at_ms=${Date.now()}\n`
 /// ```
-pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64, on_stream: bool) -> ([u8; LINE_CAPACITY], usize) {
+pub fn signal_line(
+    signal: libc::c_int,
+    uptime_nanos: u64,
+    at_ms: u64,
+    on_stream: bool,
+) -> ([u8; LINE_CAPACITY], usize) {
     let mut line: [u8; LINE_CAPACITY] = [0; LINE_CAPACITY];
     // On the journal's stream a `<6>` prefix keeps the `info` level the line has on the native socket.
     let mut used: usize = push_text(&mut line, 0, if on_stream { "<6>" } else { "" });
@@ -187,7 +225,11 @@ pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64, on_stream
 /// ```ts
 /// `PRIORITY=6\nSYSLOG_IDENTIFIER=monochromatic-git-policy-cli-service\nMESSAGE=exiting reason=signal-${signal} uptime_ms=${u} at_ms=${t}\nCLI_GIT_AT_MS=${t}\n`
 /// ```
-pub fn signal_datagram(signal: libc::c_int, uptime_nanos: u64, at_ms: u64) -> ([u8; LINE_CAPACITY], usize) {
+pub fn signal_datagram(
+    signal: libc::c_int,
+    uptime_nanos: u64,
+    at_ms: u64,
+) -> ([u8; LINE_CAPACITY], usize) {
     let mut line: [u8; LINE_CAPACITY] = [0; LINE_CAPACITY];
     let mut used: usize = push_text(&mut line, 0, "PRIORITY=");
     used = push_number(&mut line, used, u64::from(Priority::Info.number()));
@@ -238,7 +280,14 @@ extern "C" fn on_signal(signal: libc::c_int) {
     unsafe {
         let sent: bool = match NATIVE_ADDRESS.get() {
             Some((address, address_length)) if descriptor >= 0 => {
-                libc::sendto(descriptor, entry.as_ptr().cast(), entry_length, libc::MSG_DONTWAIT, std::ptr::from_ref(address).cast(), *address_length) >= 0
+                libc::sendto(
+                    descriptor,
+                    entry.as_ptr().cast(),
+                    entry_length,
+                    libc::MSG_DONTWAIT,
+                    std::ptr::from_ref(address).cast(),
+                    *address_length,
+                ) >= 0
             }
             _ => false,
         };
@@ -251,7 +300,8 @@ extern "C" fn on_signal(signal: libc::c_int) {
     // The handler only records the stop (owner, 2026-11-07T22:19:43-05:00, "C: shutdown stops its Gits (Recommended)"): the line is out,
     //  so the service's own shutdown is woken, and it ends the Gits the service waits on and then the process by this signal. Where
     //  there is nothing to wake (the pipe could not be made) the process ends here, as it did before the stop was a thing the service handles.
-    if crate::stop_of_the_service_noticed_by_its_children::wake_the_shutdown_from_a_signal_handler() {
+    if crate::stop_of_the_service_noticed_by_its_children::wake_the_shutdown_from_a_signal_handler()
+    {
         crate::stop_of_the_service_noticed_by_its_children::arm_the_last_resort_from_a_signal_handler();
         return;
     }
@@ -286,7 +336,9 @@ pub fn install() {
     crate::signal_relay::leave_signals_to_the_service();
     // The pipe the handler wakes the shutdown through; without it a stop ends the process in the handler, as it did before.
     if let Err(error) = crate::stop_of_the_service_noticed_by_its_children::prepare_to_notice() {
-        crate::service_warn!("the stop of this service cannot wake its shutdown ({error}), so a stop ends the service at once and does not end the Git processes it is waiting for");
+        crate::service_warn!(
+            "the stop of this service cannot wake its shutdown ({error}), so a stop ends the service at once and does not end the Git processes it is waiting for"
+        );
     }
     for signal in HANDLED {
         // SAFETY: `on_signal` has the signature a handler needs and only calls functions that are safe in a handler.

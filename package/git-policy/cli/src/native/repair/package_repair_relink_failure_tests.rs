@@ -8,7 +8,10 @@
 //!  is a line the person cannot act on.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{
+    fixture,
+    remove,
+};
 
 /// What:
 ///  A kept reason is read back exactly as it was kept,
@@ -25,9 +28,20 @@ use crate::test_support::{fixture, remove};
 fn a_kept_reason_is_read_back_and_replaced_by_the_next_try() {
     let root: PathBuf = fixture("relink-failure-kept");
     remember(root.as_path(), "relink-1", "pnpm: exit status 1").expect("kept");
-    assert_eq!(recall(root.as_path(), "relink-1").as_deref(), Some("pnpm: exit status 1"));
-    remember(root.as_path(), "relink-1", "pnpm: exit status 1: the second answer").expect("kept");
-    assert_eq!(recall(root.as_path(), "relink-1").as_deref(), Some("pnpm: exit status 1: the second answer"));
+    assert_eq!(
+        recall(root.as_path(), "relink-1").as_deref(),
+        Some("pnpm: exit status 1")
+    );
+    remember(
+        root.as_path(),
+        "relink-1",
+        "pnpm: exit status 1: the second answer",
+    )
+    .expect("kept");
+    assert_eq!(
+        recall(root.as_path(), "relink-1").as_deref(),
+        Some("pnpm: exit status 1: the second answer")
+    );
     remove(root.as_path());
 }
 
@@ -76,7 +90,8 @@ const PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
 /// which blocks whoever opens it for reading until a writer comes.
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let name: std::ffi::CString =
+        std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
     assert_eq!(result, 0, "mkfifo {}", path.display());
@@ -115,6 +130,11 @@ fn a_reason_that_is_a_named_pipe_is_refused_without_waiting() {
         std::mem::forget(thread);
     }
     remove(root.as_path());
-    let Ok(answered_with) = within_the_patience else { panic!("recall waited for a reason file that is a named pipe, and nothing ended it") };
-    assert_eq!(answered_with, None, "a pipe holds no reason, so the notice words the account with none to quote");
+    let Ok(answered_with) = within_the_patience else {
+        panic!("recall waited for a reason file that is a named pipe, and nothing ended it")
+    };
+    assert_eq!(
+        answered_with, None,
+        "a pipe holds no reason, so the notice words the account with none to quote"
+    );
 }

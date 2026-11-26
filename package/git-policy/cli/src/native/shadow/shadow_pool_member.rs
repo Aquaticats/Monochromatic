@@ -28,21 +28,28 @@
 //! const refusal = await refusalOfMember(template, member); // undefined when the member is what a creation makes
 //! ```
 
+/// The facts a creation is made from.
+use crate::shadow_create::ShadowTemplate;
+/// The entries a creation links,
+/// the names a member may hold as links,
+/// and the per-worktree file it copies.
+use crate::shadow_links::{
+    has_worktree_config,
+    is_shared_shadow_entry,
+    shared_entries_of,
+};
 /// The creation's own `HEAD`,
 /// before any commit names its branch.
 use crate::shadow_skeleton::PLACEHOLDER_HEAD;
 /// The creation's skeleton,
 /// which a member must hold whole.
 use crate::shadow_skeleton::SKELETON_DIRECTORIES;
-/// The facts a creation is made from.
-use crate::shadow_create::ShadowTemplate;
-/// The entries a creation links,
-/// the names a member may hold as links,
-/// and the per-worktree file it copies.
-use crate::shadow_links::{has_worktree_config, is_shared_shadow_entry, shared_entries_of};
 /// The directories of a shadow that stay the creation's own,
 /// and the path each check names.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[cfg(test)]
 thread_local! {
@@ -100,7 +107,10 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// ```ts
 /// await refusalOfMember(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
-pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
+pub fn refusal(
+    template: &ShadowTemplate,
+    member: &Path,
+) -> std::io::Result<Option<String>> {
     // The member itself first, and asked of the name and never of what a link there names:
     // listing it below follows a link, so a link at a member's name would be judged, and then written into, as the tree
     // it points at rather than as the tree a creation made.
@@ -111,16 +121,31 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         Err(error) => return Err(error),
     };
     if !own_directory {
-        return Ok(Some(String::from("it is not the directory a creation makes")));
+        return Ok(Some(String::from(
+            "it is not the directory a creation makes",
+        )));
     }
     if read_bytes(member.join("config").as_path())? != template.config_bytes() {
-        return Ok(Some(String::from("its config is not the one this invocation would write")));
+        return Ok(Some(String::from(
+            "its config is not the one this invocation would write",
+        )));
     }
-    if read_bytes(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_bytes() {
-        return Ok(Some(String::from("its alternates do not name this invocation's object directory")));
+    if read_bytes(
+        member
+            .join("objects")
+            .join("info")
+            .join("alternates")
+            .as_path(),
+    )? != template.alternates_bytes()
+    {
+        return Ok(Some(String::from(
+            "its alternates do not name this invocation's object directory",
+        )));
     }
     if read_bytes(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD.as_bytes() {
-        return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
+        return Ok(Some(String::from(
+            "its HEAD is not the one a creation leaves before a commit names its branch",
+        )));
     }
     // The skeleton's directories are asked about by name, and the member itself is the question above.
     for relative in SKELETON_DIRECTORIES {
@@ -129,15 +154,22 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         }
         let path: PathBuf = member.join(relative);
         let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
-            return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
+            return Ok(Some(format!(
+                "the skeleton directory {relative} is not a directory"
+            )));
         };
         if !metadata.is_dir() {
-            return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
+            return Ok(Some(format!(
+                "the skeleton directory {relative} is not a directory"
+            )));
         }
     }
-    let (shared, keeps_its_own_info) = shared_entries_of(template.common_dir.as_path(), template.git_dir.as_path())?;
+    let (shared, keeps_its_own_info) =
+        shared_entries_of(template.common_dir.as_path(), template.git_dir.as_path())?;
     if keeps_its_own_info {
-        return Ok(Some(String::from("this worktree keeps its own info directory, so its shadows are made where the commit is")));
+        return Ok(Some(String::from(
+            "this worktree keeps its own info directory, so its shadows are made where the commit is",
+        )));
     }
     let copies_worktree_config: bool = has_worktree_config(template.git_dir.as_path())?;
     // One listing of the member answers both questions its entries are asked: that each is one this invocation's
@@ -147,23 +179,30 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     let listed: Vec<(std::ffi::OsString, bool)> = listing_of(member)?;
     for (name, is_link) in &listed {
         let spelled: String = name.to_string_lossy().into_owned();
-        let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
+        let own: bool = OWN_ENTRIES.contains(&spelled.as_str())
+            || (copies_worktree_config && spelled == WORKTREE_CONFIG);
         if own {
             // A creation writes these entries itself, so a link at one of them is a leftover of a use,
             // and a write through it reaches the file it names: `HEAD` is written with `fs::write`.
             if *is_link {
-                return Ok(Some(format!("it holds {spelled} as a link, which this invocation's creation does not make")));
+                return Ok(Some(format!(
+                    "it holds {spelled} as a link, which this invocation's creation does not make"
+                )));
             }
             continue;
         }
         if !is_shared_shadow_entry(spelled.as_str()) {
-            return Ok(Some(format!("it holds {spelled}, which this invocation's creation does not make")));
+            return Ok(Some(format!(
+                "it holds {spelled}, which this invocation's creation does not make"
+            )));
         }
         // A shared name the repository no longer holds is the view a creation gives too,
         // but only as the link a creation made: a real directory or file there is a leftover of a use.
         // The type of a shared entry is settled here, which leaves the loop below the presence and the target of one.
         if !is_link {
-            return Ok(Some(format!("the shared entry {spelled} is not a link in the member")));
+            return Ok(Some(format!(
+                "the shared entry {spelled} is not a link in the member"
+            )));
         }
         // A link whose target has gone is not the link a creation of this moment makes, and the commit
         //  must not be handed a directory it cannot write into: a filter or a hook that writes there fails.
@@ -172,7 +211,9 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         match std::fs::metadata(link.as_path()) {
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Some(format!("the shared entry {spelled} points at an entry the repository no longer holds")));
+                return Ok(Some(format!(
+                    "the shared entry {spelled} points at an entry the repository no longer holds"
+                )));
             }
             Err(error) => return Err(error),
         }
@@ -189,27 +230,39 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
             }
         }
         if !present {
-            return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
+            return Ok(Some(format!(
+                "the shared entry {shared_named} is not in the member"
+            )));
         }
         if link_target(link.as_path())? != entry.source {
-            return Ok(Some(format!("the shared entry {shared_named} links somewhere other than the repository's own entry")));
+            return Ok(Some(format!(
+                "the shared entry {shared_named} links somewhere other than the repository's own entry"
+            )));
         }
     }
     if copies_worktree_config
         && read_bytes(member.join(WORKTREE_CONFIG).as_path())?
             != read_bytes(template.git_dir.join(WORKTREE_CONFIG).as_path())?
     {
-        return Ok(Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")));
+        return Ok(Some(String::from(
+            "its copy of the worktree's configuration is not the one a creation would copy",
+        )));
     }
     // Nothing of an earlier commit's work survives in a member.
     // The creation leaves `objects/pack`, `refs/heads` and `refs/tags` to Git (`shadow_skeleton.rs`), so a tree that
     //  holds one of them is a tree a commit has used, and one question about each absent directory answers what three
     //  listings answered before: a directory that is there at all is a refusal.
     if holds_anything(member.join("objects").join("pack").as_path())? {
-        return Ok(Some(String::from("it holds a pack, which no creation leaves")));
+        return Ok(Some(String::from(
+            "it holds a pack, which no creation leaves",
+        )));
     }
-    if holds_anything(member.join("refs").join("heads").as_path())? || holds_anything(member.join("refs").join("tags").as_path())? {
-        return Ok(Some(String::from("it holds a ref, which no creation leaves")));
+    if holds_anything(member.join("refs").join("heads").as_path())?
+        || holds_anything(member.join("refs").join("tags").as_path())?
+    {
+        return Ok(Some(String::from(
+            "it holds a ref, which no creation leaves",
+        )));
     }
     return Ok(None);
 }
@@ -269,7 +322,9 @@ fn link_target(link: &Path) -> std::io::Result<PathBuf> {
 /// ```
 fn note_link_question() {
     #[cfg(test)]
-    LINK_QUESTIONS.with(|counter| { counter.set(counter.get() + 1); });
+    LINK_QUESTIONS.with(|counter| {
+        counter.set(counter.get() + 1);
+    });
 }
 
 /// What:
@@ -297,7 +352,9 @@ fn link_questions() -> u64 {
 /// ```
 #[cfg(test)]
 fn reset_link_questions() {
-    LINK_QUESTIONS.with(|counter| { counter.set(0); });
+    LINK_QUESTIONS.with(|counter| {
+        counter.set(0);
+    });
 }
 
 /// What:

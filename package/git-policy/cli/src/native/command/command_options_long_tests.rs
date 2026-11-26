@@ -16,17 +16,38 @@
 /// Tokenizer types,
 ///  queries and the shared synthetic table.
 use crate::command_options::{
-    Arity, DEFAULT_MODE, Occurrence, OptionError, OptionErrorKind, OptionSpec, OptionValue,
-    ParsedOptions, parse_options, row,
+    Arity,
+    DEFAULT_MODE,
+    Occurrence,
+    OptionError,
+    OptionErrorKind,
+    OptionSpec,
+    OptionValue,
+    ParsedOptions,
+    parse_options,
+    row,
 };
-use crate::command_options_query::{is_enabled, is_stated, last_occurrence};
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    last_occurrence,
+};
 use crate::command_test_support::{
-    ALL, ALLOW_EMPTY, ALLOW_EMPTY_MESSAGE, AMEND, NO_VERIFY, os_arguments, parse_synthetic,
+    ALL,
+    ALLOW_EMPTY,
+    ALLOW_EMPTY_MESSAGE,
+    AMEND,
+    NO_VERIFY,
+    os_arguments,
+    parse_synthetic,
 };
 
 /// Shorthand for an expected refusal at token 0.
 fn refusal(kind: OptionErrorKind) -> Result<ParsedOptions, OptionError> {
-    return Err(OptionError { kind, token: 0 });
+    return Err(OptionError {
+        kind,
+        token: 0,
+    });
 }
 
 /// A unique prefix resolves,

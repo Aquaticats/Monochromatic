@@ -21,10 +21,16 @@
 //! const { inside, leftOut } = scanLinkedWorktrees(root);
 //! ```
 
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file,
+};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  One linked worktree of the checkout.
@@ -129,7 +135,12 @@ pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> 
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(scan),
         // A run that cannot read the registrations would look at none of them and say nothing, so it is an error.
-        Err(error) => return Err(format!("the registered worktrees of {} cannot be listed ({error}), so how many there are cannot be known", admin.display())),
+        Err(error) => {
+            return Err(format!(
+                "the registered worktrees of {} cannot be listed ({error}), so how many there are cannot be known",
+                admin.display()
+            ));
+        }
     };
     // A root that cannot be resolved is compared as given, as the registration's worktree is.
     let real_root: PathBuf = match std::fs::canonicalize(root) {
@@ -138,7 +149,10 @@ pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> 
     };
     for name in names.flatten() {
         let admin_directory: PathBuf = name.path();
-        let recorded: Vec<u8> = match read_plain_file(&admin_directory.join("gitdir"), SMALL_FILE_LIMIT) {
+        let recorded: Vec<u8> = match read_plain_file(
+            &admin_directory.join("gitdir"),
+            SMALL_FILE_LIMIT,
+        ) {
             Ok(bytes) => bytes,
             Err(error) => {
                 scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} has no readable gitdir file ({error}), so Git would prune it", admin_directory.display())));
@@ -148,12 +162,25 @@ pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> 
         // The recorded path is raw bytes: a directory named with bytes that are not UTF-8 is a valid path on Linux.
         let line: &[u8] = recorded.trim_ascii();
         if line.is_empty() {
-            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} has an empty gitdir file, so Git would prune it", admin_directory.display())));
+            scan.left_out.push(left_out(
+                admin_directory.as_path(),
+                format!(
+                    "the registration {} has an empty gitdir file, so Git would prune it",
+                    admin_directory.display()
+                ),
+            ));
             continue;
         }
         let marker: PathBuf = recorded_marker(admin_directory.as_path(), line);
         let Some(named) = marker.parent() else {
-            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} names {}, which has no directory to hold a worktree", admin_directory.join("gitdir").display(), marker.display())));
+            scan.left_out.push(left_out(
+                admin_directory.as_path(),
+                format!(
+                    "the registration {} names {}, which has no directory to hold a worktree",
+                    admin_directory.join("gitdir").display(),
+                    marker.display()
+                ),
+            ));
             continue;
         };
         let worktree: PathBuf = match std::fs::canonicalize(named) {
@@ -163,23 +190,52 @@ pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> 
                 continue;
             }
             Err(error) => {
-                scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} cannot be resolved ({error})", named.display())));
+                scan.left_out.push(left_out(
+                    admin_directory.as_path(),
+                    format!(
+                        "the registered worktree {} cannot be resolved ({error})",
+                        named.display()
+                    ),
+                ));
                 continue;
             }
         };
         if !worktree.is_dir() {
-            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} is not a directory", worktree.display())));
+            scan.left_out.push(left_out(
+                admin_directory.as_path(),
+                format!(
+                    "the registered worktree {} is not a directory",
+                    worktree.display()
+                ),
+            ));
             continue;
         }
         if worktree == real_root {
-            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} names the main checkout {} itself", admin_directory.display(), real_root.display())));
+            scan.left_out.push(left_out(
+                admin_directory.as_path(),
+                format!(
+                    "the registration {} names the main checkout {} itself",
+                    admin_directory.display(),
+                    real_root.display()
+                ),
+            ));
             continue;
         }
         if !worktree.starts_with(real_root.as_path()) {
-            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} is outside the main checkout {}", worktree.display(), real_root.display())));
+            scan.left_out.push(left_out(
+                admin_directory.as_path(),
+                format!(
+                    "the registered worktree {} is outside the main checkout {}",
+                    worktree.display(),
+                    real_root.display()
+                ),
+            ));
             continue;
         }
-        scan.inside.push(LinkedWorktree { admin_directory, worktree });
+        scan.inside.push(LinkedWorktree {
+            admin_directory,
+            worktree,
+        });
     }
     scan.inside.sort_by(by_worktree_path);
     scan.left_out.sort_by(by_admin_directory);
@@ -187,8 +243,14 @@ pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> 
 }
 
 /// One registration left out of a scan.
-fn left_out(admin_directory: &Path, reason: String) -> LeftOutWorktree {
-    return LeftOutWorktree { admin_directory: admin_directory.to_path_buf(), reason };
+fn left_out(
+    admin_directory: &Path,
+    reason: String,
+) -> LeftOutWorktree {
+    return LeftOutWorktree {
+        admin_directory: admin_directory.to_path_buf(),
+        reason,
+    };
 }
 
 /// What:
@@ -202,17 +264,30 @@ fn left_out(admin_directory: &Path, reason: String) -> LeftOutWorktree {
 /// ```ts
 /// const marker = isAbsolute(recorded) ? recorded : join(adminDirectory, recorded);
 /// ```
-fn recorded_marker(admin_directory: &Path, recorded: &[u8]) -> PathBuf {
+fn recorded_marker(
+    admin_directory: &Path,
+    recorded: &[u8],
+) -> PathBuf {
     let named: &Path = Path::new(OsStr::from_bytes(recorded));
-    return if named.is_absolute() { named.to_path_buf() } else { admin_directory.join(named) };
+    return if named.is_absolute() {
+        named.to_path_buf()
+    } else {
+        admin_directory.join(named)
+    };
 }
 
 /// Order two linked worktrees by their path.
-fn by_worktree_path(left: &LinkedWorktree, right: &LinkedWorktree) -> std::cmp::Ordering {
+fn by_worktree_path(
+    left: &LinkedWorktree,
+    right: &LinkedWorktree,
+) -> std::cmp::Ordering {
     return left.worktree.cmp(&right.worktree);
 }
 
 /// Order two left-out registrations by their administrative directory.
-fn by_admin_directory(left: &LeftOutWorktree, right: &LeftOutWorktree) -> std::cmp::Ordering {
+fn by_admin_directory(
+    left: &LeftOutWorktree,
+    right: &LeftOutWorktree,
+) -> std::cmp::Ordering {
     return left.admin_directory.cmp(&right.admin_directory);
 }

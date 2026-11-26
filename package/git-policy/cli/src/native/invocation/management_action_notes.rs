@@ -14,14 +14,23 @@
 //! ```
 
 /// The exit shapes a note is appended to.
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+use crate::action::{
+    Action,
+    ENGINE_FAILURE_EXIT_CODE,
+};
+/// Which repository a Git start runs in.
+use crate::management_service_repository_selection::{
+    Selection,
+    status_git_dir,
+};
 /// The note about the batches an earlier release left open,
 /// and where this worktree keeps them.
-use crate::management_service_settle_earlier_batches::{earlier_batches_note, state_dir_of};
+use crate::management_service_settle_earlier_batches::{
+    earlier_batches_note,
+    state_dir_of,
+};
 /// The commit service units of worktrees that no longer exist.
 use crate::management_service_stop_units_of_removed_worktrees::units_note;
-/// Which repository a Git start runs in.
-use crate::management_service_repository_selection::{Selection, status_git_dir};
 /// `OsString` is owned operating-system text of raw OS bytes.
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
@@ -37,25 +46,52 @@ use std::path::Path;
 /// ```ts
 /// withUnitsNote(action, environment)
 /// ```
-pub fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> Action {
+pub fn with_units_note(
+    action: Action,
+    environment: &[(OsString, OsString)],
+) -> Action {
     // `match` picks the exit shape and gives its report back unchanged;
     //  `stderr: text` binds the field under a new name.
     match action {
-        Action::Exit { code, stdout, stderr } => {
+        Action::Exit {
+            code,
+            stdout,
+            stderr,
+        } => {
             if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::Exit { code, stdout, stderr };
+                return Action::Exit {
+                    code,
+                    stdout,
+                    stderr,
+                };
             }
             let note: String = units_note(environment);
-            return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
+            return Action::Exit {
+                code,
+                stdout,
+                stderr: format!("{stderr}{note}"),
+            };
         }
-        Action::ExitBytes { code, stdout, stderr } => {
+        Action::ExitBytes {
+            code,
+            stdout,
+            stderr,
+        } => {
             if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::ExitBytes { code, stdout, stderr };
+                return Action::ExitBytes {
+                    code,
+                    stdout,
+                    stderr,
+                };
             }
             let note: String = units_note(environment);
             let mut explained: Vec<u8> = stderr;
             explained.extend_from_slice(note.as_bytes());
-            return Action::ExitBytes { code, stdout, stderr: explained };
+            return Action::ExitBytes {
+                code,
+                stdout,
+                stderr: explained,
+            };
         }
         other => return other,
     }
@@ -73,26 +109,59 @@ pub fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> 
 /// ```ts
 /// withEarlierBatchesNote(action, globalArguments, environment, realGit)
 /// ```
-pub fn with_earlier_batches_note(action: Action, global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: &Path) -> Action {
+pub fn with_earlier_batches_note(
+    action: Action,
+    global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    real_git: &Path,
+) -> Action {
     // `match` picks the exit shape and gives its report back unchanged.
     match action {
-        Action::Exit { code, stdout, stderr } => {
+        Action::Exit {
+            code,
+            stdout,
+            stderr,
+        } => {
             if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::Exit { code, stdout, stderr };
+                return Action::Exit {
+                    code,
+                    stdout,
+                    stderr,
+                };
             }
-            let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
-            let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
-            return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
+            let selection: Selection =
+                status_git_dir(global_arguments, environment, Some(real_git));
+            let note: String =
+                earlier_batches_note(&selection, state_dir_of(environment).as_deref());
+            return Action::Exit {
+                code,
+                stdout,
+                stderr: format!("{stderr}{note}"),
+            };
         }
-        Action::ExitBytes { code, stdout, stderr } => {
+        Action::ExitBytes {
+            code,
+            stdout,
+            stderr,
+        } => {
             if code == ENGINE_FAILURE_EXIT_CODE {
-                return Action::ExitBytes { code, stdout, stderr };
+                return Action::ExitBytes {
+                    code,
+                    stdout,
+                    stderr,
+                };
             }
-            let selection: Selection = status_git_dir(global_arguments, environment, Some(real_git));
-            let note: String = earlier_batches_note(&selection, state_dir_of(environment).as_deref());
+            let selection: Selection =
+                status_git_dir(global_arguments, environment, Some(real_git));
+            let note: String =
+                earlier_batches_note(&selection, state_dir_of(environment).as_deref());
             let mut explained: Vec<u8> = stderr;
             explained.extend_from_slice(note.as_bytes());
-            return Action::ExitBytes { code, stdout, stderr: explained };
+            return Action::ExitBytes {
+                code,
+                stdout,
+                stderr: explained,
+            };
         }
         other => return other,
     }

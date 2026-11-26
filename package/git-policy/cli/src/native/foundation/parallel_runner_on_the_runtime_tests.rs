@@ -8,12 +8,24 @@
 //! and a lane set that leaves an item out is refused.
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::{budgeted_blocking_jobs, hold_blocking_jobs_to};
+use crate::blocking_jobs_within_the_budget::{
+    budgeted_blocking_jobs,
+    hold_blocking_jobs_to,
+};
 use crate::no_threads_child_test_support::ran_in_child;
 use crate::parallel_runner::Event;
-use crate::parallel_test_support::{PATIENCE, Rendezvous};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use crate::parallel_test_support::{
+    PATIENCE,
+    Rendezvous,
+};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Milliseconds one item of the timing controls keeps its job busy.
 const BUSY_MILLIS: u64 = 25;
@@ -53,21 +65,40 @@ fn lane_of_one_item(index: usize) -> Vec<usize> {
 /// so a run never has more than the fewest of the workers it is asked for,
 /// its lanes and `budgeted_blocking_jobs()` in flight;
 /// a control that expects a typed four fails wherever the bound is two.
-fn jobs_that_may_overlap(workers: usize, lanes: usize) -> usize {
+fn jobs_that_may_overlap(
+    workers: usize,
+    lanes: usize,
+) -> usize {
     return workers.min(lanes).min(budgeted_blocking_jobs());
 }
 
 /// A run whose items all end with their index times ten.
-fn run_ending(items: Vec<u64>, workers: usize, work: Arc<dyn OrderedWork<u64, u64> + Send + Sync>, on_event: &mut dyn OrderedEvents<u64>) -> Result<(), OrderedRunError> {
+fn run_ending(
+    items: Vec<u64>,
+    workers: usize,
+    work: Arc<dyn OrderedWork<u64, u64> + Send + Sync>,
+    on_event: &mut dyn OrderedEvents<u64>,
+) -> Result<(), OrderedRunError> {
     let count: usize = items.len();
-    return run_ordered_and_wait_here(OrderedRunOfOwned { items: Arc::from(items), lanes: single_lanes(count), workers, work, on_event });
+    return run_ordered_and_wait_here(OrderedRunOfOwned {
+        items: Arc::from(items),
+        lanes: single_lanes(count),
+        workers,
+        work,
+        on_event,
+    });
 }
 
 /// Items that sleep for the time they are given say one line and return ten times their index.
 struct SleepAndSay;
 
 impl OrderedWork<u64, u64> for SleepAndSay {
-    fn run(&self, index: usize, item: &u64, say: &mut dyn LineSink) -> u64 {
+    fn run(
+        &self,
+        index: usize,
+        item: &u64,
+        say: &mut dyn LineSink,
+    ) -> u64 {
         std::thread::sleep(Duration::from_millis(*item));
         say.say(format!("item {index}").as_str());
         return index as u64 * 10;
@@ -84,7 +115,10 @@ struct SeenText {
 }
 
 impl OrderedEvents<u64> for SeenText {
-    fn on_event(&mut self, event: Event<'_, u64>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, u64>,
+    ) {
         self.seen.push(match event {
             Event::Begin(index) => format!("begin {index}"),
             Event::Line(index, text) => format!("line {index} {text}"),
@@ -97,7 +131,8 @@ impl OrderedEvents<u64> for SeenText {
 #[test]
 fn every_item_runs_and_the_report_keeps_input_order() {
     let mut seen: SeenText = SeenText::default();
-    run_ending(vec![40, 1, 20, 2], ITEMS, Arc::new(SleepAndSay), &mut seen).expect("the run finished");
+    run_ending(vec![40, 1, 20, 2], ITEMS, Arc::new(SleepAndSay), &mut seen)
+        .expect("the run finished");
     let expected: Vec<String> = vec![
         String::from("begin 0"),
         String::from("line 0 item 0"),
@@ -112,7 +147,10 @@ fn every_item_runs_and_the_report_keeps_input_order() {
         String::from("line 3 item 3"),
         String::from("end 3 30"),
     ];
-    assert_eq!(seen.seen, expected, "the consumer saw the events out of input order");
+    assert_eq!(
+        seen.seen, expected,
+        "the consumer saw the events out of input order"
+    );
 }
 
 /// An item that waits for every other item at a point a serial run can never pass.
@@ -122,7 +160,12 @@ struct Arrive {
 }
 
 impl OrderedWork<u64, bool> for Arrive {
-    fn run(&self, _index: usize, _item: &u64, _say: &mut dyn LineSink) -> bool {
+    fn run(
+        &self,
+        _index: usize,
+        _item: &u64,
+        _say: &mut dyn LineSink,
+    ) -> bool {
         return self.point.arrive();
     }
 }
@@ -135,7 +178,10 @@ struct CountArrived {
 }
 
 impl OrderedEvents<bool> for CountArrived {
-    fn on_event(&mut self, event: Event<'_, bool>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, bool>,
+    ) {
         if let Event::End(_index, came) = event
             && came
         {
@@ -170,7 +216,9 @@ fn items_run_at_the_same_time() {
         return;
     }
     let mut seen: CountArrived = CountArrived::default();
-    let work: Arc<Arrive> = Arc::new(Arrive { point: Arc::new(Rendezvous::impatient(at_once, PATIENCE)) });
+    let work: Arc<Arrive> = Arc::new(Arrive {
+        point: Arc::new(Rendezvous::impatient(at_once, PATIENCE)),
+    });
     let items: Vec<u64> = vec![0_u64; at_once];
     let run: OrderedRunOfOwned<'_, u64, bool> = OrderedRunOfOwned {
         items: Arc::from(items),
@@ -181,8 +229,7 @@ fn items_run_at_the_same_time() {
     };
     run_ordered_and_wait_here(run).expect("the run finished");
     assert_eq!(
-        seen.arrived,
-        at_once,
+        seen.arrived, at_once,
         "the fewest of the workers asked for, the lanes and the process's bound on blocking jobs is how many items must meet, \
          and these reached the point"
     );
@@ -204,7 +251,12 @@ struct StayAndCount {
 }
 
 impl OrderedWork<u64, u64> for StayAndCount {
-    fn run(&self, _index: usize, _item: &u64, _say: &mut dyn LineSink) -> u64 {
+    fn run(
+        &self,
+        _index: usize,
+        _item: &u64,
+        _say: &mut dyn LineSink,
+    ) -> u64 {
         let now: usize = self.shared.live.fetch_add(1, Ordering::SeqCst) + 1;
         let _kept: usize = self.shared.most.fetch_max(now, Ordering::SeqCst);
         std::thread::sleep(Duration::from_millis(BUSY_MILLIS));
@@ -221,7 +273,10 @@ struct CountEnds {
 }
 
 impl OrderedEvents<u64> for CountEnds {
-    fn on_event(&mut self, event: Event<'_, u64>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, u64>,
+    ) {
         if let Event::End(_index, _result) = event {
             self.ended += 1;
         }
@@ -233,13 +288,28 @@ impl OrderedEvents<u64> for CountEnds {
 #[test]
 fn the_process_bound_holds_the_items_to_one_at_a_time() {
     hold_blocking_jobs_to(ONE_PLACE);
-    let shared: Arc<Concurrency> = Arc::new(Concurrency { live: AtomicUsize::new(0), most: AtomicUsize::new(0) });
+    let shared: Arc<Concurrency> = Arc::new(Concurrency {
+        live: AtomicUsize::new(0),
+        most: AtomicUsize::new(0),
+    });
     let mut ends: CountEnds = CountEnds::default();
     let began: Instant = Instant::now();
-    run_ending(vec![0_u64; ITEMS], ITEMS, Arc::new(StayAndCount { shared: Arc::clone(&shared) }), &mut ends).expect("the run finished");
+    run_ending(
+        vec![0_u64; ITEMS],
+        ITEMS,
+        Arc::new(StayAndCount {
+            shared: Arc::clone(&shared),
+        }),
+        &mut ends,
+    )
+    .expect("the run finished");
     let took: Duration = began.elapsed();
     assert_eq!(ends.ended, ITEMS, "every item ended");
-    assert_eq!(shared.most.load(Ordering::SeqCst), ONE_PLACE, "more items were inside their job at once than the process's bound allows");
+    assert_eq!(
+        shared.most.load(Ordering::SeqCst),
+        ONE_PLACE,
+        "more items were inside their job at once than the process's bound allows"
+    );
     assert!(
         took >= Duration::from_millis(BUSY_MILLIS * ITEMS as u64 / 2),
         "the run took {took:?}, which is less than half the time of one item after another, so something other than the bound held it"
@@ -253,7 +323,12 @@ struct CountRuns {
 }
 
 impl OrderedWork<u64, u64> for CountRuns {
-    fn run(&self, _index: usize, _item: &u64, _say: &mut dyn LineSink) -> u64 {
+    fn run(
+        &self,
+        _index: usize,
+        _item: &u64,
+        _say: &mut dyn LineSink,
+    ) -> u64 {
         return self.ran.fetch_add(1, Ordering::SeqCst) as u64;
     }
 }
@@ -263,27 +338,53 @@ impl OrderedWork<u64, u64> for CountRuns {
 struct Nothing;
 
 impl OrderedEvents<u64> for Nothing {
-    fn on_event(&mut self, _event: Event<'_, u64>) {}
+    fn on_event(
+        &mut self,
+        _event: Event<'_, u64>,
+    ) {
+    }
 }
 
 /// Where the system refuses every thread,
 /// the run says plainly that the items had not run when it answered.
 #[test]
 fn where_no_thread_can_start_the_run_is_a_plain_error() {
-    if ran_in_child(module_path!(), "where_no_thread_can_start_the_run_is_a_plain_error") {
+    if ran_in_child(
+        module_path!(),
+        "where_no_thread_can_start_the_run_is_a_plain_error",
+    ) {
         return;
     }
     let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let outcome = run_ending(vec![1_u64, 2, 3], 3, Arc::new(CountRuns { ran: Arc::clone(&ran) }), &mut Nothing);
-    assert!(matches!(outcome, Err(OrderedRunError::NoThreadToStart)), "the run answered {outcome:?}");
-    assert_eq!(ran.load(Ordering::SeqCst), 0, "an item had run by the time the run answered, although no thread could start");
+    let outcome = run_ending(
+        vec![1_u64, 2, 3],
+        3,
+        Arc::new(CountRuns {
+            ran: Arc::clone(&ran),
+        }),
+        &mut Nothing,
+    );
+    assert!(
+        matches!(outcome, Err(OrderedRunError::NoThreadToStart)),
+        "the run answered {outcome:?}"
+    );
+    assert_eq!(
+        ran.load(Ordering::SeqCst),
+        0,
+        "an item had run by the time the run answered, although no thread could start"
+    );
 }
 
 /// An item that does nothing.
 struct Quiet;
 
 impl OrderedWork<u64, u64> for Quiet {
-    fn run(&self, _index: usize, _item: &u64, _say: &mut dyn LineSink) -> u64 {
+    fn run(
+        &self,
+        _index: usize,
+        _item: &u64,
+        _say: &mut dyn LineSink,
+    ) -> u64 {
         return 0;
     }
 }
@@ -292,8 +393,13 @@ impl OrderedWork<u64, u64> for Quiet {
 #[test]
 #[should_panic(expected = "a lane set must cover every item")]
 fn a_lane_set_that_leaves_an_item_out_is_refused() {
-    let run: OrderedRunOfOwned<'_, u64, u64> =
-        OrderedRunOfOwned { items: Arc::from(vec![1_u64, 2]), lanes: Arc::from(vec![vec![0_usize]]), workers: 1, work: Arc::new(Quiet), on_event: &mut Nothing };
+    let run: OrderedRunOfOwned<'_, u64, u64> = OrderedRunOfOwned {
+        items: Arc::from(vec![1_u64, 2]),
+        lanes: Arc::from(vec![vec![0_usize]]),
+        workers: 1,
+        work: Arc::new(Quiet),
+        on_event: &mut Nothing,
+    };
     run_ordered_and_wait_here(run).expect("the run finished");
 }
 
@@ -345,7 +451,10 @@ struct SeenEnds {
 }
 
 impl OrderedEvents<u64> for SeenEnds {
-    fn on_event(&mut self, event: Event<'_, u64>) {
+    fn on_event(
+        &mut self,
+        event: Event<'_, u64>,
+    ) {
         if let Event::End(index, answer) = event {
             self.ends.push((index, answer));
         }

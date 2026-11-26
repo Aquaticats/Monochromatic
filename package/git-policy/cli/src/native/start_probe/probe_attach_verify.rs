@@ -21,9 +21,14 @@
 //! const evidence = verifyAfterMove(slotPath, mountId, source); // { mount, entries }
 //! ```
 
-use super::probe_mount_calls::read_own_mount_table;
-use super::probe_mount_verify::{ExpectedMount, VerifiedMount, VerifyFailure, verify_mount};
 use super::probe_errno_names::errno_of;
+use super::probe_mount_calls::read_own_mount_table;
+use super::probe_mount_verify::{
+    ExpectedMount,
+    VerifiedMount,
+    VerifyFailure,
+    verify_mount,
+};
 use std::path::Path;
 
 /// The most directory entries the read-back looks at,
@@ -93,34 +98,80 @@ impl ReadBackFailure {
 ///  the mount is not the one the attach asked for,
 ///  `fstatfs` answered another magic,
 ///  or the root could not be opened or listed.
-pub fn verify_after_move(slot_path: &Path, mount_id: u64, source: &str) -> Result<AttachEvidence, ReadBackFailure> {
+pub fn verify_after_move(
+    slot_path: &Path,
+    mount_id: u64,
+    source: &str,
+) -> Result<AttachEvidence, ReadBackFailure> {
     let table = match read_own_mount_table() {
         Ok(table) => table,
-        Err(error) => return Err(ReadBackFailure { errno: Some(error.errno), reason: String::from(error.call) }),
+        Err(error) => {
+            return Err(ReadBackFailure {
+                errno: Some(error.errno),
+                reason: String::from(error.call),
+            });
+        }
     };
-    let mount = match verify_mount(table.as_slice(), ExpectedMount { mount_id, source }) {
+    let mount = match verify_mount(
+        table.as_slice(),
+        ExpectedMount {
+            mount_id,
+            source,
+        },
+    ) {
         Ok(mount) => mount,
-        Err(failure) => return Err(ReadBackFailure { errno: None, reason: refusal_words(&failure) }),
+        Err(failure) => {
+            return Err(ReadBackFailure {
+                errno: None,
+                reason: refusal_words(&failure),
+            });
+        }
     };
     let opened: std::fs::File = match std::fs::File::open(slot_path) {
         Ok(file) => file,
-        Err(error) => return Err(ReadBackFailure { errno: error.raw_os_error(), reason: String::from("open") }),
+        Err(error) => {
+            return Err(ReadBackFailure {
+                errno: error.raw_os_error(),
+                reason: String::from("open"),
+            });
+        }
     };
     // SAFETY: an all-zero `statfs` is the empty structure `fstatfs` fills, and every field is a plain number.
     let mut magic: libc::statfs = unsafe { std::mem::zeroed() };
     // SAFETY: the descriptor is this call's own and the structure is sized for the call.
-    let asked: libc::c_int = unsafe { libc::fstatfs(std::os::fd::AsRawFd::as_raw_fd(&opened), &mut magic) };
+    let asked: libc::c_int =
+        unsafe { libc::fstatfs(std::os::fd::AsRawFd::as_raw_fd(&opened), &mut magic) };
     if asked != 0 {
-        return Err(ReadBackFailure { errno: std::io::Error::last_os_error().raw_os_error(), reason: String::from("fstatfs") });
+        return Err(ReadBackFailure {
+            errno: std::io::Error::last_os_error().raw_os_error(),
+            reason: String::from("fstatfs"),
+        });
     }
     if magic.f_type != ZFS_SUPER_MAGIC {
-        return Err(ReadBackFailure { errno: None, reason: format!("fstatfs answered magic {} rather than the ZFS magic", magic.f_type) });
+        return Err(ReadBackFailure {
+            errno: None,
+            reason: format!(
+                "fstatfs answered magic {} rather than the ZFS magic",
+                magic.f_type
+            ),
+        });
     }
     let entries = match std::fs::read_dir(slot_path) {
-        Ok(listing) => listing.take(ENTRY_BOUND).filter(|entry| return entry.is_ok()).count(),
-        Err(error) => return Err(ReadBackFailure { errno: error.raw_os_error(), reason: String::from("read_dir") }),
+        Ok(listing) => listing
+            .take(ENTRY_BOUND)
+            .filter(|entry| return entry.is_ok())
+            .count(),
+        Err(error) => {
+            return Err(ReadBackFailure {
+                errno: error.raw_os_error(),
+                reason: String::from("read_dir"),
+            });
+        }
     };
-    return Ok(AttachEvidence { mount, entries });
+    return Ok(AttachEvidence {
+        mount,
+        entries,
+    });
 }
 
 /// The comparison's refusal in words.

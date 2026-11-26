@@ -1,7 +1,11 @@
 //! Controls for the service's Git queries against real disposable repositories and a Git that never answers.
 
 use super::*;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{
+    fixture,
+    git,
+    remove,
+};
 use std::path::Path;
 
 /// Argument list from string literals.
@@ -50,7 +54,10 @@ fn repository(name: &str) -> PathBuf {
 }
 
 /// Land an empty commit with real Git and return its OID.
-fn commit(root: &Path, message: &str) -> String {
+fn commit(
+    root: &Path,
+    message: &str,
+) -> String {
     let message_argument = format!("--message={message}");
     git(
         root,
@@ -65,7 +72,10 @@ fn commit(root: &Path, message: &str) -> String {
 }
 
 /// The OID a revision names in a fixture.
-fn head_of(root: &Path, revision: &str) -> String {
+fn head_of(
+    root: &Path,
+    revision: &str,
+) -> String {
     return String::from_utf8_lossy(&git(root, &["rev-parse", revision]).stdout)
         .trim()
         .to_owned();
@@ -82,7 +92,9 @@ fn a_failed_query_names_its_arguments() {
     .expect_err("an unknown ref fails");
     match &failure {
         SingleFlightError::Git {
-            arguments, code, ..
+            arguments,
+            code,
+            ..
         } => {
             assert_eq!(arguments, "rev-parse --verify no-such-ref^{commit}");
             assert_eq!(*code, Some(128));
@@ -134,14 +146,23 @@ fn the_awaited_query_answers_what_the_synchronous_query_answers() {
     let root = repository("sf-query-awaiting-same-answer");
     let git = push_git(&root);
     for arguments in [
-        vec!["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"],
+        vec![
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "main@{upstream}",
+        ],
         vec!["rev-parse", "HEAD"],
     ] {
         let asked: Vec<OsString> = argv(arguments.as_slice());
         let synchronous = git_output(&git, &asked);
         let (awaited, _ticks): (Result<String, SingleFlightError>, u32) =
             crate::ticker_beside_a_wait::with_a_ticker_beside(git_output_awaiting(&git, &asked));
-        assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{arguments:?}");
+        assert_eq!(
+            format!("{awaited:?}"),
+            format!("{synchronous:?}"),
+            "{arguments:?}"
+        );
     }
     remove(&root);
 }
@@ -162,7 +183,9 @@ fn a_failed_awaited_query_names_its_arguments() {
     let failed = failure.expect_err("an unknown ref fails");
     match &failed {
         SingleFlightError::Git {
-            arguments, code, ..
+            arguments,
+            code,
+            ..
         } => {
             assert_eq!(arguments, "rev-parse --verify no-such-ref^{commit}");
             assert_eq!(*code, Some(128));
@@ -193,13 +216,19 @@ fn a_stalled_awaited_query_is_reported_and_lets_other_tasks_run() {
         OsString::from("1"),
     ));
     let (failure, ticks): (Result<String, SingleFlightError>, u32) =
-        crate::ticker_beside_a_wait::with_a_ticker_beside(git_output_awaiting(&git, &argv(&["rev-parse", "HEAD"])));
+        crate::ticker_beside_a_wait::with_a_ticker_beside(git_output_awaiting(
+            &git,
+            &argv(&["rev-parse", "HEAD"]),
+        ));
     let stalled = failure.expect_err("stalls");
     assert!(
         matches!(&stalled, SingleFlightError::TimedOut { arguments, seconds }
             if arguments == "rev-parse HEAD" && *seconds == 1),
         "{stalled}"
     );
-    assert!(ticks > 0, "the wait for the query held the thread: the task beside it never ran");
+    assert!(
+        ticks > 0,
+        "the wait for the query held the thread: the task beside it never ran"
+    );
     remove(&root);
 }

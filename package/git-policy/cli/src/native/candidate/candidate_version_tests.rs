@@ -11,9 +11,21 @@
 //! ```
 
 /// Import the builder under test and the values it produces.
-use super::{Candidate, CandidateIdentity, CandidateVersion, build_version};
-use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
-use crate::candidate_record::{CandidateChange, CandidateRecord};
+use super::{
+    Candidate,
+    CandidateIdentity,
+    CandidateVersion,
+    build_version,
+};
+use crate::candidate_object::{
+    CandidateMode,
+    ObjectId,
+    parse_object_id,
+};
+use crate::candidate_record::{
+    CandidateChange,
+    CandidateRecord,
+};
 
 /// A validated object name made of one repeated digit.
 fn object(digit: u8) -> ObjectId {
@@ -21,7 +33,10 @@ fn object(digit: u8) -> ObjectId {
 }
 
 /// One added regular-file record.
-fn added(path: &[u8], digit: u8) -> CandidateRecord {
+fn added(
+    path: &[u8],
+    digit: u8,
+) -> CandidateRecord {
     return CandidateRecord {
         path: path.to_vec(),
         mode: CandidateMode::Regular,

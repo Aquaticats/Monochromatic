@@ -22,15 +22,32 @@
 //! type Answer = { stdout: Uint8Array; stderr: Uint8Array; code: number };
 //! ```
 
-use crate::repo_read_config_scan::ScopeEnvironment;
-use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, ParsedIndex, parse_index_with_tree};
-use crate::repo_read_layout::RepoLayout;
-use crate::repo_read_object::{ObjectKind, from_hex};
-use crate::repo_read_odb::ObjectDatabase;
 use crate::index_cache_tree::CacheTree;
-use crate::repo_read_tree::{FlatEntry, parse_commit};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_index::{
+    INTENT_TO_ADD,
+    IndexEntry,
+    ParsedIndex,
+    parse_index_with_tree,
+};
+use crate::repo_read_layout::RepoLayout;
+use crate::repo_read_object::{
+    ObjectKind,
+    from_hex,
+};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_tree::{
+    FlatEntry,
+    parse_commit,
+};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The command line and surroundings of one query.
 pub struct Query<'a> {
@@ -73,7 +90,10 @@ pub(crate) struct Parsed<'a> {
 /// Split the arguments:
 /// leading `-C <dir>` pairs move the start directory,
 /// `--no-literal-pathspecs` is Git's default.
-pub(crate) fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a>> {
+pub(crate) fn parse<'a>(
+    arguments: &'a [OsString],
+    start: &mut PathBuf,
+) -> Option<Parsed<'a>> {
     let mut index: usize = 0;
     while index < arguments.len() {
         let word: &OsStr = arguments[index].as_os_str();
@@ -94,7 +114,12 @@ pub(crate) fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Optio
         }
     }
     let command: &str = arguments.get(index)?.to_str()?;
-    let mut parsed: Parsed<'a> = Parsed { command, flags: Vec::new(), operands: Vec::new(), specs: Vec::new() };
+    let mut parsed: Parsed<'a> = Parsed {
+        command,
+        flags: Vec::new(),
+        operands: Vec::new(),
+        specs: Vec::new(),
+    };
     let mut after_separator: bool = false;
     for argument in &arguments[index + 1..] {
         let bytes: &[u8] = argument.as_encoded_bytes();
@@ -112,7 +137,11 @@ pub(crate) fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Optio
 }
 
 /// Whether `flags` holds exactly the options of `allowed` (each at most once) and every one of `required`.
-pub(crate) fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
+pub(crate) fn flags_are(
+    flags: &[&str],
+    required: &[&str],
+    allowed: &[&str],
+) -> bool {
     for flag in required {
         if !flags.contains(flag) {
             return false;
@@ -149,7 +178,10 @@ pub(crate) struct Context {
 impl Context {
     /// The object database.
     pub(crate) fn database(&self) -> Option<ObjectDatabase> {
-        return ObjectDatabase::open_where_the_layout_proved_the_store(&self.layout, self.objects.as_deref());
+        return ObjectDatabase::open_where_the_layout_proved_the_store(
+            &self.layout,
+            self.objects.as_deref(),
+        );
     }
 
     /// The index entries.
@@ -160,7 +192,8 @@ impl Context {
 
     /// The index entries and the cache-tree extension.
     pub(crate) fn index_with_tree(&self) -> Option<ParsedIndex> {
-        let bytes: Vec<u8> = crate::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
+        let bytes: Vec<u8> =
+            crate::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
         return parse_index_with_tree(bytes.as_slice(), self.layout.object_format);
     }
 
@@ -175,18 +208,28 @@ impl Context {
         }
         let mut flat: Vec<FlatEntry> = Vec::new();
         for entry in parsed.entries {
-            flat.push(FlatEntry { path: entry.path, mode: entry.mode, id: entry.id });
+            flat.push(FlatEntry {
+                path: entry.path,
+                mode: entry.mode,
+                id: entry.id,
+            });
         }
         return Some((flat, parsed.tree));
     }
 
     /// The root tree of a commit or tree named by `hex`.
-    pub(crate) fn tree_of(&self, database: &ObjectDatabase, hex: &[u8]) -> Option<Vec<u8>> {
+    pub(crate) fn tree_of(
+        &self,
+        database: &ObjectDatabase,
+        hex: &[u8],
+    ) -> Option<Vec<u8>> {
         let name: Vec<u8> = from_hex(hex, self.layout.object_format)?;
         let object = database.read(name.as_slice())?;
         return match object.kind {
             ObjectKind::Tree => Some(name),
-            ObjectKind::Commit => Some(parse_commit(object.bytes.as_slice(), self.layout.object_format)?.tree),
+            ObjectKind::Commit => {
+                Some(parse_commit(object.bytes.as_slice(), self.layout.object_format)?.tree)
+            }
             ObjectKind::Blob | ObjectKind::Tag => None,
         };
     }

@@ -23,27 +23,48 @@ pub struct Recorder {
 
 impl Recorder {
     /// Makes a stop of `unit` fail with `failure`.
-    pub fn refuse_stop_of(&self, unit: &str, failure: CallError) {
+    pub fn refuse_stop_of(
+        &self,
+        unit: &str,
+        failure: CallError,
+    ) {
         *self.refuse.borrow_mut() = Some((unit.to_owned(), failure));
     }
 
     /// Answers every state question about `unit` with `state`,
     /// so a control can say that the unit's processes are still there.
-    pub fn report_state_of(&self, unit: &str, state: Option<&str>) {
+    pub fn report_state_of(
+        &self,
+        unit: &str,
+        state: Option<&str>,
+    ) {
         self.report_states_of(unit, &[state]);
     }
 
     /// Answers the state questions about `unit` with these answers in turn,
     /// and with the last of them from then on,
     /// so a control can watch a unit go from running to gone.
-    pub fn report_states_of(&self, unit: &str, states: &[Option<&str>]) {
-        let answers: VecDeque<Option<String>> = states.iter().map(|state| { return state.map(str::to_owned); }).collect();
+    pub fn report_states_of(
+        &self,
+        unit: &str,
+        states: &[Option<&str>],
+    ) {
+        let answers: VecDeque<Option<String>> = states
+            .iter()
+            .map(|state| {
+                return state.map(str::to_owned);
+            })
+            .collect();
         self.states.borrow_mut().insert(unit.to_owned(), answers);
     }
 
     /// Makes a state question about `unit` fail with `failure`,
     /// so a control can say that the manager does not answer.
-    pub fn refuse_state_of(&self, unit: &str, failure: CallError) {
+    pub fn refuse_state_of(
+        &self,
+        unit: &str,
+        failure: CallError,
+    ) {
         *self.refused_states.borrow_mut() = Some((unit.to_owned(), failure));
     }
 
@@ -51,7 +72,15 @@ impl Recorder {
     /// in order,
     /// as `stop <unit>`.
     pub fn stops(&self) -> Vec<String> {
-        return self.calls.borrow().iter().filter(|call| { return call.starts_with("stop"); }).cloned().collect();
+        return self
+            .calls
+            .borrow()
+            .iter()
+            .filter(|call| {
+                return call.starts_with("stop");
+            })
+            .cloned()
+            .collect();
     }
 
     /// Every call asked for,
@@ -60,7 +89,10 @@ impl Recorder {
         return self.calls.borrow().clone();
     }
 
-    fn answer(&self, unit: &str) -> Result<(), CallError> {
+    fn answer(
+        &self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         return match self.refuse.borrow().clone() {
             Some((named, failure)) if named == unit => Err(failure),
             _ => Ok(()),
@@ -70,14 +102,19 @@ impl Recorder {
     /// The state the control said the unit is in,
     /// whose queue keeps its last answer,
     /// and nothing when no control named the unit.
-    fn answer_state(&self, unit: &str) -> Result<Option<String>, CallError> {
+    fn answer_state(
+        &self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
         if let Some((named, failure)) = self.refused_states.borrow().clone()
             && named == unit
         {
             return Err(failure);
         }
         let mut answers = self.states.borrow_mut();
-        let Some(queued) = answers.get_mut(unit) else { return Ok(None) };
+        let Some(queued) = answers.get_mut(unit) else {
+            return Ok(None);
+        };
         if queued.len() > 1 {
             return Ok(queued.pop_front().flatten());
         }
@@ -86,36 +123,59 @@ impl Recorder {
 }
 
 impl Manager for Recorder {
-    fn within(&mut self, wait: std::time::Duration) {
-        self.calls.borrow_mut().push(format!("within {}", wait.as_secs()));
+    fn within(
+        &mut self,
+        wait: std::time::Duration,
+    ) {
+        self.calls
+            .borrow_mut()
+            .push(format!("within {}", wait.as_secs()));
     }
 
-    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
+    fn reset_failed(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.borrow_mut().push(format!("reset-failed {unit}"));
         return Ok(());
     }
 
-    fn start(&mut self, unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.borrow_mut().push(format!("start {unit}"));
         return Ok(());
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.borrow_mut().push(format!("stop {unit}"));
         return self.answer(unit);
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.borrow_mut().push(format!("stop-alone {unit}"));
         return self.answer(unit);
     }
 
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
         self.calls.borrow_mut().push(format!("state {unit}"));
         return self.answer_state(unit);
     }
 
-    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         // This manager holds no unit, so it can say nothing about an address it made. The question is kept apart from
         //  `calls`, which controls compare exactly, so a question that changes nothing in them stays out of them.
         let _asked: &str = unit;

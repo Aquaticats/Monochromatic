@@ -28,12 +28,20 @@
 //! const outcome = checkCloneSnapshots({ clone, cloneCreatetxg, live, recorded }); // pass | finding('snapshots'|'guid') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use super::removal_plan_checks::RecordedSnapshot;
 use super::zfs_checks::Reading;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::PlanSnapshot;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
-use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{LiveInventory, LiveObject};
+use crate::worktree_clone_removal_proof_and_plan::removal_inventory::{
+    LiveInventory,
+    LiveObject,
+};
 
 /// What:
 ///  What the pool answers for one clone and what the plan recorded for it.
@@ -80,7 +88,12 @@ pub struct CloneSnapshotFacts {
 /// const clause = 'clone@s1 (GUID 12, group 34)';
 /// ```
 fn clause(snapshot: &PlanSnapshot) -> String {
-    return format!("`{}` (GUID {}, group {})", snapshot.name, snapshot.guid.file_name(), snapshot.createtxg);
+    return format!(
+        "`{}` (GUID {}, group {})",
+        snapshot.name,
+        snapshot.guid.file_name(),
+        snapshot.createtxg
+    );
 }
 
 /// What:
@@ -96,9 +109,20 @@ fn clause(snapshot: &PlanSnapshot) -> String {
 /// ```ts
 /// const own = describeTheOwn(inventory.ownSnapshots(cloneCreatetxg), inventory.snapshots().length - own.length);
 /// ```
-fn describe_the_own(own: &[PlanSnapshot], inherited: usize) -> String {
+fn describe_the_own(
+    own: &[PlanSnapshot],
+    inherited: usize,
+) -> String {
     let named: Vec<String> = own.iter().map(clause).collect();
-    let own_part: String = if named.is_empty() { String::from("it holds no snapshot of its own") } else { format!("it holds {} snapshot(s) of its own: {}", named.len(), named.join("; ")) };
+    let own_part: String = if named.is_empty() {
+        String::from("it holds no snapshot of its own")
+    } else {
+        format!(
+            "it holds {} snapshot(s) of its own: {}",
+            named.len(),
+            named.join("; ")
+        )
+    };
     return match inherited {
         0 => own_part,
         1 => format!("{own_part}, and 1 inherited snapshot that belongs to its origin"),
@@ -128,26 +152,43 @@ pub fn check_clone_snapshots(facts: &CloneSnapshotFacts) -> CheckOutcome {
     let clone: &str = facts.clone.as_str();
     let inventory: &LiveInventory = match &facts.live {
         Reading::Read(held) => held,
-        Reading::Missing { why } => {
+        Reading::Missing {
+            why,
+        } => {
             return finding(
                 "snapshots",
-                format!("the pool holds no dataset `{clone}` ({why}), so it holds no snapshot of it either: whatever the clone's files were, they are not on this pool any more, and the record and the plan that name it are the only record of it"),
+                format!(
+                    "the pool holds no dataset `{clone}` ({why}), so it holds no snapshot of it either: whatever the clone's files were, they are not on this pool any more, and the record and the plan that name it are the only record of it"
+                ),
             );
         }
-        Reading::Unreadable { why } => {
-            return unknown(format!("the pool could not be read for `{clone}`'s snapshots ({why}), so neither the clone's own history nor the plan's states are proved"));
+        Reading::Unreadable {
+            why,
+        } => {
+            return unknown(format!(
+                "the pool could not be read for `{clone}`'s snapshots ({why}), so neither the clone's own history nor the plan's states are proved"
+            ));
         }
     };
     if inventory.dataset != facts.clone {
-        return unknown(format!("the inventory that was handed in describes `{}` rather than `{clone}`, so nothing here is a state of this clone", inventory.dataset));
+        return unknown(format!(
+            "the inventory that was handed in describes `{}` rather than `{clone}`, so nothing here is a state of this clone",
+            inventory.dataset
+        ));
     }
     let own: Vec<PlanSnapshot> = inventory.own_snapshots(facts.clone_createtxg);
-    let own_objects: Vec<LiveObject> = inventory.snapshots().into_iter().filter(|object| return object.createtxg > facts.clone_createtxg).collect();
+    let own_objects: Vec<LiveObject> = inventory
+        .snapshots()
+        .into_iter()
+        .filter(|object| return object.createtxg > facts.clone_createtxg)
+        .collect();
     let inherited: usize = inventory.snapshots().len() - own.len();
     let mut disagreements: Vec<String> = Vec::new();
     let mut late: Vec<String> = Vec::new();
     for recorded in &facts.recorded {
-        let live: Option<&LiveObject> = own_objects.iter().find(|object| return object.full_name() == recorded.name);
+        let live: Option<&LiveObject> = own_objects
+            .iter()
+            .find(|object| return object.full_name() == recorded.name);
         match (live, recorded.outcome) {
             (Some(found), SnapshotOutcome::Destroyed) => disagreements.push(format!(
                 "the plan says `{}` (GUID {}) was destroyed on attempt {}, and the pool still lists it with GUID {} in group {}",
@@ -170,7 +211,11 @@ pub fn check_clone_snapshots(facts: &CloneSnapshotFacts) -> CheckOutcome {
     }
     if facts.plan_stands {
         for snapshot in &own {
-            if facts.recorded.iter().any(|recorded| return recorded.name == snapshot.name) {
+            if facts
+                .recorded
+                .iter()
+                .any(|recorded| return recorded.name == snapshot.name)
+            {
                 continue;
             }
             late.push(clause(snapshot));
@@ -187,12 +232,24 @@ pub fn check_clone_snapshots(facts: &CloneSnapshotFacts) -> CheckOutcome {
         )
     };
     if !disagreements.is_empty() {
-        return finding("snapshots", format!("`{clone}`: {history}. {} of the plan's name(s) disagree with the pool: {}. A later attempt settles each name by a fresh read before anything is sent for it.", disagreements.len(), disagreements.join("; ")));
+        return finding(
+            "snapshots",
+            format!(
+                "`{clone}`: {history}. {} of the plan's name(s) disagree with the pool: {}. A later attempt settles each name by a fresh read before anything is sent for it.",
+                disagreements.len(),
+                disagreements.join("; ")
+            ),
+        );
     }
     if !facts.plan_stands {
-        return pass(format!("`{clone}`: {history}, and no destruction plan stands for it"));
+        return pass(format!(
+            "`{clone}`: {history}, and no destruction plan stands for it"
+        ));
     }
-    return pass(format!("`{clone}`: {history}, and every one of the plan's {} name(s) agrees with the pool.{after}", facts.recorded.len()));
+    return pass(format!(
+        "`{clone}`: {history}, and every one of the plan's {} name(s) agrees with the pool.{after}",
+        facts.recorded.len()
+    ));
 }
 
 /// Controls stay out of the release executable.

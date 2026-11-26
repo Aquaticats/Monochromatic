@@ -24,12 +24,23 @@
 //! expect(ldd(handler)).not.toMatch(/libzfs|libnvpair|libzpool/); expect(run(handler, ['--version'])).toBe(0);
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// The names of OpenZFS's CDDL libraries,
 /// as a dynamic linker prints them with their `.so` suffix.
-const CDDL_LIBRARY_STEMS: [&str; 7] = ["libzfs", "libzfs_core", "libzfsbootenv", "libnvpair", "libzpool", "libuutil", "libicp"];
+const CDDL_LIBRARY_STEMS: [&str; 7] = [
+    "libzfs",
+    "libzfs_core",
+    "libzfsbootenv",
+    "libnvpair",
+    "libzpool",
+    "libuutil",
+    "libicp",
+];
 
 /// The library every dynamically linked executable of this release carries,
 /// which proves the linker answered rather than printing nothing.
@@ -49,7 +60,11 @@ const C_LIBRARY: &str = "libc.so";
 fn cddl_libraries(listing: &str) -> Vec<String> {
     return listing
         .lines()
-        .filter(|line| return CDDL_LIBRARY_STEMS.iter().any(|stem| return line.contains(&format!("{stem}.so"))))
+        .filter(|line| {
+            return CDDL_LIBRARY_STEMS
+                .iter()
+                .any(|stem| return line.contains(&format!("{stem}.so")));
+        })
         .map(String::from)
         .collect();
 }
@@ -65,8 +80,18 @@ fn cddl_libraries(listing: &str) -> Vec<String> {
 /// const { status, stdout } = spawnSync('ldd', [binary]);
 /// ```
 fn dynamic_link_listing(binary: &str) -> (bool, String) {
-    let output: std::process::Output = Command::new("ldd").arg(binary).output().expect("ldd runs: the dynamic linker's own answer is what this control reads");
-    return (output.status.success(), format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())));
+    let output: std::process::Output = Command::new("ldd")
+        .arg(binary)
+        .output()
+        .expect("ldd runs: the dynamic linker's own answer is what this control reads");
+    return (
+        output.status.success(),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(output.stdout.as_slice()),
+            String::from_utf8_lossy(output.stderr.as_slice())
+        ),
+    );
 }
 
 /// What:
@@ -81,9 +106,18 @@ fn dynamic_link_listing(binary: &str) -> (bool, String) {
 /// ```ts
 /// const { status, stdout } = spawnSync(binary, args, { stdio: ['ignore', 'pipe', 'ignore'] });
 /// ```
-fn reported(binary: &str, arguments: &[&str]) -> (Option<i32>, String) {
-    let output: std::process::Output = Command::new(binary).args(arguments).output().expect("the release's executable runs");
-    return (output.status.code(), String::from_utf8_lossy(output.stdout.as_slice()).into_owned());
+fn reported(
+    binary: &str,
+    arguments: &[&str],
+) -> (Option<i32>, String) {
+    let output: std::process::Output = Command::new(binary)
+        .args(arguments)
+        .output()
+        .expect("the release's executable runs");
+    return (
+        output.status.code(),
+        String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+    );
 }
 
 /// What:
@@ -97,9 +131,22 @@ fn reported(binary: &str, arguments: &[&str]) -> (Option<i32>, String) {
 /// ```ts
 /// const { status, stdout, stderr } = spawnSync(binary, args);
 /// ```
-fn started(binary: &str, arguments: &[&str]) -> (Option<i32>, String) {
-    let output: std::process::Output = Command::new(binary).args(arguments).output().expect("the release's executable runs");
-    return (output.status.code(), format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())));
+fn started(
+    binary: &str,
+    arguments: &[&str],
+) -> (Option<i32>, String) {
+    let output: std::process::Output = Command::new(binary)
+        .args(arguments)
+        .output()
+        .expect("the release's executable runs");
+    return (
+        output.status.code(),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(output.stdout.as_slice()),
+            String::from_utf8_lossy(output.stderr.as_slice())
+        ),
+    );
 }
 
 /// The one executable the release archive holds,
@@ -114,9 +161,15 @@ fn neither_executable_links_an_openzfs_cddl_library() {
     for binary in RELEASE_BINS {
         let (succeeded, listing) = dynamic_link_listing(binary);
         assert!(succeeded, "ldd did not answer for {binary}: {listing}");
-        assert!(listing.contains(C_LIBRARY), "the listing of {binary} names no {C_LIBRARY}, so it is no answer about its links: {listing}");
+        assert!(
+            listing.contains(C_LIBRARY),
+            "the listing of {binary} names no {C_LIBRARY}, so it is no answer about its links: {listing}"
+        );
         let cddl: Vec<String> = cddl_libraries(listing.as_str());
-        assert!(cddl.is_empty(), "{binary} links OpenZFS's CDDL libraries, which must never be part of this release: {cddl:#?}");
+        assert!(
+            cddl.is_empty(),
+            "{binary} links OpenZFS's CDDL libraries, which must never be part of this release: {cddl:#?}"
+        );
     }
 }
 
@@ -125,7 +178,11 @@ fn neither_executable_links_an_openzfs_cddl_library() {
 fn the_matcher_names_a_planted_cddl_library_and_nothing_else() {
     let planted: &str = "linux-vdso.so.1 (0x00007ffe8b3fe000)\nlibzfs.so.4 => /lib/libzfs.so.4 (0x00007f2c4a200000)\nlibzpool.so.5 => /lib/libzpool.so.5 (0x00007f2c4a000000)\nlibc.so.6 => /lib/libc.so.6 (0x00007f2c49e00000)\n/lib64/ld-linux-x86-64.so.2 (0x00007f2c4a400000)\n";
     let found: Vec<String> = cddl_libraries(planted);
-    assert_eq!(found.len(), 2, "both planted CDDL lines are reported: {found:#?}");
+    assert_eq!(
+        found.len(),
+        2,
+        "both planted CDDL lines are reported: {found:#?}"
+    );
     assert!(found[0].contains("libzfs.so"), "{found:#?}");
     assert!(found[1].contains("libzpool.so"), "{found:#?}");
     let clean: &str = "linux-vdso.so.1 (0x00007ffe8b3fe000)\nlibc.so.6 => /lib/libc.so.6 (0x00007f2c49e00000)\nlibmonochromatic_zfs_request_to_openzfs_kernel_device.so => /app/lib.so (0x0)\n";
@@ -149,20 +206,37 @@ fn the_root_modes_answer_their_version_and_refuse_their_request_modes_behind_the
     assert_eq!(version_status, Some(0), "{version}");
     let (report_status, report) = reported(link.display().to_string().as_str(), &["--version"]);
     assert_eq!(report_status, Some(0), "{report}");
-    assert_eq!(report, format!("{} {} {}\n", words[0], words[1], env!("CARGO_PKG_VERSION")));
+    assert_eq!(
+        report,
+        format!("{} {} {}\n", words[0], words[1], env!("CARGO_PKG_VERSION"))
+    );
     assert!(version.contains(env!("CARGO_PKG_VERSION")), "{version}");
     if Path::new("/dev/zfs").exists() {
-        eprintln!("SKIPPED: this machine's kernel has /dev/zfs, so a start here says nothing about a machine without the device; the gate image has none and runs this arm");
+        eprintln!(
+            "SKIPPED: this machine's kernel has /dev/zfs, so a start here says nothing about a machine without the device; the gate image has none and runs this arm"
+        );
         return;
     }
     for mode in ["boot-reconcile", "shutdown-unmount"] {
         let arguments: Vec<&str> = vec![words[0], words[1], mode];
         let (status, said) = started(link.display().to_string().as_str(), arguments.as_slice());
         assert_eq!(status, Some(2), "{arguments:?} must refuse: {said}");
-        assert!(said.contains("the start-time ZFS compatibility gate refused"), "{arguments:?} names the gate: {said}");
-        assert!(said.contains("reads included"), "{arguments:?} names what stays disabled: {said}");
-        assert!(said.contains("registrations and durable recovery state"), "{arguments:?} says nothing was changed: {said}");
-        assert!(!said.contains("plan step"), "{arguments:?} never enters the mode: {said}");
+        assert!(
+            said.contains("the start-time ZFS compatibility gate refused"),
+            "{arguments:?} names the gate: {said}"
+        );
+        assert!(
+            said.contains("reads included"),
+            "{arguments:?} names what stays disabled: {said}"
+        );
+        assert!(
+            said.contains("registrations and durable recovery state"),
+            "{arguments:?} says nothing was changed: {said}"
+        );
+        assert!(
+            !said.contains("plan step"),
+            "{arguments:?} never enters the mode: {said}"
+        );
     }
 }
 
@@ -181,26 +255,51 @@ fn a_start_probe_that_is_not_root_is_refused_before_any_write() {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     let effective_user: u32 = unsafe { libc::geteuid() };
     if effective_user == 0 {
-        eprintln!("SKIPPED: this run is root, so a caller that is not root cannot be shown here; the dispatch control drives the same refusal in process");
+        eprintln!(
+            "SKIPPED: this run is root, so a caller that is not root cannot be shown here; the dispatch control drives the same refusal in process"
+        );
         return;
     }
     let link: PathBuf = crate::support_installed_name::installed_name("modes-not-root");
     let words: [&str; 2] = crate::support_installed_name::root_mode_words();
-    let (status, said) = started(link.display().to_string().as_str(), &[words[0], words[1], "start-probe"]);
-    assert_eq!(status, Some(2), "a caller that is not root must be refused: {said}");
-    assert!(said.contains("the start-probe mode runs as root"), "the refusal names the mode and the rule: {said}");
-    assert!(said.contains(&format!("effective user is {effective_user}")), "the refusal names the user the kernel reported: {said}");
-    assert!(!said.contains("compatibility gate"), "the gate is not asked for a caller that is not root: {said}");
-    assert!(!said.contains("make /run writable by root"), "the way forward is the caller's own: {said}");
+    let (status, said) = started(
+        link.display().to_string().as_str(),
+        &[words[0], words[1], "start-probe"],
+    );
+    assert_eq!(
+        status,
+        Some(2),
+        "a caller that is not root must be refused: {said}"
+    );
+    assert!(
+        said.contains("the start-probe mode runs as root"),
+        "the refusal names the mode and the rule: {said}"
+    );
+    assert!(
+        said.contains(&format!("effective user is {effective_user}")),
+        "the refusal names the user the kernel reported: {said}"
+    );
+    assert!(
+        !said.contains("compatibility gate"),
+        "the gate is not asked for a caller that is not root: {said}"
+    );
+    assert!(
+        !said.contains("make /run writable by root"),
+        "the way forward is the caller's own: {said}"
+    );
 }
 
 /// The wrapper answers its own help namespace,
 /// which is what the release workflow's smoke run checks.
 #[test]
 fn the_wrapper_answers_its_own_help() {
-    let (help_status, help) = reported(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
+    let (help_status, help) =
+        reported(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
     assert_eq!(help_status, Some(0), "{help}");
-    assert!(help.contains("Usage: git monochromatic-git-policy-cli"), "{help}");
+    assert!(
+        help.contains("Usage: git monochromatic-git-policy-cli"),
+        "{help}"
+    );
 }
 
 /// The one executable starts on a machine whose kernel has no ZFS device,
@@ -212,12 +311,23 @@ fn the_wrapper_answers_its_own_help() {
 #[test]
 fn the_executable_starts_without_the_zfs_device() {
     if Path::new("/dev/zfs").exists() {
-        eprintln!("SKIPPED: this machine's kernel has /dev/zfs, so a start here does not show a start without the device; the gate image has none and runs this arm");
+        eprintln!(
+            "SKIPPED: this machine's kernel has /dev/zfs, so a start here does not show a start without the device; the gate image has none and runs this arm"
+        );
         return;
     }
-    let (wrapper_status, wrapper_said) = started(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
-    assert_eq!(wrapper_status, Some(0), "the wrapper starts without OpenZFS: {wrapper_said}");
+    let (wrapper_status, wrapper_said) =
+        started(RELEASE_BINS[0], &["monochromatic-git-policy-cli", "--help"]);
+    assert_eq!(
+        wrapper_status,
+        Some(0),
+        "the wrapper starts without OpenZFS: {wrapper_said}"
+    );
     let link: PathBuf = crate::support_installed_name::installed_name("modes-without-device");
     let (modes_status, modes_said) = started(link.display().to_string().as_str(), &["--version"]);
-    assert_eq!(modes_status, Some(0), "the root modes start without OpenZFS: {modes_said}");
+    assert_eq!(
+        modes_status,
+        Some(0),
+        "the root modes start without OpenZFS: {modes_said}"
+    );
 }

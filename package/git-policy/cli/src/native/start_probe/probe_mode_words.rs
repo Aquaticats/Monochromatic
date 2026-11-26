@@ -20,18 +20,32 @@
 //! verdictLine(verdict); recordSkip(place, paths, 'member');
 //! ```
 
-use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
-use super::probe_record::ProbeRecord;
-use super::probe_record_files::{RecordFileRefusal, RecordPlace};
-use super::probe_errno_names::ErrnoWord;
-use super::probe_report::{ProbeReport, ProbeVerdict};
 use super::probe_configuration::ProbeCheckout;
+use super::probe_errno_names::ErrnoWord;
+use super::probe_fingerprint::{
+    FingerprintPaths,
+    ProbeFingerprint,
+};
+use super::probe_record::ProbeRecord;
+use super::probe_record_files::{
+    RecordFileRefusal,
+    RecordPlace,
+};
+use super::probe_report::{
+    ProbeReport,
+    ProbeVerdict,
+};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
 use std::path::Path;
 
 /// The line the mode says about a run it could not start.
-pub fn unstarted(what: &str, errno: i32) -> String {
-    return format!("start probe could not start its {what} (errno {errno}), so no arm ran and this boot has no probe result");
+pub fn unstarted(
+    what: &str,
+    errno: i32,
+) -> String {
+    return format!(
+        "start probe could not start its {what} (errno {errno}), so no arm ran and this boot has no probe result"
+    );
 }
 
 /// The one line the mode says about its verdict.
@@ -39,11 +53,18 @@ pub fn unstarted(what: &str, errno: i32) -> String {
 /// the step and the errno a reader needs,
 /// the record that holds the rest,
 /// and the route an unused slot takes instead.
-pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
+pub fn verdict_line(
+    verdict: ProbeVerdict,
+    report: &ProbeReport,
+) -> String {
     let record: &str = super::probe_record_files::RECORD_DIRECTORY;
     return match verdict {
-        ProbeVerdict::Passed => format!("start probe passed: every arm passed, so managed attaches are enabled for this boot and module identity and the result is in {record}"),
-        ProbeVerdict::Failed { step } => {
+        ProbeVerdict::Passed => format!(
+            "start probe passed: every arm passed, so managed attaches are enabled for this boot and module identity and the result is in {record}"
+        ),
+        ProbeVerdict::Failed {
+            step,
+        } => {
             let errno: String = first_errno(report).text();
             format!(
                 "start probe failed at arm `{}`'s `{}` step (errno {errno}), so managed attaches are refused, an unused slot takes the reflink or ordinary Git route, and the result is in {record}",
@@ -51,17 +72,26 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
                 step.name()
             )
         }
-        ProbeVerdict::Blocked { arm } => format!(
+        ProbeVerdict::Blocked {
+            arm,
+        } => format!(
             "start probe did not run its `{}` arm, so managed attaches stay blocked, an unused slot takes the reflink or ordinary Git route, and which arm did not run and why is in {record}.{}",
             arm.name(),
             blocked_hint(report)
         ),
-        ProbeVerdict::TimedOut { in_flight, last_finished } => format!(
+        ProbeVerdict::TimedOut {
+            in_flight,
+            last_finished,
+        } => format!(
             "start probe missed its deadline: the step in flight was `{}` and the last one that finished was `{}`, so the record in {record} is not current and managed attaches stay blocked",
             in_flight.map_or("none", |step| return step.name()),
             last_finished.map_or("none", |step| return step.name())
         ),
-        ProbeVerdict::Skipped { gate_step } => format!("start probe skipped: the compatibility gate refused at `{gate_step}`, so nothing was mounted and no probe verdict exists in {record}"),
+        ProbeVerdict::Skipped {
+            gate_step,
+        } => format!(
+            "start probe skipped: the compatibility gate refused at `{gate_step}`, so nothing was mounted and no probe verdict exists in {record}"
+        ),
     };
 }
 
@@ -84,7 +114,11 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
 fn blocked_hint(report: &ProbeReport) -> String {
     let mut hint: String = String::new();
     for line in report.lines() {
-        let super::probe_status_line::StepAnswer::NotExercised { reason, .. } = &line.answer else {
+        let super::probe_status_line::StepAnswer::NotExercised {
+            reason,
+            ..
+        } = &line.answer
+        else {
             continue;
         };
         if *reason == "missing-source" {
@@ -119,7 +153,10 @@ fn blocked_hint(report: &ProbeReport) -> String {
 pub fn refusal_word(report: &ProbeReport) -> Option<&'static str> {
     return report.lines().iter().find_map(|line| {
         return match &line.answer {
-            super::probe_status_line::StepAnswer::NotExercised { reason, .. } if is_configuration_word(reason) => Some(*reason),
+            super::probe_status_line::StepAnswer::NotExercised {
+                reason,
+                ..
+            } if is_configuration_word(reason) => Some(*reason),
             _ => None,
         };
     });
@@ -159,18 +196,29 @@ fn is_configuration_word(word: &str) -> bool {
 /// ```ts
 /// const sentence = refusal_sentence('several-mounted-checkouts', configuration, liveMountedDatasets);
 /// ```
-pub fn refusal_sentence(word: &str, configuration: &Path, mounts: &dyn MountedDatasets) -> Option<String> {
-    let document: Option<String> = match super::probe_configuration::read_configuration(configuration) {
-        Ok(document) => document,
-        Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
-        Err(_) => return None,
-    };
-    let checkout: ProbeCheckout = match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
-        Ok(checkout) => checkout,
-        Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
-        Err(_) => return None,
-    };
-    return match super::probe_configuration::source_name(document.as_deref(), configuration, mounts, Some(&checkout)) {
+pub fn refusal_sentence(
+    word: &str,
+    configuration: &Path,
+    mounts: &dyn MountedDatasets,
+) -> Option<String> {
+    let document: Option<String> =
+        match super::probe_configuration::read_configuration(configuration) {
+            Ok(document) => document,
+            Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
+            Err(_) => return None,
+        };
+    let checkout: ProbeCheckout =
+        match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
+            Ok(checkout) => checkout,
+            Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
+            Err(_) => return None,
+        };
+    return match super::probe_configuration::source_name(
+        document.as_deref(),
+        configuration,
+        mounts,
+        Some(&checkout),
+    ) {
         Err(refusal) if refusal.word() == word => Some(refusal.message(configuration)),
         _ => None,
     };
@@ -179,24 +227,42 @@ pub fn refusal_sentence(word: &str, configuration: &Path, mounts: &dyn MountedDa
 /// The first failed step's errno field,
 /// or `none` when no step failed.
 fn first_errno(report: &ProbeReport) -> ErrnoWord {
-    return report.lines().iter().find_map(|line| {
-        return match &line.answer {
-            super::probe_status_line::StepAnswer::Failed { errno } => Some(*errno),
-            super::probe_status_line::StepAnswer::Passed | super::probe_status_line::StepAnswer::NotExercised { .. } => None,
-        };
-    }).unwrap_or(ErrnoWord::None);
+    return report
+        .lines()
+        .iter()
+        .find_map(|line| {
+            return match &line.answer {
+                super::probe_status_line::StepAnswer::Failed {
+                    errno,
+                } => Some(*errno),
+                super::probe_status_line::StepAnswer::Passed
+                | super::probe_status_line::StepAnswer::NotExercised {
+                    ..
+                } => None,
+            };
+        })
+        .unwrap_or(ErrnoWord::None);
 }
 
 /// The source the worker's read-source-name line carried.
 pub fn source_of(report: &ProbeReport) -> Option<String> {
-    return report.lines().iter().find_map(|line| return line.source.clone());
+    return report
+        .lines()
+        .iter()
+        .find_map(|line| return line.source.clone());
 }
 
 /// The word saying why the source arm did not run.
 pub fn source_refusal_word(report: &ProbeReport) -> Option<&'static str> {
     return report.lines().iter().find_map(|line| {
         return match (&line.step, &line.answer) {
-            (super::probe_arms::ProbeStep::ReadSourceName, super::probe_status_line::StepAnswer::NotExercised { reason, .. }) => Some(*reason),
+            (
+                super::probe_arms::ProbeStep::ReadSourceName,
+                super::probe_status_line::StepAnswer::NotExercised {
+                    reason,
+                    ..
+                },
+            ) => Some(*reason),
             _ => None,
         };
     });
@@ -204,7 +270,9 @@ pub fn source_refusal_word(report: &ProbeReport) -> Option<&'static str> {
 
 /// The mount-namespace identity one live process is in.
 pub fn namespace_of(pid: libc::pid_t) -> Option<String> {
-    return std::fs::read_link(format!("/proc/{pid}/ns/mnt")).ok().map(|path| return path.to_string_lossy().into_owned());
+    return std::fs::read_link(format!("/proc/{pid}/ns/mnt"))
+        .ok()
+        .map(|path| return path.to_string_lossy().into_owned());
 }
 
 /// What:
@@ -222,12 +290,21 @@ pub fn namespace_of(pid: libc::pid_t) -> Option<String> {
 ///
 /// # Errors
 /// The fingerprint could not be read or the record could not be written.
-pub fn skip_after_gate_refusal(place: &RecordPlace, paths: &FingerprintPaths, gate_step: &'static str) -> Result<String, String> {
-    let fingerprint: ProbeFingerprint = ProbeFingerprint::read(paths).map_err(|refusal| return refusal.message())?;
-    place.prepare().map_err(|refusal: RecordFileRefusal| return refusal.message())?;
+pub fn skip_after_gate_refusal(
+    place: &RecordPlace,
+    paths: &FingerprintPaths,
+    gate_step: &'static str,
+) -> Result<String, String> {
+    let fingerprint: ProbeFingerprint =
+        ProbeFingerprint::read(paths).map_err(|refusal| return refusal.message())?;
+    place
+        .prepare()
+        .map_err(|refusal: RecordFileRefusal| return refusal.message())?;
     let time: String = crate::iso_time::now_iso();
     let report: ProbeReport = ProbeReport::new();
-    let verdict: ProbeVerdict = ProbeVerdict::Skipped { gate_step };
+    let verdict: ProbeVerdict = ProbeVerdict::Skipped {
+        gate_step,
+    };
     let record = ProbeRecord {
         fingerprint: &fingerprint,
         time: time.as_str(),
@@ -239,10 +316,11 @@ pub fn skip_after_gate_refusal(place: &RecordPlace, paths: &FingerprintPaths, ga
         holder_namespace: None,
         skip_reason: Some(gate_step),
     };
-    place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
+    place
+        .publish(record.text().as_str())
+        .map_err(|refusal| return refusal.message())?;
     return Ok(verdict_line(verdict, &report));
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

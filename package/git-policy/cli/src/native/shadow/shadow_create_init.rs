@@ -15,20 +15,28 @@
 //! // while (attempt < SHADOW_CREATION_ATTEMPTS) await runGit(init); rm(shadow, { recursive: true });
 //! ```
 
+/// Where Git's words go now that the `init` carries no `--quiet`.
+use crate::inner_git_words::record_words;
+/// The facts a start of `init` makes the shadow from.
+use crate::shadow_create_template::ShadowTemplate;
 /// The variables the real repository's redirects name,
 /// removed so the shadow's `init` cannot be sent elsewhere.
 use crate::shadow_git::REPOSITORY_REDIRECT_VARIABLES;
-/// Where Git's words go now that the `init` carries no `--quiet`.
-use crate::inner_git_words::record_words;
 /// The attempt one start of `init` is,
 /// counted for the controls and read by a control's Git stand-in.
 use crate::shadow_init_attempts::note_init_attempt;
-/// The facts a start of `init` makes the shadow from.
-use crate::shadow_create_template::ShadowTemplate;
 /// Process context,
 /// the required Git start,
 /// and the failure text of a step that did run.
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, checked_from, refused_by_the_system, run_git};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+    GitOutput,
+    GitRequest,
+    checked_from,
+    refused_by_the_system,
+    run_git,
+};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
@@ -77,7 +85,11 @@ pub(crate) fn init_with_git(
     ];
     let mut init: GitRequest = GitRequest::new(template.common_dir.as_path(), &arguments);
     init.without_prefix = true;
-    init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
+    init.unset = REPOSITORY_REDIRECT_VARIABLES
+        .iter()
+        .copied()
+        .map(OsString::from)
+        .collect();
     let mut attempt: u32 = 1;
     loop {
         // The attempt is counted here, before the start: a start the ceiling ends before its program writes anything is an attempt the wrapper made.
@@ -88,8 +100,15 @@ pub(crate) fn init_with_git(
         //  start is made again in a fresh directory, which the experiment found equal to an uncut run (104 of 104).
         let cut: bool = start_was_cut_or_refused(&outcome);
         if cut && attempt < SHADOW_CREATION_ATTEMPTS {
-            let note: String = format!("the shadow's init was cut or refused (attempt {attempt} of {SHADOW_CREATION_ATTEMPTS}); its directory {} is discarded and the step starts again in a fresh one", shadow.display());
-            crate::client_journal::record_entry(crate::journald_native::Priority::Warning, note.as_str(), &[]);
+            let note: String = format!(
+                "the shadow's init was cut or refused (attempt {attempt} of {SHADOW_CREATION_ATTEMPTS}); its directory {} is discarded and the step starts again in a fresh one",
+                shadow.display()
+            );
+            crate::client_journal::record_entry(
+                crate::journald_native::Priority::Warning,
+                note.as_str(),
+                &[],
+            );
             discard_partial_shadow(shadow)?;
             attempt += 1;
             continue;
@@ -99,7 +118,10 @@ pub(crate) fn init_with_git(
         }
         let made = checked_from(outcome, init.arguments.as_slice())?;
         // The `init` carries no `--quiet`; what Git said of it is kept in the journal.
-        record_words(&["init", "--bare", "--template=", "--ref-format=reftable"], &made);
+        record_words(
+            &["init", "--bare", "--template=", "--ref-format=reftable"],
+            &made,
+        );
         return Ok(());
     }
 }
@@ -120,7 +142,10 @@ pub(crate) fn init_with_git(
 pub(crate) fn start_was_cut_or_refused(outcome: &std::io::Result<GitOutput>) -> bool {
     return match outcome {
         // `WouldBlock` is `EAGAIN`: the system refused the process or the thread before the command ran.
-        Err(error) => matches!(error.kind(), std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock),
+        Err(error) => matches!(
+            error.kind(),
+            std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+        ),
         Ok(finished) => refused_by_the_system(finished),
     };
 }
@@ -140,6 +165,9 @@ fn discard_partial_shadow(shadow: &Path) -> Result<(), GitFailure> {
     return match std::fs::remove_dir_all(shadow) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(GitFailure(format!("the partial shadow {} cannot be discarded: {error}", shadow.display()))),
+        Err(error) => Err(GitFailure(format!(
+            "the partial shadow {} cannot be discarded: {error}",
+            shadow.display()
+        ))),
     };
 }

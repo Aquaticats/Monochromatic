@@ -22,7 +22,10 @@
 //! ```
 
 use crate::auto_push::PUSH_FAILED_NOTE;
-use crate::push_failure_notice::{NO_REASON, clean_reason};
+use crate::push_failure_notice::{
+    NO_REASON,
+    clean_reason,
+};
 use crate::service_messages::RESTART_COMMAND;
 
 /// What:
@@ -79,9 +82,17 @@ pub const PUSH_UNFINISHED_NOTE: &str = "did not finish, so the remote may or may
 /// ```ts
 /// worded({ branchRef, shown, reason })
 /// ```
-pub(crate) fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
+pub(crate) fn worded(
+    branch_ref: &str,
+    shown: &str,
+    outcome: PushOutcome,
+    reason: &str,
+) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    if matches!(outcome, PushOutcome::Unfinished | PushOutcome::UnfinishedWithNoRetry) {
+    if matches!(
+        outcome,
+        PushOutcome::Unfinished | PushOutcome::UnfinishedWithNoRetry
+    ) {
         return worded_unfinished(branch, shown, outcome, reason);
     }
     let detail: String = if reason.is_empty() {
@@ -110,7 +121,12 @@ pub(crate) fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason
 /// ```ts
 /// pushFailureText({ branchRef, commit, said })
 /// ```
-pub fn push_failure_text(branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> String {
+pub fn push_failure_text(
+    branch_ref: &str,
+    commit: &str,
+    outcome: PushOutcome,
+    said: &str,
+) -> String {
     return worded(branch_ref, commit, outcome, clean_reason(said).as_str());
 }
 
@@ -132,11 +148,19 @@ pub fn push_failure_text(branch_ref: &str, commit: &str, outcome: PushOutcome, s
 /// ```ts
 /// wordedUnfinished(branch, shown, outcome, reason)
 /// ```
-pub(crate) fn worded_unfinished(branch: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
+pub(crate) fn worded_unfinished(
+    branch: &str,
+    shown: &str,
+    outcome: PushOutcome,
+    reason: &str,
+) -> String {
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
-        format!("monochromatic-git-policy-cli and Git said:\n{}", indented(reason))
+        format!(
+            "monochromatic-git-policy-cli and Git said:\n{}",
+            indented(reason)
+        )
     };
     let (next, closing): (&str, &str) = match outcome {
         PushOutcome::UnfinishedWithNoRetry => (
@@ -173,12 +197,21 @@ pub(crate) fn worded_unfinished(branch: &str, shown: &str, outcome: PushOutcome,
 /// ```ts
 /// wordedReport(branchRef, shown, reason) // the words the push chose to show, as they are
 /// ```
-pub(crate) fn worded_report(branch_ref: &str, shown: &str, reason: &str) -> String {
+pub(crate) fn worded_report(
+    branch_ref: &str,
+    shown: &str,
+    reason: &str,
+) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
     if reason.is_empty() {
-        return format!("The backup push of branch {branch} for commit {shown} was made, and the commit service gave no account of it.");
+        return format!(
+            "The backup push of branch {branch} for commit {shown} was made, and the commit service gave no account of it."
+        );
     }
-    return format!("The backup push of branch {branch} for commit {shown} was made, and the commit service said:\n{}", indented(reason));
+    return format!(
+        "The backup push of branch {branch} for commit {shown} was made, and the commit service said:\n{}",
+        indented(reason)
+    );
 }
 
 /// What:
@@ -202,7 +235,11 @@ pub(crate) fn worded_report(branch_ref: &str, shown: &str, reason: &str) -> Stri
 /// ```ts
 /// wordedSkipped({ branchRef, shown, reason })
 /// ```
-pub(crate) fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
+pub(crate) fn worded_skipped(
+    branch_ref: &str,
+    shown: &str,
+    reason: &str,
+) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
     let detail: String = if reason.is_empty() {
         String::from("The commit service gave no reason.")
@@ -225,7 +262,10 @@ pub(crate) fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> Str
 /// so the text says only what is known:
 /// the commit is saved here
 ///  and the branch may not be on the remote.
-pub(crate) fn worded_lost(branch_ref: &str, shown: &str) -> String {
+pub(crate) fn worded_lost(
+    branch_ref: &str,
+    shown: &str,
+) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
     return format!(
         "The backup push of branch {branch} for commit {shown} had not finished when the worktree that made the commit was \

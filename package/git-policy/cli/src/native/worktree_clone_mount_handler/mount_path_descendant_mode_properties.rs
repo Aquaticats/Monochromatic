@@ -18,7 +18,11 @@
 //! ```
 
 use super::mount_path_descendant_mode_refusals::MountPathDescendantFailure;
-use crate::worktree_clone_mount_handler::sweep_dataset_facts::{CloneObjectFacts, PropertyValue, value_of};
+use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
+    CloneObjectFacts,
+    PropertyValue,
+    value_of,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 
@@ -87,13 +91,18 @@ pub const MOUNTPOINT_DASH: &str = "-";
 ///
 /// # Errors
 /// `DatasetNotMountable` for each property that refuses a mount.
-pub(super) fn refuse_unmountable(dataset: &str, facts: &CloneObjectFacts) -> Result<(), MountPathDescendantFailure> {
+pub(super) fn refuse_unmountable(
+    dataset: &str,
+    facts: &CloneObjectFacts,
+) -> Result<(), MountPathDescendantFailure> {
     if value_of(&facts.properties, CANMOUNT_PROPERTY).text() == Some(CANMOUNT_OFF) {
         return Err(MountPathDescendantFailure::DatasetNotMountable {
             dataset: String::from(dataset),
             property: String::from(CANMOUNT_PROPERTY),
             value: String::from(CANMOUNT_OFF),
-            because: String::from("an explicit mount of a `canmount=off` dataset refuses rather than mounting it"),
+            because: String::from(
+                "an explicit mount of a `canmount=off` dataset refuses rather than mounting it",
+            ),
         });
     }
     if value_of(&facts.properties, ZONED_PROPERTY).text() == Some(SWITCHED_ON) {
@@ -101,7 +110,9 @@ pub(super) fn refuse_unmountable(dataset: &str, facts: &CloneObjectFacts) -> Res
             dataset: String::from(dataset),
             property: String::from(ZONED_PROPERTY),
             value: String::from(SWITCHED_ON),
-            because: String::from("a dataset exported to a local zone is mounted by that zone and an explicit mount in the global zone refuses"),
+            because: String::from(
+                "a dataset exported to a local zone is mounted by that zone and an explicit mount in the global zone refuses",
+            ),
         });
     }
     let redacted: PropertyValue = value_of(&facts.properties, REDACTED_PROPERTY);
@@ -120,15 +131,24 @@ pub(super) fn refuse_unmountable(dataset: &str, facts: &CloneObjectFacts) -> Res
             dataset: String::from(dataset),
             property: String::from(INCONSISTENT_PROPERTY),
             value: String::from("1"),
-            because: String::from("a partially received dataset is refused by an explicit mount, and its receive can be resumed with `zfs send -t <the token>`"),
+            because: String::from(
+                "a partially received dataset is refused by an explicit mount, and its receive can be resumed with `zfs send -t <the token>`",
+            ),
         });
     }
     let encryption: PropertyValue = value_of(&facts.properties, ENCRYPTION_PROPERTY);
     let keystatus: PropertyValue = value_of(&facts.properties, KEY_STATUS_PROPERTY);
-    if encryption.text().is_some_and(|cipher| return cipher != SWITCHED_OFF) && keystatus.text() != Some(KEY_STATUS_AVAILABLE) {
+    if encryption
+        .text()
+        .is_some_and(|cipher| return cipher != SWITCHED_OFF)
+        && keystatus.text() != Some(KEY_STATUS_AVAILABLE)
+    {
         return Err(MountPathDescendantFailure::EncryptionKeyNotLoaded {
             dataset: String::from(dataset),
-            keystatus: keystatus.text().map_or_else(|| return keystatus.describe(KEY_STATUS_PROPERTY), String::from),
+            keystatus: keystatus.text().map_or_else(
+                || return keystatus.describe(KEY_STATUS_PROPERTY),
+                String::from,
+            ),
         });
     }
     return Ok(());
@@ -151,10 +171,15 @@ pub(super) fn refuse_unmountable(dataset: &str, facts: &CloneObjectFacts) -> Res
 ///
 /// # Errors
 /// The pool's own `readonly` could not be read.
-pub(super) fn attributes_of(facts: &CloneObjectFacts, datasets: &dyn DatasetReader, pool: &str) -> Result<u64, MountPathDescendantFailure> {
+pub(super) fn attributes_of(
+    facts: &CloneObjectFacts,
+    datasets: &dyn DatasetReader,
+    pool: &str,
+) -> Result<u64, MountPathDescendantFailure> {
     let mut attributes: u64 = 0;
     let atime_on: bool = value_of(&facts.properties, ATIME_PROPERTY).text() == Some(SWITCHED_ON);
-    let relatime_on: bool = value_of(&facts.properties, RELATIME_PROPERTY).text() != Some(SWITCHED_OFF);
+    let relatime_on: bool =
+        value_of(&facts.properties, RELATIME_PROPERTY).text() != Some(SWITCHED_OFF);
     if !atime_on {
         attributes |= libc::MOUNT_ATTR_NOATIME;
     } else if !relatime_on {
@@ -169,8 +194,14 @@ pub(super) fn attributes_of(facts: &CloneObjectFacts, datasets: &dyn DatasetRead
     if value_of(&facts.properties, SETUID_PROPERTY).text() == Some(SWITCHED_OFF) {
         attributes |= libc::MOUNT_ATTR_NOSUID;
     }
-    let identity: DatasetIdentity = datasets.identity(pool).map_err(|failure| return MountPathDescendantFailure::DatasetRead { dataset: String::from(pool), failure })?;
-    let pool_readonly: bool = value_of(&identity.properties, READONLY_PROPERTY).text() == Some(SWITCHED_ON);
+    let identity: DatasetIdentity = datasets.identity(pool).map_err(|failure| {
+        return MountPathDescendantFailure::DatasetRead {
+            dataset: String::from(pool),
+            failure,
+        };
+    })?;
+    let pool_readonly: bool =
+        value_of(&identity.properties, READONLY_PROPERTY).text() == Some(SWITCHED_ON);
     if pool_readonly || value_of(&facts.properties, READONLY_PROPERTY).text() == Some(SWITCHED_ON) {
         attributes |= libc::MOUNT_ATTR_RDONLY;
     }

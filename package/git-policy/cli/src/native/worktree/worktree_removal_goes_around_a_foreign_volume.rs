@@ -30,22 +30,42 @@
 
 use crate::fs_beneath::open_root;
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all,
+    write_private_file_unsynced,
+};
 use crate::push_failure_notice::fnv_hex;
-use crate::push_failure_notice_claimed_by_one_command::{ClaimToken, claim, claimed_by_a_live_command, record_of_claim, take_over};
+use crate::push_failure_notice_claimed_by_one_command::{
+    ClaimToken,
+    claim,
+    claimed_by_a_live_command,
+    record_of_claim,
+    take_over,
+};
 use crate::push_failure_notice_shown_then_removed::Notice;
 use crate::shell_quote::shell_quote;
-use crate::subvolume_remove_around::{BoundaryLook, look_for_boundaries};
-use crate::subvolume_remove_walk::{A_MOUNT_POINT, ANOTHER_FILESYSTEM, Boundary};
+use crate::subvolume_remove_around::{
+    BoundaryLook,
+    look_for_boundaries,
+};
+use crate::subvolume_remove_walk::{
+    A_MOUNT_POINT,
+    ANOTHER_FILESYSTEM,
+    Boundary,
+};
 use crate::worktree_removal_only_deletions::Reported;
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The prefix every line of this program carries.
 const PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// Directory under the common Git directory that holds the worktrees a removal went around.
-pub const LEFT_IN_PLACE_NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/left-in-place-notices";
+pub const LEFT_IN_PLACE_NOTICE_DIRECTORY: &str =
+    "monochromatic-git-policy-cli/left-in-place-notices";
 
 /// First line of every record,
 /// which tells it from anything else written there.
@@ -89,7 +109,9 @@ const RECORD_SUFFIX: &str = ".txt";
 /// const foreign = volumesBelow('/repo/wt'); // Boundary[]
 /// ```
 pub(crate) fn volumes_below(target: &Path) -> Vec<Boundary> {
-    let Ok(root) = open_root(target) else { return Vec::new() };
+    let Ok(root) = open_root(target) else {
+        return Vec::new();
+    };
     let look: BoundaryLook = look_for_boundaries(&root, target);
     let mut foreign: Vec<Boundary> = Vec::new();
     for found in look.found {
@@ -112,7 +134,11 @@ pub(crate) fn volumes_below(target: &Path) -> Vec<Boundary> {
 /// const line = `  - ${what} at ${path}`;
 /// ```
 fn item(found: &Boundary) -> String {
-    return format!("  - {what} at {path}", what = found.what, path = found.path.display());
+    return format!(
+        "  - {what} at {path}",
+        what = found.what,
+        path = found.path.display()
+    );
 }
 
 /// What all of them are,
@@ -177,7 +203,10 @@ fn freeing_the_path(path: &Path) -> String {
 /// ```ts
 /// const report = aroundRemovalReport('/repo/wt', left);
 /// ```
-pub fn around_removal_report(target: &Path, left: &[Boundary]) -> String {
+pub fn around_removal_report(
+    target: &Path,
+    left: &[Boundary],
+) -> String {
     return format!(
         "{PREFIX}removed the worktree {target}, and Git no longer lists it, but what someone else put inside it is left where \
          it stands, so the path is still taken:\n{items}\nThe directories that lead to each of them are left too, and every \
@@ -244,7 +273,12 @@ pub struct BesideAVolume<'a> {
 /// ```ts
 /// const report = refusedBesideAVolumeReport({ target, operand: '../wt', left, beside });
 /// ```
-pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boundary], beside: BesideAVolume<'_>) -> String {
+pub fn refused_beside_a_volume_report(
+    target: &Path,
+    operand: &str,
+    left: &[Boundary],
+    beside: BesideAVolume<'_>,
+) -> String {
     let way_on: String = match (beside.begun, beside.reported) {
         // A record of this program proves the missing entries are its own, and the removal then finishes without a word
         // about them; this branch is unreachable while that record is read, and is worded for a record that went away
@@ -332,7 +366,6 @@ pub fn emptied_around_report(target: &Path) -> String {
     );
 }
 
-
 /// What:
 ///  The report of a removal that removed what it could and stopped,
 ///  so the worktree is partly emptied and still registered.
@@ -348,7 +381,10 @@ pub fn emptied_around_report(target: &Path) -> String {
 /// ```ts
 /// const report = stoppedAroundReport(target, reason);
 /// ```
-pub fn stopped_around_report(target: &Path, reason: &str) -> String {
+pub fn stopped_around_report(
+    target: &Path,
+    reason: &str,
+) -> String {
     return format!(
         "{PREFIX}removing the worktree {target} stopped before it finished: every entry it removed is gone, and the worktree is \
          still registered, so Git still lists it. What stopped it is: {reason}\nNothing that someone else put inside the \
@@ -377,7 +413,13 @@ pub fn stopped_around_report(target: &Path, reason: &str) -> String {
 /// ```ts
 /// const report = aroundIncompleteReport({ target, admin, commonDir, left, reason });
 /// ```
-pub fn around_incomplete_report(target: &Path, admin: &Path, common_dir: &Path, left: &[Boundary], reason: &str) -> String {
+pub fn around_incomplete_report(
+    target: &Path,
+    admin: &Path,
+    common_dir: &Path,
+    left: &[Boundary],
+    reason: &str,
+) -> String {
     let prune: String = crate::worktree_remove_reports::prune_command(common_dir);
     return format!(
         "{PREFIX}the worktree {target} was emptied around what someone else put inside it, and every entry of the worktree \
@@ -407,7 +449,12 @@ pub fn around_incomplete_report(target: &Path, admin: &Path, common_dir: &Path, 
 /// ```ts
 /// const line = landedAroundLine('main', '/repo/wt', 'topic', left);
 /// ```
-pub fn landed_around_line(landed_branch: &str, worktree: &Path, branch: &str, left: &[Boundary]) -> String {
+pub fn landed_around_line(
+    landed_branch: &str,
+    worktree: &Path,
+    branch: &str,
+    left: &[Boundary],
+) -> String {
     return format!(
         "{PREFIX}removed the worktree {worktree} by itself, because its branch {branch} is now on {landed}: every other entry of \
          it was removed and Git no longer lists it, and what someone else put inside it is left where it stands, so the path is \
@@ -438,7 +485,11 @@ pub fn landed_around_line(landed_branch: &str, worktree: &Path, branch: &str, le
 /// ```ts
 /// const words = leftInPlaceWords('/repo/wt', 'topic', left);
 /// ```
-fn left_in_place_words(worktree: &Path, branch: &str, left: &[Boundary]) -> String {
+fn left_in_place_words(
+    worktree: &Path,
+    branch: &str,
+    left: &[Boundary],
+) -> String {
     let branch_words: String = match branch.is_empty() {
         true => String::new(),
         false => format!(" of branch {branch}"),
@@ -482,7 +533,10 @@ pub fn left_in_place_directory(common_dir: &Path) -> PathBuf {
 /// const name = `left-${fnvHex(path)}${RECORD_SUFFIX}`;
 /// ```
 fn record_name(worktree: &Path) -> String {
-    return format!("left-{}{RECORD_SUFFIX}", fnv_hex(worktree.display().to_string().as_str()));
+    return format!(
+        "left-{}{RECORD_SUFFIX}",
+        fnv_hex(worktree.display().to_string().as_str())
+    );
 }
 
 /// What:
@@ -509,12 +563,22 @@ fn record_name(worktree: &Path) -> String {
 ///
 /// The words for a directory or a record that could not be written,
 /// which a caller logs and never fails a removal for.
-pub fn record_left_in_place(common_dir: &Path, worktree: &Path, branch: &str, left: &[Boundary]) -> Result<(), String> {
+pub fn record_left_in_place(
+    common_dir: &Path,
+    worktree: &Path,
+    branch: &str,
+    left: &[Boundary],
+) -> Result<(), String> {
     let directory: PathBuf = left_in_place_directory(common_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
-        return Err(format!("the directory of the records of what a removal left cannot be made ({error})"));
+        return Err(format!(
+            "the directory of the records of what a removal left cannot be made ({error})"
+        ));
     }
-    let mut text: String = format!("{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n", worktree.display());
+    let mut text: String = format!(
+        "{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n",
+        worktree.display()
+    );
     for found in left {
         text.push_str(LEFT_FIELD);
         text.push_str(found.what);
@@ -528,7 +592,10 @@ pub fn record_left_in_place(common_dir: &Path, worktree: &Path, branch: &str, le
     let _removed = std::fs::remove_file(path.as_path());
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("the record {} of what a removal left cannot be written ({error})", path.display())),
+        Err(error) => Err(format!(
+            "the record {} of what a removal left cannot be written ({error})",
+            path.display()
+        )),
     };
 }
 
@@ -600,14 +667,23 @@ fn parse_record(text: &str) -> Option<LeftRecord> {
     let branch: String = String::from(lines.next()?.strip_prefix(BRANCH_FIELD)?);
     let mut left: Vec<Boundary> = Vec::new();
     for line in lines {
-        let Some(rest) = line.strip_prefix(LEFT_FIELD) else { continue };
+        let Some(rest) = line.strip_prefix(LEFT_FIELD) else {
+            continue;
+        };
         let (what, path) = rest.split_once('\t')?;
-        left.push(Boundary { path: PathBuf::from(path), what: known_what(what)? });
+        left.push(Boundary {
+            path: PathBuf::from(path),
+            what: known_what(what)?,
+        });
     }
     if left.is_empty() {
         return None;
     }
-    return Some(LeftRecord { worktree, branch, left });
+    return Some(LeftRecord {
+        worktree,
+        branch,
+        left,
+    });
 }
 
 /// What:
@@ -626,7 +702,9 @@ fn parse_record(text: &str) -> Option<LeftRecord> {
 /// leftInPlaceNotices(commonDir) // Notice[]
 /// ```
 pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
-    let Ok(listing) = std::fs::read_dir(left_in_place_directory(common_dir)) else { return Vec::new() };
+    let Ok(listing) = std::fs::read_dir(left_in_place_directory(common_dir)) else {
+        return Vec::new();
+    };
     let token: ClaimToken = ClaimToken::of_this_command();
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
@@ -635,12 +713,19 @@ pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
     paths.sort();
     let mut notices: Vec<Notice> = Vec::new();
     for path in paths {
-        let Some(name) = path.file_name().map(|found| return found.to_string_lossy().into_owned()) else { continue };
+        let Some(name) = path
+            .file_name()
+            .map(|found| return found.to_string_lossy().into_owned())
+        else {
+            continue;
+        };
         if record_of_claim(name.as_str()).is_some() {
             if claimed_by_a_live_command(name.as_str()) {
                 continue;
             }
-            let Some(claimed) = take_over(path.as_path(), &token) else { continue };
+            let Some(claimed) = take_over(path.as_path(), &token) else {
+                continue;
+            };
             if let Some(notice) = notice_at(claimed.as_path()) {
                 notices.push(notice);
             }
@@ -652,10 +737,25 @@ pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
         // The record is read before it is claimed, so a file this program did not write is neither shown nor moved:
         // renaming it first and finding it unreadable would take something of the person's out of its own name.
         // A name that holds a named pipe answers as unreadable at once rather than waiting for a writer.
-        let Some(record) = crate::plain_file::read_plain_text(path.as_path()).ok().and_then(|text| return parse_record(text.as_str())) else { continue };
-        let Some(claimed) = claim(path.as_path(), &token) else { continue };
-        let text: String = left_in_place_words(record.worktree.as_path(), record.branch.as_str(), record.left.as_slice());
-        notices.push(Notice { record: path, claim: claimed, text });
+        let Some(record) = crate::plain_file::read_plain_text(path.as_path())
+            .ok()
+            .and_then(|text| return parse_record(text.as_str()))
+        else {
+            continue;
+        };
+        let Some(claimed) = claim(path.as_path(), &token) else {
+            continue;
+        };
+        let text: String = left_in_place_words(
+            record.worktree.as_path(),
+            record.branch.as_str(),
+            record.left.as_slice(),
+        );
+        notices.push(Notice {
+            record: path,
+            claim: claimed,
+            text,
+        });
     }
     return notices;
 }
@@ -675,9 +775,19 @@ pub fn left_in_place_notices(common_dir: &Path) -> Vec<Notice> {
 fn notice_at(claimed: &Path) -> Option<Notice> {
     let read: String = crate::plain_file::read_plain_text(claimed).ok()?;
     let record: LeftRecord = parse_record(read.as_str())?;
-    let original: PathBuf = claimed.with_file_name(record_of_claim(claimed.file_name()?.to_string_lossy().as_ref())?);
-    let words: String = left_in_place_words(record.worktree.as_path(), record.branch.as_str(), record.left.as_slice());
-    return Some(Notice { record: original, claim: claimed.to_path_buf(), text: words });
+    let original: PathBuf = claimed.with_file_name(record_of_claim(
+        claimed.file_name()?.to_string_lossy().as_ref(),
+    )?);
+    let words: String = left_in_place_words(
+        record.worktree.as_path(),
+        record.branch.as_str(),
+        record.left.as_slice(),
+    );
+    return Some(Notice {
+        record: original,
+        claim: claimed.to_path_buf(),
+        text: words,
+    });
 }
 
 /// What:
@@ -696,7 +806,10 @@ fn notice_at(claimed: &Path) -> Option<Notice> {
 /// ```ts
 /// const line = addBesideAVolumeLine(destination, left);
 /// ```
-pub fn add_beside_a_volume_line(destination: &Path, left: &[Boundary]) -> String {
+pub fn add_beside_a_volume_line(
+    destination: &Path,
+    left: &[Boundary],
+) -> String {
     return format!(
         "{PREFIX}the directory {destination} is not empty because a removal of the worktree there had to leave what someone else \
          put inside it:\n{items}\nNothing of it was moved or deleted. {freeing}",

@@ -27,18 +27,29 @@
 //! ```
 
 use crate::capture_invocation::InvocationCapture;
-use crate::commit_args::{resolve_private_commit_args, split_commit_invocation, without_all_flag};
-use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_native_commit};
+use crate::commit_args::{
+    resolve_private_commit_args,
+    split_commit_invocation,
+    without_all_flag,
+};
 /// The build phase's stretches,
 /// which the creation and Git's build mark as they go.
 use crate::commit_build_part_durations::BuildPartClock;
+use crate::commit_preparation::{
+    PreparationRequest,
+    read_prepared_commit,
+    run_native_commit,
+};
 use crate::commit_transaction::TransactionStop;
 use crate::global_arguments::global_layout;
 use crate::shadow_create::take_or_create_shadow;
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What the scratch repository's `git commit` made.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -174,10 +185,16 @@ pub fn private_invocation(
     staged_all: bool,
     selected_privately: bool,
 ) -> (Vec<OsString>, Vec<OsString>) {
-    let private_args: Vec<OsString> = resolve_private_commit_args(arguments, pathspecs, mode, selected_privately);
+    let private_args: Vec<OsString> =
+        resolve_private_commit_args(arguments, pathspecs, mode, selected_privately);
     let index: usize = global_layout(private_args.as_slice()).prefix_len;
-    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = split_commit_invocation(private_args.as_slice(), index);
-    return if staged_all { (globals, without_all_flag(commit_args.as_slice())) } else { (globals, commit_args) };
+    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) =
+        split_commit_invocation(private_args.as_slice(), index);
+    return if staged_all {
+        (globals, without_all_flag(commit_args.as_slice()))
+    } else {
+        (globals, commit_args)
+    };
 }
 
 /// What:
@@ -213,7 +230,8 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             break;
         }
     }
-    let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
+    let carry_conclusion: bool =
+        !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
     // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
     let tree: crate::shadow_create::ShadowTree = take_or_create_shadow(
         input.context,
@@ -226,11 +244,19 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         input.service,
     )?;
     let shadow: &Path = tree.path.as_path();
-    let drawn: Option<PathBuf> = tree.handed.as_ref().map(|handed| { return handed.path().to_path_buf(); });
+    let drawn: Option<PathBuf> = tree.handed.as_ref().map(|handed| {
+        return handed.path().to_path_buf();
+    });
     *input.handed = tree.handed;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
-    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
+    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = private_invocation(
+        input.arguments,
+        input.pathspecs,
+        input.mode,
+        input.staged_all,
+        input.selected_privately,
+    );
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: input.capture,
         shadow,
@@ -250,7 +276,12 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     }
     input.clock.next("commit read back");
     let prepared = read_prepared_commit(input.context, shadow)?;
-    return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid, drawn });
+    return Ok(GitBuilt {
+        parents: parents_of(prepared.raw.as_slice()),
+        message: message_of(prepared.raw.as_slice()),
+        commit: prepared.oid,
+        drawn,
+    });
 }
 
 /// Controls for building with Git stay out of the release executable.

@@ -40,7 +40,10 @@ use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The name of the subcommand a request runs.
 use crate::transaction_git::subcommand_of;
 /// Operating-system text of the arguments and of the environment value.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 /// Time spans.
 use std::time::Duration;
 
@@ -169,7 +172,10 @@ impl ChildClass {
     /// or this class's default for a missing,
     ///  zero or malformed value,
     /// never "no window".
-    pub fn limit_from(self, value: Option<&OsStr>) -> Duration {
+    pub fn limit_from(
+        self,
+        value: Option<&OsStr>,
+    ) -> Duration {
         let Some(text) = value else {
             return self.default_limit();
         };

@@ -28,10 +28,19 @@
 
 use crate::worktree_clone_binding_record::binding_encoding::path_as_hexadecimal;
 use crate::worktree_clone_binding_record::record_publication::read_binding;
-use crate::worktree_clone_binding_record::registration_home::{binding_name, clone_inventory_name, home_folder, origin_inventory_name, plans_folder};
+use crate::worktree_clone_binding_record::registration_home::{
+    binding_name,
+    clone_inventory_name,
+    home_folder,
+    origin_inventory_name,
+    plans_folder,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What one removal's records looked like before they went.
@@ -72,23 +81,45 @@ pub struct RecordsGone {
 /// ```ts
 /// const gone = removeTheRemovalRecords(commonDir, slot, plan);
 /// ```
-pub fn remove_the_removal_records(common_dir: &Path, slot: &str, plan: &DestructionPlan) -> Result<RecordsGone, RemovalStop> {
+pub fn remove_the_removal_records(
+    common_dir: &Path,
+    slot: &str,
+    plan: &DestructionPlan,
+) -> Result<RecordsGone, RemovalStop> {
     let home: PathBuf = home_folder(common_dir);
     let binding_path: PathBuf = home.join(binding_name(slot));
     let record = read_binding(home.as_path(), slot).map_err(|refusal| {
-        return RemovalStop::TheRecordsCouldNotGo { path: binding_path.clone(), said: format!("{refusal:?}") };
+        return RemovalStop::TheRecordsCouldNotGo {
+            path: binding_path.clone(),
+            said: format!("{refusal:?}"),
+        };
     })?;
     refuse_a_binding_of_another_clone(&record, plan, binding_path.as_path())?;
-    let mut gone: RecordsGone = RecordsGone { files: Vec::new(), plan_removed: false, folder_removed: false };
-    for name in [origin_inventory_name(slot), clone_inventory_name(slot), binding_name(slot)] {
+    let mut gone: RecordsGone = RecordsGone {
+        files: Vec::new(),
+        plan_removed: false,
+        folder_removed: false,
+    };
+    for name in [
+        origin_inventory_name(slot),
+        clone_inventory_name(slot),
+        binding_name(slot),
+    ] {
         let path: PathBuf = home.join(name.as_str());
         remove_one_file(path.as_path())?;
         gone.files.push(String::from(name));
     }
-    for name in [origin_inventory_name(slot), clone_inventory_name(slot), binding_name(slot)] {
+    for name in [
+        origin_inventory_name(slot),
+        clone_inventory_name(slot),
+        binding_name(slot),
+    ] {
         let path: PathBuf = home.join(name.as_str());
         if std::fs::symlink_metadata(path.as_path()).is_ok() {
-            return Err(RemovalStop::TheRecordsCouldNotGo { path, said: String::from("the file still answers after its removal") });
+            return Err(RemovalStop::TheRecordsCouldNotGo {
+                path,
+                said: String::from("the file still answers after its removal"),
+            });
         }
     }
     let plan_path: PathBuf = plans_folder(common_dir).join(plan.facts.clone_guid.file_name());
@@ -115,28 +146,77 @@ pub fn remove_the_removal_records(common_dir: &Path, slot: &str, plan: &Destruct
 /// ```ts
 /// refuseABindingOfAnotherClone(read, plan, path);
 /// ```
-fn refuse_a_binding_of_another_clone(record: &crate::worktree_clone_binding_record::binding_record::BindingRecord, plan: &DestructionPlan, path: &Path) -> Result<(), RemovalStop> {
+fn refuse_a_binding_of_another_clone(
+    record: &crate::worktree_clone_binding_record::binding_record::BindingRecord,
+    plan: &DestructionPlan,
+    path: &Path,
+) -> Result<(), RemovalStop> {
     let pairs: [(&'static str, String, String); 2] = [
-        ("cloneGuid", record.clone_guid.map(|guid| return guid.file_name()).unwrap_or_default(), plan.facts.clone_guid.file_name()),
-        ("slot", path_as_hexadecimal(record.slot_path().unwrap_or_default().as_path()), path_as_hexadecimal(plan.facts.target.as_path())),
+        (
+            "cloneGuid",
+            record
+                .clone_guid
+                .map(|guid| return guid.file_name())
+                .unwrap_or_default(),
+            plan.facts.clone_guid.file_name(),
+        ),
+        (
+            "slot",
+            path_as_hexadecimal(record.slot_path().unwrap_or_default().as_path()),
+            path_as_hexadecimal(plan.facts.target.as_path()),
+        ),
     ];
     for (field, binding_value, plan_value) in pairs {
         if binding_value != plan_value {
-            return Err(RemovalStop::TheRecordsCouldNotGo { path: path.to_path_buf(), said: format!("the binding's `{field}` is `{binding_value}` and the plan's is `{plan_value}`") });
+            return Err(RemovalStop::TheRecordsCouldNotGo {
+                path: path.to_path_buf(),
+                said: format!(
+                    "the binding's `{field}` is `{binding_value}` and the plan's is `{plan_value}`"
+                ),
+            });
         }
     }
     let origins: [(&'static str, Option<String>, String); 5] = [
-        ("originDataset", record.origin_dataset.clone(), plan.facts.origin_dataset.clone()),
-        ("originDatasetGuid", record.origin_dataset_guid.map(|guid| return guid.file_name()), plan.facts.origin_dataset_guid.file_name()),
-        ("originSnapshot", Some(record.origin_snapshot.clone()), plan.facts.origin_snapshot.clone()),
-        ("originSnapshotGuid", record.origin_snapshot_guid.map(|guid| return guid.file_name()), plan.facts.origin_snapshot_guid.file_name()),
-        ("originSnapshotCreatetxg", record.origin_snapshot_createtxg.map(|txg| return txg.to_string()), plan.facts.origin_snapshot_createtxg.to_string()),
+        (
+            "originDataset",
+            record.origin_dataset.clone(),
+            plan.facts.origin_dataset.clone(),
+        ),
+        (
+            "originDatasetGuid",
+            record
+                .origin_dataset_guid
+                .map(|guid| return guid.file_name()),
+            plan.facts.origin_dataset_guid.file_name(),
+        ),
+        (
+            "originSnapshot",
+            Some(record.origin_snapshot.clone()),
+            plan.facts.origin_snapshot.clone(),
+        ),
+        (
+            "originSnapshotGuid",
+            record
+                .origin_snapshot_guid
+                .map(|guid| return guid.file_name()),
+            plan.facts.origin_snapshot_guid.file_name(),
+        ),
+        (
+            "originSnapshotCreatetxg",
+            record
+                .origin_snapshot_createtxg
+                .map(|txg| return txg.to_string()),
+            plan.facts.origin_snapshot_createtxg.to_string(),
+        ),
     ];
     for (field, binding_value, plan_value) in origins {
         if binding_value.as_deref() != Some(plan_value.as_str()) {
             return Err(RemovalStop::TheRecordsCouldNotGo {
                 path: path.to_path_buf(),
-                said: format!("the binding's `{field}` is `{}` and the plan's is `{plan_value}`", binding_value.unwrap_or_default()),
+                said: format!(
+                    "the binding's `{field}` is `{}` and the plan's is `{plan_value}`",
+                    binding_value.unwrap_or_default()
+                ),
             });
         }
     }
@@ -152,7 +232,10 @@ fn remove_one_file(path: &Path) -> Result<(), RemovalStop> {
     return match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(RemovalStop::TheRecordsCouldNotGo { path: path.to_path_buf(), said: error.to_string() }),
+        Err(error) => Err(RemovalStop::TheRecordsCouldNotGo {
+            path: path.to_path_buf(),
+            said: error.to_string(),
+        }),
     };
 }
 

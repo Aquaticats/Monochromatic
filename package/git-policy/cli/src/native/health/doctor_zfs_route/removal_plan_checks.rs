@@ -27,11 +27,16 @@
 //! const outcome = checkRemovalPlan({ clone, reading }); // pass | finding('plan') | unknown
 //! ```
 
-use super::check_outcome::{CheckOutcome, finding, pass, unknown};
+use super::check_outcome::{
+    CheckOutcome,
+    finding,
+    pass,
+    unknown,
+};
 use crate::worktree_clone_binding_record::add_state_commands::NO_REMOVAL_WORDS;
+use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
-use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use std::path::PathBuf;
 
 /// What:
@@ -118,8 +123,18 @@ impl RecordedSnapshot {
     pub fn clause(&self) -> String {
         let guid: String = self.guid.file_name();
         return match self.errno {
-            Some(errno) => format!("`{}` (GUID {guid}) {} on attempt {} (errno {errno})", self.name, self.outcome.word(), self.attempt),
-            None => format!("`{}` (GUID {guid}) {} on attempt {}", self.name, self.outcome.word(), self.attempt),
+            Some(errno) => format!(
+                "`{}` (GUID {guid}) {} on attempt {} (errno {errno})",
+                self.name,
+                self.outcome.word(),
+                self.attempt
+            ),
+            None => format!(
+                "`{}` (GUID {guid}) {} on attempt {}",
+                self.name,
+                self.outcome.word(),
+                self.attempt
+            ),
         };
     }
 }
@@ -139,7 +154,11 @@ impl RecordedSnapshot {
 /// const names = recordedOutcomes(plan); // [{ name: 'clone@s1', outcome: 'destroyed', attempt: 1 }]
 /// ```
 pub fn recorded_outcomes(plan: &DestructionPlan) -> Vec<RecordedSnapshot> {
-    let mut names: Vec<String> = plan.attempts.iter().map(|line| return line.snapshot.name.clone()).collect();
+    let mut names: Vec<String> = plan
+        .attempts
+        .iter()
+        .map(|line| return line.snapshot.name.clone())
+        .collect();
     names.sort();
     names.dedup();
     let mut outcomes: Vec<RecordedSnapshot> = Vec::new();
@@ -147,7 +166,13 @@ pub fn recorded_outcomes(plan: &DestructionPlan) -> Vec<RecordedSnapshot> {
         let Some(line) = plan.current_state(name.as_str()) else {
             continue;
         };
-        outcomes.push(RecordedSnapshot { name, guid: line.snapshot.guid, outcome: line.outcome, attempt: line.attempt, errno: line.errno });
+        outcomes.push(RecordedSnapshot {
+            name,
+            guid: line.snapshot.guid,
+            outcome: line.outcome,
+            attempt: line.attempt,
+            errno: line.errno,
+        });
     }
     return outcomes;
 }
@@ -172,16 +197,31 @@ pub fn recorded_outcomes(plan: &DestructionPlan) -> Vec<RecordedSnapshot> {
 pub fn check_removal_plan(facts: &RemovalPlanFacts) -> CheckOutcome {
     let clone: &str = facts.clone.as_str();
     return match &facts.reading {
-        PlanFileReading::NoPlan => pass(format!("no destruction plan stands for `{clone}`, so no removal is in flight for it and every snapshot it holds is its own")),
-        PlanFileReading::Unreadable { path, reason } => unknown(format!(
+        PlanFileReading::NoPlan => pass(format!(
+            "no destruction plan stands for `{clone}`, so no removal is in flight for it and every snapshot it holds is its own"
+        )),
+        PlanFileReading::Unreadable {
+            path,
+            reason,
+        } => unknown(format!(
             "the destruction plan at {} cannot be read ({reason}), so no snapshot state is proved and the file may hold the only record of one an earlier run destroyed",
             path.display()
         )),
-        PlanFileReading::Standing { path, plan } => {
+        PlanFileReading::Standing {
+            path,
+            plan,
+        } => {
             let outcomes: Vec<RecordedSnapshot> = recorded_outcomes(plan);
-            let named: Vec<String> = outcomes.iter().map(|snapshot| return snapshot.clause()).collect();
+            let named: Vec<String> = outcomes
+                .iter()
+                .map(|snapshot| return snapshot.clause())
+                .collect();
             let head: String = format!("head={}", plan.head.word());
-            let snapshots: String = if named.is_empty() { String::from("the plan holds no snapshot line") } else { format!("{} name(s): {}", named.len(), named.join("; ")) };
+            let snapshots: String = if named.is_empty() {
+                String::from("the plan holds no snapshot line")
+            } else {
+                format!("{} name(s): {}", named.len(), named.join("; "))
+            };
             return finding(
                 "plan",
                 format!(

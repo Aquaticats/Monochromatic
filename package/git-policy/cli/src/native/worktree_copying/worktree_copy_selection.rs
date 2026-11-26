@@ -16,12 +16,29 @@
 //! const roots = await readIgnoredRoots({ sourceRoot, gitPath, excludedRoots });
 //! ```
 
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::path_bytes::{os_from_path_bytes, path_bytes_of};
-use crate::worktree_copy_prune::{Prune, names_a_private_stage};
+use crate::path_bytes::{
+    os_from_path_bytes,
+    path_bytes_of,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git,
+};
+use crate::worktree_copy_error::{
+    WorktreeCopyError,
+    raw_failure,
+    raw_failure_of,
+};
+use crate::worktree_copy_prune::{
+    Prune,
+    names_a_private_stage,
+};
 use crate::worktree_copy_vanished_entry::went_away;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The Git directory marker that `ls-files --directory` appends to ignored directories.
@@ -53,11 +70,19 @@ pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
 /// split and order,
 /// and the validation every one passes.
 pub use crate::worktree_copy_repository_path::{
-    assert_safe_repository_path, by_js_order, by_repository_path_order, filesystem_path, is_separator_byte,
-    join_repository_path, js_order, parent_of_repository_path, repository_path_order, repository_path_within,
-    shown_repository_path, within_any_root,
+    assert_safe_repository_path,
+    by_js_order,
+    by_repository_path_order,
+    filesystem_path,
+    is_separator_byte,
+    join_repository_path,
+    js_order,
+    parent_of_repository_path,
+    repository_path_order,
+    repository_path_within,
+    shown_repository_path,
+    within_any_root,
 };
-
 
 /// What:
 ///  Keeps the outermost of several ignored roots,
@@ -148,7 +173,10 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// ```ts
 /// listing.split('\0').includes(wanted)
 /// ```
-fn lists_exactly(listing: &[u8], wanted: &[u8]) -> bool {
+fn lists_exactly(
+    listing: &[u8],
+    wanted: &[u8],
+) -> bool {
     for field in listing.split(is_nul_byte) {
         if field == wanted {
             return true;
@@ -167,7 +195,10 @@ fn lists_exactly(listing: &[u8], wanted: &[u8]) -> bool {
 /// ```ts
 /// isFilesystemPathWithin({ candidate, parent })
 /// ```
-fn is_excluded(candidate: &Path, excluded_roots: &[PathBuf]) -> bool {
+fn is_excluded(
+    candidate: &Path,
+    excluded_roots: &[PathBuf],
+) -> bool {
     for root in excluded_roots {
         if candidate.starts_with(root.as_path()) {
             return true;
@@ -222,7 +253,8 @@ fn special_entries(
             if is_excluded(source_path.as_path(), excluded_roots) {
                 continue;
             }
-            let selected_ancestor: bool = within_any_root(repository_path.as_slice(), selected_roots);
+            let selected_ancestor: bool =
+                within_any_root(repository_path.as_slice(), selected_roots);
             if selected_ancestor {
                 continue;
             }

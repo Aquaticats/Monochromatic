@@ -133,8 +133,12 @@ fn take_quoted(text: &[u8]) -> Option<(Vec<u8>, &[u8])> {
                         let mut value: u32 = 0;
                         let mut digits: usize = 0;
                         while digits < 3 {
-                            let Some(&next) = text.get(index + 1 + digits) else { break; };
-                            let Some(digit) = char::from(next).to_digit(8) else { break; };
+                            let Some(&next) = text.get(index + 1 + digits) else {
+                                break;
+                            };
+                            let Some(digit) = char::from(next).to_digit(8) else {
+                                break;
+                            };
                             value = value * 8 + digit;
                             digits += 1;
                         }
@@ -169,7 +173,10 @@ fn take_quoted(text: &[u8]) -> Option<(Vec<u8>, &[u8])> {
 /// ```ts
 /// const [from, to] = printedPaths(header); return eq(from, `a/${name}`) && eq(to, `b/${name}`);
 /// ```
-fn header_is_for(header: &[u8], name: &[u8]) -> bool {
+fn header_is_for(
+    header: &[u8],
+    name: &[u8],
+) -> bool {
     let Some(rest) = header.strip_prefix(SECTION_PREFIX) else {
         return false;
     };
@@ -202,7 +209,10 @@ fn header_is_for(header: &[u8], name: &[u8]) -> bool {
 /// ```ts
 /// const listsRenameTo = (extended: string[], name) => extended.some((line) => printedPath(line.slice('rename to '.length)) == name);
 /// ```
-fn lists_rename_to(extended: &[&[u8]], name: &[u8]) -> bool {
+fn lists_rename_to(
+    extended: &[&[u8]],
+    name: &[u8],
+) -> bool {
     for line in extended {
         let Some(printed) = line.strip_prefix(b"rename to ").and_then(printed_path) else {
             continue;
@@ -244,7 +254,11 @@ fn is_hunk_or_section_line(line: &&[u8]) -> bool {
 /// ```ts
 /// headerIsFor(header, name.bytes) || extended.some((line) => renameNames(line, name.bytes))
 /// ```
-fn section_is_for(header: &[u8], extended: &[&[u8]], name: &[u8]) -> bool {
+fn section_is_for(
+    header: &[u8],
+    extended: &[&[u8]],
+    name: &[u8],
+) -> bool {
     return header_is_for(header, name) || lists_rename_to(extended, name);
 }
 
@@ -284,7 +298,10 @@ fn parse_new_start(line: &[u8]) -> Option<u64> {
 /// ```ts
 /// function newSpans({ patchLines, name }): { first: number; last: number }[];
 /// ```
-pub fn new_spans(patch_lines: &[&[u8]], name: &[u8]) -> Vec<NewSpan> {
+pub fn new_spans(
+    patch_lines: &[&[u8]],
+    name: &[u8],
+) -> Vec<NewSpan> {
     let mut spans: Vec<NewSpan> = Vec::new();
     let mut index: usize = 0;
     while index < patch_lines.len() {
@@ -293,7 +310,10 @@ pub fn new_spans(patch_lines: &[&[u8]], name: &[u8]) -> Vec<NewSpan> {
         if !header.starts_with(SECTION_PREFIX) {
             continue;
         }
-        let first_hunk: usize = match patch_lines[index..].iter().position(is_hunk_or_section_line) {
+        let first_hunk: usize = match patch_lines[index..]
+            .iter()
+            .position(is_hunk_or_section_line)
+        {
             Some(offset) => index + offset,
             None => patch_lines.len(),
         };
@@ -318,7 +338,11 @@ pub fn new_spans(patch_lines: &[&[u8]], name: &[u8]) -> Vec<NewSpan> {
 /// ```ts
 /// function readHunks({ patchLines, index, spans }): void;
 /// ```
-fn read_hunks(patch_lines: &[&[u8]], index: &mut usize, spans: &mut Vec<NewSpan>) {
+fn read_hunks(
+    patch_lines: &[&[u8]],
+    index: &mut usize,
+    spans: &mut Vec<NewSpan>,
+) {
     let mut new_line: u64 = 0;
     let mut open: Option<NewSpan> = None;
     while *index < patch_lines.len() {
@@ -334,11 +358,20 @@ fn read_hunks(patch_lines: &[&[u8]], index: &mut usize, spans: &mut Vec<NewSpan>
         }
         match line.first() {
             Some(b'-') => {
-                open = Some(open.unwrap_or(NewSpan { first: new_line, last: new_line }));
+                open = Some(open.unwrap_or(NewSpan {
+                    first: new_line,
+                    last: new_line,
+                }));
             }
             Some(b'+') => {
-                let run: NewSpan = open.unwrap_or(NewSpan { first: new_line, last: new_line });
-                open = Some(NewSpan { first: run.first, last: new_line });
+                let run: NewSpan = open.unwrap_or(NewSpan {
+                    first: new_line,
+                    last: new_line,
+                });
+                open = Some(NewSpan {
+                    first: run.first,
+                    last: new_line,
+                });
                 new_line += 1;
             }
             Some(b' ') => {
@@ -362,7 +395,10 @@ fn read_hunks(patch_lines: &[&[u8]], index: &mut usize, spans: &mut Vec<NewSpan>
 /// ```ts
 /// if (open !== undefined) { spans.push(open); open = undefined; }
 /// ```
-fn close_run(open: &mut Option<NewSpan>, spans: &mut Vec<NewSpan>) {
+fn close_run(
+    open: &mut Option<NewSpan>,
+    spans: &mut Vec<NewSpan>,
+) {
     if let Some(run) = open.take() {
         spans.push(run);
     }

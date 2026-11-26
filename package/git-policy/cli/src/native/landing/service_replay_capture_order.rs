@@ -25,14 +25,26 @@
 //! const decisions = await captureOrderOfEachAwaiting(site, captured, tip, shared); // Map<path, 'prepared' | 'landed' | 'unordered'>
 //! ```
 
-use crate::commit_transaction::{TransactionStop, failed};
+use crate::commit_transaction::{
+    TransactionStop,
+    failed,
+};
 use crate::replay_capture_order::CaptureOrderDecision;
 use crate::replay_shared_paths::SharedPath;
 use crate::service_protocol::LandedCapture;
-use crate::service_replay::{Captured, MergeSite};
-use crate::transaction_git::{GitRequest, run_git_checked};
+use crate::service_replay::{
+    Captured,
+    MergeSite,
+};
+use crate::transaction_git::{
+    GitRequest,
+    run_git_checked,
+};
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// What:
 ///  What the walk has seen of one candidate path so far.
@@ -69,7 +81,12 @@ struct OrderSoFar {
 /// ```ts
 /// const nothingSeen: OrderSoFar = { commits: 0, unknown: false, allBefore: true, allAfter: true };
 /// ```
-const NOTHING_SEEN: OrderSoFar = OrderSoFar { commits: 0, unknown: false, all_before: true, all_after: true };
+const NOTHING_SEEN: OrderSoFar = OrderSoFar {
+    commits: 0,
+    unknown: false,
+    all_before: true,
+    all_after: true,
+};
 
 /// What:
 ///  The decision the state of one path supports.
@@ -110,7 +127,12 @@ fn decide(state: OrderSoFar) -> CaptureOrderDecision {
 /// ```ts
 /// function fold(state, commit, stamps, captured) { const stamp = stamps.get(commit); state.commits += 1; if (stamp === undefined) state.unknown = true; else if (stamp >= captured) state.allBefore = false; else if (stamp <= captured) state.allAfter = false; }
 /// ```
-fn fold(state: &mut OrderSoFar, commit: &str, stamps: &HashMap<&str, u64>, captured: u64) {
+fn fold(
+    state: &mut OrderSoFar,
+    commit: &str,
+    stamps: &HashMap<&str, u64>,
+    captured: u64,
+) {
     state.commits += 1;
     let Some(stamp) = stamps.get(commit) else {
         state.unknown = true;
@@ -165,8 +187,21 @@ fn stamps_by_commit(landed: &[LandedCapture]) -> HashMap<&str, u64> {
 /// ```ts
 /// ['log', '-m', '-r', '--raw', '-z', '--no-renames', '--no-abbrev', '--format=%H', tip, `^${base}`]
 /// ```
-fn history_arguments<'a>(tip: &'a str, exclusion: Option<&'a str>) -> Vec<&'a str> {
-    let mut words: Vec<&'a str> = vec!["log", "-m", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", "--format=%H", tip];
+fn history_arguments<'a>(
+    tip: &'a str,
+    exclusion: Option<&'a str>,
+) -> Vec<&'a str> {
+    let mut words: Vec<&'a str> = vec![
+        "log",
+        "-m",
+        "-r",
+        "--raw",
+        "-z",
+        "--no-renames",
+        "--no-abbrev",
+        "--format=%H",
+        tip,
+    ];
     if let Some(left_out) = exclusion {
         words.push(left_out);
     }
@@ -259,7 +294,11 @@ fn note_history(
         }
         commit = match std::str::from_utf8(plain) {
             Ok(text) => Some(text),
-            Err(_) => return Err(String::from("git log named a commit with bytes that are not text")),
+            Err(_) => {
+                return Err(String::from(
+                    "git log named a commit with bytes that are not text",
+                ));
+            }
         };
     }
     return Ok(());
@@ -336,7 +375,14 @@ fn plan_of<'a>(
     let exclusion: Option<String> = the_exclusion_of(captured);
     let arguments: Vec<&str> = history_arguments(tip, exclusion.as_deref());
     let request: GitRequest = GitRequest::new(site.cwd, arguments.as_slice());
-    return (states, Some(WalkPlan { request, stamps, captured: captured.captured }));
+    return (
+        states,
+        Some(WalkPlan {
+            request,
+            stamps,
+            captured: captured.captured,
+        }),
+    );
 }
 
 /// What:
@@ -351,10 +397,16 @@ fn plan_of<'a>(
 /// ```ts
 /// function walkAnswered(states, plan, output) { if (noteHistory(...) instanceof Error) throw failed(...) }
 /// ```
-fn walk_answered(states: &mut BTreeMap<Vec<u8>, OrderSoFar>, plan: &WalkPlan<'_>, output: &[u8]) -> Result<(), TransactionStop> {
+fn walk_answered(
+    states: &mut BTreeMap<Vec<u8>, OrderSoFar>,
+    plan: &WalkPlan<'_>,
+    output: &[u8],
+) -> Result<(), TransactionStop> {
     return match note_history(output, &plan.stamps, plan.captured, states) {
         Ok(()) => Ok(()),
-        Err(reason) => Err(failed(format!("reading the history of the paths the branch changed failed: {reason}"))),
+        Err(reason) => Err(failed(format!(
+            "reading the history of the paths the branch changed failed: {reason}"
+        ))),
     };
 }
 

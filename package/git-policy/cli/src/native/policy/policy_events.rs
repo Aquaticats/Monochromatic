@@ -33,17 +33,34 @@
 /// import { jsonString, SCHEMA_VERSION } from './diagnostics.ts';
 /// ```
 use crate::diagnostics::{
-    EngineFailureCode, SCHEMA_VERSION, engine_failure_code_name, json_string,
+    EngineFailureCode,
+    SCHEMA_VERSION,
+    engine_failure_code_name,
+    json_string,
 };
 /// A pathname as events report it,
 ///  and the encoding of its exact bytes.
 use crate::event_hints::{
-    POST_COMMIT_BLOCKED_HINT, WARN_UNSAFE_HINT, engine_failure_hint, finding_hint,
+    POST_COMMIT_BLOCKED_HINT,
+    WARN_UNSAFE_HINT,
+    engine_failure_hint,
+    finding_hint,
     push_hint_field,
 };
-use crate::event_path::{EventPath, base64_standard};
-use crate::policy_registry::{PolicyId, Severity, policy_descriptor, severity_name};
-use crate::policy_trigger::{Trigger, trigger_name};
+use crate::event_path::{
+    EventPath,
+    base64_standard,
+};
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+    policy_descriptor,
+    severity_name,
+};
+use crate::policy_trigger::{
+    Trigger,
+    trigger_name,
+};
 
 /// The code of the warning for a `warn` severity on a policy whose protection `warn` removes.
 pub const WARN_UNSAFE_CODE: &str = "warn-unsafe";
@@ -150,8 +167,7 @@ pub enum EngineFailureHint {
 /// ```ts
 /// const STOPPED_READ_HINT = 'Hint: the wrapper ended a Git read that showed no sign of work, so no policy decided anything; the index, the worktree and the staged changes are as they were, so run the command again.';
 /// ```
-pub const STOPPED_READ_HINT: &str =
-    "Hint: the wrapper ended a Git read that showed no sign of work, so no policy decided anything; the index, the worktree and the staged changes are as they were, so run the command again. If it stops again, check what that Git process waits for with `ps`, and raise the window with CLI_GIT_CHILD_WAIT_SECONDS.";
+pub const STOPPED_READ_HINT: &str = "Hint: the wrapper ended a Git read that showed no sign of work, so no policy decided anything; the index, the worktree and the staged changes are as they were, so run the command again. If it stops again, check what that Git process waits for with `ps`, and raise the window with CLI_GIT_CHILD_WAIT_SECONDS.";
 
 /// What:
 ///  The hint of a check that left some work alone rather than overwrite changes it
@@ -185,8 +201,7 @@ pub const LEFT_ALONE_HINT: &str = "Hint: this command is not stopped and nothing
 /// ```ts
 /// const UNPROVEN_RIPPLE_HINT = 'Hint: this command is not stopped and nothing was discarded; the message names a dependent that keeps its version because a Git read failed, so correct what Git reported and write the command again.';
 /// ```
-pub const UNPROVEN_RIPPLE_HINT: &str =
-    "Hint: this command is not stopped and nothing was discarded. The message names a dependent that keeps its version \
+pub const UNPROVEN_RIPPLE_HINT: &str = "Hint: this command is not stopped and nothing was discarded. The message names a dependent that keeps its version \
      because a Git read this policy needs failed, so this commit lands without that version bump; correct what Git \
      reported, then write the command again.";
 
@@ -290,12 +305,24 @@ pub fn event_blocks(event: &PolicyEvent) -> bool {
     // `match` picks one arm per variant; `{ .. }` ignores the fields a variant carries.
     match event {
         PolicyEvent::Finding(finding) => return finding.severity == Severity::Error,
-        PolicyEvent::CoreFinding { .. } => return true,
-        PolicyEvent::WarnUnsafe { .. }
-        | PolicyEvent::EngineFailure { .. }
-        | PolicyEvent::FixSummary { .. }
-        | PolicyEvent::CommitLanded { .. }
-        | PolicyEvent::WordMerged { .. } => return false,
+        PolicyEvent::CoreFinding {
+            ..
+        } => return true,
+        PolicyEvent::WarnUnsafe {
+            ..
+        }
+        | PolicyEvent::EngineFailure {
+            ..
+        }
+        | PolicyEvent::FixSummary {
+            ..
+        }
+        | PolicyEvent::CommitLanded {
+            ..
+        }
+        | PolicyEvent::WordMerged {
+            ..
+        } => return false,
     }
 }
 
@@ -311,7 +338,10 @@ pub fn event_blocks(event: &PolicyEvent) -> bool {
 /// ```ts
 /// const head = `{"schemaVersion":1,"sequence":${sequence},"type":${JSON.stringify(type)}`;
 /// ```
-fn event_head(sequence: u64, event_type: &str) -> String {
+fn event_head(
+    sequence: u64,
+    event_type: &str,
+) -> String {
     // `format!` builds owned text; `{{` is a literal brace.
     return format!(
         "{{\"schemaVersion\":{SCHEMA_VERSION},\"sequence\":{sequence},\"type\":{}",
@@ -331,7 +361,11 @@ fn event_head(sequence: u64, event_type: &str) -> String {
 /// ```ts
 /// line += `,${JSON.stringify(name)}:${JSON.stringify(value)}`;
 /// ```
-fn push_text_field(line: &mut String, name: &str, value: &str) {
+fn push_text_field(
+    line: &mut String,
+    name: &str,
+    value: &str,
+) {
     // `.as_str()` lends the owned text to `push_str`.
     line.push_str(format!(",\"{name}\":{}", json_string(value)).as_str());
 }
@@ -353,7 +387,10 @@ fn push_text_field(line: &mut String, name: &str, value: &str) {
 /// ```ts
 /// line.path = path.text; if (path.exact) line.pathBytes = base64(path.exact);
 /// ```
-fn push_path_field(line: &mut String, path: &EventPath) {
+fn push_path_field(
+    line: &mut String,
+    path: &EventPath,
+) {
     push_text_field(line, "path", path.text());
     // `if let Some(exact) = ...` runs only for a name that kept its bytes.
     if let Some(exact) = path.exact() {
@@ -378,7 +415,10 @@ fn push_path_field(line: &mut String, path: &EventPath) {
 /// ```ts
 /// JSON.stringify({ trigger, policyId, severity, code: `${policyId}/${code}`, message, path, location, fix })
 /// ```
-fn push_finding(line: &mut String, finding: &FindingEvent) {
+fn push_finding(
+    line: &mut String,
+    finding: &FindingEvent,
+) {
     let policy_name: &str = policy_descriptor(finding.policy).name;
     push_text_field(line, "trigger", trigger_name(finding.trigger));
     push_text_field(line, "policyId", policy_name);
@@ -389,7 +429,10 @@ fn push_finding(line: &mut String, finding: &FindingEvent) {
         format!("{policy_name}/{}", finding.code).as_str(),
     );
     push_text_field(line, "message", finding.message.as_str());
-    push_hint_field(line, finding_hint(policy_name, finding.code, finding.fix_available));
+    push_hint_field(
+        line,
+        finding_hint(policy_name, finding.code, finding.fix_available),
+    );
     // `if let Some(path) = &finding.path` borrows the path only when one is present.
     if let Some(path) = &finding.path {
         push_path_field(line, path);
@@ -425,7 +468,10 @@ fn push_finding(line: &mut String, finding: &FindingEvent) {
 /// ```ts
 /// JSON.stringify(changedPaths.map(entry))
 /// ```
-fn path_array(paths: &[EventPath], entry: fn(&EventPath) -> String) -> String {
+fn path_array(
+    paths: &[EventPath],
+    entry: fn(&EventPath) -> String,
+) -> String {
     // `String::from` copies the borrowed text into an owned, growable line.
     let mut array: String = String::from("[");
     // `.iter().enumerate()` yields `(index, path)` pairs in order.
@@ -487,7 +533,12 @@ fn path_bytes(path: &EventPath) -> String {
 /// ```ts
 /// line[textKey] = paths.map(p => p.text); if (paths.some(p => p.exact)) line[bytesKey] = paths.map(p => base64(p.bytes));
 /// ```
-fn push_path_list(line: &mut String, text_key: &str, bytes_key: &str, paths: &[EventPath]) {
+fn push_path_list(
+    line: &mut String,
+    text_key: &str,
+    bytes_key: &str,
+    paths: &[EventPath],
+) {
     line.push_str(format!(",\"{text_key}\":{}", path_array(paths, path_text)).as_str());
     for path in paths {
         if path.exact().is_some() {
@@ -510,12 +561,24 @@ fn push_path_list(line: &mut String, text_key: &str, bytes_key: &str, paths: &[E
 fn event_type(event: &PolicyEvent) -> &'static str {
     match event {
         PolicyEvent::Finding(_) => return "finding",
-        PolicyEvent::WarnUnsafe { .. } => return "configuration-warning",
-        PolicyEvent::CoreFinding { .. } => return "core-finding",
-        PolicyEvent::EngineFailure { .. } => return "engine-failure",
-        PolicyEvent::FixSummary { .. } => return "fix-summary",
-        PolicyEvent::CommitLanded { .. } => return "commit-landed",
-        PolicyEvent::WordMerged { .. } => return "word-merged",
+        PolicyEvent::WarnUnsafe {
+            ..
+        } => return "configuration-warning",
+        PolicyEvent::CoreFinding {
+            ..
+        } => return "core-finding",
+        PolicyEvent::EngineFailure {
+            ..
+        } => return "engine-failure",
+        PolicyEvent::FixSummary {
+            ..
+        } => return "fix-summary",
+        PolicyEvent::CommitLanded {
+            ..
+        } => return "commit-landed",
+        PolicyEvent::WordMerged {
+            ..
+        } => return "word-merged",
     }
 }
 
@@ -533,13 +596,19 @@ fn event_type(event: &PolicyEvent) -> &'static str {
 /// ```ts
 /// function renderPolicyEvent(sequence: number, event: PolicyEvent): string { return JSON.stringify({ ...event, sequence }) + '\n'; }
 /// ```
-pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
+pub fn render_policy_event(
+    sequence: u64,
+    event: &PolicyEvent,
+) -> String {
     // `mut` allows appending the fields of the matched variant.
     let mut line: String = event_head(sequence, event_type(event));
     match event {
         // `&mut line` lends the line for appending.
         PolicyEvent::Finding(finding) => push_finding(&mut line, finding),
-        PolicyEvent::WarnUnsafe { trigger, policy } => {
+        PolicyEvent::WarnUnsafe {
+            trigger,
+            policy,
+        } => {
             let policy_name: &str = policy_descriptor(*policy).name;
             // `*trigger` copies the small value out of the borrowed event.
             push_text_field(&mut line, "trigger", trigger_name(*trigger));
@@ -597,9 +666,16 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
         } => {
             push_text_field(&mut line, "trigger", trigger_name(*trigger));
             line.push_str(format!(",\"passes\":{passes}").as_str());
-            push_path_list(&mut line, "changedPaths", "changedPathBytes", changed_paths.as_slice());
+            push_path_list(
+                &mut line,
+                "changedPaths",
+                "changedPathBytes",
+                changed_paths.as_slice(),
+            );
         }
-        PolicyEvent::CommitLanded { oid } => {
+        PolicyEvent::CommitLanded {
+            oid,
+        } => {
             push_text_field(&mut line, "oid", oid);
             push_text_field(&mut line, "outcome", "post-commit-blocked");
             push_text_field(
@@ -610,7 +686,9 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
             );
             push_hint_field(&mut line, Some(POST_COMMIT_BLOCKED_HINT));
         }
-        PolicyEvent::WordMerged { lines } => {
+        PolicyEvent::WordMerged {
+            lines,
+        } => {
             push_text_field(&mut line, "outcome", "word-merged");
             push_text_field(&mut line, "message", lines.join("\n").as_str());
         }
@@ -632,7 +710,10 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
 /// ```ts
 /// function renderPolicyEvents(firstSequence: number, events: PolicyEvent[]): string;
 /// ```
-pub fn render_policy_events(first_sequence: u64, events: &[PolicyEvent]) -> String {
+pub fn render_policy_events(
+    first_sequence: u64,
+    events: &[PolicyEvent],
+) -> String {
     // `String::new()` is empty owned text.
     let mut rendered: String = String::new();
     for (index, event) in events.iter().enumerate() {

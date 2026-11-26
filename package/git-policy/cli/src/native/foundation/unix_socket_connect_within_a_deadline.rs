@@ -25,13 +25,21 @@ use crate::path_bytes::path_bytes_of;
 /// A failure and the descriptor the connection is made on.
 use std::io;
 /// Ownership of the descriptor once it is a connected socket.
-use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    IntoRawFd,
+    OwnedFd,
+};
 /// The stream the caller reads and writes.
 use std::os::unix::net::UnixStream;
 /// The socket path.
 use std::path::Path;
 /// The deadline.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  A connected socket at `path`, made within `wait`.
@@ -51,7 +59,10 @@ use std::time::{Duration, Instant};
 /// `io::ErrorKind::TimedOut` when the connection was not made within `wait`;
 /// `io::ErrorKind::InvalidInput` for a path longer than one socket address;
 /// the operating system's own failure otherwise (a socket file that is gone or nothing listens on it).
-pub fn connect_within(path: &Path, wait: Duration) -> io::Result<UnixStream> {
+pub fn connect_within(
+    path: &Path,
+    wait: Duration,
+) -> io::Result<UnixStream> {
     let deadline: Instant = Instant::now() + wait;
     let descriptor: OwnedFd = socket_of_a_stream()?;
     let (address, length): (libc::sockaddr_un, libc::socklen_t) = address_of(path)?;
@@ -74,7 +85,13 @@ pub fn connect_within(path: &Path, wait: Duration) -> io::Result<UnixStream> {
 /// ```
 fn socket_of_a_stream() -> io::Result<OwnedFd> {
     // SAFETY: `socket` creates a descriptor of the family and type it is given and touches no memory of this process.
-    let made: libc::c_int = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC, 0) };
+    let made: libc::c_int = unsafe {
+        libc::socket(
+            libc::AF_UNIX,
+            libc::SOCK_STREAM | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC,
+            0,
+        )
+    };
     if made < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -101,14 +118,21 @@ fn address_of(path: &Path) -> io::Result<(libc::sockaddr_un, libc::socklen_t)> {
     if bytes.len() >= address.sun_path.len() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("the socket path {} needs {} bytes and one socket address holds {}", path.display(), bytes.len(), address.sun_path.len() - 1),
+            format!(
+                "the socket path {} needs {} bytes and one socket address holds {}",
+                path.display(),
+                bytes.len(),
+                address.sun_path.len() - 1
+            ),
         ));
     }
     address.sun_family = libc::AF_UNIX as libc::sa_family_t;
     for (slot, byte) in address.sun_path.iter_mut().zip(bytes) {
         *slot = *byte as libc::c_char;
     }
-    let length: libc::socklen_t = std::mem::size_of::<libc::sa_family_t>().saturating_add(bytes.len()).saturating_add(1) as libc::socklen_t;
+    let length: libc::socklen_t = std::mem::size_of::<libc::sa_family_t>()
+        .saturating_add(bytes.len())
+        .saturating_add(1) as libc::socklen_t;
     return Ok((address, length));
 }
 
@@ -140,10 +164,21 @@ const ASK_PAUSE: Duration = Duration::from_millis(5);
 /// ```ts
 /// for (;;) { const answer = connect(fd, address); if (!answer) return; if (answer === EINPROGRESS) return await socketError(await pollWritable(fd, deadline)); if (answer === EAGAIN && Date.now() < deadline) { await sleep(5); continue; } throw answer; }
 /// ```
-fn wait_until_connected(descriptor: libc::c_int, address: &libc::sockaddr_un, length: libc::socklen_t, deadline: Instant) -> io::Result<()> {
+fn wait_until_connected(
+    descriptor: libc::c_int,
+    address: &libc::sockaddr_un,
+    length: libc::socklen_t,
+    deadline: Instant,
+) -> io::Result<()> {
     loop {
         // SAFETY: `connect` reads the address it is given and the length says how much of it; the socket is this process's.
-        let asked: libc::c_int = unsafe { libc::connect(descriptor, std::ptr::from_ref(address).cast::<libc::sockaddr>(), length) };
+        let asked: libc::c_int = unsafe {
+            libc::connect(
+                descriptor,
+                std::ptr::from_ref(address).cast::<libc::sockaddr>(),
+                length,
+            )
+        };
         if asked == 0 {
             return Ok(());
         }
@@ -175,13 +210,22 @@ fn wait_until_connected(descriptor: libc::c_int, address: &libc::sockaddr_un, le
 /// ```ts
 /// await pollWritable(fd, deadline);
 /// ```
-fn wait_until_writable(descriptor: libc::c_int, deadline: Instant) -> io::Result<()> {
+fn wait_until_writable(
+    descriptor: libc::c_int,
+    deadline: Instant,
+) -> io::Result<()> {
     loop {
         let left: Duration = deadline.saturating_duration_since(Instant::now());
-        let milliseconds: libc::c_int = libc::c_int::try_from(left.as_millis()).unwrap_or(libc::c_int::MAX);
-        let mut watched: libc::pollfd = libc::pollfd { fd: descriptor, events: libc::POLLOUT, revents: 0 };
+        let milliseconds: libc::c_int =
+            libc::c_int::try_from(left.as_millis()).unwrap_or(libc::c_int::MAX);
+        let mut watched: libc::pollfd = libc::pollfd {
+            fd: descriptor,
+            events: libc::POLLOUT,
+            revents: 0,
+        };
         // SAFETY: `poll` reads and writes the one `pollfd` it is given, and writes nothing else.
-        let ready: libc::c_int = unsafe { libc::poll(std::ptr::from_mut(&mut watched), 1, milliseconds) };
+        let ready: libc::c_int =
+            unsafe { libc::poll(std::ptr::from_mut(&mut watched), 1, milliseconds) };
         if ready == 0 {
             return Err(no_connection_in_time());
         }
@@ -208,7 +252,10 @@ fn wait_until_writable(descriptor: libc::c_int, deadline: Instant) -> io::Result
 /// const noConnectionInTime = () => new Error('the socket took no connection within the deadline');
 /// ```
 fn no_connection_in_time() -> io::Error {
-    return io::Error::new(io::ErrorKind::TimedOut, "the socket took no connection within the wait it was given");
+    return io::Error::new(
+        io::ErrorKind::TimedOut,
+        "the socket took no connection within the wait it was given",
+    );
 }
 
 /// What:
@@ -228,7 +275,15 @@ fn carried_failure(descriptor: libc::c_int) -> io::Result<()> {
     let mut carried: libc::c_int = 0;
     let mut length: libc::socklen_t = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
     // SAFETY: `getsockopt` writes at most `length` bytes into `carried`, which is a `c_int` and that length is its own size.
-    let asked: libc::c_int = unsafe { libc::getsockopt(descriptor, libc::SOL_SOCKET, libc::SO_ERROR, std::ptr::from_mut(&mut carried).cast::<libc::c_void>(), std::ptr::from_mut(&mut length)) };
+    let asked: libc::c_int = unsafe {
+        libc::getsockopt(
+            descriptor,
+            libc::SOL_SOCKET,
+            libc::SO_ERROR,
+            std::ptr::from_mut(&mut carried).cast::<libc::c_void>(),
+            std::ptr::from_mut(&mut length),
+        )
+    };
     if asked != 0 {
         return Err(io::Error::last_os_error());
     }
@@ -257,7 +312,8 @@ fn become_blocking(descriptor: libc::c_int) -> io::Result<()> {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: `fcntl` with `F_SETFL` sets the flags it is given on this process's descriptor.
-    let cleared: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags & !libc::O_NONBLOCK) };
+    let cleared: libc::c_int =
+        unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags & !libc::O_NONBLOCK) };
     if cleared < 0 {
         return Err(io::Error::last_os_error());
     }

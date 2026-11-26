@@ -25,9 +25,16 @@
 //! ```
 
 use crate::commit_transaction::TransactionStop;
-use crate::private_index_request::{CaptureIndexes, indexed_request};
+use crate::private_index_request::{
+    CaptureIndexes,
+    indexed_request,
+};
 use crate::service_prepare_unmerged_staging::unmerged_staging_request;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+    run_git_checked,
+};
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::path::Path;
 
@@ -49,11 +56,25 @@ use std::path::Path;
 /// ```ts
 /// runGitChecked({ index, objects, args: ['add', '--all', '--', ...files] }) // nothing when files is empty
 /// ```
-pub(crate) fn stage_the_unmerged_files(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, files: &[Vec<u8>]) -> Result<(), TransactionStop> {
+pub(crate) fn stage_the_unmerged_files(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    files: &[Vec<u8>],
+) -> Result<(), TransactionStop> {
     if files.is_empty() {
         return Ok(());
     }
-    run_git_checked(context, &unmerged_staging_request(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), files))?;
+    run_git_checked(
+        context,
+        &unmerged_staging_request(
+            context,
+            cwd,
+            indexes.commit_index.as_path(),
+            indexes.object_directory.as_path(),
+            files,
+        ),
+    )?;
     return Ok(());
 }
 
@@ -73,7 +94,13 @@ pub(crate) fn stage_the_unmerged_files(context: &GitContext, cwd: &Path, indexes
 /// ```ts
 /// await stageTheUnmergedFilesAwaiting(git, cwd, indexes, files)
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the preparation's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the preparation's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
 pub(crate) async fn stage_the_unmerged_files_awaiting(
     context: &GitContext,
     cwd: &Path,
@@ -83,7 +110,17 @@ pub(crate) async fn stage_the_unmerged_files_awaiting(
     if files.is_empty() {
         return Ok(());
     }
-    run_git_checked_awaiting(context, &unmerged_staging_request(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), files)).await?;
+    run_git_checked_awaiting(
+        context,
+        &unmerged_staging_request(
+            context,
+            cwd,
+            indexes.commit_index.as_path(),
+            indexes.object_directory.as_path(),
+            files,
+        ),
+    )
+    .await?;
     return Ok(());
 }
 
@@ -100,9 +137,15 @@ pub(crate) async fn stage_the_unmerged_files_awaiting(
 /// ```ts
 /// git(['rev-parse', '--verify', `${base}^{tree}`]).trim()
 /// ```
-pub(crate) fn base_tree_of(context: &GitContext, cwd: &Path, base: &str) -> Result<String, TransactionStop> {
+pub(crate) fn base_tree_of(
+    context: &GitContext,
+    cwd: &Path,
+    base: &str,
+) -> Result<String, TransactionStop> {
     let output = run_git_checked(context, &base_tree_request(context, cwd, base))?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// What:
@@ -115,8 +158,18 @@ pub(crate) fn base_tree_of(context: &GitContext, cwd: &Path, base: &str) -> Resu
 /// ```ts
 /// const request = indexedRequest({ cwd, args: ['rev-parse', '--verify', `${base}^{tree}`] }); request.withoutPrefix = true;
 /// ```
-fn base_tree_request(context: &GitContext, cwd: &Path, base: &str) -> GitRequest {
-    let mut request: GitRequest = indexed_request(context, cwd, &["rev-parse", "--verify", format!("{base}^{{tree}}").as_str()], None, None);
+fn base_tree_request(
+    context: &GitContext,
+    cwd: &Path,
+    base: &str,
+) -> GitRequest {
+    let mut request: GitRequest = indexed_request(
+        context,
+        cwd,
+        &["rev-parse", "--verify", format!("{base}^{{tree}}").as_str()],
+        None,
+        None,
+    );
     request.without_prefix = true;
     return request;
 }
@@ -137,10 +190,22 @@ fn base_tree_request(context: &GitContext, cwd: &Path, base: &str) -> GitRequest
 /// ```ts
 /// await baseTreeOfAwaiting(git, cwd, base)
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the preparation's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn base_tree_of_awaiting(context: &GitContext, cwd: &Path, base: &str) -> Result<String, TransactionStop> {
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "no production caller yet: the preparation's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"
+    )
+)]
+pub(crate) async fn base_tree_of_awaiting(
+    context: &GitContext,
+    cwd: &Path,
+    base: &str,
+) -> Result<String, TransactionStop> {
     let output = run_git_checked_awaiting(context, &base_tree_request(context, cwd, base)).await?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    return Ok(String::from_utf8_lossy(output.stdout.as_slice())
+        .trim()
+        .to_string());
 }
 
 /// Controls for the awaited faces of the preparation's own Git steps stay out of the release executable.

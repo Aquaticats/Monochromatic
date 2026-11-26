@@ -23,7 +23,14 @@
 //! const differs = recorded.differences(capture(handleLater)); // ['mode'] or []
 //! ```
 
-use super::clone_folder_identity_acl::{ACCESS_ACL_ATTRIBUTE, DEFAULT_ACL_ATTRIBUTE, acl_from_token, acl_token, acl_words, read_acl};
+use super::clone_folder_identity_acl::{
+    ACCESS_ACL_ATTRIBUTE,
+    DEFAULT_ACL_ATTRIBUTE,
+    acl_from_token,
+    acl_token,
+    acl_words,
+    read_acl,
+};
 use crate::diagnostic_log::debug;
 use std::os::unix::fs::MetadataExt;
 
@@ -170,7 +177,10 @@ impl CloneFolderIdentity {
     /// ```ts
     /// const moved = recorded.differences(current);
     /// ```
-    pub fn differences(&self, other: &CloneFolderIdentity) -> Vec<CloneFolderField> {
+    pub fn differences(
+        &self,
+        other: &CloneFolderIdentity,
+    ) -> Vec<CloneFolderField> {
         let mut moved: Vec<CloneFolderField> = Vec::new();
         if self.device != other.device {
             moved.push(CloneFolderField::Device);
@@ -233,7 +243,18 @@ impl CloneFolderIdentity {
         let mode: u32 = u32::from_str_radix(parts.next()?, 8).ok()?;
         let access_acl: Option<Vec<u8>> = acl_from_token(parts.next()?)?;
         let default_acl: Option<Vec<u8>> = acl_from_token(parts.next()?)?;
-        return if parts.next().is_none() { Some(CloneFolderIdentity { device, inode, owner, mode, access_acl, default_acl }) } else { None };
+        return if parts.next().is_none() {
+            Some(CloneFolderIdentity {
+                device,
+                inode,
+                owner,
+                mode,
+                access_acl,
+                default_acl,
+            })
+        } else {
+            None
+        };
     }
 }
 

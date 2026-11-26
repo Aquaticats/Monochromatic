@@ -32,7 +32,13 @@
 use crate::service_instance::socket_unit_instance;
 use crate::service_provision_host_and_manager::Manager;
 use crate::service_route::non_empty_path_variable;
-use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT, session_bus_path};
+use crate::systemd_dbus::{
+    Bus,
+    CallError,
+    EXCHANGE_WAIT,
+    NO_SUCH_UNIT,
+    session_bus_path,
+};
 
 /// What:
 ///  Stops the socket of `instance` when this service is of one and was retired before it served anything.
@@ -47,7 +53,9 @@ use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT, session_b
 /// stopOwnSocketBeforeServingAnything(instance)
 /// ```
 pub fn stop_own_socket_before_serving_anything(instance: &str) -> bool {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
+    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+        return false;
+    };
     let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
         crate::service_warn!(
@@ -67,11 +75,15 @@ pub fn stop_own_socket_before_serving_anything(instance: &str) -> bool {
     bus.within(EXCHANGE_WAIT);
     return match stop_alone(&mut bus, socket_unit_instance(instance).as_str()) {
         Ok(()) => {
-            crate::service_log!("this commit service of {instance} was retired before it served anything, and it stopped its own socket so no connection starts it again");
+            crate::service_log!(
+                "this commit service of {instance} was retired before it served anything, and it stopped its own socket so no connection starts it again"
+            );
             true
         }
         Err(error) => {
-            crate::service_warn!("the socket of this commit service of {instance} was not stopped ({error:?}), so a connection starts the service again");
+            crate::service_warn!(
+                "the socket of this commit service of {instance} was not stopped ({error:?}), so a connection starts the service again"
+            );
             false
         }
     };
@@ -79,9 +91,15 @@ pub fn stop_own_socket_before_serving_anything(instance: &str) -> bool {
 
 /// One stop of a unit and of nothing that requires it,
 /// where a unit the manager does not hold is stopped already.
-fn stop_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+fn stop_alone(
+    manager: &mut dyn Manager,
+    unit: &str,
+) -> Result<(), CallError> {
     return match manager.stop_alone(unit) {
-        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
+        Err(CallError::Manager {
+            name,
+            ..
+        }) if name == NO_SUCH_UNIT => Ok(()),
         other => other,
     };
 }

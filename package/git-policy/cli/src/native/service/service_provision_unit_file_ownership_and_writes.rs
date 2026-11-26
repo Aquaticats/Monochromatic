@@ -16,17 +16,27 @@
 //! ```
 
 use crate::service_messages::ClientFailure;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The words that mark a unit file as written by this wrapper:
 /// the marker its units carry now,
 /// and the descriptions the
 ///  units of earlier releases carried.
-pub const OWN_MARKERS: [&str; 4] =
-    ["(monochromatic-git-policy-cli-unit)", "(cli-git-unit)", "Description=Commit service socket for the git wrapper", "Description=Commit service for the git wrapper"];
+pub const OWN_MARKERS: [&str; 4] = [
+    "(monochromatic-git-policy-cli-unit)",
+    "(cli-git-unit)",
+    "Description=Commit service socket for the git wrapper",
+    "Description=Commit service for the git wrapper",
+];
 
 /// Writes `text` to `path` through a temporary file and a rename,
 /// so a reader sees the old file or the new one whole.
-pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
+pub(crate) fn write_atomically(
+    path: &Path,
+    text: &str,
+) -> std::io::Result<()> {
     let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let temporary: PathBuf = path.with_extension(format!("tmp-{}-{number}", std::process::id()));
     std::fs::write(&temporary, text.as_bytes())?;
@@ -37,7 +47,8 @@ pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     return renamed;
 }
 
-pub(crate) static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub(crate) static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
 
 /// What:
 ///  Makes `path` a link to `target` through a temporary link and a rename,
@@ -49,9 +60,13 @@ pub(crate) static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::a
 /// A rename replaces the entry atomically,
 /// which a link to a link would not
 ///  (`symlink` refuses a name that exists).
-pub(crate) fn link_atomically(path: &Path, target: &Path) -> std::io::Result<()> {
+pub(crate) fn link_atomically(
+    path: &Path,
+    target: &Path,
+) -> std::io::Result<()> {
     let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let temporary: PathBuf = path.with_extension(format!("linktmp-{}-{number}", std::process::id()));
+    let temporary: PathBuf =
+        path.with_extension(format!("linktmp-{}-{number}", std::process::id()));
     let _stale = std::fs::remove_file(&temporary);
     std::os::unix::fs::symlink(target, &temporary)?;
     let renamed: std::io::Result<()> = std::fs::rename(&temporary, path);
@@ -97,7 +112,11 @@ pub(crate) fn carries_own_marker(text: &str) -> bool {
 /// ```ts
 /// [runtimeDirectory, userDirectory].some((directory) => directory && isOwnUnitFile(path.join(directory, name)))
 /// ```
-pub(crate) fn own_unit_file_in_runtime_or_user_directory(runtime_directory: &Path, user_directory: Option<&Path>, name: &str) -> bool {
+pub(crate) fn own_unit_file_in_runtime_or_user_directory(
+    runtime_directory: &Path,
+    user_directory: Option<&Path>,
+    name: &str,
+) -> bool {
     if is_own_unit_file(runtime_directory.join(name).as_path()) {
         return true;
     }
@@ -117,7 +136,10 @@ pub(crate) fn own_unit_file_in_runtime_or_user_directory(runtime_directory: &Pat
 /// ```ts
 /// names.some((name) => directories.some((directory) => existsSync(path.join(directory, name))))
 /// ```
-pub(crate) fn any_named_anywhere(directories: &[PathBuf], names: &[&str]) -> bool {
+pub(crate) fn any_named_anywhere(
+    directories: &[PathBuf],
+    names: &[&str],
+) -> bool {
     for name in names {
         for found in directories {
             if found.join(name).exists() {
@@ -145,6 +167,9 @@ pub(crate) fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
     return match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ClientFailure::CouldNotStart(format!("{} cannot be removed: {error}", path.display()))),
+        Err(error) => Err(ClientFailure::CouldNotStart(format!(
+            "{} cannot be removed: {error}",
+            path.display()
+        ))),
     };
 }

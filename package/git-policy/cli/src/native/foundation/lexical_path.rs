@@ -13,7 +13,11 @@
 //! ```
 
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Normalize a path lexically:

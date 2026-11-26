@@ -11,7 +11,10 @@ use crate::command_test_support::os_arguments;
 fn read(values: &[&str]) -> Vec<String> {
     let arguments: Vec<OsString> = os_arguments(values);
     let operands: Vec<&OsString> = operands_after_options(arguments.as_slice());
-    return operands.iter().map(|operand| return operand.to_string_lossy().into_owned()).collect();
+    return operands
+        .iter()
+        .map(|operand| return operand.to_string_lossy().into_owned())
+        .collect();
 }
 
 /// What:
@@ -50,8 +53,16 @@ fn the_options_leave_the_worktree_as_the_operand() {
 ///  worktree a person named.
 #[test]
 fn the_separator_and_a_single_dash_keep_words_as_operands() {
-    assert_eq!(read(&["--", "-f", "--force"]), vec!["-f", "--force"], "every word after the separator is an operand");
-    assert_eq!(read(&["-", "one"]), vec!["-", "one"], "a word of one `-` names a worktree rather than an option");
+    assert_eq!(
+        read(&["--", "-f", "--force"]),
+        vec!["-f", "--force"],
+        "every word after the separator is an operand"
+    );
+    assert_eq!(
+        read(&["-", "one"]),
+        vec!["-", "one"],
+        "a word of one `-` names a worktree rather than an option"
+    );
 }
 
 /// What:

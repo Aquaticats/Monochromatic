@@ -38,15 +38,43 @@
 //! expect(result.stderr).toContain('auto-push to origin failed'); await expectNoDescendantsAlive();
 //! ```
 
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, close_on_exec_pipe, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
+use super::commit::{
+    assert_nothing_left,
+    git_text,
+    keep_maintenance_in_the_foreground,
+    remove_settled,
+    wrapped_commit,
+};
+use super::support::{
+    Fixture,
+    Observed,
+    close_on_exec_pipe,
+    decline_in_process_lfs_scan,
+    executable,
+    fixture,
+    git,
+    observe,
+    repository,
+    stderr_of,
+};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
-use std::net::{TcpListener, TcpStream};
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+    RawFd,
+};
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -80,13 +108,24 @@ impl Tripwire {
     pub(super) fn new() -> Tripwire {
         let ends: [libc::c_int; 2] = close_on_exec_pipe();
         // SAFETY: both descriptors were just created here and are owned by nothing else.
-        let (read_end, write_end): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
-        return Tripwire { read_end: File::from(read_end), write_end: Some(write_end) };
+        let (read_end, write_end): (OwnedFd, OwnedFd) =
+            unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+        return Tripwire {
+            read_end: File::from(read_end),
+            write_end: Some(write_end),
+        };
     }
 
     /// Hand the write end to the command as descriptor nine.
-    pub(super) fn arm(&self, command: &mut Command) {
-        let held: RawFd = self.write_end.as_ref().expect("the write end is open").as_raw_fd();
+    pub(super) fn arm(
+        &self,
+        command: &mut Command,
+    ) {
+        let held: RawFd = self
+            .write_end
+            .as_ref()
+            .expect("the write end is open")
+            .as_raw_fd();
         // SAFETY: between fork and exec only `dup2`, an async-signal-safe call, runs; it clears the close-on-exec flag.
         unsafe {
             command.pre_exec(move || {
@@ -101,11 +140,18 @@ impl Tripwire {
     /// Close this process's copy and report whether every other holder has exited within the deadline.
     pub(super) fn released(mut self) -> bool {
         self.write_end = None;
-        let mut watched: libc::pollfd = libc::pollfd { fd: self.read_end.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+        let mut watched: libc::pollfd = libc::pollfd {
+            fd: self.read_end.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
         // SAFETY: `poll` reads and writes the one `pollfd` it is given.
         let ready: libc::c_int = unsafe { libc::poll(&raw mut watched, 1, DEADLINE_MILLISECONDS) };
         let mut byte: [u8; 1] = [0];
-        return ready == 1 && self.read_end.read(&mut byte).is_ok_and(|count| { return count == 0; });
+        return ready == 1
+            && self.read_end.read(&mut byte).is_ok_and(|count| {
+                return count == 0;
+            });
     }
 }
 
@@ -145,7 +191,11 @@ fn serve(behavior: Behavior) -> Server {
     let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
     let port: u16 = listener.local_addr().expect("local address").port();
     let handled: JoinHandle<Option<bool>> = std::thread::spawn(move || {
-        let mut watched: libc::pollfd = libc::pollfd { fd: listener.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+        let mut watched: libc::pollfd = libc::pollfd {
+            fd: listener.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
         // SAFETY: `poll` reads and writes the one `pollfd` it is given.
         let ready: libc::c_int = unsafe { libc::poll(&raw mut watched, 1, DEADLINE_MILLISECONDS) };
         if ready != 1 {
@@ -155,7 +205,9 @@ fn serve(behavior: Behavior) -> Server {
         if matches!(behavior, Behavior::HangUp) {
             return Some(true);
         }
-        connection.set_read_timeout(Some(HOLD)).expect("read timeout");
+        connection
+            .set_read_timeout(Some(HOLD))
+            .expect("read timeout");
         let began: std::time::Instant = std::time::Instant::now();
         let mut chunk: [u8; 4096] = [0; 4096];
         loop {
@@ -171,20 +223,34 @@ fn serve(behavior: Behavior) -> Server {
             }
         }
     });
-    return Server { port, handled };
+    return Server {
+        port,
+        handled,
+    };
 }
 
 /// A repository whose `origin` is `url`,
 /// with `a.txt` staged,
 /// and a `git-lfs` that never exits when `hanging_lfs`.
-fn world(fixture: &Fixture, url: &str, hanging_lfs: bool) -> PathBuf {
+fn world(
+    fixture: &Fixture,
+    url: &str,
+    hanging_lfs: bool,
+) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     git(fixture, repo.as_path(), &["remote", "add", "origin", url]);
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     if hanging_lfs {
-        git(fixture, repo.as_path(), &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
+        git(
+            fixture,
+            repo.as_path(),
+            &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"],
+        );
         decline_in_process_lfs_scan(fixture, repo.as_path());
-        executable(fixture.root.join("bin/git-lfs").as_path(), b"#!/bin/sh\nexec sleep 600\n");
+        executable(
+            fixture.root.join("bin/git-lfs").as_path(),
+            b"#!/bin/sh\nexec sleep 600\n",
+        );
     }
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a.txt");
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
@@ -198,28 +264,48 @@ fn locks_left(repo: &Path) -> Vec<String> {
     let mut pending: Vec<PathBuf> = std::fs::read_dir(repo.join(".git"))
         .expect("git directory")
         .flatten()
-        .map(|entry| { return entry.path(); })
-        .filter(|path| { return path.file_name().is_some_and(|name| { let text = name.to_string_lossy(); return text.starts_with("monochromatic-git-policy-cli") || text.starts_with("cli-git"); }); })
+        .map(|entry| {
+            return entry.path();
+        })
+        .filter(|path| {
+            return path.file_name().is_some_and(|name| {
+                let text = name.to_string_lossy();
+                return text.starts_with("monochromatic-git-policy-cli")
+                    || text.starts_with("cli-git");
+            });
+        })
         .collect();
     while let Some(path) = pending.pop() {
-        if path.file_name().is_some_and(|name| { return name.to_string_lossy().contains(".lock"); }) {
+        if path.file_name().is_some_and(|name| {
+            return name.to_string_lossy().contains(".lock");
+        }) {
             found.push(path.display().to_string());
         }
         if path.is_dir()
             && let Ok(entries) = std::fs::read_dir(&path)
         {
-            pending.extend(entries.flatten().map(|entry| { return entry.path(); }));
+            pending.extend(entries.flatten().map(|entry| {
+                return entry.path();
+            }));
         }
     }
     return found;
 }
 
 /// Commit through the wrapper with the push deadline set and the tripwire armed.
-fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Observed, Tripwire) {
+fn commit_with_tripwire(
+    fixture: &Fixture,
+    repo: &Path,
+    deadline: &str,
+) -> (Observed, Tripwire) {
     let tripwire: Tripwire = Tripwire::new();
     // The push runs in the service's environment, so its deadline is given there, before the service starts.
     super::support::give_service_environment(fixture, "CLI_GIT_PUSH_DEADLINE_SECONDS", deadline);
-    let mut command: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=one", "--", "a.txt"]);
+    let mut command: Command = wrapped_commit(
+        fixture,
+        repo,
+        &["commit", "--quiet", "--message=one", "--", "a.txt"],
+    );
     command.env("CLI_GIT_PUSH_DEADLINE_SECONDS", deadline);
     tripwire.arm(&mut command);
     let landed: Observed = observe(&mut command, b"");
@@ -232,28 +318,59 @@ fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Obse
 /// no process the push started is alive,
 ///  no lock is held,
 /// and the next commit lands.
-fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Observed, tripwire: Tripwire, expected: &[&str]) {
+fn assert_push_failure_is_contained(
+    fixture: &Fixture,
+    repo: &Path,
+    landed: &Observed,
+    tripwire: Tripwire,
+    expected: &[&str],
+) {
     let stderr: String = super::support::push_report(repo, &stderr_of(landed));
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
-    assert!(stderr.contains(super::support::push_unfinished_words()), "the failure is reported, and it says the remote may or may not have the commit: {stderr}");
     assert!(
-        expected.iter().any(|words| { return stderr.contains(words); }),
+        stderr.contains(super::support::push_unfinished_words()),
+        "the failure is reported, and it says the remote may or may not have the commit: {stderr}"
+    );
+    assert!(
+        expected.iter().any(|words| {
+            return stderr.contains(words);
+        }),
         "the report names the cause (one of {expected:?}): {stderr}"
     );
-    assert_eq!(git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim(), "2", "the commit is saved locally");
-    assert!(tripwire.released(), "a process the push started was still running after the command returned");
+    assert_eq!(
+        git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim(),
+        "2",
+        "the commit is saved locally"
+    );
+    assert!(
+        tripwire.released(),
+        "a process the push started was still running after the command returned"
+    );
     assert_eq!(locks_left(repo), Vec::<String>::new(), "no lock stays held");
     assert_nothing_left(fixture, repo);
     std::fs::write(repo.join("b.txt"), b"two\n").expect("b.txt");
     git(fixture, repo, &["add", "--", "b.txt"]);
-    let mut next: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=two", "--", "b.txt"]);
+    let mut next: Command = wrapped_commit(
+        fixture,
+        repo,
+        &["commit", "--quiet", "--message=two", "--", "b.txt"],
+    );
     // The remote is still unreachable, so this commit's push fails too; the short deadline ends one that hangs.
     next.env("CLI_GIT_PUSH_DEADLINE_SECONDS", "1");
     let again: Observed = observe(&mut next, b"");
-    assert_eq!(again.code, Some(0), "the next commit lands: {}", stderr_of(&again));
+    assert_eq!(
+        again.code,
+        Some(0),
+        "the next commit lands: {}",
+        stderr_of(&again)
+    );
     // Every lock wait ends its notice with "giving up after"; the notice for a slow child says "stopping it after",
     //  which a loaded host prints for any child that takes over a second and says nothing about a lock.
-    assert!(!stderr_of(&again).contains("giving up after"), "the next commit waited for a lock: {}", stderr_of(&again));
+    assert!(
+        !stderr_of(&again).contains("giving up after"),
+        "the next commit waited for a lock: {}",
+        stderr_of(&again)
+    );
 }
 
 /// A connection that is refused fails the auto-push at once;
@@ -263,7 +380,17 @@ fn an_auto_push_to_a_refused_connection_keeps_the_commit_and_holds_nothing() {
     let fixture: Fixture = fixture("remote-refused");
     let repo: PathBuf = world(&fixture, "http://127.0.0.1:9/never.git", false);
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "30");
-    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["Failed to connect", "Connection refused", "couldn't connect"]);
+    assert_push_failure_is_contained(
+        &fixture,
+        repo.as_path(),
+        &landed,
+        tripwire,
+        &[
+            "Failed to connect",
+            "Connection refused",
+            "couldn't connect",
+        ],
+    );
     remove_settled(&fixture);
 }
 
@@ -279,7 +406,12 @@ fn an_auto_push_to_an_unresolvable_host_keeps_the_commit_and_holds_nothing() {
         repo.as_path(),
         &landed,
         tripwire,
-        &["Could not resolve host", "resolve", "did not finish within", "made no progress for"],
+        &[
+            "Could not resolve host",
+            "resolve",
+            "did not finish within",
+            "made no progress for",
+        ],
     );
     remove_settled(&fixture);
 }
@@ -290,14 +422,25 @@ fn an_auto_push_to_an_unresolvable_host_keeps_the_commit_and_holds_nothing() {
 fn an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing() {
     let fixture: Fixture = fixture("remote-hangup");
     let server: Server = serve(Behavior::HangUp);
-    let repo: PathBuf = world(&fixture, format!("http://127.0.0.1:{}/never.git", server.port).as_str(), false);
+    let repo: PathBuf = world(
+        &fixture,
+        format!("http://127.0.0.1:{}/never.git", server.port).as_str(),
+        false,
+    );
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "30");
     assert_push_failure_is_contained(
         &fixture,
         repo.as_path(),
         &landed,
         tripwire,
-        &["Empty reply", "RPC failed", "Connection reset", "unable to access", "did not finish within", "made no progress for"],
+        &[
+            "Empty reply",
+            "RPC failed",
+            "Connection reset",
+            "unable to access",
+            "did not finish within",
+            "made no progress for",
+        ],
     );
     remove_settled(&fixture);
 }
@@ -315,16 +458,30 @@ fn an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing() {
 fn an_auto_push_to_a_server_that_holds_the_connection_is_waited_for_until_it_hangs_up() {
     let fixture: Fixture = fixture("remote-silent");
     let server: Server = serve(Behavior::SilentThenHangUp);
-    let repo: PathBuf = world(&fixture, format!("http://127.0.0.1:{}/never.git", server.port).as_str(), false);
+    let repo: PathBuf = world(
+        &fixture,
+        format!("http://127.0.0.1:{}/never.git", server.port).as_str(),
+        false,
+    );
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "1");
     assert_push_failure_is_contained(
         &fixture,
         repo.as_path(),
         &landed,
         tripwire,
-        &["Empty reply", "RPC failed", "Connection reset", "unable to access", "hung up"],
+        &[
+            "Empty reply",
+            "RPC failed",
+            "Connection reset",
+            "unable to access",
+            "hung up",
+        ],
     );
-    assert_eq!(server.handled.join().expect("server thread"), Some(true), "the server hung up first: the wrapper did not stop the push");
+    assert_eq!(
+        server.handled.join().expect("server thread"),
+        Some(true),
+        "the server hung up first: the wrapper did not stop the push"
+    );
     remove_settled(&fixture);
 }
 
@@ -334,29 +491,71 @@ fn an_auto_push_to_a_server_that_holds_the_connection_is_waited_for_until_it_han
 fn an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_started() {
     let fixture: Fixture = fixture("remote-lfs-silent");
     let bare: PathBuf = fixture.root.join("origin.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "origin.git",
+        ],
+    );
     let repo: PathBuf = world(&fixture, bare.to_str().expect("UTF-8"), true);
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "1");
-    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["made no progress for 1 seconds and was stopped"]);
+    assert_push_failure_is_contained(
+        &fixture,
+        repo.as_path(),
+        &landed,
+        tripwire,
+        &["made no progress for 1 seconds and was stopped"],
+    );
     remove_settled(&fixture);
 }
 
 /// An explicit `git push` to a remote that fails ends with Git's failure and a message,
 /// in time,
 /// and holds nothing.
-fn explicit_push_fails_cleanly(name: &str, url: &str) {
+fn explicit_push_fails_cleanly(
+    name: &str,
+    url: &str,
+) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = world(&fixture, url, false);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=one", "--", "a.txt"],
+    );
     let tripwire: Tripwire = Tripwire::new();
-    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["push", "origin", "main"]);
+    let mut command: Command =
+        wrapped_commit(&fixture, repo.as_path(), &["push", "origin", "main"]);
     tripwire.arm(&mut command);
     let pushed: Observed = observe(&mut command, b"");
-    assert_ne!(pushed.code, Some(0), "an unreachable remote cannot be pushed to");
-    assert!(pushed.code.is_some(), "the push was ended by a signal: {}", stderr_of(&pushed));
-    assert!(!stderr_of(&pushed).trim().is_empty(), "a failed push says why");
-    assert!(tripwire.released(), "a process the push started was still running after the command returned");
-    assert_eq!(locks_left(repo.as_path()), Vec::<String>::new(), "no lock stays held");
+    assert_ne!(
+        pushed.code,
+        Some(0),
+        "an unreachable remote cannot be pushed to"
+    );
+    assert!(
+        pushed.code.is_some(),
+        "the push was ended by a signal: {}",
+        stderr_of(&pushed)
+    );
+    assert!(
+        !stderr_of(&pushed).trim().is_empty(),
+        "a failed push says why"
+    );
+    assert!(
+        tripwire.released(),
+        "a process the push started was still running after the command returned"
+    );
+    assert_eq!(
+        locks_left(repo.as_path()),
+        Vec::<String>::new(),
+        "no lock stays held"
+    );
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
@@ -377,5 +576,8 @@ fn an_explicit_push_to_an_unresolvable_host_fails_cleanly() {
 #[test]
 fn an_explicit_push_to_a_server_that_hangs_up_fails_cleanly() {
     let server: Server = serve(Behavior::HangUp);
-    explicit_push_fails_cleanly("remote-push-hangup", format!("http://127.0.0.1:{}/never.git", server.port).as_str());
+    explicit_push_fails_cleanly(
+        "remote-push-hangup",
+        format!("http://127.0.0.1:{}/never.git", server.port).as_str(),
+    );
 }

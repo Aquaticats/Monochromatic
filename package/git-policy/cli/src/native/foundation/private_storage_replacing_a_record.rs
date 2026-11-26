@@ -22,7 +22,11 @@
 //! export async function replacePrivateFile({ path, bytes, sync }) { const staged = stage(path); await write(staged, bytes); if (sync) await syncIt(staged); await rename(staged, path); if (sync) await syncDirectory(dirname(path)); }
 //! ```
 
-use super::{staging_beside, sync_directory, sync_when_durable};
+use super::{
+    staging_beside,
+    sync_directory,
+    sync_when_durable,
+};
 use std::io::Write;
 use std::path::Path;
 
@@ -51,7 +55,10 @@ fn without_the_staged_file(error: tempfile::PersistError) -> std::io::Error {
 /// ```ts
 /// async function replacePrivateFile({ path, bytes }): Promise<void>;
 /// ```
-pub fn replace_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn replace_private_file(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
     staged.as_file_mut().write_all(bytes)?;
     sync_when_durable(staged.as_file(), path, true)?;
@@ -85,13 +92,20 @@ pub fn replace_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// ```ts
 /// async function replacePrivateFile({ path, bytes, sync: false }): Promise<void>;
 /// ```
-pub fn replace_private_file_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub fn replace_private_file_unsynced(
+    path: &Path,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
     staged.as_file_mut().write_all(bytes)?;
     // The same point `write_then_publish` lets a control fail at: the bytes are staged and the name still holds what it held,
     //  which is where a full disk ends a rewrite.
     #[cfg(test)]
-    super::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
+    super::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        return hook.borrow().as_ref().map_or(Ok(()), |fail| {
+            return fail();
+        });
+    })?;
     staged.persist(path).map_err(without_the_staged_file)?;
     return Ok(());
 }

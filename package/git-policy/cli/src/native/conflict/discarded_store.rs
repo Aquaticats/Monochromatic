@@ -33,19 +33,49 @@
 //! await directory.empty();                           // unlinkat by descriptor, files before subdirectories
 //! ```
 
-pub use crate::discarded_store_records::{Identity, Interrupted, MAX_DEPTH, Tally};
+pub use crate::discarded_store_records::{
+    Identity,
+    Interrupted,
+    MAX_DEPTH,
+    Tally,
+};
 #[cfg(unix)]
-pub use unix::{Directory, OpenFailure, Store};
+pub use unix::{
+    Directory,
+    OpenFailure,
+    Store,
+};
 
 #[cfg(not(unix))]
-pub use other::{Directory, OpenFailure, Store};
+pub use other::{
+    Directory,
+    OpenFailure,
+    Store,
+};
 
 #[cfg(unix)]
 mod unix {
-    use super::{Identity, Interrupted, MAX_DEPTH, Tally};
-    use std::ffi::{CString, OsStr, OsString};
-    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
-    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    use super::{
+        Identity,
+        Interrupted,
+        MAX_DEPTH,
+        Tally,
+    };
+    use std::ffi::{
+        CString,
+        OsStr,
+        OsString,
+    };
+    use std::os::fd::{
+        AsRawFd,
+        FromRawFd,
+        OwnedFd,
+        RawFd,
+    };
+    use std::os::unix::ffi::{
+        OsStrExt,
+        OsStringExt,
+    };
     use std::path::Path;
 
     /// Why the folder could not be opened as a store.
@@ -79,20 +109,39 @@ mod unix {
 
     /// Opens the directory `name` inside `parent` for reading,
     /// never following a link at `name`.
-    fn open_inside(parent: RawFd, name: &OsStr) -> std::io::Result<OwnedFd> {
+    fn open_inside(
+        parent: RawFd,
+        name: &OsStr,
+    ) -> std::io::Result<OwnedFd> {
         let text: CString = c_name(name)?;
         // SAFETY: `text` is a NUL-terminated string that outlives the call, and `parent` is an open descriptor.
-        return owned(unsafe { libc::openat(parent, text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) });
+        return owned(unsafe {
+            libc::openat(
+                parent,
+                text.as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        });
     }
 
     /// What `fstatat` says of `name` inside `parent`,
     /// without following a link at `name`.
-    fn status_of(parent: RawFd, name: &OsStr) -> std::io::Result<libc::stat> {
+    fn status_of(
+        parent: RawFd,
+        name: &OsStr,
+    ) -> std::io::Result<libc::stat> {
         let text: CString = c_name(name)?;
         // SAFETY: `stat` is plain data for which all zero bytes is a valid value.
         let mut status: libc::stat = unsafe { std::mem::zeroed() };
         // SAFETY: `text` is a NUL-terminated string that outlives the call, and `status` is valid for one `stat`.
-        let result: libc::c_int = unsafe { libc::fstatat(parent, text.as_ptr(), &raw mut status, libc::AT_SYMLINK_NOFOLLOW) };
+        let result: libc::c_int = unsafe {
+            libc::fstatat(
+                parent,
+                text.as_ptr(),
+                &raw mut status,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
         if result != 0 {
             return Err(std::io::Error::last_os_error());
         }
@@ -162,7 +211,9 @@ mod unix {
                 break;
             }
             // SAFETY: `readdir` returned a valid entry whose name is NUL-terminated; it is copied before the next call.
-            let name: Vec<u8> = unsafe { std::ffi::CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes().to_vec();
+            let name: Vec<u8> = unsafe { std::ffi::CStr::from_ptr((*entry).d_name.as_ptr()) }
+                .to_bytes()
+                .to_vec();
             if name != b"." && name != b".." {
                 names.push(OsString::from_vec(name));
             }
@@ -192,7 +243,11 @@ mod unix {
     /// ```ts
     /// const mine = await unlinkAt(parent, name, directory) // false: somebody else removed it first
     /// ```
-    fn unlink_inside(parent: RawFd, name: &OsStr, directory: bool) -> std::io::Result<bool> {
+    fn unlink_inside(
+        parent: RawFd,
+        name: &OsStr,
+        directory: bool,
+    ) -> std::io::Result<bool> {
         let text: CString = c_name(name)?;
         let flags: libc::c_int = if directory { libc::AT_REMOVEDIR } else { 0 };
         // SAFETY: `text` is a NUL-terminated string that outlives the call, and `parent` is an open descriptor.
@@ -245,7 +300,8 @@ mod unix {
             // SAFETY: `stat` is plain data for which all zero bytes is a valid value.
             let mut status: libc::stat = unsafe { std::mem::zeroed() };
             // SAFETY: the descriptor is open and `status` is valid for one `stat`.
-            let result: libc::c_int = unsafe { libc::fstat(self.descriptor.as_raw_fd(), &raw mut status) };
+            let result: libc::c_int =
+                unsafe { libc::fstat(self.descriptor.as_raw_fd(), &raw mut status) };
             if result != 0 {
                 return Err(std::io::Error::last_os_error());
             }
@@ -259,27 +315,35 @@ mod unix {
         /// when removing,
         /// because the pass that removed it counts it.
         /// A directory another pass already removed holds nothing.
-        fn meet_files(frame: &mut Frame, remove: bool, tally: &mut Tally) -> std::io::Result<()> {
+        fn meet_files(
+            frame: &mut Frame,
+            remove: bool,
+            tally: &mut Tally,
+        ) -> std::io::Result<()> {
             let names: Vec<OsString> = match names_inside(frame.descriptor.as_raw_fd()) {
                 Ok(found) => found,
                 Err(error) if error.raw_os_error() == Some(libc::ENOENT) => return Ok(()),
                 Err(error) => return Err(error),
             };
             for name in names {
-                let status: libc::stat = match status_of(frame.descriptor.as_raw_fd(), name.as_os_str()) {
-                    Ok(found) => found,
-                    Err(error) if error.raw_os_error() == Some(libc::ENOENT) => continue,
-                    Err(error) => return Err(error),
-                };
+                let status: libc::stat =
+                    match status_of(frame.descriptor.as_raw_fd(), name.as_os_str()) {
+                        Ok(found) => found,
+                        Err(error) if error.raw_os_error() == Some(libc::ENOENT) => continue,
+                        Err(error) => return Err(error),
+                    };
                 if is_directory(&status) {
                     frame.directories.push(name);
                     continue;
                 }
-                if remove && !unlink_inside(frame.descriptor.as_raw_fd(), name.as_os_str(), false)? {
+                if remove && !unlink_inside(frame.descriptor.as_raw_fd(), name.as_os_str(), false)?
+                {
                     continue;
                 }
                 tally.bytes += u128::try_from(status.st_size).unwrap_or(0);
-                tally.names.push(format!("{}{}", frame.prefix, name.to_string_lossy()));
+                tally
+                    .names
+                    .push(format!("{}{}", frame.prefix, name.to_string_lossy()));
             }
             return Ok(());
         }
@@ -302,21 +366,38 @@ mod unix {
         /// ```ts
         /// const tally = await directory.walk(remove);
         /// ```
-        fn walk(&self, remove: bool) -> Result<Tally, Interrupted> {
+        fn walk(
+            &self,
+            remove: bool,
+        ) -> Result<Tally, Interrupted> {
             let mut tally: Tally = Tally::default();
             let outcome: std::io::Result<()> = self.walk_into(remove, &mut tally);
             return match outcome {
                 Ok(()) => Ok(tally),
-                Err(error) => Err(Interrupted { tally, error }),
+                Err(error) => Err(Interrupted {
+                    tally,
+                    error,
+                }),
             };
         }
 
         /// The walk of `walk`,
         /// adding to `tally` as it goes so that a failure still says how far it got.
-        fn walk_into(&self, remove: bool, tally: &mut Tally) -> std::io::Result<()> {
+        fn walk_into(
+            &self,
+            remove: bool,
+            tally: &mut Tally,
+        ) -> std::io::Result<()> {
             // SAFETY: the descriptor is open; the duplicate is owned by the frame.
-            let root: OwnedFd = owned(unsafe { libc::fcntl(self.descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0) })?;
-            let mut first: Frame = Frame { descriptor: root, name: None, prefix: String::new(), directories: Vec::new() };
+            let root: OwnedFd = owned(unsafe {
+                libc::fcntl(self.descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0)
+            })?;
+            let mut first: Frame = Frame {
+                descriptor: root,
+                name: None,
+                prefix: String::new(),
+                directories: Vec::new(),
+            };
             Directory::meet_files(&mut first, remove, tally)?;
             let mut stack: Vec<Frame> = vec![first];
             loop {
@@ -324,22 +405,32 @@ mod unix {
                 let Some(top) = stack.last_mut() else { break };
                 if let Some(name) = top.directories.pop() {
                     if depth > MAX_DEPTH {
-                        return Err(std::io::Error::other(format!("the tree is deeper than {MAX_DEPTH} levels")));
+                        return Err(std::io::Error::other(format!(
+                            "the tree is deeper than {MAX_DEPTH} levels"
+                        )));
                     }
                     let prefix: String = format!("{}{}/", top.prefix, name.to_string_lossy());
-                    let inner: OwnedFd = match open_inside(top.descriptor.as_raw_fd(), name.as_os_str()) {
-                        Ok(opened) => opened,
-                        Err(error) if error.raw_os_error() == Some(libc::ENOENT) => continue,
-                        Err(error) => return Err(error),
+                    let inner: OwnedFd =
+                        match open_inside(top.descriptor.as_raw_fd(), name.as_os_str()) {
+                            Ok(opened) => opened,
+                            Err(error) if error.raw_os_error() == Some(libc::ENOENT) => continue,
+                            Err(error) => return Err(error),
+                        };
+                    let mut frame: Frame = Frame {
+                        descriptor: inner,
+                        name: Some(name),
+                        prefix,
+                        directories: Vec::new(),
                     };
-                    let mut frame: Frame = Frame { descriptor: inner, name: Some(name), prefix, directories: Vec::new() };
                     Directory::meet_files(&mut frame, remove, tally)?;
                     stack.push(frame);
                     continue;
                 }
                 let Some(done) = stack.pop() else { break };
-                if let (true, Some(name), Some(parent)) = (remove, done.name.as_ref(), stack.last()) {
-                    let _mine: bool = unlink_inside(parent.descriptor.as_raw_fd(), name.as_os_str(), true)?;
+                if let (true, Some(name), Some(parent)) = (remove, done.name.as_ref(), stack.last())
+                {
+                    let _mine: bool =
+                        unlink_inside(parent.descriptor.as_raw_fd(), name.as_os_str(), true)?;
                 }
             }
             return Ok(());
@@ -389,20 +480,34 @@ mod unix {
         /// # Errors
         /// `OpenFailure::Link` when a link or a non-directory stands at a component below `common_dir`;
         /// `OpenFailure::Refused` for any other refusal.
-        pub fn open(common_dir: &Path, relative: &str) -> Result<Option<Store>, OpenFailure> {
+        pub fn open(
+            common_dir: &Path,
+            relative: &str,
+        ) -> Result<Option<Store>, OpenFailure> {
             let text: CString = c_name(common_dir.as_os_str()).map_err(OpenFailure::Refused)?;
             // SAFETY: `text` is a NUL-terminated string that outlives the call.
-            let root: std::io::Result<OwnedFd> = owned(unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) });
+            let root: std::io::Result<OwnedFd> = owned(unsafe {
+                libc::open(
+                    text.as_ptr(),
+                    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+                )
+            });
             let mut current: OwnedFd = root.map_err(OpenFailure::Refused)?;
             for component in relative.split('/') {
                 current = match open_inside(current.as_raw_fd(), OsStr::new(component)) {
                     Ok(opened) => opened,
                     Err(error) if error.raw_os_error() == Some(libc::ENOENT) => return Ok(None),
-                    Err(error) if matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => return Err(OpenFailure::Link),
+                    Err(error)
+                        if matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) =>
+                    {
+                        return Err(OpenFailure::Link);
+                    }
                     Err(error) => return Err(OpenFailure::Refused(error)),
                 };
             }
-            return Ok(Some(Store { descriptor: current }));
+            return Ok(Some(Store {
+                descriptor: current,
+            }));
         }
 
         /// The names inside the folder.
@@ -421,7 +526,10 @@ mod unix {
         ///
         /// # Errors
         /// The system's error when it cannot be inspected for a reason other than being gone.
-        pub fn directory_identity(&self, name: &OsStr) -> std::io::Result<Option<Identity>> {
+        pub fn directory_identity(
+            &self,
+            name: &OsStr,
+        ) -> std::io::Result<Option<Identity>> {
             return match status_of(self.descriptor.as_raw_fd(), name) {
                 Ok(status) if is_directory(&status) => Ok(Some(identity_in(&status))),
                 Ok(_) => Ok(None),
@@ -439,11 +547,18 @@ mod unix {
         /// otherwise the system's error,
         /// `EACCES` for a directory
         /// the person cannot read.
-        pub fn open_directory(&self, name: &OsStr) -> std::io::Result<Option<Directory>> {
+        pub fn open_directory(
+            &self,
+            name: &OsStr,
+        ) -> std::io::Result<Option<Directory>> {
             return match open_inside(self.descriptor.as_raw_fd(), name) {
-                Ok(descriptor) => Ok(Some(Directory { descriptor })),
+                Ok(descriptor) => Ok(Some(Directory {
+                    descriptor,
+                })),
                 Err(error) if error.raw_os_error() == Some(libc::ENOENT) => Ok(None),
-                Err(error) if matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => Err(std::io::ErrorKind::NotADirectory.into()),
+                Err(error) if matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => {
+                    Err(std::io::ErrorKind::NotADirectory.into())
+                }
                 Err(error) => Err(error),
             };
         }
@@ -462,7 +577,11 @@ mod unix {
         /// # Errors
         /// The system's error when the removal fails,
         /// `ENOTEMPTY` included.
-        pub fn remove_empty_directory(&self, name: &OsStr, expected: Identity) -> std::io::Result<bool> {
+        pub fn remove_empty_directory(
+            &self,
+            name: &OsStr,
+            expected: Identity,
+        ) -> std::io::Result<bool> {
             let same: bool = match self.directory_identity(name)? {
                 Some(found) => found.device == expected.device && found.inode == expected.inode,
                 None => false,
@@ -477,8 +596,15 @@ mod unix {
 
 #[cfg(not(unix))]
 mod other {
-    use super::{Identity, Interrupted, Tally};
-    use std::ffi::{OsStr, OsString};
+    use super::{
+        Identity,
+        Interrupted,
+        Tally,
+    };
+    use std::ffi::{
+        OsStr,
+        OsString,
+    };
     use std::path::Path;
 
     /// Why the folder could not be opened as a store.
@@ -541,8 +667,13 @@ mod other {
         /// # Errors
         /// `OpenFailure::Refused`,
         /// always.
-        pub fn open(_common_dir: &Path, _relative: &str) -> Result<Option<Store>, OpenFailure> {
-            return Err(OpenFailure::Refused(std::io::Error::other("removing inside the folder without following a replaced path is not available on this system")));
+        pub fn open(
+            _common_dir: &Path,
+            _relative: &str,
+        ) -> Result<Option<Store>, OpenFailure> {
+            return Err(OpenFailure::Refused(std::io::Error::other(
+                "removing inside the folder without following a replaced path is not available on this system",
+            )));
         }
 
         /// The names inside the folder.
@@ -559,7 +690,10 @@ mod other {
         /// # Errors
         /// Never;
         /// no value of this type exists here.
-        pub fn directory_identity(&self, _name: &OsStr) -> std::io::Result<Option<Identity>> {
+        pub fn directory_identity(
+            &self,
+            _name: &OsStr,
+        ) -> std::io::Result<Option<Identity>> {
             match self.0 {}
         }
 
@@ -568,7 +702,10 @@ mod other {
         /// # Errors
         /// Never;
         /// no value of this type exists here.
-        pub fn open_directory(&self, _name: &OsStr) -> std::io::Result<Option<Directory>> {
+        pub fn open_directory(
+            &self,
+            _name: &OsStr,
+        ) -> std::io::Result<Option<Directory>> {
             match self.0 {}
         }
 
@@ -577,7 +714,11 @@ mod other {
         /// # Errors
         /// Never;
         /// no value of this type exists here.
-        pub fn remove_empty_directory(&self, _name: &OsStr, _expected: Identity) -> std::io::Result<bool> {
+        pub fn remove_empty_directory(
+            &self,
+            _name: &OsStr,
+            _expected: Identity,
+        ) -> std::io::Result<bool> {
             match self.0 {}
         }
     }

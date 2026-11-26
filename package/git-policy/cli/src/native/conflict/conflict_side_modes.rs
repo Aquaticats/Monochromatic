@@ -20,10 +20,21 @@ use std::ffi::OsString;
 
 /// The global options that set a pathspec mode,
 /// the ones `git.c` accepts before the subcommand.
-pub const MODE_OPTIONS: [&str; 5] = ["--icase-pathspecs", "--glob-pathspecs", "--noglob-pathspecs", "--literal-pathspecs", "--no-literal-pathspecs"];
+pub const MODE_OPTIONS: [&str; 5] = [
+    "--icase-pathspecs",
+    "--glob-pathspecs",
+    "--noglob-pathspecs",
+    "--literal-pathspecs",
+    "--no-literal-pathspecs",
+];
 
 /// The variables that set a pathspec mode.
-pub const MODE_VARIABLES: [&str; 4] = ["GIT_ICASE_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_LITERAL_PATHSPECS"];
+pub const MODE_VARIABLES: [&str; 4] = [
+    "GIT_ICASE_PATHSPECS",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_LITERAL_PATHSPECS",
+];
 
 /// What:
 ///  The spellings of the pathspec modes a command runs under:
@@ -38,7 +49,10 @@ pub const MODE_VARIABLES: [&str; 4] = ["GIT_ICASE_PATHSPECS", "GIT_GLOB_PATHSPEC
 /// ```ts
 /// function modesInEffect(globalPrefix: string[], overlay: [string, string][]): string[];
 /// ```
-pub fn modes_in_effect(global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> Vec<String> {
+pub fn modes_in_effect(
+    global_prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for option in MODE_OPTIONS {
         for each in global_prefix {
@@ -74,7 +88,10 @@ pub fn modes_in_effect(global_prefix: &[OsString], overlay: &[(OsString, OsStrin
 /// ```ts
 /// aModeReachesTheStart(overlay, remove) // true when the child runs under a mode
 /// ```
-pub fn a_mode_reaches_the_start(overlay: &[(OsString, OsString)], remove: &[&str]) -> bool {
+pub fn a_mode_reaches_the_start(
+    overlay: &[(OsString, OsString)],
+    remove: &[&str],
+) -> bool {
     for variable in MODE_VARIABLES {
         if remove.contains(&variable) {
             continue;
@@ -109,7 +126,13 @@ pub fn a_mode_reaches_the_start(overlay: &[(OsString, OsString)], remove: &[&str
 /// ```
 pub fn glob_characters_are_literal(modes: &[String]) -> bool {
     for mode in modes {
-        if matches!(mode.as_str(), "--literal-pathspecs" | "--noglob-pathspecs" | "GIT_LITERAL_PATHSPECS" | "GIT_NOGLOB_PATHSPECS") {
+        if matches!(
+            mode.as_str(),
+            "--literal-pathspecs"
+                | "--noglob-pathspecs"
+                | "GIT_LITERAL_PATHSPECS"
+                | "GIT_NOGLOB_PATHSPECS"
+        ) {
             return true;
         }
     }

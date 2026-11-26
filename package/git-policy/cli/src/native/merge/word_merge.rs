@@ -44,12 +44,16 @@
 //! const merged = mergeByWord({ base, ours, theirs }); // { kind: 'resolved', merged, parts } | { kind: 'conflict', unresolved }
 //! ```
 
-/// A byte range of a text.
-use std::ops::Range;
-/// The diff of two token lists.
-use similar::{Algorithm, DiffOp, capture_diff_slices};
 /// The checks that keep a word merge from writing text no side wrote.
 use crate::merge::word_merge_invented_text::refuses_word_merge;
+/// The diff of two token lists.
+use similar::{
+    Algorithm,
+    DiffOp,
+    capture_diff_slices,
+};
+/// A byte range of a text.
+use std::ops::Range;
 
 /// The diff algorithm.
 /// Myers,
@@ -101,7 +105,10 @@ pub(super) fn is_line_end(byte: &u8) -> bool {
 
 /// The pieces of `text` that the ranges name,
 /// in order.
-fn slices_of<'a>(text: &'a [u8], ranges: &[Range<usize>]) -> Vec<&'a [u8]> {
+fn slices_of<'a>(
+    text: &'a [u8],
+    ranges: &[Range<usize>],
+) -> Vec<&'a [u8]> {
     let mut pieces: Vec<&'a [u8]> = Vec::new();
     for range in ranges {
         pieces.push(&text[range.clone()]);
@@ -121,7 +128,10 @@ fn slices_of<'a>(text: &'a [u8], ranges: &[Range<usize>]) -> Vec<&'a [u8]> {
 /// ```ts
 /// function tokenRanges(text: Uint8Array, level: Level): [number, number][];
 /// ```
-pub(super) fn token_ranges(text: &[u8], level: Level) -> Vec<Range<usize>> {
+pub(super) fn token_ranges(
+    text: &[u8],
+    level: Level,
+) -> Vec<Range<usize>> {
     match level {
         Level::Line => {
             let mut start: usize = 0;
@@ -198,10 +208,18 @@ enum Hunk<'a> {
 /// ```ts
 /// function matchedTokens(base: Uint8Array[], other: Uint8Array[]): (number | undefined)[];
 /// ```
-fn matched_tokens(base: &[&[u8]], other: &[&[u8]]) -> Vec<Option<usize>> {
+fn matched_tokens(
+    base: &[&[u8]],
+    other: &[&[u8]],
+) -> Vec<Option<usize>> {
     let mut matches: Vec<Option<usize>> = vec![None; base.len()];
     for operation in capture_diff_slices(ALGORITHM, base, other) {
-        if let DiffOp::Equal { old_index, new_index, len } = operation {
+        if let DiffOp::Equal {
+            old_index,
+            new_index,
+            len,
+        } = operation
+        {
             for offset in 0..len {
                 matches[old_index + offset] = Some(new_index + offset);
             }
@@ -227,8 +245,18 @@ fn matched_tokens(base: &[&[u8]], other: &[&[u8]]) -> Vec<Option<usize>> {
 /// ```ts
 /// function align(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, level: Level): Hunk[];
 /// ```
-fn align<'a>(base: &'a [u8], ours: &'a [u8], theirs: &'a [u8], level: Level) -> Vec<Hunk<'a>> {
-    let whole: Gap<'a> = Gap { base, ours, theirs, starts: [0, 0, 0] };
+fn align<'a>(
+    base: &'a [u8],
+    ours: &'a [u8],
+    theirs: &'a [u8],
+    level: Level,
+) -> Vec<Hunk<'a>> {
+    let whole: Gap<'a> = Gap {
+        base,
+        ours,
+        theirs,
+        starts: [0, 0, 0],
+    };
     if base.is_empty() || ours.is_empty() || theirs.is_empty() {
         return vec![Hunk::Gap(whole)];
     }
@@ -237,12 +265,16 @@ fn align<'a>(base: &'a [u8], ours: &'a [u8], theirs: &'a [u8], level: Level) -> 
     let theirs_ranges: Vec<Range<usize>> = token_ranges(theirs, level);
     let base_tokens: Vec<&[u8]> = slices_of(base, &base_ranges);
     let to_ours: Vec<Option<usize>> = matched_tokens(&base_tokens, &slices_of(ours, &ours_ranges));
-    let to_theirs: Vec<Option<usize>> = matched_tokens(&base_tokens, &slices_of(theirs, &theirs_ranges));
+    let to_theirs: Vec<Option<usize>> =
+        matched_tokens(&base_tokens, &slices_of(theirs, &theirs_ranges));
     let mut hunks: Vec<Hunk<'a>> = Vec::new();
     let mut positions: [usize; 3] = [0, 0, 0];
     for (index, base_range) in base_ranges.iter().enumerate() {
-        let (Some(ours_index), Some(theirs_index)) = (to_ours[index], to_theirs[index]) else { continue };
-        let (ours_range, theirs_range): (&Range<usize>, &Range<usize>) = (&ours_ranges[ours_index], &theirs_ranges[theirs_index]);
+        let (Some(ours_index), Some(theirs_index)) = (to_ours[index], to_theirs[index]) else {
+            continue;
+        };
+        let (ours_range, theirs_range): (&Range<usize>, &Range<usize>) =
+            (&ours_ranges[ours_index], &theirs_ranges[theirs_index]);
         let gap: Gap<'a> = Gap {
             base: &base[positions[0]..base_range.start],
             ours: &ours[positions[1]..ours_range.start],
@@ -309,7 +341,12 @@ fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
             Hunk::Gap(word_gap) => match trivial(&word_gap) {
                 Some(text) => merged.extend_from_slice(text),
                 None => {
-                    for part in align(word_gap.base, word_gap.ours, word_gap.theirs, Level::NonWord) {
+                    for part in align(
+                        word_gap.base,
+                        word_gap.ours,
+                        word_gap.theirs,
+                        Level::NonWord,
+                    ) {
                         match part {
                             Hunk::Same(text) => merged.extend_from_slice(text),
                             Hunk::Gap(byte_gap) => merged.extend_from_slice(trivial(&byte_gap)?),
@@ -377,7 +414,11 @@ pub enum WordMerge {
 /// ```ts
 /// function lineSpan(text: Uint8Array, start: number, length: number): LineSpan;
 /// ```
-fn line_span(text: &[u8], start: usize, length: usize) -> LineSpan {
+fn line_span(
+    text: &[u8],
+    start: usize,
+    length: usize,
+) -> LineSpan {
     let mut before: usize = 0;
     for byte in &text[..start] {
         if *byte == LINE_END {
@@ -385,7 +426,10 @@ fn line_span(text: &[u8], start: usize, length: usize) -> LineSpan {
         }
     }
     let count: usize = token_ranges(&text[start..start + length], Level::Line).len();
-    return LineSpan { first: before + 1, count };
+    return LineSpan {
+        first: before + 1,
+        count,
+    };
 }
 
 /// What:
@@ -401,12 +445,21 @@ fn line_span(text: &[u8], start: usize, length: usize) -> LineSpan {
 /// ```ts
 /// function mergeByWord(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array): WordMerge;
 /// ```
-pub fn merge_by_word(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
+pub fn merge_by_word(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+) -> WordMerge {
     let (merged, parts, unresolved) = walk(base, ours, theirs, None);
     if unresolved == 0 {
-        return WordMerge::Resolved { merged, parts };
+        return WordMerge::Resolved {
+            merged,
+            parts,
+        };
     }
-    return WordMerge::Conflict { unresolved };
+    return WordMerge::Conflict {
+        unresolved,
+    };
 }
 
 /// The width of a conflict marker,
@@ -428,7 +481,10 @@ const MARKER_WIDTH: usize = 7;
 /// ```ts
 /// function markerLine(character: string, label: string): Uint8Array;
 /// ```
-fn marker_line(character: u8, label: &str) -> Vec<u8> {
+fn marker_line(
+    character: u8,
+    label: &str,
+) -> Vec<u8> {
     let mut line: Vec<u8> = vec![character; MARKER_WIDTH];
     if !label.is_empty() {
         line.push(b' ');
@@ -456,7 +512,12 @@ fn marker_line(character: u8, label: &str) -> Vec<u8> {
 /// ```ts
 /// function keepBoth(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, labels: [string, string]): Uint8Array;
 /// ```
-pub fn keep_both(base: &[u8], ours: &[u8], theirs: &[u8], labels: (&str, &str)) -> Vec<u8> {
+pub fn keep_both(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    labels: (&str, &str),
+) -> Vec<u8> {
     return walk(base, ours, theirs, Some(labels)).0;
 }
 
@@ -474,7 +535,12 @@ pub fn keep_both(base: &[u8], ours: &[u8], theirs: &[u8], labels: (&str, &str)) 
 /// ```ts
 /// function walk(base, ours, theirs, conflict: [string, string] | null): { merged: Uint8Array; parts: MergedPart[]; unresolved: number };
 /// ```
-fn walk(base: &[u8], ours: &[u8], theirs: &[u8], conflict: Option<(&str, &str)>) -> (Vec<u8>, Vec<MergedPart>, usize) {
+fn walk(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    conflict: Option<(&str, &str)>,
+) -> (Vec<u8>, Vec<MergedPart>, usize) {
     let mut merged: Vec<u8> = Vec::with_capacity(ours.len().max(theirs.len()));
     let mut parts: Vec<MergedPart> = Vec::new();
     let mut unresolved: usize = 0;

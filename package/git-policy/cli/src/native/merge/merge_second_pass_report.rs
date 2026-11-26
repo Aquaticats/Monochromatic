@@ -18,9 +18,15 @@ use crate::client_journal::record_entry_as;
 use crate::diagnostic_log::debug;
 use crate::journald_native::Priority;
 use crate::merge_second_pass::Merged;
-use crate::merge_second_pass_conflicts::{Conflict, Stage};
+use crate::merge_second_pass_conflicts::{
+    Conflict,
+    Stage,
+};
 use crate::path_bytes::path_message_text;
-use crate::word_merge::{LineSpan, MergedPart};
+use crate::word_merge::{
+    LineSpan,
+    MergedPart,
+};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "wordMergeReport";
@@ -43,7 +49,8 @@ pub const PARTS_FIELD: &str = "CLI_GIT_WORD_MERGE_PARTS";
 pub const BLOBS_FIELD: &str = "CLI_GIT_WORD_MERGE_BLOBS";
 
 /// The sentence that says how to read an input a part line names.
-pub const INPUTS_HINT: &str = "Each part line ends with the three blobs it came from; `git cat-file blob <oid>` shows one.";
+pub const INPUTS_HINT: &str =
+    "Each part line ends with the three blobs it came from; `git cat-file blob <oid>` shows one.";
 
 /// The most characters of a merged part a report line shows.
 pub const EXCERPT_CHARACTERS: usize = 100;
@@ -105,7 +112,10 @@ fn blob_text(stage: Option<&Stage>) -> String {
 /// where it was in the three texts,
 /// what it became,
 /// and the three blobs those texts are.
-pub fn part_text(part: &MergedPart, stages: &Conflict) -> String {
+pub fn part_text(
+    part: &MergedPart,
+    stages: &Conflict,
+) -> String {
     return format!(
         "base {}, ours {}, theirs {} became {} from base {}, ours {}, theirs {}",
         span_text(&part.base),
@@ -129,14 +139,24 @@ pub fn part_text(part: &MergedPart, stages: &Conflict) -> String {
 /// ```ts
 /// function reportLines(prefix: string, merged: Merged): string[];
 /// ```
-pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
+pub fn report_lines(
+    prefix: &str,
+    merged: &Merged,
+) -> Vec<String> {
     let path: String = path_message_text(merged.path.as_slice());
     if merged.parts.is_empty() {
-        return vec![format!("{prefix}{REPORT_MARK}: {path}: resolved without a word pass (every region took one side)")];
+        return vec![format!(
+            "{prefix}{REPORT_MARK}: {path}: resolved without a word pass (every region took one side)"
+        )];
     }
     let mut lines: Vec<String> = Vec::new();
     for (at, part) in merged.parts.iter().enumerate() {
-        lines.push(format!("{prefix}{REPORT_MARK}: {path}: part {} of {}: {}", at + 1, merged.parts.len(), part_text(part, &merged.stages)));
+        lines.push(format!(
+            "{prefix}{REPORT_MARK}: {path}: part {} of {}: {}",
+            at + 1,
+            merged.parts.len(),
+            part_text(part, &merged.stages)
+        ));
     }
     return lines;
 }
@@ -163,7 +183,10 @@ fn blob_oid(stage: Option<&Stage>) -> String {
 /// ```ts
 /// journalEntry('merge', merged) // { message, fields }
 /// ```
-pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static str, String)>) {
+pub fn journal_entry(
+    operation: &str,
+    merged: &Merged,
+) -> (String, Vec<(&'static str, String)>) {
     let path: String = path_message_text(merged.path.as_slice());
     let message: String = report_lines("", merged).join("; ");
     let blobs: String = format!(
@@ -174,7 +197,12 @@ pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static
     );
     return (
         message,
-        vec![(FILE_FIELD, path), (OPERATION_FIELD, operation.to_owned()), (PARTS_FIELD, merged.parts.len().to_string()), (BLOBS_FIELD, blobs)],
+        vec![
+            (FILE_FIELD, path),
+            (OPERATION_FIELD, operation.to_owned()),
+            (PARTS_FIELD, merged.parts.len().to_string()),
+            (BLOBS_FIELD, blobs),
+        ],
     );
 }
 
@@ -190,8 +218,20 @@ pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static
 /// ```ts
 /// recordEntryAs(identifier, 'warning', `word-level merge: ${path}: ${parts.join('; ')}`, { CLI_GIT_WORD_MERGE_FILE: path, ... });
 /// ```
-pub fn journal_merged(identifier: &str, operation: &str, merged: &Merged) {
+pub fn journal_merged(
+    identifier: &str,
+    operation: &str,
+    merged: &Merged,
+) {
     let (message, fields) = journal_entry(operation, merged);
-    let sent: bool = record_entry_as(identifier, Priority::Warning, message.as_str(), fields.as_slice());
-    debug(TAG, format!("journal entry for a merged file: sent={sent}").as_str());
+    let sent: bool = record_entry_as(
+        identifier,
+        Priority::Warning,
+        message.as_str(),
+        fields.as_slice(),
+    );
+    debug(
+        TAG,
+        format!("journal entry for a merged file: sent={sent}").as_str(),
+    );
 }

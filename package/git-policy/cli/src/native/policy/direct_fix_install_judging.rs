@@ -21,16 +21,16 @@
 //! // const state = lstatAndRead(path); const same = state.kind === 'file' && equal(state.bytes, bytes) && sameKept(state.kept, kept);
 //! ```
 
-/// The permission bits,
-///  owner and extended attributes a file carries.
-use crate::direct_fix_install_writes::Kept;
+/// The site a judgement is about.
+use crate::direct_fix_install::Prepared;
 /// The attributes themselves,
 ///  read from the file each judgement is about.
 use crate::direct_fix_install_attributes::attributes_of;
-/// The site a judgement is about.
-use crate::direct_fix_install::Prepared;
 /// The journal that holds what a swap displaced.
 use crate::direct_fix_install_journal::content_of;
+/// The permission bits,
+///  owner and extended attributes a file carries.
+use crate::direct_fix_install_writes::Kept;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -78,7 +78,10 @@ pub(crate) enum SiteState {
 /// ```ts
 /// const state = lstatAndRead(path); // 'absent' | 'not-a-file' | { bytes, kept }
 /// ```
-pub(crate) fn state_of(path: &Path, step: &str) -> Result<SiteState, String> {
+pub(crate) fn state_of(
+    path: &Path,
+    step: &str,
+) -> Result<SiteState, String> {
     let described: std::fs::Metadata = match std::fs::symlink_metadata(path) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(SiteState::Absent),
@@ -101,7 +104,10 @@ pub(crate) fn state_of(path: &Path, step: &str) -> Result<SiteState, String> {
         Ok(read) => read,
         Err(error) => return Err(format!("{step} failed ({error})")),
     };
-    return Ok(SiteState::File { bytes, kept });
+    return Ok(SiteState::File {
+        bytes,
+        kept,
+    });
 }
 
 /// What:
@@ -158,7 +164,12 @@ pub(crate) fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 /// ```ts
 /// const holdsExactly = (path, bytes, kept, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' && sameKept(s.kept, kept) && equal(s.bytes, bytes); };
 /// ```
-pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) -> Result<bool, String> {
+pub(crate) fn holds_exactly(
+    path: &Path,
+    bytes: &[u8],
+    kept: &Kept,
+    step: &str,
+) -> Result<bool, String> {
     let Some((held, carried)) = regular_file(path, step)? else {
         return Ok(false);
     };
@@ -185,7 +196,12 @@ pub(crate) fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) 
 /// ```ts
 /// const holdsDigest = (path, digest, kept, step) => { const f = regularFile(path, step); return f !== undefined && sameKept(kept, f.kept) && digestOf(f.bytes) === digest; };
 /// ```
-pub(crate) fn holds_digest(path: &Path, digest: &str, kept: &Kept, step: &str) -> Result<bool, String> {
+pub(crate) fn holds_digest(
+    path: &Path,
+    digest: &str,
+    kept: &Kept,
+    step: &str,
+) -> Result<bool, String> {
     let Some((held, carried)) = regular_file(path, step)? else {
         return Ok(false);
     };
@@ -212,9 +228,15 @@ pub(crate) fn holds_digest(path: &Path, digest: &str, kept: &Kept, step: &str) -
 /// ```ts
 /// const regularFile = (path, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' ? s : undefined; };
 /// ```
-fn regular_file(path: &Path, step: &str) -> Result<Option<(Vec<u8>, Kept)>, String> {
+fn regular_file(
+    path: &Path,
+    step: &str,
+) -> Result<Option<(Vec<u8>, Kept)>, String> {
     return match state_of(path, step)? {
-        SiteState::File { bytes, kept } => Ok(Some((bytes, kept))),
+        SiteState::File {
+            bytes,
+            kept,
+        } => Ok(Some((bytes, kept))),
         SiteState::Absent | SiteState::NotAFile => Ok(None),
     };
 }

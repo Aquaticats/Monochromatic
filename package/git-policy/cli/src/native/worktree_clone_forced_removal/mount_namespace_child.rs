@@ -29,7 +29,11 @@
 //! ```
 
 use std::io::Read;
-use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    RawFd,
+};
 
 /// The most bytes one report's header takes,
 /// its detail line included.
@@ -114,19 +118,44 @@ pub struct ActReport {
 
 impl ActReport {
     /// An act that finished.
-    pub fn done(detail: String, table: String) -> ActReport {
-        return ActReport { outcome: ActOutcome::Done, errno: None, detail, table };
+    pub fn done(
+        detail: String,
+        table: String,
+    ) -> ActReport {
+        return ActReport {
+            outcome: ActOutcome::Done,
+            errno: None,
+            detail,
+            table,
+        };
     }
 
     /// An act a call stopped,
     /// with the errno it answered.
-    pub fn failed(detail: String, errno: i32, table: String) -> ActReport {
-        return ActReport { outcome: ActOutcome::Failed, errno: Some(errno), detail, table };
+    pub fn failed(
+        detail: String,
+        errno: i32,
+        table: String,
+    ) -> ActReport {
+        return ActReport {
+            outcome: ActOutcome::Failed,
+            errno: Some(errno),
+            detail,
+            table,
+        };
     }
 
     /// An act the design refused here.
-    pub fn refused(detail: String, table: String) -> ActReport {
-        return ActReport { outcome: ActOutcome::Refused, errno: None, detail, table };
+    pub fn refused(
+        detail: String,
+        table: String,
+    ) -> ActReport {
+        return ActReport {
+            outcome: ActOutcome::Refused,
+            errno: None,
+            detail,
+            table,
+        };
     }
 
     /// What:
@@ -155,7 +184,11 @@ impl ActReport {
                 escaped.push(character);
             }
         }
-        let header: String = format!("outcome {}\nerrno {errno}\ndetail {escaped}\ntable {}\n", self.outcome.word(), self.table.len());
+        let header: String = format!(
+            "outcome {}\nerrno {errno}\ndetail {escaped}\ntable {}\n",
+            self.outcome.word(),
+            self.table.len()
+        );
         let mut bytes: Vec<u8> = Vec::with_capacity(header.len() + self.table.len());
         bytes.extend_from_slice(header.as_bytes());
         bytes.extend_from_slice(self.table.as_bytes());
@@ -183,7 +216,9 @@ impl ActReport {
         for _line in 0..4 {
             let rest: &[u8] = &bytes[at..];
             let Some(end) = rest.iter().position(|byte| return *byte == b'\n') else {
-                return Err(String::from("the report's header ended before its four lines did"));
+                return Err(String::from(
+                    "the report's header ended before its four lines did",
+                ));
             };
             let Ok(line) = std::str::from_utf8(&rest[..end]) else {
                 return Err(String::from("a header line is not text"));
@@ -198,7 +233,11 @@ impl ActReport {
                 if number == "none" {
                     errno = None;
                 } else {
-                    errno = Some(number.parse::<i32>().map_err(|_error| return String::from("the errno is not a number"))?);
+                    errno = Some(
+                        number
+                            .parse::<i32>()
+                            .map_err(|_error| return String::from("the errno is not a number"))?,
+                    );
                 }
             } else if let Some(text) = line.strip_prefix("detail ") {
                 let mut plain: String = String::with_capacity(text.len());
@@ -211,30 +250,50 @@ impl ActReport {
                     match characters.next() {
                         Some('n') => plain.push('\n'),
                         Some('\\') => plain.push('\\'),
-                        _ => return Err(String::from("the detail line's escape is not one this build writes")),
+                        _ => {
+                            return Err(String::from(
+                                "the detail line's escape is not one this build writes",
+                            ));
+                        }
                     }
                 }
                 detail = Some(plain);
             } else if let Some(number) = line.strip_prefix("table ") {
-                table_bytes = Some(number.parse::<usize>().map_err(|_error| return String::from("the table's length is not a number"))?);
+                table_bytes = Some(number.parse::<usize>().map_err(|_error| {
+                    return String::from("the table's length is not a number");
+                })?);
             } else {
-                return Err(format!("the header line `{line}` is not one this build writes"));
+                return Err(format!(
+                    "the header line `{line}` is not one this build writes"
+                ));
             }
         }
         let (Some(answered), Some(named), Some(wanted)) = (outcome, detail, table_bytes) else {
-            return Err(String::from("the report's header lacks one of its four lines"));
+            return Err(String::from(
+                "the report's header lacks one of its four lines",
+            ));
         };
         if wanted > MAXIMUM_TABLE_BYTES {
-            return Err(String::from("the table is longer than the crate's own bound"));
+            return Err(String::from(
+                "the table is longer than the crate's own bound",
+            ));
         }
         let table: &[u8] = &bytes[at..];
         if table.len() != wanted {
-            return Err(format!("the report carries {} table bytes and its length says {wanted}", table.len()));
+            return Err(format!(
+                "the report carries {} table bytes and its length says {wanted}",
+                table.len()
+            ));
         }
         let Ok(text) = std::str::from_utf8(table) else {
             return Err(String::from("the table is not text"));
         };
-        return Ok(ActReport { outcome: answered, errno, detail: named, table: String::from(text) });
+        return Ok(ActReport {
+            outcome: answered,
+            errno,
+            detail: named,
+            table: String::from(text),
+        });
     }
 }
 
@@ -265,10 +324,21 @@ pub struct ChildRefusal {
 
 impl std::fmt::Display for ChildRefusal {
     /// One sentence naming the call, the errno and what it said.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self.errno {
-            Some(errno) => write!(formatter, "{} answered errno {errno}: {}", self.calling, self.said),
-            None => write!(formatter, "{} could not be made: {}", self.calling, self.said),
+            Some(errno) => write!(
+                formatter,
+                "{} answered errno {errno}: {}",
+                self.calling, self.said
+            ),
+            None => write!(
+                formatter,
+                "{} could not be made: {}",
+                self.calling, self.said
+            ),
         };
     }
 }
@@ -288,7 +358,10 @@ impl std::fmt::Display for ChildRefusal {
 /// the child's wait failed,
 /// the child died before it reported,
 /// or its report is not one this build writes.
-pub fn run_in<Work>(namespace: &std::fs::File, work: Work) -> Result<ActReport, ChildRefusal>
+pub fn run_in<Work>(
+    namespace: &std::fs::File,
+    work: Work,
+) -> Result<ActReport, ChildRefusal>
 where
     Work: Fn() -> ActReport,
 {
@@ -296,7 +369,11 @@ where
     // SAFETY: `ends` is a live two-element array the call fills with the two descriptors it makes.
     let piped: libc::c_int = unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) };
     if piped != 0 {
-        return Err(ChildRefusal { calling: "pipe2", errno: std::io::Error::last_os_error().raw_os_error(), said: String::from("a report pipe") });
+        return Err(ChildRefusal {
+            calling: "pipe2",
+            errno: std::io::Error::last_os_error().raw_os_error(),
+            said: String::from("a report pipe"),
+        });
     }
     let read_end: RawFd = ends[0];
     let write_end: RawFd = ends[1];
@@ -305,7 +382,11 @@ where
     if child < 0 {
         close(read_end);
         close(write_end);
-        return Err(ChildRefusal { calling: "fork", errno: std::io::Error::last_os_error().raw_os_error(), said: String::from("one child per namespace") });
+        return Err(ChildRefusal {
+            calling: "fork",
+            errno: std::io::Error::last_os_error().raw_os_error(),
+            said: String::from("one child per namespace"),
+        });
     }
     if child == 0 {
         close(read_end);
@@ -318,22 +399,36 @@ where
     }
     close(write_end);
     let mut read: Vec<u8> = Vec::new();
-    let bound: u64 = u64::try_from(MAXIMUM_HEADER_BYTES + MAXIMUM_TABLE_BYTES + 1).unwrap_or(u64::MAX);
+    let bound: u64 =
+        u64::try_from(MAXIMUM_HEADER_BYTES + MAXIMUM_TABLE_BYTES + 1).unwrap_or(u64::MAX);
     // SAFETY: the descriptor is this call's own read end and nothing else reads it.
     let mut pipe: std::fs::File = unsafe { std::fs::File::from_raw_fd(read_end) };
-    let read_result: std::io::Result<usize> = Read::by_ref(&mut pipe).take(bound).read_to_end(&mut read);
+    let read_result: std::io::Result<usize> =
+        Read::by_ref(&mut pipe).take(bound).read_to_end(&mut read);
     drop(pipe);
     let waited: Result<(), ChildRefusal> = wait_for(child);
-    read_result.map_err(|error| return ChildRefusal {
-        calling: "read",
-        errno: error.raw_os_error(),
-        said: String::from("the child's report"),
+    read_result.map_err(|error| {
+        return ChildRefusal {
+            calling: "read",
+            errno: error.raw_os_error(),
+            said: String::from("the child's report"),
+        };
     })?;
     waited?;
     if read.len() > MAXIMUM_HEADER_BYTES + MAXIMUM_TABLE_BYTES {
-        return Err(ChildRefusal { calling: "read", errno: None, said: String::from("the child's report is longer than this build writes") });
+        return Err(ChildRefusal {
+            calling: "read",
+            errno: None,
+            said: String::from("the child's report is longer than this build writes"),
+        });
     }
-    return ActReport::decode(read.as_slice()).map_err(|said| return ChildRefusal { calling: "report", errno: None, said });
+    return ActReport::decode(read.as_slice()).map_err(|said| {
+        return ChildRefusal {
+            calling: "report",
+            errno: None,
+            said,
+        };
+    });
 }
 
 /// What:
@@ -353,7 +448,10 @@ where
 /// prctl(PR_SET_PDEATHSIG, SIGKILL); if (getppid() === 1) _exit(1);
 /// if (setns(namespaceFd, CLONE_NEWNS) !== 0) { write(report, failure(errno)); _exit(1); }
 /// ```
-fn enters_the_namespace(namespace: RawFd, report: RawFd) {
+fn enters_the_namespace(
+    namespace: RawFd,
+    report: RawFd,
+) {
     // SAFETY: `prctl` reads its four words and touches no memory of ours.
     let _set: libc::c_int = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
     // SAFETY: `getppid` takes no argument and reads one number.
@@ -365,8 +463,14 @@ fn enters_the_namespace(namespace: RawFd, report: RawFd) {
     if entered == 0 {
         return;
     }
-    let errno: i32 = std::io::Error::last_os_error().raw_os_error().unwrap_or(libc::EINVAL);
-    let refused: ActReport = ActReport::failed(format!("setns into the mount namespace answered errno {errno}"), errno, String::new());
+    let errno: i32 = std::io::Error::last_os_error()
+        .raw_os_error()
+        .unwrap_or(libc::EINVAL);
+    let refused: ActReport = ActReport::failed(
+        format!("setns into the mount namespace answered errno {errno}"),
+        errno,
+        String::new(),
+    );
     let bytes: Vec<u8> = refused.encode();
     write_all(report, bytes.as_slice());
     // The report is the answer, so the child ends as one that finished; a child that dies without a report is what
@@ -390,10 +494,19 @@ fn close(descriptor: RawFd) {
 /// Why:
 ///  A handler that died closes its read end,
 ///  and the child's own end is then the one thing it must not wait on.
-fn write_all(descriptor: RawFd, mut bytes: &[u8]) {
+fn write_all(
+    descriptor: RawFd,
+    mut bytes: &[u8],
+) {
     while !bytes.is_empty() {
         // SAFETY: the bytes are this call's own and the descriptor is the child's write end.
-        let written: libc::ssize_t = unsafe { libc::write(descriptor, bytes.as_ptr().cast::<libc::c_void>(), bytes.len()) };
+        let written: libc::ssize_t = unsafe {
+            libc::write(
+                descriptor,
+                bytes.as_ptr().cast::<libc::c_void>(),
+                bytes.len(),
+            )
+        };
         if written <= 0 {
             return;
         }
@@ -432,7 +545,11 @@ fn wait_for(child: libc::pid_t) -> Result<(), ChildRefusal> {
             if error.raw_os_error() == Some(libc::EINTR) {
                 continue;
             }
-            return Err(ChildRefusal { calling: "waitpid", errno: error.raw_os_error(), said: String::from("the child that entered a namespace") });
+            return Err(ChildRefusal {
+                calling: "waitpid",
+                errno: error.raw_os_error(),
+                said: String::from("the child that entered a namespace"),
+            });
         }
         break;
     }
@@ -444,7 +561,9 @@ fn wait_for(child: libc::pid_t) -> Result<(), ChildRefusal> {
     return Err(ChildRefusal {
         calling: "waitpid",
         errno: None,
-        said: format!("the child that entered a namespace ended with status {status} (exited {exited}, status {status_of_exit})"),
+        said: format!(
+            "the child that entered a namespace ended with status {status} (exited {exited}, status {status_of_exit})"
+        ),
     });
 }
 

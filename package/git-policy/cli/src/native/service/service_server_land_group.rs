@@ -16,29 +16,61 @@
 //! await landGroup(context, instance, seq, group, landed, captures);
 //! ```
 
-use crate::service_server_queue_types_and_send::Queued;
-use crate::service_journal::{BatchClaim, Recovery, claim_batch};
-use crate::service_land_follow::storage_failure;
-use crate::service_index_lock::{Announce, Announcer};
-use crate::service_captures::CaptureMemory;
-use crate::service_claim_watch_note_within_a_ceiling::{NoteForTheNextService, note_for_the_next_service_within};
-use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use crate::journald_native::Priority;
-use crate::service::service_server_land_group_answer_log::{BatchTimes, landing_figures_of, log_answer, path_of_change};
-use crate::service_timing::{LandTiming, log_entry};
+use crate::service::service_server_land_group_answer_log::{
+    BatchTimes,
+    landing_figures_of,
+    log_answer,
+    path_of_change,
+};
+use crate::service_captures::CaptureMemory;
+use crate::service_claim_watch_note_within_a_ceiling::{
+    NoteForTheNextService,
+    note_for_the_next_service_within,
+};
+use crate::service_index_lock::{
+    Announce,
+    Announcer,
+};
+use crate::service_journal::{
+    BatchClaim,
+    Recovery,
+    claim_batch,
+};
+use crate::service_land::{
+    LandContext,
+    Outcome,
+    land_batch_timed,
+    recover,
+    recover_instance,
+};
+use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{
-    CommitRequest, FailureCode, ServiceMessage,
+    CommitRequest,
+    FailureCode,
+    ServiceMessage,
 };
 /// What a batch of landings owes,
 /// named here so every caller of the group keeps one path.
 pub(crate) use crate::service_server_land_group_owed_pushes::*;
+use crate::service_server_queue_types_and_send::Queued;
+use crate::service_timing::{
+    LandTiming,
+    log_entry,
+};
 
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 /// Finishes the open batches this instance owns:
 /// those of its worktree when it serves one,
 /// all of them in a development run.
-pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<crate::service_land::RecoveryReport> {
+pub(crate) fn settle_open_batches(
+    context: &LandContext,
+    instance: Option<&str>,
+) -> Vec<crate::service_land::RecoveryReport> {
     let reports: Vec<crate::service_land::RecoveryReport> = match instance {
         Some(mine) => recover_instance(context, mine),
         None => recover(context),
@@ -46,10 +78,16 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
     // An open batch means an earlier service stopped between its intent and its end; each one settled is said, with the
     //  repository whose batch it is, because one journal can be read across a whole machine.
     for report in &reports {
-        let repository: String = crate::service_timing::in_the_repository_at(report.repository.as_path());
+        let repository: String =
+            crate::service_timing::in_the_repository_at(report.repository.as_path());
         log_entry(
             Priority::Warning,
-            format!("settled the batch an earlier service left open {repository} batch={} decision={}", report.seq, decision_word(report.decision)).as_str(),
+            format!(
+                "settled the batch an earlier service left open {repository} batch={} decision={}",
+                report.seq,
+                decision_word(report.decision)
+            )
+            .as_str(),
             &[("CLI_GIT_BATCH", report.seq.to_string())],
         );
     }
@@ -83,11 +121,18 @@ struct AnnounceToStreams<'a> {
 }
 
 impl Announcer for AnnounceToStreams<'_> {
-    fn announce(&self, note: Announce) {
+    fn announce(
+        &self,
+        note: Announce,
+    ) {
         for (_, stream, _) in self.fresh {
             match &note {
-                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
-                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
+                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting {
+                    text: text.clone(),
+                }),
+                Announce::Holder(who) => stream.send(&ServiceMessage::Holder {
+                    who: who.clone(),
+                }),
             }
         }
     }
@@ -96,7 +141,10 @@ impl Announcer for AnnounceToStreams<'_> {
     /// its channel is closed when the task that writes its
     /// connection ends,
     /// which it does when the connection breaks.
-    fn client_is_gone(&self, place: usize) -> bool {
+    fn client_is_gone(
+        &self,
+        place: usize,
+    ) -> bool {
         return match self.fresh.get(place) {
             Some((_, stream, _)) => stream.client_is_gone(),
             None => false,
@@ -122,7 +170,11 @@ impl Announcer for AnnounceToStreams<'_> {
 /// ```ts
 /// placeNotices(3, 12_000, 10_000) // [[1,3],[2,3],[3,3]]
 /// ```
-fn place_notices(size: usize, waited: Duration, threshold: Duration) -> Vec<(usize, usize)> {
+fn place_notices(
+    size: usize,
+    waited: Duration,
+    threshold: Duration,
+) -> Vec<(usize, usize)> {
     let mut places: Vec<(usize, usize)> = Vec::new();
     for index in 0..size {
         if index == 0 && waited < threshold {
@@ -184,7 +236,12 @@ pub(crate) fn land_group(
     }
     let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
     for (request, stream, arrival) in again {
-        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true, landing: None });
+        stream.send(&ServiceMessage::Landed {
+            id: request.id.clone(),
+            commit: landed[&request.id].clone(),
+            already: true,
+            landing: None,
+        });
         log_answer(&unlanded, &request, &arrival, 1, "already");
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
@@ -216,7 +273,10 @@ pub(crate) fn land_group(
     let mut present: Vec<Queued> = Vec::with_capacity(fresh.len());
     for queued in fresh {
         if queued.1.client_is_gone() {
-            crate::service_log!("dropped the request {} whose client is gone before its commit landed", queued.0.id);
+            crate::service_log!(
+                "dropped the request {} whose client is gone before its commit landed",
+                queued.0.id
+            );
             handed_back.insert(queued.0.id.clone());
         } else {
             present.push(queued);
@@ -237,10 +297,22 @@ pub(crate) fn land_group(
         Ok(claim) => claim,
         Err(error) => {
             let code: FailureCode = storage_failure(&error);
-            crate::service_error!("no batch number could be taken in {}: {error}", context.journal.display());
+            crate::service_error!(
+                "no batch number could be taken in {}: {error}",
+                context.journal.display()
+            );
             for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
-                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
-                log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
+                stream.send(&ServiceMessage::Failed {
+                    id: request.id.clone(),
+                    code,
+                });
+                log_answer(
+                    &unlanded,
+                    request,
+                    arrival,
+                    position + 1,
+                    format!("failed:{}", code.word()).as_str(),
+                );
             }
             return;
         }
@@ -253,13 +325,18 @@ pub(crate) fn land_group(
         let Some((_, stream, _)) = fresh.get(number - 1) else {
             continue;
         };
-        stream.send(&ServiceMessage::Position { number, of });
+        stream.send(&ServiceMessage::Position {
+            number,
+            of,
+        });
     }
     let mut requests: Vec<CommitRequest> = Vec::new();
     for (request, _, _) in &fresh {
         requests.push((**request).clone());
     }
-    let announce: AnnounceToStreams<'_> = AnnounceToStreams { fresh: fresh.as_slice() };
+    let announce: AnnounceToStreams<'_> = AnnounceToStreams {
+        fresh: fresh.as_slice(),
+    };
     // The next commit in this worktree takes a finished private repository instead of making one. The fill runs beside this
     //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
     if let Some(first) = requests.first() {
@@ -287,13 +364,30 @@ pub(crate) fn land_group(
     //  out of the count, and what is left is how many commits queued behind this landing.
     let waiting: usize = crate::service_reply::Reply::waiting();
     let queued_behind: usize = waiting.saturating_sub(fresh.len());
-    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now(), queued_behind };
+    let times: BatchTimes = BatchTimes {
+        batch: *seq,
+        size: fresh.len(),
+        group_began,
+        settle,
+        landing,
+        land_total: landing_began.elapsed(),
+        landed_at: Instant::now(),
+        queued_behind,
+    };
     match result {
         Ok(outcomes) => {
             // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
-                if let Outcome::Landed { commit } = outcome {
-                    captures.record_landed(request.common_dir.as_path(), request.repository.as_path(), commit.as_str(), request.captured);
+                if let Outcome::Landed {
+                    commit,
+                } = outcome
+                {
+                    captures.record_landed(
+                        request.common_dir.as_path(),
+                        request.repository.as_path(),
+                        commit.as_str(),
+                        request.captured,
+                    );
                 }
             }
             crate::service_fault::reach("before-ack");
@@ -310,26 +404,45 @@ pub(crate) fn land_group(
             //  A refused thread is said once and the store is asked again by the next commit this batch lands:
             //  nothing ran, the place of the one write is free again, and a refusal that came from a moment when much
             //  ran at once is over by that commit's turn.
-            let note_store: std::path::PathBuf = context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY);
+            let note_store: std::path::PathBuf = context
+                .journal
+                .join(crate::service_claim_watch::WATCH_DIRECTORY);
             let mut the_store_answers: bool = true;
             let mut no_thread_was_said: bool = false;
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
-                if let Outcome::Landed { commit } = outcome {
+                if let Outcome::Landed {
+                    commit,
+                } = outcome
+                {
                     for (repeat, stream, arrival) in &repeats {
                         if repeat.id != request.id {
                             continue;
                         }
-                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true, landing: None });
+                        stream.send(&ServiceMessage::Landed {
+                            id: repeat.id.clone(),
+                            commit: commit.clone(),
+                            already: true,
+                            landing: None,
+                        });
                         log_answer(&times, repeat, arrival, 1, "already");
                     }
                 }
             }
-            for (position, ((request, stream, arrival), outcome)) in fresh.iter().zip(outcomes).enumerate() {
+            for (position, ((request, stream, arrival), outcome)) in
+                fresh.iter().zip(outcomes).enumerate()
+            {
                 let word: &str = match outcome {
-                    Outcome::Landed { commit } => {
+                    Outcome::Landed {
+                        commit,
+                    } => {
                         // The compiled rules of the repository are warmed on the blocking pool, off this thread and off the answer's path.
-                        let paths: Vec<String> = request.changes.iter().map(path_of_change).collect();
-                        crate::service_rules_precompile::after_landing(context.journal.as_path(), request.repository.as_path(), paths.as_slice());
+                        let paths: Vec<String> =
+                            request.changes.iter().map(path_of_change).collect();
+                        crate::service_rules_precompile::after_landing(
+                            context.journal.as_path(),
+                            request.repository.as_path(),
+                            paths.as_slice(),
+                        );
                         // The push is held before the answer, so a client killed between the two cannot lose it, and the post-commit
                         //  gate is what promotes it.
                         hold_the_push(request, commit.as_str());
@@ -339,13 +452,20 @@ pub(crate) fn land_group(
                         //  (`wait_ceilings.rs`, `LANDING_WATCH_NOTE_CEILING`), because the commit has landed and its push is held
                         //  by now, and the work loop writes the same note when this answer's wake sends it to look.
                         if the_store_answers {
-                            match note_for_the_next_service_within(note_ceiling, note_store.as_path(), instance, request.git_dir.as_path()) {
+                            match note_for_the_next_service_within(
+                                note_ceiling,
+                                note_store.as_path(),
+                                instance,
+                                request.git_dir.as_path(),
+                            ) {
                                 NoteForTheNextService::Answered => {}
                                 NoteForTheNextService::AnEarlierWriteHasNotEnded => {
                                     the_store_answers = false;
                                     crate::service_warn!(
                                         "the note that names {} for the next service is not written, because a note an earlier commit handed over has not ended after {note_ceiling:?}; this commit is answered and stays landed, and the after-commit work writes that note when the wake of that answer sends it to look at the repository",
-                                        crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                        crate::service_timing::in_the_repository_at(
+                                            request.repository.as_path()
+                                        )
                                     );
                                 }
                                 NoteForTheNextService::NoThreadToStart => {
@@ -356,7 +476,9 @@ pub(crate) fn land_group(
                                         no_thread_was_said = true;
                                         crate::service_warn!(
                                             "the system gave no thread for the note that names {} for the next service, so it is not written yet; this commit is answered and stays landed, the next commit of this batch or the after-commit work writes that note, and the system's thread and process limits are what to look at",
-                                            crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                            crate::service_timing::in_the_repository_at(
+                                                request.repository.as_path()
+                                            )
                                         );
                                     }
                                 }
@@ -364,31 +486,55 @@ pub(crate) fn land_group(
                                     the_store_answers = false;
                                     crate::service_warn!(
                                         "the note that names {} for the next service gave no answer within {note_ceiling:?} and is left behind; this commit is answered and stays landed, and the after-commit work writes that note when the wake of this answer sends it to look at the repository",
-                                        crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                        crate::service_timing::in_the_repository_at(
+                                            request.repository.as_path()
+                                        )
                                     );
                                 }
                             }
                         }
                         landed.insert(request.id.clone(), commit.clone());
-                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
+                        stream.send(&ServiceMessage::Landed {
+                            id: request.id.clone(),
+                            commit,
+                            already: false,
+                            landing: Some(landing_figures_of(&times)),
+                        });
                         "landed"
                     }
-                    Outcome::Held { commit, words } => {
+                    Outcome::Held {
+                        commit,
+                        words,
+                    } => {
                         // The commit is written and kept, and its branch has not moved: the client exits 0 and says what the
                         //  record says, and no push is held for a commit no branch names yet.
-                        stream.send(&ServiceMessage::Held { id: request.id.clone(), commit, words });
+                        stream.send(&ServiceMessage::Held {
+                            id: request.id.clone(),
+                            commit,
+                            words,
+                        });
                         "held"
                     }
-                    Outcome::RetryPrepare { base } => {
-                        let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
-                        stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
+                    Outcome::RetryPrepare {
+                        base,
+                    } => {
+                        let known = captures
+                            .remembered(request.common_dir.as_path(), request.repository.as_path());
+                        stream.send(&ServiceMessage::RetryPrepare {
+                            id: request.id.clone(),
+                            base,
+                            landed: known,
+                        });
                         // The client prepares the commit again from the change this attempt captured, which it reads from
                         //  this attempt's own tree: the tree is its client's again, and no landing reads it.
                         handed_back.insert(request.id.clone());
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
-                        stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        stream.send(&ServiceMessage::Failed {
+                            id: request.id.clone(),
+                            code: FailureCode::BranchMoved,
+                        });
                         // Nothing landed on this tree, and the client reads the change it prepared from it to make the
                         //  commit on the branch as it is now.
                         handed_back.insert(request.id.clone());
@@ -407,8 +553,17 @@ pub(crate) fn land_group(
         }
         Err(code) => {
             for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
-                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
-                log_answer(&times, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
+                stream.send(&ServiceMessage::Failed {
+                    id: request.id.clone(),
+                    code,
+                });
+                log_answer(
+                    &times,
+                    request,
+                    arrival,
+                    position + 1,
+                    format!("failed:{}", code.word()).as_str(),
+                );
             }
         }
     }

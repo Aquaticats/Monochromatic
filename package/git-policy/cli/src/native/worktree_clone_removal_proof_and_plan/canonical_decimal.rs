@@ -21,7 +21,10 @@
 /// Why:
 ///  `0` is its own spelling and `00`,
 /// `+1` and `007` are not numbers this grammar holds.
-pub fn is_canonical_decimal(text: &str, maximum_digits: usize) -> bool {
+pub fn is_canonical_decimal(
+    text: &str,
+    maximum_digits: usize,
+) -> bool {
     if text.is_empty() || text.len() > maximum_digits {
         return false;
     }
@@ -41,7 +44,10 @@ pub fn is_canonical_decimal(text: &str, maximum_digits: usize) -> bool {
 /// ```ts
 /// const parseCanonical = (text, bound) => isCanonical(text, bound) ? BigInt(text) : undefined;
 /// ```
-pub fn parse_canonical_u64(text: &str, maximum_digits: usize) -> Option<u64> {
+pub fn parse_canonical_u64(
+    text: &str,
+    maximum_digits: usize,
+) -> Option<u64> {
     if !is_canonical_decimal(text, maximum_digits) {
         return None;
     }

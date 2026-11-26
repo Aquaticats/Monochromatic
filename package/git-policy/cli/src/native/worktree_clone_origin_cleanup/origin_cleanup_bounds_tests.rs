@@ -11,7 +11,12 @@
 //! expect(fieldMaximumBytes('slotPath')).toBe(8190);
 //! ```
 
-use crate::worktree_clone_origin_cleanup::origin_cleanup_bounds::{FIELD_WIDEST_BYTES, ORIGIN_CLEANUP_MAXIMUM_BYTES, field_maximum_bytes, header_bytes};
+use crate::worktree_clone_origin_cleanup::origin_cleanup_bounds::{
+    FIELD_WIDEST_BYTES,
+    ORIGIN_CLEANUP_MAXIMUM_BYTES,
+    field_maximum_bytes,
+    header_bytes,
+};
 use crate::worktree_clone_origin_cleanup::origin_cleanup_words::ORIGIN_CLEANUP_KEYS_IN_ORDER;
 
 #[test]
@@ -29,6 +34,9 @@ fn the_widest_record_fits_the_caps_the_design_computed() {
     for (key, widest) in FIELD_WIDEST_BYTES {
         total += key.len() as u64 + 1 + widest as u64 + 1;
     }
-    assert!(total >= ORIGIN_CLEANUP_MAXIMUM_BYTES, "the widest fields reach the design's cap, which is what makes it the cap: {total}");
+    assert!(
+        total >= ORIGIN_CLEANUP_MAXIMUM_BYTES,
+        "the widest fields reach the design's cap, which is what makes it the cap: {total}"
+    );
     assert_eq!(field_maximum_bytes("slotPath"), Some(2 * 4_095));
 }

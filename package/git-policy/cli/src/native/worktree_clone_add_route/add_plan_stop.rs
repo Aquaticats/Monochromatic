@@ -34,9 +34,18 @@ use super::add_plan_clone_presence::the_presence_of_the_plans_clone;
 use super::add_route_gate::RouteFacts;
 use super::add_route_steps::StepRefusal;
 use crate::foundation::wrapper_names_old_and_new::COMMAND_WORD;
-use crate::worktree_clone_binding_record::add_state_commands::{ClonePresence, NextCommand, PlanHeadWord, StateFacts, command_for};
+use crate::worktree_clone_binding_record::add_state_commands::{
+    ClonePresence,
+    NextCommand,
+    PlanHeadWord,
+    StateFacts,
+    command_for,
+};
 use crate::worktree_clone_binding_record::binding_words::Phase;
-use crate::worktree_clone_binding_record::plan_folder_read::{APlanThatNamesTheClone, the_plan_naming_the_clone};
+use crate::worktree_clone_binding_record::plan_folder_read::{
+    APlanThatNamesTheClone,
+    the_plan_naming_the_clone,
+};
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_removal_cancel::cancel_arguments::CANCEL_COMMAND_WORD;
 
@@ -67,14 +76,25 @@ use crate::worktree_clone_removal_cancel::cancel_arguments::CANCEL_COMMAND_WORD;
 /// ```ts
 /// const stop = refuseWhileAPlanStands(route, probe); // void when no plan names the clone
 /// ```
-pub fn refuse_while_a_plan_stands(route: &RouteFacts, probe: &dyn DatasetReader) -> Result<(), StepRefusal> {
-    let found: APlanThatNamesTheClone = match the_plan_naming_the_clone(route.common_dir.as_path(), None, route.clone_dataset().as_str()) {
+pub fn refuse_while_a_plan_stands(
+    route: &RouteFacts,
+    probe: &dyn DatasetReader,
+) -> Result<(), StepRefusal> {
+    let found: APlanThatNamesTheClone = match the_plan_naming_the_clone(
+        route.common_dir.as_path(),
+        None,
+        route.clone_dataset().as_str(),
+    ) {
         Ok(None) => return Ok(()),
         Ok(Some(found)) => found,
         Err(unreadable) => return Err(StepRefusal::refused(unreadable.sentence)),
     };
     let presence: ClonePresence = the_presence_of_the_plans_clone(probe, &found);
-    return Err(StepRefusal::refused(the_sentence_beside_a_plan(&found, &presence, route.slot.as_str())));
+    return Err(StepRefusal::refused(the_sentence_beside_a_plan(
+        &found,
+        &presence,
+        route.slot.as_str(),
+    )));
 }
 
 /// What:
@@ -96,7 +116,11 @@ pub fn refuse_while_a_plan_stands(route: &RouteFacts, probe: &dyn DatasetReader)
 /// ```ts
 /// const sentence = theSentenceBesideAPlan(plan, presence, 'topic');
 /// ```
-pub fn the_sentence_beside_a_plan(plan: &APlanThatNamesTheClone, presence: &ClonePresence, slot: &str) -> String {
+pub fn the_sentence_beside_a_plan(
+    plan: &APlanThatNamesTheClone,
+    presence: &ClonePresence,
+    slot: &str,
+) -> String {
     // What:     `StateFacts { .. }` is the record of the facts the command list
     //           reads. Beside a plan, only `plan_head` and `clone` are read,
     //           so the other fields hold the add's state before its first
@@ -151,11 +175,15 @@ pub fn the_sentence_beside_a_plan(plan: &APlanThatNamesTheClone, presence: &Clon
 /// ```ts
 /// const named = plan.everyTuplePlanned && (plan.head === 'present' || plan.head === 'refused') && presence.kind !== 'name-answers-another';
 /// ```
-fn names_the_cancel_command(plan: &APlanThatNamesTheClone, presence: &ClonePresence) -> bool {
+fn names_the_cancel_command(
+    plan: &APlanThatNamesTheClone,
+    presence: &ClonePresence,
+) -> bool {
     if matches!(presence, ClonePresence::TheNameAnswersAnotherClone { .. }) {
         return false;
     }
-    return plan.every_tuple_planned && matches!(plan.head, PlanHeadWord::Present | PlanHeadWord::Refused);
+    return plan.every_tuple_planned
+        && matches!(plan.head, PlanHeadWord::Present | PlanHeadWord::Refused);
 }
 
 /// What:
@@ -172,10 +200,20 @@ fn names_the_cancel_command(plan: &APlanThatNamesTheClone, presence: &ClonePrese
 /// ```
 fn what_the_pool_answered(presence: &ClonePresence) -> String {
     return match presence {
-        ClonePresence::Stands => String::from("a child of the clone container carries that GUID, so the clone stands"),
-        ClonePresence::GoneProved => String::from("no child of the clone container carries that GUID and the name is free, so the clone is proved gone"),
-        ClonePresence::GoneUnprovable { evidence } => format!("the pool cannot prove that clone gone ({evidence})"),
-        ClonePresence::TheNameAnswersAnotherClone { live_guid } => format!("the name it records answers another clone, GUID {live_guid}, so nothing proves the clone it recorded gone"),
+        ClonePresence::Stands => {
+            String::from("a child of the clone container carries that GUID, so the clone stands")
+        }
+        ClonePresence::GoneProved => String::from(
+            "no child of the clone container carries that GUID and the name is free, so the clone is proved gone",
+        ),
+        ClonePresence::GoneUnprovable {
+            evidence,
+        } => format!("the pool cannot prove that clone gone ({evidence})"),
+        ClonePresence::TheNameAnswersAnotherClone {
+            live_guid,
+        } => format!(
+            "the name it records answers another clone, GUID {live_guid}, so nothing proves the clone it recorded gone"
+        ),
     };
 }
 

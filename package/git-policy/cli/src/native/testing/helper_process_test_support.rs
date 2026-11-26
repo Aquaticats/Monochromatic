@@ -25,12 +25,24 @@
 //! ```
 
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Child;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use super::child_test_process::{ChildTest, started};
-use super::test_support::{fixture, remove};
+use super::child_test_process::{
+    ChildTest,
+    started,
+};
+use super::test_support::{
+    fixture,
+    remove,
+};
 
 /// The file a helper writes the sentences it failed with to,
 /// one per line.
@@ -75,8 +87,12 @@ pub(crate) fn helper_directory(variable: &str) -> Option<PathBuf> {
 /// ```ts
 /// function verdictInAHelper(directory: string, failures: string[]): number
 /// ```
-pub(crate) fn verdict_in_a_helper(directory: &Path, failures: Vec<String>) -> i32 {
-    std::fs::write(directory.join(HELPER_VERDICT), failures.join("\n")).expect("the verdict record");
+pub(crate) fn verdict_in_a_helper(
+    directory: &Path,
+    failures: Vec<String>,
+) -> i32 {
+    std::fs::write(directory.join(HELPER_VERDICT), failures.join("\n"))
+        .expect("the verdict record");
     return if failures.is_empty() { 0 } else { 1 };
 }
 
@@ -97,13 +113,23 @@ pub(crate) fn verdict_in_a_helper(directory: &Path, failures: Vec<String>) -> i3
 ///   if (!status.success) failures.push(`the helper ended with ${status}`); return failures;
 /// }
 /// ```
-pub(crate) fn settle_after_a_helper(mut helper: Child, root: &Path) -> Vec<String> {
+pub(crate) fn settle_after_a_helper(
+    mut helper: Child,
+    root: &Path,
+) -> Vec<String> {
     let verdict: PathBuf = root.join(HELPER_VERDICT);
     let begun: Instant = Instant::now();
     while !verdict.exists() {
-        assert!(begun.elapsed() < HELPER_STEP_TIMEOUT, "{} never appeared", verdict.display());
+        assert!(
+            begun.elapsed() < HELPER_STEP_TIMEOUT,
+            "{} never appeared",
+            verdict.display()
+        );
         if let Some(status) = helper.try_wait().expect("the helper's status") {
-            panic!("the helper ended before {} appeared: {status:?}", verdict.display());
+            panic!(
+                "the helper ended before {} appeared: {status:?}",
+                verdict.display()
+            );
         }
         std::thread::sleep(LOOK_EVERY);
     }
@@ -113,7 +139,10 @@ pub(crate) fn settle_after_a_helper(mut helper: Child, root: &Path) -> Vec<Strin
         if let Some(status) = helper.try_wait().expect("the helper's status") {
             break status;
         }
-        assert!(ending_from.elapsed() < HELPER_STEP_TIMEOUT, "the helper did not end");
+        assert!(
+            ending_from.elapsed() < HELPER_STEP_TIMEOUT,
+            "the helper did not end"
+        );
         std::thread::sleep(LOOK_EVERY);
     };
     let mut failures: Vec<String> = text.lines().map(String::from).collect();
@@ -137,7 +166,11 @@ pub(crate) fn settle_after_a_helper(mut helper: Child, root: &Path) -> Vec<Strin
 /// ```ts
 /// function inAHelper(variable: string, fixtureName: string, exactTest: string): string[]
 /// ```
-pub(crate) fn in_a_helper(variable: &str, fixture_name: &str, exact_test: &str) -> Vec<String> {
+pub(crate) fn in_a_helper(
+    variable: &str,
+    fixture_name: &str,
+    exact_test: &str,
+) -> Vec<String> {
     return in_a_helper_then(variable, fixture_name, exact_test, |_root, _helper| {});
 }
 
@@ -154,7 +187,12 @@ pub(crate) fn in_a_helper(variable: &str, fixture_name: &str, exact_test: &str) 
 /// ```ts
 /// function inAHelperThen(variable, fixtureName, exactTest, before: (root, helper) => void): string[]
 /// ```
-pub(crate) fn in_a_helper_then(variable: &str, fixture_name: &str, exact_test: &str, before: impl FnOnce(&Path, &mut Child)) -> Vec<String> {
+pub(crate) fn in_a_helper_then(
+    variable: &str,
+    fixture_name: &str,
+    exact_test: &str,
+    before: impl FnOnce(&Path, &mut Child),
+) -> Vec<String> {
     let root: PathBuf = fixture(fixture_name);
     // The helper answers nothing the parent reads from a stream: everything it reports goes through the verdict file.
     let environment: [(&str, &std::ffi::OsStr); 1] = [(variable, root.as_os_str())];
@@ -182,12 +220,22 @@ pub(crate) fn in_a_helper_then(variable: &str, fixture_name: &str, exact_test: &
 /// ```ts
 /// function waitForFileWhileAHelperRuns(path: string, helper: Child): void
 /// ```
-pub(crate) fn wait_for_file_while_a_helper_runs(path: &Path, helper: &mut Child) {
+pub(crate) fn wait_for_file_while_a_helper_runs(
+    path: &Path,
+    helper: &mut Child,
+) {
     let begun: Instant = Instant::now();
     while !path.exists() {
-        assert!(begun.elapsed() < HELPER_STEP_TIMEOUT, "{} never appeared", path.display());
+        assert!(
+            begun.elapsed() < HELPER_STEP_TIMEOUT,
+            "{} never appeared",
+            path.display()
+        );
         if let Some(status) = helper.try_wait().expect("the helper's status") {
-            panic!("the helper ended before {} appeared: {status:?}", path.display());
+            panic!(
+                "the helper ended before {} appeared: {status:?}",
+                path.display()
+            );
         }
         std::thread::sleep(LOOK_EVERY);
     }

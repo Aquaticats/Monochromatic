@@ -11,7 +11,10 @@
 //! const listener = bind(path ?? inheritedDescriptor);
 //! ```
 
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::{
+    UnixListener,
+    UnixStream,
+};
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
 pub const INHERITED_DESCRIPTOR: i32 = 3;
 
@@ -75,7 +78,11 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
         Bind::Path(path) => bind_path(path),
         Bind::Inherited => {
             use std::os::fd::FromRawFd;
-            ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id())?;
+            ensure_socket_passed_in(
+                std::env::var("LISTEN_PID").ok().as_deref(),
+                std::env::var("LISTEN_FDS").ok().as_deref(),
+                std::process::id(),
+            )?;
             // SAFETY: the manager passed this descriptor to this process and nothing else in the process owns it.
             Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
         }
@@ -86,7 +93,12 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
 /// the variables `LISTEN_PID` and `LISTEN_FDS` of this
 ///  process's environment name this process and at least one descriptor.
 pub fn socket_passed_in() -> bool {
-    return ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id()).is_ok();
+    return ensure_socket_passed_in(
+        std::env::var("LISTEN_PID").ok().as_deref(),
+        std::env::var("LISTEN_FDS").ok().as_deref(),
+        std::process::id(),
+    )
+    .is_ok();
 }
 
 /// What:
@@ -104,7 +116,11 @@ pub fn socket_passed_in() -> bool {
 /// ```ts
 /// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ?? '0') >= 1)) { throw new Error('no socket was passed in') }
 /// ```
-pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Option<&str>, own_pid: u32) -> std::io::Result<()> {
+pub(crate) fn ensure_socket_passed_in(
+    listen_pid: Option<&str>,
+    listen_fds: Option<&str>,
+    own_pid: u32,
+) -> std::io::Result<()> {
     let announced_for: bool = matches!(listen_pid, Some(pid) if pid == own_pid.to_string());
     // A count that is missing or does not parse is none.
     let count: i32 = match listen_fds {

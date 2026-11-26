@@ -19,9 +19,17 @@ use crate::capture_invocation::InvocationLayout;
 /// for a file that names one.
 use crate::path_bytes::path_bytes_of;
 /// Format copy and the config bytes.
-use crate::shadow_config::{RepositoryFormat, format_shadow_config, read_repository_format, repository_format_from_snapshot};
+use crate::shadow_config::{
+    RepositoryFormat,
+    format_shadow_config,
+    read_repository_format,
+    repository_format_from_snapshot,
+};
 /// Process context and why reading the facts can fail.
-use crate::transaction_git::{GitContext, GitFailure};
+use crate::transaction_git::{
+    GitContext,
+    GitFailure,
+};
 /// `PathBuf` is an owned filesystem path.
 use std::path::PathBuf;
 
@@ -72,8 +80,15 @@ impl ShadowTemplate {
     /// ```ts
     /// ShadowTemplate.of(context, layout)
     /// ```
-    pub fn of(context: &GitContext, layout: &InvocationLayout) -> Result<ShadowTemplate, GitFailure> {
-        let format: RepositoryFormat = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
+    pub fn of(
+        context: &GitContext,
+        layout: &InvocationLayout,
+    ) -> Result<ShadowTemplate, GitFailure> {
+        let format: RepositoryFormat = match layout
+            .config_snapshot
+            .as_ref()
+            .and_then(repository_format_from_snapshot)
+        {
             Some(from_snapshot) => from_snapshot,
             None => read_repository_format(context, layout.common_dir.as_path())?,
         };
@@ -101,7 +116,11 @@ impl ShadowTemplate {
     /// template.configBytes()
     /// ```
     pub fn config_bytes(&self) -> Vec<u8> {
-        return format_shadow_config(&self.format, self.common_dir.as_path(), self.repository_root.as_path());
+        return format_shadow_config(
+            &self.format,
+            self.common_dir.as_path(),
+            self.repository_root.as_path(),
+        );
     }
 
     /// What:

@@ -61,7 +61,10 @@ impl fmt::Display for MaintenanceError {
     /// ```ts
     /// toString(): string
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
             Self::ConfigNotUtf8 => {
                 return formatter.write_str("git config output for maintenance is not UTF-8");
@@ -205,7 +208,12 @@ pub fn auto_maintenance_arguments(config: &BTreeMap<String, String>) -> Maintena
     }
     // The first configured detach setting; unset means detach.
     // `maintenance.autodetach` wins; `gc.autodetach` is looked at only when it is not set.
-    let detach_setting: Option<&String> = if let Some(setting) = config.get("maintenance.autodetach") { Some(setting) } else { config.get("gc.autodetach") };
+    let detach_setting: Option<&String> =
+        if let Some(setting) = config.get("maintenance.autodetach") {
+            Some(setting)
+        } else {
+            config.get("gc.autodetach")
+        };
     let detach: bool = match detach_setting {
         None => true,
         Some(value) => bool_or_int_true(value.as_str()),

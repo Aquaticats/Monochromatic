@@ -47,13 +47,27 @@ pub fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
 /// ```ts
 /// noticeLine({ signs, waited, first, below })
 /// ```
-pub fn notice_line(signs: bool, waited: Duration, first: bool, below: &[(i32, String)], ceiling: Duration) -> String {
-    let signing: String = if signs { String::from(", which signs the commit because `commit.gpgsign` or `-S` asks for it") } else { String::new() };
+pub fn notice_line(
+    signs: bool,
+    waited: Duration,
+    first: bool,
+    below: &[(i32, String)],
+    ceiling: Duration,
+) -> String {
+    let signing: String = if signs {
+        String::from(", which signs the commit because `commit.gpgsign` or `-S` asks for it")
+    } else {
+        String::new()
+    };
     let signer: String = match below.first() {
         Some((pid, name)) => format!("; `{name}` (process {pid}) runs below it"),
         None => String::new(),
     };
-    let hint: &str = if first { " Hint: it is still running; if it looks stuck, check it with `ps` and report it." } else { "" };
+    let hint: &str = if first {
+        " Hint: it is still running; if it looks stuck, check it with `ps` and report it."
+    } else {
+        ""
+    };
     return format!(
         "monochromatic-git-policy-cli: still waiting for the `git commit` this commit runs in its scratch repository{signing}{signer}, {} seconds so far; \
          it is stopped if it lasts {} seconds in all.{hint}\n",

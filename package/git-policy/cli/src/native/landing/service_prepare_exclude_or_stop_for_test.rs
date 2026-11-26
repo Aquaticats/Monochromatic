@@ -14,14 +14,14 @@
 //! const answer = excludeOrStop(context, capture, indexes, mode, captured);
 //! ```
 
+/// The captured invocation and the private indexes it built.
+use crate::capture_invocation::InvocationCapture;
+use crate::commit_transaction::TransactionStop;
 /// The step itself,
 /// which the landing's owed-index update owns.
 use crate::owed_index_update::exclude_or_stop;
-/// The captured invocation and the private indexes it built.
-use crate::capture_invocation::InvocationCapture;
-use crate::service_land_start::IndexWitness;
 use crate::private_index_request::CaptureIndexes;
-use crate::commit_transaction::TransactionStop;
+use crate::service_land_start::IndexWitness;
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 

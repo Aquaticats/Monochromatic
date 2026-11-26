@@ -9,10 +9,21 @@
 //! No hook of the pushing repository is used:
 //! the wrapper runs no configured hook.
 
-use super::support::{Fixture, git, remove, fixture, repository, run_wrapped, stderr_of};
+use super::support::{
+    Fixture,
+    fixture,
+    git,
+    remove,
+    repository,
+    run_wrapped,
+    stderr_of,
+};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A repository,
 /// its bare origin,
@@ -32,7 +43,11 @@ struct Race {
 /// Install a `pre-receive` hook in the bare origin that records the marker and every received object,
 /// and exits with
 ///  `exit_when_stacked` when it runs inside a stacked push and `0` otherwise.
-fn install_hook(origin: &Path, record: &Path, exit_when_stacked: i32) {
+fn install_hook(
+    origin: &Path,
+    record: &Path,
+    exit_when_stacked: i32,
+) {
     let hooks: PathBuf = origin.join("hooks");
     std::fs::create_dir_all(&hooks).expect("hooks directory");
     let hook: PathBuf = hooks.join("pre-receive");
@@ -50,10 +65,25 @@ fn install_hook(origin: &Path, record: &Path, exit_when_stacked: i32) {
 
 /// Commit `text` to `name` with real Git,
 /// so no auto-push runs.
-fn commit(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
+fn commit(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+    text: &str,
+) {
     std::fs::write(repo.join(name), text).expect("fixture file");
     git(fixture, repo, &["add", "--", name]);
-    git(fixture, repo, &["commit", "--quiet", &format!("--message={name}"), "--", name]);
+    git(
+        fixture,
+        repo,
+        &[
+            "commit",
+            "--quiet",
+            &format!("--message={name}"),
+            "--",
+            name,
+        ],
+    );
 }
 
 /// Build the fixture:
@@ -61,16 +91,33 @@ fn commit(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
 /// one clone that wins races,
 /// and the pushing repository one commit ahead
 ///  of an origin that has since moved.
-fn race(fixture: &Fixture, hook_exit_when_stacked: i32) -> Race {
+fn race(
+    fixture: &Fixture,
+    hook_exit_when_stacked: i32,
+) -> Race {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
     git(
         fixture,
         fixture.root.as_path(),
-        &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"],
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "origin.git",
+        ],
     );
-    git(fixture, repo.as_path(), &["remote", "add", "origin", origin.to_str().expect("utf-8")]);
-    git(fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", origin.to_str().expect("utf-8")],
+    );
+    git(
+        fixture,
+        repo.as_path(),
+        &["push", "--quiet", "origin", "main"],
+    );
     let rival: PathBuf = fixture.root.join("rival");
     git(
         fixture,
@@ -78,7 +125,11 @@ fn race(fixture: &Fixture, hook_exit_when_stacked: i32) -> Race {
         &["clone", "--quiet", origin.to_str().expect("utf-8"), "rival"],
     );
     commit(fixture, rival.as_path(), "rival.txt", "rival\n");
-    git(fixture, rival.as_path(), &["push", "--quiet", "origin", "HEAD:main"]);
+    git(
+        fixture,
+        rival.as_path(),
+        &["push", "--quiet", "origin", "HEAD:main"],
+    );
     commit(fixture, repo.as_path(), "local.txt", "local\n");
     let record: PathBuf = fixture.root.join("hook-record.txt");
     install_hook(origin.as_path(), record.as_path(), hook_exit_when_stacked);
@@ -91,14 +142,23 @@ fn race(fixture: &Fixture, hook_exit_when_stacked: i32) -> Race {
 }
 
 /// The commit a ref names in a repository.
-fn oid(fixture: &Fixture, repo: &Path, name: &str) -> String {
+fn oid(
+    fixture: &Fixture,
+    repo: &Path,
+    name: &str,
+) -> String {
     return String::from_utf8_lossy(&git(fixture, repo, &["rev-parse", name]).stdout)
         .trim()
         .to_owned();
 }
 
 /// Whether `ancestor` is reachable from `descendant` in the origin.
-fn reachable(fixture: &Fixture, race: &Race, ancestor: &str, descendant: &str) -> bool {
+fn reachable(
+    fixture: &Fixture,
+    race: &Race,
+    ancestor: &str,
+    descendant: &str,
+) -> bool {
     return super::support::direct(fixture)
         .current_dir(&race.origin)
         .args(["merge-base", "--is-ancestor", ancestor, descendant])
@@ -142,20 +202,41 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     let fixture = fixture("stack-lost-race");
     let race = race(&fixture, 0);
     let landed = oid(&fixture, race.repo.as_path(), "HEAD");
-    let observed = run_wrapped(&fixture, race.repo.as_path(), &["push", "origin", "HEAD:main"]);
+    let observed = run_wrapped(
+        &fixture,
+        race.repo.as_path(),
+        &["push", "origin", "HEAD:main"],
+    );
     let stderr = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{stderr}");
-    assert!(stderr.contains("[rejected]"), "Git's own report is unchanged: {stderr}");
-    assert!(stderr.contains("monochromatic-git-policy-cli: push: origin/main had new commits"), "{stderr}");
+    assert!(
+        stderr.contains("[rejected]"),
+        "Git's own report is unchanged: {stderr}"
+    );
+    assert!(
+        stderr.contains("monochromatic-git-policy-cli: push: origin/main had new commits"),
+        "{stderr}"
+    );
     let published = oid(&fixture, race.origin.as_path(), "main");
     assert!(reachable(&fixture, &race, &landed, &published));
-    assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));
+    assert!(reachable(
+        &fixture,
+        &race,
+        &oid(&fixture, race.rival.as_path(), "HEAD"),
+        &published
+    ));
     let lines = record_lines(&race);
     // Only the stacked merge push reaches the origin's hook: Git rejects the typed push before it sends anything,
     //  and the wrapper's dry-run probes send nothing.
     assert_eq!(hook_runs(&race), 1, "{lines:?}");
-    assert!(stacked_push_ran(&race), "the merge went through a stacked push: {lines:?}");
-    assert!(lines.contains(&format!("pushed={published}")), "the origin's hook saw the merge: {lines:?}");
+    assert!(
+        stacked_push_ran(&race),
+        "the merge went through a stacked push: {lines:?}"
+    );
+    assert!(
+        lines.contains(&format!("pushed={published}")),
+        "the origin's hook saw the merge: {lines:?}"
+    );
     remove(&fixture);
 }
 
@@ -166,7 +247,11 @@ fn a_gate_that_refuses_the_merge_stops_the_stacking() {
     let fixture = fixture("stack-gate-refuses");
     let race = race(&fixture, 1);
     let before = oid(&fixture, race.origin.as_path(), "main");
-    let observed = run_wrapped(&fixture, race.repo.as_path(), &["push", "origin", "HEAD:main"]);
+    let observed = run_wrapped(
+        &fixture,
+        race.repo.as_path(),
+        &["push", "origin", "HEAD:main"],
+    );
     let stderr = stderr_of(&observed);
     assert_eq!(observed.code, Some(1), "{stderr}");
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
@@ -186,7 +271,11 @@ fn a_dry_run_runs_no_stacked_push() {
     let fixture = fixture("stack-ineligible");
     let race = race(&fixture, 0);
     let before = oid(&fixture, race.origin.as_path(), "main");
-    let observed = run_wrapped(&fixture, race.repo.as_path(), &["push", "--dry-run", "origin", "HEAD:main"]);
+    let observed = run_wrapped(
+        &fixture,
+        race.repo.as_path(),
+        &["push", "--dry-run", "origin", "HEAD:main"],
+    );
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
     assert!(!stderr_of(&observed).contains("had new commits"));
     assert!(
@@ -203,10 +292,18 @@ fn a_conflict_publishes_nothing_and_names_the_paths() {
     let fixture = fixture("stack-conflict");
     let race = race(&fixture, 0);
     commit(&fixture, race.rival.as_path(), "same.txt", "rival side\n");
-    git(&fixture, race.rival.as_path(), &["push", "--quiet", "origin", "HEAD:main"]);
+    git(
+        &fixture,
+        race.rival.as_path(),
+        &["push", "--quiet", "origin", "HEAD:main"],
+    );
     commit(&fixture, race.repo.as_path(), "same.txt", "local side\n");
     let before = oid(&fixture, race.origin.as_path(), "main");
-    let observed = run_wrapped(&fixture, race.repo.as_path(), &["push", "origin", "HEAD:main"]);
+    let observed = run_wrapped(
+        &fixture,
+        race.repo.as_path(),
+        &["push", "origin", "HEAD:main"],
+    );
     let stderr = stderr_of(&observed);
     assert_eq!(observed.code, Some(1), "{stderr}");
     assert!(stderr.contains("conflicts in: same.txt"), "{stderr}");
@@ -219,7 +316,11 @@ fn a_conflict_publishes_nothing_and_names_the_paths() {
 /// which is the window the commit's own auto-push lands in.
 /// `mkdir` decides which push is the first,
 /// because it is the one step two hooks cannot both win.
-fn install_holding_hook(origin: &Path, gate: &Path, started: &Path) {
+fn install_holding_hook(
+    origin: &Path,
+    gate: &Path,
+    started: &Path,
+) {
     let hook: PathBuf = origin.join("hooks").join("pre-receive");
     std::fs::write(
         &hook,
@@ -262,9 +363,27 @@ fn a_push_the_auto_push_landed_while_it_waited_ends_with_success() {
     let fixture = fixture("stack-published-first");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
-    git(&fixture, repo.as_path(), &["remote", "add", "origin", origin.to_str().expect("utf-8")]);
-    git(&fixture, repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--bare",
+            "--initial-branch=main",
+            "origin.git",
+        ],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["remote", "add", "origin", origin.to_str().expect("utf-8")],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["push", "--quiet", "--set-upstream", "origin", "main"],
+    );
     commit(&fixture, repo.as_path(), "next.txt", "next\n");
     let pushed = oid(&fixture, repo.as_path(), "HEAD");
     let gate: PathBuf = fixture.root.join("gate");
@@ -286,7 +405,11 @@ fn a_push_the_auto_push_landed_while_it_waited_ends_with_success() {
     .expect("the wrapped push starts");
     wait_for(started.as_path());
     // The auto-push of the same commit lands it, so the origin no longer stands where the held push found it.
-    git(&fixture, repo.as_path(), &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["push", "--quiet", "origin", "HEAD:refs/heads/main"],
+    );
     std::fs::remove_file(&gate).expect("gate released");
     let output: std::process::Output = held.wait_with_output().expect("the wrapped push ends");
     let report: String = format!(
@@ -294,9 +417,23 @@ fn a_push_the_auto_push_landed_while_it_waited_ends_with_success() {
         String::from_utf8_lossy(output.stdout.as_slice()),
         String::from_utf8_lossy(output.stderr.as_slice())
     );
-    assert_eq!(oid(&fixture, origin.as_path(), "main"), pushed, "the origin holds the pushed commit");
-    assert!(report.contains("cannot lock ref"), "the origin refused the held push's stale expectation: {report}");
-    assert_eq!(output.status.code(), Some(0), "the origin holds what this push sends: {report}");
-    assert!(report.contains("already holds everything this push sends"), "{report}");
+    assert_eq!(
+        oid(&fixture, origin.as_path(), "main"),
+        pushed,
+        "the origin holds the pushed commit"
+    );
+    assert!(
+        report.contains("cannot lock ref"),
+        "the origin refused the held push's stale expectation: {report}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "the origin holds what this push sends: {report}"
+    );
+    assert!(
+        report.contains("already holds everything this push sends"),
+        "{report}"
+    );
     remove(&fixture);
 }

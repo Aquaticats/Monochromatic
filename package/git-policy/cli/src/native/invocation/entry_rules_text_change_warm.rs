@@ -28,16 +28,37 @@
 
 use crate::config_file::load_repository_config;
 use crate::forwarded_command::ResolvedCommand;
-use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file_through_links};
+use crate::plain_file::{
+    SMALL_FILE_LIMIT,
+    read_plain_file_through_links,
+};
 use crate::scanner_selection::rules_source;
 use crate::service_warm_request::ask_running_service_to_warm;
-use crate::worktree_identity::{WorktreeIdentity, git_directory, worktree_root};
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::{Path, PathBuf};
+use crate::worktree_identity::{
+    WorktreeIdentity,
+    git_directory,
+    worktree_root,
+};
+use std::hash::{
+    DefaultHasher,
+    Hash,
+    Hasher,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The commands that move the worktree to other files,
 /// and so may change the rules text.
-pub const WORKTREE_MOVING_COMMANDS: [&[u8]; 6] = [b"merge", b"pull", b"checkout", b"switch", b"rebase", b"reset"];
+pub const WORKTREE_MOVING_COMMANDS: [&[u8]; 6] = [
+    b"merge",
+    b"pull",
+    b"checkout",
+    b"switch",
+    b"rebase",
+    b"reset",
+];
 
 /// The rules text as it stood before the command.
 pub struct RulesTextMark {
@@ -71,7 +92,12 @@ fn unselectable<Failure>(_failure: Failure) -> NoDigest {
 fn digest_of_rules_text(root: &Path) -> Result<u64, NoDigest> {
     let loaded = load_repository_config(root).map_err(unselectable)?;
     let options = &loaded.config.policies.forbidden_strings;
-    let rules = rules_source(options.rules_files.as_deref(), std::env::var_os("FORBIDDEN_STRINGS_RULES").as_deref(), root).map_err(unselectable)?;
+    let rules = rules_source(
+        options.rules_files.as_deref(),
+        std::env::var_os("FORBIDDEN_STRINGS_RULES").as_deref(),
+        root,
+    )
+    .map_err(unselectable)?;
     let mut hasher: DefaultHasher = DefaultHasher::new();
     for entry in &rules.entries {
         entry.path.hash(&mut hasher);
@@ -83,7 +109,12 @@ fn digest_of_rules_text(root: &Path) -> Result<u64, NoDigest> {
                 bytes.hash(&mut hasher);
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0_u8.hash(&mut hasher),
-            Err(reason) => return Err(NoDigest::Unreadable { path: entry.path.clone(), reason }),
+            Err(reason) => {
+                return Err(NoDigest::Unreadable {
+                    path: entry.path.clone(),
+                    reason,
+                });
+            }
         }
     }
     return Ok(hasher.finish());
@@ -123,7 +154,10 @@ enum NoDigest {
 /// ```ts
 /// `... the rules file ${path} is not text this command can read (${reason}) ...`
 /// ```
-fn unreadable_rules_line(path: &Path, reason: &std::io::Error) -> String {
+fn unreadable_rules_line(
+    path: &Path,
+    reason: &std::io::Error,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the forbidden-strings rules file {} is not text this command can read ({reason}), so the rules text \
          is not marked here; the next commit reads it and reports what it finds.\n",
@@ -142,9 +176,13 @@ fn digest_or_report(root: &Path) -> Option<u64> {
     return match digest_of_rules_text(root) {
         Ok(digest) => Some(digest),
         Err(NoDigest::Unselectable) => None,
-        Err(NoDigest::Unreadable { path, reason }) => {
+        Err(NoDigest::Unreadable {
+            path,
+            reason,
+        }) => {
             let line: String = unreadable_rules_line(path.as_path(), &reason);
-            let _said: std::io::Result<()> = std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes());
+            let _said: std::io::Result<()> =
+                std::io::Write::write_all(&mut std::io::stderr(), line.as_bytes());
             None
         }
     };
@@ -152,21 +190,30 @@ fn digest_or_report(root: &Path) -> Option<u64> {
 
 /// Marks the rules text before `command` runs,
 /// when it is one of the commands that move the worktree.
-pub fn mark_rules_text(command: &ResolvedCommand, identity: &WorktreeIdentity) -> Option<RulesTextMark> {
+pub fn mark_rules_text(
+    command: &ResolvedCommand,
+    identity: &WorktreeIdentity,
+) -> Option<RulesTextMark> {
     if !WORKTREE_MOVING_COMMANDS.contains(&command.word()) {
         return None;
     }
     let root: &Path = worktree_root(identity)?;
     let git_dir: &Path = git_directory(identity)?;
     let digest: u64 = digest_or_report(root)?;
-    return Some(RulesTextMark { git_dir: git_dir.to_path_buf(), root: root.to_path_buf(), digest });
+    return Some(RulesTextMark {
+        git_dir: git_dir.to_path_buf(),
+        root: root.to_path_buf(),
+        digest,
+    });
 }
 
 impl RulesTextMark {
     /// Asks the running service to compile the rules when their text is not what it was;
     /// says whether it asked.
     pub fn ask_if_changed(&self) -> bool {
-        let Some(after) = digest_or_report(self.root.as_path()) else { return false };
+        let Some(after) = digest_or_report(self.root.as_path()) else {
+            return false;
+        };
         if after == self.digest {
             return false;
         }

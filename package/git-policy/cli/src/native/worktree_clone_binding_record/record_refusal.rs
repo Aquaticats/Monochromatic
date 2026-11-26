@@ -126,52 +126,90 @@ impl RecordRefusal {
     /// naming the line and the way forward.
     pub fn message(&self) -> String {
         return match self {
-            RecordRefusal::TooLarge { found, bound } => format!(
+            RecordRefusal::TooLarge {
+                found,
+                bound,
+            } => format!(
                 "this record is {found} bytes long and the widest record its grammar allows is {bound} bytes, so it was not read. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::LineTooLarge { line, found, bound } => format!(
+            RecordRefusal::LineTooLarge {
+                line,
+                found,
+                bound,
+            } => format!(
                 "line {line} of this record is {found} bytes long and the widest line its grammar allows is {bound} bytes, so it was not read. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::NotUtf8 { line } => {
+            RecordRefusal::NotUtf8 {
+                line,
+            } => {
                 let _ = line;
                 format!(
-                "this record\x27s bytes are not UTF-8, so the record was not read. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
-            )
+                    "this record\x27s bytes are not UTF-8, so the record was not read. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
+                )
             }
-            RecordRefusal::Header { found } => format!(
+            RecordRefusal::Header {
+                found,
+            } => format!(
                 "this record's first line is `{found}`, which is not the header of this release's grammar, so the record was not read as one. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::NotAField { line, found } => format!(
+            RecordRefusal::NotAField {
+                line,
+                found,
+            } => format!(
                 "line {line} of this record is `{found}`, which is not one `key=value` field, so the record was not read. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::UnknownKey { line, key } => format!(
+            RecordRefusal::UnknownKey {
+                line,
+                key,
+            } => format!(
                 "line {line} of this record holds the key `{key}`, which this release does not write, so the record was not read: an unknown key is either a later grammar or damage, and neither may be read as this one. Nothing was changed. Ways forward: read the file, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::KeyOutOfOrder { line, key, expected } => format!(
+            RecordRefusal::KeyOutOfOrder {
+                line,
+                key,
+                expected,
+            } => format!(
                 "line {line} of this record holds `{key}` where the grammar holds `{expected}`, so the record's fields are out of order or one is written twice. Nothing was changed. Ways forward: read the file, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::Value { line, key, reason } => format!(
+            RecordRefusal::Value {
+                line,
+                key,
+                reason,
+            } => format!(
                 "line {line} of this record holds a `{key}` value this grammar cannot read ({reason}), so the record was not read. Nothing was changed. Ways forward: read the file, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::Missing { key, phase } => format!(
+            RecordRefusal::Missing {
+                key,
+                phase,
+            } => format!(
                 "this record stands at phase `{phase}` and holds no `{key}` field, which every record of that phase must hold. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::AheadOfItsPhase { key, phase } => format!(
+            RecordRefusal::AheadOfItsPhase {
+                key,
+                phase,
+            } => format!(
                 "this record stands at phase `{phase}` and holds a `{key}` field that phase does not prove. Nothing was changed. Ways forward: read the file and compare it with the record the add wrote, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::SettleReason { reason } => format!(
+            RecordRefusal::SettleReason {
+                reason,
+            } => format!(
                 "this record's phase and its settle reason disagree ({reason}), so the record was not read. Nothing was changed. Ways forward: read the file, restore it from a copy, or delete it and run the command again."
             ),
-            RecordRefusal::EntryCount { stated, found } => format!(
+            RecordRefusal::EntryCount {
+                stated,
+                found,
+            } => format!(
                 "this inventory states {stated} entries and holds {found} entry lines, so a truncated or extended file would be read as history. Nothing was changed. Ways forward: read the file, restore it from a copy, or delete it and record the inventory again."
             ),
-            RecordRefusal::Kind { found, expected } => format!(
+            RecordRefusal::Kind {
+                found,
+                expected,
+            } => format!(
                 "this inventory states kind `{found}` and is filed under a name that holds `{expected}`. Nothing was changed. Ways forward: read the file, restore it under its own name, or delete it and record the inventory again."
             ),
         };
     }
 }
-
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

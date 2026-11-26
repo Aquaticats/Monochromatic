@@ -18,10 +18,20 @@
 //! const found = describeLock(lockPath, true); // 'service seq=7 pid=42 state=running age_ms=5000 open_by=[42 (monochromatic-git-policy-cli)]'
 //! ```
 
-use crate::index_lock_holders::{Holder, HolderEvidence};
-use crate::service_index_marker::{HolderState, holder_state, marker_of};
+use crate::index_lock_holders::{
+    Holder,
+    HolderEvidence,
+};
+use crate::service_index_marker::{
+    HolderState,
+    holder_state,
+    marker_of,
+};
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 /// What an acquisition noted about its wait.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -145,7 +155,9 @@ fn age_millis(metadata: &std::fs::Metadata) -> u128 {
 /// describeLock(lockPath) // string
 /// ```
 pub fn describe_lock(lock: &Path) -> String {
-    let Ok(metadata) = std::fs::metadata(lock) else { return String::from("vanished") };
+    let Ok(metadata) = std::fs::metadata(lock) else {
+        return String::from("vanished");
+    };
     let age_ms: u128 = age_millis(&metadata);
     return match marker_of(lock) {
         Some(marked) => match marked.holder {
@@ -154,7 +166,10 @@ pub fn describe_lock(lock: &Path) -> String {
                 marked.seq,
                 state_word(holder_state(Some(&(pid, birth))))
             ),
-            None => format!("service seq={} holder=none (an earlier release's marker) age_ms={age_ms}", marked.seq),
+            None => format!(
+                "service seq={} holder=none (an earlier release's marker) age_ms={age_ms}",
+                marked.seq
+            ),
         },
         None => format!("foreign no-marker size={} age_ms={age_ms}", metadata.len()),
     };

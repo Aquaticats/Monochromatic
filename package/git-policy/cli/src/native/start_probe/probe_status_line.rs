@@ -25,7 +25,10 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_errno_names::{ErrnoWord, known_reason_word};
+use super::probe_errno_names::{
+    ErrnoWord,
+    known_reason_word,
+};
 use super::probe_line_refusal::LineRefusal;
 use super::probe_status_prefix::STATUS_PREFIX;
 
@@ -69,8 +72,12 @@ impl StepAnswer {
     pub fn word(&self) -> &'static str {
         return match self {
             StepAnswer::Passed => "passed",
-            StepAnswer::Failed { .. } => "failed",
-            StepAnswer::NotExercised { .. } => "not-exercised",
+            StepAnswer::Failed {
+                ..
+            } => "failed",
+            StepAnswer::NotExercised {
+                ..
+            } => "not-exercised",
         };
     }
 }
@@ -100,26 +107,59 @@ pub struct StepLine {
 impl StepLine {
     /// One passing step's line.
     pub fn passed(step: ProbeStep) -> Self {
-        return StepLine { step, answer: StepAnswer::Passed, source: None };
+        return StepLine {
+            step,
+            answer: StepAnswer::Passed,
+            source: None,
+        };
     }
 
     /// One failed step's line,
     /// with the errno name its call answered or nothing for a comparison.
-    pub fn failed(step: ProbeStep, errno: Option<&'static str>) -> Self {
-        return StepLine { step, answer: StepAnswer::Failed { errno: ErrnoWord::of_name(errno) }, source: None };
+    pub fn failed(
+        step: ProbeStep,
+        errno: Option<&'static str>,
+    ) -> Self {
+        return StepLine {
+            step,
+            answer: StepAnswer::Failed {
+                errno: ErrnoWord::of_name(errno),
+            },
+            source: None,
+        };
     }
 
     /// One failed step's line from the number its call answered,
     /// which stays a number where this build has no name for it.
-    pub fn failed_number(step: ProbeStep, errno: Option<i32>) -> Self {
-        return StepLine { step, answer: StepAnswer::Failed { errno: ErrnoWord::of_number(errno) }, source: None };
+    pub fn failed_number(
+        step: ProbeStep,
+        errno: Option<i32>,
+    ) -> Self {
+        return StepLine {
+            step,
+            answer: StepAnswer::Failed {
+                errno: ErrnoWord::of_number(errno),
+            },
+            source: None,
+        };
     }
 
     /// One step that did not run,
     /// the word saying why,
     /// and the errno its call answered where one did.
-    pub fn not_exercised(step: ProbeStep, reason: &'static str, errno: Option<&'static str>) -> Self {
-        return StepLine { step, answer: StepAnswer::NotExercised { reason, errno: ErrnoWord::of_name(errno) }, source: None };
+    pub fn not_exercised(
+        step: ProbeStep,
+        reason: &'static str,
+        errno: Option<&'static str>,
+    ) -> Self {
+        return StepLine {
+            step,
+            answer: StepAnswer::NotExercised {
+                reason,
+                errno: ErrnoWord::of_name(errno),
+            },
+            source: None,
+        };
     }
 
     /// The line as the pipe carries it,
@@ -127,16 +167,31 @@ impl StepLine {
     pub fn encode(&self) -> String {
         let errno: String = match &self.answer {
             StepAnswer::Passed => String::from("none"),
-            StepAnswer::Failed { errno } => errno.text(),
-            StepAnswer::NotExercised { errno, .. } => errno.text(),
+            StepAnswer::Failed {
+                errno,
+            } => errno.text(),
+            StepAnswer::NotExercised {
+                errno,
+                ..
+            } => errno.text(),
         };
         let arm: &str = self.step.arm().name();
         let source: &str = self.source.as_deref().unwrap_or("-");
         let reason: String = match &self.answer {
-            StepAnswer::NotExercised { reason, .. } => format!(" reason={reason}"),
-            StepAnswer::Passed | StepAnswer::Failed { .. } => String::new(),
+            StepAnswer::NotExercised {
+                reason,
+                ..
+            } => format!(" reason={reason}"),
+            StepAnswer::Passed
+            | StepAnswer::Failed {
+                ..
+            } => String::new(),
         };
-        return format!("{STATUS_PREFIX} arm={arm} step={} answer={} errno={errno} source={source}{reason}\n", self.step.name(), self.answer.word());
+        return format!(
+            "{STATUS_PREFIX} arm={arm} step={} answer={} errno={errno} source={source}{reason}\n",
+            self.step.name(),
+            self.answer.word()
+        );
     }
 
     /// Read one line,
@@ -155,18 +210,29 @@ impl StepLine {
         for (place, word) in trimmed.split(' ').enumerate() {
             if place == 0 {
                 if word != STATUS_PREFIX {
-                    return Err(LineRefusal::NotAStatusLine { text: String::from(trimmed) });
+                    return Err(LineRefusal::NotAStatusLine {
+                        text: String::from(trimmed),
+                    });
                 }
                 continue;
             }
             let Some((key, value)) = word.split_once('=') else {
-                return Err(LineRefusal::UnknownKey { word: String::from(word) });
+                return Err(LineRefusal::UnknownKey {
+                    word: String::from(word),
+                });
             };
-            if !matches!(key, "arm" | "step" | "answer" | "errno" | "source" | "reason") {
-                return Err(LineRefusal::UnknownKey { word: String::from(key) });
+            if !matches!(
+                key,
+                "arm" | "step" | "answer" | "errno" | "source" | "reason"
+            ) {
+                return Err(LineRefusal::UnknownKey {
+                    word: String::from(key),
+                });
             }
             if value.is_empty() {
-                return Err(LineRefusal::ValueNotOneWord { key: String::from(key) });
+                return Err(LineRefusal::ValueNotOneWord {
+                    key: String::from(key),
+                });
             }
             fields.push((key, value));
         }
@@ -186,49 +252,91 @@ impl StepLine {
                 _ => &mut reason_field,
             };
             if slot.is_some() {
-                return Err(LineRefusal::RepeatedKey { key: String::from(key) });
+                return Err(LineRefusal::RepeatedKey {
+                    key: String::from(key),
+                });
             }
             *slot = Some(value);
         }
         let Some(step_word) = step_field else {
-            return Err(LineRefusal::MissingKey { key: String::from("step") });
+            return Err(LineRefusal::MissingKey {
+                key: String::from("step"),
+            });
         };
         let Some(step) = ProbeStep::from_name(step_word) else {
-            return Err(LineRefusal::UnknownStep { word: String::from(step_word) });
+            return Err(LineRefusal::UnknownStep {
+                word: String::from(step_word),
+            });
         };
         let expected_arm: &'static str = step.arm().name();
         match arm {
-            None => return Err(LineRefusal::MissingKey { key: String::from("arm") }),
-            Some(word) if word != expected_arm => return Err(LineRefusal::WrongArm { expected: expected_arm, word: String::from(word) }),
+            None => {
+                return Err(LineRefusal::MissingKey {
+                    key: String::from("arm"),
+                });
+            }
+            Some(word) if word != expected_arm => {
+                return Err(LineRefusal::WrongArm {
+                    expected: expected_arm,
+                    word: String::from(word),
+                });
+            }
             Some(_) => {}
         };
         let Some(answer_word) = answer_field else {
-            return Err(LineRefusal::MissingKey { key: String::from("answer") });
+            return Err(LineRefusal::MissingKey {
+                key: String::from("answer"),
+            });
         };
         let errno_word: ErrnoWord = match errno {
             None => ErrnoWord::None,
             Some(word) => match ErrnoWord::parse(word) {
                 Some(field) => field,
-                None => return Err(LineRefusal::UnknownErrno { word: String::from(word) }),
+                None => {
+                    return Err(LineRefusal::UnknownErrno {
+                        word: String::from(word),
+                    });
+                }
             },
         };
         let parsed_answer: StepAnswer = match answer_word {
             "passed" => StepAnswer::Passed,
-            "failed" => StepAnswer::Failed { errno: errno_word },
+            "failed" => StepAnswer::Failed {
+                errno: errno_word,
+            },
             "not-exercised" => match reason_field {
-                None => return Err(LineRefusal::MissingKey { key: String::from("reason") }),
+                None => {
+                    return Err(LineRefusal::MissingKey {
+                        key: String::from("reason"),
+                    });
+                }
                 Some(word) => match known_reason_word(word) {
-                    Some(reason) => StepAnswer::NotExercised { reason, errno: errno_word },
-                    None => return Err(LineRefusal::UnknownReason { word: String::from(word) }),
+                    Some(reason) => StepAnswer::NotExercised {
+                        reason,
+                        errno: errno_word,
+                    },
+                    None => {
+                        return Err(LineRefusal::UnknownReason {
+                            word: String::from(word),
+                        });
+                    }
                 },
             },
-            other => return Err(LineRefusal::UnknownAnswer { word: String::from(other) }),
+            other => {
+                return Err(LineRefusal::UnknownAnswer {
+                    word: String::from(other),
+                });
+            }
         };
         let parsed_source: Option<String> = match source_field {
             None | Some("-") => None,
             Some(word) => Some(String::from(word)),
         };
-        return Ok(StepLine { step, answer: parsed_answer, source: parsed_source });
+        return Ok(StepLine {
+            step,
+            answer: parsed_answer,
+            source: parsed_source,
+        });
     }
 }
 
@@ -252,19 +360,26 @@ pub struct LineFeed {
 impl LineFeed {
     /// An empty feed.
     pub fn new() -> Self {
-        return LineFeed { pending: Vec::new() };
+        return LineFeed {
+            pending: Vec::new(),
+        };
     }
 
     /// Keep the bytes one read answered and answer every whole line they
     ///  completed,
     ///  parsed.
-    pub fn push(&mut self, bytes: &[u8]) -> Vec<Result<StepLine, LineRefusal>> {
+    pub fn push(
+        &mut self,
+        bytes: &[u8],
+    ) -> Vec<Result<StepLine, LineRefusal>> {
         self.pending.extend_from_slice(bytes);
         let mut lines: Vec<Result<StepLine, LineRefusal>> = Vec::new();
         while let Some(end) = self.pending.iter().position(|byte| return *byte == b'\n') {
             let line: Vec<u8> = self.pending.drain(..=end).collect();
             let Ok(text) = std::str::from_utf8(&line[..line.len() - 1]) else {
-                lines.push(Err(LineRefusal::NotAStatusLine { text: String::from_utf8_lossy(&line).into_owned() }));
+                lines.push(Err(LineRefusal::NotAStatusLine {
+                    text: String::from_utf8_lossy(&line).into_owned(),
+                }));
                 continue;
             };
             lines.push(StepLine::parse(text));

@@ -27,10 +27,14 @@
 //! handOverTrash(after.trash); repairCreated(after); // the trash's emptying is the service's
 //! ```
 
+#[cfg(target_os = "linux")]
+use crate::package_repair::{
+    RepairEnvironment,
+    RepairRequest,
+    repair_worktree,
+};
 use crate::shared_notice_stream::SharedNoticeStream;
 use crate::worktree_copy::Invocation;
-#[cfg(target_os = "linux")]
-use crate::package_repair::{RepairEnvironment, RepairRequest, repair_worktree};
 #[cfg(target_os = "linux")]
 use crate::worktree_trash::PendingTrash;
 use std::io::Write;
@@ -90,11 +94,23 @@ pub(crate) struct AfterLock {
 /// for (const root of roots) repairWorktree({ git, source, destination: root, switch, environment }, stderr);
 /// ```
 #[cfg(target_os = "linux")]
-fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn Write) {
-    let Some(source) = after.source_root.as_deref() else { return };
+fn repair_created(
+    invocation: &Invocation,
+    after: &AfterLock,
+    stderr: &mut dyn Write,
+) {
+    let Some(source) = after.source_root.as_deref() else {
+        return;
+    };
     let environment: RepairEnvironment = RepairEnvironment::from_process();
     for root in &after.created {
-        let request: RepairRequest<'_> = RepairRequest { git: &invocation.context, source, destination: root.as_path(), switch: invocation.repair, environment: &environment };
+        let request: RepairRequest<'_> = RepairRequest {
+            git: &invocation.context,
+            source,
+            destination: root.as_path(),
+            switch: invocation.repair,
+            environment: &environment,
+        };
         repair_worktree(&request, stderr);
     }
 }
@@ -122,20 +138,37 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 /// handOver(after.trash); repairCreated(after);
 /// ```
 #[cfg(target_os = "linux")]
-pub(crate) fn finish_trash_and_repair(invocation: &Invocation, after: &AfterLock, stderr: &mut (dyn Write + Send)) {
+pub(crate) fn finish_trash_and_repair(
+    invocation: &Invocation,
+    after: &AfterLock,
+    stderr: &mut (dyn Write + Send),
+) {
     let stream: crate::shared_notice_stream::NoticeStream<'_> = std::sync::Mutex::new(stderr);
     if let Some(pending) = after.trash.as_ref() {
         // The hand-over is a step of its own: a record and a wake, timed beside the repair so the record of the add says what
         //  the service was told and how long that took.
         let hand_over_entered: bool = crate::add_timing::begin_step("handOverTrash");
-        let mut notices = SharedNoticeStream { held: &stream, quiet: false };
-        let told: Result<(), String> = crate::worktree_trash::hand_over_to_the_service(&invocation.context, pending, &mut notices);
+        let mut notices = SharedNoticeStream {
+            held: &stream,
+            quiet: false,
+        };
+        let told: Result<(), String> = crate::worktree_trash::hand_over_to_the_service(
+            &invocation.context,
+            pending,
+            &mut notices,
+        );
         crate::add_timing::end_step(hand_over_entered);
         if let Err(reason) = told {
-            crate::diagnostic_log::warn("worktreeCopyAfterLock", format!("monochromatic-git-policy-cli: {reason}").as_str());
+            crate::diagnostic_log::warn(
+                "worktreeCopyAfterLock",
+                format!("monochromatic-git-policy-cli: {reason}").as_str(),
+            );
         }
     }
-    let mut findings = SharedNoticeStream { held: &stream, quiet: false };
+    let mut findings = SharedNoticeStream {
+        held: &stream,
+        quiet: false,
+    };
     repair_created(invocation, after, &mut findings);
 }
 
@@ -152,7 +185,11 @@ pub(crate) fn finish_trash_and_repair(invocation: &Invocation, after: &AfterLock
 /// const finishTrashAndRepair = (invocation, after, stderr) => {};
 /// ```
 #[cfg(not(target_os = "linux"))]
-pub(crate) fn finish_trash_and_repair(_invocation: &Invocation, _after: &AfterLock, _stderr: &mut (dyn Write + Send)) {
+pub(crate) fn finish_trash_and_repair(
+    _invocation: &Invocation,
+    _after: &AfterLock,
+    _stderr: &mut (dyn Write + Send),
+) {
     return;
 }
 

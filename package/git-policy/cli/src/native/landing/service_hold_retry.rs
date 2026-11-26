@@ -24,18 +24,33 @@
 //! for (let attempt = 0; attempt < ATTEMPTS; attempt++) { const run = await runCapturingStderr(git); if (!lostToService(run)) return show(run); await waitForServiceHold(); }
 //! ```
 
-use crate::forwarding::{ChildOutcome, exit_code, git_command, outcome_of, run_real_git};
+use crate::forwarding::{
+    ChildOutcome,
+    exit_code,
+    git_command,
+    outcome_of,
+    run_real_git,
+};
 /// Who a real-Git start runs for:
 /// this step reruns the command the person typed.
 use crate::hooks_off::StartOwner;
 use crate::scratch_location::scratch_file;
-use crate::service_index_wait::{Waited, foreign_holds, wait_for_service_hold_within};
+use crate::service_index_wait::{
+    Waited,
+    foreign_holds,
+    wait_for_service_hold_within,
+};
+use crate::start_retry::RetryStart;
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
 use crate::wait_progress::Cadence;
-use crate::start_retry::RetryStart;
 use crate::worktree_copy_forward::ForwardedRun;
 use std::ffi::OsString;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+    Write,
+};
 use std::path::Path;
 use std::process::Stdio;
 
@@ -51,15 +66,53 @@ const DIE_STATUS: i32 = 128;
 
 /// Options of `git add` that change nothing about its input and read no standard input.
 const ADD_OPTIONS: [&str; 20] = [
-    "-v", "-n", "-f", "-A", "-u", "-N", "-q", "--verbose", "--dry-run", "--force", "--all", "--update", "--intent-to-add",
-    "--ignore-errors", "--refresh", "--renormalize", "--no-all", "--ignore-removal", "--sparse", "--no-warn-embedded-repo",
+    "-v",
+    "-n",
+    "-f",
+    "-A",
+    "-u",
+    "-N",
+    "-q",
+    "--verbose",
+    "--dry-run",
+    "--force",
+    "--all",
+    "--update",
+    "--intent-to-add",
+    "--ignore-errors",
+    "--refresh",
+    "--renormalize",
+    "--no-all",
+    "--ignore-removal",
+    "--sparse",
+    "--no-warn-embedded-repo",
 ];
 
 /// Options of `git rm` that read no standard input.
-const REMOVE_OPTIONS: [&str; 10] = ["-f", "-n", "-q", "-r", "--cached", "--force", "--dry-run", "--quiet", "--ignore-unmatch", "--sparse"];
+const REMOVE_OPTIONS: [&str; 10] = [
+    "-f",
+    "-n",
+    "-q",
+    "-r",
+    "--cached",
+    "--force",
+    "--dry-run",
+    "--quiet",
+    "--ignore-unmatch",
+    "--sparse",
+];
 
 /// Options of `git mv` that read no standard input.
-const MOVE_OPTIONS: [&str; 8] = ["-f", "-k", "-n", "-v", "--force", "--dry-run", "--verbose", "--sparse"];
+const MOVE_OPTIONS: [&str; 8] = [
+    "-f",
+    "-k",
+    "-n",
+    "-v",
+    "--force",
+    "--dry-run",
+    "--verbose",
+    "--sparse",
+];
 
 /// What:
 ///  Whether the command is one that may be run again after it lost the index:
@@ -76,7 +129,10 @@ const MOVE_OPTIONS: [&str; 8] = ["-f", "-k", "-n", "-v", "--force", "--dry-run",
 /// ```ts
 /// mayRunAgain('add', ['-A', '--', 'a.txt'])
 /// ```
-pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
+pub fn may_run_again(
+    word: &[u8],
+    after_word: &[OsString],
+) -> bool {
     let known: &[&str] = match word {
         b"add" => &ADD_OPTIONS,
         b"rm" => &REMOVE_OPTIONS,
@@ -84,7 +140,9 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
         _ => return false,
     };
     for argument in after_word {
-        let Some(text) = argument.to_str() else { return false };
+        let Some(text) = argument.to_str() else {
+            return false;
+        };
         if text == "--" {
             break;
         }
@@ -107,7 +165,12 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 /// ```ts
 /// runOnce(argv, capturedFd) // { exited: n } | { signaled: n }
 /// ```
-fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
+fn run_once(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    captured: std::fs::File,
+) -> std::io::Result<ChildOutcome> {
     let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
     let mut child: std::process::Child = command.spawn_retrying()?;
@@ -119,7 +182,11 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
 
 /// The command with every stream inherited,
 /// as a forwarded command runs when nothing needs to be kept.
-fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
+fn run_plainly(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+) -> ForwardedRun {
     // What: A typed network command whose remote ssh carries relays Git's error stream here too, on the attempt that follows a
     //       lock the service held.
     // Why:  This is a fifth place a typed command reaches Git, and a `pull` that takes the index lock passes through it, so a
@@ -130,18 +197,39 @@ fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, Os
     // const relayed = relayWhenSshCarries(git, argv, env, 'person'); if (relayed?.value) return forwardedRun(relayed.value);
     // ```
     #[cfg(unix)]
-    match crate::typed_network_command_relay::relay_when_ssh_carries(real_git, arguments, overlay, StartOwner::Person) {
-        Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code))) => return ForwardedRun::Ran(code),
-        Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(signal))) => return ForwardedRun::Killed(signal),
+    match crate::typed_network_command_relay::relay_when_ssh_carries(
+        real_git,
+        arguments,
+        overlay,
+        StartOwner::Person,
+    ) {
+        Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Ran(code))) => {
+            return ForwardedRun::Ran(code);
+        }
+        Some(Ok(crate::typed_network_command_relay::TypedNetworkCommandEnding::Signalled(
+            signal,
+        ))) => return ForwardedRun::Killed(signal),
         Some(Err(error)) => {
-            return ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
+            return ForwardedRun::Failed {
+                stderr: format!(
+                    "monochromatic-git-policy-cli: cannot start {}: {error}\n",
+                    real_git.display()
+                ),
+                code: crate::action::ENGINE_FAILURE_EXIT_CODE,
+            };
         }
         None => {}
     }
     return match run_real_git(real_git, arguments, overlay, StartOwner::Person) {
         Ok(ChildOutcome::Exited(code)) => ForwardedRun::Ran(code),
         Ok(ChildOutcome::Signaled(signal)) => ForwardedRun::Killed(signal),
-        Err(error) => ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },
+        Err(error) => ForwardedRun::Failed {
+            stderr: format!(
+                "monochromatic-git-policy-cli: cannot start {}: {error}\n",
+                real_git.display()
+            ),
+            code: crate::action::ENGINE_FAILURE_EXIT_CODE,
+        },
     };
 }
 
@@ -167,7 +255,16 @@ pub fn run_again_while_service_holds(
     name: &str,
     shown: &mut dyn Write,
 ) -> ForwardedRun {
-    return run_again_within(real_git, arguments, overlay, environment, real_index, name, SERVICE_HOLD_CEILING, shown);
+    return run_again_within(
+        real_git,
+        arguments,
+        overlay,
+        environment,
+        real_index,
+        name,
+        SERVICE_HOLD_CEILING,
+        shown,
+    );
 }
 
 /// `run_again_while_service_holds` whose whole series of reruns and waits ends after `ceiling`,
@@ -187,12 +284,22 @@ pub fn run_again_within(
     let began: std::time::Instant = std::time::Instant::now();
     for attempt in 1..=ATTEMPTS {
         // Without a place to keep the output the command runs as it always did, and its refusal, if any, is Git's own.
-        let Ok(mut file) = scratch_file(environment) else { return run_plainly(real_git, arguments, overlay) };
-        let Ok(for_child) = file.try_clone() else { return run_plainly(real_git, arguments, overlay) };
+        let Ok(mut file) = scratch_file(environment) else {
+            return run_plainly(real_git, arguments, overlay);
+        };
+        let Ok(for_child) = file.try_clone() else {
+            return run_plainly(real_git, arguments, overlay);
+        };
         let outcome: ChildOutcome = match run_once(real_git, arguments, overlay, for_child) {
             Ok(outcome) => outcome,
             Err(error) => {
-                return ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
+                return ForwardedRun::Failed {
+                    stderr: format!(
+                        "monochromatic-git-policy-cli: cannot start {}: {error}\n",
+                        real_git.display()
+                    ),
+                    code: crate::action::ENGINE_FAILURE_EXIT_CODE,
+                };
             }
         };
         let code: i32 = exit_code(outcome);
@@ -212,7 +319,13 @@ pub fn run_again_within(
             //       command ends: running Git again would meet the same lock, print the same notice, and burn the attempts
             //       (fifty runs and fifty notices in 110 ms, the second audit of alpha.14, finding F5). One notice and one
             //       attempt are what the person gets, and the lock's own diagnostic already said what to do.
-            let waited: Waited = wait_for_service_hold_within(real_index, name, ceiling.saturating_sub(began.elapsed()), Cadence::from_environment(), &mut std::io::stderr());
+            let waited: Waited = wait_for_service_hold_within(
+                real_index,
+                name,
+                ceiling.saturating_sub(began.elapsed()),
+                Cadence::from_environment(),
+                &mut std::io::stderr(),
+            );
             if !matches!(waited, Waited::Released | Waited::NotHeld) {
                 return showed(shown, outcome, code, said.as_slice());
             }
@@ -237,7 +350,12 @@ pub fn run_again_within(
 /// ```ts
 /// function showed(stream, outcome, code, text) { stream.write(text); return outcome.signaled ?? outcome.exited }
 /// ```
-fn showed(shown: &mut dyn Write, outcome: ChildOutcome, code: i32, said: &[u8]) -> ForwardedRun {
+fn showed(
+    shown: &mut dyn Write,
+    outcome: ChildOutcome,
+    code: i32,
+    said: &[u8],
+) -> ForwardedRun {
     // A closed terminal is not a reason to stop the command the person asked for.
     if shown.write_all(said).is_ok() {
         let _flushed = shown.flush();

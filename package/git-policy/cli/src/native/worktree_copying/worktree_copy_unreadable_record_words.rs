@@ -32,7 +32,13 @@ use std::path::Path;
 /// ```ts
 /// `${kind} ${quote(record)} could not be read (${reason}), so it was moved to ${quote(moved)}; ${left}.`
 /// ```
-pub(crate) fn settled_notice(kind: &str, record: &Path, moved: &Path, reason: &str, left: &str) -> String {
+pub(crate) fn settled_notice(
+    kind: &str,
+    record: &Path,
+    moved: &Path,
+    reason: &str,
+    left: &str,
+) -> String {
     return format!(
         "monochromatic-git-policy-cli: the {kind} {} could not be read ({reason}), so it was moved to {} and nothing was deleted. {left}",
         quote(record.to_string_lossy().as_ref()),

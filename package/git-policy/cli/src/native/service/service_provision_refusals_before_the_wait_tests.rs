@@ -16,13 +16,30 @@
 //! and what two spellings of one directory make.
 
 use super::*;
-use crate::service_address_of_a_worktree::{abstract_name_of, socket_address_of, the_address_is_there};
-use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, service_unit_instance, socket_path, socket_path_suffix_bytes, socket_unit_instance};
-use crate::service_provision::{in_place, provision_with};
+use crate::service_address_of_a_worktree::{
+    abstract_name_of,
+    socket_address_of,
+    the_address_is_there,
+};
+use crate::service_instance::{
+    LONGEST_SOCKET_PATH,
+    longest_runtime_directory,
+    service_unit_instance,
+    socket_path,
+    socket_path_suffix_bytes,
+    socket_unit_instance,
+};
+use crate::service_provision::{
+    in_place,
+    provision_with,
+};
 use crate::service_provision_host_and_manager::Manager;
 use crate::service_server::Bind;
 use crate::systemd_dbus::CallError;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The instance a fixture's worktree has.
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
@@ -38,7 +55,10 @@ const AT_ONCE: std::time::Duration = std::time::Duration::from_secs(2);
 ///   A control of a long runtime directory depends on which side of the limit each of its spellings is,
 /// and that is what `socket_address_of` asks the kernel's field size:
 /// naming the side in one place keeps every such control saying it before it reads the commit.
-fn is_waited_at_by_a_name(spelled: &Path, instance: &str) -> bool {
+fn is_waited_at_by_a_name(
+    spelled: &Path,
+    instance: &str,
+) -> bool {
     return matches!(socket_address_of(spelled, instance), Bind::Abstract(_));
 }
 
@@ -60,37 +80,59 @@ struct Addressing {
 }
 
 impl Manager for Addressing {
-    fn within(&mut self, wait: std::time::Duration) {
+    fn within(
+        &mut self,
+        wait: std::time::Duration,
+    ) {
         self.calls.push(format!("within {}", wait.as_secs()));
     }
 
-    fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
+    fn reset_failed(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.push(format!("reset-failed {unit}"));
         return Ok(());
     }
 
-    fn start(&mut self, unit: &str) -> Result<(), CallError> {
+    fn start(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.push(format!("start {unit}"));
         return Ok(());
     }
 
-    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.push(format!("stop {unit}"));
         // What the manager does with a stop in the mode that applies the job to the unit and to the units that require it:
         //  the socket and the service of one worktree are dropped together, and a dropped unit is not held.
-        for name in [unit.to_string(), unit.replace(".socket", ".service"), unit.replace(".service", ".socket")] {
+        for name in [
+            unit.to_string(),
+            unit.replace(".socket", ".service"),
+            unit.replace(".service", ".socket"),
+        ] {
             let _dropped = self.stopped.insert(name);
         }
         return Ok(());
     }
 
-    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+    fn stop_alone(
+        &mut self,
+        unit: &str,
+    ) -> Result<(), CallError> {
         self.calls.push(format!("stop-alone {unit}"));
         let _dropped = self.stopped.insert(unit.to_string());
         return Ok(());
     }
 
-    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+    fn active_state(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<String>, CallError> {
         self.calls.push(format!("state {unit}"));
         // What: What this manager holds.
         // Why:  An earlier release's unit for this worktree never runs in these controls; a unit it dropped is not held; and a
@@ -98,10 +140,19 @@ impl Manager for Addressing {
         //       stop of the socket alone leaves to the manager (`service_provision_instance_unloaded.rs`).
         let socket_dropped: bool = self.stopped.contains(&socket_unit_instance(INSTANCE));
         let collected: bool = unit == service_unit_instance(INSTANCE) && socket_dropped;
-        return Ok(if unit.contains("cli-git@") || self.stopped.contains(unit) || collected { None } else { Some(String::from("inactive")) });
+        return Ok(
+            if unit.contains("cli-git@") || self.stopped.contains(unit) || collected {
+                None
+            } else {
+                Some(String::from("inactive"))
+            },
+        );
     }
 
-    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+    fn listen(
+        &mut self,
+        unit: &str,
+    ) -> Result<Option<Vec<String>>, CallError> {
         return match self.refusal.clone() {
             Some(failure) => Err(failure),
             None => {
@@ -147,8 +198,12 @@ fn short_parent() -> PathBuf {
 /// ```ts
 /// runtimeDirectoryOfLength(41, 'past') // '/home/user/temp/agent/pr4242/past/xxxxxxxxx'
 /// ```
-fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
-    let longest_parent: usize = length.saturating_sub(1 + crate::test_support::room_a_runtime_name_needs(tag));
+fn runtime_directory_of_length(
+    length: usize,
+    tag: &str,
+) -> PathBuf {
+    let longest_parent: usize =
+        length.saturating_sub(1 + crate::test_support::room_a_runtime_name_needs(tag));
     let parent: PathBuf = crate::test_support::runtime_directory_parent("pr", longest_parent);
     return crate::test_support::runtime_directory_under(parent.as_path(), length, tag);
 }
@@ -163,7 +218,8 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
 /// The side is the product's own constant rather than a folder's length,
 /// and it is said here because every control below compares one socket file with another.
 fn a_runtime_directory_with_room(tag: &str) -> PathBuf {
-    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) - 1, tag);
+    let runtime: PathBuf =
+        runtime_directory_of_length(longest_runtime_directory(INSTANCE) - 1, tag);
     assert!(
         !is_waited_at_by_a_name(runtime.as_path(), INSTANCE),
         "a runtime directory one byte inside the longest keeps the path form, whose socket path is {} bytes",
@@ -209,8 +265,15 @@ fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
     let longest_parent: usize = longest.saturating_sub(5 + 2 * (tag.len() + 1));
     let parent: PathBuf = crate::test_support::runtime_directory_parent("pr", longest_parent);
     let name_length: usize = name_length_to_spell(parent.as_os_str().len());
-    assert!(name_length > tag.len(), "the tag {tag:?} leaves room to pad a name of {name_length} bytes");
-    return crate::test_support::runtime_directory_under(parent.as_path(), parent.as_os_str().len() + 1 + name_length, tag);
+    assert!(
+        name_length > tag.len(),
+        "the tag {tag:?} leaves room to pad a name of {name_length} bytes"
+    );
+    return crate::test_support::runtime_directory_under(
+        parent.as_path(),
+        parent.as_os_str().len() + 1 + name_length,
+        tag,
+    );
 }
 
 /// What:
@@ -232,7 +295,10 @@ fn the_two_spellings_of_a_runtime_directory_fit_one_socket_address_at_every_pare
     // Up to the longest parent whose halved room still leaves a name of two bytes, which both parities cover.
     for parent in 10..=(longest - 9) {
         let name: usize = name_length_to_spell(parent);
-        assert!(name > 1, "a parent of {parent} bytes leaves a name of {name} bytes");
+        assert!(
+            name > 1,
+            "a parent of {parent} bytes leaves a name of {name} bytes"
+        );
         // The name, the separator after the parent, `..` between the copies, and the name again.
         let dotted: usize = parent + 1 + name + 4 + name;
         assert!(
@@ -249,8 +315,14 @@ fn the_two_spellings_of_a_runtime_directory_fit_one_socket_address_at_every_pare
 ///  A person's runtime directory may be reached through a link,
 /// which this machine has in `/home` reaching `/var/home`,
 /// and the file system resolves the link while the texts stay different.
-fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
-    let link: PathBuf = runtime.parent().expect("a runtime directory stands in a folder").join(name);
+fn a_link_beside(
+    runtime: &Path,
+    name: &str,
+) -> PathBuf {
+    let link: PathBuf = runtime
+        .parent()
+        .expect("a runtime directory stands in a folder")
+        .join(name);
     std::os::unix::fs::symlink(runtime, &link).expect("a link to the runtime directory");
     crate::test_support::track_for_this_thread(link.as_path());
     return link;
@@ -271,14 +343,23 @@ fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
 /// the separator between the folder and the name was left out of that count once, and the link landed a byte further
 /// past than the control said.
 /// Its folder is the one the runtime directory stands in, which the helper that made it held inside the limit.
-fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
-    let folder: &Path = runtime.parent().expect("a runtime directory stands in a folder");
+fn a_link_past_the_path_limit(
+    runtime: &Path,
+    instance: &str,
+) -> PathBuf {
+    let folder: &Path = runtime
+        .parent()
+        .expect("a runtime directory stands in a folder");
     // The name that fills one address's path exactly is this long; one byte more puts the whole path past it.
-    let name_length: usize = (longest_runtime_directory(instance) + 1).saturating_sub(folder.as_os_str().len() + 1);
+    let name_length: usize =
+        (longest_runtime_directory(instance) + 1).saturating_sub(folder.as_os_str().len() + 1);
     let words: &str = "link";
     let name: String = match name_length > words.len() {
         true => format!("{words}{}", "x".repeat(name_length - words.len())),
-        false => words.get(..name_length.max(1)).expect("the words are at least as long as the name").to_string(),
+        false => words
+            .get(..name_length.max(1))
+            .expect("the words are at least as long as the name")
+            .to_string(),
     };
     return a_link_beside(runtime, name.as_str());
 }
@@ -288,7 +369,10 @@ fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
 /// Why:
 ///   The helper that pads a name and the control that holds the length of the path it makes must count the same bytes,
 /// so the count is written once: a name does not take the separator after its folder, and it does not take `/run`.
-fn the_room_a_folder_leaves_for_a_name(parent: &Path, length: usize) -> usize {
+fn the_room_a_folder_leaves_for_a_name(
+    parent: &Path,
+    length: usize,
+) -> usize {
     return length.saturating_sub(parent.as_os_str().len() + 1 + "/run".len());
 }
 
@@ -304,12 +388,19 @@ fn the_room_a_folder_leaves_for_a_name(parent: &Path, length: usize) -> usize {
 /// so the control failed there and passed here.
 /// The name is counted from the whole path and cut to it,
 /// so the spelling stands exactly one byte past the limit wherever the folder leaves a byte for a name.
-fn a_name_that_makes_the_path_past_the_limit(parent: &Path, tag: &str) -> String {
-    let room: usize = the_room_a_folder_leaves_for_a_name(parent, longest_runtime_directory(INSTANCE) + 1);
+fn a_name_that_makes_the_path_past_the_limit(
+    parent: &Path,
+    tag: &str,
+) -> String {
+    let room: usize =
+        the_room_a_folder_leaves_for_a_name(parent, longest_runtime_directory(INSTANCE) + 1);
     let name_length: usize = room.max(1);
     return match name_length > tag.len() {
         true => format!("{tag}{}", "x".repeat(name_length - tag.len())),
-        false => tag.get(..name_length).expect("the tag is at least as long as the name").to_string(),
+        false => tag
+            .get(..name_length)
+            .expect("the tag is at least as long as the name")
+            .to_string(),
     };
 }
 
@@ -323,7 +414,10 @@ fn a_name_that_makes_the_path_past_the_limit(parent: &Path, tag: &str) -> String
 ///  The file system walks every `..` back and reaches the same directory,
 /// while each round adds bytes to the text,
 /// so a control can spell one directory at the length its case needs.
-fn a_spelling_through_relative_parts(runtime: &Path, rounds: usize) -> PathBuf {
+fn a_spelling_through_relative_parts(
+    runtime: &Path,
+    rounds: usize,
+) -> PathBuf {
     let name: &std::ffi::OsStr = runtime.file_name().expect("a runtime directory has a name");
     let mut spelled: PathBuf = runtime.to_path_buf();
     for _round in 0..rounds {
@@ -351,13 +445,31 @@ fn a_runtime_directory_past_the_longest_is_served_at_an_abstract_name() {
     let Bind::Abstract(name) = socket_address_of(too_long.as_path(), INSTANCE) else {
         panic!("a runtime directory past the longest is an abstract name")
     };
-    let mut manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
-    provision_with(&host_with(too_long.clone()), &mut manager).expect("a runtime directory past the longest is set up");
-    let unit: String = std::fs::read_to_string(too_long.join("systemd/user/monochromatic-git-policy-cli@.socket")).expect("the socket unit was written");
+    let mut manager: Addressing = Addressing {
+        addresses: Some(vec![format!("@{name}")]),
+        ..Addressing::default()
+    };
+    provision_with(&host_with(too_long.clone()), &mut manager)
+        .expect("a runtime directory past the longest is set up");
+    let unit: String =
+        std::fs::read_to_string(too_long.join("systemd/user/monochromatic-git-policy-cli@.socket"))
+            .expect("the socket unit was written");
     let line: String = format!("ListenStream=@{}", name.replace(INSTANCE, "%i"));
-    assert!(unit.contains(line.as_str()), "the unit names the abstract address, with the instance to the manager's `%i`: {unit}");
-    assert!(!unit.contains("%t/"), "the unit names no path under a runtime directory: {unit}");
-    assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "the socket was started: {:?}", manager.calls);
+    assert!(
+        unit.contains(line.as_str()),
+        "the unit names the abstract address, with the instance to the manager's `%i`: {unit}"
+    );
+    assert!(
+        !unit.contains("%t/"),
+        "the unit names no path under a runtime directory: {unit}"
+    );
+    assert!(
+        manager.calls.iter().any(|call| {
+            return call.starts_with("start ");
+        }),
+        "the socket was started: {:?}",
+        manager.calls
+    );
 }
 
 /// What:
@@ -372,9 +484,14 @@ fn a_runtime_directory_past_the_longest_is_served_at_an_abstract_name() {
 #[test]
 #[cfg(target_os = "linux")]
 fn a_service_the_manager_made_at_a_path_is_out_of_reach_of_a_command_that_waits_at_a_name() {
-    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "name-and-path");
-    let Bind::Abstract(name) = socket_address_of(runtime.as_path(), INSTANCE) else { panic!("an abstract name") };
-    let made: String = socket_path(Path::new("/run/user/1000"), INSTANCE).display().to_string();
+    let runtime: PathBuf =
+        runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "name-and-path");
+    let Bind::Abstract(name) = socket_address_of(runtime.as_path(), INSTANCE) else {
+        panic!("an abstract name")
+    };
+    let made: String = socket_path(Path::new("/run/user/1000"), INSTANCE)
+        .display()
+        .to_string();
     // Two addresses, one on each side: the manager made a path and the client waits at a name, which is what this
     // control is about, so each side is said here before the refusal is read.
     assert!(
@@ -387,9 +504,13 @@ fn a_service_the_manager_made_at_a_path_is_out_of_reach_of_a_command_that_waits_
         "the client's runtime directory is waited at by a name: {} bytes",
         socket_path(runtime.as_path(), INSTANCE).as_os_str().len()
     );
-    let mut manager: Addressing = Addressing { addresses: Some(vec![made.clone()]), ..Addressing::default() };
+    let mut manager: Addressing = Addressing {
+        addresses: Some(vec![made.clone()]),
+        ..Addressing::default()
+    };
     let began: std::time::Instant = std::time::Instant::now();
-    let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("the manager made another address");
+    let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager)
+        .expect_err("the manager made another address");
     let took: std::time::Duration = began.elapsed();
     assert!(took < AT_ONCE, "the refusal takes {took:?}, not a wait");
     assert_eq!(
@@ -405,7 +526,13 @@ fn a_service_the_manager_made_at_a_path_is_out_of_reach_of_a_command_that_waits_
     for part in [made.as_str(), name.as_str(), "XDG_RUNTIME_DIR"] {
         assert!(said.contains(part), "the message names {part:?}: {said}");
     }
-    assert!(!manager.calls.iter().any(|call| { return call.starts_with("start "); }), "nothing was started: {:?}", manager.calls);
+    assert!(
+        !manager.calls.iter().any(|call| {
+            return call.starts_with("start ");
+        }),
+        "nothing was started: {:?}",
+        manager.calls
+    );
 }
 
 /// What:
@@ -417,16 +544,21 @@ fn a_service_the_manager_made_at_a_path_is_out_of_reach_of_a_command_that_waits_
 fn the_socket_the_manager_made(runtime: &Path) {
     use std::os::linux::net::SocketAddrExt;
     if let Bind::Abstract(name) = socket_address_of(runtime, INSTANCE) {
-        let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("the name fits");
-        let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&address).expect("the abstract socket the manager made");
+        let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
+            .expect("the name fits");
+        let listener: std::os::unix::net::UnixListener =
+            std::os::unix::net::UnixListener::bind_addr(&address)
+                .expect("the abstract socket the manager made");
         // The listener stays for the rest of the test process: the table of unix sockets is what `in_place` reads, and a
         //  control binds a name of its own, so nothing else can take it.
         std::mem::forget(listener);
         return;
     }
     let socket: PathBuf = socket_path(runtime, INSTANCE);
-    std::fs::create_dir_all(socket.parent().expect("the folder of the sockets")).expect("the folder of the sockets");
-    let _listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("the socket the manager made");
+    std::fs::create_dir_all(socket.parent().expect("the folder of the sockets"))
+        .expect("the folder of the sockets");
+    let _listener: std::os::unix::net::UnixListener =
+        std::os::unix::net::UnixListener::bind(&socket).expect("the socket the manager made");
     crate::test_support::track_for_this_thread(socket.as_path());
 }
 
@@ -436,7 +568,9 @@ fn host_with(runtime: PathBuf) -> ProvisionHost {
         bus: runtime.join("bus"),
         runtime_dir: runtime,
         user_unit_dir: None,
-        service_binary: PathBuf::from("/opt/monochromatic-git-policy-cli/monochromatic-git-policy-cli"),
+        service_binary: PathBuf::from(
+            "/opt/monochromatic-git-policy-cli/monochromatic-git-policy-cli",
+        ),
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from(INSTANCE),
         git_dir: short_parent().join("repository/.git/worktrees/topic"),
@@ -465,12 +599,18 @@ fn the_longest_runtime_directory_that_keeps_a_path_and_the_one_past_it_that_does
     let longest: usize = longest_runtime_directory(INSTANCE);
     let at_the_longest: PathBuf = runtime_directory_of_length(longest, "boundary");
     assert!(
-        matches!(socket_address_of(at_the_longest.as_path(), INSTANCE), Bind::Path(_)),
+        matches!(
+            socket_address_of(at_the_longest.as_path(), INSTANCE),
+            Bind::Path(_)
+        ),
         "a runtime directory of exactly {longest} bytes keeps the socket file"
     );
     let past: PathBuf = runtime_directory_of_length(longest + 1, "past-boundary");
     assert!(
-        matches!(socket_address_of(past.as_path(), INSTANCE), Bind::Abstract(_)),
+        matches!(
+            socket_address_of(past.as_path(), INSTANCE),
+            Bind::Abstract(_)
+        ),
         "one byte past it is an abstract name"
     );
 }
@@ -485,11 +625,32 @@ fn the_longest_runtime_directory_that_keeps_a_path_and_the_one_past_it_that_does
 fn a_runtime_directory_of_exactly_the_longest_has_room_to_the_last_byte() {
     let longest: usize = longest_runtime_directory(INSTANCE);
     let runtime: PathBuf = runtime_directory_of_length(longest, "longest");
-    assert_eq!(socket_path(runtime.as_path(), INSTANCE).as_os_str().len(), LONGEST_SOCKET_PATH, "the address fills the room there is");
-    let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
-    provision_with(&host_with(runtime.clone()), &mut manager).expect("a service with room to the last byte is set up");
-    assert!(runtime.join("systemd/user").exists(), "the units were written");
-    assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "the socket was started: {:?}", manager.calls);
+    assert_eq!(
+        socket_path(runtime.as_path(), INSTANCE).as_os_str().len(),
+        LONGEST_SOCKET_PATH,
+        "the address fills the room there is"
+    );
+    let mut manager: Addressing = Addressing {
+        addresses: Some(vec![
+            socket_path(runtime.as_path(), INSTANCE)
+                .display()
+                .to_string(),
+        ]),
+        ..Addressing::default()
+    };
+    provision_with(&host_with(runtime.clone()), &mut manager)
+        .expect("a service with room to the last byte is set up");
+    assert!(
+        runtime.join("systemd/user").exists(),
+        "the units were written"
+    );
+    assert!(
+        manager.calls.iter().any(|call| {
+            return call.starts_with("start ");
+        }),
+        "the socket was started: {:?}",
+        manager.calls
+    );
 }
 
 /// What:
@@ -508,28 +669,46 @@ fn a_runtime_directory_of_exactly_the_longest_has_room_to_the_last_byte() {
 fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
     let runtime: PathBuf = a_runtime_directory_with_room("there");
     let made: PathBuf = socket_path(Path::new("/run/user/1000"), INSTANCE);
-    let mut manager: Addressing = Addressing { addresses: Some(vec![made.display().to_string()]), ..Addressing::default() };
+    let mut manager: Addressing = Addressing {
+        addresses: Some(vec![made.display().to_string()]),
+        ..Addressing::default()
+    };
     let began: std::time::Instant = std::time::Instant::now();
-    let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("the service answers where this command does not look");
+    let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager)
+        .expect_err("the service answers where this command does not look");
     let took: std::time::Duration = began.elapsed();
     assert!(took < AT_ONCE, "the refusal takes {took:?}, not a wait");
     assert_eq!(
         refused,
         ClientFailure::ServiceElsewhere {
             made: made.display().to_string(),
-            looked_for: socket_path(runtime.as_path(), INSTANCE).display().to_string(),
+            looked_for: socket_path(runtime.as_path(), INSTANCE)
+                .display()
+                .to_string(),
             manager_runtime: String::from("/run/user/1000"),
             client_runtime: runtime.display().to_string(),
         }
     );
     let said: String = message_of(&refused);
-    for part in [made.display().to_string(), socket_path(runtime.as_path(), INSTANCE).display().to_string(), String::from("/run/user/1000"), String::from("XDG_RUNTIME_DIR")] {
-        assert!(said.contains(part.as_str()), "the message names {part:?}: {said}");
+    for part in [
+        made.display().to_string(),
+        socket_path(runtime.as_path(), INSTANCE)
+            .display()
+            .to_string(),
+        String::from("/run/user/1000"),
+        String::from("XDG_RUNTIME_DIR"),
+    ] {
+        assert!(
+            said.contains(part.as_str()),
+            "the message names {part:?}: {said}"
+        );
     }
     // The socket the manager already holds is another runtime directory's service for this worktree, and this command starts
     //  nothing: a unit started here would listen for a worktree no command of this runtime directory ever looks at.
     assert!(
-        !manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+        !manager.calls.iter().any(|call| {
+            return call.starts_with("start ");
+        }),
         "nothing was started in a manager that serves another runtime directory: {:?}",
         manager.calls
     );
@@ -544,8 +723,16 @@ fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
 #[test]
 fn a_service_the_manager_made_where_this_command_waits_is_used() {
     let runtime: PathBuf = a_runtime_directory_with_room("where");
-    let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
-    provision_with(&host_with(runtime.clone()), &mut manager).expect("the service answers where this command looks");
+    let mut manager: Addressing = Addressing {
+        addresses: Some(vec![
+            socket_path(runtime.as_path(), INSTANCE)
+                .display()
+                .to_string(),
+        ]),
+        ..Addressing::default()
+    };
+    provision_with(&host_with(runtime.clone()), &mut manager)
+        .expect("the service answers where this command looks");
 }
 
 /// What:
@@ -567,7 +754,9 @@ fn a_service_the_manager_made_where_this_command_waits_is_used() {
 #[test]
 fn two_spellings_of_one_runtime_directory_are_one_service() {
     let runtime: PathBuf = a_runtime_directory_to_spell("a");
-    let made: String = socket_path(runtime.as_path(), INSTANCE).display().to_string();
+    let made: String = socket_path(runtime.as_path(), INSTANCE)
+        .display()
+        .to_string();
     the_socket_the_manager_made(runtime.as_path());
     let linked: PathBuf = a_link_beside(runtime.as_path(), "lnk");
     let dotted: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 1);
@@ -588,12 +777,24 @@ fn two_spellings_of_one_runtime_directory_are_one_service() {
             "{tag}: the two spellings reach one directory",
         );
         assert_ne!(spelled, runtime, "{tag}: the spellings are different texts");
-        let mut manager: Addressing = Addressing { addresses: Some(vec![made.clone()]), ..Addressing::default() };
+        let mut manager: Addressing = Addressing {
+            addresses: Some(vec![made.clone()]),
+            ..Addressing::default()
+        };
         provision_with(&host_with(spelled.clone()), &mut manager).unwrap_or_else(|failure| {
             panic!("{tag}: the service answers on the socket this command connects to, and provisioning returned {failure:?}")
         });
-        assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "{tag}: the socket was started: {:?}", manager.calls);
-        assert!(in_place(&host_with(spelled.clone())), "{tag}: the next commit finds the installation this one made");
+        assert!(
+            manager.calls.iter().any(|call| {
+                return call.starts_with("start ");
+            }),
+            "{tag}: the socket was started: {:?}",
+            manager.calls
+        );
+        assert!(
+            in_place(&host_with(spelled.clone())),
+            "{tag}: the next commit finds the installation this one made"
+        );
     }
 }
 
@@ -634,24 +835,41 @@ fn a_runtime_directory_too_long_for_a_path_is_one_service_however_it_is_spelled(
         );
     }
     let name: String = abstract_name_of(runtime.as_path(), INSTANCE);
-    let mut manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
-    provision_with(&host_with(runtime.clone()), &mut manager).expect("the units are written and the manager was told");
+    let mut manager: Addressing = Addressing {
+        addresses: Some(vec![format!("@{name}")]),
+        ..Addressing::default()
+    };
+    provision_with(&host_with(runtime.clone()), &mut manager)
+        .expect("the units are written and the manager was told");
     the_socket_the_manager_made(runtime.as_path());
-    assert!(in_place(&host_with(runtime.clone())), "the installation looks current under its own spelling");
+    assert!(
+        in_place(&host_with(runtime.clone())),
+        "the installation looks current under its own spelling"
+    );
     for spelled in [dotted, linked] {
-        assert_eq!(abstract_name_of(spelled.as_path(), INSTANCE), name, "one place, one name, whatever the spelling is");
+        assert_eq!(
+            abstract_name_of(spelled.as_path(), INSTANCE),
+            name,
+            "one place, one name, whatever the spelling is"
+        );
         assert!(
             the_address_is_there(&socket_address_of(spelled.as_path(), INSTANCE)),
             "the socket the manager made before answers this spelling too: {} is reached through it",
             spelled.display()
         );
-        let mut spelled_manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
-        provision_with(&host_with(spelled.clone()), &mut spelled_manager).expect("the same installation under another spelling is used, not refused");
+        let mut spelled_manager: Addressing = Addressing {
+            addresses: Some(vec![format!("@{name}")]),
+            ..Addressing::default()
+        };
+        provision_with(&host_with(spelled.clone()), &mut spelled_manager)
+            .expect("the same installation under another spelling is used, not refused");
         // The units name the program's link by the runtime directory's spelling, so a spelling that differs from the one the
         //  record was written under has the units written again and the manager asked to reload them: one write and one
         //  reload, and never a second service.
         assert!(
-            spelled_manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+            spelled_manager.calls.iter().any(|call| {
+                return call.starts_with("start ");
+            }),
             "the same socket unit is started, not another: {:?}",
             spelled_manager.calls
         );
@@ -670,11 +888,18 @@ fn a_runtime_directory_too_long_for_a_path_is_one_service_however_it_is_spelled(
 #[test]
 fn a_manager_that_cannot_say_where_a_unit_listens_is_no_proof() {
     let runtime: PathBuf = a_runtime_directory_with_room("quiet");
-    let mut manager: Addressing = Addressing { refusal: Some(CallError::Malformed(String::from("no address in the answer"))), ..Addressing::default() };
-    provision_with(&host_with(runtime), &mut manager).expect("an answer that cannot be read is not a refusal");
+    let mut manager: Addressing = Addressing {
+        refusal: Some(CallError::Malformed(String::from(
+            "no address in the answer",
+        ))),
+        ..Addressing::default()
+    };
+    provision_with(&host_with(runtime), &mut manager)
+        .expect("an answer that cannot be read is not a refusal");
     let mut absent: Addressing = Addressing::default();
     let second: PathBuf = a_runtime_directory_with_room("none");
-    provision_with(&host_with(second), &mut absent).expect("a manager that holds no unit yet is not a refusal");
+    provision_with(&host_with(second), &mut absent)
+        .expect("a manager that holds no unit yet is not a refusal");
 }
 
 /// What:
@@ -685,14 +910,25 @@ fn a_manager_that_cannot_say_where_a_unit_listens_is_no_proof() {
 #[test]
 fn the_words_of_a_failed_file_operation_lose_only_the_error_number() {
     let denied: std::io::Error = std::io::Error::from_raw_os_error(libc::EACCES);
-    assert_eq!(in_plain_words(&denied), "Permission denied", "the words stay and the number does not");
+    assert_eq!(
+        in_plain_words(&denied),
+        "Permission denied",
+        "the words stay and the number does not"
+    );
     let full: std::io::Error = std::io::Error::from_raw_os_error(libc::ENOSPC);
     assert_eq!(in_plain_words(&full), "No space left on device");
     for error in [denied, full] {
-        assert!(!in_plain_words(&error).contains("os error"), "no error number reaches the person");
+        assert!(
+            !in_plain_words(&error).contains("os error"),
+            "no error number reaches the person"
+        );
     }
     let ours: std::io::Error = std::io::Error::other("the record could not be written");
-    assert_eq!(in_plain_words(&ours), "the record could not be written", "an error of this program is already in plain words");
+    assert_eq!(
+        in_plain_words(&ours),
+        "the record could not be written",
+        "an error of this program is already in plain words"
+    );
 }
 
 /// What:
@@ -703,9 +939,19 @@ fn the_words_of_a_failed_file_operation_lose_only_the_error_number() {
 #[test]
 fn the_runtime_directory_of_an_address_is_the_one_it_stands_in() {
     let address: PathBuf = socket_path(Path::new("/run/user/1000"), INSTANCE);
-    assert_eq!(runtime_directory_of_an_address(address.as_path()), PathBuf::from("/run/user/1000"));
-    assert_eq!(runtime_directory_of_an_address(Path::new("/run/a/b/c")), PathBuf::from("/run/a"));
-    assert_eq!(runtime_directory_of_an_address(Path::new("/only")), PathBuf::from("/only"), "an address with no folder of its own is named as it is");
+    assert_eq!(
+        runtime_directory_of_an_address(address.as_path()),
+        PathBuf::from("/run/user/1000")
+    );
+    assert_eq!(
+        runtime_directory_of_an_address(Path::new("/run/a/b/c")),
+        PathBuf::from("/run/a")
+    );
+    assert_eq!(
+        runtime_directory_of_an_address(Path::new("/only")),
+        PathBuf::from("/only"),
+        "an address with no folder of its own is named as it is"
+    );
 }
 
 /// What:
@@ -718,10 +964,16 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
     for runtime in [PathBuf::from("/r"), PathBuf::from("/run/user/1000")] {
         for instance in [INSTANCE, "abc"] {
             let built: PathBuf = socket_path(runtime.as_path(), instance);
-            assert_eq!(built.as_os_str().len(), runtime.as_os_str().len() + socket_path_suffix_bytes(instance));
+            assert_eq!(
+                built.as_os_str().len(),
+                runtime.as_os_str().len() + socket_path_suffix_bytes(instance)
+            );
         }
     }
-    assert_eq!(longest_runtime_directory(INSTANCE) + socket_path_suffix_bytes(INSTANCE), LONGEST_SOCKET_PATH);
+    assert_eq!(
+        longest_runtime_directory(INSTANCE) + socket_path_suffix_bytes(INSTANCE),
+        LONGEST_SOCKET_PATH
+    );
 }
 
 /// What:
@@ -739,11 +991,16 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
 fn spellings_no_file_system_can_make(parent: &Path) -> [(&'static str, PathBuf); 2] {
     let file_name: String = a_name_that_makes_the_path_past_the_limit(parent, "a-file-with-room");
     let through_a_file: PathBuf = parent.join(file_name.as_str()).join("run");
-    std::fs::write(parent.join(file_name.as_str()), b"not a directory\n").expect("a file where a directory has to be");
+    std::fs::write(parent.join(file_name.as_str()), b"not a directory\n")
+        .expect("a file where a directory has to be");
     let link_name: String = a_name_that_makes_the_path_past_the_limit(parent, "dangling-link");
     let through_a_link: PathBuf = parent.join(link_name.as_str()).join("run");
-    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join(link_name.as_str())).expect("a link that points nowhere");
-    return [("a file in the path", through_a_file), ("a link that points nowhere", through_a_link)];
+    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join(link_name.as_str()))
+        .expect("a link that points nowhere");
+    return [
+        ("a file in the path", through_a_file),
+        ("a link that points nowhere", through_a_link),
+    ];
 }
 
 /// What:
@@ -765,7 +1022,8 @@ fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
     // The room the name of this spelling has: the helper cuts or pads it to put the whole path one byte past the limit,
     // and a folder that leaves no room leaves a longer path, which is past the limit all the same.
     let room: usize = the_room_a_folder_leaves_for_a_name(parent.as_path(), longest + 1);
-    let spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
+    let spellings: [(&'static str, PathBuf); 2] =
+        spellings_no_file_system_can_make(parent.as_path());
     for (tag, runtime) in spellings {
         match room {
             0 => assert!(
@@ -786,14 +1044,37 @@ fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
         );
         let mut manager: Addressing = Addressing::default();
         let began: std::time::Instant = std::time::Instant::now();
-        let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("{tag}: nothing can make this directory");
+        let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager)
+            .expect_err("{tag}: nothing can make this directory");
         let took: std::time::Duration = began.elapsed();
-        assert!(took < AT_ONCE, "{tag}: the refusal takes {took:?}, not a wait");
-        let ClientFailure::CouldNotStart(said) = &refused else { panic!("{tag}: a directory that cannot be made is a start that cannot be, not {refused:?}") };
-        assert!(said.contains(runtime.to_string_lossy().as_ref()), "{tag}: the message names the directory: {said}");
-        assert!(said.contains("XDG_RUNTIME_DIR"), "{tag}: the message names the setting that decides it: {said}");
-        assert!(said.contains("make that one writable"), "{tag}: the message names the way out: {said}");
-        assert!(!manager.calls.iter().any(|call| { return call.starts_with("start "); }), "{tag}: nothing was started: {:?}", manager.calls);
+        assert!(
+            took < AT_ONCE,
+            "{tag}: the refusal takes {took:?}, not a wait"
+        );
+        let ClientFailure::CouldNotStart(said) = &refused else {
+            panic!(
+                "{tag}: a directory that cannot be made is a start that cannot be, not {refused:?}"
+            )
+        };
+        assert!(
+            said.contains(runtime.to_string_lossy().as_ref()),
+            "{tag}: the message names the directory: {said}"
+        );
+        assert!(
+            said.contains("XDG_RUNTIME_DIR"),
+            "{tag}: the message names the setting that decides it: {said}"
+        );
+        assert!(
+            said.contains("make that one writable"),
+            "{tag}: the message names the way out: {said}"
+        );
+        assert!(
+            !manager.calls.iter().any(|call| {
+                return call.starts_with("start ");
+            }),
+            "{tag}: nothing was started: {:?}",
+            manager.calls
+        );
     }
 }
 
@@ -820,7 +1101,8 @@ fn two_runs_with_one_process_number_do_not_meet_in_the_folder_they_make() {
         .map(|_run| {
             return std::thread::spawn(|| {
                 let parent: PathBuf = short_parent();
-                let _spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
+                let _spellings: [(&'static str, PathBuf); 2] =
+                    spellings_no_file_system_can_make(parent.as_path());
             });
         })
         .collect();

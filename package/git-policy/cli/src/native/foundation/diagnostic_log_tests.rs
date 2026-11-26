@@ -41,7 +41,9 @@ const FAKE_PASSWORD: &str = "fakepass1";
 /// What Git says when a remote refuses:
 /// its words carry the remote's URL with userinfo.
 fn git_words_naming_a_remote() -> String {
-    return format!("git fetch said: fatal: unable to access 'https://{FAKE_USER}:{FAKE_PASSWORD}@example.invalid/team/repo.git/': 403");
+    return format!(
+        "git fetch said: fatal: unable to access 'https://{FAKE_USER}:{FAKE_PASSWORD}@example.invalid/team/repo.git/': 403"
+    );
 }
 
 /// The userinfo of a URL in the message never reaches the line,
@@ -49,11 +51,18 @@ fn git_words_naming_a_remote() -> String {
 #[test]
 fn a_diagnostic_line_hides_the_userinfo_of_a_url_in_its_message() {
     for level in ["debug", "warn"] {
-        let line: String = diagnostic_line(level, "t", "fetch", git_words_naming_a_remote().as_str());
+        let line: String =
+            diagnostic_line(level, "t", "fetch", git_words_naming_a_remote().as_str());
         assert!(!line.contains(FAKE_USER), "{line}");
         assert!(!line.contains(FAKE_PASSWORD), "{line}");
         assert!(
-            line.contains(format!("'https://{}@example.invalid/team/repo.git/': 403", crate::lfs_output_mask::CREDENTIALS_MASK).as_str()),
+            line.contains(
+                format!(
+                    "'https://{}@example.invalid/team/repo.git/': 403",
+                    crate::lfs_output_mask::CREDENTIALS_MASK
+                )
+                .as_str()
+            ),
             "{line}"
         );
     }
@@ -62,7 +71,12 @@ fn a_diagnostic_line_hides_the_userinfo_of_a_url_in_its_message() {
 /// A control character inside the userinfo does not carry the rest of it past the mask.
 #[test]
 fn a_diagnostic_line_hides_userinfo_that_holds_a_control_character() {
-    let line: String = diagnostic_line("debug", "t", "fetch", format!("https://{FAKE_USER}\u{85}{FAKE_PASSWORD}@example.invalid/").as_str());
+    let line: String = diagnostic_line(
+        "debug",
+        "t",
+        "fetch",
+        format!("https://{FAKE_USER}\u{85}{FAKE_PASSWORD}@example.invalid/").as_str(),
+    );
     assert!(!line.contains(FAKE_USER), "{line}");
     assert!(!line.contains(FAKE_PASSWORD), "{line}");
 }
@@ -92,9 +106,12 @@ fn child_stderr(verbose: bool) -> String {
     let module: &str = module_path!();
     let path: String = format!(
         "{}::child_prints_a_debug_and_a_warning_line_naming_a_remote",
-        module.split_once("::").map_or(module, |(_, rest)| return rest)
+        module
+            .split_once("::")
+            .map_or(module, |(_, rest)| return rest)
     );
-    let mut environment: Vec<(&str, &std::ffi::OsStr)> = vec![(CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> =
+        vec![(CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
     if verbose {
         environment.push(("MONOCHROMATIC_VERBOSE", std::ffi::OsStr::new("true")));
     }
@@ -104,12 +121,13 @@ fn child_stderr(verbose: bool) -> String {
         cleared.push("MONOCHROMATIC_VERBOSE");
     }
     // The child's pass is this control's assertion; what this reads is its standard error.
-    let output: std::process::Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
-        exact_test: path.as_str(),
-        environment: environment.as_slice(),
-        cleared_environment: cleared.as_slice(),
-        ..crate::child_test_process::ChildTest::default()
-    });
+    let output: std::process::Output =
+        crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: path.as_str(),
+            environment: environment.as_slice(),
+            cleared_environment: cleared.as_slice(),
+            ..crate::child_test_process::ChildTest::default()
+        });
     return String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
 }
 
@@ -120,16 +138,33 @@ fn child_stderr(verbose: bool) -> String {
 #[test]
 fn git_words_in_a_verbose_debug_line_reach_standard_error_without_the_userinfo() {
     let verbose: String = child_stderr(true);
-    let debug_line: &str = verbose.lines().find(|line| return line.starts_with("[debug]")).expect(verbose.as_str());
+    let debug_line: &str = verbose
+        .lines()
+        .find(|line| return line.starts_with("[debug]"))
+        .expect(verbose.as_str());
     assert!(debug_line.contains(CHILD_TAG), "{verbose}");
     assert!(debug_line.contains("403"), "{verbose}");
-    assert!(verbose.lines().any(|line| return line.starts_with("[warn]")), "{verbose}");
+    assert!(
+        verbose
+            .lines()
+            .any(|line| return line.starts_with("[warn]")),
+        "{verbose}"
+    );
     assert!(!verbose.contains(FAKE_USER), "{verbose}");
     assert!(!verbose.contains(FAKE_PASSWORD), "{verbose}");
-    assert!(verbose.contains(crate::lfs_output_mask::CREDENTIALS_MASK), "{verbose}");
+    assert!(
+        verbose.contains(crate::lfs_output_mask::CREDENTIALS_MASK),
+        "{verbose}"
+    );
     // The positive control for the switch: without it the debug line is absent, so the line above came from the switch.
     let quiet: String = child_stderr(false);
-    assert!(!quiet.lines().any(|line| return line.starts_with("[debug]")), "{quiet}");
-    assert!(quiet.lines().any(|line| return line.starts_with("[warn]")), "{quiet}");
+    assert!(
+        !quiet.lines().any(|line| return line.starts_with("[debug]")),
+        "{quiet}"
+    );
+    assert!(
+        quiet.lines().any(|line| return line.starts_with("[warn]")),
+        "{quiet}"
+    );
     assert!(!quiet.contains(FAKE_PASSWORD), "{quiet}");
 }

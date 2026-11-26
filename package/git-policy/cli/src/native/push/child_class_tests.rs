@@ -13,8 +13,18 @@ const CLASSES: [ChildClass; 2] = [ChildClass::Plumbing, ChildClass::Object];
 /// or compare the index with the worktree,
 /// or talk to a remote:
 ///  inputs for the claim that anything not named a query is a bulk step.
-const BULK_STEPS: [&str; 10] =
-    ["pack-objects", "index-pack", "add", "hash-object", "maintenance", "reset", "update-index", "ls-files", "diff", "show"];
+const BULK_STEPS: [&str; 10] = [
+    "pack-objects",
+    "index-pack",
+    "add",
+    "hash-object",
+    "maintenance",
+    "reset",
+    "update-index",
+    "ls-files",
+    "diff",
+    "show",
+];
 
 /// Request arguments from words.
 fn arguments(words: &[&str]) -> Vec<OsString> {
@@ -26,9 +36,20 @@ fn arguments(words: &[&str]) -> Vec<OsString> {
 #[test]
 fn query_subcommands_are_classed_as_plumbing_after_any_global_options() {
     for name in PLUMBING_SUBCOMMANDS {
-        assert_eq!(class_of(&arguments(&[name, "--quiet"])), ChildClass::Plumbing, "{name}");
         assert_eq!(
-            class_of(&arguments(&["--git-dir=/shadow", "-c", "core.hooksPath=/none", "-C", "/repo", name])),
+            class_of(&arguments(&[name, "--quiet"])),
+            ChildClass::Plumbing,
+            "{name}"
+        );
+        assert_eq!(
+            class_of(&arguments(&[
+                "--git-dir=/shadow",
+                "-c",
+                "core.hooksPath=/none",
+                "-C",
+                "/repo",
+                name
+            ])),
             ChildClass::Plumbing,
             "{name} behind global options"
         );
@@ -43,7 +64,17 @@ fn query_subcommands_are_classed_as_plumbing_after_any_global_options() {
 #[test]
 fn steps_that_move_bytes_or_compare_the_index_are_bulk_work() {
     for name in BULK_STEPS {
-        assert_eq!(class_of(&arguments(&["-c", "core.fsync=none", name, "--quiet", "--detach"])), ChildClass::Object, "{name}");
+        assert_eq!(
+            class_of(&arguments(&[
+                "-c",
+                "core.fsync=none",
+                name,
+                "--quiet",
+                "--detach"
+            ])),
+            ChildClass::Object,
+            "{name}"
+        );
     }
 }
 
@@ -62,7 +93,10 @@ fn no_bulk_step_is_in_the_query_list() {
 /// get the longer bound rather than an early stop.
 #[test]
 fn an_unknown_step_gets_the_longer_bound() {
-    assert_eq!(class_of(&arguments(&["frobnicate", "--now"])), ChildClass::Object);
+    assert_eq!(
+        class_of(&arguments(&["frobnicate", "--now"])),
+        ChildClass::Object
+    );
     assert_eq!(class_of(&arguments(&["--version"])), ChildClass::Object);
     assert_eq!(class_of(&[]), ChildClass::Object);
 }
@@ -73,7 +107,11 @@ fn the_variable_sets_every_class_to_the_same_bound() {
     let seconds: u64 = OBJECT_QUIET_WINDOW.as_secs() + PLUMBING_QUIET_WINDOW.as_secs() + 1;
     let text: String = seconds.to_string();
     for class in CLASSES {
-        assert_eq!(class.limit_from(Some(OsStr::new(text.as_str()))), Duration::from_secs(seconds), "{class:?}");
+        assert_eq!(
+            class.limit_from(Some(OsStr::new(text.as_str()))),
+            Duration::from_secs(seconds),
+            "{class:?}"
+        );
     }
 }
 
@@ -85,7 +123,11 @@ fn an_unusable_value_falls_back_to_the_class_default() {
     for class in CLASSES {
         assert_eq!(class.limit_from(None), class.default_limit(), "{class:?}");
         for value in ["0", "", "-1", "1.5", "soon"] {
-            assert_eq!(class.limit_from(Some(OsStr::new(value))), class.default_limit(), "{class:?} {value:?}");
+            assert_eq!(
+                class.limit_from(Some(OsStr::new(value))),
+                class.default_limit(),
+                "{class:?} {value:?}"
+            );
         }
     }
 }

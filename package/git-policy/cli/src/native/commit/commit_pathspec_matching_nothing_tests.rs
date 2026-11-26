@@ -9,16 +9,34 @@ use std::ffi::OsString;
 /// The elements one command line names,
 /// and the borrowed slice the classifier is asked about.
 fn written(elements: &[&str]) -> Vec<OsString> {
-    return elements.iter().map(|element| { return OsString::from(*element); }).collect();
+    return elements
+        .iter()
+        .map(|element| {
+            return OsString::from(*element);
+        })
+        .collect();
 }
 
 /// The tokens the classifier refuses,
 /// as text.
-fn refused(stderr: &str, elements: &[&str]) -> Option<Vec<String>> {
+fn refused(
+    stderr: &str,
+    elements: &[&str],
+) -> Option<Vec<String>> {
     let specs: Vec<OsString> = written(elements);
     let borrowed: Vec<&OsString> = specs.iter().collect();
-    return pathspec_matching_nothing(stderr.as_bytes(), WrittenPathspecs::Elements(borrowed.as_slice()))
-        .map(|found| { return found.iter().map(|token| { return String::from_utf8_lossy(token).into_owned(); }).collect(); });
+    return pathspec_matching_nothing(
+        stderr.as_bytes(),
+        WrittenPathspecs::Elements(borrowed.as_slice()),
+    )
+    .map(|found| {
+        return found
+            .iter()
+            .map(|token| {
+                return String::from_utf8_lossy(token).into_owned();
+            })
+            .collect();
+    });
 }
 
 /// Git's own sentence for `git add` is read,
@@ -26,7 +44,10 @@ fn refused(stderr: &str, elements: &[&str]) -> Option<Vec<String>> {
 #[test]
 fn the_refusal_git_add_prints_names_the_token_the_caller_wrote() {
     let stderr: &str = "fatal: pathspec 'nope.txt' did not match any files\n";
-    assert_eq!(refused(stderr, &["nope.txt"]), Some(vec![String::from("nope.txt")]));
+    assert_eq!(
+        refused(stderr, &["nope.txt"]),
+        Some(vec![String::from("nope.txt")])
+    );
 }
 
 /// `git commit` words the same refusal differently,
@@ -35,7 +56,10 @@ fn the_refusal_git_add_prints_names_the_token_the_caller_wrote() {
 #[test]
 fn the_refusal_native_git_commit_prints_is_understood() {
     let stderr: &str = "error: pathspec 'a.txt' did not match any file(s) known to git\n";
-    assert_eq!(refused(stderr, &["a.txt"]), Some(vec![String::from("a.txt")]));
+    assert_eq!(
+        refused(stderr, &["a.txt"]),
+        Some(vec![String::from("a.txt")])
+    );
 }
 
 /// Only a failure whose sentence is that refusal is classified:
@@ -67,7 +91,8 @@ fn a_pathspec_the_caller_never_wrote_is_not_reported_as_the_callers_error() {
 #[test]
 fn a_pathspec_read_from_the_callers_file_is_the_callers() {
     let stderr: &[u8] = b"fatal: pathspec 'nope.txt' did not match any files\n";
-    let found: Option<Vec<Vec<u8>>> = pathspec_matching_nothing(stderr, WrittenPathspecs::FromTheCallersFile);
+    let found: Option<Vec<Vec<u8>>> =
+        pathspec_matching_nothing(stderr, WrittenPathspecs::FromTheCallersFile);
     assert_eq!(found, Some(vec![b"nope.txt".to_vec()]));
 }
 
@@ -99,10 +124,13 @@ fn a_token_that_holds_the_closing_wording_is_read_whole() {
 /// not the one it holds.
 #[test]
 fn a_token_that_holds_the_commit_wording_is_read_whole() {
-    let stderr: &str = "fatal: pathspec 'x' did not match any file(s) known to git' did not match any files\n";
+    let stderr: &str =
+        "fatal: pathspec 'x' did not match any file(s) known to git' did not match any files\n";
     assert_eq!(
         refused(stderr, &["x' did not match any file(s) known to git"]),
-        Some(vec![String::from("x' did not match any file(s) known to git")])
+        Some(vec![String::from(
+            "x' did not match any file(s) known to git"
+        )])
     );
 }
 
@@ -112,7 +140,10 @@ fn a_token_that_holds_the_commit_wording_is_read_whole() {
 #[test]
 fn a_token_that_holds_a_newline_is_read_whole() {
     let stderr: &str = "fatal: pathspec 'no\npe.txt' did not match any files\n";
-    assert_eq!(refused(stderr, &["no\npe.txt"]), Some(vec![String::from("no\npe.txt")]));
+    assert_eq!(
+        refused(stderr, &["no\npe.txt"]),
+        Some(vec![String::from("no\npe.txt")])
+    );
 }
 
 /// The wording only closes a refusal where Git ends the sentence with it,
@@ -139,7 +170,10 @@ fn a_file_pathspec_that_holds_the_closing_wording_is_read_whole() {
 #[test]
 fn wording_that_goes_on_after_the_refusal_names_nothing_in_a_file_too() {
     let stderr: &[u8] = b"fatal: pathspec 'nope.txt' did not match any files or directories\n";
-    assert_eq!(pathspec_matching_nothing(stderr, WrittenPathspecs::FromTheCallersFile), None);
+    assert_eq!(
+        pathspec_matching_nothing(stderr, WrittenPathspecs::FromTheCallersFile),
+        None
+    );
 }
 
 /// An element that only begins the token Git refused is not that refusal,
@@ -147,7 +181,8 @@ fn wording_that_goes_on_after_the_refusal_names_nothing_in_a_file_too() {
 /// so the shorter element is not reported as refused itself.
 #[test]
 fn an_element_that_only_begins_the_refused_token_is_not_reported() {
-    let stderr: &str = "fatal: pathspec 'nope.txt' did not match any files' did not match any files\n";
+    let stderr: &str =
+        "fatal: pathspec 'nope.txt' did not match any files' did not match any files\n";
     assert_eq!(refused(stderr, &["nope.txt"]), None);
     assert_eq!(
         refused(stderr, &["nope.txt' did not match any files"]),
@@ -169,7 +204,10 @@ fn a_token_of_bytes_that_are_not_valid_utf_8_is_kept_as_written() {
     };
     let elements: Vec<&OsString> = vec![&element];
     assert_eq!(
-        pathspec_matching_nothing(stderr.as_slice(), WrittenPathspecs::Elements(elements.as_slice())),
+        pathspec_matching_nothing(
+            stderr.as_slice(),
+            WrittenPathspecs::Elements(elements.as_slice())
+        ),
         Some(vec![vec![0xff, 0xfe]])
     );
 }
@@ -179,10 +217,22 @@ fn a_token_of_bytes_that_are_not_valid_utf_8_is_kept_as_written() {
 #[test]
 fn the_message_names_the_token_and_what_became_of_the_commit() {
     let message: String = pathspec_matching_nothing_message(&[b"nope.txt".to_vec()]);
-    assert!(message.contains("pathspec 'nope.txt' did not match any files"), "{message}");
-    assert!(message.contains("this commit was not made and nothing was staged by it"), "{message}");
-    assert!(message.contains("git add -- <path>"), "the remedy for a path that is new: {message}");
-    assert!(!message.contains("options belong before"), "nothing here starts with a hyphen: {message}");
+    assert!(
+        message.contains("pathspec 'nope.txt' did not match any files"),
+        "{message}"
+    );
+    assert!(
+        message.contains("this commit was not made and nothing was staged by it"),
+        "{message}"
+    );
+    assert!(
+        message.contains("git add -- <path>"),
+        "the remedy for a path that is new: {message}"
+    );
+    assert!(
+        !message.contains("options belong before"),
+        "nothing here starts with a hyphen: {message}"
+    );
     assert!(!message.contains("--message <text>"), "{message}");
 }
 
@@ -192,16 +242,29 @@ fn the_message_names_the_token_and_what_became_of_the_commit() {
 #[test]
 fn the_message_says_where_an_option_belongs_when_the_token_starts_with_a_hyphen() {
     let message: String = pathspec_matching_nothing_message(&[b"--message=second".to_vec()]);
-    assert!(message.contains("pathspec '--message=second' did not match any files"), "{message}");
+    assert!(
+        message.contains("pathspec '--message=second' did not match any files"),
+        "{message}"
+    );
     assert!(message.contains("options belong before --"), "{message}");
-    assert!(message.contains("git commit --message <text> -- <paths>"), "{message}");
-    assert!(!message.contains("git add -- <path>"), "an option is not a path to stage: {message}");
+    assert!(
+        message.contains("git commit --message <text> -- <paths>"),
+        "{message}"
+    );
+    assert!(
+        !message.contains("git add -- <path>"),
+        "an option is not a path to stage: {message}"
+    );
 }
 
 /// Several tokens are listed together,
 /// so the person sees every pathspec Git refused.
 #[test]
 fn the_message_lists_every_refused_token() {
-    let message: String = pathspec_matching_nothing_message(&[b"first.txt".to_vec(), b"second.txt".to_vec()]);
-    assert!(message.contains("pathspec 'first.txt', 'second.txt' did not match any files"), "{message}");
+    let message: String =
+        pathspec_matching_nothing_message(&[b"first.txt".to_vec(), b"second.txt".to_vec()]);
+    assert!(
+        message.contains("pathspec 'first.txt', 'second.txt' did not match any files"),
+        "{message}"
+    );
 }

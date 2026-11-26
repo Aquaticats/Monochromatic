@@ -20,7 +20,11 @@
 /// The words for a failed read,
 /// and the mode Git records,
 /// both owned by the capture.
-use crate::merge_isolation_carry::{could_not_be_read, mode_of, the_permissions};
+use crate::merge_isolation_carry::{
+    could_not_be_read,
+    mode_of,
+    the_permissions,
+};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -95,11 +99,20 @@ pub(crate) enum NoBytes {
 /// ```ts
 /// const notOneEdit = (location, kind) => `${location} is ...`;
 /// ```
-pub(crate) fn not_one_edit_a_merge_can_carry(location: &Path, kind: &NoBytes) -> String {
+pub(crate) fn not_one_edit_a_merge_can_carry(
+    location: &Path,
+    kind: &NoBytes,
+) -> String {
     return match kind {
-        NoBytes::Directory => format!("{} is a directory, which is not one edit a merge can carry", location.display()),
+        NoBytes::Directory => format!(
+            "{} is a directory, which is not one edit a merge can carry",
+            location.display()
+        ),
         NoBytes::Special => {
-            format!("{} is not a plain file (a named pipe, a socket or a device), which is not one edit a merge can carry", location.display())
+            format!(
+                "{} is not a plain file (a named pipe, a socket or a device), which is not one edit a merge can carry",
+                location.display()
+            )
         }
     };
 }
@@ -124,7 +137,9 @@ pub(crate) fn not_one_edit_a_merge_can_carry(location: &Path, kind: &NoBytes) ->
 pub(crate) fn worktree_entry_at(location: &Path) -> Result<WorktreeEntry, String> {
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeEntry::Absent),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(WorktreeEntry::Absent);
+        }
         Err(error) => return Err(could_not_be_read(location, error)),
     };
     if metadata.is_dir() {
@@ -136,7 +151,11 @@ pub(crate) fn worktree_entry_at(location: &Path) -> Result<WorktreeEntry, String
             Ok(found) => found,
             Err(error) => return Err(could_not_be_read(location, error)),
         };
-        return Ok(WorktreeEntry::Holds { bytes: target.as_os_str().as_encoded_bytes().to_vec(), mode, permissions: None });
+        return Ok(WorktreeEntry::Holds {
+            bytes: target.as_os_str().as_encoded_bytes().to_vec(),
+            mode,
+            permissions: None,
+        });
     }
     // The type is settled before the open and again on the handle the open returns, so a name swapped for a pipe or a device
     //  between the two is refused instead of waited on.
@@ -151,5 +170,9 @@ pub(crate) fn worktree_entry_at(location: &Path) -> Result<WorktreeEntry, String
     if let Err(error) = std::io::Read::read_to_end(&mut plain, &mut bytes) {
         return Err(could_not_be_read(location, error));
     }
-    return Ok(WorktreeEntry::Holds { bytes, mode, permissions: the_permissions(&metadata) });
+    return Ok(WorktreeEntry::Holds {
+        bytes,
+        mode,
+        permissions: the_permissions(&metadata),
+    });
 }

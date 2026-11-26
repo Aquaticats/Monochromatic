@@ -30,13 +30,20 @@
 //! process.exit(1);
 //! ```
 
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_cancel::cancel_refusal::CancelRefusal;
-use crate::worktree_clone_removal_cancel::the_cancelling_sequence::{TheReversalDone, TheReversalRequest, reverse_the_removal};
+use crate::worktree_clone_removal_cancel::the_cancelling_sequence::{
+    TheReversalDone,
+    TheReversalRequest,
+    reverse_the_removal,
+};
 use crate::worktree_clone_removal_cancel::the_plan_it_leaves::ThePlansFate;
 use crate::worktree_clone_removal_cancel::the_reversing_request::TheMountRequest;
-use crate::worktree_clone_removal_cancel::the_staged_state::{StagedSettlement, TheStagedFolder};
+use crate::worktree_clone_removal_cancel::the_staged_state::{
+    StagedSettlement,
+    TheStagedFolder,
+};
+use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use std::path::Path;
 
 /// The status a removal that cancelled itself exits with,
@@ -80,8 +87,12 @@ impl WhereItStopped {
     ///  and the stop point is what decides which sentence is true.
     pub fn destroyed_nothing(self) -> bool {
         return match self {
-            WhereItStopped::BeforeTheMove | WhereItStopped::InStaging | WhereItStopped::ByAScanAfterTheUnmount => true,
-            WhereItStopped::ByAScanBeforeADelete | WhereItStopped::AtTheHeadDestroy | WhereItStopped::TheForcedArmsFailure => false,
+            WhereItStopped::BeforeTheMove
+            | WhereItStopped::InStaging
+            | WhereItStopped::ByAScanAfterTheUnmount => true,
+            WhereItStopped::ByAScanBeforeADelete
+            | WhereItStopped::AtTheHeadDestroy
+            | WhereItStopped::TheForcedArmsFailure => false,
         };
     }
 
@@ -89,11 +100,21 @@ impl WhereItStopped {
     pub fn clause(self) -> &'static str {
         return match self {
             WhereItStopped::BeforeTheMove => "the all-namespace scan before the move saw a holder",
-            WhereItStopped::InStaging => "the clone's unmount was blocked by a holder in another session",
-            WhereItStopped::ByAScanAfterTheUnmount => "the all-namespace scan after the unmount saw a holder in a namespace this namespace's unmount does not reach",
-            WhereItStopped::ByAScanBeforeADelete => "the all-namespace scan before a snapshot delete saw a holder",
-            WhereItStopped::AtTheHeadDestroy => "the head destroy was refused `dataset is busy` with the clone's own snapshot list empty",
-            WhereItStopped::TheForcedArmsFailure => "it was asked to end the holders other than your protected set and could not",
+            WhereItStopped::InStaging => {
+                "the clone's unmount was blocked by a holder in another session"
+            }
+            WhereItStopped::ByAScanAfterTheUnmount => {
+                "the all-namespace scan after the unmount saw a holder in a namespace this namespace's unmount does not reach"
+            }
+            WhereItStopped::ByAScanBeforeADelete => {
+                "the all-namespace scan before a snapshot delete saw a holder"
+            }
+            WhereItStopped::AtTheHeadDestroy => {
+                "the head destroy was refused `dataset is busy` with the clone's own snapshot list empty"
+            }
+            WhereItStopped::TheForcedArmsFailure => {
+                "it was asked to end the holders other than your protected set and could not"
+            }
         };
     }
 }
@@ -217,7 +238,10 @@ impl TheSelfCancellationDone {
             ));
         }
         if !self.holders.is_empty() {
-            lines.push(format!("The holder(s) it named:\n{}", self.holders.join("\n")));
+            lines.push(format!(
+                "The holder(s) it named:\n{}",
+                self.holders.join("\n")
+            ));
         }
         match &self.staged {
             StagedSettlement::NoStagedFolder => {}
@@ -230,11 +254,19 @@ impl TheSelfCancellationDone {
         }
         match &self.plans {
             ThePlansFate::NoPlan => {}
-            ThePlansFate::Removed { path } => lines.push(format!(
+            ThePlansFate::Removed {
+                path,
+            } => lines.push(format!(
                 "The destruction plan at {} witnessed nothing and left.",
                 path.display()
             )),
-            ThePlansFate::Kept { path, .. } => lines.push(format!("The destruction plan at {} stands as the loss record.", path.display())),
+            ThePlansFate::Kept {
+                path,
+                ..
+            } => lines.push(format!(
+                "The destruction plan at {} stands as the loss record.",
+                path.display()
+            )),
         }
         lines.push(String::from(
             "The holder is what this removal could not release without `--force`, which ends the holders other than your session. Ways forward: end that job and run the removal again, or run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` once it is added to read the state.",
@@ -267,7 +299,9 @@ impl TheSelfCancellationDone {
 /// ```ts
 /// const done = theRemovalCancelsItself(input);
 /// ```
-pub fn the_removal_cancels_itself(input: &TheSelfCancellation<'_>) -> Result<TheSelfCancellationDone, CancelRefusal> {
+pub fn the_removal_cancels_itself(
+    input: &TheSelfCancellation<'_>
+) -> Result<TheSelfCancellationDone, CancelRefusal> {
     let reversal: TheReversalDone = reverse_the_removal(&TheReversalRequest {
         common_dir: input.common_dir,
         recorded: input.recorded,

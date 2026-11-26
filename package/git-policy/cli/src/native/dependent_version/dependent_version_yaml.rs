@@ -28,7 +28,13 @@
 
 /// The line-level reader this file builds on.
 use crate::dependent_version_yaml_lines::{
-    GENERATED_ITEM_GAP, YamlLine, YamlProblem, is_item, item_content, read_lines, read_scalar,
+    GENERATED_ITEM_GAP,
+    YamlLine,
+    YamlProblem,
+    is_item,
+    item_content,
+    read_lines,
+    read_scalar,
     split_key,
 };
 /// `HashSet` holds the keys of one mapping for the duplicate check.
@@ -93,7 +99,10 @@ impl YamlNode {
     /// and nothing when this node is not a mapping
     /// or
     /// names no such key.
-    pub fn entry(&self, key: &str) -> Option<&YamlNode> {
+    pub fn entry(
+        &self,
+        key: &str,
+    ) -> Option<&YamlNode> {
         let YamlNode::Mapping(entries) = self else {
             return None;
         };
@@ -168,7 +177,10 @@ pub fn parse_yaml_document(text: &str) -> Result<YamlNode, YamlProblem> {
 /// ```ts
 /// function parseBlock(lines, index): [YamlNode, number];
 /// ```
-fn parse_block(lines: &[YamlLine<'_>], index: usize) -> Result<(YamlNode, usize), YamlProblem> {
+fn parse_block(
+    lines: &[YamlLine<'_>],
+    index: usize,
+) -> Result<(YamlNode, usize), YamlProblem> {
     let line: &YamlLine<'_> = &lines[index];
     if is_item(line.content) {
         return parse_sequence(lines, index);
@@ -188,7 +200,10 @@ fn parse_block(lines: &[YamlLine<'_>], index: usize) -> Result<(YamlNode, usize)
 /// ```ts
 /// function parseSequence(lines, index): [YamlNode, number];
 /// ```
-fn parse_sequence(lines: &[YamlLine<'_>], index: usize) -> Result<(YamlNode, usize), YamlProblem> {
+fn parse_sequence(
+    lines: &[YamlLine<'_>],
+    index: usize,
+) -> Result<(YamlNode, usize), YamlProblem> {
     let indent: usize = lines[index].indent;
     let mut items: Vec<YamlNode> = Vec::new();
     let mut at: usize = index;
@@ -218,13 +233,8 @@ fn parse_sequence(lines: &[YamlLine<'_>], index: usize) -> Result<(YamlNode, usi
             Err(reason) => return Err(YamlProblem::new(line.number, &reason)),
         };
         if opens_mapping {
-            let (node, next): (YamlNode, usize) = parse_mapping(
-                lines,
-                at,
-                indent + ITEM_KEY_INDENT,
-                Some(rest),
-                line.number,
-            )?;
+            let (node, next): (YamlNode, usize) =
+                parse_mapping(lines, at, indent + ITEM_KEY_INDENT, Some(rest), line.number)?;
             items.push(node);
             at = next;
             continue;

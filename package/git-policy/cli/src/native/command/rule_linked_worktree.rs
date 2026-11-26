@@ -40,24 +40,58 @@
 /// import { cleanChangesWorktree, parseCleanRegion } from './command_clean.ts';
 /// ```
 use crate::command_branch_delete::branch_deletions;
-use crate::command_checkout_table::{CHECKOUT_TABLE, SWITCH_TABLE};
-use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_region};
-use crate::command_worktree::worktree_removal;
-use crate::command_discard::{
-    Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, revision_before_paths, skip_discard, switch_discard,
+use crate::command_checkout_table::{
+    CHECKOUT_TABLE,
+    SWITCH_TABLE,
 };
-use crate::command_options::{OptionError, OptionSpec};
-use crate::command_reset::{ResetMode, ResetRegion, RESET_TABLE, parse_reset_region};
-use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
+use crate::command_clean::{
+    CleanRegion,
+    clean_changes_worktree,
+    parse_clean_region,
+};
+use crate::command_discard::{
+    Discard,
+    abort_discard,
+    checkout_discard,
+    force_discard,
+    read_tree_discard,
+    restore_discard,
+    restores_index_only,
+    revision_before_paths,
+    skip_discard,
+    switch_discard,
+};
+use crate::command_options::{
+    OptionError,
+    OptionSpec,
+};
+use crate::command_reset::{
+    RESET_TABLE,
+    ResetMode,
+    ResetRegion,
+    parse_reset_region,
+};
+use crate::command_stash::{
+    StashSubcommand,
+    parse_stash_region,
+    stash_changes_state,
+};
+use crate::command_worktree::worktree_removal;
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
-use crate::rule_shared_remote::{SharedRemoteChange, shared_remote_write};
-use crate::rule_worktree_dirty::DirtyScope;
 pub use crate::rule_linked_worktree_messages::{
-    dirty_worktree_message, exemption_notice, ignored_file_message, main_worktree_message,
-    outside_worktree_message, repository_stash_message,
+    dirty_worktree_message,
+    exemption_notice,
+    ignored_file_message,
+    main_worktree_message,
+    outside_worktree_message,
+    repository_stash_message,
 };
+use crate::rule_shared_remote::{
+    SharedRemoteChange,
+    shared_remote_write,
+};
+use crate::rule_worktree_dirty::DirtyScope;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might
@@ -315,7 +349,10 @@ pub enum DirtyQuestion {
 /// ```ts
 /// function dirtyQuestion(command: GuardedCommand, region: string[]): DirtyQuestion | undefined;
 /// ```
-pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<DirtyQuestion> {
+pub fn dirty_question(
+    command: GuardedCommand,
+    region: &[OsString],
+) -> Option<DirtyQuestion> {
     match command {
         GuardedCommand::StashDrop => {
             return Some(DirtyQuestion::RepositoryStash);
@@ -383,7 +420,10 @@ pub struct TargetTree {
 /// ```ts
 /// function targetTree(command: GuardedCommand, region: string[]): TargetTree | undefined;
 /// ```
-pub fn target_tree(command: GuardedCommand, region: &[OsString]) -> Option<TargetTree> {
+pub fn target_tree(
+    command: GuardedCommand,
+    region: &[OsString],
+) -> Option<TargetTree> {
     // `match` picks the one table the decided form belongs to; `other` is every form that writes no tree.
     let table: &[OptionSpec] = match command {
         GuardedCommand::ResetHard => RESET_TABLE,
@@ -408,7 +448,10 @@ pub fn target_tree(command: GuardedCommand, region: &[OsString]) -> Option<Targe
 /// ```ts
 /// function decided(command: GuardedCommand, reading: Discard): LinkedWorktreeDecision;
 /// ```
-fn decided(command: GuardedCommand, reading: Discard) -> LinkedWorktreeDecision {
+fn decided(
+    command: GuardedCommand,
+    reading: Discard,
+) -> LinkedWorktreeDecision {
     match reading {
         Discard::Harmless => return LinkedWorktreeDecision::Pass,
         Discard::MovesHead => return LinkedWorktreeDecision::WhenDirty(command),
@@ -492,10 +535,17 @@ fn guarded_decision(
             return Ok(LinkedWorktreeDecision::Pass);
         }
         // `drop` and `clear` delete entries of `refs/stash`, the one stash every worktree of the repository shares.
-        if matches!(subcommand, Some(StashSubcommand::Drop | StashSubcommand::Clear)) {
-            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::StashDrop));
+        if matches!(
+            subcommand,
+            Some(StashSubcommand::Drop | StashSubcommand::Clear)
+        ) {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(
+                GuardedCommand::StashDrop,
+            ));
         }
-        return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Stash));
+        return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(
+            GuardedCommand::Stash,
+        ));
     }
     if word == b"clean" {
         // `&[]` is an empty flag list: wrapper controls were removed before this point.
@@ -506,12 +556,18 @@ fn guarded_decision(
         // An ignored file is not an untracked file to Git, and the person's environment file sits in exactly that
         // difference, so a clean that deletes ignored files is its own guarded form with its own measurement.
         if facts.ignored_only {
-            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnoredOnly));
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(
+                GuardedCommand::CleanIgnoredOnly,
+            ));
         }
         if facts.deletes_ignored {
-            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnored));
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(
+                GuardedCommand::CleanIgnored,
+            ));
         }
-        return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Clean));
+        return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(
+            GuardedCommand::Clean,
+        ));
     }
     if word == b"reset" {
         let facts: ResetRegion = parse_reset_region(region, &[])?;
@@ -548,13 +604,17 @@ fn guarded_decision(
     }
     if word == b"worktree" {
         if worktree_removal(region).is_some() {
-            return Ok(LinkedWorktreeDecision::Audited(AuditedCommand::WorktreeRemove));
+            return Ok(LinkedWorktreeDecision::Audited(
+                AuditedCommand::WorktreeRemove,
+            ));
         }
         return Ok(LinkedWorktreeDecision::Pass);
     }
     if word == b"branch" {
         if branch_deletions(region).is_some() {
-            return Ok(LinkedWorktreeDecision::Audited(AuditedCommand::BranchDelete));
+            return Ok(LinkedWorktreeDecision::Audited(
+                AuditedCommand::BranchDelete,
+            ));
         }
         return Ok(LinkedWorktreeDecision::Pass);
     }
@@ -565,10 +625,16 @@ fn guarded_decision(
         return Ok(decided(GuardedCommand::Move, force_discard(region)));
     }
     if word == b"checkout-index" {
-        return Ok(decided(GuardedCommand::CheckoutIndex, force_discard(region)));
+        return Ok(decided(
+            GuardedCommand::CheckoutIndex,
+            force_discard(region),
+        ));
     }
     if word == b"read-tree" {
-        return Ok(decided(GuardedCommand::ReadTree, read_tree_discard(region)?));
+        return Ok(decided(
+            GuardedCommand::ReadTree,
+            read_tree_discard(region)?,
+        ));
     }
     // The two forms that end the operation a conflict stopped are read before every other form of their word,
     //  because both drop the hand resolution the operation is waiting on.
@@ -629,7 +695,10 @@ pub fn decide_linked_worktree(arguments: &[OsString]) -> LinkedWorktreeDecision 
 /// ```ts
 /// function decideGuardedWord(word: Buffer, region: string[]): LinkedWorktreeDecision;
 /// ```
-pub fn decide_guarded_word(word: &[u8], region: &[OsString]) -> LinkedWorktreeDecision {
+pub fn decide_guarded_word(
+    word: &[u8],
+    region: &[OsString],
+) -> LinkedWorktreeDecision {
     return guarded_decision(word, region).unwrap_or(LinkedWorktreeDecision::Pass);
 }
 
@@ -646,7 +715,10 @@ pub fn decide_guarded_word(word: &[u8], region: &[OsString]) -> LinkedWorktreeDe
 /// ```ts
 /// function resolveLinkedWorktree(command: GuardedCommand, target: EffectiveTarget): string | undefined;
 /// ```
-pub fn resolve_linked_worktree(command: GuardedCommand, target: EffectiveTarget) -> Option<String> {
+pub fn resolve_linked_worktree(
+    command: GuardedCommand,
+    target: EffectiveTarget,
+) -> Option<String> {
     match target {
         // `Some(x)` is the "present" case of `Option`; `None` is the "absent" case.
         EffectiveTarget::OutsideWorktree => return Some(outside_worktree_message(command)),

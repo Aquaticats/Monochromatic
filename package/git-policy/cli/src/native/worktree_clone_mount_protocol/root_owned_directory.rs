@@ -24,8 +24,14 @@
 //! ```
 
 use std::ffi::CString;
-use std::os::fd::{FromRawFd, OwnedFd};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::fd::{
+    FromRawFd,
+    OwnedFd,
+};
+use std::os::unix::fs::{
+    MetadataExt,
+    PermissionsExt,
+};
 use std::path::Path;
 
 /// What:
@@ -75,31 +81,64 @@ pub enum RootDirectoryRefusal {
 /// ```ts
 /// const directory = makeAndProveDirectory(path, owner, mode);
 /// ```
-pub(super) fn make_and_prove(path: &Path, owner: u32, mode: u32) -> Result<std::fs::File, RootDirectoryRefusal> {
+pub(super) fn make_and_prove(
+    path: &Path,
+    owner: u32,
+    mode: u32,
+) -> Result<std::fs::File, RootDirectoryRefusal> {
     if let Err(error) = std::fs::create_dir_all(path) {
-        return Err(RootDirectoryRefusal::Open { reason: error.to_string() });
+        return Err(RootDirectoryRefusal::Open {
+            reason: error.to_string(),
+        });
     }
     let text: CString = CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_nul| {
-        return RootDirectoryRefusal::Open { reason: String::from("the path holds a NUL byte") };
+        return RootDirectoryRefusal::Open {
+            reason: String::from("the path holds a NUL byte"),
+        };
     })?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call.
-    let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
+    let descriptor: libc::c_int = unsafe {
+        libc::open(
+            text.as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
     if descriptor < 0 {
-        return Err(RootDirectoryRefusal::Open { reason: std::io::Error::last_os_error().to_string() });
+        return Err(RootDirectoryRefusal::Open {
+            reason: std::io::Error::last_os_error().to_string(),
+        });
     }
     // SAFETY: `open` returned a new descriptor that nothing else owns.
     let directory: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
-    let facts: std::fs::Metadata = directory.metadata().map_err(|error| return RootDirectoryRefusal::Open { reason: error.to_string() })?;
+    let facts: std::fs::Metadata = directory.metadata().map_err(|error| {
+        return RootDirectoryRefusal::Open {
+            reason: error.to_string(),
+        };
+    })?;
     if facts.uid() != owner {
-        return Err(RootDirectoryRefusal::Owner { found: facts.uid(), wanted: owner });
+        return Err(RootDirectoryRefusal::Owner {
+            found: facts.uid(),
+            wanted: owner,
+        });
     }
     directory
         .set_permissions(std::fs::Permissions::from_mode(mode))
-        .map_err(|error| return RootDirectoryRefusal::Open { reason: error.to_string() })?;
-    let after: std::fs::Metadata = directory.metadata().map_err(|error| return RootDirectoryRefusal::Open { reason: error.to_string() })?;
+        .map_err(|error| {
+            return RootDirectoryRefusal::Open {
+                reason: error.to_string(),
+            };
+        })?;
+    let after: std::fs::Metadata = directory.metadata().map_err(|error| {
+        return RootDirectoryRefusal::Open {
+            reason: error.to_string(),
+        };
+    })?;
     let permission_bits: u32 = after.mode() & 0o7777;
     if permission_bits != mode {
-        return Err(RootDirectoryRefusal::Mode { found: permission_bits, wanted: mode });
+        return Err(RootDirectoryRefusal::Mode {
+            found: permission_bits,
+            wanted: mode,
+        });
     }
     return Ok(directory);
 }

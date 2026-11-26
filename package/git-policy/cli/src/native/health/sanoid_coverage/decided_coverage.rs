@@ -30,7 +30,16 @@
 //! generatedText(decision); // the header and every section, in order
 //! ```
 
-use super::sanoid_section::{AUTOSNAP_NO, AUTOSNAP_SETTING, RECURSIVE_SETTING, RECURSIVE_YES, SanoidSection, SanoidSetting, TEMPLATE_SETTING, render_sections};
+use super::sanoid_section::{
+    AUTOSNAP_NO,
+    AUTOSNAP_SETTING,
+    RECURSIVE_SETTING,
+    RECURSIVE_YES,
+    SanoidSection,
+    SanoidSetting,
+    TEMPLATE_SETTING,
+    render_sections,
+};
 
 /// The dataset the decided recursive section names.
 pub const RECURSIVE_ROOT: &str = "zpcachyos/ROOT/cos/home";
@@ -123,18 +132,36 @@ pub fn decided_coverage() -> CoverageDecision {
         ("zpcachyos/nosnap/user-cache", ExclusionMount::Path),
         ("zpcachyos/nosnap/vm-builder-output", ExclusionMount::Path),
         ("zpcachyos/nosnap/libvirt-images", ExclusionMount::Path),
-        ("zpcachyos/nosnap/git-worktree-probe", ExclusionMount::Unmounted),
+        (
+            "zpcachyos/nosnap/git-worktree-probe",
+            ExclusionMount::Unmounted,
+        ),
     ]
     .into_iter()
-    .map(|(dataset, mount)| return Exclusion { dataset: String::from(dataset), mount })
+    .map(|(dataset, mount)| {
+        return Exclusion {
+            dataset: String::from(dataset),
+            mount,
+        };
+    })
     .collect();
-    return CoverageDecision { recursive_root: String::from(RECURSIVE_ROOT), template: String::from(TEMPLATE), exclusions };
+    return CoverageDecision {
+        recursive_root: String::from(RECURSIVE_ROOT),
+        template: String::from(TEMPLATE),
+        exclusions,
+    };
 }
 
 impl CoverageDecision {
     /// Whether one dataset is one of the decision's exclusions.
-    pub fn excludes(&self, dataset: &str) -> bool {
-        return self.exclusions.iter().any(|exclusion| return exclusion.dataset == dataset);
+    pub fn excludes(
+        &self,
+        dataset: &str,
+    ) -> bool {
+        return self
+            .exclusions
+            .iter()
+            .any(|exclusion| return exclusion.dataset == dataset);
     }
 }
 
@@ -156,8 +183,14 @@ pub const GENERATED_HEADER: &str = "# /etc/sanoid/sanoid.conf (the sections this
 /// ```
 pub fn root_section(decision: &CoverageDecision) -> SanoidSection {
     let settings: Vec<SanoidSetting> = vec![
-        SanoidSetting { key: String::from(TEMPLATE_SETTING), value: decision.template.clone() },
-        SanoidSetting { key: String::from(RECURSIVE_SETTING), value: String::from(RECURSIVE_YES) },
+        SanoidSetting {
+            key: String::from(TEMPLATE_SETTING),
+            value: decision.template.clone(),
+        },
+        SanoidSetting {
+            key: String::from(RECURSIVE_SETTING),
+            value: String::from(RECURSIVE_YES),
+        },
     ];
     return SanoidSection::new(decision.recursive_root.as_str(), settings);
 }
@@ -193,7 +226,10 @@ pub fn sections_of(decision: &CoverageDecision) -> Vec<SanoidSection> {
 /// exclusionSection('tank/home/scratch'); // { dataset, settings: [{ key: 'autosnap', value: 'no' }] }
 /// ```
 pub fn exclusion_section(dataset: &str) -> SanoidSection {
-    let settings: Vec<SanoidSetting> = vec![SanoidSetting { key: String::from(AUTOSNAP_SETTING), value: String::from(AUTOSNAP_NO) }];
+    let settings: Vec<SanoidSetting> = vec![SanoidSetting {
+        key: String::from(AUTOSNAP_SETTING),
+        value: String::from(AUTOSNAP_NO),
+    }];
     return SanoidSection::new(dataset, settings);
 }
 

@@ -20,7 +20,10 @@
 //! type Classification = { state: State; pointer: Reading };
 //! ```
 
-use super::reading_a_bounded_file::{ARefusedReading, Reading};
+use super::reading_a_bounded_file::{
+    ARefusedReading,
+    Reading,
+};
 use crate::worktree_clone_binding_record::EntryRow;
 use crate::worktree_clone_mount_protocol::RequestNonce;
 use std::path::PathBuf;
@@ -195,11 +198,30 @@ impl Classification {
     /// The class a caller acts on.
     pub fn ownership(&self) -> LockOwnership {
         return match self.state {
-            ManagedLockState::Managed { .. } | ManagedLockState::CutShort { .. } => LockOwnership::TheWrappersManaged,
-            ManagedLockState::NotTheAddsWords { .. } => LockOwnership::AnOperatorsLock,
-            ManagedLockState::NoLock { .. } => LockOwnership::NoLockStands,
-            ManagedLockState::NoRegistration { .. } => LockOwnership::NoRegistrationStands,
-            ManagedLockState::NoBindingExplains { .. } | ManagedLockState::HalfMade { .. } | ManagedLockState::SomebodyElsesWorktree { .. } => LockOwnership::Unexplained,
+            ManagedLockState::Managed {
+                ..
+            }
+            | ManagedLockState::CutShort {
+                ..
+            } => LockOwnership::TheWrappersManaged,
+            ManagedLockState::NotTheAddsWords {
+                ..
+            } => LockOwnership::AnOperatorsLock,
+            ManagedLockState::NoLock {
+                ..
+            } => LockOwnership::NoLockStands,
+            ManagedLockState::NoRegistration {
+                ..
+            } => LockOwnership::NoRegistrationStands,
+            ManagedLockState::NoBindingExplains {
+                ..
+            }
+            | ManagedLockState::HalfMade {
+                ..
+            }
+            | ManagedLockState::SomebodyElsesWorktree {
+                ..
+            } => LockOwnership::Unexplained,
         };
     }
 

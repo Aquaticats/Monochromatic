@@ -34,7 +34,10 @@ pub fn is_slash(byte: &u8) -> bool {
 /// ```ts
 /// function firstIndexOfByte(bytes: Uint8Array, wanted: number): number | undefined; // bytes.indexOf(wanted)
 /// ```
-pub fn first_index_of_byte(bytes: &[u8], wanted: u8) -> Option<usize> {
+pub fn first_index_of_byte(
+    bytes: &[u8],
+    wanted: u8,
+) -> Option<usize> {
     // `enumerate` pairs each byte with its position, as `bytes.entries()` does in TS.
     for (position, byte) in bytes.iter().enumerate() {
         if *byte == wanted {
@@ -50,7 +53,10 @@ pub fn first_index_of_byte(bytes: &[u8], wanted: u8) -> Option<usize> {
 /// ```ts
 /// function leadingRunLength(bytes: Uint8Array, wanted: number): number;
 /// ```
-pub fn leading_run_length(bytes: &[u8], wanted: u8) -> usize {
+pub fn leading_run_length(
+    bytes: &[u8],
+    wanted: u8,
+) -> usize {
     let mut length: usize = 0;
     while length < bytes.len() && bytes[length] == wanted {
         length += 1;
@@ -94,7 +100,10 @@ pub fn has_nonzero_byte(bytes: &[u8]) -> bool {
 /// ```ts
 /// function commonPrefixLength(left: Uint8Array, right: Uint8Array): number;
 /// ```
-pub fn common_prefix_length(left: &[u8], right: &[u8]) -> usize {
+pub fn common_prefix_length(
+    left: &[u8],
+    right: &[u8],
+) -> usize {
     let limit: usize = left.len().min(right.len());
     let mut length: usize = 0;
     while length < limit && left[length] == right[length] {

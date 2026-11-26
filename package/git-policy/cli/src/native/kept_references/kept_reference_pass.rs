@@ -47,20 +47,49 @@
 //! const pass = await runThePass(git, commonDir, { dryRun });
 //! ```
 
-use crate::kept_reference_limits::{KeptReferenceLimits, limits_from_the_environment};
+use crate::kept_reference_limits::{
+    KeptReferenceLimits,
+    limits_from_the_environment,
+};
 use crate::kept_reference_log::log_one_pruning;
 use crate::kept_reference_pass_answers::{
-    ThePass, age_at, commits_of_survivors, kept_at, kept_one, now_ms, oldest_the_floor_allows, pruned_one, recorded_or_first_seen,
+    ThePass,
+    age_at,
+    commits_of_survivors,
+    kept_at,
+    kept_one,
+    now_ms,
+    oldest_the_floor_allows,
+    pruned_one,
+    recorded_or_first_seen,
 };
 use crate::kept_reference_record::KeptReferenceRecord;
-use crate::kept_references_reading::{OneKeptReference, bytes_only_these_reach, read_the_kept_references};
-use crate::transaction_git::{GitContext, GitRequest};
+use crate::kept_references_reading::{
+    OneKeptReference,
+    bytes_only_these_reach,
+    read_the_kept_references,
+};
+use crate::transaction_git::{
+    GitContext,
+    GitRequest,
+};
 use crate::transaction_git_awaiting::run_git_awaiting;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Re-exported so the listing and the log read the pass's answers from the pass.
-pub use crate::kept_reference_pass_answers::{Kept, Pruned, WhyNotPruned, WhyPruned};
+pub use crate::kept_reference_pass_answers::{
+    Kept,
+    Pruned,
+    WhyNotPruned,
+    WhyPruned,
+};
 
 /// How many kept references one pass may remove.
 ///  Sixteen:
@@ -110,11 +139,23 @@ pub const A_PASS_WITHIN: Duration = Duration::from_secs(20);
 /// ```ts
 /// const removed = await git(['update-ref', '--no-deref', '-d', name, old]); // refused when the value moved
 /// ```
-async fn remove_only_while_it_names(git: &GitContext, common_dir: &Path, name: &str, commit: &str) -> Option<String> {
-    let request: GitRequest = GitRequest::new(common_dir, &["update-ref", "--no-deref", "-d", name, commit]);
+async fn remove_only_while_it_names(
+    git: &GitContext,
+    common_dir: &Path,
+    name: &str,
+    commit: &str,
+) -> Option<String> {
+    let request: GitRequest = GitRequest::new(
+        common_dir,
+        &["update-ref", "--no-deref", "-d", name, commit],
+    );
     return match run_git_awaiting(git, &request).await {
         Ok(output) if output.succeeded() => None,
-        Ok(output) => Some(String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned()),
+        Ok(output) => Some(
+            String::from_utf8_lossy(output.stderr.as_slice())
+                .trim()
+                .to_owned(),
+        ),
         Err(error) => Some(error.to_string()),
     };
 }
@@ -186,7 +227,12 @@ async fn plan_the_pass(
         plan.reasons[at] = Some(reason);
         count += 1;
     }
-    plan.surviving_bytes = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading, plan.planned.as_slice()).as_slice()).await?;
+    plan.surviving_bytes = bytes_only_these_reach(
+        git,
+        common_dir,
+        commits_of_survivors(reading, plan.planned.as_slice()).as_slice(),
+    )
+    .await?;
     // Each removal of the size rule is followed by a fresh reading of what the survivors reach, so the limit is judged
     //  from what the repository would keep and not from what it started with.
     while plan.surviving_bytes > limits.max_bytes {
@@ -195,13 +241,20 @@ async fn plan_the_pass(
             break;
         }
         // Every reference that is left being younger than the floor is no failure: no pass may remove one for its size.
-        let Some(oldest) = oldest_the_floor_allows(reading, records, plan.planned.as_slice(), limits, now) else {
+        let Some(oldest) =
+            oldest_the_floor_allows(reading, records, plan.planned.as_slice(), limits, now)
+        else {
             break;
         };
         plan.planned[oldest] = true;
         plan.reasons[oldest] = Some(WhyPruned::TooMuchKept);
         count += 1;
-        plan.surviving_bytes = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading, plan.planned.as_slice()).as_slice()).await?;
+        plan.surviving_bytes = bytes_only_these_reach(
+            git,
+            common_dir,
+            commits_of_survivors(reading, plan.planned.as_slice()).as_slice(),
+        )
+        .await?;
     }
     return Ok(plan);
 }
@@ -255,7 +308,12 @@ fn the_time_of_a_pair(pair: &(u128, usize)) -> u128 {
 /// ```ts
 /// const whyItStayed = (planned, dropped, age, limits) => dropped ? 'cap' : planned ? 'refused' : age <= limits.maxAge ? 'young' : 'floor';
 /// ```
-fn why_it_stayed(planned: bool, dropped: bool, age_ms: u128, limits: KeptReferenceLimits) -> WhyNotPruned {
+fn why_it_stayed(
+    planned: bool,
+    dropped: bool,
+    age_ms: u128,
+    limits: KeptReferenceLimits,
+) -> WhyNotPruned {
     if dropped {
         return WhyNotPruned::ThisPassReachedItsCap;
     }
@@ -288,7 +346,11 @@ fn why_it_stayed(planned: bool, dropped: bool, age_ms: u128, limits: KeptReferen
 /// # Errors
 /// The words of the Git question that failed,
 /// when the pass could not read the repository.
-pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) -> Result<ThePass, String> {
+pub async fn run_the_pass(
+    git: &GitContext,
+    common_dir: &Path,
+    dry_run: bool,
+) -> Result<ThePass, String> {
     let began: Instant = Instant::now();
     let limits: KeptReferenceLimits = limits_from_the_environment();
     let now: u128 = now_ms();
@@ -297,20 +359,44 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
     for one in &reading.kept {
         records.push(recorded_or_first_seen(common_dir, one, now));
     }
-    let plan: ThePlan = plan_the_pass(git, common_dir, reading.kept.as_slice(), records.as_slice(), limits, now, began).await?;
-    let mut pass: ThePass =
-        ThePass { bytes_before: reading.bytes_only_they_reach, bytes_after: plan.surviving_bytes, dry_run, stopped_early: plan.stopped_early, ..ThePass::default() };
+    let plan: ThePlan = plan_the_pass(
+        git,
+        common_dir,
+        reading.kept.as_slice(),
+        records.as_slice(),
+        limits,
+        now,
+        began,
+    )
+    .await?;
+    let mut pass: ThePass = ThePass {
+        bytes_before: reading.bytes_only_they_reach,
+        bytes_after: plan.surviving_bytes,
+        dry_run,
+        stopped_early: plan.stopped_early,
+        ..ThePass::default()
+    };
     // A control acts between the listing and the removals here: a reference written after this point is not one this
     //  pass listed, and one written at a listed name carries another value than this pass reads.
-    if let Err(error) = crate::transaction_phase::reach_transaction_phase(crate::transaction_phase::Phase::KeptReferencesListed, None) {
-        return Err(format!("the phase marker of a control stopped the pass: {error}"));
+    if let Err(error) = crate::transaction_phase::reach_transaction_phase(
+        crate::transaction_phase::Phase::KeptReferencesListed,
+        None,
+    ) {
+        return Err(format!(
+            "the phase marker of a control stopped the pass: {error}"
+        ));
     }
     let mut refused: bool = false;
     for (at, one) in reading.kept.iter().enumerate() {
         let record: Option<&KeptReferenceRecord> = records[at].as_ref();
         let age_ms: u128 = age_at(records.as_slice(), at, now);
         let Some(why) = plan.reasons[at] else {
-            pass.kept.push(kept_one(one, record, now, why_it_stayed(plan.planned[at], plan.dropped[at], age_ms, limits)));
+            pass.kept.push(kept_one(
+                one,
+                record,
+                now,
+                why_it_stayed(plan.planned[at], plan.dropped[at], age_ms, limits),
+            ));
             continue;
         };
         let pruned: Pruned = pruned_one(one, record, now, why);
@@ -321,29 +407,52 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
         // A pass that runs out of its time leaves the rest to the next one, which no command waits for either.
         if began.elapsed() >= A_PASS_WITHIN {
             pass.stopped_early = true;
-            pass.kept.push(kept_one(one, record, now, WhyNotPruned::ThePassRanOutOfTime));
+            pass.kept.push(kept_one(
+                one,
+                record,
+                now,
+                WhyNotPruned::ThePassRanOutOfTime,
+            ));
             continue;
         }
         // A branch can move off the commit between the listing and this removal, and the removal's own condition
         //  would not see it: the question is asked again, and a commit nothing reaches stays where it is.
         if why == WhyPruned::ReachedABranch
-            && !crate::kept_references_reading::a_branch_reaches(git, common_dir, one.commit.as_str()).await?
+            && !crate::kept_references_reading::a_branch_reaches(
+                git,
+                common_dir,
+                one.commit.as_str(),
+            )
+            .await?
         {
-            pass.kept.push(kept_one(one, record, now, WhyNotPruned::TheBranchMovedOffIt));
+            pass.kept.push(kept_one(
+                one,
+                record,
+                now,
+                WhyNotPruned::TheBranchMovedOffIt,
+            ));
             refused = true;
             continue;
         }
         // The line goes before the reference does, because the reference was the only handle on the commit:
         //  a crash between the two must not leave the repository without either.
         log_one_pruning(common_dir, &pruned, OUTCOME_PRUNED, now);
-        if let Some(words) = remove_only_while_it_names(git, common_dir, one.reference.as_str(), one.commit.as_str()).await {
+        if let Some(words) =
+            remove_only_while_it_names(git, common_dir, one.reference.as_str(), one.commit.as_str())
+                .await
+        {
             crate::service_warn!(
                 "the kept reference {} was not pruned ({words}), so its commit {} is left where it is",
                 one.reference,
                 one.commit
             );
             log_one_pruning(common_dir, &pruned, OUTCOME_REFUSED, now);
-            pass.kept.push(kept_one(one, record, now, WhyNotPruned::TheRemovalWasRefused));
+            pass.kept.push(kept_one(
+                one,
+                record,
+                now,
+                WhyNotPruned::TheRemovalWasRefused,
+            ));
             refused = true;
             continue;
         }
@@ -353,12 +462,26 @@ pub async fn run_the_pass(git: &GitContext, common_dir: &Path, dry_run: bool) ->
     // A removal another pass or another command refused leaves a reference the plan expected to go, so the figure the
     //  report prints is read from the references that are still there.
     if refused {
-        pass.bytes_after = bytes_only_these_reach(git, common_dir, commits_of_survivors(reading.kept.as_slice(), planned_by_name(&pass, reading.kept.as_slice()).as_slice()).as_slice()).await?;
+        pass.bytes_after = bytes_only_these_reach(
+            git,
+            common_dir,
+            commits_of_survivors(
+                reading.kept.as_slice(),
+                planned_by_name(&pass, reading.kept.as_slice()).as_slice(),
+            )
+            .as_slice(),
+        )
+        .await?;
     }
     // A record whose reference is gone names nothing, and the folder it sits in is bounded by the references the
     //  repository holds: a grace of the floor keeps a record another command wrote a moment ago.
     if !dry_run {
-        crate::kept_reference_record::sweep_records_of_references_that_are_gone(common_dir, reading.kept.as_slice(), now, A_RECORD_OUTLIVES_ITS_REFERENCE_FOR);
+        crate::kept_reference_record::sweep_records_of_references_that_are_gone(
+            common_dir,
+            reading.kept.as_slice(),
+            now,
+            A_RECORD_OUTLIVES_ITS_REFERENCE_FOR,
+        );
     }
     return Ok(pass);
 }
@@ -380,7 +503,10 @@ pub const OUTCOME_REFUSED: &str = "refused";
 /// ```ts
 /// const plannedByName = (pass, kept) => kept.map((one) => !pass.pruned.some((pruned) => pruned.reference === one.reference));
 /// ```
-fn planned_by_name(pass: &ThePass, kept: &[OneKeptReference]) -> Vec<bool> {
+fn planned_by_name(
+    pass: &ThePass,
+    kept: &[OneKeptReference],
+) -> Vec<bool> {
     let mut removed: Vec<bool> = Vec::with_capacity(kept.len());
     for one in kept {
         let mut gone: bool = false;
@@ -434,11 +560,17 @@ pub fn common_directory_of_this_repository(git_dir: &Path) -> PathBuf {
 /// ```ts
 /// await with_kept_references_pruned(context, item.git_dir);
 /// ```
-pub async fn prune_after_a_commit(git: &GitContext, git_dir: &Path) {
+pub async fn prune_after_a_commit(
+    git: &GitContext,
+    git_dir: &Path,
+) {
     let common_dir: PathBuf = common_directory_of_this_repository(git_dir);
     // The questions of the pass carry their revisions on standard input, which Git is fed from a private file in the
     //  repository's own scratch directory: the service's context names none, so the pass names the one it is about.
-    let about_the_repository: GitContext = GitContext { common_dir: Some(common_dir.clone()), ..git.clone() };
+    let about_the_repository: GitContext = GitContext {
+        common_dir: Some(common_dir.clone()),
+        ..git.clone()
+    };
     return match run_the_pass(&about_the_repository, common_dir.as_path(), false).await {
         Ok(pass) => crate::service_log!(
             "kept references: {} pruned of {}, {} bytes held before and {} after",
@@ -447,6 +579,9 @@ pub async fn prune_after_a_commit(git: &GitContext, git_dir: &Path) {
             pass.bytes_before,
             pass.bytes_after
         ),
-        Err(reason) => crate::service_warn!("the kept references of {} were not pruned: {reason}", common_dir.display()),
+        Err(reason) => crate::service_warn!(
+            "the kept references of {} were not pruned: {reason}",
+            common_dir.display()
+        ),
     };
 }

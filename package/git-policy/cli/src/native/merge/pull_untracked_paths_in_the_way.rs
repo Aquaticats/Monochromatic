@@ -35,13 +35,28 @@
 
 use crate::diagnostic_log::debug;
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
-use crate::path_bytes::{os_from_path_bytes, path_bytes_of};
-use crate::pull_untracked_paths_in_the_way_kept_copies::{fresh_kept_folder, holds_nothing, keep_one};
-use crate::shell_quote::shell_quote;
+use crate::path_bytes::{
+    os_from_path_bytes,
+    path_bytes_of,
+};
+use crate::pull_untracked_paths_in_the_way_kept_copies::{
+    fresh_kept_folder,
+    holds_nothing,
+    keep_one,
+};
 use crate::repository_selection::of_paths;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::shell_quote::shell_quote;
+use crate::transaction_git::{
+    GitContext,
+    GitOutput,
+    GitRequest,
+    run_git,
+};
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Module tag for diagnostics.
 const TAG: &str = "pullUntrackedPathsInTheWay";
@@ -193,10 +208,26 @@ struct PathsTheMoveTakes {
 /// request.inTheCallersRepository(repositorySelectionOfPaths(gitDir, root))
 /// const request = gitRequest(root, ['diff-tree', '-r', '--no-renames', '--name-status', '--diff-filter=AD', '-z', from, to]).withoutPrefix();
 /// ```
-fn paths_the_move_takes(context: &GitContext, worktree_root: &Path, git_dir: &Path, from: &str, to: &str) -> Result<PathsTheMoveTakes, String> {
-    let arguments: [&str; 8] = ["diff-tree", "-r", "--no-renames", "--name-status", "--diff-filter=AD", "-z", from, to];
+fn paths_the_move_takes(
+    context: &GitContext,
+    worktree_root: &Path,
+    git_dir: &Path,
+    from: &str,
+    to: &str,
+) -> Result<PathsTheMoveTakes, String> {
+    let arguments: [&str; 8] = [
+        "diff-tree",
+        "-r",
+        "--no-renames",
+        "--name-status",
+        "--diff-filter=AD",
+        "-z",
+        from,
+        to,
+    ];
     let selection: Vec<std::ffi::OsString> = of_paths(git_dir, worktree_root);
-    let mut request: GitRequest = GitRequest::new(worktree_root, &arguments).in_the_callers_repository(selection);
+    let mut request: GitRequest =
+        GitRequest::new(worktree_root, &arguments).in_the_callers_repository(selection);
     request.without_prefix = true;
     let output: GitOutput = run_git(context, &request).map_err(git_diff_tree_could_not_start)?;
     if output.code != Some(0) {
@@ -206,11 +237,16 @@ fn paths_the_move_takes(context: &GitContext, worktree_root: &Path, git_dir: &Pa
         };
         return Err(format!("git diff-tree answered status {status}"));
     }
-    let mut takes: PathsTheMoveTakes = PathsTheMoveTakes { added: Vec::new(), gone: HashSet::new() };
+    let mut takes: PathsTheMoveTakes = PathsTheMoveTakes {
+        added: Vec::new(),
+        gone: HashSet::new(),
+    };
     // Each entry of `--name-status -z` is the status byte, a NUL, the path, and a NUL.
     let fields: Vec<&[u8]> = output.stdout.split(is_nul_byte).collect();
     for pair in fields.chunks(2) {
-        let (Some(status), Some(name)) = (pair.first(), pair.get(1)) else { break };
+        let (Some(status), Some(name)) = (pair.first(), pair.get(1)) else {
+            break;
+        };
         let code: u8 = match status.first() {
             Some(byte) => *byte,
             None => break,
@@ -220,7 +256,12 @@ fn paths_the_move_takes(context: &GitContext, worktree_root: &Path, git_dir: &Pa
             b'D' => {
                 takes.gone.insert(name.to_vec());
             }
-            other => return Err(format!("git diff-tree answered a status this does not read: {}", char::from(other))),
+            other => {
+                return Err(format!(
+                    "git diff-tree answered a status this does not read: {}",
+                    char::from(other)
+                ));
+            }
         }
     }
     return Ok(takes);
@@ -280,7 +321,11 @@ enum StandingInTheWay {
 /// ```ts
 /// function standingInTheWay(root, name, gone) { let below = ''; const parts = name.split('/'); for (const [at, part] of parts.entries()) { below = below ? `${below}/${part}` : part; if (at + 1 < parts.length && gone.has(below)) return { kind: 'nothing' }; const seen = lstat(join(root, below)); if (missing(seen)) return { kind: 'nothing' }; if (seen.isDirectory() && (at + 1 < parts.length || holdsNothing(join(root, below)))) continue; return { kind: 'copy', below }; } return { kind: 'nothing' }; }
 /// ```
-fn standing_in_the_way(worktree_root: &Path, name: &[u8], gone: &HashSet<Vec<u8>>) -> StandingInTheWay {
+fn standing_in_the_way(
+    worktree_root: &Path,
+    name: &[u8],
+    gone: &HashSet<Vec<u8>>,
+) -> StandingInTheWay {
     let components: Vec<&[u8]> = name.split(is_path_separator).collect();
     let mut below: PathBuf = PathBuf::new();
     for (position, component) in components.iter().enumerate() {
@@ -292,8 +337,15 @@ fn standing_in_the_way(worktree_root: &Path, name: &[u8], gone: &HashSet<Vec<u8>
         let in_the_worktree: PathBuf = worktree_root.join(below.as_path());
         let stands: std::fs::Metadata = match std::fs::symlink_metadata(in_the_worktree.as_path()) {
             Ok(seen) => seen,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return StandingInTheWay::Nothing,
-            Err(error) => return StandingInTheWay::Name(below, format!("the wrapper could not read it: {error}")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return StandingInTheWay::Nothing;
+            }
+            Err(error) => {
+                return StandingInTheWay::Name(
+                    below,
+                    format!("the wrapper could not read it: {error}"),
+                );
+            }
         };
         if stands.is_dir() && (!is_the_path_itself || holds_nothing(in_the_worktree.as_path())) {
             continue;
@@ -313,7 +365,10 @@ fn standing_in_the_way(worktree_root: &Path, name: &[u8], gone: &HashSet<Vec<u8>
 /// ```ts
 /// left.some((one) => one.path === path)
 /// ```
-fn names_the_path(left: &[PathLeftInTheWay], in_the_worktree: &Path) -> bool {
+fn names_the_path(
+    left: &[PathLeftInTheWay],
+    in_the_worktree: &Path,
+) -> bool {
     for one in left {
         if one.in_the_worktree == in_the_worktree {
             return true;
@@ -332,7 +387,10 @@ fn names_the_path(left: &[PathLeftInTheWay], in_the_worktree: &Path) -> bool {
 /// ```ts
 /// kept.some((one) => one.path === path)
 /// ```
-fn keeps_the_path(kept: &[KeptPath], in_the_worktree: &Path) -> bool {
+fn keeps_the_path(
+    kept: &[KeptPath],
+    in_the_worktree: &Path,
+) -> bool {
     for one in kept {
         if one.in_the_worktree == in_the_worktree {
             return true;
@@ -352,13 +410,19 @@ fn keeps_the_path(kept: &[KeptPath], in_the_worktree: &Path) -> bool {
 /// ```ts
 /// if (!left.some((one) => one.path === path)) left.push({ path, why });
 /// ```
-fn name_the_path_once(left: &mut Vec<PathLeftInTheWay>, in_the_worktree: PathBuf, why: String) {
+fn name_the_path_once(
+    left: &mut Vec<PathLeftInTheWay>,
+    in_the_worktree: PathBuf,
+    why: String,
+) {
     if names_the_path(left.as_slice(), in_the_worktree.as_path()) {
         return;
     }
-    left.push(PathLeftInTheWay { in_the_worktree, why });
+    left.push(PathLeftInTheWay {
+        in_the_worktree,
+        why,
+    });
 }
-
 
 /// What:
 ///  Keep every file Git does not track that stands where the move from `from` to `to` writes,
@@ -374,19 +438,36 @@ fn name_the_path_once(left: &mut Vec<PathLeftInTheWay>, in_the_worktree: PathBuf
 /// ```ts
 /// const takes = pathsTheMoveTakes(context, worktreeRoot, gitDir, from, to); for (const name of takes.added) { const below = standingInTheWay(worktreeRoot, name, takes.gone); ... }
 /// ```
-pub fn keep_the_untracked_paths_in_the_way(context: &GitContext, worktree_root: &Path, git_dir: &Path, from: &str, to: &str) -> UntrackedInTheWay {
-    let takes: PathsTheMoveTakes = match paths_the_move_takes(context, worktree_root, git_dir, from, to) {
-        Ok(taken) => taken,
-        Err(why) => {
-            debug(TAG, format!("the paths the move would overwrite could not be listed: {why}").as_str());
-            return UntrackedInTheWay { listing_failure: Some(why), kept: Vec::new(), left: Vec::new(), folder: None };
-        }
-    };
+pub fn keep_the_untracked_paths_in_the_way(
+    context: &GitContext,
+    worktree_root: &Path,
+    git_dir: &Path,
+    from: &str,
+    to: &str,
+) -> UntrackedInTheWay {
+    let takes: PathsTheMoveTakes =
+        match paths_the_move_takes(context, worktree_root, git_dir, from, to) {
+            Ok(taken) => taken,
+            Err(why) => {
+                debug(
+                    TAG,
+                    format!("the paths the move would overwrite could not be listed: {why}")
+                        .as_str(),
+                );
+                return UntrackedInTheWay {
+                    listing_failure: Some(why),
+                    kept: Vec::new(),
+                    left: Vec::new(),
+                    folder: None,
+                };
+            }
+        };
     let mut kept: Vec<KeptPath> = Vec::new();
     let mut left: Vec<PathLeftInTheWay> = Vec::new();
     let mut folder: Option<PathBuf> = None;
     for name in takes.added {
-        let below: PathBuf = match standing_in_the_way(worktree_root, name.as_slice(), &takes.gone) {
+        let below: PathBuf = match standing_in_the_way(worktree_root, name.as_slice(), &takes.gone)
+        {
             StandingInTheWay::Nothing => continue,
             StandingInTheWay::Name(below, why) => {
                 name_the_path_once(&mut left, worktree_root.join(below.as_path()), why);
@@ -395,14 +476,20 @@ pub fn keep_the_untracked_paths_in_the_way(context: &GitContext, worktree_root: 
             StandingInTheWay::Copy(below) => below,
         };
         let in_the_worktree: PathBuf = worktree_root.join(below.as_path());
-        if keeps_the_path(kept.as_slice(), in_the_worktree.as_path()) || names_the_path(left.as_slice(), in_the_worktree.as_path()) {
+        if keeps_the_path(kept.as_slice(), in_the_worktree.as_path())
+            || names_the_path(left.as_slice(), in_the_worktree.as_path())
+        {
             continue;
         }
         if folder.is_none() {
             match fresh_kept_folder(git_dir) {
                 Ok(made) => folder = Some(made),
                 Err(error) => {
-                    name_the_path_once(&mut left, in_the_worktree, format!("the folder for its copy could not be made: {error}"));
+                    name_the_path_once(
+                        &mut left,
+                        in_the_worktree,
+                        format!("the folder for its copy could not be made: {error}"),
+                    );
                     continue;
                 }
             }
@@ -412,7 +499,10 @@ pub fn keep_the_untracked_paths_in_the_way(context: &GitContext, worktree_root: 
             None => continue,
         };
         match keep_one(&in_the_worktree, &in_the_copy) {
-            Ok(()) => kept.push(KeptPath { in_the_worktree, in_the_copy }),
+            Ok(()) => kept.push(KeptPath {
+                in_the_worktree,
+                in_the_copy,
+            }),
             Err(why) => name_the_path_once(&mut left, in_the_worktree, why),
         }
     }
@@ -420,7 +510,12 @@ pub fn keep_the_untracked_paths_in_the_way(context: &GitContext, worktree_root: 
         TAG,
         format!("the move would have overwritten {} untracked path(s); {} kept, {} left for the person to move", kept.len() + left.len(), kept.len(), left.len()).as_str(),
     );
-    return UntrackedInTheWay { listing_failure: None, kept, left, folder };
+    return UntrackedInTheWay {
+        listing_failure: None,
+        kept,
+        left,
+        folder,
+    };
 }
 
 /// What:
@@ -448,10 +543,17 @@ fn quoted(path: &Path) -> String {
 /// ```ts
 /// `The wrapper copied ${kept.map((one) => `${one.path} to ${one.copy}`).join(', ')} first`
 /// ```
-fn kept_sentence(kept: &[KeptPath], folder: Option<&Path>) -> String {
+fn kept_sentence(
+    kept: &[KeptPath],
+    folder: Option<&Path>,
+) -> String {
     let mut items: Vec<String> = Vec::new();
     for entry in kept.iter().take(NAMED_PATHS_LIMIT) {
-        items.push(format!("{} to {}", quoted(entry.in_the_worktree.as_path()), quoted(entry.in_the_copy.as_path())));
+        items.push(format!(
+            "{} to {}",
+            quoted(entry.in_the_worktree.as_path()),
+            quoted(entry.in_the_copy.as_path())
+        ));
     }
     let mut words: String = format!("The wrapper copied {} first", items.join(", "));
     if kept.len() > NAMED_PATHS_LIMIT {
@@ -461,7 +563,9 @@ fn kept_sentence(kept: &[KeptPath], folder: Option<&Path>) -> String {
         };
         words.push_str(format!(", and {} more{beside}", kept.len() - NAMED_PATHS_LIMIT).as_str());
     }
-    return format!("{words}; copy them back from there when you want them, and delete those copies when you do not.\n");
+    return format!(
+        "{words}; copy them back from there when you want them, and delete those copies when you do not.\n"
+    );
 }
 
 /// What:
@@ -475,12 +579,22 @@ fn kept_sentence(kept: &[KeptPath], folder: Option<&Path>) -> String {
 /// ```ts
 /// `nothing was copied from ${items}, and git diff ${orig} cannot hold it because Git does not track it; ...`
 /// ```
-fn left_sentence(left: &[PathLeftInTheWay], orig_head: &str) -> String {
+fn left_sentence(
+    left: &[PathLeftInTheWay],
+    orig_head: &str,
+) -> String {
     let mut items: Vec<String> = Vec::new();
     for entry in left.iter().take(NAMED_PATHS_LIMIT) {
-        items.push(format!("{} ({})", quoted(entry.in_the_worktree.as_path()), entry.why));
+        items.push(format!(
+            "{} ({})",
+            quoted(entry.in_the_worktree.as_path()),
+            entry.why
+        ));
     }
-    let mut words: String = format!("monochromatic-git-policy-cli: nothing was copied from {}", items.join(", "));
+    let mut words: String = format!(
+        "monochromatic-git-policy-cli: nothing was copied from {}",
+        items.join(", ")
+    );
     if left.len() > NAMED_PATHS_LIMIT {
         words.push_str(format!(" and {} more", left.len() - NAMED_PATHS_LIMIT).as_str());
     }
@@ -525,13 +639,21 @@ fn unlisted_sentence(why: &str) -> String {
 /// ```ts
 /// gitsRecoveryWords(orig) + guardSentence(inTheWay) + (kept.length ? keptSentence(kept) : '') + (left.length ? leftSentence(left) : '') + (listingFailure ? unlistedSentence(listingFailure) : '');
 /// ```
-pub fn recovery_words(orig_head: &str, in_the_way: &UntrackedInTheWay) -> String {
+pub fn recovery_words(
+    orig_head: &str,
+    in_the_way: &UntrackedInTheWay,
+) -> String {
     let mut words: String = format!(
         "fatal: Cannot fast-forward your working tree.\nAfter making sure that you saved anything precious from\n$ git diff {orig_head}\noutput, run\n$ git reset --hard\nto recover.\nmonochromatic-git-policy-cli: that reset discards whatever this worktree holds, and the wrapper's worktree guard refuses a hard reset here without {WORKTREE_ENFORCEMENT_ESCAPE_HATCH}, which is what made this fast-forward fail"
     );
     let offering: bool = in_the_way.listing_failure.is_none() && in_the_way.left.is_empty();
     if offering {
-        words.push_str(format!("; run `git reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard` if you mean it.\n").as_str());
+        words.push_str(
+            format!(
+                "; run `git reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard` if you mean it.\n"
+            )
+            .as_str(),
+        );
     } else {
         words.push_str(".\n");
     }
@@ -539,7 +661,9 @@ pub fn recovery_words(orig_head: &str, in_the_way: &UntrackedInTheWay) -> String
         words.push_str("monochromatic-git-policy-cli: the move would have overwritten files Git does not track, which `git diff ");
         words.push_str(orig_head);
         words.push_str("` does not hold. ");
-        words.push_str(kept_sentence(in_the_way.kept.as_slice(), in_the_way.folder.as_deref()).as_str());
+        words.push_str(
+            kept_sentence(in_the_way.kept.as_slice(), in_the_way.folder.as_deref()).as_str(),
+        );
     }
     if !in_the_way.left.is_empty() {
         words.push_str(left_sentence(in_the_way.left.as_slice(), orig_head).as_str());

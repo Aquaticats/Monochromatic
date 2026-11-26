@@ -27,15 +27,36 @@
 //! ```
 
 use crate::entries_of_one_open_folder::entry_names;
-use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, remove_at};
-use crate::worktree_clone_binding_record::registration_recipe::{NoSeams, ToClear, clear_registration};
+use crate::fs_beneath::{
+    ObjectId,
+    identity_of,
+    open_directory_at,
+    remove_at,
+};
+use crate::worktree_clone_binding_record::registration_recipe::{
+    NoSeams,
+    ToClear,
+    clear_registration,
+};
 use crate::worktree_clone_managed_lock::clone_destruction_proof::CloneDestructionProof;
-use crate::worktree_clone_managed_lock::lock_installation::{InstallAnswer, write_the_lost_lock};
-use crate::worktree_clone_managed_lock::lock_release::{ReleaseOutcome, release_the_managed_lock};
-use crate::worktree_clone_managed_lock::recorded_lock_facts::{RecordedLockFacts, read_the_recorded_facts};
+use crate::worktree_clone_managed_lock::lock_installation::{
+    InstallAnswer,
+    write_the_lost_lock,
+};
+use crate::worktree_clone_managed_lock::lock_release::{
+    ReleaseOutcome,
+    release_the_managed_lock,
+};
+use crate::worktree_clone_managed_lock::recorded_lock_facts::{
+    RecordedLockFacts,
+    read_the_recorded_facts,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  What one settle did,
@@ -89,7 +110,8 @@ pub struct SettleRequest<'a> {
     pub admin: &'a str,
     /// The underlay folder's recorded identity,
     /// when the binding recorded one.
-    pub slot_identity: Option<crate::worktree_clone_binding_record::binding_encoding::FolderIdentity>,
+    pub slot_identity:
+        Option<crate::worktree_clone_binding_record::binding_encoding::FolderIdentity>,
     /// The proof that this slot's clone is gone.
     pub proof: &'a CloneDestructionProof,
 }
@@ -114,7 +136,10 @@ pub trait RegistrationSettle {
     /// A registration of another identity,
     /// a pointer that names another registration,
     /// or a call the system refused.
-    fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop>;
+    fn settle_the_registration(
+        &self,
+        request: &SettleRequest<'_>,
+    ) -> Result<SettleAnswer, RemovalStop>;
 }
 
 /// What:
@@ -132,43 +157,97 @@ pub trait RegistrationSettle {
 pub struct TheLiveSettle;
 
 impl RegistrationSettle for TheLiveSettle {
-    fn settle_the_registration(&self, request: &SettleRequest<'_>) -> Result<SettleAnswer, RemovalStop> {
-        let facts: RecordedLockFacts = read_the_recorded_facts(request.common_dir, request.slot).map_err(|refusal| {
-            return RemovalStop::TheSettleRefused { step: String::from("the binding's lock facts"), said: format!("{refusal:?}") };
-        })?;
+    fn settle_the_registration(
+        &self,
+        request: &SettleRequest<'_>,
+    ) -> Result<SettleAnswer, RemovalStop> {
+        let facts: RecordedLockFacts = read_the_recorded_facts(request.common_dir, request.slot)
+            .map_err(|refusal| {
+                return RemovalStop::TheSettleRefused {
+                    step: String::from("the binding's lock facts"),
+                    said: format!("{refusal:?}"),
+                };
+            })?;
         if facts.clone.dataset != request.proof.clone_dataset() {
             return Err(RemovalStop::TheSettleRefused {
                 step: String::from("the recorded clone"),
-                said: format!("the binding names `{}` and the proof names `{}`", facts.clone.dataset, request.proof.clone_dataset()),
+                said: format!(
+                    "the binding names `{}` and the proof names `{}`",
+                    facts.clone.dataset,
+                    request.proof.clone_dataset()
+                ),
             });
         }
         let worktrees: PathBuf = request.common_dir.join("worktrees");
-        let registration_name: String = String::from_utf8_lossy(request.registration_id).into_owned();
+        let registration_name: String =
+            String::from_utf8_lossy(request.registration_id).into_owned();
         let registration_path: PathBuf = worktrees.join(registration_name.as_str());
-        let registration: std::fs::File = std::fs::File::open(registration_path.as_path()).map_err(|error| {
-            return RemovalStop::TheSettleRefused { step: String::from("the registration"), said: error.to_string() };
+        let registration: std::fs::File = std::fs::File::open(registration_path.as_path())
+            .map_err(|error| {
+                return RemovalStop::TheSettleRefused {
+                    step: String::from("the registration"),
+                    said: error.to_string(),
+                };
+            })?;
+        let live: ObjectId = identity_of(&registration).map_err(|error| {
+            return RemovalStop::TheSettleRefused {
+                step: String::from("the registration's identity"),
+                said: error.to_string(),
+            };
         })?;
-        let live: ObjectId = identity_of(&registration).map_err(|error| return RemovalStop::TheSettleRefused { step: String::from("the registration's identity"), said: error.to_string() })?;
         if live.encode() != request.admin {
             return Err(RemovalStop::TheSettleRefused {
                 step: String::from("the registration's identity"),
-                said: format!("the plan recorded `{}` and the directory answers `{}`", request.admin, live.encode()),
+                said: format!(
+                    "the plan recorded `{}` and the directory answers `{}`",
+                    request.admin,
+                    live.encode()
+                ),
             });
         }
-        let mut answer: SettleAnswer = SettleAnswer { wrote_the_lost_lock: false, released_the_lock: false, removed_the_registration: false, removed_the_underlay: false, lines: Vec::new() };
+        let mut answer: SettleAnswer = SettleAnswer {
+            wrote_the_lost_lock: false,
+            released_the_lock: false,
+            removed_the_registration: false,
+            removed_the_underlay: false,
+            lines: Vec::new(),
+        };
         match write_the_lost_lock(registration_path.as_path(), request.slot, &facts.nonce) {
-            InstallAnswer::Wrote { line } => {
+            InstallAnswer::Wrote {
+                line,
+            } => {
                 answer.wrote_the_lost_lock = true;
                 answer.lines.push(line);
             }
             InstallAnswer::ALockStands => {}
-            InstallAnswer::Refused { reason } => return Err(RemovalStop::TheSettleRefused { step: String::from("writing the lost lock"), said: reason }),
+            InstallAnswer::Refused {
+                reason,
+            } => {
+                return Err(RemovalStop::TheSettleRefused {
+                    step: String::from("writing the lost lock"),
+                    said: reason,
+                });
+            }
         }
-        match release_the_managed_lock(&registration, registration_path.as_path(), request.slot, &facts, request.proof) {
-            Ok(ReleaseOutcome { .. }) => answer.released_the_lock = true,
-            Err(refusal) => return Err(RemovalStop::TheSettleRefused { step: String::from("the managed lock"), said: refusal.words() as String }),
+        match release_the_managed_lock(
+            &registration,
+            registration_path.as_path(),
+            request.slot,
+            &facts,
+            request.proof,
+        ) {
+            Ok(ReleaseOutcome {
+                ..
+            }) => answer.released_the_lock = true,
+            Err(refusal) => {
+                return Err(RemovalStop::TheSettleRefused {
+                    step: String::from("the managed lock"),
+                    said: refusal.words() as String,
+                });
+            }
         }
-        answer.removed_the_registration = clear_the_registration(request, &worktrees, registration_name.as_str())?;
+        answer.removed_the_registration =
+            clear_the_registration(request, &worktrees, registration_name.as_str())?;
         answer.removed_the_underlay = remove_the_underlay(request)?;
         return Ok(answer);
     }
@@ -179,17 +258,35 @@ impl RegistrationSettle for TheLiveSettle {
 ///
 /// # Throws
 /// A refusal naming the entry that stands where the recipe expected nothing.
-fn clear_the_registration(request: &SettleRequest<'_>, worktrees: &Path, registration_name: &str) -> Result<bool, RemovalStop> {
+fn clear_the_registration(
+    request: &SettleRequest<'_>,
+    worktrees: &Path,
+    registration_name: &str,
+) -> Result<bool, RemovalStop> {
     let Some(slot_name) = request.slot_path.file_name() else {
-        return Err(RemovalStop::TheSettleRefused { step: String::from("the slot's path"), said: String::from("it names no last component") });
+        return Err(RemovalStop::TheSettleRefused {
+            step: String::from("the slot's path"),
+            said: String::from("it names no last component"),
+        });
     };
     let Some(slot_parent) = request.slot_path.parent() else {
-        return Err(RemovalStop::TheSettleRefused { step: String::from("the slot's path"), said: String::from("it names no parent") });
+        return Err(RemovalStop::TheSettleRefused {
+            step: String::from("the slot's path"),
+            said: String::from("it names no parent"),
+        });
     };
     let slot_parent_file: std::fs::File = std::fs::File::open(slot_parent).map_err(|error| {
-        return RemovalStop::TheSettleRefused { step: String::from("the slot's parent"), said: error.to_string() };
+        return RemovalStop::TheSettleRefused {
+            step: String::from("the slot's parent"),
+            said: error.to_string(),
+        };
     })?;
-    let worktrees_parent: std::fs::File = std::fs::File::open(worktrees).map_err(|error| return RemovalStop::TheSettleRefused { step: String::from("Git's worktrees folder"), said: error.to_string() })?;
+    let worktrees_parent: std::fs::File = std::fs::File::open(worktrees).map_err(|error| {
+        return RemovalStop::TheSettleRefused {
+            step: String::from("Git's worktrees folder"),
+            said: error.to_string(),
+        };
+    })?;
     let to: ToClear<'_> = ToClear {
         slot_parent: &slot_parent_file,
         slot_pointer_name: slot_name,
@@ -200,7 +297,10 @@ fn clear_the_registration(request: &SettleRequest<'_>, worktrees: &Path, registr
     };
     return match clear_registration(&to, &mut NoSeams) {
         Ok(()) => Ok(true),
-        Err(refusal) => Err(RemovalStop::TheSettleRefused { step: String::from("the registration"), said: refusal.message() }),
+        Err(refusal) => Err(RemovalStop::TheSettleRefused {
+            step: String::from("the registration"),
+            said: refusal.message(),
+        }),
     };
 }
 
@@ -213,39 +313,72 @@ fn clear_the_registration(request: &SettleRequest<'_>, worktrees: &Path, registr
 /// or a call the system refused.
 fn remove_the_underlay(request: &SettleRequest<'_>) -> Result<bool, RemovalStop> {
     let Some(slot_name) = request.slot_path.file_name() else {
-        return Err(RemovalStop::TheSettleRefused { step: String::from("the slot's path"), said: String::from("it names no last component") });
+        return Err(RemovalStop::TheSettleRefused {
+            step: String::from("the slot's path"),
+            said: String::from("it names no last component"),
+        });
     };
     let Some(slot_parent) = request.slot_path.parent() else {
-        return Err(RemovalStop::TheSettleRefused { step: String::from("the slot's path"), said: String::from("it names no parent") });
+        return Err(RemovalStop::TheSettleRefused {
+            step: String::from("the slot's path"),
+            said: String::from("it names no parent"),
+        });
     };
-    let parent: std::fs::File = std::fs::File::open(slot_parent).map_err(|error| return RemovalStop::TheSettleRefused { step: String::from("the slot's parent"), said: error.to_string() })?;
+    let parent: std::fs::File = std::fs::File::open(slot_parent).map_err(|error| {
+        return RemovalStop::TheSettleRefused {
+            step: String::from("the slot's parent"),
+            said: error.to_string(),
+        };
+    })?;
     let folder: std::fs::File = match open_directory_at(&parent, slot_name) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(RemovalStop::TheSettleRefused { step: String::from("the underlay folder"), said: error.to_string() }),
+        Err(error) => {
+            return Err(RemovalStop::TheSettleRefused {
+                step: String::from("the underlay folder"),
+                said: error.to_string(),
+            });
+        }
     };
-    let live: ObjectId = identity_of(&folder).map_err(|error| return RemovalStop::TheSettleRefused { step: String::from("the underlay's identity"), said: error.to_string() })?;
+    let live: ObjectId = identity_of(&folder).map_err(|error| {
+        return RemovalStop::TheSettleRefused {
+            step: String::from("the underlay's identity"),
+            said: error.to_string(),
+        };
+    })?;
     if let Some(recorded) = request.slot_identity
         && (live.inode != recorded.inode() || live.birth != recorded.birth())
     {
         return Err(RemovalStop::TheSettleRefused {
             step: String::from("the underlay's identity"),
-            said: format!("the binding recorded `{}` and the folder answers `{}`", recorded.encode(), live.encode()),
+            said: format!(
+                "the binding recorded `{}` and the folder answers `{}`",
+                recorded.encode(),
+                live.encode()
+            ),
         });
     }
     let entries: Vec<std::ffi::OsString> = entry_names(&folder).map_err(|error| {
-        return RemovalStop::TheSettleRefused { step: String::from("the underlay's entries"), said: error.to_string() };
+        return RemovalStop::TheSettleRefused {
+            step: String::from("the underlay's entries"),
+            said: error.to_string(),
+        };
     })?;
     if !entries.is_empty() {
         return Err(RemovalStop::TheSettleRefused {
             step: String::from("the underlay's entries"),
-            said: String::from("the folder still holds an entry, and a removal never removes a folder a person filled"),
+            said: String::from(
+                "the folder still holds an entry, and a removal never removes a folder a person filled",
+            ),
         });
     }
     return match remove_at(&parent, slot_name, true) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(RemovalStop::TheSettleRefused { step: String::from("the underlay folder"), said: error.to_string() }),
+        Err(error) => Err(RemovalStop::TheSettleRefused {
+            step: String::from("the underlay folder"),
+            said: error.to_string(),
+        }),
     };
 }
 

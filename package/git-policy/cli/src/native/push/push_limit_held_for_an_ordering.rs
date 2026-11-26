@@ -62,7 +62,9 @@ thread_local! {
 /// reaches its limit by time as before.
 #[cfg(test)]
 pub(crate) fn hold_limit_for_an_ordering(held: LimitHeldForAnOrdering) -> LimitHoldGuard {
-    LIMIT_HELD_FOR.with(|slot| { *slot.borrow_mut() = Some((held, Instant::now())); });
+    LIMIT_HELD_FOR.with(|slot| {
+        *slot.borrow_mut() = Some((held, Instant::now()));
+    });
     return LimitHoldGuard;
 }
 
@@ -73,7 +75,9 @@ pub(crate) struct LimitHoldGuard;
 #[cfg(test)]
 impl Drop for LimitHoldGuard {
     fn drop(&mut self) {
-        LIMIT_HELD_FOR.with(|slot| { *slot.borrow_mut() = None; });
+        LIMIT_HELD_FOR.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
     }
 }
 
@@ -92,13 +96,19 @@ fn limit_is_held() -> bool {
 /// Whether `limit` has passed since the run started,
 /// on a run whose control may be holding it for an ordering.
 #[cfg(test)]
-pub(crate) fn limit_has_passed(elapsed: Duration, limit: Duration) -> bool {
+pub(crate) fn limit_has_passed(
+    elapsed: Duration,
+    limit: Duration,
+) -> bool {
     return elapsed >= limit && !limit_is_held();
 }
 
 /// Whether `limit` has passed since the run started.
 #[cfg(not(test))]
-pub(crate) fn limit_has_passed(elapsed: Duration, limit: Duration) -> bool {
+pub(crate) fn limit_has_passed(
+    elapsed: Duration,
+    limit: Duration,
+) -> bool {
     return elapsed >= limit;
 }
 

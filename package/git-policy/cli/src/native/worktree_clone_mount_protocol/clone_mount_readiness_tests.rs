@@ -16,12 +16,25 @@
 //! ```
 
 use super::{
-    MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_KEYS, READINESS_KIND, READINESS_NAME, ReadinessRecord, ReadyState, SweepState,
+    MAXIMUM_READINESS_BYTES,
+    READINESS_DIRECTORY,
+    READINESS_KEYS,
+    READINESS_KIND,
+    READINESS_NAME,
+    ReadinessRecord,
+    ReadyState,
+    SweepState,
 };
-use crate::worktree_clone_mount_protocol::clone_mount_readiness::ReadinessExpectation;
-use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
-use crate::worktree_clone_mount_protocol::clone_mount_readiness_parse::{ReadinessParseRefusal, parse_readiness};
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
+use crate::worktree_clone_mount_protocol::clone_mount_readiness::ReadinessExpectation;
+use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{
+    AdmissionRefusal,
+    admit_attach,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_readiness_parse::{
+    ReadinessParseRefusal,
+    parse_readiness,
+};
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
 /// The boot every control belongs to.
@@ -52,13 +65,20 @@ fn ready() -> ReadinessRecord {
 
 /// The expectation a caller holds.
 fn expectation() -> ReadinessExpectation<'static> {
-    return ReadinessExpectation { boot: BOOT, pool: POOL, checkout: CHECKOUT };
+    return ReadinessExpectation {
+        boot: BOOT,
+        pool: POOL,
+        checkout: CHECKOUT,
+    };
 }
 
 /// The designed path and modes are the plan's.
 #[test]
 fn the_record_lives_at_the_designed_path() {
-    assert_eq!(READINESS_DIRECTORY, "/run/git-worktree-clone-mount-readiness");
+    assert_eq!(
+        READINESS_DIRECTORY,
+        "/run/git-worktree-clone-mount-readiness"
+    );
     assert_eq!(READINESS_NAME, "result");
     assert_eq!(READINESS_KIND, "clone-mount-readiness");
     assert_eq!(READINESS_KEYS.len(), 7);
@@ -72,7 +92,8 @@ fn the_record_lives_at_the_designed_path() {
 fn a_ready_record_round_trips_and_admits() {
     let record: ReadinessRecord = ready();
     let text: String = record.text();
-    let parsed: ReadinessRecord = parse_readiness(text.as_str()).expect("the route's own record parses");
+    let parsed: ReadinessRecord =
+        parse_readiness(text.as_str()).expect("the route's own record parses");
     assert_eq!(parsed, record);
     assert_eq!(admit_attach(&parsed, &expectation()), Ok(()));
 }
@@ -84,9 +105,13 @@ fn a_ready_record_round_trips_and_admits() {
 fn the_no_waiter_readiness_refusal_names_the_checkout() {
     let mut record: ReadinessRecord = ready();
     record.checkout_state = ReadyState::NotReady;
-    let refusal: AdmissionRefusal = admit_attach(&record, &expectation()).expect_err("an unready checkout admits nothing");
+    let refusal: AdmissionRefusal =
+        admit_attach(&record, &expectation()).expect_err("an unready checkout admits nothing");
     match &refusal {
-        AdmissionRefusal::CheckoutNotReady { checkout, state } => {
+        AdmissionRefusal::CheckoutNotReady {
+            checkout,
+            state,
+        } => {
             assert_eq!(checkout, CHECKOUT);
             assert_eq!(*state, ReadyState::NotReady);
         }
@@ -104,19 +129,34 @@ fn the_no_waiter_readiness_refusal_names_the_checkout() {
 fn a_stale_or_unknown_record_admits_nothing() {
     let mut record: ReadinessRecord = ready();
     record.boot = String::from("11111111-2222-4333-8444-555555555555");
-    assert!(matches!(admit_attach(&record, &expectation()), Err(AdmissionRefusal::OtherBoot { .. })));
+    assert!(matches!(
+        admit_attach(&record, &expectation()),
+        Err(AdmissionRefusal::OtherBoot { .. })
+    ));
     let mut another_pool: ReadinessRecord = ready();
     another_pool.pool_name = String::from("otherpool");
-    assert!(matches!(admit_attach(&another_pool, &expectation()), Err(AdmissionRefusal::OtherPool { .. })));
+    assert!(matches!(
+        admit_attach(&another_pool, &expectation()),
+        Err(AdmissionRefusal::OtherPool { .. })
+    ));
     let mut another_checkout: ReadinessRecord = ready();
     another_checkout.checkout_path = String::from("/home/user/other");
-    assert!(matches!(admit_attach(&another_checkout, &expectation()), Err(AdmissionRefusal::OtherCheckout { .. })));
+    assert!(matches!(
+        admit_attach(&another_checkout, &expectation()),
+        Err(AdmissionRefusal::OtherCheckout { .. })
+    ));
     let mut unknown: ReadinessRecord = ready();
     unknown.pool_state = ReadyState::Unknown;
-    assert!(matches!(admit_attach(&unknown, &expectation()), Err(AdmissionRefusal::PoolNotReady { .. })));
+    assert!(matches!(
+        admit_attach(&unknown, &expectation()),
+        Err(AdmissionRefusal::PoolNotReady { .. })
+    ));
     let mut unready_pool: ReadinessRecord = ready();
     unready_pool.pool_state = ReadyState::NotReady;
-    assert!(matches!(admit_attach(&unready_pool, &expectation()), Err(AdmissionRefusal::PoolNotReady { .. })));
+    assert!(matches!(
+        admit_attach(&unready_pool, &expectation()),
+        Err(AdmissionRefusal::PoolNotReady { .. })
+    ));
 }
 
 /// The sweep's state is recorded and gates nothing:
@@ -124,16 +164,23 @@ fn a_stale_or_unknown_record_admits_nothing() {
 /// failed or never-run sweep leaves a ready pool and checkout admissible.
 #[test]
 fn the_sweep_state_gates_nothing() {
-    for state in [SweepState::Running, SweepState::Failed, SweepState::Never, SweepState::Finished] {
+    for state in [
+        SweepState::Running,
+        SweepState::Failed,
+        SweepState::Never,
+        SweepState::Finished,
+    ] {
         let mut record: ReadinessRecord = ready();
         record.sweep_state = state;
         assert_eq!(admit_attach(&record, &expectation()), Ok(()), "{state:?}");
-        let parsed: ReadinessRecord = parse_readiness(record.text().as_str()).expect("each sweep state parses");
+        let parsed: ReadinessRecord =
+            parse_readiness(record.text().as_str()).expect("each sweep state parses");
         assert_eq!(parsed.sweep_state, state);
     }
     let mut without_nonce: ReadinessRecord = ready();
     without_nonce.sweep_nonce = None;
-    let parsed: ReadinessRecord = parse_readiness(without_nonce.text().as_str()).expect("a record without a sweep nonce parses");
+    let parsed: ReadinessRecord = parse_readiness(without_nonce.text().as_str())
+        .expect("a record without a sweep nonce parses");
     assert_eq!(parsed.sweep_nonce, None);
     assert_eq!(admit_attach(&parsed, &expectation()), Ok(()));
 }
@@ -145,12 +192,29 @@ fn a_foreign_shape_is_refused() {
     let padded: String = format!("{}{}", ready().text(), "x".repeat(MAXIMUM_READINESS_BYTES));
     assert_eq!(
         parse_readiness(padded.as_str()),
-        Err(ReadinessParseRefusal::TooLarge { bytes: padded.len(), bound: MAXIMUM_READINESS_BYTES })
+        Err(ReadinessParseRefusal::TooLarge {
+            bytes: padded.len(),
+            bound: MAXIMUM_READINESS_BYTES
+        })
     );
-    let missing: String = ready().text().lines().take(READINESS_KEYS.len() - 1).map(|line| format!("{line}\n")).collect();
-    assert!(matches!(parse_readiness(missing.as_str()), Err(ReadinessParseRefusal::LineCount { .. })));
+    let missing: String = ready()
+        .text()
+        .lines()
+        .take(READINESS_KEYS.len() - 1)
+        .map(|line| format!("{line}\n"))
+        .collect();
+    assert!(matches!(
+        parse_readiness(missing.as_str()),
+        Err(ReadinessParseRefusal::LineCount { .. })
+    ));
     let swapped: String = ready().text().replace("pool ", "pools ");
-    assert!(matches!(parse_readiness(swapped.as_str()), Err(ReadinessParseRefusal::Key { expected: "pool", .. })));
+    assert!(matches!(
+        parse_readiness(swapped.as_str()),
+        Err(ReadinessParseRefusal::Key {
+            expected: "pool",
+            ..
+        })
+    ));
 }
 
 /// A state word outside its vocabulary,
@@ -158,25 +222,62 @@ fn a_foreign_shape_is_refused() {
 #[test]
 fn each_value_has_its_rule() {
     let state: String = ready().text().replace("checkout ready", "checkout mostly");
-    assert!(matches!(parse_readiness(state.as_str()), Err(ReadinessParseRefusal::State { key: "checkout", .. })));
+    assert!(matches!(
+        parse_readiness(state.as_str()),
+        Err(ReadinessParseRefusal::State {
+            key: "checkout",
+            ..
+        })
+    ));
     let sweep: String = ready().text().replace("sweep finished", "sweep maybe");
-    assert!(matches!(parse_readiness(sweep.as_str()), Err(ReadinessParseRefusal::SweepState { .. })));
-    let nonce: String = ready().text().replace(&"0".repeat(NONCE_HEX_DIGITS), "nothex");
-    assert!(matches!(parse_readiness(nonce.as_str()), Err(ReadinessParseRefusal::Nonce(_))));
+    assert!(matches!(
+        parse_readiness(sweep.as_str()),
+        Err(ReadinessParseRefusal::SweepState { .. })
+    ));
+    let nonce: String = ready()
+        .text()
+        .replace(&"0".repeat(NONCE_HEX_DIGITS), "nothex");
+    assert!(matches!(
+        parse_readiness(nonce.as_str()),
+        Err(ReadinessParseRefusal::Nonce(_))
+    ));
     let boot: String = ready().text().replace(BOOT, "another-boot");
-    assert!(matches!(parse_readiness(boot.as_str()), Err(ReadinessParseRefusal::Boot { .. })));
+    assert!(matches!(
+        parse_readiness(boot.as_str()),
+        Err(ReadinessParseRefusal::Boot { .. })
+    ));
     let time: String = ready().text().replace(TIME, "yesterday");
-    assert!(matches!(parse_readiness(time.as_str()), Err(ReadinessParseRefusal::Time { .. })));
+    assert!(matches!(
+        parse_readiness(time.as_str()),
+        Err(ReadinessParseRefusal::Time { .. })
+    ));
     let checkout: String = ready().text().replace(CHECKOUT, "relative/path");
-    assert!(matches!(parse_readiness(checkout.as_str()), Err(ReadinessParseRefusal::Value { key: "checkout", .. })));
+    assert!(matches!(
+        parse_readiness(checkout.as_str()),
+        Err(ReadinessParseRefusal::Value {
+            key: "checkout",
+            ..
+        })
+    ));
     let pool: String = ready().text().replace(POOL, "two words");
-    assert!(matches!(parse_readiness(pool.as_str()), Err(ReadinessParseRefusal::Value { key: "pool", .. })));
+    assert!(matches!(
+        parse_readiness(pool.as_str()),
+        Err(ReadinessParseRefusal::Value {
+            key: "pool",
+            ..
+        })
+    ));
 }
 
 /// Every refusal says nothing was attached on the record.
 #[test]
 fn every_parse_refusal_says_nothing_was_attached() {
     let time: String = ready().text().replace(TIME, "yesterday");
-    let refusal: ReadinessParseRefusal = parse_readiness(time.as_str()).expect_err("a foreign time is refused");
-    assert!(refusal.message().contains("Nothing was attached"), "{}", refusal.message());
+    let refusal: ReadinessParseRefusal =
+        parse_readiness(time.as_str()).expect_err("a foreign time is refused");
+    assert!(
+        refusal.message().contains("Nothing was attached"),
+        "{}",
+        refusal.message()
+    );
 }

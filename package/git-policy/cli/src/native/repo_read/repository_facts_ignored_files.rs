@@ -20,16 +20,23 @@
 /// The provider whose Git,
 ///  global options and environment answer the queries.
 use super::repository_facts::GitFacts;
-/// The captured-query runner's output type and its byte helpers.
-use crate::git_metadata::MetadataOutput;
 /// The expression Git resolves for a shorthand only `switch` and `checkout` read.
 use crate::command_discard::previous_branch_expression;
+/// The captured-query runner's output type and its byte helpers.
+use crate::git_metadata::MetadataOutput;
 /// The reading of one `git check-ignore` answer over the asked paths.
 use crate::rule_worktree_dirty::{
-    ignored_paths_from_answer, ignored_paths_queries, nul_separated_paths, replaced_answers, with_ancestors,
+    ignored_paths_from_answer,
+    ignored_paths_queries,
+    nul_separated_paths,
+    replaced_answers,
+    with_ancestors,
 };
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// What:
 ///  Every path the given revision's tree holds,
@@ -51,7 +58,10 @@ use std::ffi::{OsStr, OsString};
 /// ```ts
 /// async function treePaths(facts: GitFacts, revision: string): Promise<Buffer[] | undefined>;
 /// ```
-pub(super) fn tree_paths(facts: &mut GitFacts, revision: &OsStr) -> Result<Option<Vec<Vec<u8>>>, String> {
+pub(super) fn tree_paths(
+    facts: &mut GitFacts,
+    revision: &OsStr,
+) -> Result<Option<Vec<Vec<u8>>>, String> {
     // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git does
     //  resolve wherever an object name is read.
     let named: OsString = match previous_branch_expression(revision.as_encoded_bytes()) {

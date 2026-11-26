@@ -40,11 +40,19 @@ use std::io::Write;
 /// # Errors
 /// The system's own answer,
 /// including `EEXIST` when the name is taken.
-pub fn create_new_entry(folder: &std::fs::File, name: &OsStr, mode: u32) -> std::io::Result<std::fs::File> {
+pub fn create_new_entry(
+    folder: &std::fs::File,
+    name: &OsStr,
+    mode: u32,
+) -> std::io::Result<std::fs::File> {
     let opened: rustix::fd::OwnedFd = rustix::fs::openat(
         folder,
         name,
-        rustix::fs::OFlags::CREATE | rustix::fs::OFlags::EXCL | rustix::fs::OFlags::WRONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::OFlags::CREATE
+            | rustix::fs::OFlags::EXCL
+            | rustix::fs::OFlags::WRONLY
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::CLOEXEC,
         rustix::fs::Mode::from_bits_truncate(mode),
     )?;
     return Ok(std::fs::File::from(opened));
@@ -69,7 +77,11 @@ pub fn create_new_entry(folder: &std::fs::File, name: &OsStr, mode: u32) -> std:
 /// # Errors
 /// The system's own answer for a write,
 /// a mode change or a flush.
-pub fn fill_entry_and_sync(file: &mut std::fs::File, bytes: &[u8], mode: u32) -> std::io::Result<()> {
+pub fn fill_entry_and_sync(
+    file: &mut std::fs::File,
+    bytes: &[u8],
+    mode: u32,
+) -> std::io::Result<()> {
     file.write_all(bytes)?;
     rustix::fs::fchmod(&*file, rustix::fs::Mode::from_bits_truncate(mode))?;
     return file.sync_all();
@@ -90,8 +102,13 @@ pub fn fill_entry_and_sync(file: &mut std::fs::File, bytes: &[u8], mode: u32) ->
 /// # Errors
 /// The system's own answer,
 /// including `EEXIST` when `to` is taken and `EPERM` or `EOPNOTSUPP` on a folder that refuses a hard link.
-pub fn link_entry(folder: &std::fs::File, from: &OsStr, to: &OsStr) -> std::io::Result<()> {
-    return rustix::fs::linkat(folder, from, folder, to, rustix::fs::AtFlags::empty()).map_err(std::io::Error::from);
+pub fn link_entry(
+    folder: &std::fs::File,
+    from: &OsStr,
+    to: &OsStr,
+) -> std::io::Result<()> {
+    return rustix::fs::linkat(folder, from, folder, to, rustix::fs::AtFlags::empty())
+        .map_err(std::io::Error::from);
 }
 
 /// What:
@@ -124,8 +141,13 @@ pub fn link_refused_because_the_folder_makes_none(error: &std::io::Error) -> boo
 /// # Errors
 /// The system's own answer,
 /// including `EEXIST` when `to` is taken and `EINVAL` on a folder without the flag.
-pub fn rename_entry_never_replacing(folder: &std::fs::File, from: &OsStr, to: &OsStr) -> std::io::Result<()> {
-    return rustix::fs::renameat_with(folder, from, folder, to, rustix::fs::RenameFlags::NOREPLACE).map_err(std::io::Error::from);
+pub fn rename_entry_never_replacing(
+    folder: &std::fs::File,
+    from: &OsStr,
+    to: &OsStr,
+) -> std::io::Result<()> {
+    return rustix::fs::renameat_with(folder, from, folder, to, rustix::fs::RenameFlags::NOREPLACE)
+        .map_err(std::io::Error::from);
 }
 
 /// What:
@@ -143,7 +165,11 @@ pub fn rename_entry_never_replacing(folder: &std::fs::File, from: &OsStr, to: &O
 ///
 /// # Errors
 /// The system's own answer for a rename that failed.
-pub fn rename_entry_replacing(folder: &std::fs::File, from: &OsStr, to: &OsStr) -> std::io::Result<()> {
+pub fn rename_entry_replacing(
+    folder: &std::fs::File,
+    from: &OsStr,
+    to: &OsStr,
+) -> std::io::Result<()> {
     return rustix::fs::renameat(folder, from, folder, to).map_err(std::io::Error::from);
 }
 
@@ -161,8 +187,12 @@ pub fn rename_entry_replacing(folder: &std::fs::File, from: &OsStr, to: &OsStr) 
 /// # Errors
 /// The system's own answer for a removal that failed,
 /// including `ENOENT` for a name already gone.
-pub fn remove_entry(folder: &std::fs::File, name: &OsStr) -> std::io::Result<()> {
-    return rustix::fs::unlinkat(folder, name, rustix::fs::AtFlags::empty()).map_err(std::io::Error::from);
+pub fn remove_entry(
+    folder: &std::fs::File,
+    name: &OsStr,
+) -> std::io::Result<()> {
+    return rustix::fs::unlinkat(folder, name, rustix::fs::AtFlags::empty())
+        .map_err(std::io::Error::from);
 }
 
 /// What:

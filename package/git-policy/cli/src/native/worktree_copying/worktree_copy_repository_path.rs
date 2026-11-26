@@ -17,10 +17,16 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::path_bytes::{os_from_path_bytes, path_message_text};
+use crate::path_bytes::{
+    os_from_path_bytes,
+    path_message_text,
+};
 use crate::worktree_copy_error::WorktreeCopyError;
 use std::cmp::Ordering;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 ///  Whether a byte separates the components of a repository path.
 /// Why:
@@ -49,7 +55,10 @@ pub fn is_separator_byte(byte: &u8) -> bool {
 /// ```ts
 /// (candidate === parent) || candidate.startsWith(`${parent}/`)
 /// ```
-pub fn repository_path_within(candidate: &[u8], parent: &[u8]) -> bool {
+pub fn repository_path_within(
+    candidate: &[u8],
+    parent: &[u8],
+) -> bool {
     // The exact path, or the parent followed by one separator, is the whole of the rule.
     if candidate == parent {
         return true;
@@ -70,7 +79,10 @@ pub fn repository_path_within(candidate: &[u8], parent: &[u8]) -> bool {
 /// ```ts
 /// Buffer.concat([parent, Buffer.from('/'), name])
 /// ```
-pub fn join_repository_path(parent: &[u8], name: &[u8]) -> Vec<u8> {
+pub fn join_repository_path(
+    parent: &[u8],
+    name: &[u8],
+) -> Vec<u8> {
     let mut joined: Vec<u8> = Vec::with_capacity(parent.len() + 1 + name.len());
     joined.extend_from_slice(parent);
     joined.push(b'/');
@@ -133,7 +145,10 @@ fn is_unsafe_component(component: &[u8]) -> bool {
 /// ```ts
 /// roots.some((root) => repositoryPathWithin(candidate, root))
 /// ```
-pub fn within_any_root(candidate: &[u8], roots: &[Vec<u8>]) -> bool {
+pub fn within_any_root(
+    candidate: &[u8],
+    roots: &[Vec<u8>],
+) -> bool {
     for root in roots {
         if repository_path_within(candidate, root.as_slice()) {
             return true;
@@ -178,7 +193,10 @@ pub fn assert_safe_repository_path(repository_path: &[u8]) -> Result<(), Worktre
 /// ```ts
 /// join(root, ...repositoryPath.split('/'));
 /// ```
-pub fn filesystem_path(root: &Path, repository_path: &[u8]) -> Result<PathBuf, WorktreeCopyError> {
+pub fn filesystem_path(
+    root: &Path,
+    repository_path: &[u8],
+) -> Result<PathBuf, WorktreeCopyError> {
     assert_safe_repository_path(repository_path)?;
     let mut path: PathBuf = root.to_path_buf();
     for component in repository_path.split(is_separator_byte) {
@@ -199,7 +217,10 @@ pub fn filesystem_path(root: &Path, repository_path: &[u8]) -> Result<PathBuf, W
 /// ```ts
 /// [...values].toSorted()
 /// ```
-pub fn js_order(left: &str, right: &str) -> Ordering {
+pub fn js_order(
+    left: &str,
+    right: &str,
+) -> Ordering {
     return left.encode_utf16().cmp(right.encode_utf16());
 }
 
@@ -214,7 +235,10 @@ pub fn js_order(left: &str, right: &str) -> Ordering {
 /// ```ts
 /// names.sort()
 /// ```
-pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
+pub fn by_js_order<Name: AsRef<str>>(
+    left: &Name,
+    right: &Name,
+) -> std::cmp::Ordering {
     return js_order(left.as_ref(), right.as_ref());
 }
 
@@ -246,11 +270,17 @@ pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ord
 /// ```ts
 /// names.sort(compareRepositoryPaths)
 /// ```
-pub fn by_repository_path_order(left: &Vec<u8>, right: &Vec<u8>) -> Ordering {
+pub fn by_repository_path_order(
+    left: &Vec<u8>,
+    right: &Vec<u8>,
+) -> Ordering {
     return repository_path_order(left.as_slice(), right.as_slice());
 }
 
-pub fn repository_path_order(left: &[u8], right: &[u8]) -> Ordering {
+pub fn repository_path_order(
+    left: &[u8],
+    right: &[u8],
+) -> Ordering {
     let shown: Ordering = js_order(
         String::from_utf8_lossy(left).as_ref(),
         String::from_utf8_lossy(right).as_ref(),
