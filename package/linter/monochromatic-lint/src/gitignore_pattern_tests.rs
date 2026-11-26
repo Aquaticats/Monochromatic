@@ -90,7 +90,7 @@ fn unclosed_brackets_are_scanned_once() {
     let wanted: usize = pattern.chars().count();
     let translated: String = crate::test_deadline::finished_within_deadline_after(
         std::time::Duration::from_secs(10),
-        move || for_matcher(pattern.as_str()),
+        move || return for_matcher(pattern.as_str()),
     );
     // An unclosed `[` is a literal, so the line comes back as it went in.
     assert_eq!(translated.chars().count(), wanted);

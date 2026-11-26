@@ -161,11 +161,11 @@ fn compact(node: &SyntaxNode) -> String {
 /// ```
 fn impl_target(found: &ast::Impl) -> String {
     let self_ty: String = match found.self_ty() {
-        Some(found) => compact(found.syntax()),
+        Some(ty) => compact(ty.syntax()),
         None => String::from("anonymous"),
     };
     return match found.trait_() {
-        Some(found) => format!("{} for {self_ty}", compact(found.syntax())),
+        Some(trait_ty) => format!("{} for {self_ty}", compact(trait_ty.syntax())),
         None => self_ty,
     };
 }
@@ -206,18 +206,18 @@ fn named(item: &ast::Item) -> String {
         },
         ast::Item::ExternCrate(found) => {
             let name: String = match found.name_ref() {
-                Some(found) => found.text().to_string(),
+                Some(name_ref) => name_ref.text().to_string(),
                 None => String::from("anonymous"),
             };
             match found.rename() {
-                Some(found) => format!("extern-crate-{name}-{}", compact(found.syntax())),
+                Some(rename) => format!("extern-crate-{name}-{}", compact(rename.syntax())),
                 None => format!("extern-crate-{name}"),
             }
         }
         ast::Item::ExternBlock(found) => {
             match found.abi().and_then(|abi| return abi.string_token()) {
                 // The ABI's own string, such as `"C"`, not the `extern` keyword the node also holds.
-                Some(found) => format!("extern-block-{}", found.text()),
+                Some(abi_string) => format!("extern-block-{}", abi_string.text()),
                 None => String::from("extern-block-unstated"),
             }
         }
