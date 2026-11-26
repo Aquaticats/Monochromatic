@@ -259,6 +259,33 @@ a timer-started sync is waited out,
 and `.partial` downloads start nothing until renamed.
 Not adopted yet.
 
+## Owner answers, round 7 (2026-11-25T19:51:58-05:00)
+
+- Watcher:
+  adopt directory-watcher 3.2.1,
+  installed through the repository toolchain (`toolchain.plan.jsonc`, then `mise run toolchain:update`);
+  its decision record is written when the work is implemented.
+- Call mode:
+  the watcher's hook runs `systemctl --user start --no-block` of the trigger unit,
+  and the trigger runs `systemctl --user start --no-block` of the sync unit,
+  so requests during a sync merge into one follow-up (measured, "Trigger call mode measured").
+- Quiet period:
+  `hookBatch.waitMillisecond` 2000.
+- Alerts:
+  one desktop alert on the first failure of a streak and one on the next success,
+  by changing `~/.local/bin/rclone-bisync-garage-alert.ts` to remember the last state;
+  the watcher unit gets the same `OnFailure=` alert and `Restart=on-failure`.
+- Timeout:
+  `TimeoutStartSec=3000` stays on the sync unit.
+- Config home:
+  the unit files and the watcher config have their sources in the repository,
+  written to `~/.config` by file-enforcer's per-user rules;
+  if no rule kind fits, that is a change to file-enforcer,
+  or the runbook stays the source and the owner is told.
+- The Mac:
+  compare its `~/Plain` with the bucket read-only first,
+  then the owner decides on a `--resync`.
+
 ## Design consequences still to settle
 
 - A start request made while the timer's run is going joins that run (measured, see the systemd container findings),
