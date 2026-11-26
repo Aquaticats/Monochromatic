@@ -555,15 +555,15 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
 /// spawn(process.execPath, ['--exact', name], { env: { [HOLD]: lock } })
 /// ```
 fn start_non_dumpable_holder(lock: &Path) -> Child {
-    let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-    return Command::new(binary)
-        .args(["--exact", "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control", "--nocapture", "--test-threads=1"])
-        .env(HOLD_NON_DUMPABLY, lock)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the non-dumpable holder starts");
+    // The holder answers nothing the parent reads: it records itself through the lock file and its ready marker.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HOLD_NON_DUMPABLY, lock.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control",
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// What:

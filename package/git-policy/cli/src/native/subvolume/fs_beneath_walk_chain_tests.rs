@@ -125,7 +125,6 @@ const NO_MOUNT_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_NO_MOUNT_N
 ///  and the control fails unless the run states that the host lets no unprivileged process mount.
 #[cfg(target_os = "linux")]
 #[test]
-#[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start")]
 fn the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own() {
     if std::env::var_os(MOUNT_SIDE_VARIABLE).is_none() {
         let probe: std::process::Output = std::process::Command::new("unshare")
@@ -142,16 +141,17 @@ fn the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own() {
             eprintln!("MOUNT NAMESPACE CONTROL NOT RUN: the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own ({said})");
             return;
         }
-        let done: std::process::Output = std::process::Command::new("unshare")
-            .args(["--user", "--map-root-user", "--mount", "--propagation", "private"])
-            .arg(std::env::current_exe().expect("this test binary"))
-            .args(["--exact", "subvolume::fs_beneath_walk_chain::tests::the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own", "--nocapture"])
-            .env(MOUNT_SIDE_VARIABLE, "1")
-            .output()
-            .expect("the inner half runs");
-        let said: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
-        assert!(done.status.success(), "the inner half failed:\n{said}");
-        assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
+        // The inner half is this test binary in a mount namespace of its own, and its pass is this control's assertion.
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(MOUNT_SIDE_VARIABLE, std::ffi::OsStr::new("1"))];
+        crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: "subvolume::fs_beneath_walk_chain::tests::the_last_hop_crosses_a_real_mount_in_a_namespace_of_its_own",
+            environment: environment.as_slice(),
+            running_program: Some(crate::child_test_process::ProgramRunningTheTest {
+                program: "unshare",
+                arguments_before_the_test_binary: &["--user", "--map-root-user", "--mount", "--propagation", "private"],
+            }),
+            ..crate::child_test_process::ChildTest::default()
+        });
         return;
     }
     let root: PathBuf = fixture("beneath-mount-real");

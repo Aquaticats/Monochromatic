@@ -16,14 +16,15 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (!inARootNamespace('SLOT_IDENTITY_STORE_ROOT_SIDE', 'worktree_clone_mount::...::tests::a_test')) return; // skipped: no namespace
+//! if (!inARootNamespace('SLOT_IDENTITY_STORE_ROOT_SIDE', 'worktree_clone_mount::...::tests::a_test')) { /* the child ran and passed */ }
 //! ```
-
-use std::process::Command;
 
 /// The program that makes the namespace,
 /// with the user map that makes this run root inside it.
 const UNSHARE: &str = "unshare";
+
+/// The switches `unshare` takes before the program it runs in the namespace.
+const NAMESPACE_SWITCHES: [&str; 5] = ["--user", "--map-root-user", "--mount", "--propagation", "private"];
 
 /// The variable a run sets to state that this host lets no unprivileged user namespace,
 /// which is the one acknowledgement that lets these controls skip instead of failing.
@@ -34,6 +35,11 @@ const UNSHARE: &str = "unshare";
 ///  the repository's btrfs controls fail unless the run acknowledges the missing capability,
 ///  and this is the same rule for the kernel's namespaces.
 pub(crate) const NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_NO_USER_NAMESPACES";
+
+/// The one request for a child of this test binary, the program that runs it, and the check on its one test.
+use super::child_test_process::{ChildTest, ProgramRunningTheTest, passed};
+/// `OsStr` is borrowed operating-system text of raw bytes.
+use std::ffi::OsStr;
 
 /// What:
 ///  Whether the running control is the inner half,
@@ -54,13 +60,11 @@ pub(crate) const NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_
 /// # Errors
 /// Panics when the child half failed or ran no test,
 /// because a control that did not run must not count as one that passed.
-#[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start")]
 pub(crate) fn in_a_root_namespace(variable: &str, test: &str) -> bool {
     if std::env::var_os(variable).is_some() {
         return true;
     }
-    let namespace_flags: [&str; 5] = ["--user", "--map-root-user", "--mount", "--propagation", "private"];
-    let probe: std::process::Output = Command::new(UNSHARE).args(namespace_flags).arg("/bin/true").output().expect("unshare runs");
+    let probe: std::process::Output = std::process::Command::new(UNSHARE).args(NAMESPACE_SWITCHES).arg("/bin/true").output().expect("unshare runs");
     if !probe.status.success() {
         let said: String = String::from_utf8_lossy(probe.stderr.as_slice()).trim().to_string();
         let acknowledged: bool = std::env::var_os(NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
@@ -71,16 +75,13 @@ pub(crate) fn in_a_root_namespace(variable: &str, test: &str) -> bool {
         eprintln!("NAMESPACE CONTROL NOT RUN: {test} (this host lets no unprivileged user namespace: {said})");
         return false;
     }
-    let done: std::process::Output = Command::new(UNSHARE)
-        .args(namespace_flags)
-        .arg(std::env::current_exe().expect("this test binary"))
-        .args(["--exact", test, "--nocapture"])
-        .env(variable, "1")
-        .output()
-        .expect("the inner half runs");
-    let said: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
-    assert!(done.status.success(), "the inner half failed:\n{said}");
-    assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
+    let environment: [(&str, &OsStr); 1] = [(variable, OsStr::new("1"))];
+    let done = passed(ChildTest {
+        exact_test: test,
+        environment: environment.as_slice(),
+        running_program: Some(ProgramRunningTheTest { program: UNSHARE, arguments_before_the_test_binary: NAMESPACE_SWITCHES.as_slice() }),
+        ..ChildTest::default()
+    });
     // What: the inner half's own error lines, printed here when it passed.
     // Why:
     //  A control that could not do what it is for prints one line naming itself, as the btrfs and ZFS controls do,

@@ -19,6 +19,7 @@
 //! plantDeadHolderLock(repo, 'index.lock'); expect(runWrapped(repo, ['add', 'a.txt']).code).toBe(0);
 //! ```
 
+use super::child_test_process::{ChildTest, started};
 use super::support::{Fixture, Observed, executable, fixture, git, hermetic, own_group, porcelain, repository, run_wrapped, spawn_owned, stderr_of, wrapper_first_path};
 use std::os::unix::process::CommandExt as _;
 use git_policy_cli::lock_holder_records::{folder_of, identity_of_process, record_text};
@@ -773,21 +774,17 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     super::commit::remove_settled(&fixture);
 }
 
-/// This test binary running the child body on `lock`.
-/// The wrapper never starts itself;
-/// this starts libtest,
-/// so the ban on `current_exe` does not reach it.
-#[allow(clippy::disallowed_methods, reason = "starts this test binary (libtest), not the wrapper; the ban on `current_exe` guards the wrapper's own start")]
+/// This test binary running the child body on `lock`, owned by this test thread.
 fn start_non_dumpable_holder(lock: &Path) -> Child {
-    let binary: PathBuf = std::env::current_exe().expect("this test binary");
-    return Command::new(binary)
-        .args(["--exact", "killed_holder_lock::a_non_dumpable_writer_holds_the_lock_for_the_control", "--nocapture", "--test-threads=1"])
-        .env(HOLD_NON_DUMPABLY, lock)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the non-dumpable holder starts");
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HOLD_NON_DUMPABLY, lock.as_os_str())];
+    // The holder answers nothing the parent reads: it records itself through the lock file and its ready marker.
+    return started(ChildTest {
+        exact_test: "killed_holder_lock::a_non_dumpable_writer_holds_the_lock_for_the_control",
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..ChildTest::default()
+    });
 }
 
 /// Whether the holder is there and this account cannot read its descriptor directory.

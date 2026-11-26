@@ -785,14 +785,14 @@ fn unclaimed_exit_probe() {
 /// though the test it ran returned normally.
 #[test]
 fn an_unclaimed_kill_fails_the_process_at_its_exit() {
-    // Identification only: the first argument names the test executable this process was started from, to run one test of it again.
-    #[allow(clippy::disallowed_methods, reason = "identification only: the test harness starts this binary by its path, and the probe runs one test of the same binary again")]
-    let exe = std::env::args_os().next().expect("the test executable");
-    let output = Command::new(exe)
-        .args(["--exact", "supervisor_guard::unclaimed_exit_probe", "--nocapture", "--test-threads=1"])
-        .env(PROBE_VARIABLE, "1")
-        .output()
-        .expect("the probe starts");
+    // The probe's test passes while its process must fail, so this asks for the raw ending and judges the status itself.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(PROBE_VARIABLE, std::ffi::OsStr::new("1"))];
+    let output: std::process::Output = super::child_test_process::finished(super::child_test_process::ChildTest {
+        exact_test: "supervisor_guard::unclaimed_exit_probe",
+        environment: environment.as_slice(),
+        ..super::child_test_process::ChildTest::default()
+    })
+    .expect("the probe ends within the deadline");
     let text: String = String::from_utf8_lossy(&output.stderr).into_owned() + &String::from_utf8_lossy(&output.stdout);
     assert!(text.contains("test supervisor_guard::unclaimed_exit_probe ... ok"), "the probe test itself passed: {text}");
     assert_eq!(output.status.code(), Some(UNCLAIMED_EXIT_STATUS), "{text}");

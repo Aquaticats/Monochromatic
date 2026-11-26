@@ -342,7 +342,6 @@ const MOUNT_SIDE: &str = "UNREACHABLE_GIT_DIR_TEST_MOUNT_SIDE";
 /// and the control skips where the host lets no unprivileged process mount.
 #[cfg(target_os = "linux")]
 #[test]
-#[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, under `unshare`; the ban on `current_exe` guards the wrapper's own start")]
 fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
     if std::env::var_os(MOUNT_SIDE).is_none() {
         let probe: std::process::Output = std::process::Command::new("unshare")
@@ -353,16 +352,17 @@ fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
             eprintln!("skipped: this host lets no unprivileged process mount in a namespace of its own, so no table changes here");
             return;
         }
-        let done: std::process::Output = std::process::Command::new("unshare")
-            .args(["--user", "--map-root-user", "--mount", "--propagation", "private"])
-            .arg(std::env::current_exe().expect("this test binary"))
-            .args(["--exact", "landing::unreachable_git_dir_proven_gone::tests::the_mount_table_is_read_again_after_a_drive_is_mounted", "--nocapture"])
-            .env(MOUNT_SIDE, "1")
-            .output()
-            .expect("the inner half runs");
-        let said: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
-        assert!(done.status.success(), "the inner half failed:\n{said}");
-        assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
+        // The inner half is this test binary in a mount namespace of its own, and its pass is this control's assertion.
+        let environment: [(&str, &std::ffi::OsStr); 1] = [(MOUNT_SIDE, std::ffi::OsStr::new("1"))];
+        crate::child_test_process::passed(crate::child_test_process::ChildTest {
+            exact_test: "landing::unreachable_git_dir_proven_gone::tests::the_mount_table_is_read_again_after_a_drive_is_mounted",
+            environment: environment.as_slice(),
+            running_program: Some(crate::child_test_process::ProgramRunningTheTest {
+                program: "unshare",
+                arguments_before_the_test_binary: &["--user", "--map-root-user", "--mount", "--propagation", "private"],
+            }),
+            ..crate::child_test_process::ChildTest::default()
+        });
         return;
     }
     let root: PathBuf = fixture("unreachable-table-again");

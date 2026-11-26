@@ -25,26 +25,13 @@
 //! chmod('victim.txt', 0o600); await wrapped(['merge', '--no-edit', 'feature']); expect(mode('victim.txt')).toBe(gitWritesFor('victim.txt'));
 //! ```
 
+use super::child_test_process::{ChildTest, passed};
 use super::commit::COMMIT_BOUND_SECONDS;
-use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, remove, repository, spawn_owned, wrapper_first_path};
-use std::os::unix::process::CommandExt as _;
+use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, remove, repository, wrapper_first_path};
 use std::path::{Path, PathBuf};
 
 /// The environment variable that marks the child `ran_in_child` starts.
 const CHILD_VARIABLE: &str = "CLI_GIT_MERGE_MODE_CHILD";
-
-/// What:
-///  This test process's own executable,
-///  for the child process the umask controls start from the test binary.
-/// Why:
-///  A control starts the test binary,
-///  never the wrapper:
-///  the ban on `std::env::current_exe` (`clippy.toml`) is about the wrapper starting itself,
-///  so this is this module's one place the lint is excused.
-#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it under another umask; the wrapper is never started this way")]
-fn the_test_binary() -> std::io::Result<PathBuf> {
-    return std::env::current_exe();
-}
 
 /// What:
 ///  Whether this call ran the test in a child process under `mask`,
@@ -70,23 +57,21 @@ fn ran_in_child(module: &str, name: &str, mask: u32) -> bool {
     // The crate's own name is the first segment of `module_path!()` and is not part of the name libtest answers to,
     //  so it is dropped here as the library's own helper does.
     let path: String = format!("{}::{name}", module.split_once("::").map_or(module, |(_, rest)| { return rest }));
-    let mut command: std::process::Command = std::process::Command::new(the_test_binary().expect("the test binary's own path"));
-    command.args(["--exact", path.as_str(), "--nocapture"]).env(CHILD_VARIABLE, "1");
-    // SAFETY: `umask` only sets the file creation mask of the child between its fork and its exec, and it is async-signal-safe.
-    unsafe {
-        command.pre_exec(move || {
-            libc::umask(mask as libc::mode_t);
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    passed(ChildTest {
+        exact_test: path.as_str(),
+        environment: environment.as_slice(),
+        // What: a closure that sets the child's file creation mask between `fork` and `exec`.
+        // Why:  `umask` is async-signal-safe, which is the whole rule for that window.
+        before_the_exec: Some(Box::new(move || {
+            // SAFETY: `umask` only sets the file creation mask of the child between its fork and its exec.
+            unsafe {
+                libc::umask(mask as libc::mode_t);
+            }
             return Ok(());
-        });
-    }
-    let mut started: std::process::Command = command;
-    started.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    let child: std::process::Child = spawn_owned(&mut started).expect("start the child test");
-    let output: std::process::Output = child.wait_with_output().expect("the child test's end");
-    let said: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
-    assert!(output.status.success(), "the child test {path} under umask {mask:o} failed:\n{said}\n{}", String::from_utf8_lossy(output.stderr.as_slice()));
-    // A name that matches no test would end with success and run nothing.
-    assert!(said.contains("running 1 test") && said.contains("1 passed"), "the child ran no test named {path}:\n{said}");
+        })),
+        ..ChildTest::default()
+    });
     return true;
 }
 

@@ -19,6 +19,19 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The owner a helper process is started with,
+/// which the child-test runner beside it asks for;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+///  This crate keeps its own `support::spawn_owned` for the helpers its fixtures start,
+///  and this copy owns the children the runner starts.
+#[path = "../testing/test_process_owner.rs"]
+mod test_process_owner;
+
+/// The one place a test-binary child is started, waited for with a deadline and checked for its one passing test;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+#[path = "../testing/child_test_process.rs"]
+mod child_test_process;
+
 /// Holding a wrapped commit between its preparation and its landing,
 /// and landing another session's commit in that window.
 #[path = "binary_hold_at_prepare_support.rs"]

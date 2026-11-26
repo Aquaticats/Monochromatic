@@ -13,7 +13,7 @@
 ///  path and process types used by the fixtures.
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
 
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
@@ -245,9 +245,6 @@ pub(crate) fn settle_fixture(root: &Path, keep: bool) {
 struct ThreadFixtures {
     /// Roots to remove.
     roots: std::cell::RefCell<Vec<PathBuf>>,
-    /// Process groups of the helper processes the thread started with `spawn_owned`,
-    /// killed when the thread ends.
-    groups: std::cell::RefCell<Vec<libc::pid_t>>,
 }
 
 /// A panic unwinds the test thread,
@@ -255,10 +252,7 @@ struct ThreadFixtures {
 impl Drop for ThreadFixtures {
     fn drop(&mut self) {
         // The helpers die first, so no process is left in a directory that is about to be removed.
-        for group in self.groups.borrow().iter() {
-            // SAFETY: `killpg` takes a group number and a signal and touches no memory; a group with no member is `ESRCH`.
-            unsafe { libc::killpg(*group, libc::SIGKILL) };
-        }
+        super::test_process_owner::end_owned_groups();
         let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
         for root in self.roots.borrow().iter() {
             end_processes_working_in(root.as_path());
@@ -269,43 +263,22 @@ impl Drop for ThreadFixtures {
 
 thread_local! {
     /// The fixtures of the running test thread.
-    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()), groups: std::cell::RefCell::new(Vec::new()) } };
+    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
 }
 
 /// What:
-///  Start a helper process that dies with the test thread that started it,
-/// whether the test passes,
-/// fails,
-/// panics,
-/// or the whole test process is killed.
+///  The owner of every helper process a control starts,
+///  and the start whose output nobody reads.
+///  The owner is a file of its own because the binary controls' crate and the candidate consumer's crate include it by
+///  path, and the library's test-only modules are invisible to them.
 /// Why:
-///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture.
-/// The
-///  helper leads a process group of its own,
-/// so what it starts (a `sleep` of the loop) is killed with it,
-/// and the group is
-///  killed when the thread's fixtures are dropped,
-/// the same moment the fixture directories go.
-///  The group kill is a guard this process runs,
-///  and a process ended by `SIGKILL` or by `run_progress`'s `abort` runs no guard,
-///  so the helper also asks the kernel for a parent-death signal,
-///  which ends it when the thread that started it is gone however the process ends.
-pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
-    use std::os::unix::process::CommandExt as _;
-    command.process_group(0);
-    // SAFETY: between `fork` and `exec` only `prctl`, an async-signal-safe call, runs, and it touches no memory of this process.
-    //  A test binary ended by `SIGKILL`, or by the `abort`s of `run_progress`, runs no guard at all, so the group kill below
-    //  never happens; the kernel's parent-death signal is what ends the child then.
-    unsafe {
-        command.pre_exec(|| {
-            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
-            return Ok(());
-        });
-    }
-    let child: std::process::Child = command.spawn()?;
-    own_group(&child);
-    return Ok(child);
-}
+///  One shape starts such a helper, so one file decides when it dies.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { ownGroup, spawnOwned } from './test_process_owner';
+/// ```
+pub(crate) use super::test_process_owner::spawn_owned;
 
 /// What:
 ///  Start a helper process whose output nobody reads, with its three standard streams on the null device.
@@ -321,24 +294,11 @@ pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process
 /// ```ts
 /// const child = spawnOwned(command, { stdio: 'ignore' });
 /// ```
-pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<std::process::Child> {
+pub(crate) fn spawn_owned_quiet(command: &mut Command) -> std::io::Result<Child> {
     command.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     return spawn_owned(command);
 }
 
-/// What:
-///  Make the process group a child leads die with the test thread,
-/// as `spawn_owned` does for the children it starts.
-/// Why:
-///   A helper that must become a session leader (a terminal helper calls `setsid` between `fork` and `exec`) cannot also be put in
-///  a group by `spawn_owned`,
-/// because a group leader cannot start a session.
-/// Such a child leads a group of its own already,
-///  so only the thread's list of groups to end needs its number.
-pub(crate) fn own_group(child: &std::process::Child) {
-    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
-    THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
-}
 
 /// This test process's own executable,
 /// for the helper processes a control starts from the test binary.
@@ -494,9 +454,6 @@ pub(crate) mod fixture_git_commands;
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) use fixture_git_commands::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, git, git_output, real_git_within};
-
-#[path = "child_test_process.rs"]
-pub(crate) mod child_test_process;
 
 #[path = "fixture_executable.rs"]
 mod fixture_executable;

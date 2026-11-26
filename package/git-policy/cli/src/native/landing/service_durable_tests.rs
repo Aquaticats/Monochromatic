@@ -222,7 +222,6 @@ fn durable_helper() {
 /// The control skips where the user may exceed the limit.
 #[test]
 fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic() {
-    use std::os::unix::process::CommandExt;
     let apply_limit = || -> std::io::Result<()> {
         let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
         // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
@@ -238,25 +237,28 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
         return Ok(());
     };
     // The probe is a process of the same program that tries to start one thread under the limit and says what happened.
-    #[allow(clippy::disallowed_methods, reason = "identification only: the test binary is the program this process was started as, and the probe runs one test of it again")]
-    let test_binary: std::path::PathBuf = std::path::PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
-    let mut probe = std::process::Command::new(test_binary.as_path());
-    probe.args(["--exact", "landing::service_durable::tests::thread_probe", "--nocapture", "--test-threads=1"]).env(HELPER_DIRECTORY, "probe").stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-    // SAFETY: between fork and exec only `getrlimit` and `setrlimit` run.
-    unsafe { probe.pre_exec(apply_limit); }
-    if String::from_utf8_lossy(probe.output().expect("the probe runs").stdout.as_slice()).contains("thread-started") {
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, std::ffi::OsStr::new("probe"))];
+    let probe: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
+        exact_test: "landing::service_durable::tests::thread_probe",
+        environment: environment.as_slice(),
+        standard_error: std::process::Stdio::null(),
+        before_the_exec: Some(Box::new(move || { return apply_limit(); })),
+        ..crate::child_test_process::ChildTest::default()
+    })
+    .expect("the probe ends within the deadline");
+    if String::from_utf8_lossy(probe.stdout.as_slice()).contains("thread-started") {
         eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no start was refused");
         return;
     }
     let (root, _file) = record("durable-no-thread");
-    let mut helper = std::process::Command::new(test_binary);
-    helper
-        .args(["--exact", "landing::service_durable::tests::durable_helper", "--nocapture", "--test-threads=1"])
-        .env(HELPER_DIRECTORY, root.as_os_str())
-        .stdin(std::process::Stdio::null());
-    // SAFETY: between fork and exec only `getrlimit` and `setrlimit` run.
-    unsafe { helper.pre_exec(apply_limit); }
-    let output = helper.output().expect("the helper runs");
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HELPER_DIRECTORY, root.as_os_str())];
+    // The helper's pass is this control's assertion: it fails when a sync panics or cannot start its thread.
+    let output: std::process::Output = crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: "landing::service_durable::tests::durable_helper",
+        environment: environment.as_slice(),
+        before_the_exec: Some(Box::new(move || { return apply_limit(); })),
+        ..crate::child_test_process::ChildTest::default()
+    });
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert!(output.status.success(), "the helper panicked or failed: {said}");
     assert!(!said.contains("failed to spawn thread"), "{said}");

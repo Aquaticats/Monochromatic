@@ -417,17 +417,15 @@ struct Watches(std::process::Child);
 impl Watches {
     /// Start a holder with `count` watches below `root`.
     fn start(root: &Path, count: usize) -> Watches {
-        let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-        let mut child: std::process::Child = Command::new(binary)
-            .args(["--exact", HOLD_WATCHES_TEST, "--nocapture", "--test-threads=1"])
-            .env(HOLD_WATCHES_ROOT, root)
-            .env(HOLD_WATCHES_COUNT, count.to_string())
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("the holder starts");
-        crate::test_support::own_group(&child);
+        let count_text: String = count.to_string();
+        let environment: [(&str, &std::ffi::OsStr); 2] = [(HOLD_WATCHES_ROOT, root.as_os_str()), (HOLD_WATCHES_COUNT, std::ffi::OsStr::new(count_text.as_str()))];
+        let mut child: std::process::Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
+            exact_test: HOLD_WATCHES_TEST,
+            environment: environment.as_slice(),
+            standard_input: std::process::Stdio::piped(),
+            standard_error: std::process::Stdio::null(),
+            ..crate::child_test_process::ChildTest::default()
+        });
         let line: String = ready_line(&mut child);
         assert!(line.contains(&format!("watches={count}")), "the holder says what it holds: {line}");
         return Watches(child);
