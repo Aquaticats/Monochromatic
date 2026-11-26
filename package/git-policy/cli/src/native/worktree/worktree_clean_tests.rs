@@ -14,12 +14,11 @@
 //! an entry that recorded no nanoseconds is settled by content and never trusted.
 
 use super::*;
-use crate::fs_beneath_directory_chain::MOST_DIRECTORIES_HELD;
-use crate::helper_process_test_support::{
-    helper_directory,
-    in_a_helper,
-    verdict_in_a_helper,
+use crate::descriptor_limit_child_test_support::{
+    child_directory,
+    started_this_test_in_a_child,
 };
+use crate::fs_beneath_directory_chain::MOST_DIRECTORIES_HELD;
 use crate::parallel_test_support::{
     PATIENCE,
     hold_the_only_place,
@@ -86,67 +85,63 @@ fn deepest_of_nested_directories(
     return deepest;
 }
 
-/// The variable that turns a run of the descriptor-room control into the helper process that owns the walk's room.
-const DESCRIPTOR_ROOM_CHILD: &str = "CLI_GIT_WORKTREE_CLEAN_DESCRIPTOR_ROOM_CHILD";
-
 /// A tracked file one directory past the chain's bound is proven clean
 /// with only the descriptors the walk itself needs,
-/// in a helper process of this test's own.
+/// in a child process of this test's own.
 ///
 /// Why:
 /// the room the walk is given is the count of the descriptors a process holds plus what filling the chain and the walk
 ///  past it need,
 /// and a descriptor any thread opens between that count and the walk takes one of the room's places,
 /// which left the walk one short in the container gate (issue 6478);
-/// a helper process runs one test and holds nothing of the process that started it,
+/// a child process runs one test and holds nothing of the process that started it,
 /// so the count is the walk's own,
-/// and the descriptor this test's own process holds across the whole walk reaches nothing the helper measured.
-/// The helper takes its directory from the variable rather than `fixture`,
+/// and the descriptor this test's own process holds across the whole walk reaches nothing the child measured.
+/// The child takes its directory from `child_directory` rather than `fixture`,
 /// so the watchdog no fixture arms never starts a thread there that opens descriptors while the room is measured.
+/// The limit the child lowers belongs to that child alone, so no other test of a threaded run opens under it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // the helper: its own count, its own limit, its own walk
-/// const before = setSoftLimit(openDescriptors() + room); const verdict = walk(); setSoftLimit(before); report(verdict);
-/// // the parent: hold one descriptor, start the helper, read what it failed with
-/// const held = openFile('/dev/null'); expect(inAHelper(VARIABLE, 'clean-past-chain-bound', name)).toEqual([]);
+/// // the child: its own count, its own limit, its own walk
+/// const before = setSoftLimit(openDescriptors() + room); const failures = theDeepWalkVerdict(root); setSoftLimit(before); expect(failures).toEqual([]);
+/// // the parent: hold one descriptor, then start the child in a fixture of its own
+/// const held = openFile('/dev/null'); startedThisTestInAChild(modulePath, name, fixture('clean-past-chain-bound'));
 /// ```
 #[test]
 fn a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room() {
-    // What:     `helper_directory` answers the fixture's path in the process `in_a_helper` started and nothing in the
-    //           process that started it. `Option<PathBuf>` is "a path or nothing" (sibling: `PathBuf`, which cannot
-    //           say "none").
-    // Why:      the helper body is this same test function, so the variable is what tells the two apart.
+    // What:     `child_directory` answers the fixture's path in the child the parent started, and nothing in the
+    //           parent itself. `Option<PathBuf>` is "a path or nothing" (sibling: `PathBuf`, which cannot say "none").
+    // Why:      the child's body is this same test function, so that answer is what tells the two apart.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const root = helperDirectory(VARIABLE); // string | undefined
-    // if (root !== undefined) { process.exit(verdictInAHelper(root, theDeepWalkVerdict(root))); }
+    // const root = childDirectory(); // string | undefined
+    // if (root !== undefined) { const failures = theDeepWalkVerdict(root); expect(failures).toEqual([]); return; }
     // ```
-    if let Some(root) = helper_directory(DESCRIPTOR_ROOM_CHILD) {
-        std::process::exit(verdict_in_a_helper(
-            root.as_path(),
-            the_deep_walk_verdict(root.as_path()),
-        ));
-    }
-    // The descriptor this process holds until the walk has ended, which the helper's count never sees.
-    let _held: std::fs::File =
-        std::fs::File::open("/dev/null").expect("a descriptor of this process");
-    let failures: Vec<String> = in_a_helper(
-        DESCRIPTOR_ROOM_CHILD,
-        "clean-past-chain-bound",
-        "worktree::worktree_clean::tests::a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room",
-    );
+    let Some(root) = child_directory() else {
+        // The descriptor this process holds until the child's walk has ended, which the child's count never sees.
+        let _held: std::fs::File =
+            std::fs::File::open("/dev/null").expect("a descriptor of this process");
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_tracked_file_past_the_chain_bound_is_clean_at_the_walk_s_own_descriptor_room",
+            Some(fixture("clean-past-chain-bound").as_path()),
+        );
+        return;
+    };
+    let failures: Vec<String> = the_deep_walk_verdict(root.as_path());
     assert!(failures.is_empty(), "{failures:?}");
 }
 
-/// The sentences the helper of the descriptor-room control failed with:
+/// The sentences the child of the descriptor-room control failed with:
 /// a worktree whose deepest tracked directory is one directory past the chain's bound is clean
 /// when the walk has only the descriptors the chain and the walk need.
 ///
 /// Why:
-/// the helper reports every check as one sentence and ends with them,
-/// so the parent reads what failed although nobody reads the helper's own output.
+/// the child reports every check as one sentence and asserts them together,
+/// so one failed check does not hide the ones after it,
+/// and every sentence reaches the control that started it in the child's own panic text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

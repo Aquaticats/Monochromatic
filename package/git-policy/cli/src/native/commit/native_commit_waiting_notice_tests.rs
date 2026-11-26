@@ -441,10 +441,19 @@ fn a_program_seen_once_is_kept_with_a_zero_lower_bound() {
 /// the notice returned,
 /// the ceiling went with it,
 /// and the step ran on while the command still waited for it.
-///  The limit is this test's own process,
-/// which nextest runs alone for each test.
+///  The limit belongs to a whole process,
+/// so it is lowered in a child process of this test's own,
+/// and no other test of the run opens under it.
 #[test]
 fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
+    if !crate::descriptor_limit_child_test_support::this_process_is_the_child() {
+        crate::descriptor_limit_child_test_support::started_this_test_in_a_child(
+            module_path!(),
+            "a_look_that_could_not_be_made_keeps_the_ceiling_armed",
+            None,
+        );
+        return;
+    }
     let baseline: usize = crate::test_support::open_descriptors();
     let before: rustix::process::Rlimit =
         crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
@@ -516,6 +525,14 @@ const A_CEILING_ALREADY_COME: Duration = Duration::from_millis(1);
 #[cfg(all(test, target_os = "linux"))]
 #[test]
 fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
+    if !crate::descriptor_limit_child_test_support::this_process_is_the_child() {
+        crate::descriptor_limit_child_test_support::started_this_test_in_a_child(
+            module_path!(),
+            "a_step_is_still_stopped_after_a_look_that_could_not_be_made",
+            None,
+        );
+        return;
+    }
     let _window: std::sync::MutexGuard<'_, ()> = the_controls_window::take_the_window();
     let mut step: std::process::Child = sleeping_step();
     let sink: Buffer = Buffer::default();

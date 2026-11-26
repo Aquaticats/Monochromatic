@@ -8,6 +8,10 @@ use super::{
     DirectoryChain,
     MOST_DIRECTORIES_HELD,
 };
+use crate::descriptor_limit_child_test_support::{
+    child_directory,
+    started_this_test_in_a_child,
+};
 use crate::fs_beneath::{
     device_of,
     identity_of,
@@ -82,15 +86,28 @@ fn deeply_nested(
 
 /// A path deeper than a chain may keep every ancestor of is walked one descriptor at a time,
 /// so a valid depth is answered rather than refused at the process's descriptor limit.
+///
+/// Why:
+/// the limit this control lowers belongs to a whole process,
+/// so it is lowered in a child process of this test's own,
+/// and no other test of a threaded run ever opens under it.
 #[test]
 fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
+    // The fixture this process works in: the one the parent made, or nothing and the parent's own arm runs.
+    let Some(root) = child_directory() else {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time",
+            Some(fixture("chain-deep").as_path()),
+        );
+        return;
+    };
     // Deeper than the 1024 descriptors a service commonly allows, and short enough that 1100 one-character
     //  components still fit the 4096-byte pathname limit.
     const DEPTH: usize = 1100;
-    // The room the walk gets beyond the descriptors this process already holds: a walk that keeps one
+    // The room the walk gets beyond the descriptors this child process already holds: a walk that keeps one
     //  directory open at a time needs two at its peak, the one it holds and the one it is opening.
     const ROOM: u64 = 3;
-    let root: PathBuf = fixture("chain-deep");
     let component_names: Vec<OsString> = deeply_nested(root.as_path(), DEPTH);
     let held: File = open_directory(root.as_path()).expect("the root of the deep fixture");
     let mut chain: DirectoryChain<'_> = DirectoryChain::new(&held).expect("a chain");
@@ -122,13 +139,22 @@ fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
 /// held through the walk of a deeper path,
 /// they take the descriptors its root's clone and its first directory need,
 /// and a directory that is there is refused as unreachable.
+/// The limit is lowered in a child process of this test's own, as in the control above.
 #[test]
 fn a_path_past_the_bound_is_answered_after_a_path_at_the_bound_filled_the_chain() {
-    // The room the run gets beyond the descriptors the process holds before a path fills the chain: filling it takes
+    // The fixture this process works in: the one the parent made, or nothing and the parent's own arm runs.
+    let Some(root) = child_directory() else {
+        started_this_test_in_a_child(
+            module_path!(),
+            "a_path_past_the_bound_is_answered_after_a_path_at_the_bound_filled_the_chain",
+            Some(fixture("chain-deep-after-filled").as_path()),
+        );
+        return;
+    };
+    // The room the child process gets beyond the descriptors it holds before a path fills the chain: filling it takes
     //  one descriptor per kept directory, and the walk past the bound then needs two, its root's clone and the
     //  directory it is opening.
     let room: u64 = u64::try_from(MOST_DIRECTORIES_HELD + 1).expect("a count of descriptors");
-    let root: PathBuf = fixture("chain-deep-after-filled");
     // One directory past the bound, so the leading names are a path at the bound and all of them a path past it.
     let component_names: Vec<OsString> = deeply_nested(root.as_path(), MOST_DIRECTORIES_HELD + 1);
     let at_bound: &[OsString] = &component_names[..MOST_DIRECTORIES_HELD];
