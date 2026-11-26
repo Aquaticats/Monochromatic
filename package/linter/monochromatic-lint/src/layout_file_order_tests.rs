@@ -667,8 +667,9 @@ fn every_extra_copy_of_a_listed_name_has_its_own_key() {
             .collect::<Vec<crate::layout_finding::LayoutFinding>>();
     assert_eq!(copies.len(), 2, "{copies:#?}");
     assert_eq!(copies[0].key, "listed-twice src/a/mod.rs one.rs");
-    // The second extra copy gains a number, so a line for the first one names one finding.
-    assert_eq!(copies[1].key, "listed-twice src/a/mod.rs one.rs#2");
+    // The second extra copy gains a number in its first word, so a line for the first names one finding
+    // and no doc entry named `one.rs#2` can collide with it.
+    assert_eq!(copies[1].key, "listed-twice#2 src/a/mod.rs one.rs");
     let list = crate::layout_allow_list::parse_allow_list(
         "listed-twice src/a/mod.rs one.rs\n",
         Path::new("allow-list.txt"),
@@ -678,7 +679,7 @@ fn every_extra_copy_of_a_listed_name_has_its_own_key() {
         .iter()
         .map(|item| return item.key.clone())
         .collect::<Vec<String>>();
-    assert_eq!(kept, ["listed-twice src/a/mod.rs one.rs#2"], "{kept:#?}");
+    assert_eq!(kept, ["listed-twice#2 src/a/mod.rs one.rs"], "{kept:#?}");
 }
 
 /// A listed file use whose two files are no longer in one loop is a finding,

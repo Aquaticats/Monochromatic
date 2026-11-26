@@ -60,6 +60,19 @@ fn summary(output: &RunOutput) -> Vec<String> {
         .collect::<Vec<String>>();
 }
 
+/// The allow-list keys one `--debug` run printed, in the order the rules reported them.
+fn debug_keys(output: &RunOutput) -> Vec<String> {
+    return output
+        .stderr
+        .lines()
+        .filter_map(|line| {
+            return line
+                .split_once("allow-list key: ")
+                .map(|split| return String::from(split.1));
+        })
+        .collect::<Vec<String>>();
+}
+
 /// Without a block that selects them,
 /// the rules do nothing,
 /// and the starter rule set does not select them either.
@@ -421,6 +434,103 @@ fn a_group_entry_loop_does_not_hold_a_use_between_two_members() {
     );
 }
 
+/// Two findings never share one key,
+///  even when a top doc lists a name that reads like a numbered one,
+///  so one line of a list tolerates exactly the finding it names.
+#[test]
+fn a_numbered_key_never_collides_with_a_listed_name() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `a.rs`: a.\n//! - `x`: foreign\n//! - `x`: foreign again\n//! - `x#2`: another foreign\nmod a;\n",
+        ),
+        ("src/a.rs", ""),
+    ]);
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    write(&fixture.path, "file.txt", "");
+    let debug: RunOutput = run(&fixture.path, &["--debug"], "");
+    let keys: Vec<String> = debug_keys(&debug)
+        .into_iter()
+        .filter(|key| return !key.starts_with("missing-entry"))
+        .collect::<Vec<String>>();
+    // Three entries of the doc are findings, one of them listed twice, so four keys and no repeats.
+    assert_eq!(keys.len(), 4, "{keys:#?}");
+    let distinct: std::collections::BTreeSet<&String> = keys.iter().collect();
+    assert_eq!(distinct.len(), 4, "{keys:#?}");
+    // The three lines below tolerate three findings, so the second `x` entry is still reported.
+    write(
+        &fixture.path,
+        "file.txt",
+        "listed-twice src/lib.rs x\nforeign-name src/lib.rs x\nforeign-name src/lib.rs x#2\n",
+    );
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(listed.exit_code, 1, "{}", listed.stdout);
+    assert_eq!(
+        summary(&listed).len(),
+        1,
+        "one line tolerated two findings: {}",
+        listed.stdout
+    );
+    assert!(
+        listed
+            .stdout
+            .contains("lists `x`, which is not a module file"),
+        "{}",
+        listed.stdout
+    );
+}
+
+/// A finding's key does not change when another block of the same type is added above it,
+///  so a list written for two blocks still names those two.
+#[test]
+fn a_key_does_not_shift_when_another_block_of_its_kind_is_added_above_it() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a/mod.rs", ""),
+        ("src/a/one.rs", ""),
+    ]);
+    // The index lists its one file, so the two blocks are the only findings of the file rule.
+    let doc: &str = "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n";
+    write(
+        &fixture.path,
+        "src/a/mod.rs",
+        format!("{doc}\nimpl Holder {{ fn one() {{}} }}\nimpl Holder {{ fn two() {{}} }}\n")
+            .as_str(),
+    );
+    write(&fixture.path, CONFIG, LAYOUT_ON);
+    let debug: RunOutput = run(&fixture.path, &["--debug"], "");
+    let written: String = debug_keys(&debug)
+        .into_iter()
+        .filter(|key| return key.starts_with("index-item"))
+        .map(|key| return format!("{key}\n"))
+        .collect::<String>();
+    assert_eq!(written.lines().count(), 2, "{written}");
+    // A third block above the two is the finding those two lines do not name.
+    write(
+        &fixture.path,
+        "src/a/mod.rs",
+        format!("{doc}\nimpl Holder {{ fn three() {{}} }}\nimpl Holder {{ fn one() {{}} }}\nimpl Holder {{ fn two() {{}} }}\n").as_str(),
+    );
+    write(
+        &fixture.path,
+        CONFIG,
+        allow_config("rust/file-order-in-folder", "file.txt").as_str(),
+    );
+    write(&fixture.path, "file.txt", written.as_str());
+    let listed: RunOutput = run(&fixture.path, &[], "");
+    assert_eq!(listed.exit_code, 1, "{}", listed.stdout);
+    assert_eq!(
+        summary(&listed),
+        ["rust/file-order-in-folder error src/a/mod.rs 7"],
+        "{}",
+        listed.stdout
+    );
+}
+
 /// Configuration turning one layout rule on with a list beside the fixture's configuration file.
 fn allow_config(
     rule: &str,
@@ -495,7 +605,7 @@ fn one_line_tolerates_one_index_item() {
     write(
         &fixture.path,
         "file.txt",
-        "index-item src/lib.rs impl-Holder\nindex-item src/lib.rs private-use-std::fmt\nindex-item src/lib.rs private-use-std::io\n",
+        "index-item src/lib.rs impl-Holder one\nindex-item src/lib.rs private-use-std::fmt\nindex-item src/lib.rs private-use-std::io\n",
     );
     let output: RunOutput = run(&fixture.path, &[], "");
     let found: Vec<String> = summary(&output);

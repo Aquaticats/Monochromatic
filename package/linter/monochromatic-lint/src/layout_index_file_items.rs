@@ -152,8 +152,9 @@ fn compact(node: &SyntaxNode) -> String {
 ///  such as `Holder` or `Display for Holder`.
 /// Why:
 ///  An `impl` block has no name of its own,
-///  and two blocks of one file must not share a key,
-///  so the key uses the type the block is written for.
+///  and the type and trait are what a reader calls it.
+///  A second block of one type is legal,
+///  so `impl_name` adds the members that tell the two apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,6 +172,45 @@ fn impl_target(found: &ast::Impl) -> String {
 }
 
 /// What:
+///  What an `impl` block implements,
+///  followed by the names of the members it declares.
+/// Why:
+///  Two blocks implementing one type are legal and common,
+///  and a key built from the type alone would number them by position,
+///  so a block added above would rename the ones below it.
+///  The members each block declares are its own words,
+///  so sorting them gives every block a key that an edit above never changes,
+///  and only two blocks that declare the same members are numbered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const implName = (block) => [implTarget(block), ...memberNames(block).sort()].join(' ')
+/// ```
+fn impl_name(found: &ast::Impl) -> String {
+    let target: String = impl_target(found);
+    let mut members: Vec<String> = Vec::<String>::new();
+    if let Some(list) = found.assoc_item_list() {
+        for item in list.assoc_items() {
+            match &item {
+                ast::AssocItem::Fn(member) => members.push(name_text(member.name())),
+                ast::AssocItem::Const(member) => members.push(name_text(member.name())),
+                ast::AssocItem::TypeAlias(member) => members.push(name_text(member.name())),
+                ast::AssocItem::MacroCall(member) => match member.path() {
+                    Some(path) => members.push(compact(path.syntax())),
+                    None => continue,
+                },
+            }
+        }
+    }
+    members.sort();
+    members.dedup();
+    if members.is_empty() {
+        return target;
+    }
+    return format!("{target} {}", members.join(" "));
+}
+
+/// What:
 ///  The name of the item,
 ///  such as `function-end_after_the_log`,
 ///  which an allow-list entry writes to tolerate this one finding.
@@ -181,6 +221,7 @@ fn impl_target(found: &ast::Impl) -> String {
 ///  because a key must name one finding:
 ///  `impl-block` for every block of a file let one entry tolerate a block added later,
 ///  and so did `private-use` for every `use` line.
+///  An `impl` block is named by what it implements and the members it declares.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +240,7 @@ fn named(item: &ast::Item) -> String {
         ast::Item::MacroRules(found) => format!("macro-rules-{}", name_text(found.name())),
         ast::Item::MacroDef(found) => format!("macro-def-{}", name_text(found.name())),
         ast::Item::Module(found) => format!("inline-module-{}", name_text(found.name())),
-        ast::Item::Impl(found) => format!("impl-{}", impl_target(found)),
+        ast::Item::Impl(found) => format!("impl-{}", impl_name(found)),
         ast::Item::Use(found) => match found.use_tree() {
             Some(tree) => format!("private-use-{}", compact(tree.syntax())),
             None => String::from("private-use-anonymous"),

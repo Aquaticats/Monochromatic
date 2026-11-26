@@ -99,17 +99,18 @@ pub fn key_path(
 ///  One line of a list tolerates every finding whose key it holds,
 ///  so two findings with one key would let a line that tolerates today's finding
 ///  also tolerate a second one added later.
-///  The first finding keeps the plain key and a later one gains `#2`,
-/// `#3` and so on in the rule's own order,
-///  which is document order within a file,
-///  so an entry written before the numbering existed still names its finding
-///  and an edit above a finding never renumbers it.
-///  Only findings a rule cannot tell apart by their own words reach this state,
-///  such as two `impl` blocks of one type or two globs of one module.
+///  A rule tells its findings apart by what each one holds where it can;
+///  only findings that hold the same words reach this state,
+///  such as two empty `impl` blocks of one type or two glob re-exports of one module.
+///  The first keeps the plain key and a later one gains `#2`,
+/// `#3` and so on, in the rule's own order,
+///  so an entry written before the numbering existed still names its finding,
+///  and only an identical finding added above renumbers the ones below it.
+///  No line number enters a key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // for each finding: n = ++taken[key]; if (n > 1) finding.key = `${key}#${n}`
+/// // for each finding: n = ++taken[key]; if (n > 1) finding.key = numbered(key, n)
 /// ```
 pub fn unique_keys(findings: &mut [LayoutFinding]) {
     // How many findings have already taken each key, in the order the rule produced them.
@@ -126,10 +127,35 @@ pub fn unique_keys(findings: &mut [LayoutFinding]) {
         };
         taken.insert(base.clone(), count);
         if count > 1 {
-            finding.key = format!("{base}#{count}");
+            finding.key = numbered(base.as_str(), count);
         }
     }
     return;
+}
+
+/// What:
+///  The key of the `count`th finding of a shape whose own words an earlier finding already holds.
+/// Why:
+///  The number goes into the key's first word, right after the shape it repeats,
+///  because no literal key holds `#` there:
+///  every key a rule prints starts with a shape word and a space,
+///  so `foreign-name#2 src/lib.rs x` can never be read as a doc entry named `x#2`,
+///  which prints `foreign-name src/lib.rs x#2`.
+///  Two findings therefore never share a key,
+///  and a line written for the first cannot tolerate the second.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const numbered = (base, count) => base.replace(' ', `#${count} `)
+/// ```
+fn numbered(
+    base: &str,
+    count: usize,
+) -> String {
+    return match base.split_once(' ') {
+        Some((shape, rest)) => format!("{shape}#{count} {rest}"),
+        None => format!("{base}#{count}"),
+    };
 }
 
 /// Controls of the path display stay outside release artifacts.
