@@ -22,13 +22,20 @@ mod support;
 
 /// Import filesystem operations,
 /// the I/O error type and child processes.
-use std::{fs, io, process::Command};
+use std::{
+    fs,
+    io,
+    process::Command,
+};
 
 /// Import the permission bits the mode assertion reads.
 use std::os::unix::fs::PermissionsExt;
 
 /// Import the owned path type.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Import the one definition of the owner-only mode,
 /// so the assertion cannot drift from the fixture.
@@ -68,7 +75,9 @@ fn fresh_home() -> io::Result<PathBuf> {
         .arg(Path::new(env!("CARGO_TARGET_TMPDIR")).join("fresh-home-XXXXXXXX"))
         .output()?;
     if !output.status.success() {
-        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(io::Error::other(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     let text = String::from_utf8(output.stdout).map_err(io::Error::other)?;
     return Ok(PathBuf::from(text.trim_end()));
@@ -98,11 +107,23 @@ fn a_fresh_home_gets_an_owner_only_scratch_root() -> io::Result<()> {
     let parent = support::fixture_in(&home)?;
     let scratch = home.join("temp").join("agent");
 
-    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} is not owner-only", scratch.display());
-    assert!(parent.starts_with(&scratch), "{} is outside {}", parent.display(), scratch.display());
+    assert_eq!(
+        mode_of(&scratch)?,
+        OWNER_ONLY_MODE,
+        "{} is not owner-only",
+        scratch.display()
+    );
+    assert!(
+        parent.starts_with(&scratch),
+        "{} is outside {}",
+        parent.display(),
+        scratch.display()
+    );
 
     // The fixture built under that home is usable: the hook initializes it and allows a plain command.
-    let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    let path = parent.to_str().ok_or_else(|| {
+        return io::Error::other("fixture path encoding");
+    })?;
     let initialized = support::invoke(&["--initialize", path], "")?;
     assert!(initialized.status.success(), "{initialized:?}");
     let allowed = support::invoke(&["--hook", path], &support::event("true")?)?;
@@ -121,17 +142,24 @@ fn a_fresh_home_gets_an_owner_only_scratch_root() -> io::Result<()> {
 #[test]
 fn the_fixture_tightens_a_scratch_root_left_loose() -> io::Result<()> {
     let home = fresh_home()?;
-    let scratch = home
-        .join("temp")
-        .join("agent");
+    let scratch = home.join("temp").join("agent");
     fs::create_dir_all(&scratch)?;
     fs::set_permissions(&scratch, fs::Permissions::from_mode(GROUP_READABLE_MODE))?;
     // Prove the fixture starts from the loose mode it is meant to correct.
-    assert_eq!(mode_of(&scratch)?, GROUP_READABLE_MODE, "the loose fixture setup did not take");
+    assert_eq!(
+        mode_of(&scratch)?,
+        GROUP_READABLE_MODE,
+        "the loose fixture setup did not take"
+    );
 
     support::fixture_in(&home)?;
 
-    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} stayed loose", scratch.display());
+    assert_eq!(
+        mode_of(&scratch)?,
+        OWNER_ONLY_MODE,
+        "{} stayed loose",
+        scratch.display()
+    );
 
     fs::remove_dir_all(&home)?;
     return Ok(());
@@ -146,7 +174,12 @@ fn the_scratch_root_under_the_process_home_is_owner_only() -> io::Result<()> {
     let home = std::env::var("HOME").map_err(io::Error::other)?;
     let scratch = Path::new(&home).join("temp").join("agent");
 
-    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} is not owner-only", scratch.display());
+    assert_eq!(
+        mode_of(&scratch)?,
+        OWNER_ONLY_MODE,
+        "{} is not owner-only",
+        scratch.display()
+    );
 
     fs::remove_dir_all(parent)?;
     return Ok(());

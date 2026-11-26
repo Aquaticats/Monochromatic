@@ -1,5 +1,7 @@
 //! Disposable files and native process helpers shared by integration tests.
 
+/// Import the trait that adds `from_mode` to `Permissions`.
+use std::os::unix::fs::PermissionsExt;
 /// What:
 /// `use` imports names;
 /// `::` separates module names.
@@ -14,9 +16,21 @@
 /// import * as fs from 'node:fs';
 /// import { spawnSync } from 'node:child_process';
 /// ```
-use std::{ffi::OsStr, fs, io, io::Write, path::{Path, PathBuf}, process::{Command, Output, Stdio}};
-/// Import the trait that adds `from_mode` to `Permissions`.
-use std::os::unix::fs::PermissionsExt;
+use std::{
+    ffi::OsStr,
+    fs,
+    io,
+    io::Write,
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+        Stdio,
+    },
+};
 
 /// What:
 /// `pub pub const OWNER_ONLY_MODE: u32 = 0o700;` is the mode rule ATH requires for the shared scratch root:
@@ -105,7 +119,9 @@ pub fn fixture_in(home: &Path) -> io::Result<PathBuf> {
         // throw new Error('mktemp could not create the fixture');
         // ```
         // Decode stderr for the failure report, replacing only invalid diagnostic bytes.
-        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(io::Error::other(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     // Decode mktemp's bytes without substituting invalid characters.
     let text = String::from_utf8(output.stdout).map_err(io::Error::other)?;
@@ -113,8 +129,10 @@ pub fn fixture_in(home: &Path) -> io::Result<PathBuf> {
     let parent = PathBuf::from(text.trim_end());
     fs::create_dir(parent.join("codex"))?;
     for (file, value) in [
-        ("memory.max", "4294967296\n"), ("memory.swap.max", "0\n"),
-        ("pids.max", "2048\n"), ("cpu.max", "200000 100000\n"),
+        ("memory.max", "4294967296\n"),
+        ("memory.swap.max", "0\n"),
+        ("pids.max", "2048\n"),
+        ("cpu.max", "200000 100000\n"),
         ("codex/cgroup.procs", ""),
     ] {
         fs::write(parent.join(file), value)?;
@@ -128,10 +146,18 @@ pub fn fixture_in(home: &Path) -> io::Result<PathBuf> {
 /// `&[&str]` borrows a variable-size list;
 /// `[T; N]` fixes its length and `Vec<T>` owns it.
 /// Borrowing avoids copying caller-owned command arguments.
-pub fn invoke(arguments: &[&str], input: &str) -> io::Result<Output> {
+pub fn invoke(
+    arguments: &[&str],
+    input: &str,
+) -> io::Result<Output> {
     // What: `map` borrows each `&str` as an `&OsStr` without allocating the text.
     // Why: One launch path serves both callers, so plain-text and raw-byte arguments cannot drift apart.
-    let os_arguments: Vec<&OsStr> = arguments.iter().map(|argument| { return OsStr::new(argument); }).collect();
+    let os_arguments: Vec<&OsStr> = arguments
+        .iter()
+        .map(|argument| {
+            return OsStr::new(argument);
+        })
+        .collect();
     return invoke_os(&os_arguments, input, &[]);
 }
 
@@ -144,7 +170,11 @@ pub fn invoke(arguments: &[&str], input: &str) -> io::Result<Output> {
 /// so refusing one needs its own entry point into the same launch.
 /// A child without `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR` cannot reach a user bus,
 /// which makes a slice start fail without touching the shared user manager.
-pub fn invoke_os(arguments: &[&OsStr], input: &str, removed_variables: &[&str]) -> io::Result<Output> {
+pub fn invoke_os(
+    arguments: &[&OsStr],
+    input: &str,
+    removed_variables: &[&str],
+) -> io::Result<Output> {
     // What: `env!` embeds Cargo's executable path at compile time; `mut` permits removing variables and writing stdin.
     // Why: Tests exercise this crate's executable, including entry-point validation and exit codes.
     //
@@ -158,7 +188,12 @@ pub fn invoke_os(arguments: &[&OsStr], input: &str, removed_variables: &[&str]) 
     for name in removed_variables {
         command.env_remove(name);
     }
-    let mut child = command.args(arguments).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    let mut child = command
+        .args(arguments)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
     // Borrow stdin temporarily; an absent pipe is an explicit fixture failure.
     let pipe = child.stdin.as_mut().ok_or_else(|| {
         // Return the error from this zero-argument closure (`||`).
@@ -176,7 +211,9 @@ pub fn event(command: &str) -> io::Result<String> {
     // Serialize the command at the JSON boundary, preserving every shell character.
     let encoded = serde_json::to_string(command).map_err(io::Error::other)?;
     // Own a mutable string; `String` can grow while sibling `&str` only borrows text.
-    let mut input = String::from("{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":");
+    let mut input = String::from(
+        "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":",
+    );
     // Lend the encoded JSON string to the destination buffer.
     input.push_str(&encoded);
     input.push_str("}}");
