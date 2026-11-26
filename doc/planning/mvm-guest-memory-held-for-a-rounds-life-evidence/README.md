@@ -136,6 +136,17 @@ which measures the cell the two earlier guests did not.
   which is where the preparation's length comes from,
   since its three logs carry no timestamps.
 
+## The one guest that lists its own devices
+
+- `balloon-check.txt`,
+  `memory-gate-readings-2026-11-26T04-10Z.txt`:
+  a guest created by this worktree's `mvm` source on 2026-11-26T04:10:20Z,
+  the virtio devices it saw with their device ids and bound drivers,
+  its create and destroy lines,
+  and the gate reading that permitted it.
+  It is there because no kept file records any guest's domain XML:
+  this one's own view says the balloon device was present.
+
 ## The paths the crate's test binaries carry
 
 - `compile-time-paths.txt`:

@@ -161,8 +161,22 @@ which is the one case where a guest's memory is private.
 `commonDevices()` puts it in every libvirt domain,
 and commit `269b812807` (2026-11-25T19:47:08-05:00) is the change
 `doc/decision/mvm-guests-report-free-pages.md` asked for.
-Every guest in every reading kept here was created after that commit,
-so reporting was on in all of them.
+No kept file records a guest's domain XML,
+so what a guest carried is a claim about the source and about the round that created it:
+
+- the guest of 2026-11-26T04:10:20Z,
+  created by this worktree's source with no patch,
+  saw the balloon as `virtio4`,
+  device id `0x0005`,
+  with `virtio_balloon` bound
+  (`balloon-check.txt`);
+- the two cells of 01:50Z and 02:27Z were created after that commit,
+  and their round added the element by a temporary probe block as well;
+- the four guests of 2026-11-25T21:14Z to 23:35Z were created before the commit,
+  and which of them carried the element is what their round recorded:
+  `mem-a` without it,
+  `mem-b` to `mem-d` with it,
+  which is also the comparison `doc/decision/mvm-guests-report-free-pages.md` rests on.
 
 ### What QEMU then does with that memory
 
@@ -379,7 +393,7 @@ and warns that archives carry no source) are unweighed here.
 "the host's glibc is newer than Ubuntu 24.04's,
 so a host-built binary would not start there;
 building in the guest keeps the test binary matched to the guest's own libc and needs no cross toolchain."
-Both rounds therefore build where the guest's libc is:
+Every build kept here was made where the guest's libc is:
 an Ubuntu 24.04 container on the host,
 with Rust 1.100.0,
 the toolchain version `run-fixture.ts` pins.
@@ -446,7 +460,7 @@ one at a time,
 and destroyed by the program that created it as soon as its readings are saved.
 The `mvm` that creates it is the worktree's own source,
 run as `node package/mvm/cli/src/cli.ts` through a link named `mvm`,
-because the installed `mvm` on this machine is a build of an earlier commit.
+so the domain is the one `main` writes and not whatever an installed copy was built from.
 No `mvm` source was patched:
 `main`'s own domain is what ran,
 with the reporting balloon commit `269b812807` in it.
@@ -597,8 +611,8 @@ its own `AnonPages` peaked at 7,641,948 kB (7.29 GiB) of the 7,755 MiB at 02:24:
 with `MemAvailable` down to 88,740 kB.
 `cargo nextest` ran the same lock test:
 1 passed,
-1354 skipped,
-0.58 seconds,
+1354 filtered out,
+0.57 seconds,
 and the pulled log carries all 15 marker lines.
 
 The host's charge to it,
@@ -616,7 +630,7 @@ with three or four other rounds' guests on the host:
 - the crate build:
   7 minutes 40 seconds.
 - the arm:
-  0.58 seconds;
+  0.57 seconds;
   at 02:26:59Z the charge read 6.12 GiB (5.92 resident,
   0.20 swapped).
 - the drop:
@@ -626,8 +640,9 @@ with three or four other rounds' guests on the host:
   1.25 GiB less over 35 seconds.
   In the same window the guest's own `AnonPages` fell from 2,072,236 kB to 46,288 kB
   and its `Cached` from 488,648 kB to 26,120 kB at 02:27:02Z,
-  so 0.68 GiB of the fall followed the guest's own collapse of anonymous pages,
-  and no mechanism is named here for the rest.
+  so 0.57 GiB of the fall went with the guest's own collapse of anonymous pages,
+  the remaining 0.68 GiB came after it,
+  and no mechanism is named here for that part.
 - destroy:
   1.03 seconds (02:27:31.250Z to 02:27:32.278Z).
 
@@ -751,7 +766,7 @@ with two other rounds' guests on the host and the host's `MemAvailable` between 
   6.17 GiB at 04:01:37Z,
   all resident and no swap,
   first reached at 04:01:26Z at the end of the preparation and held to the destroy;
-  with the plan's `some avg10` at or under 0.48 throughout.
+  with the host's `some avg10` at or under 0.48 throughout.
 - the arm:
   0.75 seconds by the driver's clock,
   0.39 seconds by the test binary's own summary.
@@ -860,7 +875,11 @@ and no rank is drawn from them:
   and the lightest in `mem-third-8g-prebuilt`
   (`some avg10` 0.48 at most,
   `MemAvailable` minimum 9.08 GiB);
-- `mem-a` ran with reporting off and the other five with it on;
+- `mem-a` ran without a reporting balloon,
+  which the decision comparing it states,
+  and the two cells of 2026-11-26T01:50Z and 02:27Z ran with one;
+  no kept file records a guest's domain XML,
+  and `balloon-check.txt` is the one guest whose own view of its devices is kept;
 - `mem-c` held private RAM and the rest shared memfd RAM;
 - the other rounds' guests numbered two in `mem-third-8g-prebuilt`,
   two to four in the two cells of 2026-11-26T01:50Z and 02:27Z,
@@ -953,13 +972,14 @@ because the guest's view is what says whether a fall could be the drop's doing:
   nothing,
   while the guest's own `Cached` fell 3.66 GiB and its `AnonPages` 1.42 GiB.
 - `mem-a`,
-  a default guest with reporting off,
+  the default guest of the decision's comparison,
+  which carried no reporting balloon,
   host thrashing (`MemAvailable` at or under 64 MiB in all 178 samples):
   7.98 GiB before and after,
   nothing,
   and the guest's own log ends before the drop.
 - `mem-c`,
-  a guest with private RAM and no reporting:
+  a guest with private RAM whose round recorded no reporting balloon:
   3.07 GiB before,
   3.08 GiB after,
   nothing,
@@ -1034,7 +1054,7 @@ one run per guest:
   and the 7-minute figures an earlier draft gave for them are gone.
 - an arm that compiles pays the build again:
   7 minutes 40 seconds with cargo's default jobs in `mem-second-8g`;
-  the arms themselves took 0.58,
+  the arms themselves took 0.57,
   1.13 and 0.75 seconds.
 - the saving is the share of a round spent between arms,
   and nothing here measured that share:
@@ -1059,7 +1079,7 @@ Should a round destroy its guest between arms instead of keeping it for the roun
 Keep the guest (Recommended): destroying returns everything, but each new guest owes a create (9.78 to
 10.7 s measured, one run each) and the ZFS binding's preparation, which installs packages, builds OpenZFS
 2.4.4 and installs cargo-nextest from source (284 s in the one preparation timed by its driver). The arms
-measured take 0.58 to 1.13 s, and the crate build an arm may need took 7 m 40 s. No run here measured the
+measured take 0.57 to 1.13 s, and the crate build an arm may need took 7 m 40 s. No run here measured the
 share of a round's time spent between arms, so a gap has to be long to pay that.
 Destroy between arms: everything returns at each gap, and every gap pays a create and a preparation.
 ```
@@ -1344,7 +1364,9 @@ The ARC was not at its floor when the readings were taken:
 the opening reading of the 2026-11-25T22:00:41Z sample found it at 2,088,789,208 bytes against a `c_min` of
 2,069,377,152,
 19,412,056 bytes above the floor,
-and `mem-a`'s samples hold it far above that.
+and `mem-a`'s samples hold it anywhere from 1.55 GiB,
+below that floor,
+to 13.92 GiB.
 So the ARC is not a fixed cost,
 but the gate's own sum treats only `size` minus `c_min` as reclaimable,
 and nothing in the guests' measurements moves with it.
