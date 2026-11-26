@@ -209,12 +209,28 @@ fn home_path(home: &std::fs::File, name: &str) -> std::io::Result<PathBuf> {
 /// The first bytes of a capture file, enough for the header and the count.
 fn read_prefix(home: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
     let path: PathBuf = home.join(name);
-    return match read_regular_file(path.as_path(), 8 * 1024) {
-        Ok(bytes) => Ok(Some(bytes)),
-        Err(crate::private_storage::ReadRefusal::Missing) => Ok(None),
-        Err(refusal) => Err(format!("the capture {} cannot be read ({refusal:?})", path.display())),
+    let file: std::fs::File = match crate::private_storage::open_regular_file(path.as_path()) {
+        Ok(opened) => opened,
+        Err(crate::private_storage::ReadRefusal::Missing) => return Ok(None),
+        Err(refusal) => return Err(format!("the capture {} cannot be read ({refusal:?})", path.display())),
     };
+    // The prefix is the first bytes of a record whose whole length is not yet
+    // known, so it is taken from the open file rather than read as a whole:
+    // `read_regular_file` refuses anything longer than its limit, and a capture
+    // of a few hundred tracked paths is longer than the prefix.
+    let mut bytes: Vec<u8> = Vec::new();
+    file.take(CAPTURE_PREFIX_BYTES)
+        .read_to_end(&mut bytes)
+        .map_err(|error| return format!("the capture {} cannot be read ({error})", path.display()))?;
+    return Ok(Some(bytes));
 }
+
+/// The prefix bytes the reader takes before it knows the entry count.
+/// Why:
+///  The count sets the whole record's bound,
+///  so it is read from a bounded prefix of a record whose length is unbounded
+///  until that count is known.
+const CAPTURE_PREFIX_BYTES: u64 = 8 * 1024;
 
 /// The first `most` bytes of one file, however large the file is.
 fn prefix_of(path: &Path, most: u64) -> std::io::Result<Vec<u8>> {
