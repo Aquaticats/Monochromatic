@@ -907,6 +907,18 @@ DLK:
 (a `#:~:text=` fragment or a commit-pinned line range),
 opened in `agent-browser` before the draft reaches the user.
 
+MXV:
+ Before a draft or doc reaches the user,
+ mask every value tied to the poster's network,
+ location or session:
+ resolved addresses,
+ exit IPs,
+ local host and interface names.
+
+HDG:
+ A draft's sections are headings with prose;
+ its title sits outside the body.
+
  The new-issue
 draft contains:
  title,
