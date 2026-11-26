@@ -1190,6 +1190,12 @@ fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
 #[cfg(unix)]
 #[test]
 fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_refused_add_leaves_no_record_for_the_worktree_another_command_completed",
+    ) {
+        return;
+    }
     keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-refused-no-record");
     let (main, common) = source(root.as_path());
@@ -1338,6 +1344,12 @@ fn an_unreadable_destination_keeps_the_record_of_the_worktree_that_was_not_fille
 #[cfg(unix)]
 #[test]
 fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache",
+    ) {
+        return;
+    }
     keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-writes-kept-in-memory");
     let (main, common) = source(root.as_path());
@@ -1406,6 +1418,12 @@ fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache
 /// Only the wait goes:
 /// every sync is still recorded,
 /// so a control whose subject is the order of the flushes reads them as before.
+/// Gotcha:
+///  The switch belongs to the whole process,
+///  so every caller runs its body in a child of its own
+///  (`testing/process_wide_state_child_test_support.rs`)
+///  and the switch refuses anywhere else (issue 6498):
+///  a control that skipped the syncs of the shared process turned every later control's sync into a no-op.
 fn keep_the_durability_writes_in_the_page_cache() {
     crate::private_storage::skip_the_durability_syncs_here();
 }
@@ -2279,6 +2297,12 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
 #[cfg(unix)]
 #[test]
 fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_creation_in_the_worktree_recovers_its_dead_journal_first",
+    ) {
+        return;
+    }
     keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-dead-journal");
     let (main, common) = source(root.as_path());
@@ -2384,6 +2408,12 @@ fn a_creation_in_the_worktree_recovers_its_dead_journal_first() {
 #[cfg(unix)]
 #[test]
 fn a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it",
+    ) {
+        return;
+    }
     keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-owed-copy-another-worktree");
     let (main, common) = source(root.as_path());
@@ -2461,6 +2491,12 @@ fn a_creation_reports_another_worktrees_owed_copy_and_does_not_wait_for_it() {
 #[cfg(unix)]
 #[test]
 fn a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_creation_names_a_dead_journal_it_does_not_finish_and_that_worktree_finishes_it",
+    ) {
+        return;
+    }
     keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-dead-journal-named-in-another-worktree");
     let (main, common) = source(root.as_path());

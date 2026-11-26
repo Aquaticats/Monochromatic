@@ -32,10 +32,19 @@ static SYNCING_IS_FAITHFUL: std::sync::atomic::AtomicBool =
 /// and a disk having a bad minute takes up to a second and a half for one of them,
 /// so the control's own durability work decides whether it finishes inside the run's own bound.
 /// The switch is the process's because the steps sync on threads the control did not make,
-/// and a separate test process is what makes that safe (nextest runs one test per process).
+/// and a process of the control's own is what makes that safe
+/// (`testing/process_wide_state_child_test_support.rs`).
 /// The records of the syncs are still made,
 /// so their order stays observable.
+/// Gotcha:
+///  Every later durable sync of the process becomes a no-op,
+///  so a control that proves a sync was refused, or that one reached the disk,
+///  fails by which test ran first unless the switch is set in a child of the control's own;
+///  that is why this refuses anywhere else (issue 6498).
 pub(crate) fn skip_the_durability_syncs_here() {
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
+        "the switch that skips this process's durability syncs",
+    );
     SYNCING_IS_FAITHFUL.store(false, std::sync::atomic::Ordering::SeqCst);
 }
 

@@ -128,8 +128,10 @@ Rounds started before that decision run on flex.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
 - Issues 6489, 6493 and 6495 (flex),
-  and 6496, 6497 and 6498 (Qwen, filed from what 6487 left threaded-red),
   one window each, `issue-<number>-<words>`.
+- Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
+  briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
+  starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
 - Debt ledger item 19, window `fixed-length-lists-become-slices`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
@@ -150,8 +152,12 @@ Rounds started before that decision run on flex.
 - 6483 as `ae1a14676b`,
   6484 as `b50016e728`,
   6485 as `d124f60f82`,
-  6486 as `ff8b9427c2` and
-  6487 as `f9096f7531`.
+  6486 as `ff8b9427c2`,
+  6487 as `f9096f7531`,
+  6498 as `ed9766ffad`,
+  6496 as `03212a32ff`,
+  6497 as `ad67562f20` and
+  6499 as `2f5b9c87bd`.
 - The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
 - The linter's `alpha.13` fixes as `88e77f3553`,
   the release commit `e58ba6f078`,
@@ -221,15 +227,16 @@ Of those filed tonight,
 6483,
 6484,
 6485,
-6486 and
-6487 are merged (`### Merged tonight`),
+6486,
+6487,
+6498,
+6496,
+6497 and
+6499 are merged (`### Merged tonight`),
 and 6489,
 6493,
 6494,
-6495,
-6496,
-6497 and
-6498 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
+6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
