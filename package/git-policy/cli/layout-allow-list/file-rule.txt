@@ -569,7 +569,7 @@ foreign-name src/native/worktree_clone_mount/mod.rs attach_arm_tests.rs
 index-item src/native/invocation/typed_network_command_relay/mod.rs enum-TypedNetworkCommandEnding
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-relay_when_ssh_carries
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-sentence_after_a_refused_probe_of_a_push
-index-item src/native/invocation/typed_network_command_relay/mod.rs impl-TypedNetworkCommandEnding
+index-item src/native/invocation/typed_network_command_relay/mod.rs impl-TypedNetworkCommandEnding exit_code
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-a_target_the_sentence_may_name::{ Target, target_of, }
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-crate::forwarding::ChildOutcome
 index-item src/native/invocation/typed_network_command_relay/mod.rs private-use-crate::forwarding::git_command
