@@ -36,6 +36,39 @@ use std::time::{
 };
 
 /// What:
+///  The most times its own bound a wait the end of a process makes may take
+///  before a control calls it a wait that did not end.
+/// Why:
+///  The end of a process answers at its bound, so a measurement of that answer is the bound itself:
+///  measured on 2026-11-26 on this host over five runs of each control,
+///  a stream nobody drains answered the end at 250.0549 to 250.0567 ms of its 250 ms bound.
+///  The rest is the room this host has to leave the thread that ends the wait unrun while other sessions build,
+///  where one ordinary wrapper process here varies by 2.8 to 3.7 ms between its tenth and ninetieth percentiles.
+#[cfg(target_os = "linux")]
+const THE_END_S_WAIT_AT_MOST_TIMES_ITS_BOUND: u32 = 8;
+
+/// What:
+///  The most times its own bound the wait for a line no stream will take may run
+///  before a control calls the end one that did not give up at its bound.
+/// Why:
+///  The same measurement puts that answer at its bound as well:
+///  a stream that never takes a line answered at 250.0575 to 250.0594 ms of its 250 ms bound,
+///  and the rest is room for the host to stall the thread that ends the wait.
+#[cfg(target_os = "linux")]
+const AN_UNTAKEN_LINE_S_WAIT_AT_MOST_TIMES_ITS_BOUND: u32 = 5;
+
+/// What:
+///  The fraction of the bound a write to a stream whose reader is gone must answer within,
+///  as the bound divided by this number.
+/// Why:
+///  No wait brings a reader back, so the answer is the failing write and nothing else:
+///  measured on 2026-11-26 on this host over five runs, it took 34.25 to 54.529 microseconds,
+///  which is under a nine-hundredth of the bound,
+///  so a fifth of the bound tells an answer given at once from one that waited for the reader.
+#[cfg(target_os = "linux")]
+const A_GONE_STREAM_S_ANSWER_WITHIN_A_FIFTH_OF_THE_BOUND: u32 = 5;
+
+/// What:
 ///  The capacity of one pipe this process makes,
 ///  as the kernel reports it.
 /// Why:
@@ -196,7 +229,8 @@ fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
                 "a stream nobody drains is not written, and the end is told so rather than waiting forever"
             );
             assert!(
-                began.elapsed() < WAIT_BEFORE_AN_EXIT.saturating_mul(8),
+                began.elapsed()
+                    < WAIT_BEFORE_AN_EXIT.saturating_mul(THE_END_S_WAIT_AT_MOST_TIMES_ITS_BOUND),
                 "the end waited its bound ({} ms) and no longer: {:?}",
                 WAIT_BEFORE_AN_EXIT.as_millis(),
                 began.elapsed()
@@ -398,7 +432,8 @@ fn a_line_no_stream_will_take_is_not_reported_written() {
                 "the end waited its bound for room that never came: {took:?}"
             );
             assert!(
-                took < WAIT_BEFORE_AN_EXIT.saturating_mul(5),
+                took < WAIT_BEFORE_AN_EXIT
+                    .saturating_mul(AN_UNTAKEN_LINE_S_WAIT_AT_MOST_TIMES_ITS_BOUND),
                 "the end waited its bound and no longer: {took:?}"
             );
         },
@@ -442,7 +477,7 @@ fn a_stream_whose_reader_is_gone_is_answered_at_once() {
                 "a stream that is gone does not report a line written"
             );
             assert!(
-                took < WAIT_BEFORE_AN_EXIT / 5,
+                took < WAIT_BEFORE_AN_EXIT / A_GONE_STREAM_S_ANSWER_WITHIN_A_FIFTH_OF_THE_BOUND,
                 "a stream no reader can take is answered at once, not after the bound: {took:?}"
             );
         },
