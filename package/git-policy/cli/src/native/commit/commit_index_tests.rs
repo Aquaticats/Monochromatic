@@ -916,8 +916,26 @@ fn pathspec_file_trees_match_the_incumbent() {
 
 /// A pathspec file that cannot be read makes the interactive run fail,
 /// and the failure names the command.
+/// The selection's Git reads the standard input of the process that starts it,
+/// so the body runs in a child of its own,
+/// whose standard input is the null device,
+/// and never in the run's own process,
+/// whose standard input is the terminal the run was started from
+/// (`testing/process_wide_state_child_test_support.rs`, issue 6510).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (startedWithinAChildOfItsOwn(import.meta.url, 'interactive_selection_reports_a_failed_git_add')) return;
+/// expect(prepareInteractiveSelection({ patch: true, pathspecFile: missing })).rejects.toMatch(/git add --patch --pathspec-from-file=.*exited/);
+/// ```
 #[test]
 fn interactive_selection_reports_a_failed_git_add() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "interactive_selection_reports_a_failed_git_add",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("commit-index-interactive-fails");
     let (repo, indexes, base) = differential_state(root.join("state").as_path(), &[]);
     let none: Vec<OsString> = Vec::new();
@@ -943,8 +961,27 @@ fn interactive_selection_reports_a_failed_git_add() {
 }
 
 /// An interactive run over an index with no changes finishes without prompting and succeeds.
+/// `git add --interactive` prints its menu and waits for an answer even when the index holds no change,
+/// so the body runs in a child of its own,
+/// whose standard input is the null device:
+/// in the run's own process its Git read the terminal the run was started from,
+/// printed `What now>` and never ended,
+/// and the run's watchdog aborted the module run with no `test result` line
+/// (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`, issue 6510).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (startedWithinAChildOfItsOwn(import.meta.url, 'interactive_selection_succeeds_without_changes')) return;
+/// await prepareInteractiveSelection({ patch: false }); // the null device answers the menu with end of file
+/// ```
 #[test]
 fn interactive_selection_succeeds_without_changes() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "interactive_selection_succeeds_without_changes",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("commit-index-interactive-clean");
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");

@@ -25,12 +25,27 @@
 //! // started_within_a_child_of_its_own(.
 //! ```
 
-use std::path::Path;
-
-use super::source_code_places_tests::is_code;
+/// What:
+///  `Scan` is what reading every test-only source of a tree answers,
+///  `scan` reads the tree,
+///  `controls` splits one source into its controls,
+///  and `findings_of` names the controls that ask without a child.
+///  They are shared with the guard over the interactive selection
+///  (`controls_naming_a_call_tests.rs`).
+/// Why:
+///  This guard and that one ask the same question about different calls,
+///  so the reading of a source, its code places and its controls is written once.
+use super::controls_naming_a_call_tests::{
+    Scan,
+    controls,
+    findings_of,
+    scan,
+};
+/// What:
+///  `real_roots` answers the crate roots of this tree, and `source_root` the folder they stand in.
+/// Why:
+///  The scan reads the crate's own sources, so it needs where they start.
 use crate::source_scan_tests::{
-    CrateRoot,
-    classified_sources,
     real_roots,
     source_root,
 };
@@ -68,20 +83,6 @@ const LEDGER_NAMES: &[(&str, &str)] = &[
 ];
 
 /// What:
-///  `IN_A_CHILD_OF_ITS_OWN` is the call that starts one control's body in a child process of the test binary.
-/// Why:
-///  A control that makes it asks its question where nothing else noted a step,
-///  so a control that names the ledger and not this call is the finding.
-const IN_A_CHILD_OF_ITS_OWN: &str = "started_within_a_child_of_its_own(";
-
-/// What:
-///  `A_CONTROL_STARTS_AT` is the line that begins one control of a test-only source.
-/// Why:
-///  Every control of this crate is a top-level function marked by this line,
-///  so the text from one of these lines to the next is exactly one control's body.
-const A_CONTROL_STARTS_AT: &str = "#[test]";
-
-/// What:
 ///  `FILES_THAT_READ_THE_LEDGER` is each file whose controls still ask about the ledger,
 ///  with what its controls ask.
 /// Why:
@@ -108,260 +109,21 @@ const FILES_THAT_READ_THE_LEDGER: &[(&str, &str)] = &[
     ),
 ];
 
-/// What:
-///  `Control` is one control of a test-only source:
-///  the line its `#[test]` is on,
-///  its function's name,
-///  whether its code names the ledger,
-///  and whether its code starts a child of its own.
-/// Why:
-///  A finding has to name the control and the line to open,
-///  and a scan of loose lines could not say which control asks the question.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Control = { startsAt: number; name: string; namesTheLedger: boolean; startsAChild: boolean };
-/// ```
-struct Control {
-    /// What:
-    ///  the line number of the control's `#[test]`,
-    ///  counted from one,
-    ///  which its findings are placed against.
-    /// Why:
-    ///  a finding is `path:line`,
-    ///  and the line is where the control starts.
-    starts_at: usize,
-    /// What:
-    ///  the name of the control's function,
-    ///  empty until the scan reaches its `fn` line.
-    /// Why:
-    ///  the finding names the control,
-    ///  so a reader knows which one to open.
-    name: String,
-    /// What:
-    ///  whether any line of the control names the ledger in code.
-    /// Why:
-    ///  that is the question the check is about.
-    names_the_ledger: bool,
-    /// What:
-    ///  whether any line of the control starts a child of its own in code.
-    /// Why:
-    ///  a control that makes that call asks its question in a process no other test noted in.
-    starts_a_child: bool,
-}
-
-/// What:
-///  `function_name_of(line)` is the name of the function a line declares,
-///  or nothing when the line declares none.
-/// Why:
-///  A control's name follows its `#[test]` by a line or two,
-///  and the finding has to name the control rather than its position.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const functionNameOf = (line) => /^\s*fn ([A-Za-z0-9_]+)\(/.exec(line)?.[1];
-/// ```
-fn function_name_of(line: &str) -> Option<String> {
-    let trimmed: &str = line.trim_start();
-    // What: the `?` answers `None` from this function as soon as the line opens with something else.
-    // Why: the scan walks every line of a control, and most of them declare nothing.
-    let rest: &str = trimmed.strip_prefix("fn ")?;
-    // What: the same early answer where the line has no opening parenthesis after the name.
-    // Why: the name ends at that parenthesis, and a line without one holds no name to report.
-    let (name, _): (&str, &str) = rest.split_once('(')?;
-    return Some(String::from(name.trim()));
-}
-
-/// What:
-///  `names_the_call_in_code(line, offset, code, call)` answers whether `line` makes `call` in code,
-///  where the line begins at `offset` in the file.
-/// Why:
-///  A control's doc comment names the calls it asks about and a control's fixture plants them in text,
-///  and neither is a call,
-///  so the file's own answer to which bytes are code decides.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function namesTheCallInCode(line, offset, code, call) { for (let at = line.indexOf(call); at >= 0; at = line.indexOf(call, at + 1)) { if (code[offset + at]) return true; } return false; }
-/// ```
-fn names_the_call_in_code(
-    line: &str,
-    offset: usize,
-    code: &[bool],
-    call: &str,
-) -> bool {
-    let mut searched: usize = 0;
-    while let Some(place) = line[searched..].find(call) {
-        // What: the place of this occurrence in the line, counted from the line's start.
-        // Why: the code answer is kept for the whole file, so a line's place is added to the line's own offset.
-        let column: usize = searched + place;
-        if code.get(offset + column) == Some(&true) {
-            return true;
-        }
-        searched = column + call.len();
-    }
-    return false;
-}
-
-/// What:
-///  `controls(text)` splits one test-only source into its controls,
-///  in the order they appear.
-/// Why:
-///  Each control is judged on its own lines,
-///  so one control that starts a child never excuses another that does not.
-/// Gotcha:
-///  The text is split on its newlines and every offset is the byte count the file holds,
-///  which is exact because this crate's sources end their lines with one `\n`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function controls(text) { const code = isCode(text); const found = []; let current; let offset = 0; for (const [index, raw] of lines(text)) { const line = raw.replace(/\n$/, ''); if (line.startsWith('#[test]')) { if (current) found.push(current); current = { startsAt: index + 1, name: '', namesTheLedger: false, startsAChild: false }; } if (current) { current.name ||= functionNameOf(line) ?? ''; current.namesTheLedger ||= LEDGER_NAMES.some(([n]) => namesTheCallInCode(line, offset, code, n)); current.startsAChild ||= namesTheCallInCode(line, offset, code, IN_A_CHILD_OF_ITS_OWN); } offset += raw.length; } if (current) found.push(current); return found; }
-/// ```
-fn controls(text: &str) -> Vec<Control> {
-    let code: Vec<bool> = is_code(text);
-    let mut found: Vec<Control> = Vec::new();
-    let mut current: Option<Control> = None;
-    let mut offset: usize = 0;
-    for (index, raw) in text.split_inclusive('\n').enumerate() {
-        // What: the line without its newline, so a name or a call at its end is read whole.
-        // Why: `split_inclusive` keeps the newline, and the needle would otherwise carry it.
-        let line: &str = raw.strip_suffix('\n').unwrap_or(raw);
-        if line.starts_with(A_CONTROL_STARTS_AT) {
-            if let Some(finished) = current.take() {
-                found.push(finished);
-            }
-            current = Some(Control {
-                starts_at: index + 1,
-                name: String::new(),
-                names_the_ledger: false,
-                starts_a_child: false,
-            });
-        }
-        if let Some(control) = current.as_mut() {
-            if control.name.is_empty()
-                && let Some(name) = function_name_of(line)
-            {
-                control.name = name;
-            }
-            for (call, _why) in LEDGER_NAMES {
-                if names_the_call_in_code(line, offset, code.as_slice(), call) {
-                    control.names_the_ledger = true;
-                }
-            }
-            if names_the_call_in_code(line, offset, code.as_slice(), IN_A_CHILD_OF_ITS_OWN) {
-                control.starts_a_child = true;
-            }
-        }
-        offset += raw.len();
-    }
-    if let Some(finished) = current {
-        found.push(finished);
-    }
-    return found;
-}
-
-/// What:
-///  `findings_of(path, found)` is every control among `found` that names the ledger without starting a child of
-///  its own,
-///  as `path:line (control)`.
-/// Why:
-///  The finding is the whole answer the controls of this check need:
-///  the real tree's files must give none,
-///  and a planted text must give exactly the control that asks in the run's own process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function findingsOf(path, found) { return found.filter((control) => control.namesTheLedger && !control.startsAChild).map((control) => `${path}:${control.startsAt} (${control.name})`); }
-/// ```
-fn findings_of(
-    path: &str,
-    found: &[Control],
-) -> Vec<String> {
-    let mut findings: Vec<String> = Vec::new();
-    for control in found {
-        if !control.names_the_ledger || control.starts_a_child {
-            continue;
-        }
-        findings.push(format!("{path}:{} ({})", control.starts_at, control.name));
-    }
-    return findings;
-}
-
-/// What:
-///  `Scan` is what reading every test-only source of a tree answers:
-///  each control that names the ledger in the run's own process,
-///  and each file that holds a control naming the ledger.
-/// Why:
-///  The findings are what must be empty,
-///  and the files are what says the scan still reads the readers it was written for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Scan = { findings: string[]; filesNamingTheLedger: string[] };
-/// ```
-struct Scan {
-    /// What:
-    ///  each control that names the ledger without a child of its own,
-    ///  as `path:line (control)`.
-    /// Why:
-    ///  one finding is one control the check refuses.
-    findings: Vec<String>,
-    /// What:
-    ///  each file that holds a control naming the ledger.
-    /// Why:
-    ///  these are the files a run must still find,
-    ///  so the check is not vacuous.
-    files_naming_the_ledger: Vec<String>,
-}
-
-/// What:
-///  `scan(root, roots)` reads every test-only source under `root` and answers what `Scan` states,
-///  or one text saying why the scan cannot answer.
-/// Why:
-///  Release code notes into the ledger and is no finding:
-///  the wrapper's own preparation is what the ledger is for,
-///  and only a control must ask its question in a child.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function scan(root, roots) { const findings = []; const filesNamingTheLedger = []; for (const file of classifiedSources(root, roots).filter((f) => f.testOnly)) { const found = controls(read(file)); if (found.some((c) => c.namesTheLedger)) filesNamingTheLedger.push(file.path); findings.push(...findingsOf(file.path, found)); } return { findings, filesNamingTheLedger }; }
-/// ```
-fn scan(
-    root: &Path,
-    roots: &[CrateRoot],
-) -> Result<Scan, String> {
-    let mut scan: Scan = Scan {
-        findings: Vec::new(),
-        files_naming_the_ledger: Vec::new(),
-    };
-    for file in classified_sources(root, roots)? {
-        if !file.test_only {
-            continue;
-        }
-        let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
-            .map_err(|error| return format!("cannot read {}: {error}", file.path))?;
-        let found: Vec<Control> = controls(text.as_str());
-        if found.iter().any(|control| return control.names_the_ledger) {
-            scan.files_naming_the_ledger.push(file.path.clone());
-        }
-        scan.findings
-            .extend(findings_of(file.path.as_str(), found.as_slice()));
-    }
-    return Ok(scan);
-}
-
 /// No control reads the preparation's steps in the run's own process.
 /// A control that asks about them starts a child of its own first.
 #[test]
 fn no_control_reads_the_preparation_steps_in_the_run_s_own_process() {
-    let scan: Scan = scan(&source_root(), &real_roots()).expect("the crate's sources");
+    // What: the whole crate's answer, which is a reason the tree could not be read when it is `Err`.
+    // Why: a guard that could not read a source would pass a tree it never looked at.
+    let read: Scan =
+        scan(&source_root(), &real_roots(), LEDGER_NAMES).expect("the crate's sources");
     assert!(
-        scan.findings.is_empty(),
+        read.findings.is_empty(),
         "the preparation's steps are one ledger for the whole process, and a test run holds its controls as \
          threads of it, so a control that asks about them reads another control's work: start the control's body \
          in a child of its own first (`started_within_a_child_of_its_own`, \
          `testing/process_wide_state_child_test_support.rs`, issue 6507):\n{}",
-        scan.findings.join("\n")
+        read.findings.join("\n")
     );
 }
 
@@ -369,10 +131,13 @@ fn no_control_reads_the_preparation_steps_in_the_run_s_own_process() {
 /// so a run that finds no reader fails here instead of passing every tree.
 #[test]
 fn the_files_that_read_the_ledger_still_do() {
-    let scan: Scan = scan(&source_root(), &real_roots()).expect("the crate's sources");
+    let read: Scan =
+        scan(&source_root(), &real_roots(), LEDGER_NAMES).expect("the crate's sources");
+    // What: the entries of the list above whose file no longer holds such a control, with why each was listed.
+    // Why: an entry whose control moved or went guards nothing, and the failure has to say which file to look at.
     let missing: Vec<String> = FILES_THAT_READ_THE_LEDGER
         .iter()
-        .filter(|(path, _why)| return !scan.files_naming_the_ledger.contains(&String::from(*path)))
+        .filter(|(path, _why)| return !read.files_naming_a_call.contains(&String::from(*path)))
         .map(|(path, why)| return format!("{path}: {why}"))
         .collect();
     assert!(
@@ -388,6 +153,9 @@ fn the_files_that_read_the_ledger_still_do() {
 /// nor about a call a comment or a planted text only names.
 #[test]
 fn the_scan_finds_a_control_that_asks_without_a_child_of_its_own() {
+    // What: a source holding three controls: one that asks in the run's own process, one that starts a child
+    //       first, and one that only writes the names into a string.
+    // Why: the scan has to name the first and only the first, so a guard that excused it would fail here.
     let planted: &str = "\
 #[test]\n\
 fn asks_in_the_run_s_own_process() {\n\
@@ -408,7 +176,10 @@ fn plants_the_name_in_a_text() {\n\
     let planted: &str = \"drain_spans(); prepareSpans\";\n\
 }\n";
     assert_eq!(
-        findings_of("planted_tests.rs", controls(planted).as_slice()),
+        findings_of(
+            "planted_tests.rs",
+            controls(planted, LEDGER_NAMES).as_slice()
+        ),
         vec![String::from(
             "planted_tests.rs:1 (asks_in_the_run_s_own_process)"
         )],

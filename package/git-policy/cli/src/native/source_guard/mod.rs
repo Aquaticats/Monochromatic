@@ -101,6 +101,21 @@ mod supervisor_registry_questions_in_a_child_process_tests;
 #[path = "no_control_reads_the_preparation_steps_in_the_run_tests.rs"]
 mod no_control_reads_the_preparation_steps_in_the_run_tests;
 
+/// The ban on a control starting the interactive selection in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose standard input is the null device and not the terminal the run was started from.
+#[cfg(test)]
+#[path = "no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs"]
+mod no_control_starts_an_interactive_git_on_the_run_s_input_tests;
+
+/// The scan those two guards share:
+/// one test source split into its controls,
+/// each asked whether its code names a listed call and whether its code starts a child;
+/// never in the release build.
+#[cfg(test)]
+#[path = "controls_naming_a_call_tests.rs"]
+pub(crate) mod controls_naming_a_call_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.
