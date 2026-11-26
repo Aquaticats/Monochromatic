@@ -29,8 +29,8 @@ use super::tests::{
 use super::*;
 use crate::service_claim_watch::{
     ClaimWatch,
-    IN_THE_NEXT_SERVICE_NOTE,
     WATCH_DIRECTORY,
+    next_service_note_point,
 };
 use crate::service_client::Submitted;
 use crate::service_fault::hooks::{
@@ -116,12 +116,12 @@ struct HeldNoteWrite {
 }
 
 impl HeldNoteWrite {
-    /// Arms the hold and gives its two ends.
-    fn arm() -> Self {
+    /// Arms the hold on the note the landing writes about `git_dir` and gives its two ends.
+    fn arm(git_dir: &std::path::Path) -> Self {
         let (reached, reached_wait) = tokio::sync::oneshot::channel();
         let (let_go, held) = std::sync::mpsc::channel();
         hold_on_any_thread(HoldOnAnyThread {
-            point: String::from(IN_THE_NEXT_SERVICE_NOTE),
+            point: next_service_note_point(git_dir),
             reached,
             let_go: held,
         });
@@ -281,7 +281,7 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
     let world: World = world("service-watch-note-held");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving = serving(&world, "note-held");
-    let mut held: HeldNoteWrite = HeldNoteWrite::arm();
+    let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
     let only: Submitting = submit_on_a_thread(
         client(&serving, ANSWER_CEILING, PATIENCE),
         request(&world, "only", "only.txt", "only\n"),
@@ -324,7 +324,7 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
     let world: World = world("service-watch-note-queued");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let serving: Serving = serving(&world, "note-queued");
-    let mut held: HeldNoteWrite = HeldNoteWrite::arm();
+    let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
     let first: Submitting = submit_on_a_thread(
         client(&serving, ANSWER_CEILING, PATIENCE),
         request(&world, "first", "first.txt", "first\n"),

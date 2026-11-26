@@ -5,7 +5,7 @@
 use super::*;
 use crate::service_claim_watch::{
     ClaimWatch,
-    IN_THE_NEXT_SERVICE_NOTE,
+    next_service_note_point,
     WATCH_DIRECTORY,
 };
 use crate::service_fault::hooks::{
@@ -70,7 +70,7 @@ fn a_second_note_is_not_handed_over_while_the_first_has_not_ended() {
     let (reached, _reached_wait) = tokio::sync::oneshot::channel::<()>();
     let (let_go, held) = std::sync::mpsc::channel::<()>();
     hold_on_any_thread(HoldOnAnyThread {
-        point: String::from(IN_THE_NEXT_SERVICE_NOTE),
+        point: next_service_note_point(git_dir.as_path()),
         reached,
         let_go: held,
     });

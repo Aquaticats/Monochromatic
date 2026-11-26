@@ -400,10 +400,16 @@ fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
     // Six beats: wide enough that no delay of this loaded machine passes for the wait itself.
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+    // The identity of the commit this control sends, which also names the note read of its own connection.
+    let request_id: &str = "held-check";
+    // What: the Git directory this control's request names, which is not this worktree's.
+    // Why:  the hold this control arms names the read of this directory, so it is this control's hold and no other
+    //       control's (issue 6497).
+    let another_worktree: PathBuf = PathBuf::from("/elsewhere/held-check/gitdir");
     let (shared, mut jobs) = shared_serving("connection-held-directory-check", own);
     let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
-        Path::new("/elsewhere/repo/gitdir"),
-        "held-check",
+        another_worktree.as_path(),
+        request_id,
     ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
@@ -411,8 +417,9 @@ fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
         //  state and not a duration.
         let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
         let (let_go, held) = std::sync::mpsc::channel::<()>();
+        let held_point: String = instance_read_point(another_worktree.as_path());
         hooks::hold_on_any_thread(HoldOnAnyThread {
-            point: String::from(IN_THE_INSTANCE_READ),
+            point: held_point,
             reached,
             let_go: held,
         });
@@ -477,10 +484,16 @@ fn a_commit_is_beaten_while_the_note_read_waits() {
     // Six beats: wide enough that no delay of this loaded machine passes for the wait itself.
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+    // The identity of the commit this control sends, which also names the note read of its own connection.
+    let request_id: &str = "held-check-and-note";
+    // What: the Git directory this control's request names, which is not this worktree's.
+    // Why:  the hold this control arms names the read of this directory, so it is this control's hold and no other
+    //       control's (issue 6497).
+    let another_worktree: PathBuf = PathBuf::from("/elsewhere/held-check-and-note/gitdir");
     let (shared, mut jobs) = shared_serving("connection-held-instance-and-note", own);
     let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
-        Path::new("/elsewhere/repo/gitdir"),
-        "held-check-and-note",
+        another_worktree.as_path(),
+        request_id,
     ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
@@ -488,8 +501,9 @@ fn a_commit_is_beaten_while_the_note_read_waits() {
         //  state and not a duration.
         let (instance_reached, instance_wait) = tokio::sync::oneshot::channel::<()>();
         let (instance_go, instance_held) = std::sync::mpsc::channel::<()>();
+        let instance_point: String = instance_read_point(another_worktree.as_path());
         hooks::hold_on_any_thread(HoldOnAnyThread {
-            point: String::from(IN_THE_INSTANCE_READ),
+            point: instance_point,
             reached: instance_reached,
             let_go: instance_held,
         });
@@ -503,9 +517,10 @@ fn a_commit_is_beaten_while_the_note_read_waits() {
                 .await
                 .expect("the instance read is reached")
                 .expect("the instance read says it is reached");
-            // The hold is set after the instance read is reached, because one registry holds one point at a time.
+            // The note's hold is armed after the instance read is reached, so this control sees the two states it names one
+            //  after the other and the note it waits for is the note of its own beat.
             hooks::hold_on_any_thread(HoldOnAnyThread {
-                point: String::from(IN_THE_NOTE_READ),
+                point: note_read_point(Some(request_id)),
                 reached: note_reached,
                 let_go: note_held,
             });
@@ -579,18 +594,25 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
     // Six beats: wide enough that no delay of this loaded machine passes for the wait itself.
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
     let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+    // The identity of the commit this control sends, which also names the note read of its own connection.
+    let request_id: &str = "held-note-read";
+    // What: the Git directory this control's request names, which is not this worktree's.
+    // Why:  the hold this control arms names the read of this directory, so it is this control's hold and no other
+    //       control's (issue 6497).
+    let another_worktree: PathBuf = PathBuf::from("/elsewhere/held-note-read/gitdir");
     let (shared, mut jobs) = shared_serving("connection-held-note-read-again", own);
     let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
-        Path::new("/elsewhere/repo/gitdir"),
-        "held-note-read",
+        another_worktree.as_path(),
+        request_id,
     ))));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, mut client) = connection();
         // The instance read answers only when this control lets it go, so the connection waits where the beats are written.
         let (instance_reached, instance_wait) = tokio::sync::oneshot::channel::<()>();
         let (instance_go, instance_held) = std::sync::mpsc::channel::<()>();
+        let instance_point: String = instance_read_point(another_worktree.as_path());
         hooks::hold_on_any_thread(HoldOnAnyThread {
-            point: String::from(IN_THE_INSTANCE_READ),
+            point: instance_point,
             reached: instance_reached,
             let_go: instance_held,
         });
@@ -605,7 +627,7 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
             let (first_reached, first_wait) = tokio::sync::oneshot::channel::<()>();
             let (first_go, first_held) = std::sync::mpsc::channel::<()>();
             hooks::hold_on_any_thread(HoldOnAnyThread {
-                point: String::from(IN_THE_NOTE_READ),
+                point: note_read_point(Some(request_id)),
                 reached: first_reached,
                 let_go: first_held,
             });
@@ -613,11 +635,12 @@ fn a_note_read_that_outlives_its_beat_is_not_started_again() {
                 .await
                 .expect("a beat's note reaches the journal read")
                 .expect("the note says it reached its read");
-            // The hold behind the first one: a beat that started its own read reaches the point again and answers it.
+            // The hold behind the first one: a beat that started its own read reaches the point again and answers it. The
+            //  first hold was taken by the read it held, so this second arming of one point stands alone.
             let (second_reached, mut second_reach) = tokio::sync::oneshot::channel::<()>();
             let (second_go, second_held) = std::sync::mpsc::channel::<()>();
             hooks::hold_on_any_thread(HoldOnAnyThread {
-                point: String::from(IN_THE_NOTE_READ),
+                point: note_read_point(Some(request_id)),
                 reached: second_reached,
                 let_go: second_held,
             });
