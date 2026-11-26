@@ -463,6 +463,23 @@
 //!   the plans of a repository that is gone or cannot be reached.
 //! - `service_work_handlers_replanning_and_acceptance.rs`:
 //!   the one name a caller uses for all of the files listed before it here.
+//! - `service_work_git_handlers.rs`:
+//!   the handlers that run real Git:
+//!   the settings a round copies,
+//!   the Git one push runs,
+//!   and the review a landed commit is given.
+//! - `service_work_pushes.rs`:
+//!   the push of one branch:
+//!   the commit it may send,
+//!   the records that hold it back,
+//!   and the words each answer comes to.
+//! - `service_work_worktree_upkeep.rs`:
+//!   the worktree work a landed commit leaves:
+//!   trash,
+//!   Cargo build directories,
+//!   a removal's subvolume,
+//!   a snapshot ahead,
+//!   and the automatic upkeep.
 //! - `service_work.rs`:
 //!   the service's consumer of after-commit push and upkeep work.
 //! - `push_record_of_a_moved_branch.rs`:
@@ -973,6 +990,26 @@ pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The handlers that run real Git:
+/// the settings a round copies,
+/// the Git one push runs,
+/// and the review a landed commit is given.
+pub mod service_work_git_handlers;
+
+/// The push of one branch:
+/// the commit it may send,
+/// the records that hold it back,
+/// and the words each answer comes to.
+pub mod service_work_pushes;
+
+/// The worktree work a landed commit leaves:
+/// trash,
+/// Cargo build directories,
+/// a removal's subvolume,
+/// a snapshot ahead,
+/// and the automatic upkeep.
+pub mod service_work_worktree_upkeep;
 
 /// The notice for a push whose branch the person deleted.
 pub mod service_work_branch_is_gone;

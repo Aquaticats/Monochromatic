@@ -26,42 +26,23 @@
 //! Other kinds of work
 //!  (the standards review) are never claimed here.
 //!
+//! The drains are here,
+//! with the trait the runtime asks of the real handlers;
+//! the handlers themselves and the review they run are `service_work_git_handlers.rs`,
+//! a push's verdict is `service_work_pushes.rs`,
+//! and the worktree work a landed commit leaves is `service_work_worktree_upkeep.rs`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! for (const group of coalesce(await claimAll(workDir, ['push', 'maintenance']))) settle(group, await handler(group));
 //! ```
 
-use crate::auto_push::AutoPushOutcome;
-use crate::auto_push::push_once_awaiting;
-use crate::auto_push_single_flight::PushGit;
-use crate::child_environment::environment_with_overlay;
+/// The real handlers of the service's work,
+/// whose settings and review are `service_work_git_handlers.rs`.
+pub use super::service_work_git_handlers::GitHandlers;
 use crate::claim_time::ClaimTime;
-/// The synchronous configuration read,
-/// which only the control that builds the push's Git without the runtime asks.
-#[cfg(test)]
-use crate::config_snapshot::read_config_snapshot;
-use crate::config_snapshot::read_config_snapshot_awaiting;
-use crate::lfs_pre_push::uses_lfs;
-use crate::maintenance_run::{
-    AutoMaintenanceOutcome,
-    run_auto_maintenance_with_awaiting,
-};
 use crate::push_retry::Retrying;
-use crate::push_retry_failure::{
-    final_failure,
-    plain_words,
-    retried_failure_record,
-    unrecognised_rejection,
-};
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_review::{
-    options_for,
-    review_item_in,
-    review_item_in_awaiting,
-    review_variables,
-};
-use crate::service_review_key::ReviewKey;
-pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
 pub(crate) use crate::service_work_common_directory::common_directory_of;
 pub use crate::service_work_drains_awaiting::{
     drain_common_records_planned_awaiting,
@@ -69,17 +50,8 @@ pub use crate::service_work_drains_awaiting::{
     drain_planned_with_awaiting,
 };
 pub use crate::service_work_handlers_replanning_and_acceptance::*;
-use crate::standards_review_run::ReviewOptions;
-use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use crate::work_item_holding::{
-    BlockedVerdict,
-    blocked_verdicts,
-};
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::Path;
 use std::time::Duration;
 
 /// How long a claim goes without a renewal before another instance runs its item again;
@@ -111,15 +83,6 @@ use std::time::Duration;
 /// batch size and claim lease,
 /// option B).
 pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
-
-/// The thread name one removal of a whole worktree carries in a process listing,
-/// so a removal that gave no answer is recognisable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const REMOVAL_THREAD_NAME = 'cli-git-worktree-removal';
-/// ```
-const REMOVAL_THREAD_NAME: &str = "cli-git-worktree-removal";
 
 /// What:
 ///  Runs everything pending for one repository:
@@ -350,783 +313,113 @@ pub fn drain_common_records_planned(
     };
 }
 
-/// The handlers that run real Git.
-pub struct GitHandlers {
-    /// The context every Git child of the service runs in.
-    pub context: GitContext,
-    /// The review credential of each repository whose wake message carried one,
-    /// for the round these handlers were made for.
-    /// Held
-    /// in memory only and never changed after the handlers are made:
-    /// a round makes its own copy (`for_round`) and drops it when
-    /// the round ends,
-    /// so the workers of a round only read it and nothing waits for it.
-    review_keys: std::collections::HashMap<PathBuf, ReviewKey>,
-    /// Where tests point the review's gateway call,
-    /// so no test reaches the real endpoint.
-    #[cfg(test)]
-    review_endpoint: Option<String>,
-    /// The runner a test's reviews take a job of,
-    /// when the control gives the handlers one of its own;
-    /// `None` is the runner the whole service process shares.
-    /// Why:
-    ///   A runner admits one review and answers every other caller `Contained::Busy`,
-    /// and a crate's tests run as threads of one process,
-    /// so a control that reviewed in the shared one failed while another control's review held it (issue 6500).
-    #[cfg(test)]
-    review_runner: Option<&'static crate::standards_review_run::Containment>,
-    /// Variables a test adds to the environment of the push,
-    /// such as a short stall window.
-    #[cfg(test)]
-    push_environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
-}
-
-/// Methods over the real handlers.
-impl GitHandlers {
-    /// Handlers that run real Git in `context`,
-    /// with no review credential yet.
-    pub fn new(context: GitContext) -> GitHandlers {
-        return GitHandlers {
-            context,
-            review_keys: std::collections::HashMap::new(),
-            #[cfg(test)]
-            review_endpoint: None,
-            #[cfg(test)]
-            review_runner: None,
-            #[cfg(test)]
-            push_environment: Vec::new(),
-        };
-    }
-
-    /// The same handlers with variables added to the environment of every push;
-    /// tests only.
-    #[cfg(test)]
-    pub fn with_push_environment(
-        mut self,
-        variables: &[(&str, &str)],
-    ) -> GitHandlers {
-        self.push_environment = variables
-            .iter()
-            .map(|(name, value)| {
-                return (
-                    std::ffi::OsString::from(name),
-                    std::ffi::OsString::from(value),
-                );
-            })
-            .collect();
-        return self;
-    }
-
-    /// The same handlers with the review's gateway call sent to `endpoint`;
-    /// tests only.
-    #[cfg(test)]
-    pub fn with_review_endpoint(
-        mut self,
-        endpoint: &str,
-    ) -> GitHandlers {
-        self.review_endpoint = Some(endpoint.to_string());
-        return self;
-    }
-
-    /// What:
-    ///  The same handlers whose reviews take a job of `runner`,
-    /// a `Containment` of the control's own;
-    /// tests only.
-    /// Why:
-    ///   A runner admits one job and answers every other caller `Contained::Busy`,
-    /// and a crate's tests run as threads of one process,
-    /// so two controls that reviewed in the service's runner refused one another (issue 6500).
-    ///  A control declares `static OWN: Containment` and hands it here,
-    /// as one that reviews an item itself calls `review_item_in(&OWN, ..)`.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// handlers.withReviewRunner(own)
-    /// ```
-    #[cfg(test)]
-    pub fn with_review_runner(
-        mut self,
-        runner: &'static crate::standards_review_run::Containment,
-    ) -> GitHandlers {
-        // What: `Some(runner)` is this instance's answer from now on: a runner of the control's, never the shared one.
-        // Why: the control's reviews then see only each other's jobs, and never another control's.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // this.reviewRunner = runner;
-        // ```
-        self.review_runner = Some(runner);
-        return self;
-    }
-
-    /// A copy of these handlers that holds `keys` as the review credentials of one round;
-    /// the copy is dropped with the round.
-    /// The test-only settings (the review endpoint,
-    /// the review runner,
-    /// the push environment) are carried into the copy,
-    /// so a round runs the way the
-    /// handlers it was made from are set to run.
-    pub fn for_round(
-        &self,
-        keys: std::collections::HashMap<PathBuf, ReviewKey>,
-    ) -> GitHandlers {
-        return GitHandlers {
-            context: self.context.clone(),
-            review_keys: keys,
-            #[cfg(test)]
-            review_endpoint: self.review_endpoint.clone(),
-            #[cfg(test)]
-            review_runner: self.review_runner,
-            #[cfg(test)]
-            push_environment: self.push_environment.clone(),
-        };
-    }
-
-    /// What:
-    ///  The runner this instance's reviews take a job of:
-    /// the one a control gave it (`with_review_runner`),
-    /// or the one the whole service process shares.
-    /// Why:
-    ///   The service runs one review at a time for the whole process
-    /// (`SPEC.md`,
-    /// "The whole review of a commit is waited for `REVIEW_CEILING` ... no other review starts meanwhile"),
-    /// and a control must not,
-    /// because a run holds many of them at once in one process (issue 6500).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// reviewRunnerOf(): Containment { return this.reviewRunner ?? RUNNER; }
-    /// ```
-    fn review_runner_of(&self) -> &'static crate::standards_review_run::Containment {
-        #[cfg(test)]
-        {
-            // What: `Some(own)` is the runner a control handed these handlers, and it wins over the shared one.
-            // Why: a control's reviews must not meet another control's job in one runner.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (this.reviewRunner) return this.reviewRunner;
-            // ```
-            if let Some(own) = self.review_runner {
-                return own;
-            }
-        }
-        // What: `&crate::standards_review_run::RUNNER` is the one runner of the service's process, borrowed for the job's life.
-        // Why: a release has one service and one review at a time, which is what `SPEC.md` states.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return RUNNER;
-        // ```
-        return &crate::standards_review_run::RUNNER;
-    }
-
-    /// The credential held for this repository,
-    /// if the round brought one.
-    fn review_key_of(
-        &self,
-        git_dir: &Path,
-    ) -> Option<ReviewKey> {
-        return self.review_keys.get(git_dir).cloned();
-    }
-
-    /// The push's Git,
-    /// asked without the runtime;
-    /// a control builds it this way.
-    #[cfg(test)]
-    fn push_git(
-        &self,
-        item: &WorkItem,
-    ) -> PushGit {
-        let cwd: PathBuf = item.repository.clone();
-        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
-            crate::service_push_programs_held_in_memory::held(
-                item.git_dir.as_path(),
-                item.id().as_str(),
-            );
-        let (inherited, overlay): (
-            Vec<(std::ffi::OsString, std::ffi::OsString)>,
-            Vec<(std::ffi::OsString, std::ffi::OsString)>,
-        ) = self.push_environment_of(programs.as_ref());
-        return PushGit {
-            real_git: self.context.real_git.clone(),
-            lfs: read_config_snapshot(&self.context, cwd.as_path())
-                .as_ref()
-                .is_none_or(uses_lfs),
-            cwd,
-            environment: environment_with_overlay(inherited.as_slice(), overlay.as_slice()),
-        };
-    }
-
-    /// The same Git,
-    /// awaited by a caller that is itself a task of the runtime.
-    /// Why:
-    ///   The configuration read starts Git,
-    /// and the synchronous read enters the runtime and is refused from there;
-    /// the environment and the directory are the synchronous face's.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async pushGitOnTheRuntime(item): Promise<PushGit>
-    /// ```
-    async fn push_git_awaiting(
-        &self,
-        item: &WorkItem,
-    ) -> PushGit {
-        let cwd: PathBuf = item.repository.clone();
-        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
-            crate::service_push_programs_held_in_memory::held(
-                item.git_dir.as_path(),
-                item.id().as_str(),
-            );
-        let (inherited, overlay): (
-            Vec<(std::ffi::OsString, std::ffi::OsString)>,
-            Vec<(std::ffi::OsString, std::ffi::OsString)>,
-        ) = self.push_environment_of(programs.as_ref());
-        return PushGit {
-            real_git: self.context.real_git.clone(),
-            lfs: read_config_snapshot_awaiting(&self.context, cwd.as_path())
-                .await
-                .as_ref()
-                .is_none_or(uses_lfs),
-            cwd,
-            environment: environment_with_overlay(inherited.as_slice(), overlay.as_slice()),
-        };
-    }
-
-    /// What every Git child of a push receives,
-    /// and the overlay the service adds to it.
-    /// Why:
-    ///   Both faces of the push Git build their environment here,
-    /// so the two cannot hand Git different variables.
-    ///  The list of the command that asked for the push is laid over the service's own,
-    /// because the service takes the environment the user manager started it
-    ///  with,
-    /// which the person committing can neither see nor change
-    /// (`service_work_push_environment`).
-    /// The values are this service's memory,
-    /// never a file:
-    /// a service that restarted holds none,
-    /// and the push either says whose list it searched or stops
-    /// (`push_without_its_transport`).
-    ///  Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on,
-    /// which names the owner of a lock
-    ///  that a stopped push leaves behind;
-    /// the service's own environment does not turn it on.
-    /// The overlay also says never to ask for
-    ///  a login (`never_prompt_overlay`):
-    /// the host's askpass program is in this environment,
-    /// and a dialog nobody answers is a push that waits.
-    /// It also marks that the push runs in the service,
-    /// so a refusal that cannot find `git-lfs` names the list this push searched rather than the
-    ///  shell's (`lfs_program_search::ProgramSearch`);
-    /// the mark is present and carries the value `1`,
-    /// which nothing reads.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const [inherited, overlay] = pushEnvironmentOf(programsOf(item));
-    /// ```
-    fn push_environment_of(
-        &self,
-        programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>,
-    ) -> (
-        Vec<(std::ffi::OsString, std::ffi::OsString)>,
-        Vec<(std::ffi::OsString, std::ffi::OsString)>,
-    ) {
-        #[cfg(test)]
-        let extra: &[(std::ffi::OsString, std::ffi::OsString)] = self.push_environment.as_slice();
-        #[cfg(not(test))]
-        let extra: &[(std::ffi::OsString, std::ffi::OsString)] = &[];
-        return crate::service_work_push_environment::push_environment_of(extra, programs);
-    }
-}
-
-/// Whether a branch exists,
-/// and the commit it names,
-/// asked of Git on the runtime.
-use crate::service_work_branch_questions::{
-    branch_exists_awaiting,
-    branch_tip_awaiting,
-};
-
 /// Trait implementation for the real Git.
+///
+/// Each method is one line of this file:
+/// the steps of the kind it names live in the file named for that kind,
+/// so a reader takes the kinds the runtime asks for here
+/// and the work each one does where that work is described.
 impl WorkHandlers for GitHandlers {
     fn push(
         &self,
         items: &[WorkItem],
     ) -> Verdict {
-        return match crate::lazy_runtime::run_on_runtime(self.push_awaiting(items)) {
-            Ok(verdict) => verdict,
-            // The work did not happen, so the item is tried again rather than reported as a push that failed.
-            Err(refusal) => Verdict::Retry(format!("the push could not run: {refusal}")),
-        };
+        return super::service_work_pushes::push(self, items);
     }
 
     fn push_awaiting<'a>(
         &'a self,
         items: &'a [WorkItem],
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            let Some(newest) = items.last() else {
-                return Verdict::Done;
-            };
-            let git: PushGit = self.push_git_awaiting(newest).await;
-            // What: A push whose command chose its transport stops here when this service no longer holds that choice, or holds
-            //  it as a value this release cannot write in a line (`push_without_its_transport::gone`).
-            // Why:  Those settings live only in the memory of the service that received them, so running the push through the
-            //  manager's environment would speak a transport nobody asked for; nothing was sent, so the person is told why and
-            //  given the command that pushes.
-            let held: Option<crate::service_push_programs_held_in_memory::PushPrograms> =
-                crate::service_push_programs_held_in_memory::held(
-                    newest.git_dir.as_path(),
-                    newest.id().as_str(),
-                );
-            if let Some(gone) =
-                crate::push_without_its_transport::gone(held.as_ref(), newest.transport)
-            {
-                return Verdict::Skipped(
-                    crate::push_without_its_transport::words(&git, newest, gone).await,
-                );
-            }
-            // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
-            //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after
-            //  it has none; sending the branch's reference instead would publish that later commit before its own gate answered, and that
-            //  gate may keep it local.
-            let Some(sent_up_to) = branch_tip_awaiting(&git, newest.branch_ref.as_str()).await
-            else {
-                // The branch named no commit at that reading, so nothing of it can be sent: it is either gone, which is said with wherever
-                //  the commit still lives, or Git could not be asked, and the push is tried again. Never is the branch's reference sent
-                //  instead, because it may name a commit by now.
-                return match branch_exists_awaiting(&git, newest.branch_ref.as_str()).await {
-                    Some(false) => {
-                        Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
-                    }
-                    _ => Verdict::Retry(format!(
-                        "the commit {} was not pushed: {} named no commit in this repository when the push read it, and the push is tried again",
-                        newest.oid, newest.branch_ref
-                    )),
-                };
-            };
-            // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
-            //  gate refused, however far the branch has moved since.
-            let work: PathBuf = work_directory(newest.git_dir.as_path());
-            let blocked: Vec<BlockedVerdict> = blocked_verdicts(work.as_path());
-            // A commit whose own gate still runs is not decided either, and a push of the branch sends every commit up to the tip: the
-            //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
-            let undecided: Vec<String> = crate::work_item_holding::undecided_commits(
-                work.as_path(),
-                newest.branch_ref.as_str(),
-            );
-            let mut output: Vec<u8> = Vec::new();
-            return match push_once_awaiting(
-                &git,
-                newest.branch_ref.as_str(),
-                sent_up_to.as_str(),
-                blocked.as_slice(),
-                undecided.as_slice(),
-                &mut output,
-            )
-            .await
-            {
-                // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
-                //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
-                Ok(result) if result.outcome == AutoPushOutcome::Skipped => {
-                    Verdict::Skipped(result.shown)
-                }
-                // A verdict held the push back: nothing was sent and nothing failed, so the branch is tried again by the retry plan the
-                //  service keeps, and the words go to the person's record with the promise that plan keeps.
-                Ok(result) if result.outcome == AutoPushOutcome::HeldBack => {
-                    Verdict::Retry(result.shown)
-                }
-                Ok(result) if result.exit_code == 0 => {
-                    // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
-                    //  refused sibling is published nowhere, so the journal names it here and the record the next command shows carries
-                    //  it to the person.
-                    for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(
-                        result.shown.as_str(),
-                    ) {
-                        crate::service_warn!(
-                            "a branch of this push was refused and was not published: {line}"
-                        );
-                    }
-                    // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
-                    //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign
-                    //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
-                    //  go to a record the next command shows once, which the step that settles this verdict writes. A push that simply
-                    //  landed says nothing and leaves no record.
-                    // The record is named for the commit this push sent, never for the newest record the drain claimed: a commit that
-                    //  landed after that claim is what the push sends (`sent_up_to`, read from the branch), so naming the record for the
-                    //  claimed commit would overwrite an unread record of that commit with words about another one, and label them as its.
-                    Verdict::Delivered {
-                        commit: sent_up_to,
-                        said: result.shown,
-                    }
-                }
-                // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
-                //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
-                //  output: any program a push runs can print a line about a branch of its own.
-                Ok(_result)
-                    if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await
-                        == Some(false) =>
-                {
-                    Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
-                }
-                // A conflict, a login the service does not have and a server hook's decline need the person and stop the retry;
-                //  every other failure can pass (a stall, the network, an LFS server error, a held lock, a host key this machine
-                //  does not know), and the record of one whose words ask something of the person says what to do and that the
-                //  service keeps its schedule.
-                Ok(result) => match final_failure(result.shown.as_str()) {
-                    Some(cause) => Verdict::Failed(match plain_words(cause) {
-                        Some(words) => format!("{words}\n{}", result.shown),
-                        None => result.shown,
-                    }),
-                    None => {
-                        // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
-                        if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
-                            crate::service_warn!(
-                                "the server rejected the push {} for a reason this release does not know, so it is tried again: {line}",
-                                crate::service_timing::in_the_repository_at(
-                                    newest.repository.as_path()
-                                )
-                            );
-                        }
-                        Verdict::Retry(retried_failure_record(result.shown.as_str()))
-                    }
-                },
-                Err(error) => Verdict::Retry(format!("{error}")),
-            };
-        });
+        return super::service_work_pushes::push_awaiting(self, items);
     }
 
     fn trash(
         &self,
         item: &WorkItem,
     ) -> Verdict {
-        return crate::worktree_trash::empty_trash(item);
+        return super::service_work_worktree_upkeep::trash(item);
     }
 
-    /// What:
-    ///  The same emptying,
-    /// its entry removals awaited on the runtime.
-    /// Why:
-    ///   The drain of a round is a task of the runtime,
-    /// and the synchronous face enters the runtime for
-    /// `remove_entries`,
-    /// which is refused there:
-    /// the trash would stay and the item would settle as failed.
-    /// The record and the reasons are the synchronous face's.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// trashAwaiting(item) { return emptyTrashAwaiting(item); }
-    /// ```
     fn trash_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            return crate::worktree_trash::empty_trash_awaiting(item).await;
-        });
+        return super::service_work_worktree_upkeep::trash_awaiting(item);
     }
 
-    /// What:
-    ///  Fill the Cargo build directories a new worktree's record names,
-    /// its clone and its clean awaited on the runtime.
-    /// Why:
-    ///   The add hands this work over instead of waiting for it
-    /// (`package_repair_prewarm.rs`),
-    /// and the round is a task of the runtime,
-    /// so the tree clone and the Cargo child are awaited here rather than entered from a
-    ///  synchronous face.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// prewarmAwaiting(item) { return prewarmAwaiting(item); }
-    /// ```
     #[cfg(target_os = "linux")]
     fn prewarm_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            return crate::package_repair_prewarm_job::prewarm_awaiting(item).await;
-        });
+        return super::service_work_worktree_upkeep::prewarm_awaiting(item);
     }
 
-    /// What:
-    ///  Relink the copied package state a new worktree's record names,
-    /// each tool's own install awaited on the runtime.
-    /// Why:
-    ///   The add hands this work over instead of waiting for it
-    /// (`package_repair_relink.rs`),
-    /// and the round is a task of the runtime,
-    /// so each tool is awaited here rather than started from a synchronous face.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// relinkAwaiting(item) { return relinkAwaiting(item); }
-    /// ```
     #[cfg(target_os = "linux")]
     fn relink_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            return crate::package_repair_relink_job::relink_awaiting(item).await;
-        });
+        return super::service_work_worktree_upkeep::relink_awaiting(item);
     }
 
-    /// What:
-    ///  Delete the subvolume a removal renamed out of the person's way.
-    /// Why:
-    ///  The removal records the path and returns,
-    /// so this is where the one kernel call happens,
-    /// with no person waiting for it.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// subvolumeDelete(item) { return deleteSubvolumeOf(item); }
-    /// ```
     fn subvolume_delete(
         &self,
         item: &WorkItem,
     ) -> Verdict {
-        return crate::worktree_remove_hand_over_service_removal::delete_subvolume_of(item);
+        return super::service_work_worktree_upkeep::subvolume_delete(item);
     }
 
-    /// What:
-    ///  The same delete,
-    ///  run on a thread of its own that no runtime owns.
-    /// Why:
-    ///  The removal of a whole worktree starts Git,
-    ///  and a step the wrapper watches is waited for through the runtime,
-    ///  which refuses a call made from inside itself,
-    ///  while a thread of the blocking pool still carries that runtime with it.
-    ///  So the removal gets a thread of its own,
-    ///  and the round awaits its answer no longer than a bulk Git step may take:
-    ///  a thread the system refuses,
-    /// and one that gives no answer at the ceiling,
-    /// are both a removal that did not run,
-    ///  and the record keeps its lease for the next round.
-    ///  Before this,
-    /// every removal the service made answered "the runtime that runs this command's waits was asked for
-    ///  from inside itself",
-    ///  which read as ignored files nothing could vouch for,
-    ///  and the service kept every worktree it was handed.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// subvolumeDeleteAwaiting(item) { return await withAnOwnThreadWithin(OBJECT_STEP_CEILING, () => deleteSubvolumeOf(item)); }
-    /// ```
     fn subvolume_delete_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            let held: WorkItem = item.clone();
-            let (sender, receiver): (
-                tokio::sync::oneshot::Sender<Verdict>,
-                tokio::sync::oneshot::Receiver<Verdict>,
-            ) = tokio::sync::oneshot::channel::<Verdict>();
-            let started = std::thread::Builder::new()
-                .name(String::from(REMOVAL_THREAD_NAME))
-                .spawn(move || {
-                    // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
-                    let _sent = sender.send(
-                        crate::worktree_remove_hand_over_service_removal::delete_subvolume_of(
-                            &held,
-                        ),
-                    );
-                });
-            if started.is_err() {
-                return Verdict::Retry(format!(
-                    "the system refused a thread for the removal of {}",
-                    item.repository.display()
-                ));
-            }
-            return match tokio::time::timeout(crate::wait_ceilings::OBJECT_STEP_CEILING, receiver)
-                .await
-            {
-                Ok(Ok(verdict)) => verdict,
-                // The thread went without a verdict, which a removal cannot do while it runs.
-                Ok(Err(_dropped)) => Verdict::Retry(format!(
-                    "the removal of {} gave no verdict",
-                    item.repository.display()
-                )),
-                Err(_expired) => Verdict::Retry(format!(
-                    "the removal of {} gave no answer within {:?}",
-                    item.repository.display(),
-                    crate::wait_ceilings::OBJECT_STEP_CEILING
-                )),
-            };
-        });
+        return super::service_work_worktree_upkeep::subvolume_delete_awaiting(item);
     }
 
-    /// What:
-    ///  Make one snapshot of a worktree ahead of the next add,
-    /// where the caller has no runtime to hand a job to.
-    /// Why:
-    ///   The call is one btrfs ioctl and starts no child,
-    /// so a synchronous caller blocks here itself;
-    /// the round
-    ///  awaits it on the blocking pool through `snapshot_ahead_awaiting`.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// snapshotAhead(item) { return makeOneAhead(item); }
-    /// ```
     #[cfg(target_os = "linux")]
     fn snapshot_ahead(
         &self,
         item: &WorkItem,
     ) -> Verdict {
-        return crate::worktree_snapshot_ahead_job::snapshot_ahead(item);
+        return super::service_work_worktree_upkeep::snapshot_ahead(item);
     }
 
-    /// What:
-    ///  Make a snapshot of a worktree ahead of the next add,
-    /// on a thread of the blocking pool.
-    /// Why:
-    ///  The ioctl waits for a btrfs transaction commit of the whole filesystem,
-    /// so a worker of the runtime must not hold it:
-    /// the
-    ///  commits queued behind this one would wait on it too.
-    /// The service's own thread is what takes the wait,
-    /// and the
-    ///  add that asked for the snapshot waits for the answer instead of for the kernel
-    /// (`worktree_snapshot_ahead.rs`).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// snapshotAheadAwaiting(item) { return makeOneAhead(item); }
-    /// ```
     #[cfg(target_os = "linux")]
     fn snapshot_ahead_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            let held: WorkItem = item.clone();
-            return match crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(
-                move || {
-                    return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held);
-                },
-            )
-            .await
-            {
-                Ok(verdict) => verdict,
-                // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
-                Err(reason) => Verdict::Retry(format!(
-                    "the snapshot ahead of {} did not run ({reason})",
-                    item.repository.display()
-                )),
-            };
-        });
+        return super::service_work_worktree_upkeep::snapshot_ahead_awaiting(item);
     }
 
     fn maintenance(
         &self,
         item: &WorkItem,
     ) -> Verdict {
-        return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
-            Ok(verdict) => verdict,
-            Err(refusal) => {
-                Verdict::Failed(format!("the automatic upkeep could not run: {refusal}"))
-            }
-        };
+        return super::service_work_worktree_upkeep::maintenance(self, item);
     }
 
     fn maintenance_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            let answer: Verdict = match run_auto_maintenance_with_awaiting(
-                &self.context,
-                item.repository.as_path(),
-                None,
-            )
-            .await
-            {
-                Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => {
-                    Verdict::Failed(format!("it exited with status {code}"))
-                }
-                Ok(_) => Verdict::Done,
-                Err(error) => Verdict::Failed(format!("{error:?}")),
-            };
-            // The upkeep is where the wrapper prunes the references it keeps built commits on, by age and by size: the
-            //  person's commit has returned, and nothing a command waits for is behind this step
-            //  (`kept_reference_pass.rs`).
-            crate::kept_reference_pass::prune_after_a_commit(&self.context, item.git_dir.as_path())
-                .await;
-            return answer;
-        });
+        return super::service_work_worktree_upkeep::maintenance_awaiting(self, item);
     }
 
     fn review(
         &self,
         item: &WorkItem,
     ) -> Verdict {
-        let key: Option<ReviewKey> = self.review_key_of(item.git_dir.as_path());
-        #[cfg_attr(
-            not(test),
-            expect(unused_mut, reason = "only a test replaces the endpoint")
-        )]
-        let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
-        #[cfg(test)]
-        if let Some(endpoint) = self.review_endpoint.as_ref() {
-            options.endpoint = endpoint.clone();
-        }
-        return review_item_in(
-            self.review_runner_of(),
-            &self.context,
-            item,
-            options,
-            crate::wait_ceilings::REVIEW_CEILING,
-        );
+        return super::service_work_git_handlers::review(self, item);
     }
 
-    /// What:
-    ///  The same review,
-    /// its wait for the contained job made on the runtime.
-    /// Why:
-    ///   The round of the service's work is tasks of the runtime
-    /// (`service_round.rs`),
-    /// and the synchronous wait for a review's job blocks the thread that asks,
-    ///  which a worker may not do:
-    /// the job starts Git.
-    /// The key,
-    /// the options and the endpoint are the synchronous face's.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// reviewAwaiting(item) { return reviewItemAwaiting(context, item, optionsOf(item)); }
-    /// ```
     fn review_awaiting<'a>(
         &'a self,
         item: &'a WorkItem,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
-        return Box::pin(async move {
-            let key: Option<ReviewKey> = self.review_key_of(item.git_dir.as_path());
-            #[cfg_attr(
-                not(test),
-                expect(unused_mut, reason = "only a test replaces the endpoint")
-            )]
-            let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
-            #[cfg(test)]
-            if let Some(endpoint) = self.review_endpoint.as_ref() {
-                options.endpoint = endpoint.clone();
-            }
-            return review_item_in_awaiting(
-                self.review_runner_of(),
-                &self.context,
-                item,
-                options,
-                crate::wait_ceilings::REVIEW_CEILING,
-            )
-            .await;
-        });
+        return super::service_work_git_handlers::review_awaiting(self, item);
     }
 }
 
