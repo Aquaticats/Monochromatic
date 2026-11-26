@@ -15,7 +15,6 @@ import {
   NOTIFY_TIMEOUT_MS,
   notificationSender,
   notifySendArguments,
-  sendNotification as sendNotificationWithNotifySend,
 } from './alert-notify.ts';
 import type {
   CommandRequest,
@@ -49,7 +48,7 @@ function fakeRunner(result: CommandResult, requests: CommandRequest[],): Command
 }
 
 await describe({
-  name: sendNotificationWithNotifySend.name,
+  name: notificationSender.name,
   children: [
     it({
       name: 'reports a sent notification, and asks notify-send for this notice, when it exits 0',

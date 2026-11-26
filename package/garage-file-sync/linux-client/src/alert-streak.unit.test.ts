@@ -40,6 +40,14 @@ const RUNS_AS_ROOT = process.getuid?.() === 0;
 const LAST_ALERT_AT = '2026-11-25T20:41:14-05:00';
 
 /**
+ State-file texts that are JSON but not an object.
+ */
+const NOT_OBJECT_STATE_FILES: readonly string[] = [
+  'null',
+  '7',
+];
+
+/**
  Creates a disposable home for one read.
 
  @returns the home folder, removed when the caller's scope ends
@@ -94,6 +102,26 @@ await describe({
       fn: async function missingStateFile() {
         await using home = await disposableHome();
         expect(await readStreak({ home: home.path, unit: SYNC_UNIT, },),).toEqual({},);
+      },
+    },),
+    it({
+      name: 'reads the recovery mark a watcher restart left',
+      fn: async function readsRecoveryMark() {
+        await using home = await disposableHome();
+        await writeStateFile({
+          home: home.path,
+          text: `${JSON.stringify({
+            unit: SYNC_UNIT,
+            lastAlertAt: LAST_ALERT_AT,
+            recovered: true,
+          },)}\n`,
+        },);
+        expect(await readStreak({ home: home.path, unit: SYNC_UNIT, },),).toEqual({
+          streak: {
+            lastAlertAtMs: Date.parse(LAST_ALERT_AT,),
+            recovered: true,
+          },
+        },);
       },
     },),
     //endregion A usable state file
@@ -183,6 +211,43 @@ await describe({
         const found = await readStreak({ home: home.path, unit: SYNC_UNIT, },);
         expect(found.streak,).toBeUndefined();
         expect(found.problem,).toContain('does not hold an object with a lastAlertAt field',);
+      },
+    },),
+    ...NOT_OBJECT_STATE_FILES.map(function notAnObject(text,) {
+      return it({
+        name: `reports a state file that holds ${text}, which is not an object`,
+        fn: async function notAnObjectFile() {
+          await using home = await disposableHome();
+          await writeStateFile({
+            home: home.path,
+            text: `${text}\n`,
+          },);
+          /**
+           What the read found.
+           */
+          const found = await readStreak({ home: home.path, unit: SYNC_UNIT, },);
+          expect(found.streak,).toBeUndefined();
+          expect(found.problem,).toContain('does not hold an object with a lastAlertAt field',);
+        },
+      },);
+    },),
+    it({
+      name: 'reports a recovery mark that is not true or false',
+      fn: async function recoveryMarkIsNotBoolean() {
+        await using home = await disposableHome();
+        await writeStateFile({
+          home: home.path,
+          text: `${JSON.stringify({
+            lastAlertAt: LAST_ALERT_AT,
+            recovered: 'yes',
+          },)}\n`,
+        },);
+        /**
+         What the read found.
+         */
+        const found = await readStreak({ home: home.path, unit: SYNC_UNIT, },);
+        expect(found.streak,).toBeUndefined();
+        expect(found.problem,).toContain("the streak file's recovered is not a boolean",);
       },
     },),
     it({
