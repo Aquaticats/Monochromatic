@@ -62,15 +62,16 @@ pub enum ServiceEnd {
 ///  The process-group helpers this file used to define,
 ///  named here so every `crate::support_fixture_service::name` and `support::name` path stays the same.
 /// Why:
-///  Both test targets now read one copy of `spawn_owned`, `own_group` and `group_of`
-///  (`../testing/fixture_support_shared_by_both_test_targets.rs`),
-///  so a fix to either lands in both.
+///  Every target now reads one copy of `spawn_owned`, `own_group` and `group_of`
+///  (`../testing/test_process_owner.rs`),
+///  which the library's tests and both other targets include by path,
+///  so a fix to either lands in all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export { spawnOwned, ownGroup, groupOf } from '../shared/fixture-support.ts';
+/// export { spawnOwned, ownGroup, groupOf } from '../testing/test_process_owner';
 /// ```
-pub(crate) use crate::fixture_support_shared_by_both_test_targets::{group_of, own_group, spawn_owned};
+pub(crate) use crate::test_process_owner::{group_of, own_group, spawn_owned};
 
 /// The commit services of one fixture,
 /// one per worktree as in production,

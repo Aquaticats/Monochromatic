@@ -38,3 +38,27 @@ and ends with the rules holding.
 An allow-list of today's pairs to keep until it is empty,
 `uses/` folders for the 36 folders that lack one,
 and the untangling rounds after it.
+
+## When the rules land (owner, 2026-11-25T22:40-05:00)
+
+The round that built the lists (branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`)
+matched `main` at 17:42;
+by 22:35 the merges since then left 63 list lines that tolerate nothing
+and about 190 findings no line records,
+so the lists are regenerated against `main` before they land.
+Asked whether that happens before or after the crate split
+(`doc/planning/cli-git-source-layout.md`, "Splitting into crates (owner, 2026-11-04)"),
+the owner chose "Before the split (Recommended)":
+the lists are regenerated once the open wrapper rounds merge,
+the branch merges,
+and then the reformat and the split run.
+Each crate the split creates is switched on with an empty list,
+and every split round deletes the list lines of the folders it moves.
+
+The `uses/` links for the 36 folders that lack one,
+named as a cost in "What it costs",
+cannot be written while their folders loop:
+the round measured `cargo package --list` giving no answer after 120 seconds with the 421 links in place,
+against 1.9 seconds without them
+(`doc/planning/cli-git-source-layout.md`, the section the round's commit `457a1f6142` added),
+so each folder's links are written when its uses no longer loop.

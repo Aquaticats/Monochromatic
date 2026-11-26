@@ -349,17 +349,15 @@ fn wait_for(path: &Path) {
 
 /// Start this test executable as the helper for one scenario.
 fn spawn_helper(mode: &str, directory: &Path) -> Child {
-    let executable_path: PathBuf = crate::test_support::this_test_binary().expect("test executable");
     // Owned, so a helper that waits for a signal a failing control never sent does not outlive the control.
-    return crate::test_support::spawn_owned(
-        Command::new(executable_path)
-            .args(["--exact", "process::signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
-            .env(MODE_VAR, mode)
-            .env(DIR_VAR, directory)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null()),
-    )
-    .expect("helper starts");
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(MODE_VAR, std::ffi::OsStr::new(mode)), (DIR_VAR, directory.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "process::signal_relay::tests::helper_entry",
+        environment: environment.as_slice(),
+        standard_output: std::process::Stdio::null(),
+        standard_error: std::process::Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// Send one signal from this test process,
@@ -670,7 +668,6 @@ fn terminal_interrupt_is_not_relayed_a_second_time() {
 #[cfg(target_os = "linux")]
 fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
     use std::os::fd::{FromRawFd, OwnedFd};
-    use std::os::unix::process::CommandExt;
     let mut master: libc::c_int = -1;
     let mut slave: libc::c_int = -1;
     // SAFETY: `openpty` writes one descriptor per out-pointer; the null name, termios and window pointers are allowed.
@@ -688,26 +685,25 @@ fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
     let master_file: std::fs::File = unsafe { std::fs::File::from_raw_fd(master) };
     // SAFETY: as above; the slave is owned once and cloned into the helper's standard streams.
     let slave_owned: OwnedFd = unsafe { OwnedFd::from_raw_fd(slave) };
-    let executable_path: PathBuf = crate::test_support::this_test_binary().expect("test executable");
-    let mut command: Command = Command::new(executable_path);
-    command
-        .args(["--exact", "process::signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
-        .env(MODE_VAR, "terminal")
-        .env(DIR_VAR, directory)
-        .stdin(std::process::Stdio::from(slave_owned.try_clone().expect("slave clone")))
-        .stdout(std::process::Stdio::from(slave_owned.try_clone().expect("slave clone")))
-        .stderr(std::process::Stdio::from(slave_owned));
-    // SAFETY: between fork and exec only async-signal-safe calls run: `setsid` and `ioctl` on descriptor 0.
-    unsafe {
-        command.pre_exec(|| {
-            libc::setsid();
-            libc::ioctl(0, libc::TIOCSCTTY, 0);
+    // The helper answers on the pseudo-terminal, and it must lead a session of its own to control that terminal.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(MODE_VAR, std::ffi::OsStr::new("terminal")), (DIR_VAR, directory.as_os_str())];
+    let helper: Child = crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "process::signal_relay::tests::helper_entry",
+        environment: environment.as_slice(),
+        standard_input: std::process::Stdio::from(slave_owned.try_clone().expect("slave clone")),
+        standard_output: std::process::Stdio::from(slave_owned.try_clone().expect("slave clone")),
+        standard_error: std::process::Stdio::from(slave_owned),
+        takes_its_own_session: true,
+        // SAFETY: between fork and exec only async-signal-safe calls run: `setsid` and `ioctl` on descriptor 0.
+        before_the_exec: Some(Box::new(|| {
+            unsafe {
+                libc::setsid();
+                libc::ioctl(0, libc::TIOCSCTTY, 0);
+            }
             return Ok(());
-        });
-    }
-    let helper: Child = command.spawn().expect("terminal helper starts");
-    // The `setsid` above makes the helper the leader of a group of its own; `spawn_owned` cannot start it, so only its group is owned.
-    crate::test_support::own_group(&helper);
+        })),
+        ..crate::child_test_process::ChildTest::default()
+    });
     return (master_file, helper);
 }
 
