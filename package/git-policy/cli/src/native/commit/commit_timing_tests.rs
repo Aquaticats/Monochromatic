@@ -813,8 +813,20 @@ fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
 /// with how often it ran,
 /// the whole of its time and its longest run,
 /// so the next slow preparation names the step that spent the milliseconds instead of the phase alone.
+/// The steps are drained from one ledger of the whole process,
+/// so this control runs its body in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`):
+/// in the run's own process another test's preparation fills the list
+/// and another test's record empties it,
+/// measured as four steps of a neighbour in this control's record (issue 6507).
 #[test]
 fn the_record_states_the_preparations_own_work_by_name() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_record_states_the_preparations_own_work_by_name",
+    ) {
+        return;
+    }
     use crate::prepare_work_spans::note_span;
     let root: PathBuf = fixture("timing-prepare-spans");
     let (timing, _covered) = filled(root.as_path());

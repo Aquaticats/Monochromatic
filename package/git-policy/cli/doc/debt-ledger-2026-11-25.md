@@ -197,6 +197,8 @@ only if the read returns, and every Git child of other tests inherits them;
 (read at `foundation/lazy_runtime.rs:148`, longer than the one-second build deadline).
 The safe form exists: `worktree/worktree_ladder_target_tests.rs:397` and
 `worktree/worktree_clean_content_safety_tests.rs:470` set the variable only in a child.
+Both sites of the size read's module run in a child process of their own since issue 6493,
+so the variables reach no other test of the run.
 
 Item 3e, the umask.
 `landing/service_index_claim_tests.rs:398-402` sets `0o077` in the test process and restores it only on success.
@@ -234,6 +236,19 @@ and five threaded-only failures are filed and open:
 6485 (two supervisor controls plant kills in one process-wide registry),
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
+
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6493-size-read-tests-share-one-process`:
+issue 6493 is fixed,
+the size read's module whose twenty-two controls armed or read one of the six pieces of state above
+(the add timing record, the failed-step note, the repository's holder record, the size read's holds and free
+counters, the watched run's clear hold, and the process's own environment, runtime and fork);
+each of them now runs its body in a child process of the test binary
+(`testing/process_wide_state_child_test_support.rs`,
+the one helper the 6487 round below landed),
+and the size read's holds and the watched run's hold refuse to be set outside such a child;
+the measured reds and greens are in
+`doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
 
 Round of 2026-11-26,
 branch `fix/git-policy-cli-issue-6487-one-process-wide-room-for-blocking-jobs`:
@@ -459,6 +474,90 @@ That fixes the one site and not the shared helper:
 blocking-job user,
 which is issue 6477,
 and the other call sites of it are unchanged.
+
+Round of 2026-11-26,
+issue 6507:
+the preparation's named steps are one ledger of the whole process
+(`commit/prepare_work_spans.rs`),
+noted by every preparation and emptied by every timing record,
+and five controls read it:
+the issue's `commit::commit_index::tests::every_selection_mode_states_its_one_read_and_its_seed_walk`,
+the three of `commit::prepare_work_spans::tests`,
+and `commit::commit_timing::tests::the_record_states_the_preparations_own_work_by_name`.
+Each runs its body in a child of its own now
+(`testing/process_wide_state_child_test_support.rs`),
+as the room,
+the bound,
+the durability switch and the sync counts do,
+and `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs`
+refuses a control that names the ledger without one.
+The seven further controls of `commit_timing_tests.rs` that empty the ledger through `Timing::finish`
+assert no step and stay where they are;
+they can no longer take a step a control of a child owns.
+Measured on this host:
+two threaded runs of `commit::commit_index::tests` answered
+`test result: FAILED. 31 passed; 1 failed` with `left: Some(2)` for `index read`,
+and `ok. 32 passed; 0 failed` twice after the change;
+one process holding `commit::commit_index::tests::explicit_path_stages_only_the_named_paths`
+beside the three `prepare_work_spans` controls answered `1 passed; 1 failed`
+(the empty start read five steps of the neighbour)
+and beside the timing record's control `1 passed; 1 failed`
+(four steps of the neighbour in its record),
+and `6 passed` and `2 passed` after the change;
+the issue's filter
+(`index::`,
+guest and arm tests skipped)
+answered `ok. 230 passed; 0 failed` twice,
+from `ok. 230` once and one run the run's watchdog aborted after 229 passed,
+where no `test result` line was printed.
+That abort is a second defect of the module and not this cause:
+`commit::commit_index::tests::interactive_selection_succeeds_without_changes` runs `git add --interactive`,
+which read the standard input the run inherits and printed its `What now>` prompt without ending;
+the `git add --interactive` it started outlived the aborted run,
+held the run's output pipe open and kept the capped scope alive for 21 minutes,
+until that scope was stopped by hand;
+run again after the change,
+the verbatim command aborted the same way after 229 passed,
+which is what says the change neither caused nor cured it;
+it is recorded in `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`
+and not fixed here.
+Each of the five controls answered `ok. 1 passed` alone with `--exact` before and after the change.
+The guard was shown failing with one control's child starter taken out:
+it named `commit/prepare_work_spans_tests.rs:80 (a_step_of_no_measurable_time_is_stated_as_one_call)`,
+and the same one-process pair read the neighbour's five steps again;
+both were restored.
+After merging `origin/main` (`68af165851`):
+`cargo fmt --check`,
+`cargo check --locked --offline --all-targets` and
+`cargo clippy --locked --offline --all-targets -- -D warnings` answered nothing to fix;
+the four module runs answered
+`commit::commit_index::tests::` `test result: ok. 32 passed; 0 failed`,
+`commit::prepare_work_spans::tests::` `ok. 5 passed; 0 failed`,
+`commit::commit_timing::tests::` `ok. 21 passed; 0 failed` and
+`source_guard::` `ok. 141 passed; 0 failed`;
+and the locked linter (`monochromatic-lint` 0.5.2-alpha.15) found no `rust/folder-uses-links` and no
+`rust/file-order-in-folder` finding over this package.
+A second merge of `origin/main` (`6e3768d93a` held handover documents only) answered the same numbers.
+Beside this cause,
+the rest of the `commit/` folder is still red in a threaded run for the same shape in other ledgers the timing
+record drains:
+two runs of the whole `commit::` filter answered
+`test result: FAILED. 464 passed; 10 failed` and `FAILED. 463 passed; 11 failed`,
+and the failures are
+`commit::commit_index_builds::tests` (3 followed by 4),
+`commit::commit_prepare_part_durations::tests` (2 and 2),
+`commit::commit_build_part_durations::tests` (1 and 2),
+`commit::commit_preparation::tests` (2 and 2) and
+`commit::native_commit_waiting_notice::tests` (2 and 2,
+which may be the descriptor limit of mechanism 3b rather than a ledger).
+The index-builds ledger alone failed 5 of its 11 controls in a threaded run of its own module,
+and 3 of them in one process that had run one preparation first,
+which is the shape this round fixed for the spans ledger.
+This round fixed the ledger the issue named;
+those sites stay measured and unfixed.
+Status:
+incomplete,
+unapproved and not final.
 
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.

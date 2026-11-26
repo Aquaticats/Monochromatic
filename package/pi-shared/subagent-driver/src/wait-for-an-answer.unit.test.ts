@@ -239,36 +239,58 @@ await describe({
     },),
     it({
       name: 'the silence starts afresh when a compaction ends, so a wait that was nearly out gets the whole bound again',
-      fn: async () => {
+      fn: async ({ sinon, },) => {
         /**
          The compaction Pi reports.
          */
         const compaction = compactionUnderTest();
         /**
+         The clock the wait reads, which this control owns: a bound is due at a moment this test decides, never at one the
+         host's own scheduling decides for it.
+         */
+        const clock: { now: number } = { now: Date.now(), };
+        // The wait reads `Date.now` for the silence it has served and for its deadline, so the test moves that clock
+        // rather than waiting 90 ms of its bound away and hoping the host ends the pause in time. The stub is the
+        // harness's own context-owned replacement: the other controls in this file keep the real clock while it is in.
+        sinon.stub(Date, 'now',)
+          .callsFake(() => clock.now,);
+        /**
          What the test watches.
          */
         const watched = watchedWait({
           answerMilliseconds: SILENCE_BOUND_MILLISECONDS,
-          deadline: Date.now() + FAR_DEADLINE_MILLISECONDS,
+          deadline: clock.now + FAR_DEADLINE_MILLISECONDS,
           compactionOfPi: compaction.of,
         },);
-        // Almost all of the bound is spent before Pi begins compacting.
-        await sleep(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
+        // Almost all of the bound is spent before Pi begins compacting. Nothing between arming the bound and pausing it
+        // yields, so no bound can be due in that stretch whatever the host does with this process.
+        clock.now += SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS;
         compaction.begin();
         watched.waiting
           .pauseSilence();
-        expect(await settledWithin(watched, COMPACTION_MILLISECONDS,),).toBe(false,);
+        // Pi compacts for longer than the bound, which is not silence, so the wait settles for nothing while it runs.
+        clock.now += COMPACTION_MILLISECONDS;
+        expect(watched.settled(),).toBe(false,);
         compaction.end();
         watched.waiting
           .resumeSilence(NO_RUN_FAILURE,);
-        /**
-         When the silence began counting again, so the test can tell a fresh bound from what was left of the old one.
-         */
-        const resumedAt = Date.now();
+        // A wait that kept the silence it had served would have settled inside the line above, on the 10 ms it had left.
+        expect(watched.settled(),).toBe(false,);
+        // Almost the whole bound is served again, and the wait is still waiting for the rest of it.
+        clock.now += SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS;
+        // The host's own time, here only so the bound the wait armed can come due and look at the clock again.
+        await sleep(SILENCE_BOUND_MILLISECONDS + LOOK_MILLISECONDS,);
+        expect(watched.settled(),).toBe(false,);
+        // The whole bound is served at last, so the wait ends on it.
+        clock.now += LOOK_MILLISECONDS;
         await watched.done;
-        expect(watched.answer().ending,).toBe('silence',);
-        // A wait that kept the silence it served before would have ended on the little the bound had left, near 10 ms.
-        expect(Date.now() - resumedAt,).toBeGreaterThanOrEqual(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
+        /**
+         What the wait settled with.
+         */
+        const answer = watched.answer();
+        expect(answer.ending,).toBe('silence',);
+        // The wait ended on the silence bound itself, never on the deadline, which says other words.
+        expect(problemOf(answer,),).toBe(`no answer in ${String(SILENCE_BOUND_MILLISECONDS,)} ms`,);
       },
     },),
     it({

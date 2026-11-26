@@ -634,6 +634,15 @@ and the failures with the commit that fixed them.
   which leaves its sleeping grandchild running,
   as the gates at `639f90484d`,
   `6543be0d1a` and `cea8bb92ff` also showed (issue 6501).
+- `196b8d0c87`,
+  unit `whole-gate-on-main-196b8d0c87`,
+  started 2026-11-26T08:01:00-05:00,
+  holding issues 6489, 6494, 6495, 6502 and 6504,
+  the Ubuntu `setgroups` skip, Pi's virtual writer,
+  and the linter's `alpha.15` fixes with its lock still at `alpha.14`:
+  `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`, in 931 s.
+  It failed nothing.
+  The leaky test is issue 6501's relay control again.
 
 A gate's window denies what the work meets,
 never a failure by itself:

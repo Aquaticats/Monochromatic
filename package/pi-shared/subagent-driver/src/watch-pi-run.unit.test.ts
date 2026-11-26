@@ -778,14 +778,33 @@ function recordOf(line: string,): PiRecord {
 }
 
 /**
- What the feed holds, once the run is over.
+ The whole feed of a run, which is read only once the run's record has closed it.
 
- @param runFolder - folder of the run
+ A feed line goes to a write stream, so the record's `note` returns before the line lands: a read taken while the record is
+ still open can stop short of the last line the run noted, and a control that asserts on that line would then read the line
+ before it as the run's last word. Closing the record is the flush boundary the driver itself takes at the end of a run
+ (`feed-of-a-run.ts`, whose `close` waits for the stream to finish), so a control that reads a feed takes it too. A feed
+ that could not be written is named here rather than read as a run whose last line says something else.
+
+ @param run - the run whose feed this reads, and whose record stops writing it
 
  @returns the feed's records, in the order they were written
+
+ @example
+ ```ts
+ const feed = await wholeFeedOf(run,);
+ ```
  */
-async function feedOf(runFolder: string,): Promise<readonly PiRecord[]> {
-  return (await readFile(join(runFolder, 'feed.jsonl',), 'utf8',)).split('\n',)
+async function wholeFeedOf(run: RunUnderTest,): Promise<readonly PiRecord[]> {
+  await run.record.close();
+  /**
+   Why the feed is incomplete, when writing it failed.
+   */
+  const failure = run.record.feedProblem();
+  if (failure.failed) {
+    throw new Error(`the feed of the run could not be written, so it is not what a control reads: ${failure.problem}`,);
+  }
+  return (await readFile(join(run.runFolder, 'feed.jsonl',), 'utf8',)).split('\n',)
     .filter((line,) => line !== '')
     .map(recordOf,);
 }
@@ -824,7 +843,7 @@ await describe({
         /**
          What the feed says about the delivery.
          */
-        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        const delivered = (await wholeFeedOf(run,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(false,);
         expect(String(delivered?.error,),).toContain('no answer',);
         // The keep-it-aside path is what makes a stalled message neither lost nor sent again.
@@ -921,7 +940,7 @@ await describe({
         /**
          What the feed says about the delivery.
          */
-        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        const delivered = (await wholeFeedOf(run,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(true,);
         expect(await readdir(run.inbox,),).toEqual([],);
       },
@@ -946,7 +965,7 @@ await describe({
         /**
          What the feed says about the delivery.
          */
-        const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
+        const delivered = (await wholeFeedOf(run,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(true,);
         // The driver's own read said Pi rested, which is the state in which the plain prompt met the turn.
         expect(delivered?.sentAs,).toBe('prompt',);
@@ -978,7 +997,7 @@ await describe({
         /**
          What the feed says about the two attempts.
          */
-        const attempts = (await feedOf(run.runFolder,)).filter((entry,) => entry.kind === 'inbox',);
+        const attempts = (await wholeFeedOf(run,)).filter((entry,) => entry.kind === 'inbox',);
         expect(attempts.map((entry,) => entry.success,),).toEqual([false, true,],);
         expect(endReason,).toBe('idle',);
       },
@@ -1155,7 +1174,7 @@ await describe({
         /**
          What the feed holds of the prompt Pi did not take.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
         const askedBack = feed.filter((entry,) => entry.kind === 'retry_prompt',);
         expect(askedBack,).toHaveLength(1,);
@@ -1211,7 +1230,7 @@ await describe({
         /**
          What the feed holds: one counted attempt, and the prompt Pi turned back before it.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.filter((entry,) => entry.kind === 'retry').map((entry,) => entry.attempt),).toEqual([1,],);
         expect(feed.filter((entry,) => entry.kind === 'retry_prompt').map((entry,) => entry.success),)
           .toEqual([false, true,],);
@@ -1297,11 +1316,9 @@ await describe({
         expect(sent,).toHaveLength(1,);
         expect(run.record.retriesTaken(),).toBe(1,);
         /**
-         What the feed holds of the attempt that went and the refusal it met: the run's own feed is closed first, which is what
-         flushes its last lines, as the end of the run's process does.
+         What the feed holds of the attempt that went and the refusal it met.
          */
-        await run.record.close();
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.filter((entry,) => entry.kind === 'retry').map((entry,) => entry.attempt),).toEqual([1,],);
         expect(feed.filter((entry,) => entry.kind === 'retry_prompt').map((entry,) => entry.success),).toEqual([false,],);
         /**
@@ -1349,7 +1366,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
         // The hand-off is written plainly, so a person reading the run sees why the driver made no attempt at it.
         expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('rate limit',);
@@ -1392,7 +1409,7 @@ await describe({
         expect(sent,).toEqual([],);
         // A retry the run never reached is not an attempt it made.
         expect(run.record.retriesTaken(),).toBe(0,);
-        expect((await feedOf(run.runFolder,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect((await wholeFeedOf(run,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
         const summary = run.record.summarize({
           endReason: 'wall-clock',
           piExit: {},
@@ -1580,7 +1597,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.filter((entry,) => entry.kind === 'waiting').length,).toBe(1,);
         expect(String(feed.find((entry,) => entry.kind === 'waiting')?.problem,),).toContain('native-build-2',);
         expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
@@ -1609,7 +1626,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(true,);
         // A run the wall clock ended while it waited for work did not end with nothing to do, and the feed says so.
         expect(String(feed.at(-1)?.problem,),).toContain('waited for the work it left running',);
@@ -1650,7 +1667,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
       },
     },),
@@ -1723,7 +1740,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
       },
     },),
@@ -1773,7 +1790,7 @@ await describe({
         /**
          What the run's feed holds.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
         expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('already in a turn',);
       },
@@ -1843,7 +1860,7 @@ await describe({
         /**
          What the run's feed holds, which must name no wait and no wake.
          */
-        const feed = await feedOf(run.runFolder,);
+        const feed = await wholeFeedOf(run,);
         expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(false,);
         expect(feed.some((entry,) => entry.kind === 'wake'),).toBe(false,);
       },
