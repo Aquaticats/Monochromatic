@@ -172,7 +172,11 @@ libc = { workspace = true }
 # Linux calls the standard library does not expose, as the owner chose over hand-written `libc` calls (2026-11-07, "Linux calls:
 # rustix"): the limits a runtime build reads (`getrlimit`), the pidfd, the directory sync (`fsync`) and, in the steps that follow,
 # the inotify watch and the directory-relative file calls. Already in the lockfile through `tempfile`.
-rustix = { workspace = true, features = ["process", "fs", "thread"] }
+# The pseudo-terminal a typed network command's error stream gets when the wrapper's own is a terminal is opened through the
+# `pty` feature, its settings (the output processing the design clears, the window size) through `termios`, and the wait that
+# ends the relay when the child does through `event`; every one of them is a feature of the same locked crate and adds no
+# dependency.
+rustix = { workspace = true, features = ["process", "fs", "thread", "pty", "termios", "event"] }
 # The `markdown/autofix` policy's `exclude` patterns are gitignore syntax; the linter it runs and the
 # scanner above match them with this crate's gitignore matcher, already locked through the scanner.
 ignore = { workspace = true }

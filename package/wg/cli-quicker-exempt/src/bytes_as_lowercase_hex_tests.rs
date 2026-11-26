@@ -5,11 +5,17 @@ use super::*;
 /// The runtime directory watcher state names live under.
 use crate::application_watch_state::watch_state_directory;
 /// The bpffs directory pin keys live under.
-use crate::pin::{pin_dir_for, PIN_ROOT};
+use crate::pin::{
+    PIN_ROOT,
+    pin_dir_for,
+};
 /// The unit-name escape of a cgroup path.
 use crate::scope_naming::escape_unit_name;
 /// Expected spellings are compared as whole paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Watcher key and cgroup path whose bytes both call sites encode.
 ///
@@ -35,7 +41,9 @@ fn each_byte_is_two_lowercase_digits_with_the_high_nibble_first() {
     let spelled: String = bytes_as_lowercase_hex(b"\x00\x0f\xa5\xff\x10");
     assert_eq!(spelled, "000fa5ff10");
     assert!(
-        spelled.bytes().all(|byte| return matches!(byte, b'0'..=b'9' | b'a'..=b'f')),
+        spelled
+            .bytes()
+            .all(|byte| return matches!(byte, b'0'..=b'9' | b'a'..=b'f')),
         "lowercase hexadecimal digits only: {spelled}",
     );
 }
@@ -45,7 +53,8 @@ fn each_byte_is_two_lowercase_digits_with_the_high_nibble_first() {
 #[test]
 fn pin_key_and_watcher_state_name_spell_one_sample_the_same_way() {
     let sample_key: &str = std::str::from_utf8(SAMPLE_BYTES).expect("the sample is UTF-8");
-    let watcher_directory: PathBuf = watch_state_directory(sample_key).expect("watcher state directory");
+    let watcher_directory: PathBuf =
+        watch_state_directory(sample_key).expect("watcher state directory");
     assert_eq!(
         watcher_directory,
         Path::new("/run/wg-quicker-exempt/watchers").join(SAMPLE_SPELLING),

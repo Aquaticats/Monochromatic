@@ -10,16 +10,16 @@
 #![no_main]
 
 /// What:
-/// Import the harness macro.
-/// Why:
-/// Every target in this sidecar is a libFuzzer entry point.
-use libfuzzer_sys::fuzz_target;
-/// What:
 /// Import the byte-budget reader.
 /// Why:
 /// The element choice,
 /// edit kind and value come from fuzzer bytes.
 use arbitrary::Unstructured;
+/// What:
+/// Import the harness macro.
+/// Why:
+/// Every target in this sidecar is a libFuzzer entry point.
+use libfuzzer_sys::fuzz_target;
 /// What:
 /// Import the parser.
 /// Why:
@@ -31,7 +31,11 @@ use monochromatic_xml_edit::parse_xml;
 /// Each edit kind has its own promise.
 use xml_edit_fuzz::{
     GeneratedDocument,
-    invariants::{assert_append_child, assert_remove_element, assert_set_attribute},
+    invariants::{
+        assert_append_child,
+        assert_remove_element,
+        assert_set_attribute,
+    },
 };
 
 fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {

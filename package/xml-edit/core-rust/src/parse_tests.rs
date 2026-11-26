@@ -9,8 +9,15 @@
 //! describe('XML parser', () => { /* shapes, queries, rejection */ });
 //! ```
 
-use crate::fixtures::{LANGUAGE_XML, USER_DEFINED_XML};
-use crate::{parse_xml, XmlDocument, XmlElementId};
+use crate::fixtures::{
+    LANGUAGE_XML,
+    USER_DEFINED_XML,
+};
+use crate::{
+    XmlDocument,
+    XmlElementId,
+    parse_xml,
+};
 
 /// Parse a source that the test knows is valid.
 fn parsed(source: &str) -> XmlDocument {
@@ -33,9 +40,17 @@ fn language_settings_shape_is_queryable() {
     assert_eq!(entries.len(), 1);
     assert_eq!(document.attribute(entries[0], "key"), Some("srv-1"));
     let settings = document.descendants_named(entries[0], "LanguageServerDefinitionSettings")[0];
-    let option = document.find_child(settings, "option", "name", "configurationContent").expect("option exists");
-    assert_eq!(document.attribute(option, "value"), Some("{\"harper-ls.linters.Keep\": true}"));
-    assert_eq!(document.find_child(settings, "option", "name", "missing"), None);
+    let option = document
+        .find_child(settings, "option", "name", "configurationContent")
+        .expect("option exists");
+    assert_eq!(
+        document.attribute(option, "value"),
+        Some("{\"harper-ls.linters.Keep\": true}")
+    );
+    assert_eq!(
+        document.find_child(settings, "option", "name", "missing"),
+        None
+    );
     assert_eq!(document.name(option), Some("option"));
     assert_eq!(document.parent(option), Some(settings));
     assert_eq!(document.children(settings).len(), 4);
@@ -50,7 +65,10 @@ fn user_defined_shape_exposes_element_source() {
     let source: &str = document.element_source(entry).expect("entry source");
     assert!(source.starts_with("<entry key=\"srv-1\">"));
     assert!(source.ends_with("</entry>"));
-    assert_eq!(document.span(entry).expect("span").end - document.span(entry).expect("span").start, source.len());
+    assert_eq!(
+        document.span(entry).expect("span").end - document.span(entry).expect("span").start,
+        source.len()
+    );
     assert_eq!(document.element_count(), 11);
     assert_eq!(document.element_ids().len(), 11);
     assert_eq!(document.element_ids()[0], document.root());
@@ -103,7 +121,10 @@ fn names_and_quotes_parse() {
     assert_eq!(document.name(document.root()), Some("ns:a"));
     assert_eq!(document.attribute(document.root(), "x:y"), Some("1"));
     assert_eq!(document.attribute(document.root(), "z"), Some("it's"));
-    assert_eq!(document.descendants_named(document.root(), "b-c.d").len(), 1);
+    assert_eq!(
+        document.descendants_named(document.root(), "b-c.d").len(),
+        1
+    );
 }
 
 /// Check malformed documents are rejected with the offset of the first problem.
@@ -132,18 +153,54 @@ fn malformed_documents_are_rejected_with_offsets() {
 #[test]
 fn out_of_scope_constructs_are_rejected() {
     assert!(rejected("<!DOCTYPE a><a/>").0.contains("DOCTYPE"));
-    assert!(rejected("<a><!ELEMENT x></a>").0.contains("outside the supported"));
+    assert!(
+        rejected("<a><!ELEMENT x></a>")
+            .0
+            .contains("outside the supported")
+    );
     assert!(rejected("<?xml version=\"1.1\"?><a/>").0.contains("1.1"));
-    assert!(rejected("<?xml version=\"1.0\" encoding=\"UTF-16\"?><a/>").0.contains("UTF-16"));
-    assert!(rejected("<?xml version=\"1.0\" standalone=\"maybe\"?><a/>").0.contains("standalone"));
-    assert!(rejected("<?xml encoding=\"UTF-8\"?><a/>").0.contains("out-of-order"));
+    assert!(
+        rejected("<?xml version=\"1.0\" encoding=\"UTF-16\"?><a/>")
+            .0
+            .contains("UTF-16")
+    );
+    assert!(
+        rejected("<?xml version=\"1.0\" standalone=\"maybe\"?><a/>")
+            .0
+            .contains("standalone")
+    );
+    assert!(
+        rejected("<?xml encoding=\"UTF-8\"?><a/>")
+            .0
+            .contains("out-of-order")
+    );
     assert!(rejected("<?xml ?><a/>").0.contains("version"));
-    assert!(rejected("<?xml version=\"1.0\"encoding=\"UTF-8\"?><a/>").0.contains("separated"));
-    assert!(rejected("<?xml version=\"1.0\"?><?xml version=\"1.0\"?><a/>").0.contains("very start"));
+    assert!(
+        rejected("<?xml version=\"1.0\"encoding=\"UTF-8\"?><a/>")
+            .0
+            .contains("separated")
+    );
+    assert!(
+        rejected("<?xml version=\"1.0\"?><?xml version=\"1.0\"?><a/>")
+            .0
+            .contains("very start")
+    );
     assert!(rejected("<?xml version 1.0?><a/>").0.contains("expected ="));
-    assert!(rejected("<?xml version=1.0?><a/>").0.contains("must start with a quote"));
-    assert!(rejected("<?xml version=\"1.0?><a/>").0.contains("never closed"));
-    assert!(rejected("<?xml version=\"1.0\" version=\"1.0\"?><a/>").0.contains("out-of-order"));
+    assert!(
+        rejected("<?xml version=1.0?><a/>")
+            .0
+            .contains("must start with a quote")
+    );
+    assert!(
+        rejected("<?xml version=\"1.0?><a/>")
+            .0
+            .contains("never closed")
+    );
+    assert!(
+        rejected("<?xml version=\"1.0\" version=\"1.0\"?><a/>")
+            .0
+            .contains("out-of-order")
+    );
     assert!(rejected("<a>&foo;</a>").0.contains("&foo;"));
     assert!(rejected("<a>&amp</a>").0.contains("closing ;"));
     assert!(rejected("<a x=\"<\"/>").0.contains("&lt;"));
@@ -153,7 +210,11 @@ fn out_of_scope_constructs_are_rejected() {
     assert!(rejected("<a><!-- x ---></a>").0.contains("--->"));
     assert!(rejected("<a><!-- x </a>").0.contains("never closed"));
     assert!(rejected("<a><![CDATA[ x </a>").0.contains("CDATA"));
-    assert!(rejected("<a><?pi x </a>").0.contains("processing instruction"));
+    assert!(
+        rejected("<a><?pi x </a>")
+            .0
+            .contains("processing instruction")
+    );
     assert!(rejected("<a><?xml x?></a>").0.contains("very start"));
     assert!(rejected("<a><!-- \u{1} --></a>").0.contains("U+0001"));
     assert!(rejected("<a>x\u{FFFF}</a>").0.contains("U+FFFF"));
@@ -164,7 +225,11 @@ fn out_of_scope_constructs_are_rejected() {
 fn diagnostics_print_line_and_column() {
     let error = parse_xml("<a>\r\n  <b></c>\n</a>").expect_err("mismatch");
     assert_eq!((error.line, error.column), (2, 6));
-    assert!(error.to_string().contains("(line 2, column 6, byte offset 10)"));
+    assert!(
+        error
+            .to_string()
+            .contains("(line 2, column 6, byte offset 10)")
+    );
     let bare_cr = parse_xml("<a>\r<b></c></a>").expect_err("mismatch");
     assert_eq!(bare_cr.line, 2);
 }

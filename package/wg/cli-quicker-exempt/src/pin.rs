@@ -3,12 +3,18 @@
 //!  and atomic link replacement.
 
 /// Raw BPF attachment function and exact hook pin names.
-use crate::bpf::{attach_marker, HOOK_NAMES};
+use crate::bpf::{
+    HOOK_NAMES,
+    attach_marker,
+};
 /// Debug-only typed pin failure constructor for deterministic fallback tests.
 #[cfg(debug_assertions)]
 use crate::bpf_error::pin_object_invalid;
 /// Lowercase hexadecimal spelling shared with the watcher state names.
-use crate::bytes_as_lowercase_hex::{bytes_as_lowercase_hex, DIGITS_PER_BYTE};
+use crate::bytes_as_lowercase_hex::{
+    DIGITS_PER_BYTE,
+    bytes_as_lowercase_hex,
+};
 /// Standard filesystem and syscall error channel.
 use std::io;
 /// Unix metadata device identity and raw descriptor access.
@@ -18,9 +24,16 @@ use std::os::unix::ffi::OsStrExt;
 /// Unix filesystem device number proves bpffs mount boundaries.
 use std::os::unix::fs::MetadataExt;
 /// Owned filesystem paths used for canonical cgroup and pin locations.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 /// Atomic counter makes staging names unique within one process.
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 /// Root mount path that must be a distinct BPF filesystem.
 pub const BPF_FS: &str = "/sys/fs/bpf";
@@ -59,7 +72,9 @@ pub fn acquire_lifecycle_lock() -> io::Result<LifecycleLock> {
     if result < 0 {
         return Err(io::Error::last_os_error());
     }
-    return Ok(LifecycleLock { _file: file });
+    return Ok(LifecycleLock {
+        _file: file,
+    });
 }
 
 /// Reports the filesystem path error for an embedded NUL byte.
@@ -112,7 +127,10 @@ fn encoded_pin_key(canonical: &Path) -> io::Result<PathBuf> {
     }
     let encoded: String = bytes_as_lowercase_hex(canonical.as_os_str().as_bytes());
     let mut key = PathBuf::new();
-    for chunk in encoded.as_bytes().chunks(PIN_KEY_CHUNK_BYTES * DIGITS_PER_BYTE) {
+    for chunk in encoded
+        .as_bytes()
+        .chunks(PIN_KEY_CHUNK_BYTES * DIGITS_PER_BYTE)
+    {
         let component = std::str::from_utf8(chunk).map_err(io::Error::other)?;
         key.push(component);
     }
@@ -162,10 +180,7 @@ pub fn pin_dir_for(cgroup_dir: &Path) -> io::Result<PathBuf> {
 /// Produces non-hidden staging directory because bpffs rejects dot-prefixed names.
 fn staging_dir_for() -> PathBuf {
     let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    return Path::new(STAGING_ROOT).join(format!(
-        "stage-{}-{sequence}",
-        std::process::id()
-    ));
+    return Path::new(STAGING_ROOT).join(format!("stage-{}-{sequence}", std::process::id()));
 }
 
 /// Removes each expected link pin,
@@ -215,18 +230,29 @@ fn cleanup_stale_staging() -> io::Result<()> {
 
 /// Reports the first exchange path error for an embedded NUL byte.
 fn first_exchange_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
-    return io::Error::new(io::ErrorKind::InvalidInput, "first exchange path contains NUL");
+    return io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "first exchange path contains NUL",
+    );
 }
 
 /// Reports the second exchange path error for an embedded NUL byte.
 fn second_exchange_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
-    return io::Error::new(io::ErrorKind::InvalidInput, "second exchange path contains NUL");
+    return io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "second exchange path contains NUL",
+    );
 }
 
 /// Invokes Linux `renameat2(RENAME_EXCHANGE)` for two existing bpffs siblings.
-fn rename_exchange(first: &Path, second: &Path) -> io::Result<()> {
-    let first_c = std::ffi::CString::new(first.as_os_str().as_encoded_bytes()).map_err(first_exchange_path_contains_nul)?;
-    let second_c = std::ffi::CString::new(second.as_os_str().as_encoded_bytes()).map_err(second_exchange_path_contains_nul)?;
+fn rename_exchange(
+    first: &Path,
+    second: &Path,
+) -> io::Result<()> {
+    let first_c = std::ffi::CString::new(first.as_os_str().as_encoded_bytes())
+        .map_err(first_exchange_path_contains_nul)?;
+    let second_c = std::ffi::CString::new(second.as_os_str().as_encoded_bytes())
+        .map_err(second_exchange_path_contains_nul)?;
     // SAFETY: both paths are NUL-terminated and `AT_FDCWD` resolves absolute names directly.
     let result = unsafe {
         libc::syscall(
@@ -245,7 +271,10 @@ fn rename_exchange(first: &Path, second: &Path) -> io::Result<()> {
 }
 
 /// Combines primary transaction error with any failure to remove staged links.
-fn rollback_staging_error(staging_dir: &Path, error: io::Error) -> io::Error {
+fn rollback_staging_error(
+    staging_dir: &Path,
+    error: io::Error,
+) -> io::Error {
     if let Err(cleanup_error) = remove_exact_pin_dir(staging_dir) {
         return io::Error::new(
             error.kind(),
@@ -256,7 +285,10 @@ fn rollback_staging_error(staging_dir: &Path, error: io::Error) -> io::Error {
 }
 
 /// Commits complete staging pins and removes exchanged prior pins afterward.
-fn commit_staging(staging_dir: &Path, final_dir: &Path) -> io::Result<()> {
+fn commit_staging(
+    staging_dir: &Path,
+    final_dir: &Path,
+) -> io::Result<()> {
     if final_dir.exists() {
         rename_exchange(staging_dir, final_dir)?;
         return remove_exact_pin_dir(staging_dir);
@@ -272,16 +304,25 @@ pub fn remove_exact_pin_dir_for_test(pin_dir: &Path) -> io::Result<()> {
 
 /// Exposes replacement transaction to sibling unit tests without widening production API.
 #[cfg(test)]
-pub fn commit_staging_for_test(staging_dir: &Path, final_dir: &Path) -> io::Result<()> {
+pub fn commit_staging_for_test(
+    staging_dir: &Path,
+    final_dir: &Path,
+) -> io::Result<()> {
     return commit_staging(staging_dir, final_dir);
 }
 
 /// Attaches all hooks in staging and commits them without dropping prior working pins.
-pub fn attach_cgroup(mark: u32, cgroup_dir: &Path) -> io::Result<usize> {
+pub fn attach_cgroup(
+    mark: u32,
+    cgroup_dir: &Path,
+) -> io::Result<usize> {
     ensure_pin_root()?;
     let final_dir = pin_dir_for(cgroup_dir)?;
     let Some(parent) = final_dir.parent() else {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "pin path lacks parent"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "pin path lacks parent",
+        ));
     };
     std::fs::create_dir_all(parent)?;
     cleanup_stale_staging()?;
@@ -300,7 +341,10 @@ pub fn attach_cgroup(mark: u32, cgroup_dir: &Path) -> io::Result<usize> {
     std::fs::create_dir(&staging_dir)?;
     let cgroup = std::fs::File::open(cgroup_dir)?;
     let Some(staging_text) = staging_dir.to_str() else {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "staging path is not UTF-8"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "staging path is not UTF-8",
+        ));
     };
     #[cfg(debug_assertions)]
     if std::env::var_os(FORCE_PIN_INVALID_ENV).is_some() {

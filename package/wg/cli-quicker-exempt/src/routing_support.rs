@@ -7,7 +7,10 @@
 /// delimited so a cause ends them where the line does.
 use crate::report_cause::quote_name;
 /// Retry timing.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Wait before the second attempt;
 /// each later wait doubles.
@@ -17,7 +20,10 @@ pub(crate) const RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
 /// Reports whether a cgroup path can be adopted by the user's manager.
 /// The path must lie in the user manager's subtree,
 /// and must not be the cgroup of a service's main process.
-pub fn adoptable_cgroup(cgroup: &str, uid: u32) -> Result<(), String> {
+pub fn adoptable_cgroup(
+    cgroup: &str,
+    uid: u32,
+) -> Result<(), String> {
     let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/");
     if !cgroup.starts_with(&prefix) {
         return Err(format!(
@@ -27,7 +33,10 @@ pub fn adoptable_cgroup(cgroup: &str, uid: u32) -> Result<(), String> {
     }
     let leaf = cgroup.rsplit('/').next().unwrap_or("");
     if leaf.ends_with(".service") {
-        return Err(format!("it is the main process of the service {}, and moving it would empty that service", quote_name(leaf)));
+        return Err(format!(
+            "it is the main process of the service {}, and moving it would empty that service",
+            quote_name(leaf)
+        ));
     }
     return Ok(());
 }
@@ -38,7 +47,9 @@ pub fn adoptable_cgroup(cgroup: &str, uid: u32) -> Result<(), String> {
 /// capped.
 pub fn retry_backoff(attempt: u32) -> Duration {
     let doublings = attempt.saturating_sub(1).min(6);
-    return RETRY_BACKOFF_BASE.saturating_mul(1 << doublings).min(RETRY_BACKOFF_MAX);
+    return RETRY_BACKOFF_BASE
+        .saturating_mul(1 << doublings)
+        .min(RETRY_BACKOFF_MAX);
 }
 
 /// A source of the current time.

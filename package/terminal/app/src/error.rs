@@ -101,7 +101,10 @@ impl fmt::Display for TerminalError {
     ///   return `libghostty-vt error: ${error.source}`;
     /// }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What:     `match self` branches on the enum variant by borrowing `self`.
         // Why:      Each variant can print its own message.
         //
@@ -118,7 +121,9 @@ impl fmt::Display for TerminalError {
             // ```ts
             // return `libghostty-vt error: ${source}`;
             // ```
-            TerminalError::Ghostty(source) => return write!(formatter, "libghostty-vt error: {source}"),
+            TerminalError::Ghostty(source) => {
+                return write!(formatter, "libghostty-vt error: {source}");
+            }
         }
     }
 }
@@ -205,6 +210,6 @@ impl From<libghostty_vt::Error> for TerminalError {
         // ```ts
         // return { kind: "ghostty", source };
         // ```
-        return TerminalError::Ghostty(source)
+        return TerminalError::Ghostty(source);
     }
 }

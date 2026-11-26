@@ -9524,15 +9524,36 @@ and the clone ends 0
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
 The wrapper adds no words of its own where a question was asked:
 the program it names answers nothing and prints nothing.
-This release therefore names no next step at a new host key,
-and how such a text reaches a person is the project's next choice
-(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-the record that chose the delivery this release removed).
+The program that answers no question therefore still says nothing,
+and `SSH_ASKPASS` stays `false`:
+the next step reaches a person from the wrapper's own process instead,
+which is the one that owns the child
+(`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
+A typed `clone`,
+`fetch`,
+`pull` or `push` whose remote ssh carries is run as the wrapper's child with its error stream relayed,
+and when that transcript reads as a refused host key it prints one sentence after Git's own words,
+naming the plain `ssh` command to run
+(`src/native/invocation/typed_network_command_relay/`,
+and the three texts are the proposal's kept files byte for byte).
+A command ssh does not carry names no next step and keeps the process replacement it has today.
+Four limits stand with it:
+`kill -9` of the typed process number is not one of the four signals the relay carries:
+the wrapper ends at once, prints nothing, and does not end Git through the relay;
+under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
+so no sentence follows;
+a typed LFS push explains a refused key through the upload's own words instead,
+and the two faces print one sentence and not two;
+and a key whose options live only in `GIT_SSH_COMMAND`,
+`core.sshCommand` or `GIT_SSH` sends the advised plain `ssh` to other settings,
+where it may read another `known_hosts` file.
 A person meets OpenSSH's own refusals at both questions this rule answers with nothing,
 measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
 `Host key verification failed.` at an unknown host key,
 and `Permission denied (publickey).` at a key whose passphrase nobody can give,
-each ending 128 with Git's own lines below and no line of the wrapper's among them.
+each ending 128 with Git's own lines.
+A typed network command whose remote ssh carries then prints the one sentence above after those lines;
+a command the wrapper runs or forwards over a transport ssh does not carry shows no line of the wrapper's among them.
 A key the agent holds asks for no passphrase,
 so it still opens the connection.
 A key without a passphrase needs no agent at all:
@@ -14871,6 +14892,16 @@ with `a_second_settlement_of_one_record_lands_the_change_once`,
   called from `stack_if_push` in `entry.rs`).
   The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
   A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
+- A typed `clone`,
+  `fetch`,
+  `pull` or `push` whose remote ssh carries is not replaced:
+  the wrapper reads the remote first and keeps Git as its child with the error stream relayed,
+  so that command does have an "after",
+  and the one sentence it prints there follows Git's own words
+  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
+  and the rule below that keeps the no-prompt list as it is).
+  Every command ssh does not carry keeps the handover above,
+  with its bytes and its signals.
 - The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
   lookups:
   measured while this entry was written at a median 1.9 ms (25 runs,

@@ -33,7 +33,10 @@ use crate::coding::encode_text;
 /// ```ts
 /// import type { XmlDocument, XmlElementId } from './document';
 /// ```
-use crate::document::{XmlDocument, XmlElementId};
+use crate::document::{
+    XmlDocument,
+    XmlElementId,
+};
 /// What:
 /// Import the edit failure type.
 /// Why:
@@ -53,7 +56,14 @@ use crate::error::XmlEditError;
 /// ```ts
 /// import { detectEol, lineIndent, startsOwnLine } from './layout';
 /// ```
-use crate::layout::{blank_tail_end, detect_eol, detect_indent_unit, line_indent, line_start, starts_own_line};
+use crate::layout::{
+    blank_tail_end,
+    detect_eol,
+    detect_indent_unit,
+    line_indent,
+    line_start,
+    starts_own_line,
+};
 /// What:
 /// Import the emitter and its input type.
 /// Why:
@@ -64,7 +74,11 @@ use crate::layout::{blank_tail_end, detect_eol, detect_indent_unit, line_indent,
 /// ```ts
 /// import { renderElement, type Layout, type XmlElementSpec } from './render';
 /// ```
-use crate::render::{render_element, Layout, XmlElementSpec};
+use crate::render::{
+    Layout,
+    XmlElementSpec,
+    render_element,
+};
 
 /// What:
 /// Add the element edits to the document.
@@ -88,7 +102,11 @@ impl XmlDocument {
     /// ```ts
     /// replaceElement(id: XmlElementId, spec: XmlElementSpec): XmlDocument;
     /// ```
-    pub fn replace_element(&self, id: XmlElementId, spec: &XmlElementSpec) -> Result<XmlDocument, XmlEditError> {
+    pub fn replace_element(
+        &self,
+        id: XmlElementId,
+        spec: &XmlElementSpec,
+    ) -> Result<XmlDocument, XmlEditError> {
         let Some(span) = self.span(id) else {
             return Err(XmlEditError::UnknownElement);
         };
@@ -116,13 +134,19 @@ impl XmlDocument {
     /// ```ts
     /// appendChild(parent: XmlElementId, spec: XmlElementSpec): XmlDocument;
     /// ```
-    pub fn append_child(&self, parent: XmlElementId, spec: &XmlElementSpec) -> Result<XmlDocument, XmlEditError> {
+    pub fn append_child(
+        &self,
+        parent: XmlElementId,
+        spec: &XmlElementSpec,
+    ) -> Result<XmlDocument, XmlEditError> {
         let Some(data) = self.data(parent) else {
             return Err(XmlEditError::UnknownElement);
         };
         if data.has_text {
             let element: String = self.source[data.name.start..data.name.end].to_string();
-            return Err(XmlEditError::MixedContent { element });
+            return Err(XmlEditError::MixedContent {
+                element,
+            });
         }
         let parent_indent: &str = line_indent(&self.source, data.start_tag.start);
         let unit: String = detect_indent_unit(&self.source);
@@ -134,12 +158,17 @@ impl XmlDocument {
                 child_indent = line_indent(&self.source, last_start).to_string();
             }
         }
-        let layout: Layout<'_> = Layout { eol, unit: &unit, base_indent: &child_indent };
+        let layout: Layout<'_> = Layout {
+            eol,
+            unit: &unit,
+            base_indent: &child_indent,
+        };
         let rendered: String = render_element(spec, &layout)?;
         let Some(end_tag) = data.end_tag else {
             let name: &str = &self.source[data.name.start..data.name.end];
             let point: usize = XmlDocument::attribute_insertion_point(data);
-            let opened: String = format!(">{eol}{child_indent}{rendered}{eol}{parent_indent}</{name}>");
+            let opened: String =
+                format!(">{eol}{child_indent}{rendered}{eol}{parent_indent}</{name}>");
             return self.splice(point, data.start_tag.end, &opened);
         };
         let Some(content_end) = data.last_content_end else {
@@ -148,7 +177,11 @@ impl XmlDocument {
         };
         let tail: &str = &self.source[content_end..end_tag.start];
         if tail.contains('\n') || tail.contains('\r') {
-            return self.splice(content_end, content_end, &format!("{eol}{child_indent}{rendered}"));
+            return self.splice(
+                content_end,
+                content_end,
+                &format!("{eol}{child_indent}{rendered}"),
+            );
         }
         return self.splice(content_end, content_end, &rendered);
     }
@@ -164,7 +197,10 @@ impl XmlDocument {
     /// ```ts
     /// removeElement(id: XmlElementId): XmlDocument;
     /// ```
-    pub fn remove_element(&self, id: XmlElementId) -> Result<XmlDocument, XmlEditError> {
+    pub fn remove_element(
+        &self,
+        id: XmlElementId,
+    ) -> Result<XmlDocument, XmlEditError> {
         let Some(span) = self.span(id) else {
             return Err(XmlEditError::UnknownElement);
         };
@@ -192,13 +228,19 @@ impl XmlDocument {
     /// ```ts
     /// setText(id: XmlElementId, text: string): XmlDocument;
     /// ```
-    pub fn set_text(&self, id: XmlElementId, text: &str) -> Result<XmlDocument, XmlEditError> {
+    pub fn set_text(
+        &self,
+        id: XmlElementId,
+        text: &str,
+    ) -> Result<XmlDocument, XmlEditError> {
         let Some(data) = self.data(id) else {
             return Err(XmlEditError::UnknownElement);
         };
         let name: &str = &self.source[data.name.start..data.name.end];
         if !data.children.is_empty() || data.has_other_markup {
-            return Err(XmlEditError::MixedContent { element: name.to_string() });
+            return Err(XmlEditError::MixedContent {
+                element: name.to_string(),
+            });
         }
         let encoded: String = encode_text(text)?;
         let Some(end_tag) = data.end_tag else {

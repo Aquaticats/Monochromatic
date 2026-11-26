@@ -3,25 +3,33 @@
 
 /// Parser and subscription under test.
 use crate::process_events::{
+    DatagramSource,
+    MAX_DATAGRAMS_PER_DRAIN,
     build_exec_filter_message,
     build_ignore_message,
-    unsubscribe,
     build_listen_message,
-    enlarge_receive_buffer,
-    subscribe_to_everything,
     drain_exec_events,
     drain_exec_events_from,
+    enlarge_receive_buffer,
     parse_exec_event,
     receive_datagram,
     subscribe,
-    DatagramSource,
-    MAX_DATAGRAMS_PER_DRAIN,
+    subscribe_to_everything,
+    unsubscribe,
 };
 /// Raw descriptors of the user-space netlink sockets.
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 
 /// Builds a kernel-style process-event datagram for `what` with `tgid` in the exec position.
-fn event_datagram(what: u32, tgid: u32, idx: u32) -> Vec<u8> {
+fn event_datagram(
+    what: u32,
+    tgid: u32,
+    idx: u32,
+) -> Vec<u8> {
     let mut datagram: Vec<u8> = Vec::new();
     datagram.extend_from_slice(&76_u32.to_ne_bytes());
     datagram.extend_from_slice(&3_u16.to_ne_bytes());
@@ -74,13 +82,34 @@ fn other_events_and_malformed_input_are_ignored() {
 fn the_listen_message_has_the_documented_layout() {
     let message = build_listen_message(99);
     assert_eq!(message.len(), 40);
-    assert_eq!(u32::from_ne_bytes(message[0..4].try_into().expect("length field")), 40);
-    assert_eq!(u16::from_ne_bytes(message[4..6].try_into().expect("type field")), 3);
-    assert_eq!(u32::from_ne_bytes(message[12..16].try_into().expect("port field")), 99);
-    assert_eq!(u32::from_ne_bytes(message[16..20].try_into().expect("idx field")), 1);
-    assert_eq!(u32::from_ne_bytes(message[20..24].try_into().expect("val field")), 1);
-    assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 4);
-    assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 1);
+    assert_eq!(
+        u32::from_ne_bytes(message[0..4].try_into().expect("length field")),
+        40
+    );
+    assert_eq!(
+        u16::from_ne_bytes(message[4..6].try_into().expect("type field")),
+        3
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[12..16].try_into().expect("port field")),
+        99
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[16..20].try_into().expect("idx field")),
+        1
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[20..24].try_into().expect("val field")),
+        1
+    );
+    assert_eq!(
+        u16::from_ne_bytes(message[32..34].try_into().expect("payload length")),
+        4
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[36..40].try_into().expect("operation")),
+        1
+    );
 }
 
 /// The filter message has the layout of `struct proc_input`:
@@ -91,14 +120,38 @@ fn the_listen_message_has_the_documented_layout() {
 fn the_exec_filter_message_carries_a_proc_input() {
     let message = build_exec_filter_message(99);
     assert_eq!(message.len(), 44);
-    assert_eq!(u32::from_ne_bytes(message[0..4].try_into().expect("length field")), 44);
-    assert_eq!(u16::from_ne_bytes(message[4..6].try_into().expect("type field")), 3);
-    assert_eq!(u32::from_ne_bytes(message[12..16].try_into().expect("port field")), 99);
-    assert_eq!(u32::from_ne_bytes(message[16..20].try_into().expect("idx field")), 1);
-    assert_eq!(u32::from_ne_bytes(message[20..24].try_into().expect("val field")), 1);
-    assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 8);
-    assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 1);
-    assert_eq!(u32::from_ne_bytes(message[40..44].try_into().expect("event mask")), 2);
+    assert_eq!(
+        u32::from_ne_bytes(message[0..4].try_into().expect("length field")),
+        44
+    );
+    assert_eq!(
+        u16::from_ne_bytes(message[4..6].try_into().expect("type field")),
+        3
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[12..16].try_into().expect("port field")),
+        99
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[16..20].try_into().expect("idx field")),
+        1
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[20..24].try_into().expect("val field")),
+        1
+    );
+    assert_eq!(
+        u16::from_ne_bytes(message[32..34].try_into().expect("payload length")),
+        8
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[36..40].try_into().expect("operation")),
+        1
+    );
+    assert_eq!(
+        u32::from_ne_bytes(message[40..44].try_into().expect("event mask")),
+        2
+    );
     assert_eq!(message[4..32], build_listen_message(99)[4..32]);
 }
 
@@ -108,8 +161,14 @@ fn the_ignore_message_carries_the_ignore_operation() {
     let message = build_ignore_message(99);
     assert_eq!(message.len(), 40);
     assert_eq!(message[..32], build_listen_message(99)[..32]);
-    assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 2);
-    assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 4);
+    assert_eq!(
+        u32::from_ne_bytes(message[36..40].try_into().expect("operation")),
+        2
+    );
+    assert_eq!(
+        u16::from_ne_bytes(message[32..34].try_into().expect("payload length")),
+        4
+    );
 }
 
 /// The receive buffer request is honored up to the limit of the host without privilege,
@@ -120,7 +179,10 @@ fn the_receive_buffer_is_enlarged() {
     let before = receive_buffer(&socket);
     enlarge_receive_buffer(&socket, 1_048_576).expect("raise the receive buffer");
     let after = receive_buffer(&socket);
-    assert!(after >= 1_048_576, "the buffer is {after} bytes after the request, {before} before");
+    assert!(
+        after >= 1_048_576,
+        "the buffer is {after} bytes after the request, {before} before"
+    );
 }
 
 /// Reads the size of the receive buffer of a socket.
@@ -128,7 +190,15 @@ fn receive_buffer(socket: &OwnedFd) -> libc::c_int {
     let mut value: libc::c_int = 0;
     let mut length = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
     // SAFETY: the pointers describe the integer and its length for the duration of the call.
-    let result = unsafe { libc::getsockopt(socket.as_raw_fd(), libc::SOL_SOCKET, libc::SO_RCVBUF, std::ptr::addr_of_mut!(value).cast(), &mut length) };
+    let result = unsafe {
+        libc::getsockopt(
+            socket.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_RCVBUF,
+            std::ptr::addr_of_mut!(value).cast(),
+            &mut length,
+        )
+    };
     assert_eq!(result, 0);
     return value;
 }
@@ -137,13 +207,16 @@ fn receive_buffer(socket: &OwnedFd) -> libc::c_int {
 /// Returns the exec,
 /// fork and exit counts that arrived from the kernel.
 fn event_kinds_during_a_child(socket: &OwnedFd) -> (usize, usize, usize) {
-    let mut child = std::process::Command::new("/usr/bin/true").spawn().expect("start the child");
+    let mut child = std::process::Command::new("/usr/bin/true")
+        .spawn()
+        .expect("start the child");
     child.wait().expect("child exits");
     let (mut exec, mut fork, mut exit) = (0, 0, 0);
     let mut buffer = [0_u8; 1024];
     for _ in 0..25 {
         loop {
-            let Ok((length, sender)) = crate::process_events::receive_datagram(socket, &mut buffer) else {
+            let Ok((length, sender)) = crate::process_events::receive_datagram(socket, &mut buffer)
+            else {
                 break;
             };
             if sender != 0 || length < 40 {
@@ -172,14 +245,23 @@ fn event_kinds_during_a_child(socket: &OwnedFd) -> (usize, usize, usize) {
 fn a_filtered_subscription_receives_exec_events_only() {
     let everything = subscribe_to_everything().expect("subscribe to everything");
     let (exec_all, fork_all, exit_all) = event_kinds_during_a_child(&everything);
-    assert!(exec_all > 0 && fork_all > 0 && exit_all > 0, "the control saw exec {exec_all}, fork {fork_all}, exit {exit_all}");
+    assert!(
+        exec_all > 0 && fork_all > 0 && exit_all > 0,
+        "the control saw exec {exec_all}, fork {fork_all}, exit {exit_all}"
+    );
     // The netlink port of the socket is the process id, so the control socket must be closed first.
     drop(everything);
     let filtered = crate::process_events::subscribe().expect("subscribe to exec events");
     let (exec, fork, exit) = event_kinds_during_a_child(&filtered);
     assert!(exec > 0, "the filtered socket saw no exec event");
-    println!("events in one 0.5 s window: unfiltered exec {exec_all}, fork {fork_all}, exit {exit_all}; filtered exec {exec}");
-    assert_eq!((fork, exit), (0, 0), "the filtered socket saw fork {fork} and exit {exit} events");
+    println!(
+        "events in one 0.5 s window: unfiltered exec {exec_all}, fork {fork_all}, exit {exit_all}; filtered exec {exec}"
+    );
+    assert_eq!(
+        (fork, exit),
+        (0, 0),
+        "the filtered socket saw fork {fork} and exit {exit} events"
+    );
 }
 
 /// After the subscription is ended the kernel delivers nothing more to the socket.
@@ -192,12 +274,19 @@ fn a_filtered_subscription_receives_exec_events_only() {
 fn ending_the_subscription_ends_the_delivery() {
     let socket = crate::process_events::subscribe().expect("subscribe to exec events");
     let (before, _fork, _exit) = event_kinds_during_a_child(&socket);
-    assert!(before > 0, "the subscription delivered no exec event before it was ended");
+    assert!(
+        before > 0,
+        "the subscription delivered no exec event before it was ended"
+    );
     unsubscribe(&socket).expect("end the subscription");
     // Events queued before the ignore are drained, then a new child must not be reported.
     let _queued = event_kinds_during_a_child(&socket);
     let (after, fork, exit) = event_kinds_during_a_child(&socket);
-    assert_eq!((after, fork, exit), (0, 0, 0), "the socket still received events after the subscription was ended");
+    assert_eq!(
+        (after, fork, exit),
+        (0, 0, 0),
+        "the socket still received events after the subscription was ended"
+    );
 }
 
 /// Scripted receive results in order,
@@ -210,7 +299,10 @@ struct Scripted {
 /// The scripted source.
 impl DatagramSource for Scripted {
     /// Hands out the next scripted result.
-    fn receive(&mut self, buffer: &mut [u8]) -> std::io::Result<(usize, u32)> {
+    fn receive(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> std::io::Result<(usize, u32)> {
         return match self.queue.next() {
             Some(Ok((bytes, port))) => {
                 buffer[..bytes.len()].copy_from_slice(&bytes);
@@ -224,7 +316,9 @@ impl DatagramSource for Scripted {
 
 /// Builds a scripted source from results.
 fn scripted(results: Vec<std::io::Result<(Vec<u8>, u32)>>) -> Scripted {
-    return Scripted { queue: results.into_iter() };
+    return Scripted {
+        queue: results.into_iter(),
+    };
 }
 
 /// Only datagrams from netlink port 0 count,
@@ -233,7 +327,10 @@ fn scripted(results: Vec<std::io::Result<(Vec<u8>, u32)>>) -> Scripted {
 fn only_the_kernel_port_may_report_an_exec() {
     let exec = event_datagram(2, 4242, 1);
     let mut kernel = scripted(vec![Ok((exec.clone(), 0))]);
-    assert_eq!(drain_exec_events_from(&mut kernel).expect("drain").pids, vec![4242]);
+    assert_eq!(
+        drain_exec_events_from(&mut kernel).expect("drain").pids,
+        vec![4242]
+    );
     let mut forged = scripted(vec![Ok((exec.clone(), 1)), Ok((exec, 31_337))]);
     let drained = drain_exec_events_from(&mut forged).expect("drain");
     assert!(drained.pids.is_empty());
@@ -252,7 +349,10 @@ fn a_dropped_event_report_sets_the_overrun_flag_and_draining_continues() {
     let drained = drain_exec_events_from(&mut source).expect("drain");
     assert!(drained.overrun);
     assert_eq!(drained.pids, vec![7]);
-    let mut quiet = scripted(vec![Ok((event_datagram(2, 8, 1), 0)), Ok((event_datagram(2, 8, 1), 0))]);
+    let mut quiet = scripted(vec![
+        Ok((event_datagram(2, 8, 1), 0)),
+        Ok((event_datagram(2, 8, 1), 0)),
+    ]);
     let quiet_drained = drain_exec_events_from(&mut quiet).expect("drain");
     assert!(!quiet_drained.overrun);
     assert_eq!(quiet_drained.pids, vec![8]);
@@ -270,7 +370,13 @@ fn an_unexpected_receive_error_is_returned() {
 /// and returns it with that port.
 fn user_netlink_socket() -> (OwnedFd, u32) {
     // SAFETY: socket returns a new descriptor on success.
-    let raw = unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK, libc::NETLINK_USERSOCK) };
+    let raw = unsafe {
+        libc::socket(
+            libc::AF_NETLINK,
+            libc::SOCK_DGRAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
+            libc::NETLINK_USERSOCK,
+        )
+    };
     assert!(raw >= 0, "{}", std::io::Error::last_os_error());
     // SAFETY: successful socket returned a descriptor owned here.
     let socket = unsafe { OwnedFd::from_raw_fd(raw) };
@@ -279,10 +385,22 @@ fn user_netlink_socket() -> (OwnedFd, u32) {
     address.nl_family = libc::AF_NETLINK as libc::sa_family_t;
     let mut length = std::mem::size_of::<libc::sockaddr_nl>() as libc::socklen_t;
     // SAFETY: the pointer and length describe the initialized address.
-    let bound = unsafe { libc::bind(socket.as_raw_fd(), std::ptr::addr_of!(address).cast(), length) };
+    let bound = unsafe {
+        libc::bind(
+            socket.as_raw_fd(),
+            std::ptr::addr_of!(address).cast(),
+            length,
+        )
+    };
     assert_eq!(bound, 0, "{}", std::io::Error::last_os_error());
     // SAFETY: the pointer and length describe writable address storage.
-    let named = unsafe { libc::getsockname(socket.as_raw_fd(), std::ptr::addr_of_mut!(address).cast(), &mut length) };
+    let named = unsafe {
+        libc::getsockname(
+            socket.as_raw_fd(),
+            std::ptr::addr_of_mut!(address).cast(),
+            &mut length,
+        )
+    };
     assert_eq!(named, 0);
     return (socket, address.nl_pid);
 }
@@ -340,7 +458,9 @@ fn a_local_process_cannot_forge_an_exec_event_over_a_real_socket() {
 #[ignore = "needs the kernel process-event connector"]
 fn a_live_subscription_reports_the_exec_of_a_child() {
     let socket = subscribe().expect("subscribe to process events");
-    let mut child = std::process::Command::new("/usr/bin/true").spawn().expect("start the child");
+    let mut child = std::process::Command::new("/usr/bin/true")
+        .spawn()
+        .expect("start the child");
     let pid = i32::try_from(child.id()).expect("pid fits");
     child.wait().expect("child exits");
     let mut seen = false;
@@ -365,7 +485,10 @@ struct Endless {
 /// The endless source.
 impl DatagramSource for Endless {
     /// Hands out a valid exec event from the kernel port every time.
-    fn receive(&mut self, buffer: &mut [u8]) -> std::io::Result<(usize, u32)> {
+    fn receive(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> std::io::Result<(usize, u32)> {
         let datagram = event_datagram(2, 1000 + u32::try_from(self.handed % 50).expect("small"), 1);
         buffer[..datagram.len()].copy_from_slice(&datagram);
         self.handed += 1;
@@ -378,7 +501,9 @@ impl DatagramSource for Endless {
 /// and it reports each pid once however often it appeared.
 #[test]
 fn a_drain_is_bounded_and_deduplicates() {
-    let mut source = Endless { handed: 0 };
+    let mut source = Endless {
+        handed: 0,
+    };
     let drained = drain_exec_events_from(&mut source).expect("drain");
     assert_eq!(source.handed, MAX_DATAGRAMS_PER_DRAIN);
     assert_eq!(drained.pids.len(), 50);

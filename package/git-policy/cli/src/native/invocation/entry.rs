@@ -400,21 +400,56 @@ pub fn run_process(
                 write_stream(&mut std::io::stderr(), text);
                 return REJECTED_EXIT_CODE;
             }
+            // What: A typed network command whose remote ssh carries relays Git's error stream and names the next step after a
+            //       refusal; every other command keeps the process replacement it has today.
+            // Why:  Only a command ssh carries is relayed (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`),
+            //       and a refused start is reported in the words this arm always used.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const relayed = relayWhenSshCarries(git, argv, env, 'person');
+            // if (relayed?.ran !== undefined) return relayed.ran; if (relayed?.error) return reportCannotStart(relayed.error);
+            // ```
+            // What: One report for a Git that could not be started, whichever way this arm tried to start it.
+            // Why:  The relayed start and the process replacement fail for the same reasons, and one refusal must not be worded
+            //       two ways.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const cannotStart = (error) => write(2, `monochromatic-git-policy-cli: cannot start ${git}: ${error}...`);
+            // ```
+            let cannot_start = |error: &std::io::Error| {
+                write_stream(
+                    &mut std::io::stderr(),
+                    format!(
+                        "monochromatic-git-policy-cli: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
+                         then reinstall Git or the wrapper; no Git command ran.\n",
+                        real_git.display(),
+                        real_git.display()
+                    )
+                    .as_str(),
+                );
+            };
+            #[cfg(unix)]
+            match crate::typed_network_command_relay::relay_when_ssh_carries(
+                real_git.as_path(),
+                forwarded.as_slice(),
+                overlay.as_slice(),
+                crate::hooks_off::StartOwner::Person,
+            ) {
+                Some(Ok(ending)) => return ending.exit_code(),
+                Some(Err(error)) => {
+                    cannot_start(&error);
+                    return ENGINE_FAILURE_EXIT_CODE;
+                }
+                None => {}
+            }
             let error: std::io::Error = replace_process_with_real_git(
                 real_git.as_path(),
                 forwarded.as_slice(),
                 overlay.as_slice(),
             );
-            write_stream(
-                &mut std::io::stderr(),
-                format!(
-                    "monochromatic-git-policy-cli: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
-                     then reinstall Git or the wrapper; no Git command ran.\n",
-                    real_git.display(),
-                    real_git.display()
-                )
-                .as_str(),
-            );
+            cannot_start(&error);
             return ENGINE_FAILURE_EXIT_CODE;
         }
         Action::ForwardCoordinated { forward, stderr } => {

@@ -4,15 +4,22 @@
 //! the Pi agent units and the updates slice.
 //! What each application is called and which programs belong to it lives in `desktop_applications`.
 
-/// The applications a name claims and the programs that prove one is there,
-/// which the scan reads and the rest of the program reaches through this module.
-pub use crate::desktop_applications::{DesktopApplication, desktop_application_of_name, is_application_executable};
 /// The programs of the applications that carry no cgroup name of their own.
 use crate::desktop_applications::is_exempt_application_executable;
+/// The applications a name claims and the programs that prove one is there,
+/// which the scan reads and the rest of the program reaches through this module.
+pub use crate::desktop_applications::{
+    DesktopApplication,
+    desktop_application_of_name,
+    is_application_executable,
+};
 /// Filesystem and process-race failures.
 use std::io;
 /// Target and fixture roots.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Prefix of the transient user units the repository's Pi agents run in,
 /// one unit per agent run,
@@ -54,14 +61,19 @@ pub fn is_toolchain_updates_slice_name(name: &str) -> bool {
 /// The cgroup path of the updates slice of `uid`,
 /// as `/proc/<pid>/cgroup` spells it.
 pub fn updates_slice_cgroup(uid: u32) -> String {
-    return format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}");
+    return format!(
+        "/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}"
+    );
 }
 
 /// Reports whether `cgroup` is the updates slice itself or lies below it.
 /// Whole path components are compared:
 /// a unit the user named after the slice is somewhere else,
 /// and a process in it is moved like any other.
-pub fn is_in_updates_slice(cgroup: &str, uid: u32) -> bool {
+pub fn is_in_updates_slice(
+    cgroup: &str,
+    uid: u32,
+) -> bool {
     let slice = updates_slice_cgroup(uid);
     return cgroup == slice || cgroup.starts_with(&format!("{slice}/"));
 }
@@ -84,7 +96,10 @@ pub fn is_pi_service_name(name: &str) -> bool {
 /// a Pi agent's unit and the updates slice,
 /// the two names the owner accepted as names alone.
 /// Every desktop application's name needs the application's own program in the cgroup it names.
-pub fn is_unconditionally_marked_cgroup(cgroup: &str, uid: u32) -> bool {
+pub fn is_unconditionally_marked_cgroup(
+    cgroup: &str,
+    uid: u32,
+) -> bool {
     let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/");
     let Some(leaf) = cgroup.strip_prefix(&prefix) else {
         return false;
@@ -116,7 +131,10 @@ fn unified_cgroup_path(text: &str) -> Option<&str> {
 }
 
 /// Adds path once while preserving simple linear collection semantics.
-fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
+fn push_unique(
+    paths: &mut Vec<PathBuf>,
+    path: PathBuf,
+) {
     if !paths.contains(&path) {
         paths.push(path);
     }
@@ -164,7 +182,10 @@ fn read_application_processes(roots: &ScanRoots<'_>) -> io::Result<Vec<Applicati
         };
         let target = roots.cgroup_root.join(relative.trim_start_matches('/'));
         if target.starts_with(roots.app_slice) && target.is_dir() {
-            processes.push(ApplicationProcess { cgroup: target, executable });
+            processes.push(ApplicationProcess {
+                cgroup: target,
+                executable,
+            });
         }
     }
     return Ok(processes);
@@ -173,9 +194,14 @@ fn read_application_processes(roots: &ScanRoots<'_>) -> io::Result<Vec<Applicati
 /// Reports whether a cgroup,
 /// or a cgroup below it,
 /// holds a process running `application`'s program.
-fn holds_application(application: DesktopApplication, directory: &Path, processes: &[ApplicationProcess]) -> bool {
+fn holds_application(
+    application: DesktopApplication,
+    directory: &Path,
+    processes: &[ApplicationProcess],
+) -> bool {
     return processes.iter().any(|process| {
-        return process.cgroup.starts_with(directory) && is_application_executable(application, &process.executable);
+        return process.cgroup.starts_with(directory)
+            && is_application_executable(application, &process.executable);
     });
 }
 
@@ -232,7 +258,9 @@ fn scan_named_cgroups(
 fn read_process_file(path: &Path) -> io::Result<Option<String>> {
     match std::fs::read_to_string(path) {
         Ok(text) => return Ok(Some(text)),
-        Err(error) if means_vanished(&error) || error.kind() == io::ErrorKind::PermissionDenied => return Ok(None),
+        Err(error) if means_vanished(&error) || error.kind() == io::ErrorKind::PermissionDenied => {
+            return Ok(None);
+        }
         Err(error) => return Err(error),
     }
 }
@@ -241,7 +269,9 @@ fn read_process_file(path: &Path) -> io::Result<Option<String>> {
 fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
     match std::fs::read_link(path) {
         Ok(executable) => return Ok(Some(executable)),
-        Err(error) if means_vanished(&error) || error.kind() == io::ErrorKind::PermissionDenied => return Ok(None),
+        Err(error) if means_vanished(&error) || error.kind() == io::ErrorKind::PermissionDenied => {
+            return Ok(None);
+        }
         Err(error) => return Err(error),
     }
 }
@@ -266,7 +296,10 @@ fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
 ///   // Add live Helium, Pale Moon, Firefox release, and Nightly cgroups or throw an I/O error.
 /// }
 /// ```
-fn scan_exempt_application_processes(processes: &[ApplicationProcess], targets: &mut Vec<PathBuf>) {
+fn scan_exempt_application_processes(
+    processes: &[ApplicationProcess],
+    targets: &mut Vec<PathBuf>,
+) {
     for process in processes {
         if is_exempt_application_executable(&process.executable) {
             push_unique(targets, process.cgroup.clone());
@@ -302,7 +335,10 @@ pub fn scan_application_targets(roots: &ScanRoots<'_>) -> io::Result<Application
     targets.dedup();
     without_application.sort();
     without_application.dedup();
-    return Ok(ApplicationScan { targets, without_application });
+    return Ok(ApplicationScan {
+        targets,
+        without_application,
+    });
 }
 
 /// Builds production user `app.slice` path from numeric UID.

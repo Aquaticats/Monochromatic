@@ -44,7 +44,10 @@ use crate::chars::is_xml_name;
 /// ```ts
 /// import { encodeAttributeValue, encodeText } from './coding';
 /// ```
-use crate::coding::{encode_attribute_value, encode_text};
+use crate::coding::{
+    encode_attribute_value,
+    encode_text,
+};
 /// What:
 /// Import the edit failure type.
 /// Why:
@@ -131,7 +134,11 @@ impl XmlElementSpec {
     /// static named(name: string): XmlElementSpec;
     /// ```
     pub fn named(name: &str) -> XmlElementSpec {
-        return XmlElementSpec { name: name.to_string(), attributes: Vec::new(), children: Vec::new() };
+        return XmlElementSpec {
+            name: name.to_string(),
+            attributes: Vec::new(),
+            children: Vec::new(),
+        };
     }
 
     /// What:
@@ -143,7 +150,11 @@ impl XmlElementSpec {
     /// ```ts
     /// withAttribute(name: string, value: string): XmlElementSpec;
     /// ```
-    pub fn with_attribute(mut self, name: &str, value: &str) -> XmlElementSpec {
+    pub fn with_attribute(
+        mut self,
+        name: &str,
+        value: &str,
+    ) -> XmlElementSpec {
         self.attributes.push((name.to_string(), value.to_string()));
         return self;
     }
@@ -157,7 +168,10 @@ impl XmlElementSpec {
     /// ```ts
     /// withChild(child: XmlElementSpec): XmlElementSpec;
     /// ```
-    pub fn with_child(mut self, child: XmlElementSpec) -> XmlElementSpec {
+    pub fn with_child(
+        mut self,
+        child: XmlElementSpec,
+    ) -> XmlElementSpec {
         self.children.push(XmlNodeSpec::Element(child));
         return self;
     }
@@ -171,7 +185,10 @@ impl XmlElementSpec {
     /// ```ts
     /// withText(text: string): XmlElementSpec;
     /// ```
-    pub fn with_text(mut self, text: &str) -> XmlElementSpec {
+    pub fn with_text(
+        mut self,
+        text: &str,
+    ) -> XmlElementSpec {
         self.children.push(XmlNodeSpec::Text(text.to_string()));
         return self;
     }
@@ -209,19 +226,28 @@ pub(crate) struct Layout<'a> {
 /// ```ts
 /// function writeOpening(spec: XmlElementSpec, output: string[]): boolean;
 /// ```
-fn write_opening(spec: &XmlElementSpec, output: &mut String) -> Result<bool, XmlEditError> {
+fn write_opening(
+    spec: &XmlElementSpec,
+    output: &mut String,
+) -> Result<bool, XmlEditError> {
     if !is_xml_name(&spec.name) {
-        return Err(XmlEditError::InvalidName { name: spec.name.clone() });
+        return Err(XmlEditError::InvalidName {
+            name: spec.name.clone(),
+        });
     }
     output.push('<');
     output.push_str(&spec.name);
     let mut seen: HashSet<&str> = HashSet::new();
     for (name, value) in &spec.attributes {
         if !is_xml_name(name) {
-            return Err(XmlEditError::InvalidName { name: name.clone() });
+            return Err(XmlEditError::InvalidName {
+                name: name.clone(),
+            });
         }
         if !seen.insert(name) {
-            return Err(XmlEditError::DuplicateAttribute { name: name.clone() });
+            return Err(XmlEditError::DuplicateAttribute {
+                name: name.clone(),
+            });
         }
         output.push(' ');
         output.push_str(name);
@@ -244,7 +270,9 @@ fn write_opening(spec: &XmlElementSpec, output: &mut String) -> Result<bool, Xml
         return Ok(true);
     }
     if texts != spec.children.len() {
-        return Err(XmlEditError::MixedContent { element: spec.name.clone() });
+        return Err(XmlEditError::MixedContent {
+            element: spec.name.clone(),
+        });
     }
     output.push('>');
     for child in &spec.children {
@@ -268,7 +296,10 @@ fn write_opening(spec: &XmlElementSpec, output: &mut String) -> Result<bool, Xml
 /// ```ts
 /// function renderElement(spec: XmlElementSpec, layout: Layout): string;
 /// ```
-pub(crate) fn render_element(spec: &XmlElementSpec, layout: &Layout<'_>) -> Result<String, XmlEditError> {
+pub(crate) fn render_element(
+    spec: &XmlElementSpec,
+    layout: &Layout<'_>,
+) -> Result<String, XmlEditError> {
     let mut output: String = String::new();
     let mut stack: Vec<(&XmlElementSpec, usize)> = Vec::new();
     if write_opening(spec, &mut output)? {

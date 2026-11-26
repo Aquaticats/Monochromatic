@@ -6,14 +6,21 @@
 //! must neither hang the start of a tunnel
 //! nor look their program up in a search path the caller chose.
 
-/// Reading what the command printed.
-use std::io::Read;
 /// Arguments that need not be text.
 use std::ffi::OsString;
+/// Reading what the command printed.
+use std::io::Read;
 /// Starting the command.
-use std::process::{Child, Command, Stdio};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 /// The time limit.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The search path the command gets,
 /// and the one its program is looked up in.
@@ -58,7 +65,11 @@ fn kill_and_reap(child: &mut Child) {
 /// Runs `program` with `arguments`,
 /// with a cleared environment that holds only a fixed search path,
 /// and ends it when it has not finished within `limit`.
-pub fn run_bounded(program: &str, arguments: &[OsString], limit: Duration) -> Result<BoundedOutput, String> {
+pub fn run_bounded(
+    program: &str,
+    arguments: &[OsString],
+    limit: Duration,
+) -> Result<BoundedOutput, String> {
     let mut child = Command::new(program)
         .env_clear()
         .env("PATH", SECURE_PATH)
@@ -82,7 +93,9 @@ pub fn run_bounded(program: &str, arguments: &[OsString], limit: Duration) -> Re
             None => {
                 if Instant::now() >= deadline {
                     kill_and_reap(&mut child);
-                    return Err(format!("{program} did not finish within {limit:?} and was ended"));
+                    return Err(format!(
+                        "{program} did not finish within {limit:?} and was ended"
+                    ));
                 }
                 std::thread::sleep(POLL_INTERVAL);
             }

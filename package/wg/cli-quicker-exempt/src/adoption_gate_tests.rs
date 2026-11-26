@@ -5,18 +5,26 @@
 //! and the gate file it creates carries no permission for anyone else.
 
 /// The gate under test.
-use crate::adoption_gate::{acquire_within, adoption_gate_path, try_acquire};
+use crate::adoption_gate::{
+    acquire_within,
+    adoption_gate_path,
+    try_acquire,
+};
 /// Unix file mode of the gate.
 use std::os::unix::fs::PermissionsExt;
 /// Fixture paths.
 use std::path::PathBuf;
 /// Bounded waits.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// A directory of this test,
 /// emptied first.
 fn gate_root(name: &str) -> PathBuf {
-    let directory = crate::test_scratch::scratch_root().join(format!("wg-quicker-gate-{name}-{}", std::process::id()));
+    let directory = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-gate-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&directory);
     std::fs::create_dir_all(&directory).expect("make the gate directory");
     return directory;
@@ -34,12 +42,27 @@ fn own_uid() -> u32 {
 fn one_holder_is_let_in_and_the_next_is_answered_at_once() {
     let root = gate_root("exclusive");
     let uid = own_uid();
-    let first = try_acquire(&root, uid).expect("the first ask answers").expect("the gate is free");
+    let first = try_acquire(&root, uid)
+        .expect("the first ask answers")
+        .expect("the gate is free");
     let started = Instant::now();
-    assert!(try_acquire(&root, uid).expect("the second ask answers").is_none(), "a second holder was let in");
-    assert!(started.elapsed() < Duration::from_secs(1), "the refused ask waited");
+    assert!(
+        try_acquire(&root, uid)
+            .expect("the second ask answers")
+            .is_none(),
+        "a second holder was let in"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "the refused ask waited"
+    );
     drop(first);
-    assert!(try_acquire(&root, uid).expect("the third ask answers").is_some(), "the released gate stayed taken");
+    assert!(
+        try_acquire(&root, uid)
+            .expect("the third ask answers")
+            .is_some(),
+        "the released gate stayed taken"
+    );
 }
 
 /// A wait for a held gate ends at its limit,
@@ -48,15 +71,31 @@ fn one_holder_is_let_in_and_the_next_is_answered_at_once() {
 fn a_wait_ends_at_its_limit_while_another_holder_has_the_gate() {
     let root = gate_root("wait");
     let uid = own_uid();
-    let held = try_acquire(&root, uid).expect("the first ask answers").expect("the gate is free");
+    let held = try_acquire(&root, uid)
+        .expect("the first ask answers")
+        .expect("the gate is free");
     let started = Instant::now();
     let waited = acquire_within(&root, uid, Duration::from_millis(100)).expect("the wait answers");
     let elapsed = started.elapsed();
-    assert!(waited.is_none(), "the wait answered a gate another holder had");
-    assert!(elapsed >= Duration::from_millis(100), "the wait ended before its limit: {elapsed:?}");
-    assert!(elapsed < Duration::from_secs(2), "the wait outlived its limit: {elapsed:?}");
+    assert!(
+        waited.is_none(),
+        "the wait answered a gate another holder had"
+    );
+    assert!(
+        elapsed >= Duration::from_millis(100),
+        "the wait ended before its limit: {elapsed:?}"
+    );
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "the wait outlived its limit: {elapsed:?}"
+    );
     drop(held);
-    assert!(acquire_within(&root, uid, Duration::from_millis(100)).expect("the second wait answers").is_some(), "a freed gate was not taken");
+    assert!(
+        acquire_within(&root, uid, Duration::from_millis(100))
+            .expect("the second wait answers")
+            .is_some(),
+        "a freed gate was not taken"
+    );
 }
 
 /// The gate file is named for the watched user,
@@ -69,7 +108,16 @@ fn the_gate_is_named_for_the_user_and_only_its_owner_may_open_it() {
     let first = adoption_gate_path(&root, 1000);
     let second = adoption_gate_path(&root, 1001);
     assert_ne!(first, second);
-    let _held = try_acquire(&root, 1000).expect("the ask answers").expect("the gate is free");
-    let mode = std::fs::metadata(&first).expect("the gate file exists").permissions().mode();
-    assert_eq!(mode & 0o777, 0o600, "the gate file is readable by others: {mode:o}");
+    let _held = try_acquire(&root, 1000)
+        .expect("the ask answers")
+        .expect("the gate is free");
+    let mode = std::fs::metadata(&first)
+        .expect("the gate file exists")
+        .permissions()
+        .mode();
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "the gate file is readable by others: {mode:o}"
+    );
 }

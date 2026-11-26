@@ -15,15 +15,20 @@
 //! A probe that cannot tell is treated as a system that keeps running,
 //! so a failing probe never hides a death.
 
-/// Non-panicking log.
-use crate::log_line::log_line;
 /// Commands with a time limit and a fixed search path.
 use crate::bounded_command::run_bounded;
+/// Non-panicking log.
+use crate::log_line::log_line;
 /// The time limit.
 use std::time::Duration;
 
 /// Arguments of `systemctl` that print the state of `shutdown.target` alone and exit with zero for any state.
-const SHOW_ARGUMENTS: [&str; 4] = ["show", "--property=ActiveState", "--value", "shutdown.target"];
+const SHOW_ARGUMENTS: [&str; 4] = [
+    "show",
+    "--property=ActiveState",
+    "--value",
+    "shutdown.target",
+];
 
 /// Time `systemctl` may take before it is ended.
 const PROBE_LIMIT: Duration = Duration::from_secs(5);
@@ -47,15 +52,24 @@ pub struct HostSystemState;
 impl SystemState for HostSystemState {
     /// True when `shutdown.target` is active or activating.
     fn is_stopping(&self) -> bool {
-        let arguments: Vec<std::ffi::OsString> = SHOW_ARGUMENTS.iter().map(std::ffi::OsString::from).collect();
+        let arguments: Vec<std::ffi::OsString> = SHOW_ARGUMENTS
+            .iter()
+            .map(std::ffi::OsString::from)
+            .collect();
         return match run_bounded("systemctl", &arguments, PROBE_LIMIT) {
             Ok(output) if output.success => shutdown_target_means_stopping(&output.stdout),
             Ok(output) => {
-                log_line(&format!("systemctl could not tell whether the system is stopping ({}: {}), so it is judged to keep running", output.status, output.stderr.trim()));
+                log_line(&format!(
+                    "systemctl could not tell whether the system is stopping ({}: {}), so it is judged to keep running",
+                    output.status,
+                    output.stderr.trim()
+                ));
                 false
             }
             Err(error) => {
-                log_line(&format!("systemctl could not tell whether the system is stopping ({error}), so it is judged to keep running"));
+                log_line(&format!(
+                    "systemctl could not tell whether the system is stopping ({error}), so it is judged to keep running"
+                ));
                 false
             }
         };

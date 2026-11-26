@@ -12,29 +12,82 @@
 //! describe('api surface', () => { /* chars, layout, spec builders, errors */ });
 //! ```
 
-use crate::chars::{is_name_char, is_name_start_char, is_xml_char, is_xml_name, is_xml_space};
-use crate::layout::{blank_tail_end, detect_eol, detect_indent_unit, line_indent, line_start, starts_own_line};
-use crate::{parse_xml, XmlEditError, XmlElementSpec, XmlNodeSpec, XmlParseError};
+use crate::chars::{
+    is_name_char,
+    is_name_start_char,
+    is_xml_char,
+    is_xml_name,
+    is_xml_space,
+};
+use crate::layout::{
+    blank_tail_end,
+    detect_eol,
+    detect_indent_unit,
+    line_indent,
+    line_start,
+    starts_own_line,
+};
+use crate::{
+    XmlEditError,
+    XmlElementSpec,
+    XmlNodeSpec,
+    XmlParseError,
+    parse_xml,
+};
 
 /// Check the character classes at their boundaries.
 #[test]
 fn character_classes_follow_the_grammar() {
-    for allowed in ['\t', '\n', '\r', ' ', '\u{D7FF}', '\u{E000}', '\u{FFFD}', '\u{10000}', '\u{10FFFF}'] {
+    for allowed in [
+        '\t',
+        '\n',
+        '\r',
+        ' ',
+        '\u{D7FF}',
+        '\u{E000}',
+        '\u{FFFD}',
+        '\u{10000}',
+        '\u{10FFFF}',
+    ] {
         assert!(is_xml_char(allowed), "{allowed:?}");
     }
-    for refused in ['\u{0}', '\u{8}', '\u{B}', '\u{C}', '\u{E}', '\u{1F}', '\u{FFFE}', '\u{FFFF}'] {
+    for refused in [
+        '\u{0}', '\u{8}', '\u{B}', '\u{C}', '\u{E}', '\u{1F}', '\u{FFFE}', '\u{FFFF}',
+    ] {
         assert!(!is_xml_char(refused), "{refused:?}");
     }
-    assert!(is_xml_space(b' ') && is_xml_space(b'\t') && is_xml_space(b'\r') && is_xml_space(b'\n'));
+    assert!(
+        is_xml_space(b' ') && is_xml_space(b'\t') && is_xml_space(b'\r') && is_xml_space(b'\n')
+    );
     assert!(!is_xml_space(0xA0) && !is_xml_space(b'x'));
-    for start in [':', '_', 'a', 'Z', '\u{C0}', '\u{37F}', '\u{200C}', '\u{2070}', '\u{2C00}', '\u{3001}', '\u{F900}', '\u{FDF0}', '\u{10000}'] {
+    for start in [
+        ':',
+        '_',
+        'a',
+        'Z',
+        '\u{C0}',
+        '\u{37F}',
+        '\u{200C}',
+        '\u{2070}',
+        '\u{2C00}',
+        '\u{3001}',
+        '\u{F900}',
+        '\u{FDF0}',
+        '\u{10000}',
+    ] {
         assert!(is_name_start_char(start), "{start:?}");
     }
     for other in ['-', '.', '0', '\u{B7}', '\u{300}', '\u{203F}'] {
-        assert!(!is_name_start_char(other) && is_name_char(other), "{other:?}");
+        assert!(
+            !is_name_start_char(other) && is_name_char(other),
+            "{other:?}"
+        );
     }
     for refused in [' ', '<', '=', '\u{D7}', '\u{F7}', '\u{2000}', '\u{E000}'] {
-        assert!(!is_name_start_char(refused) && !is_name_char(refused), "{refused:?}");
+        assert!(
+            !is_name_start_char(refused) && !is_name_char(refused),
+            "{refused:?}"
+        );
     }
     for name in ["a", "_", "a:b", "x-y.z9", "\u{e9}t\u{e9}"] {
         assert!(is_xml_name(name), "{name}");
@@ -81,7 +134,10 @@ fn element_specs_build_up() {
         .with_text("t");
     assert_eq!(spec.name, "a");
     assert_eq!(spec.attributes, vec![("k".to_string(), "v".to_string())]);
-    assert_eq!(spec.children[0], XmlNodeSpec::Element(XmlElementSpec::named("b")));
+    assert_eq!(
+        spec.children[0],
+        XmlNodeSpec::Element(XmlElementSpec::named("b"))
+    );
     assert_eq!(spec.children[1], XmlNodeSpec::Text("t".to_string()));
 }
 
@@ -91,11 +147,37 @@ fn edit_errors_print_their_cause() {
     let inner: XmlParseError = parse_xml("<a>").expect_err("unclosed");
     let cases: [(XmlEditError, &str); 8] = [
         (XmlEditError::UnknownElement, "does not belong"),
-        (XmlEditError::AttributeNotFound { name: "k".to_string() }, "\"k\""),
-        (XmlEditError::InvalidName { name: "1x".to_string() }, "\"1x\""),
-        (XmlEditError::DuplicateAttribute { name: "k".to_string() }, "more than once"),
-        (XmlEditError::InvalidCharacter { context: "text content".to_string(), character: '\u{1}' }, "U+0001"),
-        (XmlEditError::MixedContent { element: "a".to_string() }, "\"a\""),
+        (
+            XmlEditError::AttributeNotFound {
+                name: "k".to_string(),
+            },
+            "\"k\"",
+        ),
+        (
+            XmlEditError::InvalidName {
+                name: "1x".to_string(),
+            },
+            "\"1x\"",
+        ),
+        (
+            XmlEditError::DuplicateAttribute {
+                name: "k".to_string(),
+            },
+            "more than once",
+        ),
+        (
+            XmlEditError::InvalidCharacter {
+                context: "text content".to_string(),
+                character: '\u{1}',
+            },
+            "U+0001",
+        ),
+        (
+            XmlEditError::MixedContent {
+                element: "a".to_string(),
+            },
+            "\"a\"",
+        ),
         (XmlEditError::CannotRemoveRoot, "no root"),
         (XmlEditError::RejectedResult(inner), "invalid XML"),
     ];

@@ -5,7 +5,10 @@
 //! and a cgroup that regains its application is reported again if it loses it later.
 
 /// The decision under test.
-use crate::application_marks::{decide_marks, reports_that_still_apply};
+use crate::application_marks::{
+    decide_marks,
+    reports_that_still_apply,
+};
 /// What one scan found.
 use crate::application_targets::ApplicationScan;
 /// Cgroup paths.
@@ -24,7 +27,10 @@ fn cgroup(name: &str) -> PathBuf {
 }
 
 /// A scan that selected `targets` and found `without_application` claiming a name alone.
-fn scan(targets: &[PathBuf], without_application: &[PathBuf]) -> ApplicationScan {
+fn scan(
+    targets: &[PathBuf],
+    without_application: &[PathBuf],
+) -> ApplicationScan {
     return ApplicationScan {
         targets: targets.to_vec(),
         without_application: without_application.to_vec(),
@@ -40,10 +46,22 @@ fn scan(targets: &[PathBuf], without_application: &[PathBuf]) -> ApplicationScan
 #[test]
 fn a_mark_comes_off_when_the_scan_no_longer_selects_its_cgroup() {
     let firefox = cgroup("app-firefox@fixture.service");
-    let decision = decide_marks(std::slice::from_ref(&firefox), &scan(&[], std::slice::from_ref(&firefox)), &[]);
-    assert_eq!(decision.keep, Vec::<PathBuf>::new(), "the mark stayed on a cgroup with no application in it");
+    let decision = decide_marks(
+        std::slice::from_ref(&firefox),
+        &scan(&[], std::slice::from_ref(&firefox)),
+        &[],
+    );
+    assert_eq!(
+        decision.keep,
+        Vec::<PathBuf>::new(),
+        "the mark stayed on a cgroup with no application in it"
+    );
     assert_eq!(decision.release, vec![firefox.clone()]);
-    assert_eq!(decision.report, vec![firefox], "the person is told the mark is not attached");
+    assert_eq!(
+        decision.report,
+        vec![firefox],
+        "the person is told the mark is not attached"
+    );
 }
 
 /// A mark on a cgroup the scan still selects stays,
@@ -51,7 +69,11 @@ fn a_mark_comes_off_when_the_scan_no_longer_selects_its_cgroup() {
 #[test]
 fn a_mark_stays_while_the_scan_selects_its_cgroup() {
     let firefox = cgroup("app-firefox@fixture.service");
-    let decision = decide_marks(std::slice::from_ref(&firefox), &scan(std::slice::from_ref(&firefox), &[]), &[]);
+    let decision = decide_marks(
+        std::slice::from_ref(&firefox),
+        &scan(std::slice::from_ref(&firefox), &[]),
+        &[],
+    );
     assert_eq!(decision.keep, vec![firefox]);
     assert_eq!(decision.release, Vec::<PathBuf>::new());
     assert_eq!(decision.report, Vec::<PathBuf>::new());
@@ -65,10 +87,20 @@ fn a_cgroup_is_reported_once_and_reported_again_after_it_regains_its_application
     let firefox = cgroup("app-firefox@fixture.service");
     let found = scan(&[], std::slice::from_ref(&firefox));
     assert_eq!(decide_marks(&[], &found, &[]).report, vec![firefox.clone()]);
-    assert_eq!(decide_marks(&[], &found, std::slice::from_ref(&firefox)).report, Vec::<PathBuf>::new(), "the same line is repeated for ever");
+    assert_eq!(
+        decide_marks(&[], &found, std::slice::from_ref(&firefox)).report,
+        Vec::<PathBuf>::new(),
+        "the same line is repeated for ever"
+    );
     let selected_again = scan(std::slice::from_ref(&firefox), &[]);
-    assert_eq!(reports_that_still_apply(std::slice::from_ref(&firefox), &selected_again), Vec::<PathBuf>::new());
-    assert_eq!(reports_that_still_apply(std::slice::from_ref(&firefox), &found), vec![firefox]);
+    assert_eq!(
+        reports_that_still_apply(std::slice::from_ref(&firefox), &selected_again),
+        Vec::<PathBuf>::new()
+    );
+    assert_eq!(
+        reports_that_still_apply(std::slice::from_ref(&firefox), &found),
+        vec![firefox]
+    );
 }
 
 /// A mark on a cgroup the scan never mentions comes off too,
@@ -78,5 +110,9 @@ fn a_mark_on_a_cgroup_the_scan_does_not_mention_comes_off() {
     let gone = cgroup("app-org.chromium.Chromium-42.scope");
     let decision = decide_marks(std::slice::from_ref(&gone), &scan(&[], &[]), &[]);
     assert_eq!(decision.release, vec![gone]);
-    assert_eq!(decision.report, Vec::<PathBuf>::new(), "a cgroup the scan did not mention claims no application name");
+    assert_eq!(
+        decision.report,
+        Vec::<PathBuf>::new(),
+        "a cgroup the scan did not mention claims no application name"
+    );
 }
