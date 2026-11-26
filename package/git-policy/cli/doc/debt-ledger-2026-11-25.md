@@ -235,6 +235,17 @@ and five threaded-only failures are filed and open:
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
 
+Round of 2026-11-26:
+issue 6495 is fixed by giving one control a helper process of its own,
+`worktree::worktree_clean`'s one-place control (`3a4f2ee6d8`).
+Measured there: a threaded module run has already made the budget with seven places,
+so `hold_blocking_jobs_to(1)` arrived too late and the control held one place of seven;
+the same control passed in other runs because another test's job happened to be waiting.
+That fixes the one site and not the shared helper:
+`hold_the_only_place` holds the process's only place only where it is the process's
+first blocking-job user, which is issue 6477,
+and the other call sites of it are unchanged.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
