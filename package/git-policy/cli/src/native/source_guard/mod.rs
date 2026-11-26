@@ -74,6 +74,13 @@ mod no_test_changes_the_process_directory_tests;
 #[path = "records_read_without_blocking_tests.rs"]
 mod records_read_without_blocking_tests;
 
+/// No release file outside the plain-file reader reads a file with a call that can wait,
+/// and the sites that stay are on a list that only shrinks,
+/// each entry naming the class whose reason keeps it.
+#[cfg(test)]
+#[path = "raw_file_reads_tests.rs"]
+mod raw_file_reads_tests;
+
 /// The owner's move to tokio needs its workers to await:
 /// no thread,
 /// no sleeping clock,

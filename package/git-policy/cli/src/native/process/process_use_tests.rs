@@ -418,16 +418,17 @@ impl Watches {
     /// Start a holder with `count` watches below `root`.
     fn start(root: &Path, count: usize) -> Watches {
         let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-        let mut child: std::process::Child = Command::new(binary)
+        let mut command: Command = Command::new(binary);
+        command
             .args(["--exact", HOLD_WATCHES_TEST, "--nocapture", "--test-threads=1"])
             .env(HOLD_WATCHES_ROOT, root)
             .env(HOLD_WATCHES_COUNT, count.to_string())
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("the holder starts");
-        crate::test_support::own_group(&child);
+            .stderr(std::process::Stdio::null());
+        // `spawn_owned` puts the holder in a process group of its own and gives it the parent-death signal, so
+        //  neither the holder nor what it starts outlives a control that failed before it ended them.
+        let mut child: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("the holder starts");
         let line: String = ready_line(&mut child);
         assert!(line.contains(&format!("watches={count}")), "the holder says what it holds: {line}");
         return Watches(child);

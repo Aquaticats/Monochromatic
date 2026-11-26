@@ -21,6 +21,10 @@
 //! ```
 
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
+/// The one reader of a Git directory's `commondir` file.
+use crate::common_directory_of_a_git_directory::common_directory_named_by;
+/// The reader that cannot wait on a named pipe, and the bound it reads a configuration file to.
+use crate::plain_file::{read_plain_file, SMALL_FILE_LIMIT};
 use std::path::{Path, PathBuf};
 
 
@@ -54,7 +58,9 @@ use std::path::{Path, PathBuf};
 /// isBareCommonDirectory(commonDir)
 /// ```
 pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
-    let Ok(text) = std::fs::read(common.join("config")) else {
+    // A configuration file is read as a plain one, so a named pipe at `config` answers as a repository that is not bare
+    //  rather than holding every drain that asks.
+    let Ok(text) = read_plain_file(common.join("config").as_path(), SMALL_FILE_LIMIT) else {
         return false;
     };
     let Some(mut entries) = parse_config_text(text.as_slice()) else {
@@ -64,7 +70,7 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
         && last_entry(entries.as_slice(), "core.repositoryformatversion").is_some();
     if worktree_config {
         // A missing file is an empty file; one that is there and cannot be read or parsed leaves the answer to Git.
-        match std::fs::read(common.join("config.worktree")) {
+        match read_plain_file(common.join("config.worktree").as_path(), SMALL_FILE_LIMIT) {
             Ok(bytes) => match parse_config_text(bytes.as_slice()) {
                 Some(more) => entries.extend(more),
                 None => return false,
@@ -90,24 +96,12 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
 /// commonDirectoryOf(gitDir) ?? undefined
 /// ```
 pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
-    let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
-    let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
-    if named.as_os_str().is_empty() {
-        return None;
-    }
-    // Resolved by the text alone, so the result spells the path the way the worktree's own Git directory does, which is how the
-    //  records name their directory.
-    let mut resolved: PathBuf = PathBuf::new();
-    for part in git_dir.join(named).components() {
-        match part {
-            std::path::Component::ParentDir => {
-                if !resolved.pop() {
-                    return None;
-                }
-            }
-            std::path::Component::CurDir => {}
-            other => resolved.push(other.as_os_str()),
-        }
-    }
-    return Some(resolved);
+    // The one reader of `commondir` (`foundation/common_directory_of_a_git_directory.rs`) names the directory through the
+    //  file's own text, and opens it as a plain file so a named pipe there answers as no linked worktree at once.
+    return common_directory_named_by(git_dir);
 }
+
+/// Controls for the two files this directory answer is read from stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_common_directory_tests.rs"]
+mod tests;

@@ -162,8 +162,8 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
     let own_git_dir: String = git_text(linked.as_path(), &["rev-parse", "--absolute-git-dir"]);
     let common: PathBuf = std::fs::canonicalize(fixture.root.join(".git")).expect("common directory");
     assert_ne!(Path::new(own_git_dir.as_str()), common.as_path(), "the control needs a linked worktree's own Git directory");
-    assert_eq!(common_dir_of(Path::new(own_git_dir.as_str())), common);
-    assert_eq!(common_dir_of(common.as_path()), common, "a main Git directory is its own common directory");
+    assert_eq!(common_directory_of(Path::new(own_git_dir.as_str())), common);
+    assert_eq!(common_directory_of(common.as_path()), common, "a main Git directory is its own common directory");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Review,
         repository: linked.to_path_buf(),

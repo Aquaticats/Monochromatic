@@ -171,12 +171,43 @@ export function ideCdromDevices(
 
 //endregion CDROM devices
 
+//region Free page reporting
+
+/**
+ Generates the virtio memory balloon that tells the host which guest pages the
+ guest has freed, so the host can drop them instead of holding them for the
+ guest's whole life.
+
+ libvirt writes a plain virtio balloon when the domain names none, and QEMU
+ then leaves free page reporting at its default, off. The attribute is what
+ turns it on; see `doc/decision/mvm-guests-report-free-pages.md` in the
+ repository root for the measured saving and its limits.
+
+ @returns XML string for the `<memballoon>` element
+
+ @example
+ ```ts
+ memoryBalloon(); // => '<memballoon model="virtio" freePageReporting="on" />'
+ ```
+ */
+export function memoryBalloon(): string {
+  return h({
+    tag: 'memballoon',
+    attrs: {
+      model: 'virtio',
+      freePageReporting: 'on',
+    },
+  },);
+}
+
+//endregion Free page reporting
+
 //region Common devices
 
 /**
  Generates common VM device elements shared across all domain configurations:
- SLIRP user-mode networking, QEMU guest agent channel, serial console,
- and Windows-specific VGA/tablet devices.
+ SLIRP user-mode networking, QEMU guest agent channel, serial console, the
+ reporting memory balloon, and Windows-specific VGA/tablet devices.
  
  @param osFamily - Guest OS family for platform-specific devices
  
@@ -184,8 +215,8 @@ export function ideCdromDevices(
  
  @example
  ```ts
- commonDevices('linux');   // => [network, channel, serial, console]
- commonDevices('windows'); // => [network, channel, serial, console, video, tablet]
+ commonDevices('linux');   // => [network, channel, serial, console, memballoon]
+ commonDevices('windows'); // => [network, channel, serial, console, memballoon, video, tablet]
  ```
  */
 export function commonDevices(osFamily: OsFamily,): readonly string[] {
@@ -242,6 +273,8 @@ export function commonDevices(osFamily: OsFamily,): readonly string[] {
         },),
       ],
     },),
+    // The host holds a guest's freed pages until the guest reports them
+    memoryBalloon(),
   ];
 
   // Windows requires a VGA device for the WinPE installer and OOBE
