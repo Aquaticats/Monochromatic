@@ -292,6 +292,23 @@ pub mod update;
 /// The work values of the update (split out of the update module).
 pub mod update_recorded_work;
 
+/// The failure of an update,
+/// the text it prints and the two conversions into it (split out of the update module).
+pub mod update_error;
+
+/// The locked crates a name-only exclude selector exempts from the release age (split out of the update module).
+pub mod update_excluded_specs;
+
+/// The manifests a `--breaking` update may rewrite (split out of the update module).
+pub mod update_manifests;
+
+/// The procedure an update runs,
+/// what it needs and what it reports (split out of the update module).
+pub mod update_request_and_report;
+
+/// The transaction body of an update and the one cargo call it makes (split out of the update module).
+pub mod update_run;
+
 /// The option tests and the raised-floor warning wording that `update` asks about.
 pub(crate) mod update_argument_and_warning_text;
 /// The full update's resolution of each crate root,
