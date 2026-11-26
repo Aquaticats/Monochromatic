@@ -901,6 +901,12 @@ a future session can re-evaluate if upstream signal changes.
 "do not file as-is" only in that second case.
  Wrap the draft body in a
 `~~~md` fence so the future filer can copy it cleanly.
+
+DLK:
+ Every source claim in the draft body carries its own selection link
+(a `#:~:text=` fragment or a commit-pinned line range),
+opened in `agent-browser` before the draft reaches the user.
+
  The new-issue
 draft contains:
  title,
