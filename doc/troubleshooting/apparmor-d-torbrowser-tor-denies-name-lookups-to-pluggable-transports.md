@@ -1,4 +1,4 @@
-# apparmor.d `torbrowser-tor` blocks Snowflake: pluggable transports inherit Tor's name-lookup denies and TCP-only network
+# apparmor.d `torbrowser-tor` blocks Snowflake: transports inherit Tor's lookup denies and TCP-only network
 
 Diagnosis recorded on `2026-11-26T02:23:59-05:00`.
 The local workaround is applied on this host; nothing was posted upstream.
@@ -51,7 +51,8 @@ on this host only systemd-resolved's `127.0.0.53` and `127.0.0.54` listen on por
 
 Versions:
 `apparmor` 4.1.8-2.1,
-`apparmor.d-git` v0.4916.0.r38.g4c4fec7-1 (the same commit as upstream `main` `4c4fec70fcd19307a871b3ecc7f117a9ad989c9f`),
+`apparmor.d-git` v0.4916.0.r38.g4c4fec7-1
+(the same commit as upstream `main` `4c4fec70fcd19307a871b3ecc7f117a9ad989c9f`),
 Tor Browser 16.0.3 (`tbb_version.json`),
 `lyrebird` 0.10.0.
 
@@ -75,7 +76,7 @@ getent hosts app.datapacket.com; echo "exit=$?"
   and `curl --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip` returned
   `{"IsTor":true,"IP":"204.8.96.168"}`, with the child profile enforcing.
 - The upstream patch beside this file
-  ([`apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.patch`](apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.patch)),
+  ([the patch file][patch]),
   applied to the installed abi 4.0 build and loaded under a test name with no attachment:
   `getent` under its `pluggable-transports` child resolved the front (`exit=0`),
   the same lookup under the patched parent still failed (`exit=2`, plus a logged `inet dgram` denial),
@@ -187,6 +188,7 @@ This report was prepared with an AI assistant; the reproduction and the test res
 reporter's machine.
 ~~~
 
+[patch]: apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.patch
 [prof]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/apparmor.d/groups/browsers/torbrowser-tor#L18-L44
 [issues]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/docs/issues.md#L22-L28
 [guide]: https://github.com/roddhjav/apparmor.d/blob/4c4fec70fcd19307a871b3ecc7f117a9ad989c9f/docs/development/guidelines.md#L119-L125
