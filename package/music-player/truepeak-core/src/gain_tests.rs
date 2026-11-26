@@ -21,7 +21,10 @@ fn quiet_track_is_not_amplified() {
 fn loud_track_is_attenuated_to_ceiling() {
     let peak = 1.0_f32;
     let gain = normalization_gain(peak);
-    assert!((gain - CEILING).abs() < 1e-6, "gain {gain} should equal the ceiling");
+    assert!(
+        (gain - CEILING).abs() < 1e-6,
+        "gain {gain} should equal the ceiling"
+    );
     // Applying the gain brings the peak down to the ceiling.
     assert!((peak * gain - CEILING).abs() < 1e-6);
 }
@@ -31,7 +34,10 @@ fn loud_track_is_attenuated_to_ceiling() {
 fn gain_never_exceeds_unity() {
     for step in 0..200 {
         let peak = step as f32 / 100.0; // 0.0 .. 2.0
-        assert!(normalization_gain(peak) <= 1.0, "peak {peak} produced a boost");
+        assert!(
+            normalization_gain(peak) <= 1.0,
+            "peak {peak} produced a boost"
+        );
     }
 }
 
@@ -57,5 +63,8 @@ fn linear_gain_matches_db_form() {
     let exact_gain_db = (-1.0 - peak_dbtp(peak)).min(0.0);
     let db_form_linear = 10.0_f64.powf(exact_gain_db / 20.0);
     let linear = normalization_gain(peak as f32) as f64;
-    assert!((linear - db_form_linear).abs() < 1e-6, "linear {linear} vs dB-form {db_form_linear}");
+    assert!(
+        (linear - db_form_linear).abs() < 1e-6,
+        "linear {linear} vs dB-form {db_form_linear}"
+    );
 }

@@ -31,13 +31,15 @@ const MIN_FRAME_BYTES: usize = 9;
 /// Frame-header block sizes by the 4 block-size bits;
 ///  0 reserved,
 ///  6/7 coded at end.
-const FRAME_BLOCK_SIZES: [u32; 16] =
-    [0, 192, 576, 1152, 2304, 4608, 0, 0, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768];
+const FRAME_BLOCK_SIZES: [u32; 16] = [
+    0, 192, 576, 1152, 2304, 4608, 0, 0, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768,
+];
 /// Frame-header sample rates by the 4 rate bits;
 ///  0 = STREAMINFO,
 ///  12 to 14 coded at end.
-const FRAME_RATES: [u32; 16] =
-    [0, 88200, 176400, 192000, 8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000, 0, 0, 0, 0];
+const FRAME_RATES: [u32; 16] = [
+    0, 88200, 176400, 192000, 8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000, 0, 0, 0, 0,
+];
 
 /// CRC-8 table for polynomial 0x07,
 ///  init 0 (the FLAC frame-header CRC).
@@ -52,13 +54,17 @@ const fn build_crc8_table() -> [u8; 256] {
         let mut crc = seed as u8;
         let mut bit = 0;
         while bit < 8 {
-            crc = if crc & 0x80 != 0 { (crc << 1) ^ 0x07 } else { crc << 1 };
+            crc = if crc & 0x80 != 0 {
+                (crc << 1) ^ 0x07
+            } else {
+                crc << 1
+            };
             bit += 1;
         }
         table[seed] = crc;
         seed += 1;
     }
-    return table
+    return table;
 }
 
 /// A bones failure:
@@ -102,7 +108,11 @@ struct WalkedFrame {
 ///  the walk
 /// chains frames by expecting the next coded number,
 ///  killing false syncs.
-fn decode_coded_number(buf: &[u8], offset: usize, max_length: usize) -> Option<(u64, usize)> {
+fn decode_coded_number(
+    buf: &[u8],
+    offset: usize,
+    max_length: usize,
+) -> Option<(u64, usize)> {
     let first = *buf.get(offset)?;
     if first & 0x80 == 0 {
         return Some((u64::from(first), 1));
@@ -120,7 +130,7 @@ fn decode_coded_number(buf: &[u8], offset: usize, max_length: usize) -> Option<(
         }
         value = (value << 6) | u64::from(byte & 0x3f);
     }
-    return Some((value, length))
+    return Some((value, length));
 }
 
 /// A parsed frame header:
@@ -149,7 +159,11 @@ struct FrameHeader {
 /// the header bytes.
 ///  Why:
 ///  every check that fails here is a false sync avoided.
-fn parse_frame_header(buf: &[u8], offset: usize, info: &StreamInfo) -> Option<FrameHeader> {
+fn parse_frame_header(
+    buf: &[u8],
+    offset: usize,
+    info: &StreamInfo,
+) -> Option<FrameHeader> {
     if offset + 6 > buf.len() {
         return None;
     }
@@ -180,7 +194,11 @@ fn parse_frame_header(buf: &[u8], offset: usize, info: &StreamInfo) -> Option<Fr
         cursor += 2;
     }
     // Sample rate: STREAMINFO, table value, or coded at the end for bits 12 to 14.
-    let mut sample_rate = if rate_bits == 0 { info.sample_rate } else { FRAME_RATES[rate_bits] };
+    let mut sample_rate = if rate_bits == 0 {
+        info.sample_rate
+    } else {
+        FRAME_RATES[rate_bits]
+    };
     if rate_bits == 12 {
         sample_rate = u32::from(*buf.get(cursor)?) * 1000;
         cursor += 1;
@@ -204,7 +222,11 @@ fn parse_frame_header(buf: &[u8], offset: usize, info: &StreamInfo) -> Option<Fr
     if crc != crc_byte {
         return None;
     }
-    return Some(FrameHeader { blocking_strategy, block_size, coded_number })
+    return Some(FrameHeader {
+        blocking_strategy,
+        block_size,
+        coded_number,
+    });
 }
 
 /// Parse the metadata blocks:
@@ -229,14 +251,18 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
         offset = 10 + tag_size + footer;
     }
     if buf.len() < offset + 4 || &buf[offset..offset + 4] != b"fLaC" {
-        return Err(BonesError { message: "flac: no fLaC magic".to_owned() });
+        return Err(BonesError {
+            message: "flac: no fLaC magic".to_owned(),
+        });
     }
     offset += 4;
     let mut info: Option<StreamInfo> = None;
     // Walk metadata blocks until the last-block flag.
     loop {
         if offset + 4 > buf.len() {
-            return Err(BonesError { message: "flac: truncated metadata".to_owned() });
+            return Err(BonesError {
+                message: "flac: truncated metadata".to_owned(),
+            });
         }
         let head = buf[offset];
         let last = head & 0x80 != 0;
@@ -246,7 +272,9 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
             | usize::from(buf[offset + 3]);
         let content = offset + 4;
         if content + length > buf.len() {
-            return Err(BonesError { message: "flac: metadata block past EOF".to_owned() });
+            return Err(BonesError {
+                message: "flac: metadata block past EOF".to_owned(),
+            });
         }
         if block_type == 0 && length >= 18 {
             // STREAMINFO: max block size at bytes 2..4, rate is 20 bits at bytes 10..13.
@@ -254,7 +282,10 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
             let sample_rate = (u32::from(buf[content + 10]) << 12)
                 | (u32::from(buf[content + 11]) << 4)
                 | (u32::from(buf[content + 12]) >> 4);
-            info = Some(StreamInfo { max_block_size, sample_rate });
+            info = Some(StreamInfo {
+                max_block_size,
+                sample_rate,
+            });
         }
         offset = content + length;
         if last {
@@ -264,18 +295,25 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
     // The confirmed STREAMINFO gets its own name so it does not shadow the
     // accumulator `Option` above.
     let Some(stream_info) = info else {
-        return Err(BonesError { message: "flac: no STREAMINFO block".to_owned() });
+        return Err(BonesError {
+            message: "flac: no STREAMINFO block".to_owned(),
+        });
     };
     if stream_info.sample_rate == 0 {
-        return Err(BonesError { message: "flac: zero sample rate".to_owned() });
+        return Err(BonesError {
+            message: "flac: zero sample rate".to_owned(),
+        });
     }
-    return Ok((stream_info, offset))
+    return Ok((stream_info, offset));
 }
 
 /// The first sample a frame holds:
 /// the coded number itself for variable blocking,
 /// the frame number times the constant block size for fixed blocking.
-fn start_sample_of(header: &FrameHeader, nominal_block_size: u64) -> u64 {
+fn start_sample_of(
+    header: &FrameHeader,
+    nominal_block_size: u64,
+) -> u64 {
     if header.blocking_strategy == 1 {
         return header.coded_number;
     }
@@ -296,9 +334,15 @@ fn is_sync_byte(byte: &u8) -> bool {
 /// distance between consecutive confirmed starts.
 ///  Why:
 ///  the byte spans are the profile.
-fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Result<(Vec<WalkedFrame>, f64), BonesError> {
+fn walk_frames(
+    buf: &[u8],
+    first_frame_offset: usize,
+    info: &StreamInfo,
+) -> Result<(Vec<WalkedFrame>, f64), BonesError> {
     let Some(first) = parse_frame_header(buf, first_frame_offset, info) else {
-        return Err(BonesError { message: "flac: no frame at first-frame offset".to_owned() });
+        return Err(BonesError {
+            message: "flac: no frame at first-frame offset".to_owned(),
+        });
     };
     let blocking_strategy = first.blocking_strategy;
     // Fixed blocking: start sample = frame number times the constant first block size.
@@ -345,8 +389,9 @@ fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Resu
         block_size: previous.block_size,
         byte_count: buf.len() - previous_offset,
     });
-    let duration_secs = (last_start + u64::from(previous.block_size)) as f64 / f64::from(info.sample_rate);
-    return Ok((frames, duration_secs))
+    let duration_secs =
+        (last_start + u64::from(previous.block_size)) as f64 / f64::from(info.sample_rate);
+    return Ok((frames, duration_secs));
 }
 
 /// Build the per-slot byte profile from a FLAC file's raw bytes,
@@ -388,12 +433,15 @@ pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
             *weight += frame.byte_count as f64 * (hi - lo) / (end_secs - start_secs);
         }
     }
-    return Ok(slots)
+    return Ok(slots);
 }
 
 /// Orders two pairs of a weight and an index by weight,
 /// heaviest first.
-fn heavier_first(left: &(f64, usize), right: &(f64, usize)) -> std::cmp::Ordering {
+fn heavier_first(
+    left: &(f64, usize),
+    right: &(f64, usize),
+) -> std::cmp::Ordering {
     return f64::total_cmp(&right.0, &left.0);
 }
 
@@ -404,7 +452,10 @@ fn heavier_first(left: &(f64, usize), right: &(f64, usize)) -> std::cmp::Orderin
 ///  sorts slot indices by byte weight descending and keeps the first `top`.
 ///  Why:
 /// the resolver decodes these slots (each with its neighbors) before the even pass.
-pub fn bones_hot_bins(profile: &[f64], top: usize) -> Vec<usize> {
+pub fn bones_hot_bins(
+    profile: &[f64],
+    top: usize,
+) -> Vec<usize> {
     // Sort indices by descending byte weight, then truncate.
     let mut weighted: Vec<(f64, usize)> = Vec::with_capacity(profile.len());
     for (index, &weight) in profile.iter().enumerate() {
@@ -415,7 +466,7 @@ pub fn bones_hot_bins(profile: &[f64], top: usize) -> Vec<usize> {
     for &(_, index) in weighted.iter().take(top) {
         order.push(index);
     }
-    return order
+    return order;
 }
 
 /// What:
