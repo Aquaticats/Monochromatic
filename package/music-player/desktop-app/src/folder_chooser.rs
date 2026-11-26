@@ -162,10 +162,16 @@ pub fn failure_message(failure: &ChooserFailure) -> String {
 /// ```
 pub fn advice(outcome: ChooserOutcome) -> ChooserAdvice {
     return match outcome {
-        ChooserOutcome::Chosen { folder } => ChooserAdvice::Open { folder },
+        ChooserOutcome::Chosen {
+            folder,
+        } => ChooserAdvice::Open {
+            folder,
+        },
         ChooserOutcome::Cancelled => ChooserAdvice::Nothing,
         ChooserOutcome::NoChooser => ChooserAdvice::TellNoChooser,
-        ChooserOutcome::Failed { failure } => ChooserAdvice::TellFailure {
+        ChooserOutcome::Failed {
+            failure,
+        } => ChooserAdvice::TellFailure {
             message: failure_message(&failure),
         },
     };
@@ -185,15 +191,22 @@ pub fn advice(outcome: ChooserOutcome) -> ChooserAdvice {
 #[cfg(target_os = "linux")]
 pub fn choose_folder() -> ChooserOutcome {
     let path_variable: std::ffi::OsString = std::env::var_os("PATH").unwrap_or_default();
-    let zenity: Option<PathBuf> = crate::dialog_backend::resolve_on_path(crate::dialog_backend::ZENITY, &path_variable);
+    let zenity: Option<PathBuf> =
+        crate::dialog_backend::resolve_on_path(crate::dialog_backend::ZENITY, &path_variable);
     let portal_available: bool = crate::dialog_backend::portal_is_available();
     // What: the two probes as one record, so the log says what the choice was made from.
     // Why: a report of a silent chooser otherwise cannot tell "no portal" from "the portal failed".
-    tracing::info!(zenity = zenity.is_some(), portal = portal_available, "folder chooser backends");
+    tracing::info!(
+        zenity = zenity.is_some(),
+        portal = portal_available,
+        "folder chooser backends"
+    );
     return match chooser_source(zenity, portal_available) {
         ChooserSource::Missing => ChooserOutcome::NoChooser,
         ChooserSource::Portal => choose_through_the_library(),
-        ChooserSource::Program { program } => run_chooser_program(&program),
+        ChooserSource::Program {
+            program,
+        } => run_chooser_program(&program),
     };
 }
 
@@ -222,9 +235,13 @@ pub fn choose_folder() -> ChooserOutcome {
 /// `src/logging.rs` installs.
 fn choose_through_the_library() -> ChooserOutcome {
     return match rfd::FileDialog::new().pick_folder() {
-        Some(folder) => ChooserOutcome::Chosen { folder },
+        Some(folder) => ChooserOutcome::Chosen {
+            folder,
+        },
         None => {
-            tracing::info!("the desktop chooser returned no folder, which the library reports as a cancel");
+            tracing::info!(
+                "the desktop chooser returned no folder, which the library reports as a cancel"
+            );
             ChooserOutcome::Cancelled
         }
     };
@@ -271,7 +288,10 @@ pub enum ChooserSource {
 /// function chooserSource(zenity: string | undefined, portalAvailable: boolean): ChooserSource { if (noChooserCanOpen(zenity !== undefined, portalAvailable)) return {kind: 'missing'}; return portalAvailable ? {kind: 'portal'} : {kind: 'program', program: zenity}; }
 /// ```
 #[cfg(target_os = "linux")]
-pub fn chooser_source(zenity: Option<PathBuf>, portal_available: bool) -> ChooserSource {
+pub fn chooser_source(
+    zenity: Option<PathBuf>,
+    portal_available: bool,
+) -> ChooserSource {
     // The decision that no chooser exists at all stays in one place, so its table of combinations is the only table.
     if crate::dialog_backend::no_chooser_can_open(zenity.is_some(), portal_available) {
         return ChooserSource::Missing;
@@ -281,7 +301,9 @@ pub fn chooser_source(zenity: Option<PathBuf>, portal_available: bool) -> Choose
         return ChooserSource::Portal;
     }
     return match zenity {
-        Some(program) => ChooserSource::Program { program },
+        Some(program) => ChooserSource::Program {
+            program,
+        },
         None => ChooserSource::Missing,
     };
 }
@@ -322,10 +344,18 @@ pub fn run_chooser_program(program: &Path) -> ChooserOutcome {
     let outcome: ChooserOutcome = classify_run(program, &output);
     let name: String = program_name(program);
     match &outcome {
-        ChooserOutcome::Chosen { .. } => tracing::info!(program = %name, "the folder chooser chose a folder"),
-        ChooserOutcome::Cancelled => tracing::info!(program = %name, "the folder chooser was cancelled"),
-        ChooserOutcome::NoChooser => tracing::warn!(program = %name, "no folder chooser is available"),
-        ChooserOutcome::Failed { failure } => tracing::error!(
+        ChooserOutcome::Chosen {
+            ..
+        } => tracing::info!(program = %name, "the folder chooser chose a folder"),
+        ChooserOutcome::Cancelled => {
+            tracing::info!(program = %name, "the folder chooser was cancelled")
+        }
+        ChooserOutcome::NoChooser => {
+            tracing::warn!(program = %name, "no folder chooser is available")
+        }
+        ChooserOutcome::Failed {
+            failure,
+        } => tracing::error!(
             program = %name,
             cause = %failure.cause,
             standard_error = %failure.standard_error,
@@ -361,7 +391,10 @@ pub fn run_chooser_program(program: &Path) -> ChooserOutcome {
 /// function classifyRun(program: string, output: Result<Output>): ChooserOutcome { if (output.isErr()) return failed(`${program} could not be started: ${output.error}`); const folder = trimNewline(output.stdout); if (folder) return chosen(folder); const reported = firstLine(output.stderr); if (output.status.code === undefined) return failed(exitCause(program, output.status), reported); return output.status.code === 0 || !reported ? cancelled() : failed(exitCause(program, output.status), reported); }
 /// ```
 #[cfg(target_os = "linux")]
-fn classify_run(program: &Path, output: &std::io::Result<std::process::Output>) -> ChooserOutcome {
+fn classify_run(
+    program: &Path,
+    output: &std::io::Result<std::process::Output>,
+) -> ChooserOutcome {
     let finished: &std::process::Output = match output {
         Ok(finished) => finished,
         // The program was found by the search but could not start: no interpreter, no permission bit, and so on.
@@ -375,7 +408,9 @@ fn classify_run(program: &Path, output: &std::io::Result<std::process::Output>) 
         }
     };
     if let Some(folder) = chosen_folder(&finished.stdout) {
-        return ChooserOutcome::Chosen { folder };
+        return ChooserOutcome::Chosen {
+            folder,
+        };
     }
     let reported: String = first_reported_line(&finished.stderr);
     // What: a run that never exited has no status code, and a cancel is exit 1, so this is a failure.
@@ -460,7 +495,10 @@ fn first_reported_line(standard_err: &[u8]) -> String {
 /// const exitCause = (program: string, status: number | null) => status === null ? `${program} was ended before it exited` : `${program} exited with status ${status}`;
 /// ```
 #[cfg(target_os = "linux")]
-fn exit_cause(program: &Path, status: std::process::ExitStatus) -> String {
+fn exit_cause(
+    program: &Path,
+    status: std::process::ExitStatus,
+) -> String {
     return match status.code() {
         Some(code) => format!("{} exited with status {code}", program_name(program)),
         None => format!("{} was ended before it exited", program_name(program)),

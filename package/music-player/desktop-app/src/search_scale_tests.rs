@@ -7,13 +7,25 @@
 // Why:      The old matcher took seconds per keystroke at 1M; these tests keep the keystroke in milliseconds and keep
 //           the index small, and print the numbers the report quotes.
 use std::hint::black_box;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use crate::scale_library_tests::{SyntheticLibrary, build_library};
-use crate::search_feed::{FEED_BATCH, prepare_in_order};
+use crate::scale_library_tests::{
+    SyntheticLibrary,
+    build_library,
+};
+use crate::search_feed::{
+    FEED_BATCH,
+    prepare_in_order,
+};
 use crate::search_index::SearchIndex;
 use crate::search_results::oracle::oracle_search_library;
-use crate::search_results::{SEARCH_RESULT_LIMIT, SearchState};
+use crate::search_results::{
+    SEARCH_RESULT_LIMIT,
+    SearchState,
+};
 use crate::track::Track;
 
 // What:     Runs per query when a median is taken.
@@ -80,7 +92,11 @@ fn library_of(size: usize) -> SyntheticLibrary {
 fn built_index(names: &[String]) -> (SearchIndex, Duration, Vec<Duration>) {
     let started: Instant = Instant::now();
     let mut index: SearchIndex = SearchIndex::new(1);
-    index.reserve(names.len(), names.iter().map(String::len).sum(), names.iter().map(String::len).sum::<usize>() / 2);
+    index.reserve(
+        names.len(),
+        names.iter().map(String::len).sum(),
+        names.iter().map(String::len).sum::<usize>() / 2,
+    );
     let mut pushes: Vec<Duration> = Vec::new();
     prepare_in_order(names, FEED_BATCH, &mut |_number, prepared| {
         let pushed: Instant = Instant::now();
@@ -96,7 +112,10 @@ fn built_index(names: &[String]) -> (SearchIndex, Duration, Vec<Duration>) {
 fn eight_char_query(names: &[String]) -> String {
     for name in names.iter().skip(names.len() / 2) {
         let title: String = crate::track_entries::track_title_for(name);
-        if let Some(word) = title.split(' ').find(|word| return word.chars().count() >= 8) {
+        if let Some(word) = title
+            .split(' ')
+            .find(|word| return word.chars().count() >= 8)
+        {
             return word.chars().take(8).collect();
         }
     }
@@ -107,7 +126,10 @@ fn eight_char_query(names: &[String]) -> String {
 // Why:      Reports and checks count rows.
 fn result_count(state: &SearchState) -> usize {
     return match state {
-        SearchState::Results { items, .. } => items.len(),
+        SearchState::Results {
+            items,
+            ..
+        } => items.len(),
         _ => 0,
     };
 }
@@ -115,14 +137,21 @@ fn result_count(state: &SearchState) -> usize {
 // What:     `report_index`, builds the index of a library of `size` tracks, times the queries, prints the report and
 //           asserts the budgets.
 // Why:      One routine serves every size so the numbers are comparable.
-fn report_index(label: &str, size: usize) {
+fn report_index(
+    label: &str,
+    size: usize,
+) {
     let (push_bar, query_bar): (Duration, Duration) = if cfg!(debug_assertions) {
         (DEBUG_BAR, DEBUG_BAR)
     } else {
         (RELEASE_PUSH_BAR, RELEASE_QUERY_BAR)
     };
     let library: SyntheticLibrary = library_of(size);
-    assert_eq!(library.artists, (size / 1000).max(1), "one thousand tracks per artist");
+    assert_eq!(
+        library.artists,
+        (size / 1000).max(1),
+        "one thousand tracks per artist"
+    );
     let (index, build_time, pushes) = built_index(&library.names);
     assert_eq!(index.track_count(), library.names.len());
     let slowest_push: Duration = pushes.iter().copied().max().unwrap_or_default();
@@ -134,13 +163,26 @@ fn report_index(label: &str, size: usize) {
         millis(slowest_push),
         index.heap_bytes() as f64 / 1_048_576.0
     );
-    assert!(slowest_push < push_bar, "a push took {slowest_push:?}, over the {push_bar:?} bar");
+    assert!(
+        slowest_push < push_bar,
+        "a push took {slowest_push:?}, over the {push_bar:?} bar"
+    );
     let eight: String = eight_char_query(&library.names);
     let cold_started: Instant = Instant::now();
     let cold: SearchState = index.search("k");
     let cold_time: Duration = cold_started.elapsed();
-    println!("  search 'k' cold (first keystroke)  {:.3} ms, rows {}", millis(cold_time), result_count(&cold));
-    for (name, query) in [("1 char", "k"), ("2 chars", "ka"), ("3 chars", "kal"), ("8 chars", eight.as_str()), ("no match", "qzxjvk")] {
+    println!(
+        "  search 'k' cold (first keystroke)  {:.3} ms, rows {}",
+        millis(cold_time),
+        result_count(&cold)
+    );
+    for (name, query) in [
+        ("1 char", "k"),
+        ("2 chars", "ka"),
+        ("3 chars", "kal"),
+        ("8 chars", eight.as_str()),
+        ("no match", "qzxjvk"),
+    ] {
         let (spread, state) = spread_of(|| return index.search(query));
         println!(
             "  search {name:<9} {query:<10} median {:.3} ms (min {:.3}, max {:.3}), rows {}",
@@ -149,11 +191,19 @@ fn report_index(label: &str, size: usize) {
             millis(spread.max),
             result_count(&state)
         );
-        assert!(spread.median < query_bar, "search {query:?} median {:?} is over the {query_bar:?} bar", spread.median);
+        assert!(
+            spread.median < query_bar,
+            "search {query:?} median {:?} is over the {query_bar:?} bar",
+            spread.median
+        );
         assert!(result_count(&state) <= SEARCH_RESULT_LIMIT);
     }
     if size >= 10_000 {
-        assert_eq!(result_count(&index.search("k")), SEARCH_RESULT_LIMIT, "one letter fills the list at {size}");
+        assert_eq!(
+            result_count(&index.search("k")),
+            SEARCH_RESULT_LIMIT,
+            "one letter fills the list at {size}"
+        );
     }
     assert!(matches!(index.search("qzxjvk"), SearchState::NoMatch(_)));
 }
@@ -164,20 +214,51 @@ fn report_index(label: &str, size: usize) {
 //           parity tests in `search_index_tests.rs`; both must agree with the oracle.
 #[test]
 fn generated_libraries_match_the_oracle() {
-    let sizes: &[usize] = if cfg!(debug_assertions) { &[1000] } else { &[1000, 3000] };
+    let sizes: &[usize] = if cfg!(debug_assertions) {
+        &[1000]
+    } else {
+        &[1000, 3000]
+    };
     for size in sizes.iter().copied() {
         let library: SyntheticLibrary = library_of(size);
         let tracks: Vec<Track> = library
             .names
             .iter()
             .zip(library.paths())
-            .map(|(name, path)| return Track { uri: path.to_string_lossy().into_owned(), display_path: name.clone() })
+            .map(|(name, path)| {
+                return Track {
+                    uri: path.to_string_lossy().into_owned(),
+                    display_path: name.clone(),
+                };
+            })
             .collect();
         let (index, _built, _pushes) = built_index(&library.names);
         let eight: String = eight_char_query(&library.names);
         let queries: Vec<&str> = vec![
-            "k", "a", "l", "s", "m", "ka", "kal", "kalo", "lo ri", "ven sa", "ASH", "あ", "カ", "夜", "ма", "Loose", "album 02", "cd 1",
-            "01", "1", "#", "-", "qzxjvk", eight.as_str(),
+            "k",
+            "a",
+            "l",
+            "s",
+            "m",
+            "ka",
+            "kal",
+            "kalo",
+            "lo ri",
+            "ven sa",
+            "ASH",
+            "あ",
+            "カ",
+            "夜",
+            "ма",
+            "Loose",
+            "album 02",
+            "cd 1",
+            "01",
+            "1",
+            "#",
+            "-",
+            "qzxjvk",
+            eight.as_str(),
         ];
         for query in queries {
             let expected: SearchState = oracle_search_library(query, &tracks, true);

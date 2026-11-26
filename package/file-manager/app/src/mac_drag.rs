@@ -26,7 +26,10 @@ use objc2::rc::Retained;
 /// Why:
 ///  the drag image is set as an `AnyObject`,
 ///  and protocol arguments use `ProtocolObject`.
-use objc2::runtime::{AnyObject, ProtocolObject};
+use objc2::runtime::{
+    AnyObject,
+    ProtocolObject,
+};
 /// What:
 ///  imports the objc2 threading markers,
 ///  class-definition macro,
@@ -34,14 +37,25 @@ use objc2::runtime::{AnyObject, ProtocolObject};
 /// Why:
 ///  the drag source is a main-thread-only class defined with `define_class!` and initialised
 ///      with `msg_send!`.
-use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send};
+use objc2::{
+    AnyThread,
+    MainThreadMarker,
+    MainThreadOnly,
+    define_class,
+    msg_send,
+};
 /// What:
 ///  imports the AppKit types the dragging session is begun from.
 /// Why:
 ///  the session is started on the key window's content view with a dragging item and source.
 use objc2_app_kit::{
-    NSApplication, NSDragOperation, NSDraggingContext, NSDraggingItem, NSDraggingSession,
-    NSDraggingSource, NSImage,
+    NSApplication,
+    NSDragOperation,
+    NSDraggingContext,
+    NSDraggingItem,
+    NSDraggingSession,
+    NSDraggingSource,
+    NSImage,
 };
 /// What:
 ///  imports the Foundation object,
@@ -53,7 +67,14 @@ use objc2_app_kit::{
 ///  the dragged file is an `NSURL`,
 ///  wrapped in an `NSArray` of dragging items with a frame.
 use objc2_foundation::{
-    NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSURL,
+    NSArray,
+    NSObject,
+    NSObjectProtocol,
+    NSPoint,
+    NSRect,
+    NSSize,
+    NSString,
+    NSURL,
 };
 
 /// What:
@@ -127,7 +148,10 @@ pub fn start_file_drag(path: &str) {
         return;
     };
     let Some(view) = window.contentView() else {
-        tracing::warn!(path, "native macOS drag skipped: key window has no content view");
+        tracing::warn!(
+            path,
+            "native macOS drag skipped: key window has no content view"
+        );
         return;
     };
     let Some(event) = app.currentEvent() else {

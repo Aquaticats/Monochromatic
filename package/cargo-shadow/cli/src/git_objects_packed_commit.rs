@@ -18,9 +18,23 @@
 // import { Name } from './module.ts';
 // ```
 /// The constants and the readers of the object reader that the packed check uses.
-use crate::git_objects::{MAX_COMMIT_BYTES, OBJECT_NAME_BYTES, PACK_TYPE_COMMIT, inflate_complete, looks_like_commit, open_regular, pack_offset};
+use crate::git_objects::{
+    MAX_COMMIT_BYTES,
+    OBJECT_NAME_BYTES,
+    PACK_TYPE_COMMIT,
+    inflate_complete,
+    looks_like_commit,
+    open_regular,
+    pack_offset,
+};
 /// The reads and constants of the object reader that the packed check uses.
-use crate::git_objects::{PACK_HEADER_BYTES, big_endian, index_failure, pack_failure, read_at};
+use crate::git_objects::{
+    PACK_HEADER_BYTES,
+    big_endian,
+    index_failure,
+    pack_failure,
+    read_at,
+};
 /// Error text built only on failure,
 /// from a `format_args!` value.
 use crate::lazy_error_text::ExplainedError;
@@ -28,7 +42,10 @@ use crate::lazy_error_text::ExplainedError;
 /// whose `to_str` turns a file extension into text.
 use std::ffi::OsStr;
 /// Imports `fs` and `File` to open and list the object files.
-use std::fs::{self, File};
+use std::fs::{
+    self,
+    File,
+};
 // Imports `std::io::Read`.
 /// Imports `Read`,
 /// which adds `read_to_end` to the zlib decoder.
@@ -46,8 +63,10 @@ use std::os::unix::fs::FileExt;
 // // TS has one type for this: string
 // ```
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A reader of a file from a fixed offset,
 /// for the inflater.
@@ -69,7 +88,10 @@ impl Read for At<'_> {
     /// ```ts
     /// read(buffer: Buffer): number  // readSync(fd, buffer, 0, buffer.length, position)
     /// ```
-    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+    fn read(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> std::io::Result<usize> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Typed binding: `count: usize`.
         let count: usize = self.file.read_at(buffer, self.offset)?;
@@ -93,7 +115,10 @@ impl Read for At<'_> {
 /// ```ts
 /// function checkPackOpens(pack: number, index: number): void  // throws
 /// ```
-pub(crate) fn check_pack_opens(pack: &File, index: &File) -> Result<(), String> {
+pub(crate) fn check_pack_opens(
+    pack: &File,
+    index: &File,
+) -> Result<(), String> {
     let header: Vec<u8> = read_at(pack, 0, PACK_HEADER_BYTES).map_err(pack_failure)?;
     let version: u64 = big_endian(&header[4..8]);
     if &header[..4] != b"PACK" || (version != 2 && version != 3) {
@@ -153,7 +178,11 @@ pub(crate) fn check_pack_opens(pack: &File, index: &File) -> Result<(), String> 
 /// ```ts
 /// function packedEntryIsCommit(pack: number, offset: number): boolean  // throws when the entry cannot be read
 /// ```
-pub(crate) fn packed_entry_is_commit(pack: &File, offset: u64, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String> {
+pub(crate) fn packed_entry_is_commit(
+    pack: &File,
+    offset: u64,
+    name: &[u8; OBJECT_NAME_BYTES],
+) -> Result<bool, String> {
     let first: Vec<u8> = read_at(pack, offset, 1).map_err(pack_failure)?;
     let mut byte: u8 = first[0];
     let kind: u8 = (byte >> 4) & 0x7;
@@ -178,9 +207,18 @@ pub(crate) fn packed_entry_is_commit(pack: &File, offset: u64, name: &[u8; OBJEC
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `body: Vec<u8>`.
-    let (body, _consumed): (Vec<u8>, u64) = inflate_complete(At { file: pack, offset: position }, usize::try_from(size).unwrap_or(usize::MAX), MAX_COMMIT_BYTES)?;
+    let (body, _consumed): (Vec<u8>, u64) = inflate_complete(
+        At {
+            file: pack,
+            offset: position,
+        },
+        usize::try_from(size).unwrap_or(usize::MAX),
+        MAX_COMMIT_BYTES,
+    )?;
     // A packed entry is the commit whose name the index lists only if its bytes hash to that name.
-    return Ok(body.len() as u64 == size && looks_like_commit(&body) && crate::git_sha1::object_name("commit", &body) == *name);
+    return Ok(body.len() as u64 == size
+        && looks_like_commit(&body)
+        && crate::git_sha1::object_name("commit", &body) == *name);
 }
 
 /// What:
@@ -197,15 +235,28 @@ pub(crate) fn packed_entry_is_commit(pack: &File, offset: u64, name: &[u8; OBJEC
 /// ```ts
 /// function packedCommit(objects: string, name: Uint8Array): boolean  // throws when a pack cannot be read
 /// ```
-pub(crate) fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String> {
+pub(crate) fn packed_commit(
+    objects: &Path,
+    name: &[u8; OBJECT_NAME_BYTES],
+) -> Result<bool, String> {
     let pack_directory: PathBuf = objects.join("pack");
     let listing = match fs::read_dir(&pack_directory) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("{} cannot be listed: {error}", pack_directory.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} cannot be listed: {error}",
+                pack_directory.display()
+            ));
+        }
     };
     for item in listing {
-        let path: PathBuf = item.described(format_args!("{} cannot be listed", pack_directory.display()))?.path();
+        let path: PathBuf = item
+            .described(format_args!(
+                "{} cannot be listed",
+                pack_directory.display()
+            ))?
+            .path();
         if path.extension().and_then(OsStr::to_str) != Some("idx") {
             continue;
         }

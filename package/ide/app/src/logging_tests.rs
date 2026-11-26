@@ -7,16 +7,28 @@
 
 use super::directives;
 use std::{
-    io::{self, Write},
-    sync::{Arc, Mutex},
+    io::{
+        self,
+        Write,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
-use tracing_subscriber::{EnvFilter, fmt::MakeWriter};
+use tracing_subscriber::{
+    EnvFilter,
+    fmt::MakeWriter,
+};
 
 #[derive(Clone, Default)]
 struct Capture(Arc<Mutex<Vec<u8>>>);
 
 impl Write for Capture {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         self.0.lock().expect("capture").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
@@ -37,7 +49,10 @@ impl<'writer> MakeWriter<'writer> for Capture {
 /// Emit one record per probe under the filter built from `defaults` and `requested`,
 ///  and return
 /// the names of the probes that were written.
-fn written(defaults: &str, requested: Option<&str>) -> Vec<&'static str> {
+fn written(
+    defaults: &str,
+    requested: Option<&str>,
+) -> Vec<&'static str> {
     let capture = Capture::default();
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::builder().parse_lossy(directives(defaults, requested)))

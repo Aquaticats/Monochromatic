@@ -44,10 +44,24 @@ fn the_oracle_accepts_every_edge_value() {
 
 #[test]
 fn the_reference_parse_pins_known_answers() {
-    assert_eq!(reference_parse("a,b?"), Ok(vec![("a".to_string(), false), ("b".to_string(), true)]));
+    assert_eq!(
+        reference_parse("a,b?"),
+        Ok(vec![("a".to_string(), false), ("b".to_string(), true)])
+    );
     assert_eq!(reference_parse("a??"), Ok(vec![("a?".to_string(), true)]));
-    assert_eq!(reference_parse("a,,b"), Err(RulesListError::EmptyEntry { position: 2 }));
-    assert_eq!(reference_parse("a,a?"), Err(RulesListError::DuplicatePath { first: 1, position: 2 }));
+    assert_eq!(
+        reference_parse("a,,b"),
+        Err(RulesListError::EmptyEntry {
+            position: 2
+        })
+    );
+    assert_eq!(
+        reference_parse("a,a?"),
+        Err(RulesListError::DuplicatePath {
+            first: 1,
+            position: 2
+        })
+    );
     assert_eq!(reference_parse(""), Err(RulesListError::Empty));
 }
 
@@ -83,11 +97,17 @@ fn the_generator_reaches_acceptance_and_every_refusal() {
             Ok(entries) => {
                 accepted += 1;
                 optional_seen |= entries.iter().any(|entry| return entry.optional);
-                doubled_seen |= entries.iter().any(|entry| return entry.path.to_string_lossy().ends_with('?'));
+                doubled_seen |= entries
+                    .iter()
+                    .any(|entry| return entry.path.to_string_lossy().ends_with('?'));
             }
             Err(RulesListError::Empty) => empty += 1,
-            Err(RulesListError::EmptyEntry { .. }) => empty_entry += 1,
-            Err(RulesListError::DuplicatePath { .. }) => duplicate += 1,
+            Err(RulesListError::EmptyEntry {
+                ..
+            }) => empty_entry += 1,
+            Err(RulesListError::DuplicatePath {
+                ..
+            }) => duplicate += 1,
         }
     }
     assert!(accepted > 0 && empty > 0 && empty_entry > 0 && duplicate > 0);
@@ -99,6 +119,10 @@ fn the_generator_is_bounded_and_deterministic() {
     let data = vec![0xff_u8; 4096];
     let first = generated_rules_list(&data);
     assert_eq!(first, generated_rules_list(&data));
-    let longest: usize = TOKENS.iter().map(|token| return token.len()).max().expect("tokens are non-empty");
+    let longest: usize = TOKENS
+        .iter()
+        .map(|token| return token.len())
+        .max()
+        .expect("tokens are non-empty");
     assert!(first.len() <= MAX_TOKENS * longest);
 }

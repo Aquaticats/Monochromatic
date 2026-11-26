@@ -18,6 +18,12 @@
 //! export type RunCargo = (request: { cwd: string; args: string[] }) => Promise<{ ok: boolean; output: string }>;
 //! ```
 
+/// Imports the bounded child run that every cargo call goes through.
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    output_within,
+};
 /// What:
 /// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
 /// Why:
@@ -41,7 +47,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 /// `use std::process::Command;` imports `Command` from the standard library so this file can name it unqualified.
 /// Why:
@@ -52,8 +61,6 @@ use std::path::{Path, PathBuf};
 /// import { Command } from 'std/process';
 /// ```
 use std::process::Command;
-/// Imports the bounded child run that every cargo call goes through.
-use crate::bounded_run::{Bound, RunError, output_within};
 
 /// What:
 /// `use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard};` imports `GUARD_VARIABLE`,
@@ -70,7 +77,12 @@ use crate::bounded_run::{Bound, RunError, output_within};
 /// ```ts
 /// import { GUARD_VARIABLE, Guard, GuardKind, format_guard } from 'crate/guard';
 /// ```
-use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard};
+use crate::guard::{
+    GUARD_VARIABLE,
+    Guard,
+    GuardKind,
+    format_guard,
+};
 
 /// The outcome of one cargo run.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -98,7 +110,11 @@ pub struct CargoOutcome {
 pub trait CargoRunner {
     /// Runs cargo in `cwd`;
     /// `Err` means cargo could not be started at all.
-    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String>;
+    fn run(
+        &self,
+        cwd: &Path,
+        args: &[String],
+    ) -> Result<CargoOutcome, String>;
 }
 
 /// The real cargo under one rustup toolchain.
@@ -158,7 +174,11 @@ impl CargoRunner for RealCargo {
     /// ```ts
     /// run(cwd: string, args: string[]): CargoOutcome  // throws if cargo cannot start
     /// ```
-    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+    fn run(
+        &self,
+        cwd: &Path,
+        args: &[String],
+    ) -> Result<CargoOutcome, String> {
         let vetted = crate::real_binary::vet(&self.program)?;
         // The runner below puts the program inside a scope whose launcher starts it from its own process, so only a path names it there.
         let mut command: Command = vetted.command_by_path()?;
@@ -170,7 +190,12 @@ impl CargoRunner for RealCargo {
             Ok(resolved) => resolved,
             Err(_) => self.program.clone(),
         };
-        let guard: Guard = Guard { kind: GuardKind::Spawn, pid: std::process::id(), hops: 1, skipped: vec![chosen] };
+        let guard: Guard = Guard {
+            kind: GuardKind::Spawn,
+            pid: std::process::id(),
+            hops: 1,
+            skipped: vec![chosen],
+        };
         command.env(GUARD_VARIABLE, format_guard(&guard));
         // The marker every shadow leaves for the program it starts (`shadow_identity.rs`): the candidate check and the guard
         // above recognize a shadow by its file or by its record, and what they cannot see (a script that runs a shadow, a
@@ -196,7 +221,11 @@ impl CargoRunner for RealCargo {
         // console.error(text);   // eprintln!
         // [a, b]            // vec![a, b]
         // ```
-        let bound: Bound = Bound { limit: self.bound, what: format!("`cargo {}`", args.join(" ")), rerun: crate::bounded_run::rerun_text() };
+        let bound: Bound = Bound {
+            limit: self.bound,
+            what: format!("`cargo {}`", args.join(" ")),
+            rerun: crate::bounded_run::rerun_text(),
+        };
         // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
         // Why:      Absence is a value the caller must check; there is no `null`.
         //
@@ -218,7 +247,12 @@ impl CargoRunner for RealCargo {
             // // Err(error) is  throw error;   (the caller sees it as a returned value)
             // ```
             // Macro `format!`: builds or prints text (or a list) from a template.
-            Err(RunError::Io(error)) => return Err(format!("could not start {}: {error}", self.program.display())),
+            Err(RunError::Io(error)) => {
+                return Err(format!(
+                    "could not start {}: {error}",
+                    self.program.display()
+                ));
+            }
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             Err(timed_out) => return Err(timed_out.to_string()),
@@ -226,7 +260,11 @@ impl CargoRunner for RealCargo {
         let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
         let mut text: String = stdout.clone();
         text.push_str(&String::from_utf8_lossy(&output.stderr));
-        return Ok(CargoOutcome { ok: output.status.success(), output: text, stdout });
+        return Ok(CargoOutcome {
+            ok: output.status.success(),
+            output: text,
+            stdout,
+        });
     }
 }
 
@@ -246,7 +284,11 @@ where
     /// ```ts
     /// run(cwd: string, args: string[]) { return fn(cwd, args); }
     /// ```
-    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+    fn run(
+        &self,
+        cwd: &Path,
+        args: &[String],
+    ) -> Result<CargoOutcome, String> {
         return self(cwd, args);
     }
 }

@@ -18,10 +18,14 @@
 // import { Name } from './module.ts';
 // ```
 /// Imports `std::fs::{self, File, OpenOptions}` for this file.
-use std::fs::{self};
+use std::fs::{
+    self,
+};
 // Imports `std::io`.
 /// Imports `std::io` for this file.
-use std::io::{self};
+use std::io::{
+    self,
+};
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
 // Why:      Joined or stored paths are owned; paths passed in are borrowed.
@@ -31,16 +35,20 @@ use std::io::{self};
 // // TS has one type for this: string
 // ```
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, ...`.
 /// Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced}` for this file.
-use crate::journal::{DONE_SUFFIX, sync_directory};
+use crate::journal::{
+    DONE_SUFFIX,
+    sync_directory,
+};
 
 /// Imports `crate::journal_finish::FinishError` for this file.
 use crate::journal_finish::FinishError;
-
 
 /// What:
 /// `pub fn publish_done(directory: &Path) -> io::Result<PathBuf>` renames a journal to its `.done` name and syncs the directory that
@@ -68,11 +76,17 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
         Some(found) => found.to_string_lossy().to_string(),
         None => String::new(),
     };
-    let done: PathBuf = if name.ends_with(DONE_SUFFIX) { directory.to_path_buf() } else { parent.join(format!("{name}{DONE_SUFFIX}")) };
+    let done: PathBuf = if name.ends_with(DONE_SUFFIX) {
+        directory.to_path_buf()
+    } else {
+        parent.join(format!("{name}{DONE_SUFFIX}"))
+    };
     // The two real steps of the marker each have a failpoint, so a test fails the rename itself and the sync that follows it.
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::CompletionRename) {
-        return Err(io::Error::other("injected failure of the completion rename"));
+        return Err(io::Error::other(
+            "injected failure of the completion rename",
+        ));
     }
     if done != directory {
         fs::rename(directory, &done)?;
@@ -81,7 +95,9 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
     crate::bounded_run::trace(format_args!("marker renamed"));
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::CompletionSync) {
-        return Err(io::Error::other("injected failure of the completion directory sync"));
+        return Err(io::Error::other(
+            "injected failure of the completion directory sync",
+        ));
     }
     sync_marker_parent(&parent)?;
     return Ok(done);
@@ -169,7 +185,9 @@ pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
     crate::bounded_run::trace(format_args!("cleanup attempted"));
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
-        return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
+        return Err(FinishError::cleanup(io::Error::other(
+            "injected cleanup failure",
+        )));
     }
     return remove_done(&done).map_err(FinishError::cleanup);
 }

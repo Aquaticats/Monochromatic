@@ -36,7 +36,10 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -206,7 +209,10 @@ pub(crate) fn is_executable(path: &Path) -> bool {
 /// ```ts
 /// function resolveExecutable(command: string, root: string): string | undefined
 /// ```
-pub fn resolve_executable(command: &str, root: &Path) -> Option<PathBuf> {
+pub fn resolve_executable(
+    command: &str,
+    root: &Path,
+) -> Option<PathBuf> {
     if command.contains('/') {
         // `join` keeps an absolute command as it is and puts a relative one under the root.
         let candidate = root.join(command);
@@ -242,7 +248,11 @@ mod state;
 pub use scratch::scratch_name;
 /// Re-exported:
 /// the confining policy and the worker use them through the seam.
-pub use state::{check_state_directory, prepare, resolve_existing};
+pub use state::{
+    check_state_directory,
+    prepare,
+    resolve_existing,
+};
 
 /// Executable lookup,
 ///  the default policy,

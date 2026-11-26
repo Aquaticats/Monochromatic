@@ -48,8 +48,23 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { Array, DocumentMut, Item, Value } from 'toml_edit';
 /// ```
-use toml_edit::{Array, DocumentMut, Item, Value};
+use toml_edit::{
+    Array,
+    DocumentMut,
+    Item,
+    Value,
+};
 
+/// What:
+/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `text_of` is used by `prune_excludes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { text_of } from 'crate/adapt';
+/// ```
+use crate::adapt::text_of;
 /// What:
 /// `use crate::lockfile::LockedVersion;` imports `LockedVersion` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -70,16 +85,6 @@ use crate::lockfile::LockedVersion;
 /// import { prune_selectors } from 'crate/selectors';
 /// ```
 use crate::selectors::prune_selectors;
-/// What:
-/// `use crate::adapt::text_of;` imports `text_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `text_of` is used by `prune_excludes`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { text_of } from 'crate/adapt';
-/// ```
-use crate::adapt::text_of;
 
 /// The result of pruning.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -92,11 +97,23 @@ pub struct Pruned {
 
 /// Prunes the two exclude lists whose flags are on;
 /// the text is returned unchanged when nothing is stale.
-pub fn prune_excludes(source: &str, settings: &Settings, locked: &[LockedVersion]) -> Result<Pruned, String> {
+pub fn prune_excludes(
+    source: &str,
+    settings: &Settings,
+    locked: &[LockedVersion],
+) -> Result<Pruned, String> {
     let keys: BTreeSet<String> = locked.iter().map(LockedVersion::key).collect();
     let lists: [(&str, bool, &Vec<String>); 2] = [
-        ("minimumReleaseAgeExclude", settings.minimum_release_age_exclude_prune, &settings.minimum_release_age_exclude),
-        ("trustPolicyExclude", settings.trust_policy_exclude_prune, &settings.trust_policy_exclude),
+        (
+            "minimumReleaseAgeExclude",
+            settings.minimum_release_age_exclude_prune,
+            &settings.minimum_release_age_exclude,
+        ),
+        (
+            "trustPolicyExclude",
+            settings.trust_policy_exclude_prune,
+            &settings.trust_policy_exclude,
+        ),
     ];
     let mut document: DocumentMut = source.parse::<DocumentMut>().map_err(text_of)?;
     let mut removed: Vec<String> = Vec::new();
@@ -120,7 +137,13 @@ pub fn prune_excludes(source: &str, settings: &Settings, locked: &[LockedVersion
         document[key] = Item::Value(Value::Array(array));
     }
     if removed.is_empty() {
-        return Ok(Pruned { source: source.to_string(), removed });
+        return Ok(Pruned {
+            source: source.to_string(),
+            removed,
+        });
     }
-    return Ok(Pruned { source: document.to_string(), removed });
+    return Ok(Pruned {
+        source: document.to_string(),
+        removed,
+    });
 }

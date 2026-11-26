@@ -9,11 +9,24 @@
 /// The state,
 ///  the request record,
 ///  and the steps the callbacks start.
-use super::{Action, Language, Pending, message, outcome, pointer, surface};
+use super::{
+    Action,
+    Language,
+    Pending,
+    message,
+    outcome,
+    pointer,
+    surface,
+};
 /// The window,
 ///  the source,
 ///  and the navigation that opens other files.
-use crate::native::{AppWindow, State, input::shown_y, navigation::Navigation};
+use crate::native::{
+    AppWindow,
+    State,
+    input::shown_y,
+    navigation::Navigation,
+};
 /// Weak window handles keep callbacks from holding a closed window alive.
 use slint::ComponentHandle;
 /// What:
@@ -27,7 +40,10 @@ use slint::ComponentHandle;
 /// type Shared<T> = { current: T };
 /// ```
 use std::{
-    cell::{RefCell, RefMut},
+    cell::{
+        RefCell,
+        RefMut,
+    },
     rc::Rc,
 };
 
@@ -157,7 +173,11 @@ fn bind_caret(
 }
 
 /// Bind Ctrl+click and the resting pointer.
-fn bind_pointer(owner: &AppWindow, source: &Rc<RefCell<State>>, language: &Rc<RefCell<Language>>) {
+fn bind_pointer(
+    owner: &AppWindow,
+    source: &Rc<RefCell<State>>,
+    language: &Rc<RefCell<Language>>,
+) {
     let click_state = Rc::clone(source);
     let click_language = Rc::clone(language);
     let click_window = owner.as_weak();

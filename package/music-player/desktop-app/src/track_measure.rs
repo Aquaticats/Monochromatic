@@ -20,14 +20,21 @@ use std::path::PathBuf;
 
 /// Imports the cached decision,
 /// the peak kind and the peak conversion that a measure is read from.
-use truepeak_core::{Decision, PeakKind, peak_dbtp};
+use truepeak_core::{
+    Decision,
+    PeakKind,
+    peak_dbtp,
+};
 
 /// Imports the fields that a measure fills in for the templates.
 use crate::template_model::TrackFields;
 
 /// The in-place writer and the page lookup,
 /// kept in a sibling file to keep this one short.
-pub use crate::track_measure_page::{apply_measures, lookup_for_positions};
+pub use crate::track_measure_page::{
+    apply_measures,
+    lookup_for_positions,
+};
 
 /// What:
 ///      `const PEAK_UNIT: &str = "dBTP";`.
@@ -246,7 +253,10 @@ pub fn exact_peak_text(measure: Option<&TrackMeasure>) -> Option<String> {
 /// ```ts
 /// const fieldsWithMeasure = (f: TrackFields, m: TrackMeasure | null) => ({ ...f, len: m?.durationSecs ?? null, peak: exactPeakText(m) });
 /// ```
-pub fn fields_with_measure(fields: TrackFields, measure: Option<&TrackMeasure>) -> TrackFields {
+pub fn fields_with_measure(
+    fields: TrackFields,
+    measure: Option<&TrackMeasure>,
+) -> TrackFields {
     let len: Option<f64> = match measure {
         Some(found) => found.duration_secs,
         None => None,
@@ -274,7 +284,8 @@ pub fn merge_measures(
     current: &HashMap<PathBuf, TrackMeasure>,
     updates: &[(PathBuf, TrackMeasure)],
 ) -> HashMap<PathBuf, TrackMeasure> {
-    let mut merged: HashMap<PathBuf, TrackMeasure> = HashMap::with_capacity(current.len() + updates.len());
+    let mut merged: HashMap<PathBuf, TrackMeasure> =
+        HashMap::with_capacity(current.len() + updates.len());
     for (path, measure) in current {
         merged.insert(path.clone(), *measure);
     }

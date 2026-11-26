@@ -202,19 +202,25 @@ impl CompileError {
     /// Builds the invalid-compiled-form rejection with a message that names what is wrong,
     /// so the checks of a decoded or built form do not each spell the variant.
     pub(crate) fn invalid(message: &str) -> CompileError {
-        return CompileError::Invalid { message: message.to_string() };
+        return CompileError::Invalid {
+            message: message.to_string(),
+        };
     }
 
     /// The serialization rejection for any encoder failure,
     /// keeping the encoder's text as the message.
     pub(crate) fn serialize_failed<Cause: fmt::Display>(cause: Cause) -> CompileError {
-        return CompileError::Serialize { message: cause.to_string() };
+        return CompileError::Serialize {
+            message: cause.to_string(),
+        };
     }
 
     /// The invalid-form rejection for any decoder failure,
     /// keeping the decoder's text as the message.
     pub(crate) fn undecodable<Cause: fmt::Display>(cause: Cause) -> CompileError {
-        return CompileError::Invalid { message: cause.to_string() };
+        return CompileError::Invalid {
+            message: cause.to_string(),
+        };
     }
 }
 
@@ -243,7 +249,10 @@ impl fmt::Display for CompileError {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         // What: branch per variant; no `match` value is discarded.
         // Why: each variant carries different fields to interpolate.
         //
@@ -252,21 +261,25 @@ impl fmt::Display for CompileError {
         // // Same step as the Rust statement below, written with ordinary TS objects/functions.
         // ```
         match self {
-            CompileError::Syntax { pos, message } => {
-                return write!(f, "syntax error at byte {pos}: {message}")
-            }
+            CompileError::Syntax {
+                pos,
+                message,
+            } => return write!(f, "syntax error at byte {pos}: {message}"),
             CompileError::EmptyMatchable => {
-                return write!(f, "pattern can match the empty string, which would match every input")
+                return write!(
+                    f,
+                    "pattern can match the empty string, which would match every input"
+                );
             }
-            CompileError::StateCap { limit } => {
-                return write!(f, "pattern exceeded the DFA state cap of {limit}")
-            }
-            CompileError::Serialize { message } => {
-                return write!(f, "failed to serialize automaton: {message}")
-            }
-            CompileError::Invalid { message } => {
-                return write!(f, "invalid serialized automaton: {message}")
-            }
+            CompileError::StateCap {
+                limit,
+            } => return write!(f, "pattern exceeded the DFA state cap of {limit}"),
+            CompileError::Serialize {
+                message,
+            } => return write!(f, "failed to serialize automaton: {message}"),
+            CompileError::Invalid {
+                message,
+            } => return write!(f, "invalid serialized automaton: {message}"),
         }
     }
 }

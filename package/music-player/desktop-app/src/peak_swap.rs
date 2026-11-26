@@ -29,7 +29,10 @@
 /// ```ts
 /// type Path = string;
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///      `use std::sync::mpsc::{self, Receiver, TryRecvError};`.
@@ -45,7 +48,11 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const channel = makeOneShotChannel<PeakGainResult>();
 /// ```
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{
+    self,
+    Receiver,
+    TryRecvError,
+};
 
 /// What:
 ///      `use std::thread;`.
@@ -74,7 +81,10 @@ use std::thread;
 /// import * as peakcache from "./peakcache";
 /// import { CacheHandle } from "./peakcache";
 /// ```
-use crate::peakcache::{self, CacheHandle};
+use crate::peakcache::{
+    self,
+    CacheHandle,
+};
 
 /// What:
 ///      `use crate::truepeak::{normalization_gain, resolve_current};`.
@@ -90,7 +100,10 @@ use crate::peakcache::{self, CacheHandle};
 /// ```ts
 /// import { normalizationGain, resolveCurrent } from "./truepeak";
 /// ```
-use crate::truepeak::{normalization_gain, resolve_current};
+use crate::truepeak::{
+    normalization_gain,
+    resolve_current,
+};
 /// Imports the cached decision that selects the swap strategy.
 use truepeak_core::Decision;
 
@@ -298,7 +311,9 @@ impl PendingPeakMeasurement {
         // ```ts
         // return { receiver };
         // ```
-        return PendingPeakMeasurement { receiver }
+        return PendingPeakMeasurement {
+            receiver,
+        };
     }
 
     /// What:
@@ -454,7 +469,7 @@ pub(crate) fn fallback_track_gain() -> f32 {
     // ```ts
     // return normalizationGain(1);
     // ```
-    return normalization_gain(1.0)
+    return normalization_gain(1.0);
 }
 
 /// What:
@@ -467,7 +482,10 @@ pub(crate) fn fallback_track_gain() -> f32 {
 /// ```ts
 /// function cachedTrackGain(path: string, cache: CacheHandle): number | null { ... }
 /// ```
-pub(crate) fn cached_track_gain(path: &Path, cache: &CacheHandle) -> Option<f32> {
+pub(crate) fn cached_track_gain(
+    path: &Path,
+    cache: &CacheHandle,
+) -> Option<f32> {
     // What:     `let key = peakcache::fingerprint(path)?;`. Compute the opaque `u64` cache
     //           key; `?` returns `None` if the file cannot be stat'd.
     // Why:      No key means there can be no cache hit.
@@ -495,7 +513,7 @@ pub(crate) fn cached_track_gain(path: &Path, cache: &CacheHandle) -> Option<f32>
     // ```ts
     // return decision.gain;
     // ```
-    return Some(decision.gain)
+    return Some(decision.gain);
 }
 
 /// What:
@@ -572,7 +590,7 @@ pub(crate) fn prepare_track_gain(
     // ```ts
     // return { kind: "pending", pending };
     // ```
-    return TrackGainResolution::Pending(pending)
+    return TrackGainResolution::Pending(pending);
 }
 
 /// What:
@@ -660,7 +678,7 @@ fn spawn_current_track_measurement(
     // ```ts
     // return PendingPeakMeasurement.fromReceiver(receiver);
     // ```
-    return PendingPeakMeasurement::from_receiver(receiver)
+    return PendingPeakMeasurement::from_receiver(receiver);
 }
 
 /// What:
@@ -720,7 +738,7 @@ fn measure_and_store_gain(
     // ```ts
     // return decision.gain;
     // ```
-    return Some(decision)
+    return Some(decision);
 }
 
 /// What:

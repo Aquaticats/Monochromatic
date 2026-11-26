@@ -13,13 +13,19 @@
 //           parent module.
 // Why:      Tests check the suppression rule directly and drive the worker with
 //           scripted streams instead of the process-wide pipe.
-use super::{forward_filtered_stderr, should_suppress_stderr_line};
+use super::{
+    forward_filtered_stderr,
+    should_suppress_stderr_line,
+};
 
 // What:     `use std::io::{self, Read};` imports the I/O error type and the
 //           byte-stream trait the scripted reader implements.
 // Why:      A read failure is what a test must place in the stream; a real pipe
 //           cannot be made to fail on demand.
-use std::io::{self, Read};
+use std::io::{
+    self,
+    Read,
+};
 
 // What:     `const FORWARDED_LINE: &[u8] = b"kept diagnostic\n";` is the one
 //           record the worker must pass to the original stderr untouched.
@@ -55,7 +61,10 @@ struct ScriptedReader {
 }
 
 impl Read for ScriptedReader {
-    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+    fn read(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> io::Result<usize> {
         match self.steps.next() {
             None => return Ok(0),
             Some(Err(error)) => return Err(error),

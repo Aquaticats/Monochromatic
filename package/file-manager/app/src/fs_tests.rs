@@ -3,19 +3,31 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
-use crate::fs::{read_directory, sort_entries};
-use crate::types::{EntryKind, FileEntry};
+use crate::fs::{
+    read_directory,
+    sort_entries,
+};
+use crate::types::{
+    EntryKind,
+    FileEntry,
+};
 
-fn entry(name: &str, kind: EntryKind) -> FileEntry {
+fn entry(
+    name: &str,
+    kind: EntryKind,
+) -> FileEntry {
     return FileEntry {
         name: name.to_owned(),
         path: PathBuf::from(name),
         kind,
         size: None,
         modified: None,
-    }
+    };
 }
 
 fn unique_tempdir(tag: &str) -> PathBuf {
@@ -23,9 +35,10 @@ fn unique_tempdir(tag: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock after epoch")
         .as_nanos();
-    let dir = crate::test_scratch::scratch_root().join(format!("fm-{tag}-{}-{nanos}", std::process::id()));
+    let dir = crate::test_scratch::scratch_root()
+        .join(format!("fm-{tag}-{}-{nanos}", std::process::id()));
     fs::create_dir_all(&dir).expect("create temp dir");
-    return dir
+    return dir;
 }
 
 #[test]
@@ -38,8 +51,14 @@ fn sorts_directories_before_files_then_case_insensitive() {
         entry("Apple.txt", EntryKind::File),
     ];
     sort_entries(&mut entries);
-    let names: Vec<&str> = entries.iter().map(|item| return item.name.as_str()).collect();
-    assert_eq!(names, ["Alpha", "Zulu", "Apple.txt", "beta.txt", "zebra.txt"]);
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|item| return item.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        ["Alpha", "Zulu", "Apple.txt", "beta.txt", "zebra.txt"]
+    );
 }
 
 #[test]

@@ -47,8 +47,14 @@ use std::{
     ffi::OsStr,
     fs,
     os::unix::ffi::OsStrExt,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// Folder names never watched for the servers:
@@ -113,7 +119,10 @@ fn skipped_name(name: &OsStr) -> bool {
 
 /// True when some folder between `base` and `file` is never watched,
 ///  so the file does not count.
-fn under_pruned(base: &Path, file: &Path) -> bool {
+fn under_pruned(
+    base: &Path,
+    file: &Path,
+) -> bool {
     // What: `strip_prefix` gives the path relative to `base`, or an error when it is not inside it.
     // Why: Only the folders below the base decide; the base itself was chosen as a source folder.
     //
@@ -151,7 +160,10 @@ fn under_pruned(base: &Path, file: &Path) -> bool {
 /// ```ts
 /// function listFiles(root: string, base: string): string[] | undefined
 /// ```
-fn list_files(root: &Path, base: &Path) -> Option<Vec<PathBuf>> {
+fn list_files(
+    root: &Path,
+    base: &Path,
+) -> Option<Vec<PathBuf>> {
     let mut command = Command::new("rg");
     command
         .current_dir(root)
@@ -291,7 +303,11 @@ fn empty_children(directories: &BTreeSet<PathBuf>) -> BTreeSet<PathBuf> {
 /// ```ts
 /// function scan(root: string, base: string, initial: boolean): Scan
 /// ```
-pub(super) fn scan(root: &Path, base: &Path, initial: bool) -> Scan {
+pub(super) fn scan(
+    root: &Path,
+    base: &Path,
+    initial: bool,
+) -> Scan {
     let mut result = Scan {
         base: base.to_path_buf(),
         initial,

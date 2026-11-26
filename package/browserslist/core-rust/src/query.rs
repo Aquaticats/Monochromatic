@@ -21,7 +21,10 @@
 /// ```ts
 /// import { Outcome, notImplemented } from './error';
 /// ```
-use crate::error::{Outcome, not_implemented};
+use crate::error::{
+    Outcome,
+    not_implemented,
+};
 
 /// What:
 ///  The browsers a supported `last 1 <browser> versions` line can name.
@@ -106,11 +109,23 @@ pub enum Query {
 /// const SUPPORTED: readonly [string, Query][] = [['last 1 Chrome versions', { kind: 'last-versions', browser: 'Chrome' }], /* ... */];
 /// ```
 const SUPPORTED: [(&str, Query); 7] = [
-    ("last 1 Chrome versions", Query::LastVersions(Browser::Chrome)),
-    ("last 1 ChromeAndroid versions", Query::LastVersions(Browser::ChromeAndroid)),
-    ("last 1 Android versions", Query::LastVersions(Browser::Android)),
+    (
+        "last 1 Chrome versions",
+        Query::LastVersions(Browser::Chrome),
+    ),
+    (
+        "last 1 ChromeAndroid versions",
+        Query::LastVersions(Browser::ChromeAndroid),
+    ),
+    (
+        "last 1 Android versions",
+        Query::LastVersions(Browser::Android),
+    ),
     ("Firefox ESR", Query::FirefoxEsr),
-    ("last 1 FirefoxAndroid versions", Query::LastVersions(Browser::FirefoxAndroid)),
+    (
+        "last 1 FirefoxAndroid versions",
+        Query::LastVersions(Browser::FirefoxAndroid),
+    ),
     ("last 1 node major versions", Query::LastNodeMajorVersions),
     ("not dead", Query::NotDead),
 ];
@@ -128,7 +143,10 @@ const SUPPORTED: [(&str, Query); 7] = [
 /// ```ts
 /// function parseQuery(lineNumber: number, text: string): Query; // throws NotImplemented
 /// ```
-pub fn parse_query(line_number: usize, text: &str) -> Outcome<Query> {
+pub fn parse_query(
+    line_number: usize,
+    text: &str,
+) -> Outcome<Query> {
     for (supported_text, query) in SUPPORTED {
         if text == supported_text {
             return Ok(query);

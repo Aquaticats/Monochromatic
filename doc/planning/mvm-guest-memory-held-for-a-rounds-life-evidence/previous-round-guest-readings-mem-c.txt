@@ -1,0 +1,40 @@
+# Guest mem-c readings, transcribed from the round's own commands
+
+Guest `mem-c` was `mvm create mem-c` with `MVM_MEMORY_PROBE=agent`, i.e. the probe patch forced the
+guest-agent file route, so the domain had no virtiofs share and no `memoryBacking`. Its `meta.json`:
+`{"createdAt":"2026-11-25T23:12:07.110Z","defaultUser":"ubuntu","fileTransfer":"guest-agent","image":"ubuntu",
+"osFamily":"linux","shell":"/bin/bash"}`.
+
+Its QEMU command line carried `{"qom-type":"memory-backend-ram","id":"pc.ram","size":8589934592}` and no
+vhost-user-fs device, i.e. anonymous RAM, not a memfd.
+
+Host view of its RAM mapping (`/proc/<pid>/smaps` and `smaps_rollup`):
+
+- the largest mapping was `7fba17e00000-7fbc17e00000 rw-p 00000000 00:00 0` (anonymous, private),
+  `Rss` 2,840,080,384 bytes,
+  and it carried the mergeable flag (`VmFlags: ... mg`), unlike the memfd guests' `rw-s` mapping;
+- 7 of its 816 mappings carried `mg` (the memfd guests: 6, and never the RAM mapping);
+- the session unit's `memory.stat` `anon` was 2.68 GiB while its `shmem` was 7.92 GiB, so the guest's own
+  bytes were charged as anonymous memory, not shared memory.
+
+KSM: `/sys/kernel/mm/ksm/run` read 0 and `pages_sharing` 0 throughout.
+
+Charged to the guest (`Rss` + `Swap`), by stage:
+
+- 75 seconds after create: 0.89 GiB (0.89 resident, no swap).
+- After the same preparation the other two guests ran (apt packages and Rust 1.100.0, 74 seconds):
+  3.07 GiB (2.67 resident, 0.40 in swap). The guest's own view was `MemFree` 6,298,344 kB,
+  `Cached` 1,564,048 kB, `AnonPages` 49,744 kB, `SwapFree` 0.
+- After `sync; echo 3 > /proc/sys/vm/drop_caches` in the guest (guest `MemFree` rose to 7,902,616 kB and
+  `Cached` fell to 59,248 kB): 3.08 GiB (2.60 resident, 0.48 in swap). Nothing came back.
+
+Costs measured on this guest:
+
+- `mvm create` 13 seconds, `mvm destroy` 10 seconds.
+- `mvm push` of the 12.6 MB wrapper snapshot through the guest agent took 11 seconds; the same file took
+  3 seconds through virtiofs.
+
+Not collected: the guest's own log files under `/root` (the guest was destroyed before they were pulled;
+the host-side samples are in `samples-mem-c.jsonl`).
+No build was run in this guest: its comparison point is the preparation stage, where `mem-a` was charged
+2.99 GiB and `mem-b` 2.30 GiB.

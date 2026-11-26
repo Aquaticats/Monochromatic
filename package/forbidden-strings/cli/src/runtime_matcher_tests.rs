@@ -10,18 +10,19 @@ fn starts(buf: &[u8]) -> Vec<usize> {
             output.push(index + 1);
         }
     }
-    return output
+    return output;
 }
 
 /// Interleaved legacy literal and explicit regex retain original ids.
 #[test]
 fn mixed_rules_report_global_ids() {
-    let rules = RuntimeRules::compile(
-        "ALPHA_LITERAL_LONG\n/BETA[0-9]{2}/\nGAMMA_LITERAL_LONG\n",
-    )
-    .expect("compile runtime rules");
+    let rules = RuntimeRules::compile("ALPHA_LITERAL_LONG\n/BETA[0-9]{2}/\nGAMMA_LITERAL_LONG\n")
+        .expect("compile runtime rules");
     let buf = b"GAMMA_LITERAL_LONG BETA42 ALPHA_LITERAL_LONG\n";
-    assert_eq!(rules.line_matches(buf, &starts(buf)), vec![(0, 0), (0, 1), (0, 2)]);
+    assert_eq!(
+        rules.line_matches(buf, &starts(buf)),
+        vec![(0, 0), (0, 1), (0, 2)]
+    );
 }
 
 /// Tail-format names remain parallel across literal and regex kinds.
@@ -33,7 +34,10 @@ fn tail_names_remain_in_original_order() {
     .expect("compile runtime rules");
     assert_eq!(
         rules.names(),
-        &[Some("qqq-literal".to_string()), Some("qqq-regex".to_string())],
+        &[
+            Some("qqq-literal".to_string()),
+            Some("qqq-regex".to_string())
+        ],
     );
 }
 
@@ -71,8 +75,14 @@ fn parser_kind_controls_matcher_selection() {
     let rules = RuntimeRules::compile("a.b{2}\n/a.b{2}/\n").expect("compile runtime rules");
     let literal_line = b"a.b{2}";
     let regex_line = b"axbb";
-    assert_eq!(rules.line_matches(literal_line, &starts(literal_line)), vec![(0, 0)]);
-    assert_eq!(rules.line_matches(regex_line, &starts(regex_line)), vec![(0, 1)]);
+    assert_eq!(
+        rules.line_matches(literal_line, &starts(literal_line)),
+        vec![(0, 0)]
+    );
+    assert_eq!(
+        rules.line_matches(regex_line, &starts(regex_line)),
+        vec![(0, 1)]
+    );
 }
 
 /// Hybrid results equal prior all-engine matcher over mixed adversarial corpus.

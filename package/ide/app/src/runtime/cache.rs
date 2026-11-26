@@ -42,10 +42,22 @@ use anyhow::Result;
 ///  and timing for logs.
 use std::{
     fs,
-    io::{ErrorKind, Write},
-    os::unix::fs::{DirBuilderExt, OpenOptionsExt},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    io::{
+        ErrorKind,
+        Write,
+    },
+    os::unix::fs::{
+        DirBuilderExt,
+        OpenOptionsExt,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     time::Instant,
 };
 
@@ -151,7 +163,11 @@ pub(super) fn replace_atomically(
 /// ```ts
 /// function unpack(directory: string, name: string, bytes: Uint8Array): string // throws on failure
 /// ```
-pub fn unpack(directory: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
+pub fn unpack(
+    directory: &Path,
+    name: &str,
+    bytes: &[u8],
+) -> Result<PathBuf> {
     let started = Instant::now();
     let target = directory.join(format!("{name}.so"));
     // What: `match` on `fs::read(...)`: `Ok(found)` is the whole file, `Err(error)` an I/O failure;
@@ -211,7 +227,10 @@ pub fn unpack(directory: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
 /// ```ts
 /// function remedy(directory: string, name: string): string
 /// ```
-fn remedy(directory: &Path, name: &str) -> String {
+fn remedy(
+    directory: &Path,
+    name: &str,
+) -> String {
     return format!(
         "Cannot unpack the language parser {name} into the private cache {}. Highlighting needs that directory to be writable: free disk space or fix its permissions, or point XDG_CACHE_HOME at a writable directory, then restart the application. Source remains readable without coloring.",
         directory.display()

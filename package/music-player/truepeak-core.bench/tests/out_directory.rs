@@ -15,8 +15,14 @@
 //! since the dump path is relative to the working directory.
 
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
 use serde::Serialize;
 
@@ -78,13 +84,17 @@ const FEASIBLE_MARKER: &str = "feasible no-classifier model";
 const PROVENANCE_MARKER: &str = "provenance-dependent margin";
 
 /// One corpus line for a track whose every second is `QUIET_BIN` except `hot_sec`.
-fn corpus_line(path: &str, full_peak: f64, hot_sec: usize) -> String {
+fn corpus_line(
+    path: &str,
+    full_peak: f64,
+    hot_sec: usize,
+) -> String {
     let bins: Vec<f64> = (0..TRACK_SECS)
         .map(|second| {
             if second == hot_sec {
-                return HOT_BIN_PEAK
+                return HOT_BIN_PEAK;
             } else {
-                return QUIET_BIN
+                return QUIET_BIN;
             }
         })
         .collect();
@@ -97,7 +107,7 @@ fn corpus_line(path: &str, full_peak: f64, hot_sec: usize) -> String {
         bin_seconds: 1.0,
         bin_peaks: bins,
     };
-    return serde_json::to_string(&line).expect("serialize the corpus line")
+    return serde_json::to_string(&line).expect("serialize the corpus line");
 }
 
 /// Write the corpus and the provenance metadata,
@@ -116,7 +126,7 @@ fn write_fixtures(directory: &Path) -> (PathBuf, PathBuf) {
         .enumerate()
         .map(|(index, &full_peak)| {
             let path = format!("/music/track{index}.flac");
-            return corpus_line(&path, full_peak, index + 1)
+            return corpus_line(&path, full_peak, index + 1);
         })
         .collect();
     let corpus_path = directory.join("tracks.jsonl");
@@ -128,12 +138,12 @@ fn write_fixtures(directory: &Path) -> (PathBuf, PathBuf) {
                 lossless: true,
                 ytdlp: false,
             };
-            return serde_json::to_string(&row).expect("serialize the metadata row")
+            return serde_json::to_string(&row).expect("serialize the metadata row");
         })
         .collect();
     let metadata_path = directory.join("metadata.jsonl");
     fs::write(&metadata_path, metadata.join("\n") + "\n").expect("write the metadata fixture");
-    return (corpus_path, metadata_path)
+    return (corpus_path, metadata_path);
 }
 
 /// A fresh working directory for one test,
@@ -142,16 +152,19 @@ fn scratch(name: &str) -> PathBuf {
     let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
     fs::remove_dir_all(&directory).ok();
     fs::create_dir_all(&directory).expect("make the scratch directory");
-    return directory
+    return directory;
 }
 
 /// Run the bench binary in `working_directory` with `arguments`.
-fn run_bench(working_directory: &Path, arguments: &[&str]) -> Output {
+fn run_bench(
+    working_directory: &Path,
+    arguments: &[&str],
+) -> Output {
     return Command::new(env!("CARGO_BIN_EXE_truepeak-core-bench"))
         .current_dir(working_directory)
         .args(arguments)
         .output()
-        .expect("run the bench binary")
+        .expect("run the bench binary");
 }
 
 /// The stdout of one run,
@@ -164,7 +177,7 @@ fn stdout_of(output: &Output) -> String {
         stdout,
         String::from_utf8_lossy(&output.stderr),
     );
-    return stdout
+    return stdout;
 }
 
 /// The full report prints and the dump lands under `out/`,
@@ -176,19 +189,29 @@ fn a_first_run_in_an_empty_directory_writes_the_dump_and_prints_every_section() 
     fs::create_dir_all(&work).expect("make the empty working directory");
     let (corpus_path, metadata_path) = write_fixtures(&directory);
 
-    let output = run_bench(&work, &[
-        corpus_path.to_str().expect("corpus path is UTF-8"),
-        metadata_path.to_str().expect("metadata path is UTF-8"),
-    ]);
+    let output = run_bench(
+        &work,
+        &[
+            corpus_path.to_str().expect("corpus path is UTF-8"),
+            metadata_path.to_str().expect("metadata path is UTF-8"),
+        ],
+    );
     let stdout = stdout_of(&output);
     for marker in [CLASSIFIER_MARKER, FEASIBLE_MARKER, PROVENANCE_MARKER] {
-        assert!(stdout.contains(marker), "the report lost {marker:?}:\n{stdout}");
+        assert!(
+            stdout.contains(marker),
+            "the report lost {marker:?}:\n{stdout}"
+        );
     }
 
     let dump = work.join(DUMP_PATH);
     let rows = fs::read_to_string(&dump).expect("the dump exists under out/");
     let row_count = rows.lines().filter(|line| return !line.is_empty()).count();
-    assert_eq!(row_count, FULL_PEAKS.len(), "one dump row per long track: {rows}");
+    assert_eq!(
+        row_count,
+        FULL_PEAKS.len(),
+        "one dump row per long track: {rows}"
+    );
 }
 
 /// A dump directory that cannot be created names the file it was trying to write.
@@ -201,8 +224,17 @@ fn an_unwritable_dump_directory_names_the_file_it_could_not_write() {
     // A regular file where the dump's directory belongs: `create_dir_all` cannot win.
     fs::write(work.join("out"), b"not a directory").expect("block the dump directory");
 
-    let output = run_bench(&work, &[corpus_path.to_str().expect("corpus path is UTF-8")]);
+    let output = run_bench(
+        &work,
+        &[corpus_path.to_str().expect("corpus path is UTF-8")],
+    );
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(!output.status.success(), "the blocked dump must fail the run");
-    assert!(stderr.contains(DUMP_PATH), "the error must name {DUMP_PATH:?}: {stderr}");
+    assert!(
+        !output.status.success(),
+        "the blocked dump must fail the run"
+    );
+    assert!(
+        stderr.contains(DUMP_PATH),
+        "the error must name {DUMP_PATH:?}: {stderr}"
+    );
 }

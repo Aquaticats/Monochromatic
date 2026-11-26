@@ -12,11 +12,23 @@
 //! `~/.local` or `~/.cargo`.
 
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::os::unix::fs::{
+    PermissionsExt,
+    symlink,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Output,
+};
 
-use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
+use mpm_shadow::toolchain::lock::{
+    parse_lock,
+    render_lock,
+};
 
 /// The directory of the postinstall link in both checkouts,
 /// relative to the checkout.
@@ -67,29 +79,51 @@ struct Fixture {
 impl Fixture {
     /// Builds the whole fixture.
     fn new() -> Fixture {
-        let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
-        let fixture = Fixture { directory };
+        let directory =
+            tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+        let fixture = Fixture {
+            directory,
+        };
         fs::create_dir_all(fixture.home()).expect("make the home");
         fs::create_dir_all(fixture.source()).expect("make the source checkout");
-        fixture.git(&fixture.source(), &["init", "--quiet", "--initial-branch=main"]);
-        fixture.git(&fixture.source(), &["worktree", "add", "--quiet", "-b", "two", &fixture.copy().to_string_lossy()]);
+        fixture.git(
+            &fixture.source(),
+            &["init", "--quiet", "--initial-branch=main"],
+        );
+        fixture.git(
+            &fixture.source(),
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                "two",
+                &fixture.copy().to_string_lossy(),
+            ],
+        );
         let parsed = parse_lock(UNSIGNED_LOCK, "lock").expect("the fixture lock parses");
         for checkout in [fixture.source(), fixture.copy()] {
             fs::write(checkout.join("toolchain.plan.jsonc"), PLAN).expect("write the plan");
-            fs::write(checkout.join("toolchain.lock.json"), render_lock(&parsed.lock)).expect("write the signed lock");
+            fs::write(
+                checkout.join("toolchain.lock.json"),
+                render_lock(&parsed.lock),
+            )
+            .expect("write the signed lock");
         }
 
         let managed_version = fixture.managed_root().join("0.4.5");
         let program = managed_version.join("bin").join("cli-git-native");
         fs::create_dir_all(program.parent().expect("a parent")).expect("make the directory");
         fs::write(&program, "#!/bin/sh\necho managed\n").expect("write the managed copy");
-        fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o755))
+            .expect("make it executable");
         fs::write(
             managed_version.join(".crates.toml"),
             "[v1]\n\"monochromatic-git-policy-cli 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)\" = [\"cli-git-native\"]\n",
         )
         .expect("write cargo's record for the managed copy");
-        symlink("0.4.5", fixture.managed_root().join("current")).expect("point current at the managed copy");
+        symlink("0.4.5", fixture.managed_root().join("current"))
+            .expect("point current at the managed copy");
         return fixture;
     }
 
@@ -110,11 +144,17 @@ impl Fixture {
 
     /// The managed crate directory (the version directories and `current`).
     fn managed_root(&self) -> PathBuf {
-        return self.home().join(".local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli");
+        return self
+            .home()
+            .join(".local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli");
     }
 
     /// Runs the real `git` in a cleared environment.
-    fn git(&self, directory: &Path, arguments: &[&str]) {
+    fn git(
+        &self,
+        directory: &Path,
+        arguments: &[&str],
+    ) {
         let output = Command::new("git")
             .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid"])
             .args(arguments)
@@ -124,11 +164,18 @@ impl Fixture {
             .env("PATH", "/usr/bin:/bin")
             .output()
             .expect("run git");
-        assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
+        assert!(
+            output.status.success(),
+            "git {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     /// Runs `mpm-shadow install --frozen-lockfile` in `checkout` with a cleared environment.
-    fn install_in(&self, checkout: &Path) -> Output {
+    fn install_in(
+        &self,
+        checkout: &Path,
+    ) -> Output {
         return Command::new(env!("CARGO_BIN_EXE_mpm-shadow"))
             .args(["install", "--frozen-lockfile"])
             .current_dir(checkout)
@@ -157,7 +204,11 @@ impl Fixture {
 
 /// Standard output and error as text.
 fn text(output: &Output) -> String {
-    return format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    return format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -172,8 +223,22 @@ fn an_install_in_a_copy_of_a_checkout_leaves_that_checkouts_links_in_place() {
     let copied = fixture.install_in(&fixture.copy());
     assert_eq!(copied.status.code(), Some(0), "{}", text(&copied));
 
-    assert_eq!(fs::read_link(&source_link).expect("the source checkout's link is still a link"), source_target, "{}", text(&copied));
-    assert!(!text(&copied).contains("retired the postinstall link"), "{}", text(&copied));
-    let copy_target = fs::read_link(fixture.copy().join(LINK_DIRECTORY).join("git")).expect("the copy made its own link");
-    assert!(copy_target.starts_with(fixture.copy()), "the copy's link runs the copy's launcher: {}", copy_target.display());
+    assert_eq!(
+        fs::read_link(&source_link).expect("the source checkout's link is still a link"),
+        source_target,
+        "{}",
+        text(&copied)
+    );
+    assert!(
+        !text(&copied).contains("retired the postinstall link"),
+        "{}",
+        text(&copied)
+    );
+    let copy_target = fs::read_link(fixture.copy().join(LINK_DIRECTORY).join("git"))
+        .expect("the copy made its own link");
+    assert!(
+        copy_target.starts_with(fixture.copy()),
+        "the copy's link runs the copy's launcher: {}",
+        copy_target.display()
+    );
 }

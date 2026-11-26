@@ -31,14 +31,26 @@ use std::collections::BTreeMap;
 use std::fs;
 
 /// Imports the owned path type.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use crate::installed::installed_versions;
-use crate::prune::{PruneReport, find_stale, installed_everywhere, prune_stale_own_crates, prune_stale_own_crates_reporting};
+use crate::prune::{
+    PruneReport,
+    find_stale,
+    installed_everywhere,
+    prune_stale_own_crates,
+    prune_stale_own_crates_reporting,
+};
 use crate::registry::RegistryEntry;
-use crate::toolchain::cargo_installs::repository_versions_installed;
-use crate::toolchain::scope::{EnvMap, toolchain_roots};
 use crate::test_scratch::scratch;
+use crate::toolchain::cargo_installs::repository_versions_installed;
+use crate::toolchain::scope::{
+    EnvMap,
+    toolchain_roots,
+};
 
 /// What:
 /// `fn entry(crate_name: &str, version: &str) -> RegistryEntry` declares a helper that builds one registry
@@ -50,7 +62,10 @@ use crate::test_scratch::scratch;
 /// ```ts
 /// function entry(crateName: string, version: string): RegistryEntry { return { crateName, version, path: `/x/${crateName}-${version}` }; }
 /// ```
-fn entry(crate_name: &str, version: &str) -> RegistryEntry {
+fn entry(
+    crate_name: &str,
+    version: &str,
+) -> RegistryEntry {
     // `format!` builds an owned text from a template, like a TS template literal; `PathBuf::from` makes it a path.
     return RegistryEntry {
         crate_name: crate_name.to_string(),
@@ -70,7 +85,10 @@ fn entry(crate_name: &str, version: &str) -> RegistryEntry {
 /// ```
 fn versions_of(entries: &[RegistryEntry]) -> Vec<String> {
     // `.iter().map(|e| ...).collect()` walks the list, builds a text per element with a closure, and gathers them.
-    return entries.iter().map(|e| return format!("{}-{}", e.crate_name, e.version)).collect();
+    return entries
+        .iter()
+        .map(|e| return format!("{}-{}", e.crate_name, e.version))
+        .collect();
 }
 
 /// The installed version stays;
@@ -87,7 +105,10 @@ fn keeps_the_installed_version() {
         ],
         &installed,
     );
-    assert_eq!(versions_of(&stale), vec!["monochromatic-lint-0.1.0", "monochromatic-lint-0.5.0"]);
+    assert_eq!(
+        versions_of(&stale),
+        vec!["monochromatic-lint-0.1.0", "monochromatic-lint-0.5.0"]
+    );
 }
 
 /// A crate with no install record keeps its newest cached version,
@@ -102,7 +123,13 @@ fn keeps_the_newest_version_without_an_install_record() {
         ],
         &BTreeMap::new(),
     );
-    assert_eq!(versions_of(&stale), vec!["monochromatic-jsonc-edit-0.1.0", "monochromatic-jsonc-edit-0.1.9"]);
+    assert_eq!(
+        versions_of(&stale),
+        vec![
+            "monochromatic-jsonc-edit-0.1.0",
+            "monochromatic-jsonc-edit-0.1.9"
+        ]
+    );
 }
 
 /// A crate whose name extends another's is a different crate and keeps its own version.
@@ -111,7 +138,10 @@ fn judges_a_crate_sharing_a_name_prefix_on_its_own_versions() {
     let mut installed: BTreeMap<String, String> = BTreeMap::new();
     installed.insert("monochromatic-lint".to_string(), "0.4.0".to_string());
     let stale = find_stale(
-        vec![entry("monochromatic-lint", "0.4.0"), entry("monochromatic-lint-closure", "0.1.0")],
+        vec![
+            entry("monochromatic-lint", "0.4.0"),
+            entry("monochromatic-lint-closure", "0.1.0"),
+        ],
         &installed,
     );
     assert!(stale.is_empty());
@@ -127,9 +157,16 @@ fn judges_a_crate_sharing_a_name_prefix_on_its_own_versions() {
 /// ```ts
 /// function writeRecord(cargoHome: string, key: string): void { fs.writeFileSync(path.join(cargoHome, '.crates.toml'), JSON.stringify({ installs: { [key]: {} } })); }
 /// ```
-fn write_record(cargo_home: &Path, key: &str) {
+fn write_record(
+    cargo_home: &Path,
+    key: &str,
+) {
     // `.expect("...")` unwraps a `Result` and, on error, stops the test with that message (tests may panic on purpose).
-    fs::write(cargo_home.join(".crates.toml"), format!("[v1]\n\"{key}\" = [\"bin\"]\n")).expect("write the record");
+    fs::write(
+        cargo_home.join(".crates.toml"),
+        format!("[v1]\n\"{key}\" = [\"bin\"]\n"),
+    )
+    .expect("write the record");
 }
 
 /// What:
@@ -142,8 +179,15 @@ fn write_record(cargo_home: &Path, key: &str) {
 /// ```ts
 /// function writeEntry(cargoHome: string, kind: 'cache' | 'src', name: string): void
 /// ```
-fn write_entry(cargo_home: &Path, kind: &str, name: &str) {
-    let directory: PathBuf = cargo_home.join("registry").join(kind).join("index.crates.io-fixture");
+fn write_entry(
+    cargo_home: &Path,
+    kind: &str,
+    name: &str,
+) {
+    let directory: PathBuf = cargo_home
+        .join("registry")
+        .join(kind)
+        .join("index.crates.io-fixture");
     fs::create_dir_all(&directory).expect("make the index directory");
     if kind == "cache" {
         fs::write(directory.join(format!("{name}.crate")), "").expect("write the archive");
@@ -159,7 +203,10 @@ fn write_entry(cargo_home: &Path, kind: &str, name: &str) {
 fn deletes_stale_archives_and_sources_and_keeps_the_installed_version() {
     let directory = scratch();
     let home: &Path = directory.path();
-    write_record(home, "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        home,
+        "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     for name in ["monochromatic-lint-0.1.0", "monochromatic-lint-0.4.0"] {
         write_entry(home, "cache", name);
         write_entry(home, "src", name);
@@ -169,10 +216,26 @@ fn deletes_stale_archives_and_sources_and_keeps_the_installed_version() {
 
     let index: PathBuf = home.join("registry");
     assert_eq!(deleted.len(), 2);
-    assert!(!index.join("cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate").exists());
-    assert!(!index.join("src/index.crates.io-fixture/monochromatic-lint-0.1.0").exists());
-    assert!(index.join("cache/index.crates.io-fixture/monochromatic-lint-0.4.0.crate").exists());
-    assert!(index.join("src/index.crates.io-fixture/monochromatic-lint-0.4.0").exists());
+    assert!(
+        !index
+            .join("cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate")
+            .exists()
+    );
+    assert!(
+        !index
+            .join("src/index.crates.io-fixture/monochromatic-lint-0.1.0")
+            .exists()
+    );
+    assert!(
+        index
+            .join("cache/index.crates.io-fixture/monochromatic-lint-0.4.0.crate")
+            .exists()
+    );
+    assert!(
+        index
+            .join("src/index.crates.io-fixture/monochromatic-lint-0.4.0")
+            .exists()
+    );
 }
 
 /// Crates this repository does not publish are never touched,
@@ -185,7 +248,10 @@ fn never_touches_third_party_crates() {
     write_entry(home, "cache", "serde-1.0.2");
 
     assert!(prune_stale_own_crates(home, &[]).is_empty());
-    assert!(home.join("registry/cache/index.crates.io-fixture/serde-1.0.1.crate").exists());
+    assert!(
+        home.join("registry/cache/index.crates.io-fixture/serde-1.0.1.crate")
+            .exists()
+    );
 }
 
 /// A cargo home with no registry has nothing to delete and is not an error.
@@ -207,23 +273,36 @@ fn falls_back_to_the_newest_version_when_the_record_is_malformed() {
     write_entry(home, "cache", "monochromatic-lint-0.2.0");
 
     assert_eq!(prune_stale_own_crates(home, &[]).len(), 1);
-    assert!(home.join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.2.0.crate").exists());
+    assert!(
+        home.join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.2.0.crate")
+            .exists()
+    );
 }
 
 /// The reader takes the crate name and version out of cargo's key.
 #[test]
 fn reads_the_installed_version_from_the_record() {
     let directory = scratch();
-    write_record(directory.path(), "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        directory.path(),
+        "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     let installed = installed_versions(directory.path());
-    assert_eq!(installed.get("monochromatic-lint"), Some(&"0.4.0".to_string()));
+    assert_eq!(
+        installed.get("monochromatic-lint"),
+        Some(&"0.4.0".to_string())
+    );
 }
 
 //region version-keyed install records
 
 /// Writes the record `mpm-shadow install` leaves for a finished install:
 /// `<root>/cargo/<crate>/<version>/.crates.toml` naming the crate and version.
-fn finish_version(root: &Path, crate_name: &str, version: &str) {
+fn finish_version(
+    root: &Path,
+    crate_name: &str,
+    version: &str,
+) {
     let directory: PathBuf = root.join("cargo").join(crate_name).join(version);
     fs::create_dir_all(&directory).expect("make the version directory");
     fs::write(
@@ -235,16 +314,33 @@ fn finish_version(root: &Path, crate_name: &str, version: &str) {
 
 /// A version directory that was started and never finished:
 /// no cargo record inside.
-fn start_version(root: &Path, crate_name: &str, version: &str) {
-    fs::create_dir_all(root.join("cargo").join(crate_name).join(version)).expect("make the unfinished directory");
+fn start_version(
+    root: &Path,
+    crate_name: &str,
+    version: &str,
+) {
+    fs::create_dir_all(root.join("cargo").join(crate_name).join(version))
+        .expect("make the unfinished directory");
 }
 
-fn cache_has(home: &Path, name: &str) -> bool {
-    return home.join("registry/cache/index.crates.io-fixture").join(format!("{name}.crate")).exists();
+fn cache_has(
+    home: &Path,
+    name: &str,
+) -> bool {
+    return home
+        .join("registry/cache/index.crates.io-fixture")
+        .join(format!("{name}.crate"))
+        .exists();
 }
 
-fn source_has(home: &Path, name: &str) -> bool {
-    return home.join("registry/src/index.crates.io-fixture").join(name).exists();
+fn source_has(
+    home: &Path,
+    name: &str,
+) -> bool {
+    return home
+        .join("registry/src/index.crates.io-fixture")
+        .join(name)
+        .exists();
 }
 
 /// The reported bug:
@@ -256,7 +352,10 @@ fn a_stale_legacy_record_no_longer_deletes_the_newer_cached_archive() {
     let home: PathBuf = directory.path().join("cargo-home");
     let root: PathBuf = directory.path().join("toolchain");
     fs::create_dir_all(&home).expect("make the cargo home");
-    write_record(&home, "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        &home,
+        "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     finish_version(&root, "monochromatic-lint", "0.5.0");
     for name in ["monochromatic-lint-0.4.0", "monochromatic-lint-0.5.0"] {
         write_entry(&home, "cache", name);
@@ -265,7 +364,11 @@ fn a_stale_legacy_record_no_longer_deletes_the_newer_cached_archive() {
 
     // Control: without the toolchain root the old reading is reproduced, so the fixture shows the bug.
     let legacy_only: Vec<PathBuf> = prune_stale_own_crates(&home, &[]);
-    assert_eq!(legacy_only.len(), 2, "the legacy record alone keeps 0.4.0 and deletes 0.5.0");
+    assert_eq!(
+        legacy_only.len(),
+        2,
+        "the legacy record alone keeps 0.4.0 and deletes 0.5.0"
+    );
     assert!(!cache_has(&home, "monochromatic-lint-0.5.0"));
     for name in ["monochromatic-lint-0.4.0", "monochromatic-lint-0.5.0"] {
         write_entry(&home, "cache", name);
@@ -275,8 +378,14 @@ fn a_stale_legacy_record_no_longer_deletes_the_newer_cached_archive() {
     let deleted: Vec<PathBuf> = prune_stale_own_crates(&home, &[root]);
 
     assert_eq!(deleted.len(), 2, "{deleted:?}");
-    assert!(cache_has(&home, "monochromatic-lint-0.5.0") && source_has(&home, "monochromatic-lint-0.5.0"));
-    assert!(!cache_has(&home, "monochromatic-lint-0.4.0") && !source_has(&home, "monochromatic-lint-0.4.0"));
+    assert!(
+        cache_has(&home, "monochromatic-lint-0.5.0")
+            && source_has(&home, "monochromatic-lint-0.5.0")
+    );
+    assert!(
+        !cache_has(&home, "monochromatic-lint-0.4.0")
+            && !source_has(&home, "monochromatic-lint-0.4.0")
+    );
 }
 
 /// Trees still on the TypeScript toolchain keep installing into `$CARGO_HOME`,
@@ -287,7 +396,10 @@ fn a_legacy_record_newer_than_the_version_keyed_ones_is_still_kept() {
     let home: PathBuf = directory.path().join("cargo-home");
     let root: PathBuf = directory.path().join("toolchain");
     fs::create_dir_all(&home).expect("make the cargo home");
-    write_record(&home, "monochromatic-lint 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        &home,
+        "monochromatic-lint 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     finish_version(&root, "monochromatic-lint", "0.5.0");
     for name in ["monochromatic-lint-0.5.0", "monochromatic-lint-0.6.0"] {
         write_entry(&home, "cache", name);
@@ -308,13 +420,21 @@ fn the_version_keyed_record_decides_when_there_is_no_legacy_record() {
     let root: PathBuf = directory.path().join("toolchain");
     fs::create_dir_all(&home).expect("make the cargo home");
     finish_version(&root, "monochromatic-lint", "0.4.0");
-    for name in ["monochromatic-lint-0.3.0", "monochromatic-lint-0.4.0", "monochromatic-lint-0.5.0"] {
+    for name in [
+        "monochromatic-lint-0.3.0",
+        "monochromatic-lint-0.4.0",
+        "monochromatic-lint-0.5.0",
+    ] {
         write_entry(&home, "cache", name);
     }
 
     let deleted: Vec<PathBuf> = prune_stale_own_crates(&home, &[root]);
 
-    assert_eq!(deleted.len(), 2, "installed 0.4.0 is kept even though 0.5.0 is cached, as with the legacy record");
+    assert_eq!(
+        deleted.len(),
+        2,
+        "installed 0.4.0 is kept even though 0.5.0 is cached, as with the legacy record"
+    );
     assert!(cache_has(&home, "monochromatic-lint-0.4.0"));
 }
 
@@ -330,10 +450,19 @@ fn the_repository_root_and_the_global_root_are_both_read_and_the_newest_wins() {
     finish_version(&global_root, "monochromatic-lint", "0.5.0");
     finish_version(&global_root, "monochromatic-mpm-shadow", "0.2.0");
 
-    let installed: BTreeMap<String, String> = installed_everywhere(&home, &[repository_root, global_root]);
+    let installed: BTreeMap<String, String> =
+        installed_everywhere(&home, &[repository_root, global_root]);
 
-    assert_eq!(installed.get("monochromatic-lint").map(String::as_str), Some("0.5.0"));
-    assert_eq!(installed.get("monochromatic-mpm-shadow").map(String::as_str), Some("0.2.0"));
+    assert_eq!(
+        installed.get("monochromatic-lint").map(String::as_str),
+        Some("0.5.0")
+    );
+    assert_eq!(
+        installed
+            .get("monochromatic-mpm-shadow")
+            .map(String::as_str),
+        Some("0.2.0")
+    );
 }
 
 /// Rejected fixtures:
@@ -349,27 +478,52 @@ fn unfinished_installs_third_party_crates_and_missing_roots_are_not_installed_re
     start_version(&root, "monochromatic-lint", "0.5.0");
     start_version(&root, "monochromatic-unfinished", "0.1.0");
     finish_version(&root, "fd-find", "10.5.0");
-    fs::write(root.join("cargo").join("monochromatic-stray"), "a file, not a crate directory").expect("write a stray file");
+    fs::write(
+        root.join("cargo").join("monochromatic-stray"),
+        "a file, not a crate directory",
+    )
+    .expect("write a stray file");
 
     let found: BTreeMap<String, String> = repository_versions_installed(&root);
 
     assert_eq!(found.len(), 1, "{found:?}");
-    assert_eq!(found.get("monochromatic-lint").map(String::as_str), Some("0.4.0"), "the unfinished 0.5.0 is ignored");
+    assert_eq!(
+        found.get("monochromatic-lint").map(String::as_str),
+        Some("0.4.0"),
+        "the unfinished 0.5.0 is ignored"
+    );
     assert!(repository_versions_installed(&directory.path().join("no-such-root")).is_empty());
-    assert!(installed_everywhere(directory.path(), &[directory.path().join("no-such-root")]).is_empty());
+    assert!(
+        installed_everywhere(directory.path(), &[directory.path().join("no-such-root")]).is_empty()
+    );
 }
 
 /// The shim learns the roots from the environment alone.
 #[test]
 fn the_roots_come_from_xdg_data_home_then_home_and_are_empty_without_either() {
-    let with_xdg = toolchain_roots(&EnvMap::from_pairs(&[("HOME", "/h"), ("XDG_DATA_HOME", "/x")]));
-    assert_eq!(with_xdg, vec![PathBuf::from("/x/monochromatic-dev/toolchain"), PathBuf::from("/x/monochromatic-dev/toolchain-global")]);
+    let with_xdg = toolchain_roots(&EnvMap::from_pairs(&[
+        ("HOME", "/h"),
+        ("XDG_DATA_HOME", "/x"),
+    ]));
+    assert_eq!(
+        with_xdg,
+        vec![
+            PathBuf::from("/x/monochromatic-dev/toolchain"),
+            PathBuf::from("/x/monochromatic-dev/toolchain-global")
+        ]
+    );
     let with_home = toolchain_roots(&EnvMap::from_pairs(&[("HOME", "/h")]));
     assert_eq!(
         with_home,
-        vec![PathBuf::from("/h/.local/share/monochromatic-dev/toolchain"), PathBuf::from("/h/.local/share/monochromatic-dev/toolchain-global")]
+        vec![
+            PathBuf::from("/h/.local/share/monochromatic-dev/toolchain"),
+            PathBuf::from("/h/.local/share/monochromatic-dev/toolchain-global")
+        ]
     );
-    assert!(toolchain_roots(&EnvMap::from_pairs(&[("XDG_DATA_HOME", "/x")])).is_empty(), "no home, no roots");
+    assert!(
+        toolchain_roots(&EnvMap::from_pairs(&[("XDG_DATA_HOME", "/x")])).is_empty(),
+        "no home, no roots"
+    );
 }
 
 //endregion
@@ -380,10 +534,15 @@ const ARCHIVE_BYTES: u64 = 100;
 const SOURCE_BYTES: u64 = 30 + 20;
 
 /// A stale crate with a sized archive and a source directory holding a nested file.
-fn write_sized_stale(home: &Path, name: &str) {
+fn write_sized_stale(
+    home: &Path,
+    name: &str,
+) {
     write_entry(home, "cache", name);
     write_entry(home, "src", name);
-    let archive: PathBuf = home.join("registry/cache/index.crates.io-fixture").join(format!("{name}.crate"));
+    let archive: PathBuf = home
+        .join("registry/cache/index.crates.io-fixture")
+        .join(format!("{name}.crate"));
     fs::write(archive, vec![0u8; ARCHIVE_BYTES as usize]).expect("size the archive");
     let source: PathBuf = home.join("registry/src/index.crates.io-fixture").join(name);
     fs::write(source.join("lib.rs"), vec![0u8; 30]).expect("write a source file");
@@ -395,7 +554,10 @@ fn write_sized_stale(home: &Path, name: &str) {
 fn the_report_lists_what_was_deleted_and_its_total_size_including_nested_files() {
     let directory = scratch();
     let home: &Path = directory.path();
-    write_record(home, "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        home,
+        "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     write_sized_stale(home, "monochromatic-lint-0.1.0");
     write_sized_stale(home, "monochromatic-lint-0.2.0");
     write_entry(home, "cache", "monochromatic-lint-0.4.0");
@@ -403,14 +565,21 @@ fn the_report_lists_what_was_deleted_and_its_total_size_including_nested_files()
     let report = prune_stale_own_crates_reporting(home, &[]);
 
     assert_eq!(report.deleted.len(), 4, "{report:?}");
-    assert_eq!(report.bytes, 2 * (ARCHIVE_BYTES + SOURCE_BYTES), "{report:?}");
+    assert_eq!(
+        report.bytes,
+        2 * (ARCHIVE_BYTES + SOURCE_BYTES),
+        "{report:?}"
+    );
     assert!(report.failed.is_empty(), "{report:?}");
 }
 
 #[test]
 fn a_cleanup_with_nothing_stale_reports_nothing() {
     let directory = scratch();
-    assert_eq!(prune_stale_own_crates_reporting(directory.path(), &[]), PruneReport::default());
+    assert_eq!(
+        prune_stale_own_crates_reporting(directory.path(), &[]),
+        PruneReport::default()
+    );
 }
 
 #[test]
@@ -418,20 +587,40 @@ fn a_path_that_cannot_be_deleted_is_reported_with_the_systems_reason_and_the_res
     use std::os::unix::fs::PermissionsExt;
     let directory = scratch();
     let home: &Path = directory.path();
-    write_record(home, "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        home,
+        "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     write_sized_stale(home, "monochromatic-lint-0.1.0");
     let cache: PathBuf = home.join("registry/cache/index.crates.io-fixture");
     // A directory without the write bit refuses the removal of the files inside it.
-    fs::set_permissions(&cache, fs::Permissions::from_mode(0o555)).expect("lock the cache directory");
+    fs::set_permissions(&cache, fs::Permissions::from_mode(0o555))
+        .expect("lock the cache directory");
 
     let report = prune_stale_own_crates_reporting(home, &[]);
 
-    fs::set_permissions(&cache, fs::Permissions::from_mode(0o755)).expect("unlock the cache directory");
+    fs::set_permissions(&cache, fs::Permissions::from_mode(0o755))
+        .expect("unlock the cache directory");
     assert_eq!(report.failed.len(), 1, "{report:?}");
-    assert!(report.failed[0].0.ends_with("monochromatic-lint-0.1.0.crate"), "{report:?}");
-    assert!(report.failed[0].1.contains("Permission denied"), "{report:?}");
-    assert_eq!(report.deleted.len(), 1, "the source directory still went: {report:?}");
-    assert_eq!(report.bytes, SOURCE_BYTES, "only what was removed is counted: {report:?}");
+    assert!(
+        report.failed[0]
+            .0
+            .ends_with("monochromatic-lint-0.1.0.crate"),
+        "{report:?}"
+    );
+    assert!(
+        report.failed[0].1.contains("Permission denied"),
+        "{report:?}"
+    );
+    assert_eq!(
+        report.deleted.len(),
+        1,
+        "the source directory still went: {report:?}"
+    );
+    assert_eq!(
+        report.bytes, SOURCE_BYTES,
+        "only what was removed is counted: {report:?}"
+    );
 }
 
 /// The newest cached version is the one with the longer alpha number,
@@ -445,7 +634,10 @@ fn keeps_the_longer_alpha_number_without_an_install_record() {
         ],
         &BTreeMap::new(),
     );
-    assert_eq!(versions_of(&stale), vec!["monochromatic-jsonc-edit-0.1.3-alpha.9"]);
+    assert_eq!(
+        versions_of(&stale),
+        vec!["monochromatic-jsonc-edit-0.1.3-alpha.9"]
+    );
 }
 
 /// Of two version-keyed records the one with the longer alpha number is the newest installed.
@@ -455,10 +647,16 @@ fn the_newest_recorded_install_is_the_longer_alpha_number() {
     let home: PathBuf = directory.path().join("cargo-home");
     let root: PathBuf = directory.path().join("toolchain");
     fs::create_dir_all(&home).expect("make the cargo home");
-    write_record(&home, "monochromatic-lint 0.5.1-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_record(
+        &home,
+        "monochromatic-lint 0.5.1-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
+    );
     finish_version(&root, "monochromatic-lint", "0.5.1-alpha.10");
 
     let installed: BTreeMap<String, String> = installed_everywhere(&home, &[root]);
 
-    assert_eq!(installed.get("monochromatic-lint").map(String::as_str), Some("0.5.1-alpha.10"));
+    assert_eq!(
+        installed.get("monochromatic-lint").map(String::as_str),
+        Some("0.5.1-alpha.10")
+    );
 }

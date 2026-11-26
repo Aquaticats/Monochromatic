@@ -3,18 +3,33 @@
 //!  with a keymap switch for characters the layout does not have.
 
 /// Error handling with context.
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Smithay compositor types.
 use smithay::backend::input::KeyState;
 /// Structured logging.
-use tracing::{debug, info};
+use tracing::{
+    debug,
+    info,
+};
 
 /// Sibling modules of this crate.
 use crate::{
     input::send_key,
-    keymap::{char_to_key, LEFT_SHIFT},
+    keymap::{
+        LEFT_SHIFT,
+        char_to_key,
+    },
     state::Compositor,
-    unicode_keymap::{base_keymap_text, spare_evdev, with_unicode_keys, MAX_SPARE_KEYS},
+    unicode_keymap::{
+        MAX_SPARE_KEYS,
+        base_keymap_text,
+        spare_evdev,
+        with_unicode_keys,
+    },
 };
 
 /// Find the end of the chunk that one keymap can type,
@@ -44,7 +59,7 @@ pub fn next_chunk(characters: &[char]) -> (usize, Vec<char>) {
         }
         taken += 1;
     }
-    return (taken, spare)
+    return (taken, spare);
 }
 
 /// Refuse control characters no key can type.
@@ -63,10 +78,13 @@ pub fn next_chunk(characters: &[char]) -> (usize, Vec<char>) {
 pub fn check_typable(text: &str) -> Result<()> {
     for (position, character) in text.chars().enumerate() {
         if character.is_control() && char_to_key(character).is_none() {
-            bail!("type cannot send the control character U+{:04X} at position {position}", u32::from(character));
+            bail!(
+                "type cannot send the control character U+{:04X} at position {position}",
+                u32::from(character)
+            );
         }
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Tap one character on its key,
@@ -84,7 +102,11 @@ pub fn check_typable(text: &str) -> Result<()> {
 /// ```ts
 /// function tapCharacter(state: Compositor, character: string, spare: string[]): void { ... }
 /// ```
-fn tap_character(state: &mut Compositor, character: char, spare: &[char]) {
+fn tap_character(
+    state: &mut Compositor,
+    character: char,
+    spare: &[char],
+) {
     if let Some((evdev, shift)) = char_to_key(character) {
         if shift {
             send_key(state, LEFT_SHIFT, KeyState::Pressed);
@@ -104,7 +126,10 @@ fn tap_character(state: &mut Compositor, character: char, spare: &[char]) {
         }
     }
     let Some(index) = spare_index else {
-        debug!("character U+{:04X} has neither a layout key nor a spare key", u32::from(character));
+        debug!(
+            "character U+{:04X} has neither a layout key nor a spare key",
+            u32::from(character)
+        );
         return;
     };
     let evdev = spare_evdev(index);
@@ -135,10 +160,16 @@ fn tap_character(state: &mut Compositor, character: char, spare: &[char]) {
 /// ```ts
 /// typeText(state, "Björk"); // B, j, r, k on their keys; ö on a spare key
 /// ```
-pub fn type_text(state: &mut Compositor, text: &str) -> Result<()> {
+pub fn type_text(
+    state: &mut Compositor,
+    text: &str,
+) -> Result<()> {
     check_typable(text)?;
     let characters: Vec<char> = text.chars().collect();
-    let keyboard = state.seat.get_keyboard().context("nested seat has no keyboard")?;
+    let keyboard = state
+        .seat
+        .get_keyboard()
+        .context("nested seat has no keyboard")?;
     let mut index = 0;
     while index < characters.len() {
         let (taken, spare) = next_chunk(&characters[index..]);
@@ -147,20 +178,27 @@ pub fn type_text(state: &mut Compositor, text: &str) -> Result<()> {
         } else {
             let base = base_keymap_text().map_err(anyhow::Error::msg)?;
             let extended = with_unicode_keys(&base, &spare).map_err(anyhow::Error::msg)?;
-            info!(spare = spare.len(), "type: switching to a keymap with spare Unicode keys");
-            keyboard.set_keymap_from_string(state, extended).context("the keymap with spare keys was refused")?;
+            info!(
+                spare = spare.len(),
+                "type: switching to a keymap with spare Unicode keys"
+            );
+            keyboard
+                .set_keymap_from_string(state, extended)
+                .context("the keymap with spare keys was refused")?;
             Some(base)
         };
         for character in &characters[index..index + taken] {
             tap_character(state, *character, &spare);
         }
         if let Some(original) = base {
-            keyboard.set_keymap_from_string(state, original).context("restoring the keymap was refused")?;
+            keyboard
+                .set_keymap_from_string(state, original)
+                .context("restoring the keymap was refused")?;
             info!("type: restored the original keymap");
         }
         index += taken;
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// What:

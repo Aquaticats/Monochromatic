@@ -18,13 +18,19 @@ use crate::language::notice::Trouble;
 /// A new process owes no answers yet.
 use crate::language::owed::Owed;
 /// Root checks made before and after a start.
-use crate::language::root::{RootRefusal, RootView};
+use crate::language::root::{
+    RootRefusal,
+    RootView,
+};
 /// Session records.
 use crate::language::session::ServerRecord;
 /// States reported to the interface thread.
 use crate::language::status::ServerState;
 /// The worker whose state these steps change.
-use crate::language::worker::{Internal, Worker};
+use crate::language::worker::{
+    Internal,
+    Worker,
+};
 /// One language's Helix configuration.
 use helix_core::syntax::config::LanguageConfiguration;
 /// helix-lsp's client handle.
@@ -42,7 +48,10 @@ use helix_lsp::Client;
 /// ```ts
 /// type Shared<T> = T;
 /// ```
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 /// Seconds added to a server's start allowance before its start is declared failed.
 const START_MARGIN: u64 = 2;
@@ -57,7 +66,9 @@ fn refusal_state(refusal: &RootRefusal) -> ServerState {
     // return refusal.kind === 'outsideProject' ? { kind: 'rootOutsideProject', root } : { kind: 'wrongWorkingDirectory', directory };
     // ```
     return match refusal {
-        RootRefusal::OutsideProject(root) => ServerState::RootOutsideProject { root: root.clone() },
+        RootRefusal::OutsideProject(root) => ServerState::RootOutsideProject {
+            root: root.clone(),
+        },
         RootRefusal::WrongWorkingDirectory(directory) => ServerState::WrongWorkingDirectory {
             directory: directory.clone(),
         },
@@ -79,14 +90,22 @@ fn refusal_state(refusal: &RootRefusal) -> ServerState {
 /// ```ts
 /// async function adopt(worker: Worker, name: string, client: Client, view: RootView): Promise<void>
 /// ```
-async fn adopt(worker: &mut Worker, name: String, client: Arc<Client>, view: &RootView) {
+async fn adopt(
+    worker: &mut Worker,
+    name: String,
+    client: Arc<Client>,
+    view: &RootView,
+) {
     let index = match worker.session.index_of(client.id()) {
         Some(index) => index,
         None => {
             let instance = worker.session.next_instance;
             worker.session.next_instance += 1;
             worker.session.servers.push(ServerRecord {
-                identity: ServerIdentity { name, instance },
+                identity: ServerIdentity {
+                    name,
+                    instance,
+                },
                 // `Some(...)` is the "value present" variant; `clone` copies the shared pointer.
                 client: Some(client.clone()),
                 state: ServerState::Starting,
@@ -127,7 +146,9 @@ async fn adopt(worker: &mut Worker, name: String, client: Arc<Client>, view: &Ro
             retire(
                 worker,
                 index,
-                ServerState::RootOutsideProject { root },
+                ServerState::RootOutsideProject {
+                    root,
+                },
                 true,
             );
             worker.session.servers[index].attached = true;
@@ -154,7 +175,10 @@ async fn adopt(worker: &mut Worker, name: String, client: Arc<Client>, view: &Ro
 /// ```ts
 /// function prepareLaunches(worker: Worker, names: string[]): [string, string] | undefined
 /// ```
-fn prepare_launches(worker: &Worker, names: &[String]) -> Option<(String, String)> {
+fn prepare_launches(
+    worker: &Worker,
+    names: &[String],
+) -> Option<(String, String)> {
     for name in names {
         // A running server keeps its directories; emptying its scratch space would break it.
         let mut running = false;
@@ -302,9 +326,12 @@ pub(super) async fn start(
     for name in &startable {
         if !seen.contains(name) {
             let reason = "its required root files are absent from the project".to_string();
-            worker
-                .session
-                .report(name, ServerState::NotStarted { reason });
+            worker.session.report(
+                name,
+                ServerState::NotStarted {
+                    reason,
+                },
+            );
         }
     }
     return;

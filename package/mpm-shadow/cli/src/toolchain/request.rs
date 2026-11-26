@@ -18,15 +18,29 @@
 //! ```
 
 /// Imports the shared named helpers.
-use super::util::{all_ascii_digits, starts_with_ascii_digit};
+use super::util::{
+    all_ascii_digits,
+    starts_with_ascii_digit,
+};
 
 /// The origins written with a prefix:
 /// the text after the prefix names the thing in that origin.
-const PREFIXED_ORIGINS: [&str; 7] = ["github:", "npm:", "cargo:", "pipx:", "conda:", "go:", "git:"];
+const PREFIXED_ORIGINS: [&str; 7] = [
+    "github:", "npm:", "cargo:", "pipx:", "conda:", "go:", "git:",
+];
 
 /// The origins written as a bare name:
 /// each has a resolver of its own.
-pub const NAMED_ORIGINS: [&str; 8] = ["node", "go", "zig", "rustup", "aws", "rust", "android-sdk", "java:temurin"];
+pub const NAMED_ORIGINS: [&str; 8] = [
+    "node",
+    "go",
+    "zig",
+    "rustup",
+    "aws",
+    "rust",
+    "android-sdk",
+    "java:temurin",
+];
 
 /// What:
 /// Where a tool's versions come from.
@@ -153,10 +167,19 @@ impl Request {
             Some(at) => (&text[..at], &text[at + 1..]),
             None => (text, "latest"),
         };
-        if source.is_empty() || range.is_empty() || range.contains(char::is_whitespace) || source.contains(char::is_whitespace) {
-            return Err(format!("{text:?} must be <origin> or <origin>@<range>, without spaces"));
+        if source.is_empty()
+            || range.is_empty()
+            || range.contains(char::is_whitespace)
+            || source.contains(char::is_whitespace)
+        {
+            return Err(format!(
+                "{text:?} must be <origin> or <origin>@<range>, without spaces"
+            ));
         }
-        let request: Request = Request { source: source.to_string(), range: range.to_string() };
+        let request: Request = Request {
+            source: source.to_string(),
+            range: range.to_string(),
+        };
         if let Origin::Named(name) = request.origin()
             && !NAMED_ORIGINS.contains(&name.as_str())
         {
@@ -168,7 +191,9 @@ impl Request {
         }
         for prefix in PREFIXED_ORIGINS {
             if source == prefix {
-                return Err(format!("the origin {source:?} names nothing after {prefix}"));
+                return Err(format!(
+                    "the origin {source:?} names nothing after {prefix}"
+                ));
             }
         }
         return Ok(request);
@@ -225,7 +250,9 @@ impl Request {
             return false;
         }
         return match self.origin() {
-            Origin::Named(name) if name == "rust" => !matches!(self.range.as_str(), "nightly" | "beta" | "stable"),
+            Origin::Named(name) if name == "rust" => {
+                !matches!(self.range.as_str(), "nightly" | "beta" | "stable")
+            }
             Origin::Named(name) if name == "java:temurin" => !all_ascii_digits(&self.range),
             Origin::Npm(_) => starts_with_ascii_digit(&self.range),
             _ => true,

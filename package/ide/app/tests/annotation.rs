@@ -25,15 +25,37 @@ use helix_core::Rope;
 ///  the shaper that packs hint rows,
 ///  and the block record.
 use ide_app::{
-    annotation::{Annotations, Held, Mark, describe},
+    annotation::{
+        Annotations,
+        Held,
+        Mark,
+        describe,
+    },
     document::Document,
     language::{
-        diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup},
-        hints::{HintKind, HintsSnapshot, InlayHint},
-        identity::{DocumentStamp, ServerIdentity},
+        diagnostics::{
+            Diagnostic,
+            DiagnosticsSnapshot,
+            Freshness,
+            Severity,
+            SourceGroup,
+        },
+        hints::{
+            HintKind,
+            HintsSnapshot,
+            InlayHint,
+        },
+        identity::{
+            DocumentStamp,
+            ServerIdentity,
+        },
     },
     shaped_text::TextShaper,
-    virtual_row::{BLOCK_GAP, Block, ROW_HEIGHT},
+    virtual_row::{
+        BLOCK_GAP,
+        Block,
+        ROW_HEIGHT,
+    },
 };
 /// What:
 ///  Snapshots and blocks are shared values;
@@ -47,7 +69,10 @@ use ide_app::{
 /// ```
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The displayed text every test uses:
@@ -71,7 +96,10 @@ fn server() -> ServerIdentity {
 }
 
 /// One hint at `position` with `label`.
-fn hint(position: usize, label: &str) -> InlayHint {
+fn hint(
+    position: usize,
+    label: &str,
+) -> InlayHint {
     return InlayHint {
         position,
         label: label.to_string(),
@@ -92,7 +120,12 @@ fn hint(position: usize, label: &str) -> InlayHint {
 /// ```ts
 /// function problem(start: number, end: number, severity: Severity | undefined, message: string): Diagnostic;
 /// ```
-fn problem(start: usize, end: usize, severity: Option<Severity>, message: &str) -> Diagnostic {
+fn problem(
+    start: usize,
+    end: usize,
+    severity: Option<Severity>,
+    message: &str,
+) -> Diagnostic {
     return Diagnostic {
         start,
         end,
@@ -105,7 +138,10 @@ fn problem(start: usize, end: usize, severity: Option<Severity>, message: &str) 
 }
 
 /// Shared hint snapshot for `stamp` that answers for every line of the text.
-fn hints(stamp: DocumentStamp, items: Vec<InlayHint>) -> Option<Arc<HintsSnapshot>> {
+fn hints(
+    stamp: DocumentStamp,
+    items: Vec<InlayHint>,
+) -> Option<Arc<HintsSnapshot>> {
     return ranged(stamp, (0, 5), items);
 }
 
@@ -137,7 +173,10 @@ fn ranged(
 /// ```ts
 /// function blocks(store: Annotations, stamp: DocumentStamp): Block[];
 /// ```
-fn blocks(store: &mut Annotations, stamp: DocumentStamp) -> Vec<Arc<Block>> {
+fn blocks(
+    store: &mut Annotations,
+    stamp: DocumentStamp,
+) -> Vec<Arc<Block>> {
     let document = Document::new(TEXT);
     let mut shaper = TextShaper::new();
     return store.assemble(stamp, &document, &mut shaper, 1.0, None, &(0..usize::MAX));
@@ -145,7 +184,10 @@ fn blocks(store: &mut Annotations, stamp: DocumentStamp) -> Vec<Arc<Block>> {
 
 /// The hint texts of the block above `line`,
 ///  or nothing when the line has no block.
-fn hint_texts(assembled: &[Arc<Block>], line: usize) -> Vec<String> {
+fn hint_texts(
+    assembled: &[Arc<Block>],
+    line: usize,
+) -> Vec<String> {
     let mut texts = Vec::new();
     for block in assembled {
         if block.line == line {
@@ -163,7 +205,10 @@ fn unwrapped(snapshot: Option<Arc<HintsSnapshot>>) -> Arc<HintsSnapshot> {
 }
 
 /// The diagnostics snapshot of one `rustc` problem with `message`.
-fn problems(stamp: DocumentStamp, message: &str) -> Arc<DiagnosticsSnapshot> {
+fn problems(
+    stamp: DocumentStamp,
+    message: &str,
+) -> Arc<DiagnosticsSnapshot> {
     return diagnostics(
         stamp,
         vec![("rustc", vec![problem(4, 5, Some(Severity::Error), message)])],
@@ -735,7 +780,12 @@ const EDITED: DocumentStamp = DocumentStamp {
 /// Store the answer of `stamp` that asked about the lines `first` up to,
 ///  not including,
 ///  `last`.
-fn answered(store: &mut Annotations, stamp: DocumentStamp, first: usize, last: usize) {
+fn answered(
+    store: &mut Annotations,
+    stamp: DocumentStamp,
+    first: usize,
+    last: usize,
+) {
     let text = Rope::from(LONG);
     let items = vec![hint(text.line_to_char(first), ": T")];
     let snapshot = unwrapped(ranged(stamp, (first, last), items));

@@ -158,9 +158,12 @@ fn errno_number(word: &str) -> Option<i32> {
     };
 }
 
-/// The switch this process's environment asks for.
+/// The switch this process's environment asks for,
+/// which a release build never reads.
 pub fn from_environment() -> Switch {
-    return parse(std::env::var(TEST_SWITCH_VARIABLE).ok().as_deref());
+    // The switch a control set, or nothing in every shipped build.
+    let word: Option<String> = crate::test_only_switches::text(TEST_SWITCH_VARIABLE);
+    return parse(word.as_deref());
 }
 
 /// Controls stay out of the release executable.

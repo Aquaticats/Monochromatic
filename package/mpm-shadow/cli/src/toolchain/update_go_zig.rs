@@ -23,16 +23,34 @@ use super::context::Context;
 /// Imports the model types the resolvers build.
 use super::model::Artifact;
 /// Imports the shared resolver helpers.
-use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, by_name, get_json, is_arm64, text_at};
+use super::update_resolve::{
+    LINUX_PLATFORMS,
+    Resolution,
+    ResolveError,
+    by_name,
+    get_json,
+    is_arm64,
+    text_at,
+};
 /// Imports the crate's one version comparison, which also orders pre-releases.
 use crate::version::compare_versions;
 
 /// One Go release's Linux archive for an architecture (`amd64` or `arm64`):
 /// the file name and its SHA-256.
-fn go_archive<'a>(release: &'a Value, arch: &str) -> Option<(&'a str, &'a str)> {
-    let files: &[Value] = release.get("files").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
+fn go_archive<'a>(
+    release: &'a Value,
+    arch: &str,
+) -> Option<(&'a str, &'a str)> {
+    let files: &[Value] = release
+        .get("files")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
     for file in files {
-        if text_at(file, &["kind"]) == Some("archive") && text_at(file, &["os"]) == Some("linux") && text_at(file, &["arch"]) == Some(arch) {
+        if text_at(file, &["kind"]) == Some("archive")
+            && text_at(file, &["os"]) == Some("linux")
+            && text_at(file, &["arch"]) == Some(arch)
+        {
             return Some((text_at(file, &["filename"])?, text_at(file, &["sha256"])?));
         }
     }
@@ -51,7 +69,10 @@ fn go_archive<'a>(release: &'a Value, arch: &str) -> Option<(&'a str, &'a str)> 
 /// ```ts
 /// export function resolveGoRuntime(ctx, declaration, current?, wanted?): Resolution
 /// ```
-pub fn resolve_go_runtime(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_go_runtime(
+    ctx: &Context,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     let url: &str = "https://go.dev/dl/?mode=json&include=all";
     let index: Value = get_json(ctx, url, &[])?;
     let releases: &[Value] = index.as_array().map(Vec::as_slice).unwrap_or(&[]);
@@ -68,18 +89,34 @@ pub fn resolve_go_runtime(ctx: &Context, wanted: Option<&str>) -> Result<Resolut
         }
     }
     let Some(release) = chosen else {
-        return Err(ResolveError::Failed(format!("{url}: the index lists no matching Go release")));
+        return Err(ResolveError::Failed(format!(
+            "{url}: the index lists no matching Go release"
+        )));
     };
-    let version: String = text_at(release, &["version"]).unwrap_or("").trim_start_matches("go").to_string();
+    let version: String = text_at(release, &["version"])
+        .unwrap_or("")
+        .trim_start_matches("go")
+        .to_string();
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
         let arch: &str = if is_arm64(platform) { "arm64" } else { "amd64" };
         let Some((filename, sha256)) = go_archive(release, arch) else {
-            return Err(ResolveError::Failed(format!("{url}: go{version} lists no linux {arch} archive")));
+            return Err(ResolveError::Failed(format!(
+                "{url}: go{version} lists no linux {arch} archive"
+            )));
         };
-        artifacts.push((platform.to_string(), Artifact { url: format!("https://go.dev/dl/{filename}"), sha256: sha256.to_string() }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url: format!("https://go.dev/dl/{filename}"),
+                sha256: sha256.to_string(),
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }
 
 /// The module path as the Go proxy wants it:
@@ -93,31 +130,49 @@ fn escape_module(module: &str) -> Result<String, ResolveError> {
         } else if character.is_ascii_alphanumeric() || ".-_/~".contains(character) {
             escaped.push(character);
         } else {
-            return Err(ResolveError::Failed(format!("{module:?} is not a Go module path")));
+            return Err(ResolveError::Failed(format!(
+                "{module:?} is not a Go module path"
+            )));
         }
     }
     if module.is_empty() || module.contains("..") {
-        return Err(ResolveError::Failed(format!("{module:?} is not a Go module path")));
+        return Err(ResolveError::Failed(format!(
+            "{module:?} is not a Go module path"
+        )));
     }
     return Ok(escaped);
 }
 
 /// `GET https://proxy.golang.org/<module>/@latest`,
 /// then `Version` without its `v`.
-pub fn resolve_go_module(ctx: &Context, module: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_go_module(
+    ctx: &Context,
+    module: &str,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     if let Some(version) = wanted {
         return Ok(by_name(version));
     }
-    let url: String = format!("https://proxy.golang.org/{}/@latest", escape_module(module)?);
+    let url: String = format!(
+        "https://proxy.golang.org/{}/@latest",
+        escape_module(module)?
+    );
     let document: Value = get_json(ctx, &url, &[])?;
     return match text_at(&document, &["Version"]) {
         Some(tag) => Ok(by_name(tag.trim_start_matches('v'))),
-        None => Err(ResolveError::Failed(format!("{url}: the proxy reports no version for {module}"))),
+        None => Err(ResolveError::Failed(format!(
+            "{url}: the proxy reports no version for {module}"
+        ))),
     };
 }
 
 /// A field of one platform entry of one release in the Zig download index.
-fn zig_field<'a>(index: &'a Value, version: &str, key: &str, field: &str) -> Option<&'a str> {
+fn zig_field<'a>(
+    index: &'a Value,
+    version: &str,
+    key: &str,
+    field: &str,
+) -> Option<&'a str> {
     let release: &Value = index.get(version)?;
     return text_at(release, &[key, field]);
 }
@@ -153,25 +208,47 @@ fn newest_zig_version(index: &Value) -> Option<String> {
 /// ```ts
 /// export function resolveZig(ctx, declaration, current?, wanted?): Resolution
 /// ```
-pub fn resolve_zig(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_zig(
+    ctx: &Context,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     let url: &str = "https://ziglang.org/download/index.json";
     let index: Value = get_json(ctx, url, &[])?;
     let version: String = match wanted {
         Some(version) => version.to_string(),
         None => match newest_zig_version(&index) {
             Some(newest) => newest,
-            None => return Err(ResolveError::Failed(format!("{url}: the index lists no stable release"))),
+            None => {
+                return Err(ResolveError::Failed(format!(
+                    "{url}: the index lists no stable release"
+                )));
+            }
         },
     };
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
-        let key: &str = if is_arm64(platform) { "aarch64-linux" } else { "x86_64-linux" };
+        let key: &str = if is_arm64(platform) {
+            "aarch64-linux"
+        } else {
+            "x86_64-linux"
+        };
         let tarball: Option<&str> = zig_field(&index, &version, key, "tarball");
         let shasum: Option<&str> = zig_field(&index, &version, key, "shasum");
         let (Some(tarball_url), Some(sha256)) = (tarball, shasum) else {
-            return Err(ResolveError::Failed(format!("{url}: Zig {version} lists no {key} tarball")));
+            return Err(ResolveError::Failed(format!(
+                "{url}: Zig {version} lists no {key} tarball"
+            )));
         };
-        artifacts.push((platform.to_string(), Artifact { url: tarball_url.to_string(), sha256: sha256.to_string() }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url: tarball_url.to_string(),
+                sha256: sha256.to_string(),
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }

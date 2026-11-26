@@ -29,13 +29,20 @@ use gtk4::prelude::*;
 /// Why:
 ///  horizontal reveal operates on `Adjustment`;
 ///  retries use GLib timers.
-use gtk4::{Adjustment, glib};
+use gtk4::{
+    Adjustment,
+    glib,
+};
 
 /// What:
 ///  imports pane geometry constants.
 /// Why:
 ///  reveal extents and row offsets share pane geometry.
-use crate::constants::{PANE_GAP, PANE_HEIGHT, PANE_WIDTH};
+use crate::constants::{
+    PANE_GAP,
+    PANE_HEIGHT,
+    PANE_WIDTH,
+};
 /// What:
 ///  imports stable pane identity.
 /// Why:
@@ -78,7 +85,10 @@ impl StripLayout {
     /// Why:
     ///  a spawn must bring the newly focused pane into view even though GTK updates scroll
     ///      bounds one layout pass after reconciliation.
-    pub(crate) fn scroll_to_pane(self: &Rc<Self>, id: PaneId) {
+    pub(crate) fn scroll_to_pane(
+        self: &Rc<Self>,
+        id: PaneId,
+    ) {
         let Some(placement) = placement_by_id(&self.placements.borrow(), id) else {
             return;
         };
@@ -102,7 +112,7 @@ impl StripLayout {
                     }
                     return glib::ControlFlow::Break;
                 }
-                return glib::ControlFlow::Continue
+                return glib::ControlFlow::Continue;
             },
         );
     }
@@ -113,7 +123,7 @@ impl StripLayout {
 /// Why:
 ///  panes tile down each column at a fixed stride shared by every lane and column.
 pub(super) fn row_y(row: usize) -> f64 {
-    return row as f64 * f64::from(PANE_HEIGHT + PANE_GAP)
+    return row as f64 * f64::from(PANE_HEIGHT + PANE_GAP);
 }
 
 /// What:
@@ -121,7 +131,11 @@ pub(super) fn row_y(row: usize) -> f64 {
 ///  returning whether it is.
 /// Why:
 ///  callers retry until layout settles because scroll bounds update after content changes.
-fn reveal(adj: &Adjustment, start: f64, extent: f64) -> bool {
+fn reveal(
+    adj: &Adjustment,
+    start: f64,
+    extent: f64,
+) -> bool {
     let page = adj.page_size();
     let value = adj.value();
     if start >= value && start + extent <= value + page {
@@ -135,5 +149,5 @@ fn reveal(adj: &Adjustment, start: f64, extent: f64) -> bool {
     };
     adj.set_value(target.clamp(0.0, max));
     let settled = adj.value();
-    return start >= settled && start + extent <= settled + page
+    return start >= settled && start + extent <= settled + page;
 }

@@ -9,7 +9,10 @@ use crate::find_navigation::visible;
 /// Shaped rows own the only glyph geometry;
 ///  rectangles come from them,
 ///  not from a second layout.
-use crate::shaped_text::{ReadingRect, ShapedView};
+use crate::shaped_text::{
+    ReadingRect,
+    ShapedView,
+};
 
 /// What:
 ///  `&ShapedView` and `&[FindRange]` borrow the frame and the sorted matches;

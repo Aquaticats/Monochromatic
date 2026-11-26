@@ -22,7 +22,16 @@ use super::context::Context;
 /// Imports the model types the resolvers build.
 use super::model::Artifact;
 /// Imports the shared resolver helpers.
-use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json, get_text, hash_download, is_arm64, text_at};
+use super::update_resolve::{
+    LINUX_PLATFORMS,
+    Resolution,
+    ResolveError,
+    get_json,
+    get_text,
+    hash_download,
+    is_arm64,
+    text_at,
+};
 /// Imports the shared named helpers.
 use super::util::all_ascii_digits;
 
@@ -40,7 +49,10 @@ pub struct CmdlinePackage {
 
 /// The digits between `<tag>` and `</tag>` in `block`,
 /// as a number.
-fn number_in_tag(block: &str, tag: &str) -> Option<u64> {
+fn number_in_tag(
+    block: &str,
+    tag: &str,
+) -> Option<u64> {
     let open: String = format!("<{tag}>");
     let close: String = format!("</{tag}>");
     let after: &str = &block[block.find(&open)? + open.len()..];
@@ -82,10 +94,17 @@ pub fn cmdline_packages(xml: &str) -> Vec<CmdlinePackage> {
             continue;
         };
         let revision_text: &str = &block[revision..];
-        let (Some(major), Some(minor)) = (number_in_tag(revision_text, "major"), number_in_tag(revision_text, "minor")) else {
+        let (Some(major), Some(minor)) = (
+            number_in_tag(revision_text, "major"),
+            number_in_tag(revision_text, "minor"),
+        ) else {
             continue;
         };
-        packages.push(CmdlinePackage { major, minor, build });
+        packages.push(CmdlinePackage {
+            major,
+            minor,
+            build,
+        });
     }
     return packages;
 }
@@ -103,7 +122,10 @@ pub fn cmdline_packages(xml: &str) -> Vec<CmdlinePackage> {
 /// ```ts
 /// export function resolveAndroid(ctx, declaration, current?, wanted?): Resolution
 /// ```
-pub fn resolve_android(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_android(
+    ctx: &Context,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     let url: &str = "https://dl.google.com/android/repository/repository2-3.xml";
     let xml: String = get_text(ctx, url, &[])?;
     let mut chosen: Option<CmdlinePackage> = None;
@@ -114,7 +136,9 @@ pub fn resolve_android(ctx: &Context, wanted: Option<&str>) -> Result<Resolution
             None => true,
         };
         let better: bool = match chosen {
-            Some(best) => (package.major, package.minor, package.build) > (best.major, best.minor, best.build),
+            Some(best) => {
+                (package.major, package.minor, package.build) > (best.major, best.minor, best.build)
+            }
             None => true,
         };
         if eligible && better {
@@ -122,22 +146,39 @@ pub fn resolve_android(ctx: &Context, wanted: Option<&str>) -> Result<Resolution
         }
     }
     let Some(package) = chosen else {
-        return Err(ResolveError::Failed(format!("{url}: the Android repository lists no matching cmdline-tools archive")));
+        return Err(ResolveError::Failed(format!(
+            "{url}: the Android repository lists no matching cmdline-tools archive"
+        )));
     };
     let version: String = format!("{}.{}", package.major, package.minor);
-    let archive: String = format!("https://dl.google.com/android/repository/commandlinetools-linux-{}_latest.zip", package.build);
+    let archive: String = format!(
+        "https://dl.google.com/android/repository/commandlinetools-linux-{}_latest.zip",
+        package.build
+    );
     let sha256: String = hash_download(ctx, &archive)?;
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
-        artifacts.push((platform.to_string(), Artifact { url: archive.clone(), sha256: sha256.clone() }));
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url: archive.clone(),
+                sha256: sha256.clone(),
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }
 
 /// The build number of a conda file listing (0 when it carries none).
 fn build_number_of(file: &Value) -> i64 {
     return match file.get("attrs") {
-        Some(attrs) => attrs.get("build_number").and_then(Value::as_i64).unwrap_or(0),
+        Some(attrs) => attrs
+            .get("build_number")
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
         None => 0,
     };
 }
@@ -149,17 +190,25 @@ fn is_conda_character(character: char) -> bool {
 
 /// The conda file of `version` for `subdir` with the highest build number:
 /// its base name (which includes the subdir) and SHA-256.
-fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'a str, &'a str)> {
+fn conda_file<'a>(
+    files: &'a [Value],
+    version: &str,
+    subdir: &str,
+) -> Option<(&'a str, &'a str)> {
     let mut best: Option<(&str, &str)> = None;
     let mut best_build: i64 = -1;
     for file in files {
-        if text_at(file, &["version"]) != Some(version) || text_at(file, &["attrs", "subdir"]) != Some(subdir) {
+        if text_at(file, &["version"]) != Some(version)
+            || text_at(file, &["attrs", "subdir"]) != Some(subdir)
+        {
             continue;
         }
         let build: i64 = build_number_of(file);
         if build > best_build {
             // An incomplete row is skipped, keeping any complete candidate already collected.
-            let (Some(basename), Some(sha256)) = (text_at(file, &["basename"]), text_at(file, &["sha256"])) else {
+            let (Some(basename), Some(sha256)) =
+                (text_at(file, &["basename"]), text_at(file, &["sha256"]))
+            else {
                 continue;
             };
             best = Some((basename, sha256));
@@ -182,9 +231,15 @@ fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'
 /// ```ts
 /// export function resolveConda(ctx, declaration, current?, wanted?): Resolution
 /// ```
-pub fn resolve_conda(ctx: &Context, spec: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+pub fn resolve_conda(
+    ctx: &Context,
+    spec: &str,
+    wanted: Option<&str>,
+) -> Result<Resolution, ResolveError> {
     if spec.is_empty() || !spec.chars().all(is_conda_character) {
-        return Err(ResolveError::Failed(format!("{spec:?} is not a conda package name")));
+        return Err(ResolveError::Failed(format!(
+            "{spec:?} is not a conda package name"
+        )));
     }
     let url: String = format!("https://api.anaconda.org/package/conda-forge/{spec}");
     let document: Value = get_json(ctx, &url, &[])?;
@@ -192,17 +247,40 @@ pub fn resolve_conda(ctx: &Context, spec: &str, wanted: Option<&str>) -> Result<
         Some(version) => version.to_string(),
         None => match text_at(&document, &["latest_version"]) {
             Some(latest) => latest.to_string(),
-            None => return Err(ResolveError::Failed(format!("{url}: Anaconda reports no version for {spec}"))),
+            None => {
+                return Err(ResolveError::Failed(format!(
+                    "{url}: Anaconda reports no version for {spec}"
+                )));
+            }
         },
     };
-    let files: &[Value] = document.get("files").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
+    let files: &[Value] = document
+        .get("files")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
-        let subdir: &str = if is_arm64(platform) { "linux-aarch64" } else { "linux-64" };
-        let Some((basename, sha256)) = conda_file(files, &version, subdir) else {
-            return Err(ResolveError::Failed(format!("{url}: Anaconda lists no {version} file for {subdir}")));
+        let subdir: &str = if is_arm64(platform) {
+            "linux-aarch64"
+        } else {
+            "linux-64"
         };
-        artifacts.push((platform.to_string(), Artifact { url: format!("https://conda.anaconda.org/conda-forge/{basename}"), sha256: sha256.to_string() }));
+        let Some((basename, sha256)) = conda_file(files, &version, subdir) else {
+            return Err(ResolveError::Failed(format!(
+                "{url}: Anaconda lists no {version} file for {subdir}"
+            )));
+        };
+        artifacts.push((
+            platform.to_string(),
+            Artifact {
+                url: format!("https://conda.anaconda.org/conda-forge/{basename}"),
+                sha256: sha256.to_string(),
+            },
+        ));
     }
-    return Ok(Resolution { version, artifacts });
+    return Ok(Resolution {
+        version,
+        artifacts,
+    });
 }

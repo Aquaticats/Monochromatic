@@ -16,7 +16,12 @@ use helix_core::Rope;
 ///  its limits,
 ///  and the drag rule under test.
 use ide_app::pointer_selection::{
-    CLICK_INTERVAL, CLICK_SLOP, ClickCounter, Granularity, extended, unit,
+    CLICK_INTERVAL,
+    CLICK_SLOP,
+    ClickCounter,
+    Granularity,
+    extended,
+    unit,
 };
 /// What:
 ///  `Instant` is a point on a monotonic clock;
@@ -28,7 +33,10 @@ use ide_app::pointer_selection::{
 /// ```ts
 /// const start = performance.now(); const later = start + 100;
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Quick presses at one place count character,
 ///  word,

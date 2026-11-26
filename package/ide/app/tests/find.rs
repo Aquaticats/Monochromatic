@@ -5,14 +5,21 @@
 
 /// The same function and bounds the worker and the reference comparison use.
 use ide_app::find::{
-    FindRange, MAX_FIND_MATCHES, MAX_FIND_QUERY_CHARS, find_in_bounded_source, find_in_source,
+    FindRange,
+    MAX_FIND_MATCHES,
+    MAX_FIND_QUERY_CHARS,
+    find_in_bounded_source,
+    find_in_source,
     find_matches,
 };
 /// Tab expansion must keep a match's source positions addressable in display text.
 use ide_app::text_projection::project_line;
 
 /// Collect matches as plain pairs so expectations read as source character positions.
-fn pairs(text: &str, query: &str) -> Vec<(usize, usize)> {
+fn pairs(
+    text: &str,
+    query: &str,
+) -> Vec<(usize, usize)> {
     // What: `expect` extracts the successful matches or fails the test with this message.
     // Why: These queries are valid; an error here is a defect, not an empty result.
     //
@@ -135,7 +142,13 @@ fn match_count_is_bounded_and_reports_truncation() {
         "matches beyond the limit were retained"
     );
     assert!(bounded.truncated);
-    assert_eq!(bounded.ranges[2], FindRange { start: 6, end: 8 });
+    assert_eq!(
+        bounded.ranges[2],
+        FindRange {
+            start: 6,
+            end: 8
+        }
+    );
     let exact = find_matches(&text, "ab", 5).expect("exact matches");
     assert_eq!(exact.ranges.len(), 5);
     assert!(

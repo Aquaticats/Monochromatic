@@ -65,7 +65,19 @@ use crate::git_objects::confirm_commit;
 /// ```ts
 /// import { GitLayout, Head, NativeBase, NativeEnvironment, findLayout, lookupRef, lookupShort, readConfig, readHead, trackingRef } from 'crate/git_refs';
 /// ```
-use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layout, lookup_ref, lookup_short, read_config, read_head, tracking_ref, tracks_locally};
+use crate::git_refs::{
+    GitLayout,
+    Head,
+    NativeBase,
+    NativeEnvironment,
+    find_layout,
+    lookup_ref,
+    lookup_short,
+    read_config,
+    read_head,
+    tracking_ref,
+    tracks_locally,
+};
 
 /// What:
 /// `fn lookup_tracked(config, layout, branch, tracking) -> Result<Option<String>, String>` reads the upstream reference and
@@ -78,7 +90,12 @@ use crate::git_refs::{GitLayout, Head, NativeBase, NativeEnvironment, find_layou
 /// ```ts
 /// function lookupTracked(config: ParsedConfig, layout: GitLayout, branch: string, tracking: string): string | undefined  // throws: ask Git
 /// ```
-fn lookup_tracked(config: &ParsedConfig, layout: &GitLayout, branch: &str, tracking: &str) -> Result<Option<String>, String> {
+fn lookup_tracked(
+    config: &ParsedConfig,
+    layout: &GitLayout,
+    branch: &str,
+    tracking: &str,
+) -> Result<Option<String>, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Typed binding: `found: Option<String>`.
     let found: Option<String> = lookup_ref(layout, tracking)?;
@@ -93,7 +110,9 @@ fn lookup_tracked(config: &ParsedConfig, layout: &GitLayout, branch: &str, track
         // console.error(text);   // eprintln!
         // [a, b]            // vec![a, b]
         // ```
-        return Err(format!("the local upstream {tracking} does not exist as written, and Git expands such names"));
+        return Err(format!(
+            "the local upstream {tracking} does not exist as written, and Git expands such names"
+        ));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(found);
@@ -111,7 +130,10 @@ fn lookup_tracked(config: &ParsedConfig, layout: &GitLayout, branch: &str, track
 /// ```ts
 /// function confirmed(layout: GitLayout, object: string): Result<string, string>  // throws: ask Git
 /// ```
-fn confirmed(layout: &GitLayout, object: String) -> Result<Result<String, String>, String> {
+fn confirmed(
+    layout: &GitLayout,
+    object: String,
+) -> Result<Result<String, String>, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&layout.common_dir`: lends the value without copying or giving it away.
     confirm_commit(&layout.common_dir, &object)?;
@@ -130,7 +152,10 @@ fn confirmed(layout: &GitLayout, object: String) -> Result<Result<String, String
 /// ```ts
 /// function headBase(layout: GitLayout): NativeBase  // throws: ask Git
 /// ```
-fn head_base(layout: &GitLayout, git_starts: u32) -> Result<NativeBase, String> {
+fn head_base(
+    layout: &GitLayout,
+    git_starts: u32,
+) -> Result<NativeBase, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
@@ -169,7 +194,11 @@ fn head_base(layout: &GitLayout, git_starts: u32) -> Result<NativeBase, String> 
     // ```ts
     // String(value)  // JS strings are always owned values
     // ```
-    return Ok(NativeBase { spelling: "HEAD".to_string(), commit, git_starts });
+    return Ok(NativeBase {
+        spelling: "HEAD".to_string(),
+        commit,
+        git_starts,
+    });
 }
 
 /// What:
@@ -191,7 +220,11 @@ fn head_base(layout: &GitLayout, git_starts: u32) -> Result<NativeBase, String> 
 /// ```ts
 /// export function nativeBase(root: string, inCi: boolean, environment: NativeEnvironment): NativeBase  // throws: ask Git
 /// ```
-pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) -> Result<NativeBase, String> {
+pub fn native_base(
+    root: &Path,
+    in_ci: bool,
+    environment: &NativeEnvironment,
+) -> Result<NativeBase, String> {
     return native_base_counting(root, in_ci, environment, &std::cell::Cell::new(0));
 }
 
@@ -209,7 +242,12 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
 /// ```ts
 /// export function nativeBaseCounting(root: string, inCi: boolean, environment: NativeEnvironment, starts: { count: number }): NativeBase  // throws to decline
 /// ```
-pub fn native_base_counting(root: &Path, in_ci: bool, environment: &NativeEnvironment, starts: &std::cell::Cell<u32>) -> Result<NativeBase, String> {
+pub fn native_base_counting(
+    root: &Path,
+    in_ci: bool,
+    environment: &NativeEnvironment,
+    starts: &std::cell::Cell<u32>,
+) -> Result<NativeBase, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Typed binding: `layout: GitLayout`.
     let layout: GitLayout = find_layout(root, environment)?;
@@ -246,7 +284,11 @@ pub fn native_base_counting(root: &Path, in_ci: bool, environment: &NativeEnviro
     {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: confirmed(&layout, object)?, git_starts: starts.get() });
+        return Ok(NativeBase {
+            spelling: "@{upstream}".to_string(),
+            commit: confirmed(&layout, object)?,
+            git_starts: starts.get(),
+        });
     }
     for candidate in ["origin/main", "origin/master"] {
         // `Some`: the present or the absent value of an `Option`.
@@ -256,7 +298,11 @@ pub fn native_base_counting(root: &Path, in_ci: bool, environment: &NativeEnviro
         if let Some(object) = lookup_short(&layout, candidate)? {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return Ok(NativeBase { spelling: candidate.to_string(), commit: confirmed(&layout, object)?, git_starts: starts.get() });
+            return Ok(NativeBase {
+                spelling: candidate.to_string(),
+                commit: confirmed(&layout, object)?,
+                git_starts: starts.get(),
+            });
         }
     }
     // Borrow `&layout`: lends the value without copying or giving it away.

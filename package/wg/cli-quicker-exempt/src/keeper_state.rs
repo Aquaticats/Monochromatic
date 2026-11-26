@@ -4,12 +4,15 @@
 use crate::pin::cgroup_key;
 /// Standard filesystem and parse failures.
 use std::io;
+/// Buffered file output and durability flushes.
+use std::io::Write;
 /// Unix creation modes for private state files.
 use std::os::unix::fs::OpenOptionsExt;
 /// Runtime state paths.
-use std::path::{Path, PathBuf};
-/// Buffered file output and durability flushes.
-use std::io::Write;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Private runtime root for descriptor-keeper identities.
 const KEEPER_STATE_ROOT: &str = "/run/wg-quicker-exempt/keepers";
@@ -100,7 +103,10 @@ fn parse_state(text: &str) -> io::Result<KeeperState> {
     let mut candidate: Option<Option<KeeperProcess>> = None;
     for line in text.lines() {
         let Some((key, value)) = line.split_once('=') else {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "keeper state line lacks equals"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "keeper state line lacks equals",
+            ));
         };
         if key == "version" && version.is_none() {
             version = Some(value);
@@ -159,7 +165,10 @@ fn serialize_process(process: Option<KeeperProcess>) -> String {
 }
 
 /// Atomically writes state and syncs file plus parent directory.
-pub fn write_state(cgroup_dir: &Path, state: &KeeperState) -> io::Result<()> {
+pub fn write_state(
+    cgroup_dir: &Path,
+    state: &KeeperState,
+) -> io::Result<()> {
     let path = state_path(cgroup_dir)?;
     let Some(parent) = path.parent() else {
         return Err(io::Error::other("state path lacks parent"));
@@ -193,10 +202,7 @@ fn commit_marker_path(
     let Some(parent) = state.parent() else {
         return Err(io::Error::other("state path lacks parent"));
     };
-    return Ok(parent.join(format!(
-        "committed-{}-{}",
-        process.pid, process.start_time
-    )));
+    return Ok(parent.join(format!("committed-{}-{}", process.pid, process.start_time)));
 }
 
 /// Records that candidate received commit after transition state reached disk.

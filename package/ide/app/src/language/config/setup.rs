@@ -5,9 +5,16 @@
 //!  and extra definitions.
 
 /// The launch seam decides what is spawned for each server.
-use crate::language::launch::{LaunchPolicy, launch_directly};
+use crate::language::launch::{
+    LaunchPolicy,
+    launch_directly,
+};
 /// The toolchain policy decides whether and how a project's tool binaries are found.
-use crate::language::toolchain::{ToolchainPolicy, resolve_confined, resolve_disabled};
+use crate::language::toolchain::{
+    ToolchainPolicy,
+    resolve_confined,
+    resolve_disabled,
+};
 /// What:
 ///  `PathBuf` is an owned filesystem path.
 /// Why:

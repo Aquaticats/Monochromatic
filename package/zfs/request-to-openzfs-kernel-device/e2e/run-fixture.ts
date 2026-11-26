@@ -1455,7 +1455,11 @@ function step10Pool(options: Options): void {
     `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT`,
     `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT/home`,
     `zfs create -o mountpoint=${STEP10_CHECKOUT_PATH} ${STEP10_CHECKOUT}`,
-    `zfs create -o mountpoint=legacy -o canmount=off ${STEP10_CONTAINER}`,
+    // The container carries the design's four properties: the add's preflight refuses one whose
+    // `setuid` or `devices` is on, and the kernel's reply leaves a property at its default out
+    // entirely, so a container that never sets them reads as a refusal rather than as the design's
+    // (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+    `zfs create -o mountpoint=legacy -o canmount=off -o setuid=off -o devices=off ${STEP10_CONTAINER}`,
     // The design's scoped delegation, granted to the account the arms run as.
     // The route's preflight refuses an add whose delegation is not this shape, so
     // the fixture that never granted it could not reach a single one of its steps:
@@ -1532,6 +1536,9 @@ function step10Arms(options: Options): void {
     // the driver's own steps carry them.
     'grep --quiet "^UNRUN the boot arm" /root/step10-suite.log',
     'grep --quiet "^UNRUN the power-loss arm" /root/step10-suite.log',
+    // The whole-add arm as the delegated account hands the checkout to that account, so it runs alone, with
+    // `zfs-add-arm-account` and its own variable, and never beside these root arms.
+    'grep --quiet "^UNRUN the delegated account arm" /root/step10-suite.log',
     // Choice 3C's split, as the delegated account: every withheld permission of the nine refuses or warns as the record
     // says, and the whole delegation prints no line.
     'grep --quiet "^test zfs_add_guest::grants::every_withheld_permission_refuses_or_warns_as_the_record_says" /root/step10-suite.log',

@@ -285,5 +285,5 @@ pub(crate) fn benchmark_decode(mut source: Box<dyn decode::Source>) -> jdouble {
     // ```ts
     // return (elapsedNanos / 1000) / totalSamples;
     // ```
-    return (elapsed.as_nanos() as f64) / 1000.0 / (total_samples as f64)
+    return (elapsed.as_nanos() as f64) / 1000.0 / (total_samples as f64);
 }

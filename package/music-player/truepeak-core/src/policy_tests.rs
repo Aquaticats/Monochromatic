@@ -9,7 +9,10 @@ fn default_policy_has_decided_constants() {
     assert_eq!(policy.short_scan_max_secs, SHORT_SCAN_MAX_SECS);
     assert_eq!(policy.probe_window_secs, PROBE_WINDOW_SECS);
     assert_eq!(policy.pass1_coverage_fraction, PASS1_COVERAGE_FRACTION);
-    assert_eq!(policy.bones_even_coverage_fraction, BONES_EVEN_COVERAGE_FRACTION);
+    assert_eq!(
+        policy.bones_even_coverage_fraction,
+        BONES_EVEN_COVERAGE_FRACTION
+    );
     assert_eq!(policy.bones_top_slots, BONES_TOP_SLOTS);
     assert_eq!(policy.buckets.lossless, LOSSLESS_PROBE);
     assert_eq!(policy.buckets.lossless_bones, LOSSLESS_BONES_PROBE);
@@ -62,7 +65,10 @@ fn policy_id_changes_with_every_parameter() {
     assert_ne!(lossless_margin.policy_id(), base_id);
 
     let mut lossless_bones_coverage = base;
-    lossless_bones_coverage.buckets.lossless_bones.coverage_fraction += 0.01;
+    lossless_bones_coverage
+        .buckets
+        .lossless_bones
+        .coverage_fraction += 0.01;
     assert_ne!(lossless_bones_coverage.policy_id(), base_id);
 
     let mut lossless_bones_margin = base;

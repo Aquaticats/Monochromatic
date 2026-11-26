@@ -24,7 +24,10 @@ fn library_of<S: AsRef<str>>(paths: &[S]) -> Vec<Track> {
 
 // What:     `fn search(query: &str, paths: &[&str]) -> SearchState` test helper: searches an available library.
 // Why:      Most cases list a few literal paths inline, and this keeps each case to one line.
-fn search(query: &str, paths: &[&str]) -> SearchState {
+fn search(
+    query: &str,
+    paths: &[&str],
+) -> SearchState {
     return search_library(query, &library_of(paths), true);
 }
 
@@ -32,7 +35,10 @@ fn search(query: &str, paths: &[&str]) -> SearchState {
 // Why:      Ordering cases read the result list directly, and any other state fails the test loudly.
 fn items_of(state: &SearchState) -> &[SearchResult] {
     return match state {
-        SearchState::Results { items, .. } => items.as_slice(),
+        SearchState::Results {
+            items,
+            ..
+        } => items.as_slice(),
         other => panic!("expected a results state, got {other:?}"),
     };
 }
@@ -58,8 +64,14 @@ fn kinds_of(items: &[SearchResult]) -> Vec<SearchResultKind> {
 
 // What:     `fn span(start: i32, end: i32) -> SearchHighlight` test helper: builds one expected highlight range.
 // Why:      Highlight assertions compare lists of ranges, and the literal struct form is long.
-fn span(start: i32, end: i32) -> SearchHighlight {
-    return SearchHighlight { start, end };
+fn span(
+    start: i32,
+    end: i32,
+) -> SearchHighlight {
+    return SearchHighlight {
+        start,
+        end,
+    };
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -189,23 +201,46 @@ fn unfiled_tracks_are_searched_by_title() {
     let result: &SearchResult = only(items_of(&state));
     assert_eq!(result.kind, SearchResultKind::Track);
     assert_eq!(result.parent_context, None);
-    assert_eq!(result.folder_name, "C", "a root-level track sits in the virtual folder of its letter, as in the picker");
+    assert_eq!(
+        result.folder_name, "C",
+        "a root-level track sits in the virtual folder of its letter, as in the picker"
+    );
 }
 
 // What:     Root-level tracks name the same virtual folder in Search as the picker's page for them.
 // Why:      LS1: Search said `Unfiled` while the picker said `A`; non-letter initials share the `#` folder.
 #[test]
 fn root_level_tracks_name_their_picker_letter_folder() {
-    let state: SearchState = search("e", &["Eleven.flac", "5 elements.wav", "élan.wav", "Rock/Echo.flac"]);
+    let state: SearchState = search(
+        "e",
+        &[
+            "Eleven.flac",
+            "5 elements.wav",
+            "élan.wav",
+            "Rock/Echo.flac",
+        ],
+    );
     let folders: Vec<(String, String)> = items_of(&state)
         .iter()
         .filter(|item| return item.kind == SearchResultKind::Track)
         .map(|item| return (item.name.clone(), item.folder_name.clone()))
         .collect();
-    assert!(folders.contains(&("Eleven".to_string(), "E".to_string())), "{folders:?}");
-    assert!(folders.contains(&("5 elements".to_string(), "#".to_string())), "{folders:?}");
-    assert!(folders.contains(&("élan".to_string(), "#".to_string())), "{folders:?}");
-    assert!(folders.contains(&("Echo".to_string(), "Rock".to_string())), "{folders:?}");
+    assert!(
+        folders.contains(&("Eleven".to_string(), "E".to_string())),
+        "{folders:?}"
+    );
+    assert!(
+        folders.contains(&("5 elements".to_string(), "#".to_string())),
+        "{folders:?}"
+    );
+    assert!(
+        folders.contains(&("élan".to_string(), "#".to_string())),
+        "{folders:?}"
+    );
+    assert!(
+        folders.contains(&("Echo".to_string(), "Rock".to_string())),
+        "{folders:?}"
+    );
     assert!(!folders.iter().any(|(_, folder)| return folder == "Unfiled"));
     let adele: SearchState = search("adele", &["Adele-Meow.mp3"]);
     assert_eq!(only(items_of(&adele)).folder_name, "A");

@@ -28,7 +28,10 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 /// Imports the not-found exit code the shadow reports when no real mpm is on PATH.
-use mpm_shadow::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
+use mpm_shadow::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+};
 use mpm_shadow::nesting::MAX_NESTING as NESTING_LIMIT;
 
 /// What:
@@ -46,7 +49,10 @@ use mpm_shadow::nesting::MAX_NESTING as NESTING_LIMIT;
 use mpm_shadow::cli::declared_verbs;
 
 /// Imports `Command` (start a program) and `Output` (its result).
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// What:
 /// `fn fixture_root() -> tempfile::TempDir` declares a helper returning a disposable directory that is
@@ -74,10 +80,14 @@ fn fixture_root() -> tempfile::TempDir {
 /// ```ts
 /// function writeFakeMpm(directory: string, script: string): void
 /// ```
-fn write_fake_mpm(directory: &Path, script: &str) {
+fn write_fake_mpm(
+    directory: &Path,
+    script: &str,
+) {
     fs::create_dir_all(directory).expect("make the fake mpm directory");
     fs::write(directory.join("mpm"), script).expect("write the fake mpm");
-    fs::set_permissions(directory.join("mpm"), fs::Permissions::from_mode(0o755)).expect("make it executable");
+    fs::set_permissions(directory.join("mpm"), fs::Permissions::from_mode(0o755))
+        .expect("make it executable");
 }
 
 /// What:
@@ -91,19 +101,31 @@ fn write_fake_mpm(directory: &Path, script: &str) {
 /// ```ts
 /// function startShadow(root: string, args: string[]): SpawnSyncReturns
 /// ```
-fn start_shadow(root: &Path, arguments: &[&str]) -> Output {
+fn start_shadow(
+    root: &Path,
+    arguments: &[&str],
+) -> Output {
     return start_shadow_with(root, arguments, &[]);
 }
 
 /// Like `start_shadow`,
 /// with extra environment variables for the shadow.
-fn start_shadow_with(root: &Path, arguments: &[&str], extra_env: &[(&str, &str)]) -> Output {
+fn start_shadow_with(
+    root: &Path,
+    arguments: &[&str],
+    extra_env: &[(&str, &str)],
+) -> Output {
     let links: std::path::PathBuf = root.join("links");
     fs::create_dir_all(&links).expect("make the link directory");
     // `env!("CARGO_BIN_EXE_mpm-shadow")` is a compile-time macro Cargo sets to the built binary's path.
     let _ = fs::remove_file(links.join("mpm"));
-    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_mpm-shadow"), links.join("mpm")).expect("link the shadow as mpm");
-    let path_variable: String = format!("{}:{}:/usr/bin:/bin", links.display(), root.join("real").display());
+    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_mpm-shadow"), links.join("mpm"))
+        .expect("link the shadow as mpm");
+    let path_variable: String = format!(
+        "{}:{}:/usr/bin:/bin",
+        links.display(),
+        root.join("real").display()
+    );
     return Command::new(links.join("mpm"))
         .args(arguments)
         .env("PATH", path_variable)
@@ -150,21 +172,42 @@ fn write_stale_copies(root: &Path) {
 #[test]
 fn passes_arguments_and_exit_code_through_then_prunes() {
     let root = fixture_root();
-    write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nfor a in \"$@\"; do echo \"[$a]\"; done\nexit 3\n");
+    write_fake_mpm(
+        &root.path().join("real"),
+        "#!/bin/sh\nfor a in \"$@\"; do echo \"[$a]\"; done\nexit 3\n",
+    );
     write_stale_copies(root.path());
 
     let output: Output = start_shadow(root.path(), &["--output-format", "json", "a b"]);
 
     // `String::from_utf8_lossy(&bytes)` reads captured output bytes as text, replacing invalid UTF-8.
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "[--output-format]\n[json]\n[a b]\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "[--output-format]\n[json]\n[a b]\n"
+    );
     assert_eq!(output.status.code(), Some(3));
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(stderr.contains("post-run cleanup"), "{stderr}");
-    assert!(!stderr.contains("deleted stale"), "the per-path list is for MPM_SHADOW_VERBOSE: {stderr}");
+    assert!(
+        !stderr.contains("deleted stale"),
+        "the per-path list is for MPM_SHADOW_VERBOSE: {stderr}"
+    );
     let cargo: std::path::PathBuf = root.path().join("cargo");
-    assert!(!cargo.join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate").exists());
-    assert!(!cargo.join("registry/src/index.crates.io-fixture/monochromatic-lint-0.1.0").exists());
-    assert!(cargo.join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.4.0.crate").exists());
+    assert!(
+        !cargo
+            .join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate")
+            .exists()
+    );
+    assert!(
+        !cargo
+            .join("registry/src/index.crates.io-fixture/monochromatic-lint-0.1.0")
+            .exists()
+    );
+    assert!(
+        cargo
+            .join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.4.0.crate")
+            .exists()
+    );
 }
 
 /// Standard output stays exactly mpm's when there is nothing to prune.
@@ -206,7 +249,12 @@ fn the_prune_subcommand_deletes_and_reports() {
 
     assert_eq!(output.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&output.stdout).contains("deleted stale"));
-    assert!(!root.path().join("cargo/registry/cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate").exists());
+    assert!(
+        !root
+            .path()
+            .join("cargo/registry/cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate")
+            .exists()
+    );
 }
 
 /// The fake mpm of the notice tests:
@@ -235,7 +283,10 @@ fn a_top_level_version_gets_one_added_line_after_mpms_own_output() {
 
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        format!("mpm, version 8.2.0\nPython 3.13\nmpm-shadow {}, shadowing mpm at {real}\n", env!("CARGO_PKG_VERSION"))
+        format!(
+            "mpm, version 8.2.0\nPython 3.13\nmpm-shadow {}, shadowing mpm at {real}\n",
+            env!("CARGO_PKG_VERSION")
+        )
     );
     assert_eq!(output.status.code(), Some(0));
 }
@@ -244,12 +295,21 @@ fn a_top_level_version_gets_one_added_line_after_mpms_own_output() {
 #[test]
 fn a_version_after_other_top_level_options_still_gets_the_line() {
     let root = fixture_root();
-    write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nprintf 'mpm, version 8.2.0\\n'\n");
+    write_fake_mpm(
+        &root.path().join("real"),
+        "#!/bin/sh\nprintf 'mpm, version 8.2.0\\n'\n",
+    );
 
-    let output: Output = start_shadow(root.path(), &["--verbosity", "DEBUG", "--no-color", "--version"]);
+    let output: Output = start_shadow(
+        root.path(),
+        &["--verbosity", "DEBUG", "--no-color", "--version"],
+    );
 
     let text = String::from_utf8_lossy(&output.stdout).to_string();
-    assert!(text.starts_with("mpm, version 8.2.0\nmpm-shadow "), "{text}");
+    assert!(
+        text.starts_with("mpm, version 8.2.0\nmpm-shadow "),
+        "{text}"
+    );
     assert_eq!(text.lines().count(), 2, "{text}");
 }
 
@@ -264,10 +324,21 @@ fn a_top_level_help_gets_a_section_after_mpms_own_help() {
         let output: Output = start_shadow(root.path(), &[flag]);
         let text = String::from_utf8_lossy(&output.stdout).to_string();
         let own = "Usage: mpm [OPTIONS] COMMAND [ARGS]...\n\nOther commands:\n  help\n";
-        assert!(text.starts_with(own), "{flag}: mpm's help comes first and unchanged:\n{text}");
+        assert!(
+            text.starts_with(own),
+            "{flag}: mpm's help comes first and unchanged:\n{text}"
+        );
         let added = &text[own.len()..];
-        assert!(added.starts_with(&format!("\nmpm-shadow {}:\n", env!("CARGO_PKG_VERSION"))), "{flag}: {added}");
-        assert!(added.contains(&real) && added.contains("monochromatic-") && added.contains("deleted stale"), "{flag}: {added}");
+        assert!(
+            added.starts_with(&format!("\nmpm-shadow {}:\n", env!("CARGO_PKG_VERSION"))),
+            "{flag}: {added}"
+        );
+        assert!(
+            added.contains(&real)
+                && added.contains("monochromatic-")
+                && added.contains("deleted stale"),
+            "{flag}: {added}"
+        );
         assert_eq!(output.status.code(), Some(0));
     }
 }
@@ -291,7 +362,11 @@ fn non_top_level_help_and_other_outputs_pass_through_untouched() {
     ];
     for (arguments, expected) in cases {
         let output: Output = start_shadow(root.path(), arguments);
-        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "{arguments:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            expected,
+            "{arguments:?}"
+        );
     }
 }
 
@@ -299,7 +374,10 @@ fn non_top_level_help_and_other_outputs_pass_through_untouched() {
 #[test]
 fn the_exit_code_of_mpm_passes_through_and_a_failed_version_gets_no_line() {
     let root = fixture_root();
-    write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nprintf 'broken\\n'\nexit 7\n");
+    write_fake_mpm(
+        &root.path().join("real"),
+        "#!/bin/sh\nprintf 'broken\\n'\nexit 7\n",
+    );
 
     let output: Output = start_shadow(root.path(), &["--version"]);
 
@@ -315,8 +393,9 @@ const PLANTED_NEWER_VERSION: &str = "9.9.9";
 /// (a version directory with its own `.crates.toml` under the toolchain root of the disposable data home),
 /// and its archive cached.
 fn write_toolchain_record(root: &Path) {
-    let version_dir: std::path::PathBuf =
-        root.join("data/monochromatic-dev/toolchain/cargo/monochromatic-lint").join(PLANTED_NEWER_VERSION);
+    let version_dir: std::path::PathBuf = root
+        .join("data/monochromatic-dev/toolchain/cargo/monochromatic-lint")
+        .join(PLANTED_NEWER_VERSION);
     fs::create_dir_all(&version_dir).expect("make the version directory");
     fs::write(
         version_dir.join(".crates.toml"),
@@ -326,7 +405,8 @@ fn write_toolchain_record(root: &Path) {
     )
     .expect("write the version-keyed record");
     fs::write(
-        root.join("cargo/registry/cache/index.crates.io-fixture").join(format!("monochromatic-lint-{PLANTED_NEWER_VERSION}.crate")),
+        root.join("cargo/registry/cache/index.crates.io-fixture")
+            .join(format!("monochromatic-lint-{PLANTED_NEWER_VERSION}.crate")),
         "",
     )
     .expect("write the newer archive");
@@ -345,8 +425,14 @@ fn reads_the_toolchain_roots_of_the_data_home_it_is_given_and_never_the_machines
     let output: Output = start_shadow(root.path(), &["installed"]);
 
     assert_eq!(output.status.code(), Some(0));
-    let cache: std::path::PathBuf = root.path().join("cargo/registry/cache/index.crates.io-fixture");
-    assert!(cache.join(format!("monochromatic-lint-{PLANTED_NEWER_VERSION}.crate")).exists());
+    let cache: std::path::PathBuf = root
+        .path()
+        .join("cargo/registry/cache/index.crates.io-fixture");
+    assert!(
+        cache
+            .join(format!("monochromatic-lint-{PLANTED_NEWER_VERSION}.crate"))
+            .exists()
+    );
     assert!(!cache.join("monochromatic-lint-0.4.0.crate").exists());
     assert!(!cache.join("monochromatic-lint-0.1.0.crate").exists());
 }
@@ -361,7 +447,11 @@ fn write_many_stale_copies(root: &Path) {
     fs::create_dir_all(&cache).expect("make the cache");
     fs::write(cache.join("monochromatic-lint-0.4.0.crate"), "").expect("write the current archive");
     for index in 0..MANY_STALE {
-        fs::write(cache.join(format!("monochromatic-lint-0.1.{index}.crate")), "").expect("write a stale archive");
+        fs::write(
+            cache.join(format!("monochromatic-lint-0.1.{index}.crate")),
+            "",
+        )
+        .expect("write a stale archive");
     }
     fs::write(
         cargo.join(".crates.toml"),
@@ -382,7 +472,10 @@ fn many_stale_copies_are_one_post_run_cleanup_line_by_default() {
 
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(stderr.lines().count(), 1, "{stderr}");
-    assert!(stderr.contains("post-run cleanup") && stderr.contains(&format!("{MANY_STALE} ")), "{stderr}");
+    assert!(
+        stderr.contains("post-run cleanup") && stderr.contains(&format!("{MANY_STALE} ")),
+        "{stderr}"
+    );
     assert!(stderr.contains("MPM_SHADOW_VERBOSE"), "{stderr}");
 }
 
@@ -393,11 +486,16 @@ fn the_verbose_variable_lists_every_removed_path_after_the_summary() {
     write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nexit 0\n");
     write_many_stale_copies(root.path());
 
-    let output: Output = start_shadow_with(root.path(), &["installed"], &[("MPM_SHADOW_VERBOSE", "1")]);
+    let output: Output =
+        start_shadow_with(root.path(), &["installed"], &[("MPM_SHADOW_VERBOSE", "1")]);
 
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(stderr.lines().count(), 1 + MANY_STALE, "{stderr}");
-    assert_eq!(stderr.matches("deleted stale").count(), MANY_STALE, "{stderr}");
+    assert_eq!(
+        stderr.matches("deleted stale").count(),
+        MANY_STALE,
+        "{stderr}"
+    );
 }
 
 /// Nothing stale,
@@ -407,7 +505,8 @@ fn a_run_with_nothing_stale_prints_no_cleanup_line_even_when_verbose() {
     let root = fixture_root();
     write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nexit 0\n");
 
-    let output: Output = start_shadow_with(root.path(), &["installed"], &[("MPM_SHADOW_VERBOSE", "1")]);
+    let output: Output =
+        start_shadow_with(root.path(), &["installed"], &[("MPM_SHADOW_VERBOSE", "1")]);
 
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
 }
@@ -425,19 +524,38 @@ fn a_real_mpm_that_cannot_start_is_explained_with_command_program_stage_cause_an
     let output: Output = start_shadow(root.path(), &["installed"]);
 
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
-    assert_eq!(output.status.code(), Some(EXEC_FAILED_EXIT_CODE), "{stderr}");
-    for expected in ["mpm installed", &program, "starting the real `mpm`", "126", "could not be started", "post-run cleanup did not run"] {
+    assert_eq!(
+        output.status.code(),
+        Some(EXEC_FAILED_EXIT_CODE),
+        "{stderr}"
+    );
+    for expected in [
+        "mpm installed",
+        &program,
+        "starting the real `mpm`",
+        "126",
+        "could not be started",
+        "post-run cleanup did not run",
+    ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
     assert!(!stderr.contains("deleted stale"), "{stderr}");
-    assert!(root.path().join("cargo/registry/cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate").exists(), "no cleanup ran");
+    assert!(
+        root.path()
+            .join("cargo/registry/cache/index.crates.io-fixture/monochromatic-lint-0.1.0.crate")
+            .exists(),
+        "no cleanup ran"
+    );
 }
 
 /// The program the shadow starts learns how deep it is.
 #[test]
 fn the_program_it_starts_gets_a_nesting_depth_one_deeper_than_its_own() {
     let root = fixture_root();
-    write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nprintf '%s' \"$MPM_SHADOW_NESTING\"\n");
+    write_fake_mpm(
+        &root.path().join("real"),
+        "#!/bin/sh\nprintf '%s' \"$MPM_SHADOW_NESTING\"\n",
+    );
 
     let top: Output = start_shadow(root.path(), &[]);
     assert_eq!(String::from_utf8_lossy(&top.stdout), "1");
@@ -451,14 +569,30 @@ fn the_program_it_starts_gets_a_nesting_depth_one_deeper_than_its_own() {
 fn a_shadow_nested_to_the_limit_refuses_to_start_another_program() {
     let root = fixture_root();
     let marker: std::path::PathBuf = root.path().join("ran");
-    write_fake_mpm(&root.path().join("real"), &format!("#!/bin/sh\ntouch '{}'\n", marker.display()));
+    write_fake_mpm(
+        &root.path().join("real"),
+        &format!("#!/bin/sh\ntouch '{}'\n", marker.display()),
+    );
 
-    let output: Output = start_shadow_with(root.path(), &["installed"], &[("MPM_SHADOW_NESTING", &NESTING_LIMIT.to_string())]);
+    let output: Output = start_shadow_with(
+        root.path(),
+        &["installed"],
+        &[("MPM_SHADOW_NESTING", &NESTING_LIMIT.to_string())],
+    );
 
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
-    assert_eq!(output.status.code(), Some(EXEC_FAILED_EXIT_CODE), "{stderr}");
+    assert_eq!(
+        output.status.code(),
+        Some(EXEC_FAILED_EXIT_CODE),
+        "{stderr}"
+    );
     assert!(!marker.exists(), "the program must not have started");
-    for expected in ["mpm installed", "started by another mpm-shadow", "itself", "126"] {
+    for expected in [
+        "mpm installed",
+        "started by another mpm-shadow",
+        "itself",
+        "126",
+    ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
 }
@@ -469,11 +603,18 @@ fn a_shadow_nested_to_the_limit_refuses_to_start_another_program() {
 /// that shadow must not take the launcher for the real mpm and start it again.
 #[test]
 fn the_per_tree_launcher_of_the_running_shadow_is_not_taken_for_the_real_mpm() {
-    use mpm_shadow::toolchain::launcher::{LaunchRecord, record_path, render_record};
+    use mpm_shadow::toolchain::launcher::{
+        LaunchRecord,
+        record_path,
+        render_record,
+    };
     use mpm_shadow::toolchain::scope::ScopeKind;
     let root = fixture_root();
     let runs: std::path::PathBuf = root.path().join("runs.log");
-    write_fake_mpm(&root.path().join("real"), &format!("#!/bin/sh\necho run >> '{}'\nexit 5\n", runs.display()));
+    write_fake_mpm(
+        &root.path().join("real"),
+        &format!("#!/bin/sh\necho run >> '{}'\nexit 5\n", runs.display()),
+    );
     let binary: &str = env!("CARGO_BIN_EXE_mpm-shadow");
     let installed: std::path::PathBuf = root.path().join("toolchain/mpm-shadow/bin");
     fs::create_dir_all(&installed).expect("make the install directory");
@@ -488,11 +629,20 @@ fn the_per_tree_launcher_of_the_running_shadow_is_not_taken_for_the_real_mpm() {
         real: installed.join("mpm-shadow"),
         scope: ScopeKind::Repo,
     };
-    fs::write(record_path(&launchers.join("mpm-shadow")), render_record(&record)).expect("write the launch record");
+    fs::write(
+        record_path(&launchers.join("mpm-shadow")),
+        render_record(&record),
+    )
+    .expect("write the launch record");
     let links: std::path::PathBuf = root.path().join("links");
     fs::create_dir_all(&links).expect("make the link directory");
-    std::os::unix::fs::symlink(launchers.join("mpm-shadow"), links.join("mpm")).expect("link the launcher as mpm");
-    let path_variable: String = format!("{}:{}:/usr/bin:/bin", links.display(), root.path().join("real").display());
+    std::os::unix::fs::symlink(launchers.join("mpm-shadow"), links.join("mpm"))
+        .expect("link the launcher as mpm");
+    let path_variable: String = format!(
+        "{}:{}:/usr/bin:/bin",
+        links.display(),
+        root.path().join("real").display()
+    );
 
     let output: Output = Command::new(links.join("mpm"))
         .arg("installed")
@@ -504,8 +654,19 @@ fn the_per_tree_launcher_of_the_running_shadow_is_not_taken_for_the_real_mpm() {
         .expect("run the launcher");
 
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
-    assert_eq!(output.status.code(), Some(5), "the real mpm's own status: {stderr}");
-    assert_eq!(fs::read_to_string(&runs).expect("the real mpm ran").lines().count(), 1, "{stderr}");
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "the real mpm's own status: {stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(&runs)
+            .expect("the real mpm ran")
+            .lines()
+            .count(),
+        1,
+        "{stderr}"
+    );
 }
 
 /// What:
@@ -521,7 +682,10 @@ fn the_per_tree_launcher_of_the_running_shadow_is_not_taken_for_the_real_mpm() {
 /// ```
 fn write_marking_mpm(root: &Path) -> std::path::PathBuf {
     let marker: std::path::PathBuf = root.join("real-mpm-ran");
-    write_fake_mpm(&root.join("real"), &format!("#!/bin/sh\necho \"$@\" >> '{}'\nexit 7\n", marker.display()));
+    write_fake_mpm(
+        &root.join("real"),
+        &format!("#!/bin/sh\necho \"$@\" >> '{}'\nexit 7\n", marker.display()),
+    );
     return marker;
 }
 
@@ -557,8 +721,16 @@ fn every_pnpm_verb_and_alias_typed_to_mpm_runs_the_shadows_own_command_and_never
             let output: Output = start_shadow(root.path(), &[word, "--help"]);
             let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
-            assert_eq!(output.status.code(), Some(0), "mpm {word} --help: {stdout}{stderr}");
-            assert!(stdout.contains(&format!("mpm {}", verb.name)), "mpm {word} --help prints the {} help: {stdout}", verb.name);
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "mpm {word} --help: {stdout}{stderr}"
+            );
+            assert!(
+                stdout.contains(&format!("mpm {}", verb.name)),
+                "mpm {word} --help prints the {} help: {stdout}",
+                verb.name
+            );
             assert!(!marker.exists(), "mpm {word} started the real mpm");
         }
     }
@@ -586,12 +758,16 @@ fn mpm_i_g_is_the_toolchains_global_install_and_never_reaches_the_real_mpm() {
     let marker: std::path::PathBuf = write_marking_mpm(root.path());
     let config: String = root.path().join("config").display().to_string();
 
-    let output: Output = start_shadow_with(root.path(), &["i", "-g"], &[("XDG_CONFIG_HOME", &config)]);
+    let output: Output =
+        start_shadow_with(root.path(), &["i", "-g"], &[("XDG_CONFIG_HOME", &config)]);
 
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(!marker.exists(), "mpm i -g started the real mpm: {stderr}");
     assert!(!stderr.contains("No such command"), "{stderr}");
-    assert!(stderr.contains("toolchain"), "the shadow's own install answered: {stderr}");
+    assert!(
+        stderr.contains("toolchain"),
+        "the shadow's own install answered: {stderr}"
+    );
 }
 
 /// What:
@@ -613,8 +789,16 @@ fn a_word_only_the_real_mpm_knows_still_reaches_it_with_its_arguments_and_status
 
     let output: Output = start_shadow(root.path(), &["installed", "--manager", "pip"]);
 
-    assert_eq!(output.status.code(), Some(7), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(fs::read_to_string(&marker).expect("the real mpm ran"), "installed --manager pip\n");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(&marker).expect("the real mpm ran"),
+        "installed --manager pip\n"
+    );
 }
 
 /// What:
@@ -637,6 +821,14 @@ fn a_command_line_that_starts_with_an_mpm_option_stays_the_real_mpms_even_before
 
     let output: Output = start_shadow(root.path(), &["--verbosity", "DEBUG", "outdated"]);
 
-    assert_eq!(output.status.code(), Some(7), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(fs::read_to_string(&marker).expect("the real mpm ran"), "--verbosity DEBUG outdated\n");
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(&marker).expect("the real mpm ran"),
+        "--verbosity DEBUG outdated\n"
+    );
 }

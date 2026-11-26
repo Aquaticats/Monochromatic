@@ -4,7 +4,10 @@
 /// Snapshots share immutable rope chunks;
 ///  replies carry only prepared changes.
 use crate::{
-    document::{Document, Reload},
+    document::{
+        Document,
+        Reload,
+    },
     source_style::SourceStyles,
     syntax::SyntaxEngine,
     workspace::Workspace,
@@ -12,7 +15,11 @@ use crate::{
 /// Preserve worker-start,
 ///  request,
 ///  and unexpected-disconnect diagnostics.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// What:
 ///  Channels transfer owned messages between threads;
 ///  capacity one bounds queued work.
@@ -25,8 +32,16 @@ use anyhow::{Context, Result, bail};
 /// ```
 use std::{
     path::PathBuf,
-    sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel},
-    thread::{self, JoinHandle},
+    sync::mpsc::{
+        Receiver,
+        SyncSender,
+        TryRecvError,
+        sync_channel,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
     time::Duration,
 };
 
@@ -114,7 +129,10 @@ pub struct ReloadWorker {
 }
 
 /// Own the blocking receive loop entirely outside UI state.
-fn run(requests: Receiver<QueuedRead>, replies: SyncSender<ReloadReply>) {
+fn run(
+    requests: Receiver<QueuedRead>,
+    replies: SyncSender<ReloadReply>,
+) {
     let syntax = SyntaxEngine::new();
     loop {
         // What: match extracts either an owned job or the expected closed-channel condition.
@@ -176,7 +194,10 @@ impl ReloadWorker {
 
     /// Refresh an already accepted source path;
     ///  false means the worker still owns earlier work.
-    pub fn request(&mut self, request: ReloadRequest) -> Result<bool> {
+    pub fn request(
+        &mut self,
+        request: ReloadRequest,
+    ) -> Result<bool> {
         // None retains the existing accepted target rather than adding another project-path lookup.
         return self.send(QueuedRead {
             request,
@@ -198,7 +219,10 @@ impl ReloadWorker {
     }
 
     /// Admit at most one executing job or unread response regardless of the source-read mode.
-    fn send(&mut self, request: QueuedRead) -> Result<bool> {
+    fn send(
+        &mut self,
+        request: QueuedRead,
+    ) -> Result<bool> {
         if self.busy {
             return Ok(false);
         }

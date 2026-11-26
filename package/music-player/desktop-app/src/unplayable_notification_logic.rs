@@ -14,7 +14,10 @@
 /// Imports the set type of the told files.
 use std::collections::HashSet;
 /// Imports the path types of the files in a report.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `SUMMARY` is the title of every "cannot be played" notification.
@@ -68,7 +71,11 @@ pub fn unplayable_message(paths: &[PathBuf]) -> String {
     return match paths {
         [] => String::new(),
         [only] => format!("{} can't be played.", file_name_text(only)),
-        [first, rest @ ..] => format!("{} files can't be played, including {}.", rest.len() + 1, file_name_text(first)),
+        [first, rest @ ..] => format!(
+            "{} files can't be played, including {}.",
+            rest.len() + 1,
+            file_name_text(first)
+        ),
     };
 }
 
@@ -106,7 +113,10 @@ impl Ledger {
     /// an empty or fully repeated report gives none,
     /// and a file
     /// named twice in one report is counted once.
-    pub fn admit(&mut self, paths: &[PathBuf]) -> Option<Notice> {
+    pub fn admit(
+        &mut self,
+        paths: &[PathBuf],
+    ) -> Option<Notice> {
         let mut fresh: Vec<PathBuf> = Vec::new();
         for path in paths {
             if self.announced.insert(path.clone()) {
@@ -114,11 +124,20 @@ impl Ledger {
             }
         }
         if fresh.is_empty() {
-            tracing::debug!(files = paths.len(), "no unplayable file is new; no notification is made");
+            tracing::debug!(
+                files = paths.len(),
+                "no unplayable file is new; no notification is made"
+            );
             return None;
         }
-        tracing::info!(files = fresh.len(), "unplayable files are announced as one notification");
-        return Some(Notice { summary: SUMMARY, body: unplayable_message(&fresh) });
+        tracing::info!(
+            files = fresh.len(),
+            "unplayable files are announced as one notification"
+        );
+        return Some(Notice {
+            summary: SUMMARY,
+            body: unplayable_message(&fresh),
+        });
     }
 }
 

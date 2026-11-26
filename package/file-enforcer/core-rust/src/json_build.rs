@@ -15,7 +15,10 @@
 
 /// Imports `Map`,
 /// `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What:
 ///  Build a JSON object from key and value pairs,

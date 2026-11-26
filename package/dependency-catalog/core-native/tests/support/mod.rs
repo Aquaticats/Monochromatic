@@ -14,7 +14,10 @@
 /// Imports `std::fs`.
 use std::fs;
 /// Imports `std::path::{Path, PathBuf}`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `monochromatic_dependency_catalog::ManifestFile`.
 use monochromatic_dependency_catalog::ManifestFile;
@@ -62,7 +65,10 @@ pub fn read_manifests(root: &Path) -> Vec<ManifestFile> {
         let mut next: Vec<PathBuf> = Vec::new();
         for directory in &level {
             for child in sub_directories(directory) {
-                let name: String = child.file_name().map(|part| return part.to_string_lossy().to_string()).unwrap_or_default();
+                let name: String = child
+                    .file_name()
+                    .map(|part| return part.to_string_lossy().to_string())
+                    .unwrap_or_default();
                 if name == "node_modules" || name == "target" {
                     continue;
                 }
@@ -76,21 +82,27 @@ pub fn read_manifests(root: &Path) -> Vec<ManifestFile> {
         for directory in &level {
             let manifest: PathBuf = directory.join("Cargo.toml");
             if manifest.is_file() {
-                let source: String = fs::read_to_string(&manifest).expect("a manifest the glob matched is readable");
+                let source: String =
+                    fs::read_to_string(&manifest).expect("a manifest the glob matched is readable");
                 let relative: String = manifest
                     .strip_prefix(root)
                     .expect("a manifest lives under the root")
                     .to_string_lossy()
                     .replace('\\', "/");
-                manifests.push(ManifestFile { path: relative, source });
+                manifests.push(ManifestFile {
+                    path: relative,
+                    source,
+                });
             }
         }
     }
-    manifests.sort_by(|left: &ManifestFile, right: &ManifestFile| return left.path.cmp(&right.path));
+    manifests
+        .sort_by(|left: &ManifestFile, right: &ManifestFile| return left.path.cmp(&right.path));
     return manifests;
 }
 
 /// Reads `rust-catalog.toml` under `root`.
 pub fn read_catalog(root: &Path) -> String {
-    return fs::read_to_string(root.join("rust-catalog.toml")).expect("rust-catalog.toml is readable");
+    return fs::read_to_string(root.join("rust-catalog.toml"))
+        .expect("rust-catalog.toml is readable");
 }

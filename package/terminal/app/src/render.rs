@@ -93,7 +93,7 @@ impl From<RgbColor> for Rgb {
             red: color.r,
             green: color.g,
             blue: color.b,
-        }
+        };
     }
 }
 

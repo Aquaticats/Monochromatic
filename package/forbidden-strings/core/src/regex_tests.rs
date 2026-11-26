@@ -11,7 +11,10 @@
 // });
 // ```
 
-use super::{CheckedFull, RegexSet};
+use super::{
+    CheckedFull,
+    RegexSet,
+};
 
 #[test]
 fn checked_full_reports_each_rule_exactly_once() {
@@ -27,8 +30,14 @@ fn checked_full_reports_each_rule_exactly_once() {
     // ```
     let mut checked = CheckedFull::new();
     for rule in [0usize, 1, 5, 63, 64, 65, 127, 128, 191, 255] {
-        assert!(checked.first_time(rule), "rule {rule} should be fresh on first sight");
-        assert!(!checked.first_time(rule), "rule {rule} should be deduped on second sight");
+        assert!(
+            checked.first_time(rule),
+            "rule {rule} should be fresh on first sight"
+        );
+        assert!(
+            !checked.first_time(rule),
+            "rule {rule} should be deduped on second sight"
+        );
     }
 }
 
@@ -46,8 +55,14 @@ fn checked_full_keeps_distinct_rules_independent() {
     // ```
     let mut checked = CheckedFull::new();
     assert!(checked.first_time(0));
-    assert!(checked.first_time(64), "rule 64 is a different word than rule 0");
-    assert!(checked.first_time(1), "rule 1 is a different bit than rule 0");
+    assert!(
+        checked.first_time(64),
+        "rule 64 is a different word than rule 0"
+    );
+    assert!(
+        checked.first_time(1),
+        "rule 1 is a different bit than rule 0"
+    );
     assert!(checked.first_time(65), "rule 65 must not alias rule 64");
 }
 
@@ -82,7 +97,16 @@ fn line_start_candidate_gates_on_the_first_byte() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let set = RegexSet::new(&["^#deny this"]).expect("compiles");
-    assert!(set.line_start_candidate(b"#deny this row"), "'#' begins the line-start rule");
-    assert!(!set.line_start_candidate(b"deny this row"), "'d' cannot begin the line-start rule");
-    assert!(!set.line_start_candidate(b""), "an empty line has no first byte");
+    assert!(
+        set.line_start_candidate(b"#deny this row"),
+        "'#' begins the line-start rule"
+    );
+    assert!(
+        !set.line_start_candidate(b"deny this row"),
+        "'d' cannot begin the line-start rule"
+    );
+    assert!(
+        !set.line_start_candidate(b""),
+        "an empty line has no first byte"
+    );
 }

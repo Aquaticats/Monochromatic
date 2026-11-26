@@ -27,36 +27,71 @@
 //!  because the first frame has no earlier frame to show the tile in.
 
 /// The frames a window asked for.
-use super::gpu_snapshot::{install_gpu_platform, snapshot, take_frame_wanted};
+use super::gpu_snapshot::{
+    install_gpu_platform,
+    snapshot,
+    take_frame_wanted,
+};
 /// The notifier of a window and the handle the state holds.
-use super::gpu_tile::{GpuTile, bind};
+use super::gpu_tile::{
+    GpuTile,
+    bind,
+};
 /// A press on the minimap,
 ///  the viewport box,
 ///  and the settling of the tile.
-use super::minimap_tests::{calm, geometry, lift, over, press};
+use super::minimap_tests::{
+    calm,
+    geometry,
+    lift,
+    over,
+    press,
+};
 /// One frame,
 ///  which draws the scenes waiting for it.
 use super::tile_reads::draw_minimap;
 /// Opening a long plain text and waiting for its first layout.
-use super::wrap_tests::{open, settled};
+use super::wrap_tests::{
+    open,
+    settled,
+};
 /// The reader fixture,
 ///  the window,
 ///  and the source state.
-use super::{AppWindow, State, find_tests::Reader};
+use super::{
+    AppWindow,
+    State,
+    find_tests::Reader,
+};
 /// The scenes of a tile.
-use ide_app::tile_scene::{TileScene, TileStack};
+use ide_app::tile_scene::{
+    TileScene,
+    TileStack,
+};
 /// The window handle and the model trait.
-use slint::{ComponentHandle, Model};
+use slint::{
+    ComponentHandle,
+    Model,
+};
 /// The shared source state.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 /// An empty scene:
 ///  the textures are made and drawn,
 ///  with nothing in them,
 ///  and the scene that fills a texture with one color.
 use vello::{
     Scene,
-    kurbo::{Affine, Rect},
-    peniko::{Color, Fill},
+    kurbo::{
+        Affine,
+        Rect,
+    },
+    peniko::{
+        Color,
+        Fill,
+    },
 };
 
 /// Lines of the fixture text.
@@ -135,7 +170,10 @@ fn scene() -> (tempfile::TempDir, Reader, Vec<u32>) {
 /// ```ts
 /// function pressAt(reader: Reader, share: number): void;
 /// ```
-fn press_at(reader: &Reader, share: f32) {
+fn press_at(
+    reader: &Reader,
+    share: f32,
+) {
     let y = geometry(reader).track() * share;
     press(reader, over(&reader.window, 10.0, y));
     lift(reader, over(&reader.window, 10.0, y));
@@ -307,7 +345,10 @@ const INK: (u8, u8, u8) = (255, 0, 255);
 /// ```ts
 /// function filled(width: number, height: number): Scene;
 /// ```
-pub(super) fn filled(width: u32, height: u32) -> Scene {
+pub(super) fn filled(
+    width: u32,
+    height: u32,
+) -> Scene {
     let mut scene = Scene::new();
     scene.fill(
         Fill::NonZero,
@@ -391,7 +432,11 @@ pub(super) fn painted_window() -> (AppWindow, GpuTile) {
 /// ```ts
 /// function handOverAndDraw(window: AppWindow, gpu: GpuTile, heights: number[]): [number, number];
 /// ```
-fn hand_over_and_draw(window: &AppWindow, gpu: &GpuTile, heights: &[u32]) -> (u32, u32) {
+fn hand_over_and_draw(
+    window: &AppWindow,
+    gpu: &GpuTile,
+    heights: &[u32],
+) -> (u32, u32) {
     gpu.submit_tile(window, painted_stack(heights));
     let first = ink_pixels(window);
     let settled = ink_pixels(window);

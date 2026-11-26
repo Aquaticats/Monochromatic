@@ -1,12 +1,19 @@
 //! Lazy expansion consumes directory snapshots without performing any filesystem operations.
 
 /// The production model and reader share native directory-entry values.
-use ide_app::{file_tree::FileTree, workspace::DirectoryEntry};
+use ide_app::{
+    file_tree::FileTree,
+    workspace::DirectoryEntry,
+};
 /// Synthetic absolute paths make tests independent of cwd and human-owned directories.
 use std::path::Path;
 
 /// Construct native metadata without creating the represented file or directory.
-fn entry(parent: &str, name: &str, is_directory: bool) -> DirectoryEntry {
+fn entry(
+    parent: &str,
+    name: &str,
+    is_directory: bool,
+) -> DirectoryEntry {
     // What: into copies a borrowed string into an owned native filename.
     // Why: The snapshot may outlive the helper's borrowed input.
     //

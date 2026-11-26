@@ -11,32 +11,26 @@
 
 /// Error text built only on failure,
 /// from a `format_args!` value.
-use crate::lazy_error_text::{ExplainedError};
+use crate::lazy_error_text::ExplainedError;
 
 /// Imports `std::fs` for this file.
 use std::fs;
 
-
 /// Imports `std::io::{Read, Write}` for this file.
-use std::io::{Read};
+use std::io::Read;
 
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
 
-
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path};
-
-
-
-
-
-
+use std::path::Path;
 
 /// Imports `rustix::fs::{AtFlags, CWD, StatxFlags, statx}` for this file.
-use rustix::fs::{AtFlags, StatxFlags, statx};
-
-
+use rustix::fs::{
+    AtFlags,
+    StatxFlags,
+    statx,
+};
 
 /// Who ran:
 /// the machine and the boot of the kernel that held the processes of a run.
@@ -70,7 +64,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>) {
-    IDENTITY_OVERRIDE.with(|slot| { *slot.borrow_mut() = identity; });
+    IDENTITY_OVERRIDE.with(|slot| {
+        *slot.borrow_mut() = identity;
+    });
 }
 
 /// What:
@@ -91,7 +87,10 @@ pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>) 
 /// ```ts
 /// function isHexId(text: string, groups: number[]): boolean
 /// ```
-pub(crate) fn is_hex_id(text: &str, groups: &[usize]) -> bool {
+pub(crate) fn is_hex_id(
+    text: &str,
+    groups: &[usize],
+) -> bool {
     let parts: Vec<&str> = text.split('-').collect();
     if parts.len() != groups.len() {
         return false;
@@ -152,7 +151,8 @@ impl Identity {
     /// isWellFormed(): boolean
     /// ```
     pub(crate) fn is_well_formed(&self) -> bool {
-        return is_hex_id(&self.boot, &BOOT_ID_GROUPS) && is_hex_id(&self.machine, &MACHINE_ID_GROUPS);
+        return is_hex_id(&self.boot, &BOOT_ID_GROUPS)
+            && is_hex_id(&self.machine, &MACHINE_ID_GROUPS);
     }
 }
 
@@ -188,7 +188,9 @@ pub(crate) fn split_at_colon(rest: &str) -> Option<(&str, &str)> {
 /// Why:
 /// The two numbers of a view line are checked alike.
 pub(crate) fn is_decimal_number(number: &str) -> bool {
-    return !number.is_empty() && number.bytes().all(is_digit_byte) && number.parse::<u64>().is_ok();
+    return !number.is_empty()
+        && number.bytes().all(is_digit_byte)
+        && number.parse::<u64>().is_ok();
 }
 
 /// What:
@@ -236,7 +238,10 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
             }
         }
     }
-    let identity: Identity = Identity { boot: boot_text?, machine: machine_text? };
+    let identity: Identity = Identity {
+        boot: boot_text?,
+        machine: machine_text?,
+    };
     return identity.is_well_formed().then_some(identity);
 }
 
@@ -269,21 +274,46 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 /// export function readAuthoritativeBootId(path: string): string  // throws the reason
 /// ```
 pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String> {
-    let opened: OwnedFd = rustix::fs::open(path, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .explained(format_args!("{} cannot be opened without following a link", path.display()))?;
-    let found = rustix::fs::fstatfs(&opened).explained(format_args!("{} cannot be examined", path.display()))?;
+    let opened: OwnedFd = rustix::fs::open(
+        path,
+        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    )
+    .explained(format_args!(
+        "{} cannot be opened without following a link",
+        path.display()
+    ))?;
+    let found = rustix::fs::fstatfs(&opened)
+        .explained(format_args!("{} cannot be examined", path.display()))?;
     if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
-        return Err(format!("{} is not served by procfs, so it may be a file put over the kernel's", path.display()));
+        return Err(format!(
+            "{} is not served by procfs, so it may be a file put over the kernel's",
+            path.display()
+        ));
     }
-    let attributes = statx(&opened, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).explained(format_args!("{} cannot be examined", path.display()))?;
-    if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
-        return Err("the kernel does not say whether the boot id file is the root of a mount".to_string());
+    let attributes = statx(&opened, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE)
+        .explained(format_args!("{} cannot be examined", path.display()))?;
+    if !attributes
+        .stx_attributes_mask
+        .contains(rustix::fs::StatxAttributes::MOUNT_ROOT)
+    {
+        return Err(
+            "the kernel does not say whether the boot id file is the root of a mount".to_string(),
+        );
     }
-    if attributes.stx_attributes.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
-        return Err(format!("{} is the root of a mount of its own, so it was put over the kernel's file", path.display()));
+    if attributes
+        .stx_attributes
+        .contains(rustix::fs::StatxAttributes::MOUNT_ROOT)
+    {
+        return Err(format!(
+            "{} is the root of a mount of its own, so it was put over the kernel's file",
+            path.display()
+        ));
     }
     let mut text: String = String::new();
-    fs::File::from(opened).read_to_string(&mut text).explained(format_args!("the boot id cannot be read"))?;
+    fs::File::from(opened)
+        .read_to_string(&mut text)
+        .explained(format_args!("the boot id cannot be read"))?;
     return Ok(text);
 }
 
@@ -307,12 +337,23 @@ pub(crate) fn single_line(text: String) -> String {
 /// ```ts
 /// export function readCurrentIdentity(bootPath: string, machinePath: string): Identity  // throws the reason
 /// ```
-pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String> {
+pub(crate) fn read_current_identity(
+    boot_path: &Path,
+    machine_path: &Path,
+) -> Result<Identity, String> {
     let boot: String = single_line(read_authoritative_boot_id(boot_path)?);
-    let machine: String = single_line(fs::read_to_string(machine_path).explained(format_args!("the machine id cannot be read"))?);
-    let identity: Identity = Identity { boot, machine };
+    let machine: String = single_line(
+        fs::read_to_string(machine_path)
+            .explained(format_args!("the machine id cannot be read"))?,
+    );
+    let identity: Identity = Identity {
+        boot,
+        machine,
+    };
     if !identity.is_well_formed() {
-        return Err("the boot id or the machine id is empty or not in the format of an id".to_string());
+        return Err(
+            "the boot id or the machine id is empty or not in the format of an id".to_string(),
+        );
     }
     return Ok(identity);
 }
@@ -333,7 +374,9 @@ pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Re
 /// ```
 pub(crate) fn current_identity() -> Result<Identity, String> {
     #[cfg(test)]
-    if let Some(chosen) = IDENTITY_OVERRIDE.with(|slot| { return slot.borrow().clone(); }) {
+    if let Some(chosen) = IDENTITY_OVERRIDE.with(|slot| {
+        return slot.borrow().clone();
+    }) {
         return chosen;
     }
     return read_current_identity(Path::new(BOOT_ID_PATH), Path::new(MACHINE_ID_PATH));

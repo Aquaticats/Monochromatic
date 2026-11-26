@@ -25,11 +25,23 @@
 ///  its generated row type,
 ///  the source state,
 ///  and the vertical placement of the anchoring line.
-use crate::native::{AppWindow, State, rows, ui::ReferenceEntry};
+use crate::native::{
+    AppWindow,
+    State,
+    rows,
+    ui::ReferenceEntry,
+};
 /// Locations and the stamp they belong to.
-use ide_app::language::{identity::DocumentStamp, reply::Target};
+use ide_app::language::{
+    identity::DocumentStamp,
+    reply::Target,
+};
 /// Toolkit models for the list rows.
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{
+    ModelRc,
+    SharedString,
+    VecModel,
+};
 /// What:
 ///  `Rc` shares the row model with the window;
 ///  `RefCell` is the borrow-checked state cell.
@@ -41,7 +53,10 @@ use slint::{ModelRc, SharedString, VecModel};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  Where the popup or the list was opened:
@@ -122,7 +137,10 @@ pub(super) enum Shown {
 /// ```ts
 /// function origin(window: AppWindow, state: State): Origin
 /// ```
-pub(super) fn origin(window: &AppWindow, state: &State) -> Origin {
+pub(super) fn origin(
+    window: &AppWindow,
+    state: &State,
+) -> Origin {
     // `max(0) as usize` turns the toolkit's integer into a line index.
     let line = window.get_language_anchor_line().max(0) as usize;
     let on_screen = state.row_map.code_top(line) + window.get_scroll_y();
@@ -158,7 +176,11 @@ pub(super) fn displayed(state: &State) -> DocumentStamp {
 /// ```ts
 /// function anchor(window: AppWindow, state: State, position: number): void
 /// ```
-fn anchor(window: &AppWindow, state: &State, position: usize) {
+fn anchor(
+    window: &AppWindow,
+    state: &State,
+    position: usize,
+) {
     let text = state.document.text();
     let line = text.char_to_line(position.min(text.len_chars()));
     let mut x = 0.0;
@@ -268,13 +290,21 @@ fn close_list(window: &AppWindow) {
 /// ```ts
 /// function dismiss(window: AppWindow, shown: Shown): Shown
 /// ```
-pub(super) fn dismiss(window: &AppWindow, shown: &Shown, reason: &str) -> Shown {
+pub(super) fn dismiss(
+    window: &AppWindow,
+    shown: &Shown,
+    reason: &str,
+) -> Shown {
     match shown {
         Shown::Nothing => return Shown::Nothing,
-        Shown::Popup { .. } => {
+        Shown::Popup {
+            ..
+        } => {
             window.set_language_popup_text(SharedString::new());
         }
-        Shown::List { .. } => {
+        Shown::List {
+            ..
+        } => {
             let had_focus = window.get_references_has_focus();
             close_list(window);
             // Focus returns to the source only when the list still held it, never from the search input.
@@ -312,9 +342,14 @@ pub(super) fn stale(
     let (opened, pointer) = match shown {
         Shown::Nothing => return None,
         Shown::Popup {
-            origin, pointer, ..
+            origin,
+            pointer,
+            ..
         } => (*origin, *pointer),
-        Shown::List { origin, .. } => (*origin, false),
+        Shown::List {
+            origin,
+            ..
+        } => (*origin, false),
     };
     // Another file or a reload of this one: positions of the surface no longer describe the text.
     if now.stamp != opened.stamp {

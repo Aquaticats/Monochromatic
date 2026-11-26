@@ -31,19 +31,33 @@ mod source;
 mod types;
 /// A scene rendered without a window.
 #[cfg(test)]
-pub(super) use readback::{render_scene, render_stack};
+pub(super) use readback::{
+    render_scene,
+    render_stack,
+};
 /// How often the window was given a new list of textures.
 #[cfg(test)]
 pub(super) use types::SLICE_LISTS_SET;
 /// The small types,
 /// shared with the slice and the source tile.
-use types::{Outcome, Placement, StackTexture, Target};
+use types::{
+    Outcome,
+    Placement,
+    StackTexture,
+    Target,
+};
 
 /// The window the textures are shown in,
 ///  and the chaining of the debug frame records.
-use super::{AppWindow, frame_trace};
+use super::{
+    AppWindow,
+    frame_trace,
+};
 /// The tile scenes that are drawn into textures.
-use ide_app::tile_scene::{TileScene, TileStack};
+use ide_app::tile_scene::{
+    TileScene,
+    TileStack,
+};
 /// Slint's own wgpu types,
 /// the ones the window's device is made of.
 use slint::wgpu_30::wgpu;
@@ -51,15 +65,28 @@ use slint::wgpu_30::wgpu;
 /// the rendering stages,
 /// the graphics API,
 /// and the image import.
-use slint::{ComponentHandle, GraphicsAPI, Image, RenderingState};
+use slint::{
+    ComponentHandle,
+    GraphicsAPI,
+    Image,
+    RenderingState,
+};
 /// Shared ownership of the GPU state on the window thread.
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     rc::Rc,
 };
 /// Vello's renderer and its settings.
 use vello::{
-    AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, peniko::Color as VelloColor,
+    AaConfig,
+    AaSupport,
+    RenderParams,
+    Renderer,
+    RendererOptions,
+    peniko::Color as VelloColor,
 };
 
 /// What:
@@ -167,7 +194,11 @@ impl GpuTile {
     ///  here and not in the frame,
     /// because a `for` draws a list that was reset or replaced inside a frame only from the next frame
     /// (`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`).
-    pub(super) fn submit_tile(&self, window: &AppWindow, stack: TileStack) {
+    pub(super) fn submit_tile(
+        &self,
+        window: &AppWindow,
+        stack: TileStack,
+    ) {
         let mut inner = self.inner.borrow_mut();
         let outcome = inner.prepare_tile(&stack);
         inner.pending_tile = Some(stack);
@@ -176,7 +207,10 @@ impl GpuTile {
     }
 
     /// Make the scene of the wrap indicator the one to draw at the next frame.
-    pub(super) fn submit_sign(&self, scene: TileScene) {
+    pub(super) fn submit_sign(
+        &self,
+        scene: TileScene,
+    ) {
         self.inner.borrow_mut().pending_sign = Some(scene);
     }
 
@@ -190,7 +224,12 @@ impl GpuTile {
     /// here and not in the frame,
     /// because a `for` draws a list that was reset or replaced inside a frame only from the next frame
     /// (`doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`).
-    pub(super) fn submit_minimap(&self, window: &AppWindow, chunks: Vec<TileScene>, top: u32) {
+    pub(super) fn submit_minimap(
+        &self,
+        window: &AppWindow,
+        chunks: Vec<TileScene>,
+        top: u32,
+    ) {
         let mut inner = self.inner.borrow_mut();
         let outcome = inner.prepare_minimap(&chunks, top);
         inner.pending_minimap = Some((chunks, top));
@@ -257,7 +296,11 @@ impl Inner {
     /// ```ts
     /// function setup(device: GPUDevice, queue: GPUQueue): Outcome;
     /// ```
-    fn setup(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> Outcome {
+    fn setup(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Outcome {
         let mut outcome = Outcome::default();
         let limit = device.limits().max_texture_dimension_2d;
         outcome.texture_limit = Some(limit);
@@ -346,7 +389,11 @@ impl Inner {
     /// ```ts
     /// function drawSign(scene: TileScene, outcome: Outcome): void;
     /// ```
-    fn draw_sign(&mut self, scene: &TileScene, outcome: &mut Outcome) {
+    fn draw_sign(
+        &mut self,
+        scene: &TileScene,
+        outcome: &mut Outcome,
+    ) {
         let Some((device, queue)) = self.device.clone() else {
             return;
         };
@@ -463,13 +510,21 @@ impl Inner {
 /// ```ts
 /// function bind(window: AppWindow, gpu: GpuTile): void;
 /// ```
-pub(super) fn bind(window: &AppWindow, gpu: &GpuTile) {
+pub(super) fn bind(
+    window: &AppWindow,
+    gpu: &GpuTile,
+) {
     let inner = Rc::clone(&gpu.inner);
     let shown = Rc::clone(&gpu.shown);
     let weak = window.as_weak();
     let installed = window.window().set_rendering_notifier(move |state, api| {
         frame_trace::log_rendering_stage(&state);
-        let GraphicsAPI::WGPU30 { device, queue, .. } = api else {
+        let GraphicsAPI::WGPU30 {
+            device,
+            queue,
+            ..
+        } = api
+        else {
             tracing::error!("the window's renderer offers no wgpu 30 device");
             return;
         };

@@ -27,17 +27,28 @@ use std::path::Path;
 
 /// Imports the color scheme environment variable,
 /// its follow-system value and the override parser.
-use music_player::color_scheme::{COLOR_SCHEME_ENV, FOLLOW_SYSTEM, scheme_override};
+use music_player::color_scheme::{
+    COLOR_SCHEME_ENV,
+    FOLLOW_SYSTEM,
+    scheme_override,
+};
 
 /// Imports the analysis indicator's handle,
 /// the identity that names the app to the desktop and the configuration that starts it.
-use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};
+use music_player::analysis_notification::{
+    AnalysisNotifier,
+    Identity,
+    NotifierConfig,
+};
 
 /// Imports the pause gate that the indicator's Pause button drives.
 use music_player::sweep_gate::SweepGate;
 
 /// Imports the unplayable-file notifier and the configuration that starts it.
-use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};
+use music_player::unplayable_notification::{
+    UnplayableConfig,
+    UnplayableNotifier,
+};
 
 /// What:
 ///      `fn xdg_user_dir_music() -> Option<PathBuf>`.
@@ -159,9 +170,10 @@ pub(crate) fn xdg_user_dir_music() -> Option<PathBuf> {
     // if (home !== undefined && home === trimmed) return null;
     // ```
     if let Some(home) = std::env::var_os("HOME")
-        && Path::new(&home) == Path::new(trimmed) {
-            return None;
-        }
+        && Path::new(&home) == Path::new(trimmed)
+    {
+        return None;
+    }
     // What:     `Some(PathBuf::from(trimmed))`. `PathBuf::from(trimmed)` allocates an
     //           owned path from the borrowed `&str`; `Some(...)` wraps it as the
     //           present case of `Option`. Tail expression -> return value.
@@ -171,7 +183,7 @@ pub(crate) fn xdg_user_dir_music() -> Option<PathBuf> {
     // ```ts
     // return trimmed;
     // ```
-    return Some(PathBuf::from(trimmed))
+    return Some(PathBuf::from(trimmed));
 }
 
 /// What:
@@ -237,7 +249,9 @@ fn user_dirs_music() -> Option<PathBuf> {
 /// ```
 fn home_music_candidate() -> Option<PathBuf> {
     let dirs = directories::BaseDirs::new()?;
-    return Some(music_player::default_library::home_music_folder(dirs.home_dir()));
+    return Some(music_player::default_library::home_music_folder(
+        dirs.home_dir(),
+    ));
 }
 
 /// What:
@@ -296,7 +310,10 @@ pub(crate) fn music_dir() -> Option<PathBuf> {
     let from_tool = std::iter::once_with(xdg_user_dir_music);
     let from_home = std::iter::once_with(home_music_candidate);
     return music_player::default_library::first_existing_dir(
-        from_environment.chain(from_user_dirs).chain(from_tool).chain(from_home),
+        from_environment
+            .chain(from_user_dirs)
+            .chain(from_tool)
+            .chain(from_home),
     );
 }
 
@@ -347,7 +364,7 @@ pub(crate) fn start_analysis_notifier() -> AnalysisNotifier {
         app_identity(),
         true,
         Box::new(set_sweep_paused),
-    ))
+    ));
 }
 
 /// What:

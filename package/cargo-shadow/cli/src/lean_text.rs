@@ -12,10 +12,27 @@
 /// files,
 /// paths,
 /// and the descriptor a file is opened on.
-use std::{fs::{self, DirEntry}, io::{self, Read}, os::fd::OwnedFd, path::Path};
+use std::{
+    fs::{
+        self,
+        DirEntry,
+    },
+    io::{
+        self,
+        Read,
+    },
+    os::fd::OwnedFd,
+    path::Path,
+};
 
 /// The file type of an opened entry.
-use rustix::fs::{FileType, Mode, OFlags, fstat, open};
+use rustix::fs::{
+    FileType,
+    Mode,
+    OFlags,
+    fstat,
+    open,
+};
 
 /// What:
 /// `pub fn name_of(path: &Path) -> String` is the final component of a path as text,
@@ -44,7 +61,10 @@ pub fn name_of(path: &Path) -> String {
 /// ```ts
 /// export const extensionIs = (path: string, wanted: string): boolean => extname(path) === `.${wanted}`;
 /// ```
-pub fn extension_is(path: &Path, wanted: &str) -> bool {
+pub fn extension_is(
+    path: &Path,
+    wanted: &str,
+) -> bool {
     return match path.extension() {
         Some(extension) => extension == wanted,
         None => false,
@@ -91,7 +111,10 @@ pub fn is_directory(entry: &DirEntry) -> bool {
 /// ```ts
 /// const readSmallText = (path: string, limit: number): string => readFileSync(path, { flag: 'r' }).toString().slice(0, limit + 1);
 /// ```
-pub fn read_small_text(path: &Path, limit: usize) -> io::Result<String> {
+pub fn read_small_text(
+    path: &Path,
+    limit: usize,
+) -> io::Result<String> {
     return read_small_text_opened(path, limit, true);
 }
 
@@ -108,7 +131,10 @@ pub fn read_small_text(path: &Path, limit: usize) -> io::Result<String> {
 /// ```ts
 /// const readUnlinkedSmallText = (path: string, limit: number): string => readFileSync(path, { flag: 'r', noFollow: true }).toString().slice(0, limit + 1);
 /// ```
-pub fn read_unlinked_small_text(path: &Path, limit: usize) -> io::Result<String> {
+pub fn read_unlinked_small_text(
+    path: &Path,
+    limit: usize,
+) -> io::Result<String> {
     return read_small_text_opened(path, limit, false);
 }
 
@@ -128,10 +154,14 @@ pub fn read_unlinked_small_text(path: &Path, limit: usize) -> io::Result<String>
 /// ```ts
 /// const readSmallBytes = (path: string, limit: number): Buffer => readFileSync(path, { flag: 'r' }).subarray(0, limit);
 /// ```
-pub fn read_small_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+pub fn read_small_bytes(
+    path: &Path,
+    limit: usize,
+) -> io::Result<Vec<u8>> {
     let file: fs::File = open_regular(path, true)?;
     let mut bytes: Vec<u8> = Vec::new();
-    file.take(u64::try_from(limit).unwrap_or(u64::MAX)).read_to_end(&mut bytes)?;
+    file.take(u64::try_from(limit).unwrap_or(u64::MAX))
+        .read_to_end(&mut bytes)?;
     return Ok(bytes);
 }
 
@@ -145,7 +175,10 @@ pub fn read_small_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
 /// ```ts
 /// function openRegular(path: string, followLinks: boolean): number
 /// ```
-fn open_regular(path: &Path, follow_links: bool) -> io::Result<fs::File> {
+fn open_regular(
+    path: &Path,
+    follow_links: bool,
+) -> io::Result<fs::File> {
     let mut flags: OFlags = OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK;
     if !follow_links {
         flags |= OFlags::NOFOLLOW;
@@ -169,12 +202,19 @@ fn open_regular(path: &Path, follow_links: bool) -> io::Result<fs::File> {
 /// ```ts
 /// function readSmallTextOpened(path: string, limit: number, followLinks: boolean): string
 /// ```
-fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> io::Result<String> {
+fn read_small_text_opened(
+    path: &Path,
+    limit: usize,
+    follow_links: bool,
+) -> io::Result<String> {
     let file: fs::File = open_regular(path, follow_links)?;
     let mut text: String = String::new();
-    file.take(u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1)).read_to_string(&mut text)?;
+    file.take(u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1))
+        .read_to_string(&mut text)?;
     if text.len() > limit {
-        return Err(io::Error::other(format!("larger than the {limit} bytes any file of its kind is")));
+        return Err(io::Error::other(format!(
+            "larger than the {limit} bytes any file of its kind is"
+        )));
     }
     return Ok(text);
 }

@@ -26,7 +26,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `BodyExt, Empty, Limited` from `http_body_util`.
 /// Why:
@@ -36,7 +39,11 @@ use crate::error::{BrowserslistError, Outcome};
 /// ```ts
 /// import { BodyExt, Empty, Limited } from 'http_body_util';
 /// ```
-use http_body_util::{BodyExt, Empty, Limited};
+use http_body_util::{
+    BodyExt,
+    Empty,
+    Limited,
+};
 /// What:
 ///  Import `Request` from `hyper::Request`.
 /// Why:
@@ -118,8 +125,14 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 const LOOPBACK_HOSTS: [&str; 3] = ["127.0.0.1", "localhost", "[::1]"];
 
 /// Build a network error for a URL.
-fn network_error(url: &str, message: &str) -> BrowserslistError {
-    return BrowserslistError::Network { url: url.to_string(), message: message.to_string() };
+fn network_error(
+    url: &str,
+    message: &str,
+) -> BrowserslistError {
+    return BrowserslistError::Network {
+        url: url.to_string(),
+        message: message.to_string(),
+    };
 }
 
 /// Accept `https` URLs,
@@ -133,7 +146,12 @@ fn check_url(url: &str) -> Outcome<Uri> {
     match uri.scheme_str() {
         Some("https") => return Ok(uri),
         Some("http") if LOOPBACK_HOSTS.contains(&host) => return Ok(uri),
-        _ => return Err(network_error(url, "only https URLs (or http to a loopback host) are fetched")),
+        _ => {
+            return Err(network_error(
+                url,
+                "only https URLs (or http to a loopback host) are fetched",
+            ));
+        }
     }
 }
 
@@ -166,7 +184,10 @@ fn describe_chain(error: &(dyn std::error::Error + 'static)) -> String {
 /// no redirects,
 /// a status of exactly 200,
 /// and a body of at most `max_bytes`.
-async fn get_once(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
+async fn get_once(
+    uri: Uri,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
     let rooted = match HttpsConnectorBuilder::new().with_native_roots() {
         Ok(rooted) => rooted,
         Err(error) => return Err(format!("cannot load the system root certificates: {error}")),
@@ -186,20 +207,34 @@ async fn get_once(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
         Err(error) => return Err(describe_chain(&error)),
     };
     if response.status().as_u16() != 200 {
-        return Err(format!("the server answered HTTP {}, not 200", response.status().as_u16()));
+        return Err(format!(
+            "the server answered HTTP {}, not 200",
+            response.status().as_u16()
+        ));
     }
-    let collected = Limited::new(response.into_body(), max_bytes).collect().await;
+    let collected = Limited::new(response.into_body(), max_bytes)
+        .collect()
+        .await;
     let body = match collected {
         Ok(body) => body,
-        Err(error) => return Err(format!("cannot read the body within {max_bytes} bytes: {error}")),
+        Err(error) => {
+            return Err(format!(
+                "cannot read the body within {max_bytes} bytes: {error}"
+            ));
+        }
     };
     return Ok(body.to_bytes().to_vec());
 }
 
 /// Run the request on a fresh single-threaded runtime inside its own thread,
 /// so the caller works whether or not it is already inside an async runtime.
-fn run_blocking(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
-    let built = tokio::runtime::Builder::new_current_thread().enable_all().build();
+fn run_blocking(
+    uri: Uri,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    let built = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build();
     let runtime = match built {
         Ok(runtime) => runtime,
         Err(error) => return Err(format!("cannot start the async runtime: {error}")),
@@ -207,7 +242,10 @@ fn run_blocking(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
     return runtime.block_on(async {
         return match tokio::time::timeout(REQUEST_TIMEOUT, get_once(uri, max_bytes)).await {
             Ok(result) => result,
-            Err(_) => Err(format!("no complete answer within {} seconds", REQUEST_TIMEOUT.as_secs())),
+            Err(_) => Err(format!(
+                "no complete answer within {} seconds",
+                REQUEST_TIMEOUT.as_secs()
+            )),
         };
     });
 }
@@ -226,7 +264,10 @@ fn run_blocking(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
 /// ```ts
 /// async function getBytes(url: string, maxBytes: number): Promise<Uint8Array>; // throws on non-200, redirects, size
 /// ```
-pub fn get_bytes(url: &str, max_bytes: usize) -> Outcome<Vec<u8>> {
+pub fn get_bytes(
+    url: &str,
+    max_bytes: usize,
+) -> Outcome<Vec<u8>> {
     let uri = check_url(url)?;
     tracing::debug!(url, max_bytes, "GET");
     let outcome = std::thread::spawn(move || return run_blocking(uri, max_bytes)).join();

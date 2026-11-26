@@ -17,7 +17,14 @@
 /// lock,
 /// condition variable,
 /// one-time initialization and poison types of the gate.
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{
+    Arc,
+    Condvar,
+    Mutex,
+    MutexGuard,
+    OnceLock,
+    PoisonError,
+};
 
 /// What:
 /// `Admission` is the answer a worker gets before it claims a track.
@@ -124,13 +131,20 @@ impl SweepGate {
     /// Why:
     /// resume must wake every parked worker,
     /// and a late resume after shutdown must not reopen the gate.
-    pub fn set_paused(&self, paused: bool) {
+    pub fn set_paused(
+        &self,
+        paused: bool,
+    ) {
         let mut state = self.lock();
         if *state == GateState::Closed {
             tracing::debug!(paused, "sweep pause change ignored: the gate is closed");
             return;
         }
-        let next = if paused { GateState::Paused } else { GateState::Running };
+        let next = if paused {
+            GateState::Paused
+        } else {
+            GateState::Running
+        };
         if *state != next {
             tracing::info!(paused, "sweep gate changed");
             *state = next;
@@ -167,7 +181,10 @@ impl SweepGate {
         let mut state = self.lock();
         while *state == GateState::Paused {
             tracing::debug!("sweep worker parked: the gate is paused");
-            state = self.wake.wait(state).unwrap_or_else(PoisonError::into_inner);
+            state = self
+                .wake
+                .wait(state)
+                .unwrap_or_else(PoisonError::into_inner);
         }
         return match *state {
             GateState::Closed => Admission::Stop,

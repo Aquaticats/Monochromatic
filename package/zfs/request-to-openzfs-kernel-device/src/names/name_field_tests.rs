@@ -8,7 +8,11 @@
 //!  failure mode that can retarget a write to a different dataset.
 
 use super::*;
-use crate::layout::{MAX_VALUE_LEN, MAXNAMELEN, MAXPATHLEN};
+use crate::layout::{
+    MAX_VALUE_LEN,
+    MAXNAMELEN,
+    MAXPATHLEN,
+};
 
 #[test]
 fn each_field_reports_the_kernel_struct_bound() {

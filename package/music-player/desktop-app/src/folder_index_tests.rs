@@ -24,7 +24,10 @@ fn track(display_path: &str) -> Track {
 // What:     `fn track_item(tracks: &[Track], index: usize) -> FolderListItem` test helper: builds the
 //           expected track row for the library track at one index.
 // Why:      Expected lists are written with the library index, which keeps the test readable.
-fn track_item(tracks: &[Track], index: usize) -> FolderListItem {
+fn track_item(
+    tracks: &[Track],
+    index: usize,
+) -> FolderListItem {
     return FolderListItem::TrackItem(FolderTrackRow {
         track: tracks[index].clone(),
         index_in_library: index,
@@ -34,7 +37,10 @@ fn track_item(tracks: &[Track], index: usize) -> FolderListItem {
 // What:     `fn header(name: &str, track_count: usize) -> FolderListItem` test helper: builds an
 //           expected subfolder header row.
 // Why:      Header expectations read more clearly as one call than as a struct literal.
-fn header(name: &str, track_count: usize) -> FolderListItem {
+fn header(
+    name: &str,
+    track_count: usize,
+) -> FolderListItem {
     return FolderListItem::SubfolderHeader {
         name: name.to_string(),
         track_count,
@@ -45,10 +51,20 @@ fn header(name: &str, track_count: usize) -> FolderListItem {
 // Why:      Top-level folders come out sorted by name, with one entry each.
 #[test]
 fn groups_and_sorts_top_level_folders() {
-    let entries = folder_index(&[track("Zed/z.flac"), track("Alpha/a.flac"), track("Mid/m.flac")]);
-    let names: Vec<&str> = entries.iter().map(|entry| return entry.name.as_str()).collect();
+    let entries = folder_index(&[
+        track("Zed/z.flac"),
+        track("Alpha/a.flac"),
+        track("Mid/m.flac"),
+    ]);
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| return entry.name.as_str())
+        .collect();
     assert_eq!(names, vec!["Alpha", "Mid", "Zed"]);
-    let counts: Vec<usize> = entries.iter().map(|entry| return entry.track_count).collect();
+    let counts: Vec<usize> = entries
+        .iter()
+        .map(|entry| return entry.track_count)
+        .collect();
     assert_eq!(counts, vec![1, 1, 1]);
 }
 
@@ -138,10 +154,16 @@ fn root_level_tracks_go_to_unfiled_last() {
         track("Another loose.flac"),
     ];
     let entries = folder_index(&tracks);
-    let names: Vec<&str> = entries.iter().map(|entry| return entry.name.as_str()).collect();
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| return entry.name.as_str())
+        .collect();
     assert_eq!(names, vec!["Camellia", "Zed", UNFILED_FOLDER_NAME]);
     let last = &entries[2];
-    assert_eq!(last.items, vec![track_item(&tracks, 0), track_item(&tracks, 3)]);
+    assert_eq!(
+        last.items,
+        vec![track_item(&tracks, 0), track_item(&tracks, 3)]
+    );
     assert_eq!(last.track_count, 2);
 }
 
@@ -150,7 +172,10 @@ fn root_level_tracks_go_to_unfiled_last() {
 #[test]
 fn no_unfiled_entry_when_no_track_sits_at_root() {
     let entries = folder_index(&[track("Camellia/c.flac")]);
-    let names: Vec<&str> = entries.iter().map(|entry| return entry.name.as_str()).collect();
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| return entry.name.as_str())
+        .collect();
     assert_eq!(names, vec!["Camellia"]);
 }
 
@@ -198,7 +223,10 @@ fn folder_names_with_different_case_sort_case_insensitively() {
         track("capsule/4.flac"),
         track("Camellia/5.flac"),
     ]);
-    let names: Vec<&str> = entries.iter().map(|entry| return entry.name.as_str()).collect();
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| return entry.name.as_str())
+        .collect();
     assert_eq!(names, vec!["Alpha", "beta", "Camellia", "capsule", "gamma"]);
 }
 
@@ -207,7 +235,10 @@ fn folder_names_with_different_case_sort_case_insensitively() {
 #[test]
 fn folders_that_tie_ignoring_case_sort_by_code_point() {
     let entries = folder_index(&[track("camellia/x.flac"), track("Camellia/y.flac")]);
-    let names: Vec<&str> = entries.iter().map(|entry| return entry.name.as_str()).collect();
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| return entry.name.as_str())
+        .collect();
     assert_eq!(names, vec!["Camellia", "camellia"]);
 }
 
@@ -217,7 +248,10 @@ fn folders_that_tie_ignoring_case_sort_by_code_point() {
 fn folder_with_only_own_tracks_has_no_headers() {
     let tracks = vec![track("Camellia/a.flac"), track("Camellia/b.flac")];
     let entries = folder_index(&tracks);
-    assert_eq!(entries[0].items, vec![track_item(&tracks, 0), track_item(&tracks, 1)]);
+    assert_eq!(
+        entries[0].items,
+        vec![track_item(&tracks, 0), track_item(&tracks, 1)]
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -226,19 +260,35 @@ fn folder_with_only_own_tracks_has_no_headers() {
 fn same_subfolder_name_in_two_folders_stays_separate() {
     let tracks = vec![track("A/Live/1.flac"), track("B/Live/2.flac")];
     let entries = folder_index(&tracks);
-    assert_eq!(entries[0].items, vec![header("Live", 1), track_item(&tracks, 0)]);
-    assert_eq!(entries[1].items, vec![header("Live", 1), track_item(&tracks, 1)]);
+    assert_eq!(
+        entries[0].items,
+        vec![header("Live", 1), track_item(&tracks, 0)]
+    );
+    assert_eq!(
+        entries[1].items,
+        vec![header("Live", 1), track_item(&tracks, 1)]
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case. This case is an extra with no Kotlin counterpart.
 // Why:      `.` and `..` segments are dropped, so they neither create a folder nor a level.
 #[test]
 fn dot_segments_are_dropped_before_grouping() {
-    let tracks = vec![track("A/./x.flac"), track("A/x.flac"), track("../loose.flac")];
+    let tracks = vec![
+        track("A/./x.flac"),
+        track("A/x.flac"),
+        track("../loose.flac"),
+    ];
     let entries = folder_index(&tracks);
-    let names: Vec<&str> = entries.iter().map(|entry| return entry.name.as_str()).collect();
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|entry| return entry.name.as_str())
+        .collect();
     assert_eq!(names, vec!["A", UNFILED_FOLDER_NAME]);
-    assert_eq!(entries[0].items, vec![track_item(&tracks, 0), track_item(&tracks, 1)]);
+    assert_eq!(
+        entries[0].items,
+        vec![track_item(&tracks, 0), track_item(&tracks, 1)]
+    );
     assert_eq!(entries[1].items, vec![track_item(&tracks, 2)]);
 }
 
@@ -248,5 +298,8 @@ fn dot_segments_are_dropped_before_grouping() {
 fn subfolder_header_name_is_sanitized() {
     let tracks = vec![track("A/Live\n/1.flac")];
     let entries = folder_index(&tracks);
-    assert_eq!(entries[0].items, vec![header("Live ", 1), track_item(&tracks, 0)]);
+    assert_eq!(
+        entries[0].items,
+        vec![header("Live ", 1), track_item(&tracks, 0)]
+    );
 }

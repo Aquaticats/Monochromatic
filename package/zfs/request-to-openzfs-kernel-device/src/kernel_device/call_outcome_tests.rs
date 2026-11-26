@@ -17,14 +17,25 @@
 //!  same rules against the kernel.
 
 use super::call_outcome::{
-    AnswerFacts, ReadFailure, interpret_read_failure, interpret_write_failure, require_reply,
-    write_failure, write_failure_elements,
+    AnswerFacts,
+    ReadFailure,
+    interpret_read_failure,
+    interpret_write_failure,
+    require_reply,
+    write_failure,
+    write_failure_elements,
 };
 use super::device_error::DeviceError;
 use crate::names::NameField;
 use crate::nvlist::NvList;
 use crate::requests::{
-    ElementError, Error, INITIAL_REPLY_SIZE, Operation, ReplyError, ReplyRefusalReason, Request,
+    ElementError,
+    Error,
+    INITIAL_REPLY_SIZE,
+    Operation,
+    ReplyError,
+    ReplyRefusalReason,
+    Request,
     checked_name,
 };
 
@@ -37,7 +48,10 @@ fn a_listing_that_reached_its_end_is_not_a_failure() {
 #[test]
 fn esrch_on_a_request_that_does_not_list_is_a_failure() {
     let failure = interpret_read_failure(facts(Operation::ObjsetStats, libc::ESRCH, 0));
-    let ReadFailure::Failed { source: error } = failure else {
+    let ReadFailure::Failed {
+        source: error,
+    } = failure
+    else {
         panic!("only a listing's end is not a failure");
     };
     assert_eq!(error.errno(), Some(libc::ESRCH));
@@ -50,7 +64,10 @@ fn a_read_with_a_reply_past_the_buffer_asks_for_a_bigger_one() {
         libc::ENOMEM,
         INITIAL_REPLY_SIZE as u64 + 1,
     ));
-    let ReadFailure::NeedsBiggerReply { requested } = failure else {
+    let ReadFailure::NeedsBiggerReply {
+        requested,
+    } = failure
+    else {
         panic!("a named size past the buffer is a request to grow it");
     };
     assert_eq!(requested, INITIAL_REPLY_SIZE as u64 + 1);
@@ -63,7 +80,10 @@ fn a_read_with_enomem_and_no_bigger_size_is_a_failure() {
         libc::ENOMEM,
         INITIAL_REPLY_SIZE as u64,
     ));
-    let ReadFailure::Failed { source: error } = failure else {
+    let ReadFailure::Failed {
+        source: error,
+    } = failure
+    else {
         panic!("a size the buffer already holds is not a reason to grow it");
     };
     assert_eq!(error.errno(), Some(libc::ENOMEM));
@@ -82,7 +102,11 @@ fn a_write_with_a_reply_past_the_buffer_is_refused_not_replayed() {
     let Some(request) = error.request() else {
         panic!("a write failure is a request failure");
     };
-    let crate::requests::Error::Refuse { source, .. } = request else {
+    let crate::requests::Error::Refuse {
+        source,
+        ..
+    } = request
+    else {
         panic!("a write whose reply was too small is refused");
     };
     assert_eq!(source.reason, ReplyRefusalReason::NeverReplayAWrite);
@@ -208,7 +232,11 @@ fn a_read_with_a_list_passes_it_through() {
 }
 
 /// The facts one answer supplies.
-fn facts(operation: Operation, errno: i32, reported: u64) -> AnswerFacts<'static> {
+fn facts(
+    operation: Operation,
+    errno: i32,
+    reported: u64,
+) -> AnswerFacts<'static> {
     return AnswerFacts {
         operation,
         target: "pool/dataset",

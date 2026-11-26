@@ -14,7 +14,7 @@ use crate::counting::build_nfa;
 use crate::parse::parse;
 
 fn good() -> CountingNfa {
-    return build_nfa(&parse("AKIA[A-Z2-7]{4}").expect("parses")).expect("expressible as an NFA")
+    return build_nfa(&parse("AKIA[A-Z2-7]{4}").expect("parses")).expect("expressible as an NFA");
 }
 
 #[test]

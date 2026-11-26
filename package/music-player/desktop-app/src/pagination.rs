@@ -321,7 +321,7 @@ fn letter_key(name: &str) -> (u8, String) {
         // if (/[a-z]/i.test(c)) return [LETTER_GROUP, c.toUpperCase()];
         // ```
         Some(c) if c.is_ascii_alphabetic() => {
-            return (LETTER_GROUP, c.to_ascii_uppercase().to_string())
+            return (LETTER_GROUP, c.to_ascii_uppercase().to_string());
         }
         // What:     `_ => (CATCH_ALL_GROUP, CATCH_ALL_LABEL.to_string())`. The wildcard `_`
         //           matches everything else: a digit, symbol, CJK or accented/non-English
@@ -450,7 +450,7 @@ fn sort_key(label: &str) -> String {
     // ```ts
     // return label.toUpperCase();
     // ```
-    return label.to_uppercase()
+    return label.to_uppercase();
 }
 
 /// What:
@@ -567,9 +567,12 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
     // ```
     let mut pages: Vec<Page> = Vec::new();
     for ((_group, _key, label), entries) in groups {
-        pages.push(Page { label, entries });
+        pages.push(Page {
+            label,
+            entries,
+        });
     }
-    return pages
+    return pages;
 }
 
 /// What:
@@ -590,7 +593,10 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
 ///   return p < 0 ? null : p;
 /// }
 /// ```
-pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
+pub fn page_of_index(
+    pages: &[Page],
+    index: usize,
+) -> Option<usize> {
     // What:     The nested loops below return the position of the first page that holds an entry with the wanted
     //           load-order index, or `None` when no page does.
     // Why:      One linear scan locates the page, and the `Option` is the shape the caller wants.
@@ -607,7 +613,7 @@ pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
             }
         }
     }
-    return None
+    return None;
 }
 
 /// What:
@@ -647,7 +653,10 @@ pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
 ///   return name.startsWith(prefix) ? name.slice(prefix.length) : name;
 /// }
 /// ```
-pub fn row_display<'a>(label: &str, name: &'a str) -> &'a str {
+pub fn row_display<'a>(
+    label: &str,
+    name: &'a str,
+) -> &'a str {
     // What:     `match name.strip_prefix(label) { ... }`. `name.strip_prefix(label)` returns
     //           `Option<&str>`: `Some(rest)` (the text AFTER `label`, a slice borrowed from
     //           `name`) when `name` starts with `label`, otherwise `None`. It is a plain

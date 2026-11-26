@@ -79,6 +79,8 @@ binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, s
 binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_add_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
+binary/binary_zfs_add_grants_guest_tests.rs | the whole-add arm runs as the delegated account inside the throwaway guest, and a host run skips it, so only a guest run can prove its move
+binary/binary_zfs_add_grants_guest_tests.rs | the arm removes the ladder's plain worktree as the account that made it, and a host run skips the arm
 binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_holder_scan_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
@@ -92,16 +94,6 @@ binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run,
 binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_sweep_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
 binary/binary_zfs_unmount_guest_tests.rs | the guest arm is skipped in a host run, so only a run with a guest can prove its move
-commit/commit_preparation_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/commit_worktree_records_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
-commit/native_commit_waiting_notice_tests.rs | the commit folder is not moved yet; a later round takes it folder by folder
 landing/service_index_claim_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_index_lock_by_creation_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_index_lock_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
@@ -119,22 +111,6 @@ landing/service_land_reference_lock_tests.rs | the landing folder is not moved y
 landing/service_land_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_changes_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_recovery_saved_merge_finish_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-merge/merge_isolation_repository_tests.rs | the merge folder is not moved yet; a later round takes it folder by folder
-process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/child_awaited_through_a_pidfd_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/child_waited_for_within_a_ceiling_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/open_file_of_a_descriptor_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/process_tree_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/process_use_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/step_output_read_whole_through_pipes_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/stuck_children_reaped_when_the_kernel_lets_go_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
-process/wait_after_the_stop_saying_the_kernel_holds_it_tests.rs | the process folder is not moved yet; a later round takes it folder by folder
 push/auto_push_reconcile_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/bounded_push_awaiting_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/bounded_push_tests.rs | the push folder is not moved yet; a later round takes it folder by folder

@@ -12,7 +12,10 @@
 ///       PTY output must be read off the UI thread and forwarded as byte chunks.
 use std::{
     env,
-    io::{Read, Write},
+    io::{
+        Read,
+        Write,
+    },
     sync::mpsc::Sender,
     thread,
 };
@@ -40,7 +43,13 @@ use anyhow::Result;
 ///  and `MasterPty` owns the read/write side.
 /// Why:
 ///       This crate avoids hand-written `forkpty` and `ioctl` setup.
-use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{
+    Child,
+    CommandBuilder,
+    MasterPty,
+    PtySize,
+    native_pty_system,
+};
 
 /// What:
 ///      `use crate::engine::ViewportGeometry;` imports the shared terminal
@@ -235,7 +244,7 @@ impl PtySession {
         command.env("COLORTERM", "truecolor");
         // What:     `Self::spawn_command(...)` delegates to the testable command path.
         // Why:      Unit tests can spawn a deterministic command instead of a real shell.
-        return Self::spawn_command(geometry, command, event_sender)
+        return Self::spawn_command(geometry, command, event_sender);
     }
 
     /// What:
@@ -272,7 +281,7 @@ impl PtySession {
             master: pair.master,
             writer,
             child,
-        })
+        });
     }
 
     /// What:
@@ -280,13 +289,16 @@ impl PtySession {
     ///           sends updated terminal size to the PTY master through `anyhow`.
     /// Why:
     ///       Shells and full-screen apps need SIGWINCH and updated rows or cols.
-    pub fn resize(&self, geometry: ViewportGeometry) -> Result<()> {
+    pub fn resize(
+        &self,
+        geometry: ViewportGeometry,
+    ) -> Result<()> {
         // What:     `self.master.resize(...)` asks the OS PTY to update its winsize.
         // Why:      Child programs read this size and repaint to the new viewport.
         self.master.resize(pty_size_from_geometry(geometry))?;
         // What:     `Ok(())` returns success with no payload.
         // Why:      Resize completed.
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -294,13 +306,16 @@ impl PtySession {
     ///           writes borrowed bytes to the PTY input stream.
     /// Why:
     ///       Keyboard input reaches the shell through the master writer.
-    pub fn write_bytes(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+    pub fn write_bytes(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<()> {
         // What:     `self.writer.write_all(bytes)?` writes the entire borrowed byte slice.
         // Why:      Partial writes would corrupt escape sequences and UTF-8 text.
         self.writer.write_all(bytes)?;
         // What:     `self.writer.flush()` asks the stream to push buffered bytes now.
         // Why:      Interactive input should reach the shell immediately.
-        return self.writer.flush()
+        return self.writer.flush();
     }
 }
 
@@ -352,7 +367,7 @@ fn pty_size_from_geometry(geometry: ViewportGeometry) -> PtySize {
         cols: geometry.cols,
         pixel_width: geometry.cell_width_px as u16 * geometry.cols,
         pixel_height: geometry.cell_height_px as u16 * geometry.rows,
-    }
+    };
 }
 
 /// What:
@@ -360,7 +375,10 @@ fn pty_size_from_geometry(geometry: ViewportGeometry) -> PtySize {
 ///           then starts a background thread.
 /// Why:
 ///       PTY reads block until the child writes output.
-fn spawn_reader_thread(mut reader: Box<dyn Read + Send>, event_sender: Sender<PtyEvent>) {
+fn spawn_reader_thread(
+    mut reader: Box<dyn Read + Send>,
+    event_sender: Sender<PtyEvent>,
+) {
     // What:     `thread::spawn(move || { ... })` starts a native thread and moves the
     //           reader plus sender into its closure.
     // Why:      The reader must live independently from the UI thread.

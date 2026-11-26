@@ -22,8 +22,5 @@ struct Input<'a> {
 // for (const input of generatedInputs) decodeArtifact(input.artifact, input.source);
 // ```
 fuzz_target!(|input: Input<'_>| {
-    let _ = forbidden_strings::fuzz_api::decode_artifact_for_fuzzing(
-        input.artifact,
-        input.source,
-    );
+    let _ = forbidden_strings::fuzz_api::decode_artifact_for_fuzzing(input.artifact, input.source);
 });

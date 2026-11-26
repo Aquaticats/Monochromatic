@@ -3,10 +3,13 @@
 //! Resolution is pure over an injected environment snapshot and platform tag,
 //! letting Linux tests cover the macOS and Windows branches shipped by releases.
 
-/// Imports path values used without assuming UTF-8 environment contents.
-use std::path::{Path, PathBuf};
 /// Lowercase hexadecimal spelling shared with the digest directory names.
 use crate::bytes_as_lowercase_hex::bytes_as_lowercase_hex;
+/// Imports path values used without assuming UTF-8 environment contents.
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Fixed application directory below selected platform cache root.
 const APPLICATION_DIRECTORY: &str = "forbidden-strings";
@@ -79,7 +82,7 @@ pub(super) fn source_digest(bytes: &[u8]) -> Result<SourceDigest, DigestError> {
     hasher.update(bytes);
     let object_id = hasher.try_finalize().map_err(digest_failed)?;
     let digest: [u8; 32] = object_id.as_slice().try_into().map_err(digest_failed)?;
-    return Ok(SourceDigest(digest))
+    return Ok(SourceDigest(digest));
 }
 
 /// Reads process environment values once for production cache resolution.
@@ -90,7 +93,7 @@ pub(super) fn current_environment() -> CacheEnvironment {
         xdg_cache_home: std::env::var_os("XDG_CACHE_HOME"),
         home: std::env::var_os("HOME"),
         local_app_data: std::env::var_os("LOCALAPPDATA"),
-    }
+    };
 }
 
 /// Uses disposable process-scoped cache root for unit tests.
@@ -99,11 +102,14 @@ pub(super) fn current_environment() -> CacheEnvironment {
     return CacheEnvironment {
         override_root: Some(
             crate::test_scratch::scratch_root()
-                .join(format!("forbidden-strings-unit-cache-{}", std::process::id()))
+                .join(format!(
+                    "forbidden-strings-unit-cache-{}",
+                    std::process::id()
+                ))
                 .into_os_string(),
         ),
         ..CacheEnvironment::default()
-    }
+    };
 }
 
 /// Returns compile-target platform family for production resolution.
@@ -114,7 +120,7 @@ pub(super) fn current_platform() -> HostPlatform {
     if cfg!(target_os = "windows") {
         return HostPlatform::Windows;
     }
-    return HostPlatform::XdgUnix
+    return HostPlatform::XdgUnix;
 }
 
 /// Turns any failure to make the override absolute into the invalid-override error.
@@ -138,8 +144,7 @@ pub(super) fn resolve_cache_root(
     platform: HostPlatform,
 ) -> Result<PathBuf, CacheRootError> {
     if let Some(override_root) = &environment.override_root {
-        return platform_absolute_path(override_root, platform)
-            .map_err(override_not_absolute);
+        return platform_absolute_path(override_root, platform).map_err(override_not_absolute);
     }
     if platform == HostPlatform::Windows {
         return environment_absolute_path(environment.local_app_data.as_ref(), platform);
@@ -154,8 +159,7 @@ pub(super) fn resolve_cache_root(
             return Ok(path);
         }
     }
-    return environment_absolute_path(environment.home.as_ref(), platform)
-        .map(dot_cache_under)
+    return environment_absolute_path(environment.home.as_ref(), platform).map(dot_cache_under);
 }
 
 /// Converts optional environment value into platform-absolute path or unavailable error.
@@ -164,7 +168,7 @@ fn environment_absolute_path(
     platform: HostPlatform,
 ) -> Result<PathBuf, CacheRootError> {
     let present = value.ok_or(CacheRootError::Unavailable)?;
-    return platform_absolute_path(present, platform)
+    return platform_absolute_path(present, platform);
 }
 
 /// Validates path with selected target semantics so every platform branch is host-testable.
@@ -189,27 +193,27 @@ fn platform_absolute_path(
     if has_drive_root || has_unc_root {
         return Ok(path);
     }
-    return Err(CacheRootError::Unavailable)
+    return Err(CacheRootError::Unavailable);
 }
 
 /// Returns lowercase hexadecimal source digest for directory naming.
 fn digest_hex(digest: SourceDigest) -> String {
-    return bytes_as_lowercase_hex(&digest.0)
+    return bytes_as_lowercase_hex(&digest.0);
 }
 
 /// Returns exact scanner semantic version embedded into artifacts.
 pub(super) fn scanner_version() -> &'static str {
-    return env!("CARGO_PKG_VERSION")
+    return env!("CARGO_PKG_VERSION");
 }
 
 /// Returns compile-target operating-system and architecture identity.
 pub(super) fn platform_identity() -> String {
-    return format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+    return format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
 }
 
 /// Returns scanner-version and compile-platform partition components.
 fn compatibility_components() -> (String, String) {
-    return (format!("v{}", scanner_version()), platform_identity())
+    return (format!("v{}", scanner_version()), platform_identity());
 }
 
 /// Builds protected hierarchy and final artifact path for one source digest.
@@ -232,30 +236,36 @@ pub(super) fn cache_location(
             digest_directory,
         ],
         artifact_path,
-    }
+    };
 }
 
 /// Returns digest bytes for envelope identity checks.
 pub(super) fn digest_bytes(digest: SourceDigest) -> [u8; 32] {
-    return digest.0
+    return digest.0;
 }
 
 /// Renders static root-resolution errors without environment values.
 impl std::fmt::Display for CacheRootError {
     /// Writes redacted configuration reason.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         if self == &CacheRootError::InvalidOverride {
             return formatter.write_str("FORBIDDEN_STRINGS_CACHE_DIR must be an absolute path");
         }
-        return formatter.write_str("per-user cache root is unavailable")
+        return formatter.write_str("per-user cache root is unavailable");
     }
 }
 
 /// Lets digest errors participate in application error channels.
 impl std::fmt::Display for DigestError {
     /// Writes static hashing failure.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str("SHA-256 source fingerprint failed")
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        return formatter.write_str("SHA-256 source fingerprint failed");
     }
 }
 

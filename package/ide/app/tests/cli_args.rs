@@ -1,12 +1,24 @@
 //! Startup grammar preserves native paths and separates parsing from project or display initialization.
 
 /// Inspect typed clap exits without terminating the test process.
-use clap::{Error, error::ErrorKind};
+use clap::{
+    Error,
+    error::ErrorKind,
+};
 /// Parse arguments through the production library entry point.
-use ide_app::cli::{Options, Startup, parse_args, parse_args_with_home};
+use ide_app::cli::{
+    Options,
+    Startup,
+    parse_args,
+    parse_args_with_home,
+};
 /// Native byte filenames must survive parsing,
 ///  including paths that are not valid UTF-8.
-use std::{ffi::OsString, os::unix::ffi::OsStringExt, path::Path};
+use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
+    path::Path,
+};
 
 /// Convert readable ASCII fixtures to owned native argv values.
 fn args(values: &[&str]) -> Vec<OsString> {

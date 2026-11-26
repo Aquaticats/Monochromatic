@@ -23,7 +23,11 @@ use crate::error::TruePeakError;
 use crate::meter::TruePeakMeter;
 /// Imports the one owner of the probe's bin selection,
 ///  and the measurement contract it asks.
-use crate::probe_selection::{ProbeBins, ProbeGrid, select_probe_bins};
+use crate::probe_selection::{
+    ProbeBins,
+    ProbeGrid,
+    select_probe_bins,
+};
 /// Imports the decoded-audio contract the probe drives.
 use crate::source::TruePeakSource;
 
@@ -69,7 +73,7 @@ pub(crate) fn measure_window(
         fed += chunk.len() as u64 / channels as u64;
         meter.feed(&chunk);
     }
-    return Ok(meter.peak())
+    return Ok(meter.peak());
 }
 
 /// Measure bin `index` from the source.
@@ -97,7 +101,7 @@ fn measure_bin(
     if let Err(error) = &measure_result {
         tracing::debug!(bin = index, cause = %error, "probe measure failed");
     }
-    return measure_result
+    return measure_result;
 }
 
 /// The production probe's answer to the selection's question:
@@ -129,8 +133,11 @@ impl ProbeBins for SourceBins<'_, '_> {
     type Failure = TruePeakError;
 
     /// Seeks to the bin's start frame and measures one window there.
-    fn bin_peak(&mut self, index: usize) -> Result<f32, TruePeakError> {
-        return measure_bin(self.source, self.channels, self.plan, index)
+    fn bin_peak(
+        &mut self,
+        index: usize,
+    ) -> Result<f32, TruePeakError> {
+        return measure_bin(self.source, self.channels, self.plan, index);
     }
 }
 
@@ -157,7 +164,11 @@ pub(crate) fn zoom_probe(
     let bin_count = (plan.total_frames.div_ceil(plan.bin_frames.max(1)).max(1)) as usize;
     // The selection decides which bins to measure; this source-backed measurement answers
     // the one question it asks.
-    let mut bins = SourceBins { source, channels, plan };
+    let mut bins = SourceBins {
+        source,
+        channels,
+        plan,
+    };
     let selection = select_probe_bins(
         ProbeGrid {
             bin_count,
@@ -167,7 +178,7 @@ pub(crate) fn zoom_probe(
         },
         &mut bins,
     )?;
-    return Ok(selection.peak)
+    return Ok(selection.peak);
 }
 
 /// What:

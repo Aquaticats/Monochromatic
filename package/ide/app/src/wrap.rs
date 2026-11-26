@@ -24,7 +24,12 @@ use crate::tab_stop::tab_advance;
 /// import { LineBreakContext, LineBreakOverrideFn } from 'parley';
 /// ```
 use parley::{
-    Alignment, AlignmentOptions, IndentOptions, Layout, LineBreakContext, LineBreakOverrideFn,
+    Alignment,
+    AlignmentOptions,
+    IndentOptions,
+    Layout,
+    LineBreakContext,
+    LineBreakOverrideFn,
 };
 
 /// First code point that IntelliJ's `canWrapLineAtOffset` treats as Eastern text.
@@ -114,7 +119,10 @@ fn is_regional(character: char) -> bool {
 ///
 /// A zero width joiner never ends a cluster,
 /// and a regional indicator pair is one flag.
-pub fn joins_grapheme(before: char, after: char) -> bool {
+pub fn joins_grapheme(
+    before: char,
+    after: char,
+) -> bool {
     return joins_previous(after)
         || before == '\u{200D}'
         || (is_regional(before) && is_regional(after));
@@ -125,13 +133,19 @@ pub fn joins_grapheme(before: char, after: char) -> bool {
 ///
 /// The break comes after the blank run,
 /// from the blank rule on the last blank.
-pub fn keeps_blank_with_closing_symbol(before: char, after: char) -> bool {
+pub fn keeps_blank_with_closing_symbol(
+    before: char,
+    after: char,
+) -> bool {
     return is_closing_symbol(before) && after == ' ';
 }
 
 /// Blank rule:
 /// a break opportunity on both sides of a space or tab.
-pub fn blank_break(before: char, after: char) -> bool {
+pub fn blank_break(
+    before: char,
+    after: char,
+) -> bool {
     return is_blank(before) || is_blank(after);
 }
 
@@ -139,19 +153,28 @@ pub fn blank_break(before: char, after: char) -> bool {
 /// a break after `,`,
 /// `;`,
 /// or `)`.
-pub fn closing_symbol_break(before: char, _after: char) -> bool {
+pub fn closing_symbol_break(
+    before: char,
+    _after: char,
+) -> bool {
     return is_closing_symbol(before);
 }
 
 /// Opening rule:
 /// a break before `(` or `.`.
-pub fn opening_symbol_break(_before: char, after: char) -> bool {
+pub fn opening_symbol_break(
+    _before: char,
+    after: char,
+) -> bool {
     return is_opening_symbol(after);
 }
 
 /// Eastern rule:
 /// a break before or after any BMP code point from U+2F00.
-pub fn eastern_break(before: char, after: char) -> bool {
+pub fn eastern_break(
+    before: char,
+    after: char,
+) -> bool {
     return is_eastern(before) || is_eastern(after);
 }
 
@@ -161,7 +184,10 @@ pub fn eastern_break(before: char, after: char) -> bool {
 /// IntelliJ gives this rule a lower weight than the others;
 ///  Parley's rightmost choice ignores weights,
 /// so it is a plain opportunity here.
-pub fn identifier_symbol_break(before: char, after: char) -> bool {
+pub fn identifier_symbol_break(
+    before: char,
+    after: char,
+) -> bool {
     return is_identifier(before) && !is_identifier(after) && !is_rule_symbol(after);
 }
 
@@ -171,7 +197,10 @@ pub fn identifier_symbol_break(before: char, after: char) -> bool {
 /// Every other pair gets no opportunity,
 /// so Unicode's default line breaking does not add breaks
 /// that IntelliJ would not add.
-pub fn intellij_break(before: char, after: char) -> bool {
+pub fn intellij_break(
+    before: char,
+    after: char,
+) -> bool {
     if joins_grapheme(before, after) {
         return false;
     }
@@ -218,7 +247,10 @@ pub fn has_wrap_width(width: f32) -> bool {
 ///  plus one space advance for the wrap mark (`SoftWrapEngine.createSoftWrap`,
 /// `USE_CUSTOM_SOFT_WRAP_INDENT`).
 /// A line with no non-blank character gets only the mark.
-pub fn continuation_indent(text: &str, space: f32) -> f32 {
+pub fn continuation_indent(
+    text: &str,
+    space: f32,
+) -> f32 {
     let mut column = 0.0;
     for character in text.chars() {
         match character {
@@ -241,7 +273,10 @@ pub fn continuation_indent(text: &str, space: f32) -> f32 {
 /// ```ts
 /// function firstRowInBlanks(layout: Layout, text: string): boolean;
 /// ```
-pub fn first_row_in_blanks(layout: &Layout<u32>, text: &str) -> bool {
+pub fn first_row_in_blanks(
+    layout: &Layout<u32>,
+    text: &str,
+) -> bool {
     // The first character that is not a blank starts the text; an all-blank line has none.
     let mut first_text = text.len();
     for (position, character) in text.char_indices() {
@@ -269,7 +304,13 @@ pub fn first_row_in_blanks(layout: &Layout<u32>, text: &str) -> bool {
 /// ```ts
 /// function breakWrapped(layout: Layout, text: string, scale: number, width: number, space: number): void;
 /// ```
-pub fn break_wrapped(layout: &mut Layout<u32>, text: &str, scale: f32, width: f32, space: f32) {
+pub fn break_wrapped(
+    layout: &mut Layout<u32>,
+    text: &str,
+    scale: f32,
+    width: f32,
+    space: f32,
+) {
     let indent = continuation_indent(text, space);
     break_with_indent(layout, indent, scale, width);
     if indent > space && layout.len() > 1 && first_row_in_blanks(layout, text) {
@@ -279,7 +320,12 @@ pub fn break_wrapped(layout: &mut Layout<u32>, text: &str, scale: f32, width: f3
 
 /// Break `layout` at `width` with every row but the first indented by `indent`,
 ///  both in logical pixels at `scale`.
-fn break_with_indent(layout: &mut Layout<u32>, indent: f32, scale: f32, width: f32) {
+fn break_with_indent(
+    layout: &mut Layout<u32>,
+    indent: f32,
+    scale: f32,
+    width: f32,
+) {
     // The indent applies to every row but the first, and `align` then places each row at its offset.
     layout.set_text_indent(
         indent * scale,

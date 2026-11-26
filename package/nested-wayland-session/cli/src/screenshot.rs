@@ -21,7 +21,10 @@
 //!  so the recorder's per-tick cost stays minimal.
 
 /// Error text that is built only on failure.
-use crate::lazy_error_text::{failed_debug_error, with_message};
+use crate::lazy_error_text::{
+    failed_debug_error,
+    with_message,
+};
 /// What:
 ///      `use std::path::Path;`.
 ///  Borrowed filesystem path.
@@ -54,13 +57,23 @@ use smithay::{
     backend::{
         allocator::Fourcc,
         renderer::{
+            Bind,
+            ExportMem,
+            Offscreen,
+            Texture,
             element::surface::WaylandSurfaceRenderElement,
-            gles::{GlesRenderer, GlesTexture},
-            Bind, ExportMem, Offscreen, Texture,
+            gles::{
+                GlesRenderer,
+                GlesTexture,
+            },
         },
     },
     desktop::space::render_output,
-    utils::{Buffer, Rectangle, Size},
+    utils::{
+        Buffer,
+        Rectangle,
+        Size,
+    },
 };
 
 /// What:
@@ -68,7 +81,10 @@ use smithay::{
 ///  Error helpers.
 /// Why:
 ///       The functions return `Result` and annotate each fallible step.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// What:
 ///      `use crate::{encoder, render::CLEAR_COLOR, state::Compositor};`.
@@ -86,7 +102,11 @@ use anyhow::{Context, Result};
 /// import { CLEAR_COLOR } from "./render";
 /// import { Compositor } from "./state";
 /// ```
-use crate::{encoder, render::CLEAR_COLOR, state::Compositor};
+use crate::{
+    encoder,
+    render::CLEAR_COLOR,
+    state::Compositor,
+};
 
 /// Number of bytes per pixel in the read-back `Abgr8888` framebuffer.
 ///
@@ -126,7 +146,10 @@ pub const BYTES_PER_PIXEL: usize = 4;
 /// const buf = [];
 /// const [w, h] = readFrame(state, buf);
 /// ```
-pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, u32)> {
+pub fn read_frame(
+    state: &mut Compositor,
+    buffer: &mut Vec<u8>,
+) -> Result<(u32, u32)> {
     // What:     `state.output.current_mode()` returns `Option<Mode>`; `.context(...)?` turns
     //           `None` into an error and unwraps `Some`. `.size` is the physical framebuffer size.
     // Why:      The output mode is what the screen is now, set as soon as a resize or scale
@@ -173,8 +196,10 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
             // What:     `Offscreen::<GlesTexture>::create_buffer(renderer, format, size)` allocates
             //           a GPU texture the renderer can draw into; `Some(...)` stores it.
             // Why:      A new frame size needs a texture of that size.
-            let created = Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, texture_size);
-            let texture: GlesTexture = failed_debug_error(created, "creating the capture texture failed")?;
+            let created =
+                Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, texture_size);
+            let texture: GlesTexture =
+                failed_debug_error(created, "creating the capture texture failed")?;
             state.capture_texture = Some(texture);
         }
 
@@ -189,7 +214,8 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
         // What:     `let mut framebuffer = renderer.bind(texture).map_err(...)?;`. Binds the
         //           texture as the draw target; the returned target borrows the texture.
         // Why:      Need a target to draw and then read back.
-        let mut framebuffer = failed_debug_error(renderer.bind(texture), "binding the capture texture failed")?;
+        let mut framebuffer =
+            failed_debug_error(renderer.bind(texture), "binding the capture texture failed")?;
 
         // What:     `render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(...)
         //           .map_err(...)?;`. Composite the current committed client content.
@@ -247,7 +273,7 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
 
     // What:     `Ok((width, height))`. Return the dimensions (tail expression).
     // Why:      The caller needs them to encode.
-    return Ok((width, height))
+    return Ok((width, height));
 }
 
 /// Render the current frame and write it to `path` as a single PNG.
@@ -268,7 +294,10 @@ pub fn read_frame(state: &mut Compositor, buffer: &mut Vec<u8>) -> Result<(u32, 
 /// ```ts
 /// capture(state, "/tmp/frame.png");
 /// ```
-pub fn capture(state: &mut Compositor, path: &Path) -> Result<()> {
+pub fn capture(
+    state: &mut Compositor,
+    path: &Path,
+) -> Result<()> {
     // What:     `let mut pixels = Vec::new();`. A fresh buffer for the one frame.
     // Why:      A single screenshot need not reuse buffers.
     let mut pixels = Vec::new();
@@ -283,9 +312,12 @@ pub fn capture(state: &mut Compositor, path: &Path) -> Result<()> {
     //           upright PNG.
     // Why:      Single screenshots must be upright, matching the recorded frames.
     let written = encoder::write_flipped(&pixels, width, height, path, encoder::Format::Png);
-    with_message(written, format_args!("writing screenshot to {}", path.display()))?;
+    with_message(
+        written,
+        format_args!("writing screenshot to {}", path.display()),
+    )?;
 
     // What:     `Ok(())`. Success.
     // Why:      Signal the screenshot was written.
-    return Ok(())
+    return Ok(());
 }

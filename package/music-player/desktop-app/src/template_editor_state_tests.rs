@@ -5,7 +5,11 @@
 // caret placement, focus, and help. Preview, notes, fields, and Settings cases are in `template_editor_preview_tests.rs`.
 
 use super::*;
-use crate::template_fixtures::{edit_at, library, typed};
+use crate::template_fixtures::{
+    edit_at,
+    library,
+    typed,
+};
 use crate::template_model::DEFAULT_TRACK_TEMPLATE;
 
 // What: `fn starts_on_track_rows_at_its_default(...)` checks the opening template and text.
@@ -34,7 +38,10 @@ fn starts_on_track_rows_at_its_default() {
 #[test]
 fn track_only_field_is_refused_in_track_rows() {
     let state = typed(&TemplateEditorState::initial(&library()), "$mi(track)$");
-    assert_eq!(state.mistake_lines(), vec!["mi has no field called track. Pick a name from the Fields list."]);
+    assert_eq!(
+        state.mistake_lines(),
+        vec!["mi has no field called track. Pick a name from the Fields list."]
+    );
 }
 
 // What: `fn open_formula_is_reported(...)` types a formula with no closing dollar sign.
@@ -46,8 +53,14 @@ fn track_only_field_is_refused_in_track_rows() {
 // ```
 #[test]
 fn open_formula_is_reported() {
-    let state = typed(&TemplateEditorState::initial(&library()), "$tf(mi(len), m:ss)");
-    assert_eq!(state.mistake_lines(), vec!["The $ at character 1 has no closing $. Add a $ where the formula ends."]);
+    let state = typed(
+        &TemplateEditorState::initial(&library()),
+        "$tf(mi(len), m:ss)",
+    );
+    assert_eq!(
+        state.mistake_lines(),
+        vec!["The $ at character 1 has no closing $. Add a $ where the formula ends."]
+    );
 }
 
 // What: `fn valid_edit_becomes_applied_text(...)` types a valid template and reads the Settings line that follows it.
@@ -60,7 +73,10 @@ fn open_formula_is_reported() {
 #[test]
 fn valid_edit_becomes_applied_text() {
     let state = typed(&TemplateEditorState::initial(&library()), "$mi(len)$");
-    assert_eq!(state.settings_line(TemplateKind::TrackRows), Ok(String::from("275")));
+    assert_eq!(
+        state.settings_line(TemplateKind::TrackRows),
+        Ok(String::from("275"))
+    );
 }
 
 // What: `fn invalid_edit_keeps_last_valid_for_settings(...)` types a mistake after a valid custom template.
@@ -73,7 +89,10 @@ fn valid_edit_becomes_applied_text() {
 #[test]
 fn invalid_edit_keeps_last_valid_for_settings() {
     let custom = "$tc(up, mi(ext))$ \u{b7} $tf(mi(len), m:ss)$ \u{b7} $mi(peak)$";
-    let state = typed(&typed(&TemplateEditorState::initial(&library()), custom), "$mi(peek)$");
+    let state = typed(
+        &typed(&TemplateEditorState::initial(&library()), custom),
+        "$mi(peek)$",
+    );
     assert_eq!(
         state.settings_line(TemplateKind::TrackRows),
         Ok(String::from("FLAC \u{b7} 4:35 \u{b7} \u{2212}1.2 dBTP"))
@@ -90,7 +109,10 @@ fn invalid_edit_keeps_last_valid_for_settings() {
 // ```
 #[test]
 fn edits_stay_with_their_own_template() {
-    let playing_edit = typed(&TemplateEditorState::initial(&library()).open(TemplateKind::PlayingTrack), "$mi(total)$");
+    let playing_edit = typed(
+        &TemplateEditorState::initial(&library()).open(TemplateKind::PlayingTrack),
+        "$mi(total)$",
+    );
     let rows = playing_edit.open(TemplateKind::TrackRows);
     assert_eq!(rows.text(), DEFAULT_TRACK_TEMPLATE);
     assert_eq!(rows.open(TemplateKind::PlayingTrack).text(), "$mi(total)$");
@@ -105,9 +127,14 @@ fn edits_stay_with_their_own_template() {
 // ```
 #[test]
 fn open_puts_caret_at_end_without_focus() {
-    let state = TemplateEditorState::initial(&library()).with_focus(true).open(TemplateKind::PlayingTrack);
+    let state = TemplateEditorState::initial(&library())
+        .with_focus(true)
+        .open(TemplateKind::PlayingTrack);
     assert!(!state.field_focused());
-    assert_eq!(state.selection_start(), TemplateKind::PlayingTrack.default_template().len());
+    assert_eq!(
+        state.selection_start(),
+        TemplateKind::PlayingTrack.default_template().len()
+    );
 }
 
 // What: `fn insert_field_outside_formula_wraps_call(...)` inserts a field at a caret outside any formula.
@@ -135,7 +162,12 @@ fn insert_field_outside_formula_wraps_call() {
 // ```
 #[test]
 fn insert_field_inside_formula_writes_bare_call() {
-    let start = edit_at(&TemplateEditorState::initial(&library()), "$tf(, m:ss)$", 4, 4);
+    let start = edit_at(
+        &TemplateEditorState::initial(&library()),
+        "$tf(, m:ss)$",
+        4,
+        4,
+    );
     let state = start.insert_field("len");
     assert_eq!(state.text(), "$tf(mi(len), m:ss)$");
     assert_eq!(state.selection_start(), 11);
@@ -150,7 +182,12 @@ fn insert_field_inside_formula_writes_bare_call() {
 // ```
 #[test]
 fn insert_field_replaces_selection() {
-    let start = edit_at(&TemplateEditorState::initial(&library()), "$tf(mi(len), m:ss)$", 13, 17);
+    let start = edit_at(
+        &TemplateEditorState::initial(&library()),
+        "$tf(mi(len), m:ss)$",
+        13,
+        17,
+    );
     let state = start.insert_field("peak");
     assert_eq!(state.text(), "$tf(mi(len), mi(peak))$");
     assert_eq!(state.selection_start(), 21);
@@ -183,7 +220,10 @@ fn reset_to_default_restores_the_template() {
     let state = typed(&TemplateEditorState::initial(&library()), "$mi(len)$").reset_to_default();
     assert_eq!(state.text(), DEFAULT_TRACK_TEMPLATE);
     assert!(!state.can_reset());
-    assert_eq!(state.settings_line(TemplateKind::TrackRows), Ok(String::from("4:35 \u{2212}1.2 dBTP")));
+    assert_eq!(
+        state.settings_line(TemplateKind::TrackRows),
+        Ok(String::from("4:35 \u{2212}1.2 dBTP"))
+    );
     assert_eq!(state.selection_start(), DEFAULT_TRACK_TEMPLATE.len());
 }
 
@@ -210,13 +250,27 @@ fn can_reset_only_when_text_differs() {
 // ```
 #[test]
 fn help_shows_only_while_field_is_focused() {
-    let unfocused = edit_at(&TemplateEditorState::initial(&library()), DEFAULT_TRACK_TEMPLATE, 15, 15);
+    let unfocused = edit_at(
+        &TemplateEditorState::initial(&library()),
+        DEFAULT_TRACK_TEMPLATE,
+        15,
+        15,
+    );
     assert_eq!(unfocused.help(), None);
     let focused = unfocused.with_focus(true);
     let help = focused.help();
-    assert_eq!(help.as_ref().map(|found| return found.name.as_str()), Some("tf"));
-    assert_eq!(help.as_ref().map(|found| return found.signature), Some("tf(seconds, [format])"));
-    assert_eq!(help.as_ref().map(|found| return found.parameter), Some("format"));
+    assert_eq!(
+        help.as_ref().map(|found| return found.name.as_str()),
+        Some("tf")
+    );
+    assert_eq!(
+        help.as_ref().map(|found| return found.signature),
+        Some("tf(seconds, [format])")
+    );
+    assert_eq!(
+        help.as_ref().map(|found| return found.parameter),
+        Some("format")
+    );
 }
 
 // What: `fn help_is_none_outside_calls(...)` checks the help with the caret outside every call.
@@ -228,7 +282,13 @@ fn help_shows_only_while_field_is_focused() {
 // ```
 #[test]
 fn help_is_none_outside_calls() {
-    let state = edit_at(&TemplateEditorState::initial(&library()), DEFAULT_TRACK_TEMPLATE, 0, 0).with_focus(true);
+    let state = edit_at(
+        &TemplateEditorState::initial(&library()),
+        DEFAULT_TRACK_TEMPLATE,
+        0,
+        0,
+    )
+    .with_focus(true);
     assert_eq!(state.help(), None);
 }
 
@@ -255,7 +315,10 @@ fn selection_is_clamped_to_the_text() {
 // ```
 #[test]
 fn error_lines_keep_template_order() {
-    let state = typed(&TemplateEditorState::initial(&library()), "$mi(peek)$ $mi(seek)$");
+    let state = typed(
+        &TemplateEditorState::initial(&library()),
+        "$mi(peek)$ $mi(seek)$",
+    );
     assert_eq!(
         state.mistake_lines(),
         vec![
@@ -274,7 +337,10 @@ fn error_lines_keep_template_order() {
 // ```
 #[test]
 fn valid_template_removes_the_kept_note() {
-    let state = typed(&typed(&TemplateEditorState::initial(&library()), "$mi(peek)$"), "$mi(len)$");
+    let state = typed(
+        &typed(&TemplateEditorState::initial(&library()), "$mi(peek)$"),
+        "$mi(len)$",
+    );
     assert!(!state.preview_notes().contains(&TEMPLATE_KEPT_NOTE));
 }
 
@@ -284,20 +350,38 @@ fn valid_template_removes_the_kept_note() {
 #[test]
 fn kept_note_says_what_the_rows_keep() {
     let initial = TemplateEditorState::initial(&library());
-    assert_eq!(initial.kept_note(), None, "a template that applies has no kept note");
+    assert_eq!(
+        initial.kept_note(),
+        None,
+        "a template that applies has no kept note"
+    );
     let broken = typed(&initial, "$mi(peek)$");
     assert_eq!(broken.kept_note(), Some(TEMPLATE_KEPT_NOTE));
     let cleared_then_broken = typed(&typed(&initial, ""), "$mi(nope)$");
-    assert_eq!(cleared_then_broken.kept_note(), Some(TEMPLATE_KEPT_EMPTY_NOTE), "the kept template is the empty one");
-    assert_eq!(typed(&broken, "$mi(len)$").kept_note(), None, "the note goes when the text applies again");
+    assert_eq!(
+        cleared_then_broken.kept_note(),
+        Some(TEMPLATE_KEPT_EMPTY_NOTE),
+        "the kept template is the empty one"
+    );
+    assert_eq!(
+        typed(&broken, "$mi(len)$").kept_note(),
+        None,
+        "the note goes when the text applies again"
+    );
 }
 
 // What: `fn source_note_names_the_library_or_the_stand_ins(...)` reads the note about where the preview rows come from.
 // Why: the page draws it apart from the kept note, which has a reserved line of its own.
 #[test]
 fn source_note_names_the_library_or_the_stand_ins() {
-    assert_eq!(TemplateEditorState::initial(&library()).source_note(), TEMPLATE_LIBRARY_NOTE);
-    assert_eq!(TemplateEditorState::initial(&[]).source_note(), TEMPLATE_SAMPLE_NOTE);
+    assert_eq!(
+        TemplateEditorState::initial(&library()).source_note(),
+        TEMPLATE_LIBRARY_NOTE
+    );
+    assert_eq!(
+        TemplateEditorState::initial(&[]).source_note(),
+        TEMPLATE_SAMPLE_NOTE
+    );
 }
 
 // What: `fn focus_change_keeps_text(...)` checks that focus changes do not touch the text.
@@ -310,5 +394,8 @@ fn source_note_names_the_library_or_the_stand_ins() {
 #[test]
 fn focus_change_keeps_text() {
     let state = TemplateEditorState::initial(&library());
-    assert_eq!(state.with_focus(true).with_focus(false).text(), state.text());
+    assert_eq!(
+        state.with_focus(true).with_focus(false).text(),
+        state.text()
+    );
 }

@@ -19,7 +19,10 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 /// Appends the two lowercase hexadecimal digits of `byte`,
 ///  high nibble first.
-pub(crate) fn push_lowercase_hex_byte(out: &mut String, byte: u8) {
+pub(crate) fn push_lowercase_hex_byte(
+    out: &mut String,
+    byte: u8,
+) {
     out.push(char::from(HEX_DIGITS[usize::from(byte >> 4)]));
     out.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
 }

@@ -26,7 +26,10 @@ use crate::port::class_end;
 ///  Why:
 ///  `is_single_atom` needs the extent of the first postfix unit to decide
 /// whether a whole fragment is exactly one atom.
-fn unit_end(b: &[u8], start: usize) -> usize {
+fn unit_end(
+    b: &[u8],
+    start: usize,
+) -> usize {
     let mut i = start;
     match b.get(i) {
         Some(b'\\') => i += if i + 1 < b.len() { 2 } else { 1 },
@@ -167,7 +170,10 @@ pub(crate) fn wrap_operand(body: &str) -> String {
 ///  Why:
 ///  recursion into a group
 /// or complement needs its exact extent.
-fn matching_close(b: &[u8], open: usize) -> usize {
+fn matching_close(
+    b: &[u8],
+    open: usize,
+) -> usize {
     let mut depth = 0i32;
     let mut i = open;
     let mut in_class = false;
@@ -208,7 +214,10 @@ fn matching_close(b: &[u8], open: usize) -> usize {
 ///  Why:
 ///  only the content is rewrapped;
 /// the prefix is copied as-is.
-fn group_inner_start(b: &[u8], open: usize) -> usize {
+fn group_inner_start(
+    b: &[u8],
+    open: usize,
+) -> usize {
     if open + 2 < b.len() && b[open + 1] == b'?' && b[open + 2] == b':' {
         return open + 3;
     }
@@ -225,7 +234,10 @@ fn group_inner_start(b: &[u8], open: usize) -> usize {
 ///  Why:
 ///  `&` operands and `|` branches must
 /// be separated only at the current level.
-pub(crate) fn split_top_level(s: &str, delim: u8) -> Vec<String> {
+pub(crate) fn split_top_level(
+    s: &str,
+    delim: u8,
+) -> Vec<String> {
     let b = s.as_bytes();
     let mut parts = Vec::new();
     let mut start = 0;

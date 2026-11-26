@@ -20,22 +20,45 @@ use std::fs;
 use std::io;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
 
 /// Imports `rustix::process::{Pid, test_kill_process_group}` for this file.
-use rustix::process::{Pid, test_kill_process_group};
+use rustix::process::{
+    Pid,
+    test_kill_process_group,
+};
 
 /// Imports the control group records and queries for this file.
-use crate::control_group::{Identity, LauncherState, Membership, Record, current_identity, parse_record, populated_at, query, read_identity_text, view_of};
+use crate::control_group::{
+    Identity,
+    LauncherState,
+    Membership,
+    Record,
+    current_identity,
+    parse_record,
+    populated_at,
+    query,
+    read_identity_text,
+    view_of,
+};
 
 /// Imports the journal file names for this file.
-use crate::journal::{GROUPS_FILE, VIEW_FILE};
+use crate::journal::{
+    GROUPS_FILE,
+    VIEW_FILE,
+};
 
 /// Imports the verdict on a journal that has no ready record for this file.
-use crate::journal_unready_verdict::{launcher_verdict_of, note_uncertain};
+use crate::journal_unready_verdict::{
+    launcher_verdict_of,
+    note_uncertain,
+};
 
 #[cfg(test)]
 thread_local! {
@@ -57,7 +80,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub(crate) fn after_query_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
-    AFTER_QUERY.with(|slot| { *slot.borrow_mut() = hook; });
+    AFTER_QUERY.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What a check of one journal found.
@@ -126,9 +151,15 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                         "{}: the record of the containment of the killed run is missing, so a child of that run may still be writing; {hint}",
                         directory.display()
                     ))),
-                    Some(Err(listing_error)) => Some(Finding::Uncertain(format!("{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}", directory.display()))),
+                    Some(Err(listing_error)) => Some(Finding::Uncertain(format!(
+                        "{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}",
+                        directory.display()
+                    ))),
                 },
-                Err(listing_error) => Some(Finding::Uncertain(format!("{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}", directory.display()))),
+                Err(listing_error) => Some(Finding::Uncertain(format!(
+                    "{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}",
+                    directory.display()
+                ))),
             };
         }
         Err(error) => {
@@ -152,14 +183,22 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
     // Both identities must be well formed (the reader already refuses a malformed or repeated record): an id that is not an id differs
     // from every real one and is no evidence of a reboot (round 10, 9a D2).
     let rebooted: bool = match (&recorded_identity, current_identity()) {
-        (Some(recorded), Ok(now)) => recorded.is_well_formed() && now.is_well_formed() && recorded.machine == now.machine && recorded.boot != now.boot,
+        (Some(recorded), Ok(now)) => {
+            recorded.is_well_formed()
+                && now.is_well_formed()
+                && recorded.machine == now.machine
+                && recorded.boot != now.boot
+        }
         _ => false,
     };
     if rebooted {
         // The one contradiction that is kept: a recorded scope (its name carries a random token, so it cannot be a reused name)
         // that has a member after a reboot is not explained by the reboot.
         for line in text.lines() {
-            if let Ok(Record::Scope { path: scope_path, .. }) = parse_record(line)
+            if let Ok(Record::Scope {
+                path: scope_path,
+                ..
+            }) = parse_record(line)
                 && populated_at(&scope_path).unwrap_or(false)
             {
                 return Some(Finding::Live(format!(
@@ -174,17 +213,39 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
     // The view of the journal directory: another mount view of the same path cannot be trusted to hold the same scopes.
     match &view_text {
         Ok(recorded) => {
-            let expected: String = recorded.lines().next().unwrap_or("").strip_prefix("view ").unwrap_or("").trim().to_string();
+            let expected: String = recorded
+                .lines()
+                .next()
+                .unwrap_or("")
+                .strip_prefix("view ")
+                .unwrap_or("")
+                .trim()
+                .to_string();
             match view_of(directory) {
                 Ok(seen) if seen.to_string() == expected => {}
-                Ok(seen) => note_uncertain(&mut uncertain, format!(
-                    "{}: the journal is seen through another mount or path (mount and inode {seen} here, {expected:?} when it was made), so the containment it recorded may not be the one visible here; {hint}",
-                    directory.display()
-                )),
-                Err(error) => note_uncertain(&mut uncertain, format!("{}: the view of the journal cannot be examined ({error}); {hint}", directory.display())),
+                Ok(seen) => note_uncertain(
+                    &mut uncertain,
+                    format!(
+                        "{}: the journal is seen through another mount or path (mount and inode {seen} here, {expected:?} when it was made), so the containment it recorded may not be the one visible here; {hint}",
+                        directory.display()
+                    ),
+                ),
+                Err(error) => note_uncertain(
+                    &mut uncertain,
+                    format!(
+                        "{}: the view of the journal cannot be examined ({error}); {hint}",
+                        directory.display()
+                    ),
+                ),
             }
         }
-        Err(error) => note_uncertain(&mut uncertain, format!("{}: the record of the journal's mount view could not be read ({error}); {hint}", directory.display())),
+        Err(error) => note_uncertain(
+            &mut uncertain,
+            format!(
+                "{}: the record of the journal's mount view could not be read ({error}); {hint}",
+                directory.display()
+            ),
+        ),
     }
     // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
     let mut announced_without_group: bool = false;
@@ -199,7 +260,9 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
     let mut records: Vec<Result<Record, String>> = Vec::new();
     for (index, line) in text.lines().enumerate() {
         if !ends_whole && index + 1 == line_total && line.starts_with("launcher ") {
-            records.push(Err("the launcher line is not ended by a line feed, so it may be cut short".to_string()));
+            records.push(Err(
+                "the launcher line is not ended by a line feed, so it may be cut short".to_string(),
+            ));
         } else {
             records.push(parse_record(line));
         }
@@ -208,36 +271,66 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
     let mut scope_paths: Vec<&PathBuf> = Vec::new();
     for record in &records {
         match record {
-            Ok(Record::Settled { path: settled_path }) => settled_paths.push(settled_path),
-            Ok(Record::Scope { path: listed_path, .. }) => scope_paths.push(listed_path),
+            Ok(Record::Settled {
+                path: settled_path,
+            }) => settled_paths.push(settled_path),
+            Ok(Record::Scope {
+                path: listed_path,
+                ..
+            }) => scope_paths.push(listed_path),
             _ => {}
         }
     }
     for record in &records {
-        if let Ok(Record::Launcher { path: noted_path, .. }) = record
+        if let Ok(Record::Launcher {
+            path: noted_path,
+            ..
+        }) = record
             && !scope_paths.contains(&noted_path)
         {
-            note_uncertain(&mut uncertain, format!(
-                "{}: the record notes a launcher for the scope {}, which the journal does not list, so what it shows cannot be used; {hint}",
-                directory.display(),
-                noted_path.display()
-            ));
+            note_uncertain(
+                &mut uncertain,
+                format!(
+                    "{}: the record notes a launcher for the scope {}, which the journal does not list, so what it shows cannot be used; {hint}",
+                    directory.display(),
+                    noted_path.display()
+                ),
+            );
         }
     }
     for record in records.iter().cloned() {
         match record {
-            Err(reason) => note_uncertain(&mut uncertain, format!(
-                "{}: the record of the containment of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
-                directory.display()
-            )),
-            Ok(Record::Settled { .. } | Record::Launcher { .. }) => {}
-            Ok(Record::Scope { namespace, parent_view, path: scope_path }) => {
+            Err(reason) => note_uncertain(
+                &mut uncertain,
+                format!(
+                    "{}: the record of the containment of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
+                    directory.display()
+                ),
+            ),
+            Ok(
+                Record::Settled {
+                    ..
+                }
+                | Record::Launcher {
+                    ..
+                },
+            ) => {}
+            Ok(Record::Scope {
+                namespace,
+                parent_view,
+                path: scope_path,
+            }) => {
                 // The launcher is asked about before the scope is read (round 11): a launcher that is gone can never join the scope, so
                 // what the scope shows afterwards is final; one that is alive keeps blocking, and no acknowledgement overrides it.
                 let settled: bool = settled_paths.contains(&&scope_path);
                 let mut launcher: Option<(i32, u64, u64)> = None;
                 for other in records.iter().rev() {
-                    if let Ok(Record::Launcher { pid, start, pid_namespace, path: noted_path }) = other
+                    if let Ok(Record::Launcher {
+                        pid,
+                        start,
+                        pid_namespace,
+                        path: noted_path,
+                    }) = other
                         && *noted_path == scope_path
                     {
                         launcher = Some((*pid, *start, *pid_namespace));
@@ -245,7 +338,8 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                     }
                 }
                 if !settled {
-                    let launcher_verdict: Option<(i32, LauncherState)> = launcher.map(launcher_verdict_of);
+                    let launcher_verdict: Option<(i32, LauncherState)> =
+                        launcher.map(launcher_verdict_of);
                     match launcher_verdict {
                         None => unsettled.push(scope_path.clone()),
                         Some((pid, LauncherState::Alive)) => {
@@ -255,11 +349,14 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                                 scope_path.display()
                             )));
                         }
-                        Some((pid, LauncherState::Unknown(reason))) => note_uncertain(&mut uncertain, format!(
-                            "{}: whether the launcher (pid {pid}) of the scope {} is gone cannot be told ({reason}), so it may still join the scope; {hint}",
-                            directory.display(),
-                            scope_path.display()
-                        )),
+                        Some((pid, LauncherState::Unknown(reason))) => note_uncertain(
+                            &mut uncertain,
+                            format!(
+                                "{}: whether the launcher (pid {pid}) of the scope {} is gone cannot be told ({reason}), so it may still join the scope; {hint}",
+                                directory.display(),
+                                scope_path.display()
+                            ),
+                        ),
                         Some((_, LauncherState::Gone)) => {}
                     }
                 }
@@ -272,10 +369,13 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
                             scope_path.display()
                         )));
                     }
-                    Membership::Unknown(reason) => note_uncertain(&mut uncertain, format!(
-                        "{}: whether the scope of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
-                        directory.display()
-                    )),
+                    Membership::Unknown(reason) => note_uncertain(
+                        &mut uncertain,
+                        format!(
+                            "{}: whether the scope of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
+                            directory.display()
+                        ),
+                    ),
                 }
             }
             Ok(Record::ProcessGroupStarting) => {
@@ -300,7 +400,9 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
         }
     }
     #[cfg(test)]
-    if let Some(hook) = AFTER_QUERY.with(|slot| { return slot.borrow().clone(); }) {
+    if let Some(hook) = AFTER_QUERY.with(|slot| {
+        return slot.borrow().clone();
+    }) {
         hook();
     }
     for open in unsettled {
@@ -308,24 +410,33 @@ pub(crate) fn assess(directory: &Path) -> Option<Finding> {
         // the scope: an absent scope may not be made yet, and one that exists and is empty may be waiting for the launcher to be
         // attached. A look at the scope, however late, does not turn this into a completed lifecycle (round 10, 9a D1); a positively
         // populated scope has already blocked.
-        note_uncertain(&mut uncertain, format!(
-            "{}: the run that was to make the scope {} did not record its end, so its launcher may not have finished entering the scope \
+        note_uncertain(
+            &mut uncertain,
+            format!(
+                "{}: the run that was to make the scope {} did not record its end, so its launcher may not have finished entering the scope \
              (whether the scope is absent or empty now) and a program may still start in it; {hint}",
-            directory.display(),
-            open.display()
-        ));
+                directory.display(),
+                open.display()
+            ),
+        );
     }
     if announced_without_group {
-        note_uncertain(&mut uncertain, format!(
-            "{}: the killed run announced a child (the weaker path, no delegated control group) and never recorded its process group, so that child may still be writing; {hint}",
-            directory.display()
-        ));
+        note_uncertain(
+            &mut uncertain,
+            format!(
+                "{}: the killed run announced a child (the weaker path, no delegated control group) and never recorded its process group, so that child may still be writing; {hint}",
+                directory.display()
+            ),
+        );
     }
     if weaker_path {
-        note_uncertain(&mut uncertain, format!(
-            "{}: the killed run had no delegated control group, so a process that left its process group cannot be found and the end of that group does not show that the run's writers stopped; {hint}",
-            directory.display()
-        ));
+        note_uncertain(
+            &mut uncertain,
+            format!(
+                "{}: the killed run had no delegated control group, so a process that left its process group cannot be found and the end of that group does not show that the run's writers stopped; {hint}",
+                directory.display()
+            ),
+        );
     }
     return uncertain.map(Finding::Uncertain);
 }

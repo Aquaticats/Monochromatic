@@ -7,11 +7,19 @@
 //!  and one line when it is left.
 
 /// The decisions under test and the interface the fake implements.
-use super::{Kernel, Request, Watches, reconcile};
+use super::{
+    Kernel,
+    Request,
+    Watches,
+    reconcile,
+};
 /// The backoff's first and longest waits,
 ///  and why an add failed.
 use crate::change_watch::{
-    limit::{FIRST_LIMIT_RETRY, LONGEST_LIMIT_RETRY},
+    limit::{
+        FIRST_LIMIT_RETRY,
+        LONGEST_LIMIT_RETRY,
+    },
     watch_ops::WatchFailure,
 };
 /// What:
@@ -29,8 +37,14 @@ use crate::change_watch::{
 /// ```
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A kernel with `free` watches left before it answers with the limit,
@@ -47,7 +61,10 @@ struct Fake {
 impl Kernel for Fake {
     /// Succeed while watches are free,
     ///  then answer with the limit.
-    fn add(&mut self, path: &Path) -> Result<(), WatchFailure> {
+    fn add(
+        &mut self,
+        path: &Path,
+    ) -> Result<(), WatchFailure> {
         self.adds.push(path.to_path_buf());
         if self.free == 0 {
             // What: `Err(WatchFailure::Limit)` is the failure the real kernel returns for `ENOSPC`.
@@ -64,7 +81,10 @@ impl Kernel for Fake {
     }
 
     /// A removed watch is free again.
-    fn remove(&mut self, _path: &Path) {
+    fn remove(
+        &mut self,
+        _path: &Path,
+    ) {
         self.free += 1;
     }
 }

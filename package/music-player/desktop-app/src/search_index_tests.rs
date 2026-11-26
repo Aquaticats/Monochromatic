@@ -8,7 +8,11 @@
 use super::*;
 use crate::search_index_batch::prepare_batch;
 use crate::search_results::oracle::oracle_search_library;
-use crate::search_results::{SEARCH_RESULT_LIMIT, SearchResultKind, SearchState};
+use crate::search_results::{
+    SEARCH_RESULT_LIMIT,
+    SearchResultKind,
+    SearchState,
+};
 use crate::track::Track;
 
 // What:     `Rng`, a seeded 64-bit xorshift generator.
@@ -23,11 +27,17 @@ impl Rng {
         return self.0;
     }
 
-    fn below(&mut self, bound: usize) -> usize {
+    fn below(
+        &mut self,
+        bound: usize,
+    ) -> usize {
         return usize::try_from(self.next() % (bound as u64)).unwrap_or(0);
     }
 
-    fn pick<'a>(&mut self, items: &'a [&'a str]) -> &'a str {
+    fn pick<'a>(
+        &mut self,
+        items: &'a [&'a str],
+    ) -> &'a str {
         return items[self.below(items.len())];
     }
 }
@@ -36,9 +46,49 @@ impl Rng {
 // Why:      A small alphabet with accents, compatibility forms, astral characters, an ideographic space, separators and
 //           the capital dotted I makes collisions, ties and every normalization branch common.
 const PIECES: &[&str] = &[
-    "a", "b", "c", "ab", "ac", "ba", "cam", "Cam", "Camellia", "live", "Live", "at", "e", "E", "é", "É", "e\u{0301}",
-    "ö", "o\u{0308}", "İ", "ß", "ｃａｍ", "カ", "か", "が", "夜", "\u{1F3B5}", "x\u{1D11E}", "\u{3000}", " ", " ", "-",
-    "_", ".", "(", "[", "  ", "1", "2", "10", "Ω", "ς", "Σ",
+    "a",
+    "b",
+    "c",
+    "ab",
+    "ac",
+    "ba",
+    "cam",
+    "Cam",
+    "Camellia",
+    "live",
+    "Live",
+    "at",
+    "e",
+    "E",
+    "é",
+    "É",
+    "e\u{0301}",
+    "ö",
+    "o\u{0308}",
+    "İ",
+    "ß",
+    "ｃａｍ",
+    "カ",
+    "か",
+    "が",
+    "夜",
+    "\u{1F3B5}",
+    "x\u{1D11E}",
+    "\u{3000}",
+    " ",
+    " ",
+    "-",
+    "_",
+    ".",
+    "(",
+    "[",
+    "  ",
+    "1",
+    "2",
+    "10",
+    "Ω",
+    "ς",
+    "Σ",
 ];
 
 // What:     `random_name`, one display path built from the pieces.
@@ -52,11 +102,15 @@ fn random_name(rng: &mut Rng) -> String {
             1 => ".".to_string(),
             2 => "..".to_string(),
             3 => "Unfiled".to_string(),
-            _ => (0..1 + rng.below(3)).map(|_| return rng.pick(PIECES)).collect(),
+            _ => (0..1 + rng.below(3))
+                .map(|_| return rng.pick(PIECES))
+                .collect(),
         };
         parts.push(segment);
     }
-    let title: String = (0..1 + rng.below(4)).map(|_| return rng.pick(PIECES)).collect();
+    let title: String = (0..1 + rng.below(4))
+        .map(|_| return rng.pick(PIECES))
+        .collect();
     let extension: &str = rng.pick(&[".flac", ".mp3", ".opus", "", ".", ".tar.gz"]);
     parts.push(format!("{title}{extension}"));
     return parts.join("/");
@@ -64,17 +118,27 @@ fn random_name(rng: &mut Rng) -> String {
 
 // What:     `random_query`, one query: a piece, two pieces, a prefix of a library name, or two terms.
 // Why:      Queries must hit, miss, tie, cross separators and use several terms.
-fn random_query(rng: &mut Rng, names: &[String]) -> String {
+fn random_query(
+    rng: &mut Rng,
+    names: &[String],
+) -> String {
     return match rng.below(5) {
         0 => rng.pick(PIECES).to_string(),
         1 => format!("{}{}", rng.pick(PIECES), rng.pick(PIECES)),
         2 => {
             let name: &String = &names[rng.below(names.len())];
             let count: usize = 1 + rng.below(6);
-            name.rsplit('/').next().unwrap_or("").chars().take(count).collect()
+            name.rsplit('/')
+                .next()
+                .unwrap_or("")
+                .chars()
+                .take(count)
+                .collect()
         }
         3 => format!("{} {}", rng.pick(PIECES), rng.pick(PIECES)),
-        _ => rng.pick(&["a", "e", "c", "l", "ca", "li", "-", "(", " ", "x", "1"]).to_string(),
+        _ => rng
+            .pick(&["a", "e", "c", "l", "ca", "li", "-", "(", " ", "x", "1"])
+            .to_string(),
     };
 }
 
@@ -84,16 +148,31 @@ fn tracks_of(names: &[String]) -> Vec<Track> {
     return names
         .iter()
         .enumerate()
-        .map(|(position, name)| return Track { uri: format!("u{position}"), display_path: name.clone() })
+        .map(|(position, name)| {
+            return Track {
+                uri: format!("u{position}"),
+                display_path: name.clone(),
+            };
+        })
         .collect();
 }
 
 // What:     `assert_same`, compares the index answer with the oracle answer for one query.
 // Why:      Every parity test ends here, and a failure names the query and the first difference.
-fn assert_same(index: &SearchIndex, names: &[String], query: &str, context: &str) {
+fn assert_same(
+    index: &SearchIndex,
+    names: &[String],
+    query: &str,
+    context: &str,
+) {
     let expected: SearchState = oracle_search_library(query, &tracks_of(names), true);
     let actual: SearchState = index.search(query);
-    assert_eq!(actual, expected, "{context}: query {query:?} over {} names", names.len());
+    assert_eq!(
+        actual,
+        expected,
+        "{context}: query {query:?} over {} names",
+        names.len()
+    );
 }
 
 // What:     `index_of`, builds an index from names in one batch.
@@ -107,7 +186,10 @@ fn index_of(names: &[String]) -> SearchIndex {
 // What:     `strings`, owned names from literals.
 // Why:      The fixed libraries are written as literals.
 fn strings(literals: &[&str]) -> Vec<String> {
-    return literals.iter().map(|literal| return literal.to_string()).collect();
+    return literals
+        .iter()
+        .map(|literal| return literal.to_string())
+        .collect();
 }
 
 // What:     The fixed hostile library.
@@ -157,11 +239,78 @@ fn hostile_library() -> Vec<String> {
 // What:     The fixed hostile queries.
 // Why:      Separators, brackets, quotes, control characters, comparisons and very long text must not break matching.
 const HOSTILE_QUERIES: &[&str] = &[
-    "", " ", "   ", "\t\n", "\u{3000}", "c", "C", "ca", "cam", "CAM", "cam ", " cam", "cam live", "live cam", "cam cam", "at", "unf",
-    "unfiled", "Unfiled/", "-", "--", "_", ".", "(", "[", "/", "x-cam", "x cam", "x.cam", "a-b", "é", "e\u{0301}", "ö", "o",
-    "İ", "i", "istanbul", "ß", "ss", "ｃａｍ", "カ", "か", "が", "夜", "藍月", "鎖", "\u{1F3B5}", "x\u{1D11E}", "ΟΔΟΣ", "οδοσ", "ς",
-    "dr.", "feelgood", "10", "'; DROP TABLE t;--", "\\", "\"", "%", "*", "?", "^", "$", "\u{0}", "\u{200B}", "cam\u{0301}",
-    "zzzzzz", "a b c d e f g h i j k l m n o p q r s t u v w x y z", "ａ", "Ａ", "ｱ", "..", "...",
+    "",
+    " ",
+    "   ",
+    "\t\n",
+    "\u{3000}",
+    "c",
+    "C",
+    "ca",
+    "cam",
+    "CAM",
+    "cam ",
+    " cam",
+    "cam live",
+    "live cam",
+    "cam cam",
+    "at",
+    "unf",
+    "unfiled",
+    "Unfiled/",
+    "-",
+    "--",
+    "_",
+    ".",
+    "(",
+    "[",
+    "/",
+    "x-cam",
+    "x cam",
+    "x.cam",
+    "a-b",
+    "é",
+    "e\u{0301}",
+    "ö",
+    "o",
+    "İ",
+    "i",
+    "istanbul",
+    "ß",
+    "ss",
+    "ｃａｍ",
+    "カ",
+    "か",
+    "が",
+    "夜",
+    "藍月",
+    "鎖",
+    "\u{1F3B5}",
+    "x\u{1D11E}",
+    "ΟΔΟΣ",
+    "οδοσ",
+    "ς",
+    "dr.",
+    "feelgood",
+    "10",
+    "'; DROP TABLE t;--",
+    "\\",
+    "\"",
+    "%",
+    "*",
+    "?",
+    "^",
+    "$",
+    "\u{0}",
+    "\u{200B}",
+    "cam\u{0301}",
+    "zzzzzz",
+    "a b c d e f g h i j k l m n o p q r s t u v w x y z",
+    "ａ",
+    "Ａ",
+    "ｱ",
+    "..",
+    "...",
 ];
 
 // What:     The fixed library answers every hostile query exactly as the oracle does.
@@ -189,10 +338,16 @@ fn long_queries_match_the_oracle() {
 // Why:      Random names reach combinations the fixed list does not, and the seed is printed on failure.
 #[test]
 fn random_libraries_match_the_oracle() {
-    let (seeds, queries, base): (u64, usize, usize) = if cfg!(debug_assertions) { (2, 40, 250) } else { (6, 120, 400) };
+    let (seeds, queries, base): (u64, usize, usize) = if cfg!(debug_assertions) {
+        (2, 40, 250)
+    } else {
+        (6, 120, 400)
+    };
     for seed in 1..=seeds {
         let mut rng: Rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
-        let names: Vec<String> = (0..base + 150 * usize::try_from(seed).unwrap_or(0)).map(|_| return random_name(&mut rng)).collect();
+        let names: Vec<String> = (0..base + 150 * usize::try_from(seed).unwrap_or(0))
+            .map(|_| return random_name(&mut rng))
+            .collect();
         let index: SearchIndex = index_of(&names);
         for _ in 0..queries {
             let query: String = random_query(&mut rng, &names);
@@ -207,15 +362,24 @@ fn random_libraries_match_the_oracle() {
 #[test]
 fn the_parallel_scan_answers_as_the_sequential_scan_and_the_oracle() {
     let mut rng: Rng = Rng(0xA5A5_5A5A_1234_5679);
-    let names: Vec<String> = (0..if cfg!(debug_assertions) { 600 } else { 2500 }).map(|_| return random_name(&mut rng)).collect();
+    let names: Vec<String> = (0..if cfg!(debug_assertions) { 600 } else { 2500 })
+        .map(|_| return random_name(&mut rng))
+        .collect();
     let index: SearchIndex = index_of(&names);
     let queries: usize = if cfg!(debug_assertions) { 40 } else { 150 };
     for _ in 0..queries {
         let query: String = random_query(&mut rng, &names);
         let parallel: SearchState = index.search_with(&query, 1);
         let sequential: SearchState = index.search_with(&query, usize::MAX);
-        assert_eq!(parallel, sequential, "parallel and sequential differ for {query:?}");
-        assert_eq!(parallel, oracle_search_library(&query, &tracks_of(&names), true), "parallel differs from the oracle for {query:?}");
+        assert_eq!(
+            parallel, sequential,
+            "parallel and sequential differ for {query:?}"
+        );
+        assert_eq!(
+            parallel,
+            oracle_search_library(&query, &tracks_of(&names), true),
+            "parallel differs from the oracle for {query:?}"
+        );
     }
 }
 
@@ -225,7 +389,11 @@ fn the_parallel_scan_answers_as_the_sequential_scan_and_the_oracle() {
 //           equal a fresh ranking, which is the merge the cache relies on.
 #[test]
 fn growing_library_stays_exact_between_batches() {
-    let (last_seed, count): (u64, usize) = if cfg!(debug_assertions) { (11, 400) } else { (14, 900) };
+    let (last_seed, count): (u64, usize) = if cfg!(debug_assertions) {
+        (11, 400)
+    } else {
+        (14, 900)
+    };
     for seed in 11..=last_seed {
         let mut rng: Rng = Rng(seed.wrapping_mul(0xD6E8_FEB8_6659_FD93) | 1);
         let names: Vec<String> = (0..count).map(|_| return random_name(&mut rng)).collect();
@@ -238,11 +406,21 @@ fn growing_library_stays_exact_between_batches() {
             known = end;
             let so_far: &[String] = &names[..known];
             for character in ["a", "e", "c", "l", "1", "é"] {
-                assert_same(&index, so_far, character, &format!("seed {seed} after {known}"));
+                assert_same(
+                    &index,
+                    so_far,
+                    character,
+                    &format!("seed {seed} after {known}"),
+                );
             }
             for _ in 0..8 {
                 let query: String = random_query(&mut rng, so_far);
-                assert_same(&index, so_far, &query, &format!("seed {seed} after {known}"));
+                assert_same(
+                    &index,
+                    so_far,
+                    &query,
+                    &format!("seed {seed} after {known}"),
+                );
             }
         }
     }
@@ -263,7 +441,10 @@ fn many_equal_length_matches_are_cut_in_the_oracle_order() {
         assert_same(&index, &names, query, "many ties");
     }
     match index.search("x") {
-        SearchState::Results { items, truncated } => {
+        SearchState::Results {
+            items,
+            truncated,
+        } => {
             assert_eq!(items.len(), SEARCH_RESULT_LIMIT);
             assert!(truncated);
         }
@@ -287,7 +468,12 @@ fn the_unfiled_folder_rule_follows_later_batches() {
     let rooted: Vec<String> = strings(&["Unfiled/"]);
     index.append(prepare_batch(&rooted));
     names.extend(rooted);
-    assert_same(&index, &names, "unfiled", "after a root track starting with Unfiled/");
+    assert_same(
+        &index,
+        &names,
+        "unfiled",
+        "after a root track starting with Unfiled/",
+    );
 }
 
 // What:     The index counts what it holds and an empty index reports an empty inventory.
@@ -308,7 +494,10 @@ fn a_folder_precedes_an_equal_track() {
     let names: Vec<String> = strings(&["Cam/Other.flac", "Cam.flac"]);
     let index: SearchIndex = index_of(&names);
     match index.search("cam") {
-        SearchState::Results { items, .. } => {
+        SearchState::Results {
+            items,
+            ..
+        } => {
             assert_eq!(items[0].kind, SearchResultKind::Folder);
             assert_eq!(items[1].kind, SearchResultKind::Track);
         }

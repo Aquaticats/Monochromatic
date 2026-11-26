@@ -7,12 +7,19 @@
 /// The parent state,
 /// the tile bounds,
 /// and the tile's raster size.
-use super::{State, render::viewport_of, tile};
+use super::{
+    State,
+    render::viewport_of,
+    tile,
+};
 /// The height of one code row.
 use ide_app::row_map::CODE_ROW;
 /// The budget a measurement spends,
 /// and what it found.
-use ide_app::shaped_text::{Budget, Measured};
+use ide_app::shaped_text::{
+    Budget,
+    Measured,
+};
 /// A wrap width must be a positive number of pixels.
 use ide_app::wrap::has_wrap_width;
 
@@ -147,7 +154,11 @@ impl Allowance {
 /// ```ts
 /// function rasterFits(current: State, bounds: TileBounds, scale: number): boolean;
 /// ```
-pub(super) fn raster_fits(current: &State, bounds: tile::TileBounds, scale: f32) -> bool {
+pub(super) fn raster_fits(
+    current: &State,
+    bounds: tile::TileBounds,
+    scale: f32,
+) -> bool {
     let columns = (viewport_of(bounds, scale).width * scale).ceil() as u64;
     let map = &current.row_map;
     let extent = match bounds.clip {
@@ -218,7 +229,10 @@ pub(super) fn begin(current: &mut State) -> Option<Allowance> {
 /// ```ts
 /// function defer(current: State, reason: string): void;
 /// ```
-pub(super) fn defer(current: &mut State, reason: &str) {
+pub(super) fn defer(
+    current: &mut State,
+    reason: &str,
+) {
     let requested = tile::requested(current);
     current.scroll_wanted = Some(requested);
     #[cfg(debug_assertions)]

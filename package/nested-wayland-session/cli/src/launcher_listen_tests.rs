@@ -16,7 +16,11 @@ const UPDATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 /// Builds the previous state with progress shown,
 /// for merge checks.
 fn shown_at(progress: f64) -> LauncherProperties {
-    return LauncherProperties { progress, progress_visible: true, ..LauncherProperties::default() }
+    return LauncherProperties {
+        progress,
+        progress_visible: true,
+        ..LauncherProperties::default()
+    };
 }
 
 /// A key absent from an update keeps the previous value.
@@ -52,12 +56,18 @@ fn unknown_keys_change_nothing() {
 /// A new app with no properties yet gets the defaults.
 #[test]
 fn empty_update_yields_defaults() {
-    assert_eq!(merge_properties(LauncherProperties::default(), &HashMap::new()), LauncherProperties::default());
+    assert_eq!(
+        merge_properties(LauncherProperties::default(), &HashMap::new()),
+        LauncherProperties::default()
+    );
 }
 
 /// Polls the history until its newest update satisfies `ready`,
 /// or fails at the timeout.
-fn wait_for_latest(log: &LauncherLog, ready: impl Fn(&LauncherUpdate) -> bool) -> anyhow::Result<LauncherUpdate> {
+fn wait_for_latest(
+    log: &LauncherLog,
+    ready: impl Fn(&LauncherUpdate) -> bool,
+) -> anyhow::Result<LauncherUpdate> {
     let started = std::time::Instant::now();
     while started.elapsed() < UPDATE_TIMEOUT {
         let newest = log.lock().latest().cloned();
@@ -81,16 +91,44 @@ fn private_bus_round_trip_records_and_merges_updates() -> anyhow::Result<()> {
     let uri = "application://org.example.progress.desktop";
 
     // Negative control: a signal on another interface must not appear in the history.
-    let unrelated: HashMap<&str, Variant<'_>> = HashMap::from([("progress", Variant::from(0.9_f64))]);
-    block_on_bounded("emitting a test update", sender.emit_signal(None::<&str>, path, "org.example.Other", "Update", &(uri, unrelated)))?;
+    let unrelated: HashMap<&str, Variant<'_>> =
+        HashMap::from([("progress", Variant::from(0.9_f64))]);
+    block_on_bounded(
+        "emitting a test update",
+        sender.emit_signal(
+            None::<&str>,
+            path,
+            "org.example.Other",
+            "Update",
+            &(uri, unrelated),
+        ),
+    )?;
 
     let first: HashMap<&str, Variant<'_>> = HashMap::from([
         ("progress", Variant::from(0.25_f64)),
         ("progress-visible", Variant::from(true)),
     ]);
-    block_on_bounded("emitting a test update", sender.emit_signal(None::<&str>, path, LAUNCHER_INTERFACE, LAUNCHER_MEMBER, &(uri, first)))?;
+    block_on_bounded(
+        "emitting a test update",
+        sender.emit_signal(
+            None::<&str>,
+            path,
+            LAUNCHER_INTERFACE,
+            LAUNCHER_MEMBER,
+            &(uri, first),
+        ),
+    )?;
     let second: HashMap<&str, Variant<'_>> = HashMap::from([("count", Variant::from(3_i64))]);
-    block_on_bounded("emitting a test update", sender.emit_signal(None::<&str>, path, LAUNCHER_INTERFACE, LAUNCHER_MEMBER, &(uri, second)))?;
+    block_on_bounded(
+        "emitting a test update",
+        sender.emit_signal(
+            None::<&str>,
+            path,
+            LAUNCHER_INTERFACE,
+            LAUNCHER_MEMBER,
+            &(uri, second),
+        ),
+    )?;
 
     let latest = wait_for_latest(&log, |update| return update.count == 3)?;
     assert_eq!(latest.app_uri, uri);
@@ -99,7 +137,11 @@ fn private_bus_round_trip_records_and_merges_updates() -> anyhow::Result<()> {
     assert!(!latest.count_visible);
 
     let history = log.lock();
-    let progress: Vec<f64> = history.last_n(64).iter().map(|record| return record.progress).collect();
+    let progress: Vec<f64> = history
+        .last_n(64)
+        .iter()
+        .map(|record| return record.progress)
+        .collect();
     assert_eq!(progress, [0.25, 0.25]);
-    return Ok(())
+    return Ok(());
 }

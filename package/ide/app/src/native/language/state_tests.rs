@@ -5,8 +5,19 @@
 
 /// Fixtures and real key events.
 use super::test_support::{
-    address, caret, definition, definitions, hover, idle, location, popup, project, reader,
-    reader_launching, reader_with, ready,
+    address,
+    caret,
+    definition,
+    definitions,
+    hover,
+    idle,
+    location,
+    popup,
+    project,
+    reader,
+    reader_launching,
+    reader_with,
+    ready,
 };
 /// A tree-row lookup shared with the navigation tests.
 use crate::native::navigation_tests::row;
@@ -25,12 +36,18 @@ use crate::native::waiting_tests::Waiting;
 use anyhow::anyhow;
 /// What a launch policy receives and returns;
 ///  the refusing policy of one test is written with them.
-use ide_app::language::launch::{LaunchRequest, ServerLaunch};
+use ide_app::language::launch::{
+    LaunchRequest,
+    ServerLaunch,
+};
 /// Hiding the window after the binding was closed.
 use slint::ComponentHandle;
 /// Child processes are read from the process table;
 ///  elapsed time bounds shutdown.
-use std::{fs, time::Instant};
+use std::{
+    fs,
+    time::Instant,
+};
 
 /// Three lines of words.
 const TEXT: &str = "alpha beta\ngamma delta\nepsilon\n";

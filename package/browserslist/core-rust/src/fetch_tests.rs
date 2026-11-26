@@ -20,7 +20,10 @@ use crate::fetch::get_bytes;
 #[test]
 fn returns_the_body() {
     let server = FakeRegistry::start(vec![("/hello", 200, b"world".to_vec())]);
-    assert_eq!(get_bytes(&format!("{}/hello", server.url()), 1024).expect("fetches"), b"world".to_vec());
+    assert_eq!(
+        get_bytes(&format!("{}/hello", server.url()), 1024).expect("fetches"),
+        b"world".to_vec()
+    );
     assert_eq!(server.requests(), vec!["/hello".to_string()]);
 }
 
@@ -29,11 +32,18 @@ fn returns_the_body() {
 /// is an error that names the status and the URL.
 #[test]
 fn rejects_non_200_answers() {
-    let server = FakeRegistry::start(vec![("/redirect", 302, Vec::new()), ("/error", 500, b"boom".to_vec())]);
+    let server = FakeRegistry::start(vec![
+        ("/redirect", 302, Vec::new()),
+        ("/error", 500, b"boom".to_vec()),
+    ]);
     for path in ["/redirect", "/error", "/missing"] {
         let url = format!("{}{path}", server.url());
         let error = get_bytes(&url, 1024).expect_err("rejected");
-        let BrowserslistError::Network { url: reported, message } = error else {
+        let BrowserslistError::Network {
+            url: reported,
+            message,
+        } = error
+        else {
             panic!("expected a network error");
         };
         assert_eq!(reported, url);
@@ -45,9 +55,16 @@ fn rejects_non_200_answers() {
 #[test]
 fn enforces_the_size_limit() {
     let server = FakeRegistry::start(vec![("/big", 200, vec![1_u8; 5000])]);
-    let message = get_bytes(&format!("{}/big", server.url()), 100).expect_err("too big").to_string();
+    let message = get_bytes(&format!("{}/big", server.url()), 100)
+        .expect_err("too big")
+        .to_string();
     assert!(message.contains("within 100 bytes"), "{message}");
-    assert_eq!(get_bytes(&format!("{}/big", server.url()), 5000).expect("exact limit").len(), 5000);
+    assert_eq!(
+        get_bytes(&format!("{}/big", server.url()), 5000)
+            .expect("exact limit")
+            .len(),
+        5000
+    );
 }
 
 /// Only https,
@@ -56,9 +73,19 @@ fn enforces_the_size_limit() {
 /// nothing is sent for the refused URLs.
 #[test]
 fn applies_the_url_policy() {
-    for url in ["http://example.com/x", "ftp://127.0.0.1/x", "file:///etc/passwd", "not a url", "/relative", "http://127.0.0.1.example.com/x"] {
+    for url in [
+        "http://example.com/x",
+        "ftp://127.0.0.1/x",
+        "file:///etc/passwd",
+        "not a url",
+        "/relative",
+        "http://127.0.0.1.example.com/x",
+    ] {
         let message = get_bytes(url, 10).expect_err("refused").to_string();
-        assert!(message.starts_with(&format!("request to {url} failed: ")), "{message}");
+        assert!(
+            message.starts_with(&format!("request to {url} failed: ")),
+            "{message}"
+        );
     }
 }
 
@@ -73,8 +100,12 @@ fn reports_connection_failures() {
 #[test]
 fn works_inside_an_async_runtime() {
     let server = FakeRegistry::start(vec![("/ok", 200, b"fine".to_vec())]);
-    let runtime = tokio::runtime::Builder::new_current_thread().build().expect("runtime");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("runtime");
     let url = format!("{}/ok", server.url());
-    let bytes = runtime.block_on(async { return get_bytes(&url, 10) }).expect("fetches");
+    let bytes = runtime
+        .block_on(async { return get_bytes(&url, 10) })
+        .expect("fetches");
     assert_eq!(bytes, b"fine".to_vec());
 }

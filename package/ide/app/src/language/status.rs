@@ -125,15 +125,20 @@ impl ServerState {
     /// ```ts
     /// function sharedCause(state: ServerState, server: string): string | undefined;
     /// ```
-    pub fn shared_cause(&self, server: &str) -> Option<String> {
+    pub fn shared_cause(
+        &self,
+        server: &str,
+    ) -> Option<String> {
         return match self {
-            Self::RootOutsideProject { root } => Some(format!(
+            Self::RootOutsideProject {
+                root,
+            } => Some(format!(
                 "{server} was not started because it would treat {}, which is outside this project, as its workspace. Open the IDE on that directory to use it.",
                 root.display()
             )),
-            Self::NotStarted { reason } => {
-                Some(sentence(&format!("{server} was not started: {reason}")))
-            }
+            Self::NotStarted {
+                reason,
+            } => Some(sentence(&format!("{server} was not started: {reason}"))),
             _ => None,
         };
     }

@@ -58,5 +58,5 @@ pub fn set_window_app_id(attributes: WindowAttributes) -> WindowAttributes {
     // ```ts
     // return attributes.withName(APP_ID, APP_ID);
     // ```
-    return attributes.with_name(APP_ID, APP_ID)
+    return attributes.with_name(APP_ID, APP_ID);
 }

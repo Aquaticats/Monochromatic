@@ -159,7 +159,9 @@ pub struct Cli {
     /// ```ts
     /// // @positional() path?: string;
     /// ```
-    #[arg(help = "One folder (scanned recursively) or one file (its parent folder becomes the source root)")]
+    #[arg(
+        help = "One folder (scanned recursively) or one file (its parent folder becomes the source root)"
+    )]
     pub path: Option<PathBuf>,
 }
 
@@ -186,7 +188,10 @@ pub fn command_with_color(color: clap::ColorChoice) -> clap::Command {
 /// ```ts
 /// function tryParseWithColor(argv: string[], color: "auto" | "never"): Cli { ... } // throws on bad input
 /// ```
-pub fn try_parse_from_with_color<I, T>(arguments: I, color: clap::ColorChoice) -> Result<Cli, clap::Error>
+pub fn try_parse_from_with_color<I, T>(
+    arguments: I,
+    color: clap::ColorChoice,
+) -> Result<Cli, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,

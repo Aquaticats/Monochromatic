@@ -31,7 +31,10 @@
 /// ```ts
 /// import { BTreeMap, BTreeSet } from 'std/collections';
 /// ```
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 /// What:
 /// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
 /// Why:
@@ -110,7 +113,11 @@ use tar::Archive;
 /// ```ts
 /// import { DumpFormatError, column_indexes, read_csv } from 'crate/csv';
 /// ```
-use crate::csv::{DumpFormatError, column_indexes, read_csv};
+use crate::csv::{
+    DumpFormatError,
+    column_indexes,
+    read_csv,
+};
 /// What:
 /// `use crate::policy::VersionRecord;` imports `VersionRecord` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -179,7 +186,11 @@ pub fn dump_timestamp(value: &str) -> Result<String, DumpFormatError> {
         None => value.to_string(),
     };
     if parse_rfc3339_millis(&iso).is_none() {
-        return Err(DumpFormatError { message: format!("the crates.io dump has a created_at value that is not a UTC timestamp: {value:?}") });
+        return Err(DumpFormatError {
+            message: format!(
+                "the crates.io dump has a created_at value that is not a UTC timestamp: {value:?}"
+            ),
+        });
     }
     return Ok(iso);
 }
@@ -188,7 +199,9 @@ pub fn dump_timestamp(value: &str) -> Result<String, DumpFormatError> {
 pub fn needs_api(history: &[VersionRecord]) -> bool {
     let start: i64 = parse_rfc3339_millis(TRUSTED_PUBLISHING_START).unwrap_or(0);
     for record in history {
-        if record.publisher_id.is_empty() && parse_rfc3339_millis(&record.created_at).unwrap_or(0) >= start {
+        if record.publisher_id.is_empty()
+            && parse_rfc3339_millis(&record.created_at).unwrap_or(0) >= start
+        {
             return true;
         }
     }
@@ -201,10 +214,22 @@ fn history_json(history: &[VersionRecord]) -> String {
     for record in history {
         let mut entry: serde_json::Map<String, Value> = serde_json::Map::new();
         entry.insert("num".to_string(), Value::String(record.num.clone()));
-        entry.insert("createdAt".to_string(), Value::String(record.created_at.clone()));
-        entry.insert("publisherId".to_string(), Value::String(record.publisher_id.clone()));
-        entry.insert("trustpubRepository".to_string(), Value::String(record.trustpub_repository.clone()));
-        entry.insert("repository".to_string(), Value::String(record.repository.clone()));
+        entry.insert(
+            "createdAt".to_string(),
+            Value::String(record.created_at.clone()),
+        );
+        entry.insert(
+            "publisherId".to_string(),
+            Value::String(record.publisher_id.clone()),
+        );
+        entry.insert(
+            "trustpubRepository".to_string(),
+            Value::String(record.trustpub_repository.clone()),
+        );
+        entry.insert(
+            "repository".to_string(),
+            Value::String(record.repository.clone()),
+        );
         entries.push(Value::Object(entry));
     }
     return format!("{}\n", Value::Array(entries));
@@ -212,15 +237,28 @@ fn history_json(history: &[VersionRecord]) -> String {
 
 /// Reads one table of the archive into rows of the wanted columns;
 /// the callback gets the row's wanted fields in order.
-fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn TableRow) -> Result<(), DumpFormatError> {
-    let mut reader: TableReader = TableReader { columns, on_row, positions: None, failure: None, header_width: 0, row_number: 0 };
+fn read_table(
+    entry: &mut dyn Read,
+    columns: &[&str],
+    on_row: &mut dyn TableRow,
+) -> Result<(), DumpFormatError> {
+    let mut reader: TableReader = TableReader {
+        columns,
+        on_row,
+        positions: None,
+        failure: None,
+        header_width: 0,
+        row_number: 0,
+    };
     let outcome = read_csv(entry, &mut reader);
     if let Some(error) = reader.failure {
         return Err(error);
     }
     return match outcome {
         Ok(found) => Ok(found),
-        Err(error) => Err(DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }),
+        Err(error) => Err(DumpFormatError {
+            message: format!("reading the crates.io dump failed: {error}"),
+        }),
     };
 }
 
@@ -237,7 +275,10 @@ trait TableRow {
     /// in the order of the wanted columns.
     /// Why:
     /// An error stops the read and is returned by it.
-    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError>;
+    fn row(
+        &mut self,
+        fields: &[String],
+    ) -> Result<(), DumpFormatError>;
 }
 
 /// What:
@@ -249,7 +290,10 @@ impl<F: FnMut(&[String]) -> Result<(), DumpFormatError>> TableRow for F {
     /// Calls the function.
     /// Why:
     /// The function is the handler.
-    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError> {
+    fn row(
+        &mut self,
+        fields: &[String],
+    ) -> Result<(), DumpFormatError> {
         return self(fields);
     }
 }
@@ -287,7 +331,10 @@ impl crate::csv::RowHandler for TableReader<'_> {
     /// Reads the header on the first row and checks and passes on every later row.
     /// Why:
     /// `false` stops the read after the first failure.
-    fn on_row(&mut self, row: &[String]) -> bool {
+    fn on_row(
+        &mut self,
+        row: &[String],
+    ) -> bool {
         self.row_number += 1;
         match &self.positions {
             None => match column_indexes(row, self.columns) {
@@ -303,7 +350,12 @@ impl crate::csv::RowHandler for TableReader<'_> {
             Some(found) => {
                 if row.len() != self.header_width {
                     self.failure = Some(DumpFormatError {
-                        message: format!("row {} of a crates.io dump table has {} fields, but its header has {}", self.row_number, row.len(), self.header_width),
+                        message: format!(
+                            "row {} of a crates.io dump table has {} fields, but its header has {}",
+                            self.row_number,
+                            row.len(),
+                            self.header_width
+                        ),
                     });
                     return false;
                 }
@@ -343,7 +395,10 @@ impl TableRow for CrateNameRows<'_> {
     /// Keeps the id of the row's crate when its name is wanted.
     /// Why:
     /// The versions table is read against these ids.
-    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError> {
+    fn row(
+        &mut self,
+        fields: &[String],
+    ) -> Result<(), DumpFormatError> {
         if self.names.contains(&fields[1]) {
             self.id_to_name.insert(fields[0].clone(), fields[1].clone());
         }
@@ -374,22 +429,32 @@ impl TableRow for VersionRows<'_> {
     /// and refuses a crate with more releases than the bound.
     /// Why:
     /// The retained history of one crate is bounded.
-    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError> {
+    fn row(
+        &mut self,
+        fields: &[String],
+    ) -> Result<(), DumpFormatError> {
         let name: &String = match self.id_to_name.get(&fields[0]) {
             Some(found) => found,
             None => return Ok(()),
         };
         let kept: usize = self.histories.get(name).map(Vec::len).unwrap_or(0);
         if kept >= MAX_VERSIONS_PER_CRATE {
-            return Err(DumpFormatError { message: format!("the crates.io dump lists more than {MAX_VERSIONS_PER_CRATE} releases of {name}") });
+            return Err(DumpFormatError {
+                message: format!(
+                    "the crates.io dump lists more than {MAX_VERSIONS_PER_CRATE} releases of {name}"
+                ),
+            });
         }
-        self.histories.entry(name.clone()).or_default().push(VersionRecord {
-            num: fields[1].clone(),
-            created_at: dump_timestamp(&fields[2])?,
-            publisher_id: fields[3].clone(),
-            trustpub_repository: String::new(),
-            repository: fields[4].clone(),
-        });
+        self.histories
+            .entry(name.clone())
+            .or_default()
+            .push(VersionRecord {
+                num: fields[1].clone(),
+                created_at: dump_timestamp(&fields[2])?,
+                publisher_id: fields[3].clone(),
+                trustpub_repository: String::new(),
+                repository: fields[4].clone(),
+            });
         return Ok(());
     }
 }
@@ -417,8 +482,13 @@ fn entry_path_text(path: std::borrow::Cow<'_, Path>) -> String {
 /// ```ts
 /// const pathFailure = (path: string, error: Error) => new DumpFormatError(`${path}: ${error.message}`);
 /// ```
-fn path_failure(path: &Path, error: &std::io::Error) -> DumpFormatError {
-    return DumpFormatError { message: format!("{}: {error}", path.display()) };
+fn path_failure(
+    path: &Path,
+    error: &std::io::Error,
+) -> DumpFormatError {
+    return DumpFormatError {
+        message: format!("{}: {error}", path.display()),
+    };
 }
 
 /// What:
@@ -435,7 +505,11 @@ fn path_failure(path: &Path, error: &std::io::Error) -> DumpFormatError {
 /// ```ts
 /// export async function fillHistoriesFromDump({ tarChunks, names, cacheDir }): Promise<DumpFillResult>
 /// ```
-pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>, cache_dir: &Path) -> Result<DumpFillResult, DumpFormatError> {
+pub fn fill_histories_from_dump(
+    archive: Box<dyn Read>,
+    names: &BTreeSet<String>,
+    cache_dir: &Path,
+) -> Result<DumpFillResult, DumpFormatError> {
     let mut id_to_name: BTreeMap<String, String> = BTreeMap::new();
     let mut histories: BTreeMap<String, Vec<VersionRecord>> = BTreeMap::new();
     let mut crates_read: bool = false;
@@ -443,22 +517,50 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
     let mut tar: Archive<GzDecoder<Box<dyn Read>>> = Archive::new(GzDecoder::new(archive));
     let entries = match tar.entries() {
         Ok(found) => found,
-        Err(error) => return Err(DumpFormatError { message: format!("the crates.io dump is not a tar archive: {error}") }),
+        Err(error) => {
+            return Err(DumpFormatError {
+                message: format!("the crates.io dump is not a tar archive: {error}"),
+            });
+        }
     };
     for listed in entries {
         let mut entry = match listed {
             Ok(found) => found,
-            Err(error) => return Err(DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }),
+            Err(error) => {
+                return Err(DumpFormatError {
+                    message: format!("reading the crates.io dump failed: {error}"),
+                });
+            }
         };
         let path: String = entry.path().map(entry_path_text).unwrap_or_default();
         if path.ends_with(CRATES_ENTRY) {
-            read_table(&mut entry, &["id", "name"], &mut CrateNameRows { names, id_to_name: &mut id_to_name })?;
+            read_table(
+                &mut entry,
+                &["id", "name"],
+                &mut CrateNameRows {
+                    names,
+                    id_to_name: &mut id_to_name,
+                },
+            )?;
             crates_read = true;
         } else if path.ends_with(VERSIONS_ENTRY) {
             if !crates_read {
                 return Err(DumpFormatError { message: "the crates.io dump lists versions.csv before crates.csv; the single-pass reader needs crates.csv first".to_string() });
             }
-            read_table(&mut entry, &["crate_id", "num", "created_at", "published_by", "repository"], &mut VersionRows { id_to_name: &id_to_name, histories: &mut histories })?;
+            read_table(
+                &mut entry,
+                &[
+                    "crate_id",
+                    "num",
+                    "created_at",
+                    "published_by",
+                    "repository",
+                ],
+                &mut VersionRows {
+                    id_to_name: &id_to_name,
+                    histories: &mut histories,
+                },
+            )?;
             versions_read = true;
         }
         if crates_read && versions_read {
@@ -466,12 +568,17 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
         }
     }
     if !versions_read {
-        return Err(DumpFormatError { message: "the crates.io dump ended before versions.csv was read completely".to_string() });
+        return Err(DumpFormatError {
+            message: "the crates.io dump ended before versions.csv was read completely".to_string(),
+        });
     }
     if let Err(error) = fs::create_dir_all(cache_dir) {
         return Err(path_failure(cache_dir, &error));
     }
-    let mut result: DumpFillResult = DumpFillResult { found: histories.len(), ..DumpFillResult::default() };
+    let mut result: DumpFillResult = DumpFillResult {
+        found: histories.len(),
+        ..DumpFillResult::default()
+    };
     for (name, history) in &histories {
         if needs_api(history) {
             result.left_to_api.push(name.clone());

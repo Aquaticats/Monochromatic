@@ -3,9 +3,15 @@
 /// Lowercase hexadecimal spelling shared with the pin keys.
 use crate::bytes_as_lowercase_hex::bytes_as_lowercase_hex;
 /// Standard state errors and durable writes.
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 /// Unix file creation mode.
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{
+    OpenOptionsExt,
+    PermissionsExt,
+};
 /// Watcher state paths.
 use std::path::PathBuf;
 
@@ -118,7 +124,10 @@ pub fn read_watch_state(key: &str) -> io::Result<Option<WatchProcess>> {
 }
 
 /// Atomically writes watcher state and syncs file plus parent directory.
-pub fn write_watch_state(key: &str, process: WatchProcess) -> io::Result<()> {
+pub fn write_watch_state(
+    key: &str,
+    process: WatchProcess,
+) -> io::Result<()> {
     let path = watch_state_path(key)?;
     let Some(parent) = path.parent() else {
         return Err(io::Error::other("watch state path lacks parent"));

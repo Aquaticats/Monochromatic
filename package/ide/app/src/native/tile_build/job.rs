@@ -11,7 +11,10 @@ use anyhow::Result;
 use ide_app::annotation::Visible;
 /// Hint and diagnostic inks,
 /// and the lay-out that places them beside the rows.
-use ide_app::annotation_layout::{AnnotationColors, lay_out};
+use ide_app::annotation_layout::{
+    AnnotationColors,
+    lay_out,
+};
 /// The palette of one tile.
 use ide_app::code_colors::CodeColors;
 /// Canonical source text,
@@ -19,7 +22,10 @@ use ide_app::code_colors::CodeColors;
 use ide_app::document::Document;
 /// In-file find ranges and the active match,
 /// painted from the same rows as selection.
-use ide_app::find::{FindRange, FindRanges};
+use ide_app::find::{
+    FindRange,
+    FindRanges,
+};
 /// Match rectangles of the materialized rows.
 use ide_app::find_paint::rectangles;
 /// The one vertical mapping,
@@ -28,7 +34,11 @@ use ide_app::row_map::RowMap;
 /// Shared shaping,
 /// the viewport description,
 /// and the frame's rows.
-use ide_app::shaped_text::{ShapedView, TextShaper, Viewport};
+use ide_app::shaped_text::{
+    ShapedView,
+    TextShaper,
+    Viewport,
+};
 /// Paint identity of a tile,
 /// compared again when its result arrives.
 use ide_app::source_frame::FrameStamp;
@@ -39,7 +49,10 @@ use ide_app::source_style::SourceStyles;
 use ide_app::source_typography::SourceTypography;
 /// The scenes of one tile,
 /// which cross to the window thread.
-use ide_app::tile_scene::{TileStack, paint_stack};
+use ide_app::tile_scene::{
+    TileStack,
+    paint_stack,
+};
 
 /// What:
 ///  `struct` groups named fields into one owned value;
@@ -151,7 +164,10 @@ pub(in crate::native) static FAIL_NEXT_BUILD: std::sync::atomic::AtomicBool =
 /// ```ts
 /// function buildTile(shaper: TextShaper, job: TileJob): TileBuilt;
 /// ```
-pub(in crate::native) fn build_tile(shaper: &mut TextShaper, job: TileJob) -> Result<TileBuilt> {
+pub(in crate::native) fn build_tile(
+    shaper: &mut TextShaper,
+    job: TileJob,
+) -> Result<TileBuilt> {
     #[cfg(test)]
     if FAIL_NEXT_BUILD.swap(false, std::sync::atomic::Ordering::SeqCst) {
         anyhow::bail!("Source viewport refused by the test switch");

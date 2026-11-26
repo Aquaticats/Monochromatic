@@ -167,7 +167,7 @@ fn a_descriptor_on_fuse_overlayfs_is_refused() {
 /// which a caller reads as a process that ended during the scan.
 #[test]
 fn a_process_that_has_ended_is_an_error() {
-    let mut child: Child = Command::new("true").spawn().expect("start true");
+    let mut child: Child = spawn_owned(&mut Command::new("true")).expect("start true");
     let pid: u32 = child.id();
     child.wait().expect("reap true");
     let error: std::io::Error = opened_file_of(PathBuf::from("/proc").join(pid.to_string()).as_path(), std::ffi::OsStr::new("0")).expect_err("a gone process has no record");

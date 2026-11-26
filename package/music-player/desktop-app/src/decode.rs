@@ -68,7 +68,11 @@ use std::path::Path;
 /// ```ts
 /// import { AudioDecoder, AudioDecoderOptions } from "symphonia/codecs/audio";
 /// ```
-use symphonia::core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions};
+use symphonia::core::codecs::audio::{
+    AudioCodecParameters,
+    AudioDecoder,
+    AudioDecoderOptions,
+};
 
 /// What:
 ///      `use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;` imports the
@@ -150,7 +154,12 @@ use symphonia::core::formats::probe::Hint;
 /// import { FormatOptions, FormatReader, SeekMode, SeekTo, Track, TrackType } from "symphonia/formats";
 /// ```
 use symphonia::core::formats::{
-    FormatOptions, FormatReader, SeekMode, SeekTo, Track, TrackType,
+    FormatOptions,
+    FormatReader,
+    SeekMode,
+    SeekTo,
+    Track,
+    TrackType,
 };
 
 /// What:
@@ -210,7 +219,10 @@ use symphonia::core::meta::MetadataOptions;
 /// ```ts
 /// import { Duration, Timestamp } from "symphonia/units";
 /// ```
-use symphonia::core::units::{Duration, Timestamp};
+use symphonia::core::units::{
+    Duration,
+    Timestamp,
+};
 
 /// What:
 ///      `use crate::error::PlayerError;` imports our one app-wide error type.
@@ -405,7 +417,10 @@ pub trait Source: Send {
     /// ```ts
     /// seek(secs: number): void;
     /// ```
-    fn seek(&mut self, secs: f64) -> Result<(), PlayerError>;
+    fn seek(
+        &mut self,
+        secs: f64,
+    ) -> Result<(), PlayerError>;
 }
 
 /// What:
@@ -438,7 +453,10 @@ pub(crate) fn audio_params_of(track: &Track) -> Option<&AudioCodecParameters> {
 /// ```ts
 /// function audioParamsOrUnsupported(track: Track, message: string): AudioCodecParameters { ... throw new PlayerError.Unsupported(message) ... }
 /// ```
-pub(crate) fn audio_params_or_unsupported<'track>(track: &'track Track, message: &str) -> Result<&'track AudioCodecParameters, PlayerError> {
+pub(crate) fn audio_params_or_unsupported<'track>(
+    track: &'track Track,
+    message: &str,
+) -> Result<&'track AudioCodecParameters, PlayerError> {
     return match audio_params_of(track) {
         Some(params) => Ok(params),
         None => Err(PlayerError::Unsupported(message.to_string())),
@@ -588,7 +606,8 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("track has no audio codec parameters");
         // ```
-        let audio_params = audio_params_or_unsupported(track, "track has no audio codec parameters")?;
+        let audio_params =
+            audio_params_or_unsupported(track, "track has no audio codec parameters")?;
 
         // What:     `(track.id, audio_params.codec == CODEC_ID_OPUS, track.clone())`.
         //           `track.id` is a `u32` (Copy). `audio_params.codec == CODEC_ID_OPUS`
@@ -634,7 +653,7 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
         // ```ts
         // return source;
         // ```
-        return Ok(Box::new(source))
+        return Ok(Box::new(source));
     } else {
         // What:     `SymphoniaSource::new(format, track, track_id)?`. Builds the
         //           symphonia-decoder source, moving `format`/`track` in.
@@ -653,7 +672,7 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
         // ```ts
         // return source;
         // ```
-        return Ok(Box::new(source))
+        return Ok(Box::new(source));
     }
 }
 
@@ -721,7 +740,9 @@ pub(crate) fn seek_format(
         }
     }
     let Some(track) = found else {
-        return Err(PlayerError::Unsupported("seek: track not found".to_string()));
+        return Err(PlayerError::Unsupported(
+            "seek: track not found".to_string(),
+        ));
     };
 
     // What:     `let start_ts: Timestamp = track.start_ts;`. Copy the track's first-frame
@@ -753,7 +774,9 @@ pub(crate) fn seek_format(
         None => None,
     };
     let Some(rate) = known_rate else {
-        return Err(PlayerError::Unsupported("seek: unknown sample rate".to_string()));
+        return Err(PlayerError::Unsupported(
+            "seek: unknown sample rate".to_string(),
+        ));
     };
 
     // What:     `let n_frames = track.num_frames;`. Copy the optional total audible frame
@@ -869,7 +892,7 @@ pub(crate) fn seek_format(
     // ```ts
     // return;
     // ```
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -1020,7 +1043,8 @@ impl SymphoniaSource {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("track has no audio codec parameters");
         // ```
-        let audio_params = audio_params_or_unsupported(&track, "track has no audio codec parameters")?;
+        let audio_params =
+            audio_params_or_unsupported(&track, "track has no audio codec parameters")?;
 
         // What:     `symphonia::default::get_codecs().make_audio_decoder(audio_params, &AudioDecoderOptions::default())?`.
         //           `get_codecs()` returns the global codec registry; `.make_audio_decoder`
@@ -1195,7 +1219,7 @@ impl SymphoniaSource {
         // ```ts
         // return source;
         // ```
-        return Ok(source)
+        return Ok(source);
     }
 
     /// What:
@@ -1452,7 +1476,7 @@ impl Source for SymphoniaSource {
         // ```ts
         // return this.spec;
         // ```
-        return self.spec
+        return self.spec;
     }
 
     /// What:
@@ -1498,7 +1522,7 @@ impl Source for SymphoniaSource {
         // ```ts
         // return this.decodeNextRaw();
         // ```
-        return self.decode_next_raw()
+        return self.decode_next_raw();
     }
 
     /// What:
@@ -1513,7 +1537,10 @@ impl Source for SymphoniaSource {
     /// ```ts
     /// seek(secs: number): void { ... }
     /// ```
-    fn seek(&mut self, secs: f64) -> Result<(), PlayerError> {
+    fn seek(
+        &mut self,
+        secs: f64,
+    ) -> Result<(), PlayerError> {
         // What:     `seek_format(self.format.as_mut(), self.track_id, secs)?`. Call the shared
         //           helper (defined above this struct). `self.format` is a `Box<dyn
         //           FormatReader>` (an owned, heap demuxer); `.as_mut()` reborrows it as a
@@ -1558,7 +1585,7 @@ impl Source for SymphoniaSource {
         // ```ts
         // return;
         // ```
-        return Ok(())
+        return Ok(());
     }
 }
 

@@ -24,7 +24,10 @@ pub fn rewritten_line(description: &str) -> String {
 }
 
 /// The line `install` prints for a tool it locked itself.
-pub fn locked_line(id: &str, version: &str) -> String {
+pub fn locked_line(
+    id: &str,
+    version: &str,
+) -> String {
     return format!(
         "toolchain install: locked {id} {version} (the plan was ahead of the lock; resolved alone, no other lock row moved)\n"
     );
@@ -58,13 +61,19 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         text.push_str(&format!("toolchain install: {line}\n"));
     }
     if !report.exported_env.is_empty() {
-        text.push_str(&format!("toolchain install: exported to mise: {}\n", report.exported_env.join(", ")));
+        text.push_str(&format!(
+            "toolchain install: exported to mise: {}\n",
+            report.exported_env.join(", ")
+        ));
     }
     for (id, message) in &report.failed {
         text.push_str(&format!("toolchain install: {id} failed: {message}\n"));
     }
     if !report.missing_bins.is_empty() {
-        text.push_str(&format!("toolchain install: unresolved bins: {}\n", report.missing_bins.join(", ")));
+        text.push_str(&format!(
+            "toolchain install: unresolved bins: {}\n",
+            report.missing_bins.join(", ")
+        ));
     }
     return text;
 }

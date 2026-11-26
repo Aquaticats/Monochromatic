@@ -20,7 +20,12 @@
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
 use git_policy_cli_fuzz::arguments::arguments_from_bytes;
 use git_policy_cli_fuzz::controls::{
-    MODE_BYTES, Mode, check_control_removal, check_frontier, check_separator, control_arguments,
+    MODE_BYTES,
+    Mode,
+    check_control_removal,
+    check_frontier,
+    check_separator,
+    control_arguments,
     separated_arguments,
 };
 use libfuzzer_sys::fuzz_target;

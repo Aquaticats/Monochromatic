@@ -16,7 +16,11 @@
 ///  why an add failed,
 ///  and the limit backoff,
 ///  shared with the tree's watches.
-use super::{limit::LimitBackoff, reconcile::Kernel, watch_ops::WatchFailure};
+use super::{
+    limit::LimitBackoff,
+    reconcile::Kernel,
+    watch_ops::WatchFailure,
+};
 /// What:
 ///  ordered sets of owned paths;
 ///  `Path` borrows a path;
@@ -31,7 +35,10 @@ use super::{limit::LimitBackoff, reconcile::Kernel, watch_ops::WatchFailure};
 /// ```
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 
@@ -82,7 +89,10 @@ pub struct ServerRequest {
 }
 
 /// Forget everything below `base` (the base included) in a set of folders.
-pub(super) fn forget_below(set: &mut BTreeSet<PathBuf>, base: &Path) {
+pub(super) fn forget_below(
+    set: &mut BTreeSet<PathBuf>,
+    base: &Path,
+) {
     // What: only the entries outside `base` are put back; `starts_with` compares whole components.
     // Why: A removed or rescanned folder takes its subfolders with it.
     //
@@ -209,7 +219,11 @@ pub fn reconcile_servers(
 ///  each change of state is logged once.
 /// `retried_in_vain` says a backoff retry met the limit again,
 ///  which lengthens the wait.
-fn update_limit(servers: &mut ServerWatches, retried_in_vain: bool, now: Instant) {
+fn update_limit(
+    servers: &mut ServerWatches,
+    retried_in_vain: bool,
+    now: Instant,
+) {
     if servers.limited.is_empty() {
         if servers.limit.take().is_some() {
             tracing::info!(
@@ -270,7 +284,10 @@ pub struct TreeFirst<'a> {
 impl Kernel for TreeFirst<'_> {
     /// Watch a folder for the tree,
     ///  unless the servers' watch already covers it.
-    fn add(&mut self, path: &Path) -> Result<(), WatchFailure> {
+    fn add(
+        &mut self,
+        path: &Path,
+    ) -> Result<(), WatchFailure> {
         if self.servers.active.contains(path) {
             self.tree_held.insert(path.to_path_buf());
             return Ok(());
@@ -318,7 +335,10 @@ impl Kernel for TreeFirst<'_> {
 
     /// Stop the tree's watch,
     ///  unless the servers still hold the folder.
-    fn remove(&mut self, path: &Path) {
+    fn remove(
+        &mut self,
+        path: &Path,
+    ) {
         self.tree_held.remove(path);
         if self.servers.active.contains(path) {
             return;

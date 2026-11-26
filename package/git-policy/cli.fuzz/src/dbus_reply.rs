@@ -12,7 +12,10 @@
 //! ```
 
 /// The reader under test.
-use git_policy_cli::systemd_dbus::{Reply, decode_reply};
+use git_policy_cli::systemd_dbus::{
+    Reply,
+    decode_reply,
+};
 
 /// Message type of a successful reply.
 const METHOD_RETURN: u8 = 2;
@@ -44,7 +47,10 @@ const FIELD_SIGNATURE: u8 = 8;
 pub fn check_raw_reply(bytes: &[u8]) {
     if let Ok(reply) = decode_reply(bytes) {
         if let Some(name) = reply.error_name.as_ref() {
-            assert!(name.len() <= bytes.len(), "an error name longer than the message");
+            assert!(
+                name.len() <= bytes.len(),
+                "an error name longer than the message"
+            );
         }
         if let Some(text) = reply.first_text.as_ref() {
             assert!(text.len() <= bytes.len(), "a text longer than the message");
@@ -53,7 +59,10 @@ pub fn check_raw_reply(bytes: &[u8]) {
 }
 
 /// Pads to the next multiple of `boundary`.
-fn pad(bytes: &mut Vec<u8>, boundary: usize) {
+fn pad(
+    bytes: &mut Vec<u8>,
+    boundary: usize,
+) {
     while bytes.len() % boundary != 0 {
         bytes.push(0);
     }
@@ -64,8 +73,22 @@ fn pad(bytes: &mut Vec<u8>, boundary: usize) {
 pub fn generated_reply(data: &[u8]) -> (Vec<u8>, Reply) {
     let serial: u32 = u32::from(data.first().copied().unwrap_or(1));
     let is_error: bool = data.get(1).copied().unwrap_or(0) % 2 == 1;
-    let name: String = data.iter().skip(2).take(12).map(|byte| { return char::from(b'a' + byte % 26); }).collect();
-    let text: String = data.iter().skip(14).take(24).map(|byte| { return char::from(b' ' + byte % 90); }).collect();
+    let name: String = data
+        .iter()
+        .skip(2)
+        .take(12)
+        .map(|byte| {
+            return char::from(b'a' + byte % 26);
+        })
+        .collect();
+    let text: String = data
+        .iter()
+        .skip(14)
+        .take(24)
+        .map(|byte| {
+            return char::from(b' ' + byte % 90);
+        })
+        .collect();
     let mut array: Vec<u8> = Vec::new();
     if is_error {
         let named: String = format!("x.{name}");
@@ -96,7 +119,9 @@ pub fn generated_reply(data: &[u8]) -> (Vec<u8>, Reply) {
     let expected: Reply = Reply {
         kind: if is_error { ERROR } else { METHOD_RETURN },
         reply_serial: Some(serial),
-        error_name: is_error.then(|| { return format!("x.{name}"); }),
+        error_name: is_error.then(|| {
+            return format!("x.{name}");
+        }),
         first_text: is_error.then_some(text),
     };
     return (message, expected);

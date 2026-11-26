@@ -16,5 +16,5 @@ use file_manager::run;
 ///  keeps the binary minimal (the library owns startup);
 ///  GTK's `ExitCode` propagates out.
 fn main() -> gtk4::glib::ExitCode {
-    return run()
+    return run();
 }

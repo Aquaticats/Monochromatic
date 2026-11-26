@@ -58,7 +58,8 @@ pub const COMPANION_DEADLINE: Duration = Duration::from_millis(100);
 pub const COMPANION_DEADLINE_MARGIN: Duration = Duration::from_millis(97);
 
 /// The variable a guest or host control sets to give the run a test deadline,
-/// which no shipped run sets.
+/// which no shipped run sets,
+/// and which a release build never reads.
 pub const TEST_DEADLINE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_ACCOUNT_COMPANION_DEADLINE_MS";
 
 /// What:
@@ -72,7 +73,8 @@ pub fn the_deadline(test_switch_is_set: bool) -> Duration {
     if !test_switch_is_set {
         return COMPANION_DEADLINE;
     }
-    let Some(word) = std::env::var(TEST_DEADLINE_VARIABLE).ok() else {
+    // The deadline a control named, which a release build never reads.
+    let Some(word) = crate::test_only_switches::text(TEST_DEADLINE_VARIABLE) else {
         return COMPANION_DEADLINE;
     };
     return match word.trim().parse::<u64>() {

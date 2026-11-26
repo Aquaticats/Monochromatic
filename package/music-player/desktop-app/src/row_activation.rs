@@ -44,7 +44,10 @@ pub enum RowActivation {
 ///   isCurrent ? "togglePlay" : autoPlayOnSelect ? "selectAndPlay" : "selectOnly";
 /// ```
 #[must_use]
-pub fn row_activation_for(auto_play_on_select: bool, is_current: bool) -> RowActivation {
+pub fn row_activation_for(
+    auto_play_on_select: bool,
+    is_current: bool,
+) -> RowActivation {
     if is_current {
         return RowActivation::TogglePlay;
     }

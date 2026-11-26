@@ -1,9 +1,15 @@
 //! Read authoritative disk text without changing the displayed document or filesystem.
 
 /// Helix correspondence is prepared separately from applying current reading state.
-use crate::document::{Document, Reload};
+use crate::document::{
+    Document,
+    Reload,
+};
 /// I/O failures retain their affected input and operation context.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// What:
 ///  `Read` provides `read_to_string` on an open `File`;
 ///  `Path` borrows a filesystem name,
@@ -26,7 +32,10 @@ use std::{
     fs::File,
     io::Read,
     path::Path,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// Outcome of a read that is accepted only when the file has been quiet for a while.
@@ -141,7 +150,11 @@ pub fn read_source_regular(path: &Path) -> Result<(String, File)> {
 }
 
 /// Prepare correspondence only if the bytes differ from the displayed text.
-fn compare(snapshot: &Document, path: &Path, source: &str) -> Option<Reload> {
+fn compare(
+    snapshot: &Document,
+    path: &Path,
+    source: &str,
+) -> Option<Reload> {
     // What: Iterator::eq compares bytes incrementally without cloning the old rope into a string.
     // Why: An unchanged poll must not increment the source revision or compute a diff.
     //
@@ -166,7 +179,10 @@ fn compare(snapshot: &Document, path: &Path, source: &str) -> Option<Reload> {
 
 /// Read one regular UTF-8 file and prepare correspondence only if its bytes changed.
 /// The caller retains the previous document on missing-file or decoding failures.
-pub fn read_reload(snapshot: &Document, path: &Path) -> Result<Option<Reload>> {
+pub fn read_reload(
+    snapshot: &Document,
+    path: &Path,
+) -> Result<Option<Reload>> {
     // What: `let (source, _file) = ...?` takes the tuple apart; `_file` is the handle, closed when dropped.
     // Why: The plain read has no use for the handle after reading.
     //

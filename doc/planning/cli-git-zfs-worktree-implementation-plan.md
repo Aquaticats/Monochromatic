@@ -2072,10 +2072,13 @@ the settle a failed add hands over to is step 14's,
 which is the step that lands the move,
 and `source_guard/add_route_issues_no_destroy_tests.rs` fails the day the add's
 folder names a destroying entry without moving them.
-Owned by issue 6462:
-the add's clone asks the pool for `mountpoint=legacy`,
-and `mountpoint` is a delegation the design forbids the account,
-so the guest refuses that request for a delegated account whatever the nine say.
+Settled by issue 6462 on 2026-11-25
+(`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`):
+the add's clone sends no property and inherits the container's `mountpoint=legacy`,
+the preflight refuses a container whose `mountpoint` is not `legacy` or whose `canmount`,
+`setuid` or `devices` is on before any write,
+and the add reports a clone that does not read `legacy` inherited from the container after
+the clone request, destroying nothing.
 
 #### Design sections
 

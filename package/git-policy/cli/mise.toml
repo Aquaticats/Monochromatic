@@ -118,6 +118,10 @@ run = "cargo clippy --locked --offline --all-targets --features measurement-rout
 description = "Lint the native wrapper on the host with the gate's Clippy flags; the container gate stays the authority"
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
+[tasks."native:clippy:test-only-switches"]
+description = "Lint the native wrapper with the controls' test-only switches compiled in, so no line of a build made for a control goes unlinted; the feature is off in every build the release ships, and this task exists only beside it"
+run = "cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings"
+
 [tasks."native:clippy:windows"]
 description = "Type-check and lint the native wrapper library for x86_64-pc-windows-gnu with warnings denied; nothing is run"
 # Needs the Windows GNU standard library on the host: `rustup target add x86_64-pc-windows-gnu`.
@@ -125,20 +129,20 @@ description = "Type-check and lint the native wrapper library for x86_64-pc-wind
 run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -D warnings"
 
 [tasks."native:test:host"]
-description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git (pacman's current `git`)"
+description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git (pacman's current `git`); the build carries the controls' test-only switches (`test-only-switches`), without which every control that arms one reads nothing and fails"
 # The controls that trace a command under `strace` fail, naming the variable and the program, when this host has no
 # tracer and the run says nothing; none of the tasks in this file sets CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED, because every
 # one of them runs where `strace` is installed (this host, and the gate image built from native-test-base.Containerfile).
 # A run that truly has no tracer states it, and then each such control prints one line naming itself and passes.
-run = "cargo nextest run --locked --offline --lib"
+run = "cargo nextest run --locked --offline --lib --features test-only-switches"
 
 [tasks."native:test:archive"]
-description = "Archive the native unit tests for a guest that has cargo-nextest but not this toolchain, so the btrfs controls run where a btrfs fixture root exists"
-run = "cargo nextest archive --locked --offline --lib --archive-file target/verification/native-tests.tar.zst"
+description = "Archive the native unit tests for a guest that has cargo-nextest but not this toolchain, so the btrfs controls run where a btrfs fixture root exists; the archive carries the controls' test-only switches, as the gate's build does"
+run = "cargo nextest archive --locked --offline --lib --features test-only-switches --archive-file target/verification/native-tests.tar.zst"
 
 [tasks."native:test:binary:host"]
-description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git stays the authority"
-run = "cargo nextest run --locked --offline --test native_binary"
+description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git stays the authority; both the executable and the controls carry the test-only switches every one of them arms"
+run = "cargo nextest run --locked --offline --test native_binary --features test-only-switches"
 
 [tasks."native:test:host:btrfs"]
 description = "Run every native test with its btrfs controls real instead of skipped, on a fixture root that must be on btrfs (`CLI_GIT_TEST_ROOT`, default `${HOME}/temp/agent/cli-git-btrfs-fixtures`); the gate's acknowledgement variable is unset, so a control that cannot run fails the run naming its control and the filesystem it found, and `--success-output=final` brings the line of a passing control that had nothing to check here into the log; `-- <filter>...` narrows the run while iterating"
@@ -149,7 +153,7 @@ description = "Run every native test with its btrfs controls real instead of ski
 # the absence of a ZFS fixture root here; native:test:host leaves that unset, and on this ZFS host it runs for real.
 # CLI_GIT_STRACE_ABSENT_ACKNOWLEDGED stays unset too: this task runs on a host, which has `strace`, so the traced
 # controls really run and a host that lost the tracer fails them instead of passing without a count.
-run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED=1 CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast --success-output=final"
+run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED=1 CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --features test-only-switches --all-targets --no-fail-fast --success-output=final"
 
 [tasks."test:git-image"]
 description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it, native-test-base.Containerfile or browserslist-data.lock.json is new to this host), the Rust toolchain and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest), all current pacman packages, and the pinned browserslist data tarballs an offline `file-enforcer check` resolves against; prints the release of each; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs). native:test:container builds it first when needed"

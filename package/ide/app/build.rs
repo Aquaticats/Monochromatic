@@ -30,7 +30,10 @@ mod content_digest;
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -138,7 +141,10 @@ fn files_below(root: &Path) -> Vec<(String, PathBuf)> {
 /// ```ts
 /// function listedGrammars(manifest: string): string[] { return JSON.parse(manifest).grammars; }
 /// ```
-fn listed_grammars(manifest: &str, location: &Path) -> Vec<String> {
+fn listed_grammars(
+    manifest: &str,
+    location: &Path,
+) -> Vec<String> {
     // What: `split_once("\"grammars\"")` divides the text at the key, returning `Option<(&str, &str)>`.
     // Why: Only the text after the key holds the list.
     //
@@ -200,7 +206,11 @@ fn listed_grammars(manifest: &str, location: &Path) -> Vec<String> {
 /// ```ts
 /// function embeddedFiles(runtime: string, packageRoot: string, crateLicenses: string): Array<[string, string]>
 /// ```
-fn embedded_files(runtime: &Path, package: &Path, crate_licenses: &Path) -> Vec<(String, PathBuf)> {
+fn embedded_files(
+    runtime: &Path,
+    package: &Path,
+    crate_licenses: &Path,
+) -> Vec<(String, PathBuf)> {
     let manifest = runtime.join("manifest.json");
     let text = match fs::read_to_string(&manifest) {
         Ok(read) => read,
@@ -279,7 +289,10 @@ fn embedded_files(runtime: &Path, package: &Path, crate_licenses: &Path) -> Vec<
 }
 
 /// Orders two embedded files by their path in the runtime layout.
-fn by_path(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ordering {
+fn by_path(
+    left: &(String, PathBuf),
+    right: &(String, PathBuf),
+) -> std::cmp::Ordering {
     return left.0.cmp(&right.0);
 }
 
@@ -292,7 +305,10 @@ fn by_path(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ord
 /// ```ts
 /// function generateEmbeddedRuntime(outDir: string, packageRoot: string): void
 /// ```
-fn generate_embedded_runtime(out_directory: &Path, package: &Path) {
+fn generate_embedded_runtime(
+    out_directory: &Path,
+    package: &Path,
+) {
     // What: The nearest ancestor named `build` is Cargo's build-script directory, and its parent is `target/<profile>`.
     //       That holds for `target/<profile>/build/ide-<hash>/out` and for the layout of newer Cargo,
     //       `target/<profile>/build/ide/<hash>/out`, where a fixed count of levels reaches `build` instead.
@@ -304,7 +320,11 @@ fn generate_embedded_runtime(out_directory: &Path, package: &Path) {
     // ```
     let Some(profile) = out_directory
         .ancestors()
-        .find(|ancestor| return ancestor.file_name().is_some_and(|name| return name == "build"))
+        .find(|ancestor| {
+            return ancestor
+                .file_name()
+                .is_some_and(|name| return name == "build");
+        })
         .and_then(Path::parent)
     else {
         panic!(

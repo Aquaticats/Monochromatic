@@ -22,10 +22,20 @@
 ///  the ceiling a real check uses,
 ///  and the values it produces.
 use git_policy_cli::candidate_batch::{
-    BatchReply, CONTENT_CEILING, MAX_BATCH_HEADER_BYTES, ObjectKind, read_batch_reply_within,
+    BatchReply,
+    CONTENT_CEILING,
+    MAX_BATCH_HEADER_BYTES,
+    ObjectKind,
+    read_batch_reply_within,
 };
-use git_policy_cli::candidate_error::{CandidateError, CandidateFailure};
-use git_policy_cli::candidate_object::{ObjectId, parse_object_id};
+use git_policy_cli::candidate_error::{
+    CandidateError,
+    CandidateFailure,
+};
+use git_policy_cli::candidate_object::{
+    ObjectId,
+    parse_object_id,
+};
 
 /// What:
 ///  What a generated stream must be read as.
@@ -127,7 +137,11 @@ fn kind_word(kind: ObjectKind) -> &'static str {
 /// ```ts
 /// function renderFound(object: string, kind: ObjectKind, bytes: Buffer): Buffer;
 /// ```
-pub fn render_found(object: &str, kind: ObjectKind, bytes: &[u8]) -> Vec<u8> {
+pub fn render_found(
+    object: &str,
+    kind: ObjectKind,
+    bytes: &[u8],
+) -> Vec<u8> {
     let mut rendered: Vec<u8> =
         format!("{object} {} {}\n", kind_word(kind), bytes.len()).into_bytes();
     rendered.extend_from_slice(bytes);
@@ -179,7 +193,11 @@ fn read_within(
 /// ```ts
 /// function checkPrefixesRefused(request: Buffer, accepted: Buffer, ceiling: number): void;
 /// ```
-fn check_prefixes_refused(request: &[u8], accepted: &[u8], ceiling: usize) {
+fn check_prefixes_refused(
+    request: &[u8],
+    accepted: &[u8],
+    ceiling: usize,
+) {
     let step: usize = accepted.len() / 64 + 1;
     // `(0..accepted.len()).step_by(step)` visits prefix lengths 0, step, 2 * step, ...
     for length in (0..accepted.len()).step_by(step) {
@@ -224,7 +242,11 @@ fn check_prefixes_refused(request: &[u8], accepted: &[u8], ceiling: usize) {
 /// ```ts
 /// function checkBatchReplyWithin(request: Uint8Array, stream: Uint8Array, ceiling: number): void;
 /// ```
-pub fn check_batch_reply_within(request: &[u8], stream: &[u8], ceiling: usize) {
+pub fn check_batch_reply_within(
+    request: &[u8],
+    stream: &[u8],
+    ceiling: usize,
+) {
     // The reader's answer and how many bytes of the stream it took.
     let (result, consumed) = read_within(request, stream, ceiling);
     // The same read again, which must agree with the first.
@@ -272,7 +294,8 @@ pub fn check_batch_reply_within(request: &[u8], stream: &[u8], ceiling: usize) {
                 } => {
                     // What: Git's header line for the object, ending with its line feed.
                     // Why:  The content is thrown away, so the header is what can be compared with what was read.
-                    let header: String = format!("{} {} {size}\n", object.as_str(), kind_word(*kind));
+                    let header: String =
+                        format!("{} {} {size}\n", object.as_str(), kind_word(*kind));
                     assert!(
                         *size > ceiling,
                         "a reply at or below the ceiling was skipped: {size} <= {ceiling}"
@@ -341,7 +364,10 @@ pub fn check_batch_reply_within(request: &[u8], stream: &[u8], ceiling: usize) {
 /// ```ts
 /// function checkBatchReply(request: Uint8Array, stream: Uint8Array): void;
 /// ```
-pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
+pub fn check_batch_reply(
+    request: &[u8],
+    stream: &[u8],
+) {
     // `CONTENT_CEILING` is the ceiling a real check reads at.
     check_batch_reply_within(request, stream, CONTENT_CEILING);
 }
@@ -367,7 +393,10 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 /// ```ts
 /// function generatedName(data: Uint8Array, long: boolean): string;
 /// ```
-fn generated_name(data: &[u8], long: bool) -> String {
+fn generated_name(
+    data: &[u8],
+    long: bool,
+) -> String {
     let length: usize = if long { 64 } else { 40 };
     let mut name: String = String::new();
     for position in 0..length {
@@ -411,7 +440,10 @@ fn object_of(name: &str) -> ObjectId {
 /// ```ts
 /// function fillerContent(content: Uint8Array, size: number): Buffer;
 /// ```
-fn filler_content(content: &[u8], size: usize) -> Vec<u8> {
+fn filler_content(
+    content: &[u8],
+    size: usize,
+) -> Vec<u8> {
     // An owned byte list of the length the header will declare.
     let mut filled: Vec<u8> = Vec::with_capacity(size);
     // `0..size` visits every position the header declares.
@@ -715,8 +747,11 @@ pub fn generated_reply(data: &[u8]) -> GeneratedReply {
 pub fn check_generated_reply(data: &[u8]) {
     let case: GeneratedReply = generated_reply(data);
     // The reader's answer at the ceiling the case was framed for.
-    let (result, _consumed) =
-        read_within(case.request.as_slice(), case.stream.as_slice(), case.ceiling);
+    let (result, _consumed) = read_within(
+        case.request.as_slice(),
+        case.stream.as_slice(),
+        case.ceiling,
+    );
     let observed: Expectation = match result {
         Ok(reply) => Expectation::Reply(reply),
         Err(error) => Expectation::Failure(error.failure),
@@ -725,7 +760,11 @@ pub fn check_generated_reply(data: &[u8]) {
         observed, case.expectation,
         "generated case was read differently"
     );
-    check_batch_reply_within(case.request.as_slice(), case.stream.as_slice(), case.ceiling);
+    check_batch_reply_within(
+        case.request.as_slice(),
+        case.stream.as_slice(),
+        case.ceiling,
+    );
 }
 
 /// Generator controls stay out of the fuzz targets.

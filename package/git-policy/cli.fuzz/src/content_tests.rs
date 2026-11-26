@@ -13,12 +13,25 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    check_final_newline, check_generated_listings, check_rules_file_value, check_stage_records,
-    generated_listings, generated_rules_file, generated_text, render_stage_records,
+    check_final_newline,
+    check_generated_listings,
+    check_rules_file_value,
+    check_stage_records,
+    generated_listings,
+    generated_rules_file,
+    generated_text,
+    render_stage_records,
 };
 use git_policy_cli::candidate_error::CandidateFailure;
-use git_policy_cli::candidate_stage::{StageRecord, parse_stage_records, staged_delta};
-use git_policy_cli::config_rules_file::{RulesFileRefusal, check_rules_file};
+use git_policy_cli::candidate_stage::{
+    StageRecord,
+    parse_stage_records,
+    staged_delta,
+};
+use git_policy_cli::config_rules_file::{
+    RulesFileRefusal,
+    check_rules_file,
+};
 use git_policy_cli::policy_final_newline::normalized_final_newline;
 
 /// Every input of two bytes,
@@ -105,7 +118,10 @@ fn generated_listings_reach_every_delta_kind() {
 }
 
 /// Whether any record of a listing names `path`.
-fn holds_path(records: &[StageRecord], path: &[u8]) -> bool {
+fn holds_path(
+    records: &[StageRecord],
+    path: &[u8],
+) -> bool {
     for record in records {
         if record.path == path {
             return true;

@@ -4,12 +4,26 @@
 /// Tree state remains on the caller thread;
 ///  only requests and owned snapshots cross the channel.
 use crate::{
-    file_tree::{DirectoryRequest, FileTree},
-    git_ignore::{GlobalSource, IgnoreAnswer, IgnoreMatcher},
-    workspace::{DirectoryEntry, Workspace},
+    file_tree::{
+        DirectoryRequest,
+        FileTree,
+    },
+    git_ignore::{
+        GlobalSource,
+        IgnoreAnswer,
+        IgnoreMatcher,
+    },
+    workspace::{
+        DirectoryEntry,
+        Workspace,
+    },
 };
 /// Thread startup and unexpected disconnects remain actionable errors.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// What:
 ///  Bounded channels transfer messages;
 ///  JoinHandle owns worker shutdown;
@@ -23,8 +37,16 @@ use anyhow::{Context, Result, bail};
 /// ```
 use std::{
     path::Path,
-    sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel},
-    thread::{self, JoinHandle},
+    sync::mpsc::{
+        Receiver,
+        SyncSender,
+        TryRecvError,
+        sync_channel,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
 };
 
 /// Private reply preserves the exact request identity,
@@ -113,7 +135,10 @@ impl DirectoryWorker {
 
     /// Start a reader whose ignored entries come from the project's rule files and the given global excludes file;
     ///  tests name a file so they never read the real home folder.
-    pub fn with_global_ignores(workspace: Workspace, global: GlobalSource) -> Result<Self> {
+    pub fn with_global_ignores(
+        workspace: Workspace,
+        global: GlobalSource,
+    ) -> Result<Self> {
         // What: sync_channel(1) creates sender/receiver endpoints with one message slot.
         // Why: A caller cannot accumulate unbounded directory snapshots while the UI is occupied.
         //
@@ -158,7 +183,11 @@ impl DirectoryWorker {
 
     /// Return false while busy,
     ///  without creating or superseding any tree request.
-    pub fn request(&mut self, tree: &mut FileTree, directory: &Path) -> Result<bool> {
+    pub fn request(
+        &mut self,
+        tree: &mut FileTree,
+        directory: &Path,
+    ) -> Result<bool> {
         if self.busy {
             return Ok(false);
         }
@@ -191,7 +220,10 @@ impl DirectoryWorker {
 
     /// Apply a ready current reply;
     ///  false means no ready change or a discarded stale reply.
-    pub fn poll(&mut self, tree: &mut FileTree) -> Result<bool> {
+    pub fn poll(
+        &mut self,
+        tree: &mut FileTree,
+    ) -> Result<bool> {
         // Extract a ready reply or distinguish an empty queue from an unexpected worker disconnect.
         match self.replies.try_recv() {
             Ok(reply) => {

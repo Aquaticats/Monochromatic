@@ -16,10 +16,18 @@
 //!  to the wrong remedy.
 
 use super::*;
-use crate::names::{NameError, NameField, NameProblem};
+use crate::names::{
+    NameError,
+    NameField,
+    NameProblem,
+};
 use crate::nvlist::NvError;
 use crate::requests::element_error::ElementError;
-use crate::requests::{ReplyError, ReplyRefusal, ReplyRefusalReason};
+use crate::requests::{
+    ReplyError,
+    ReplyRefusal,
+    ReplyRefusalReason,
+};
 
 #[test]
 fn a_call_failure_reports_operation_target_and_errno() {

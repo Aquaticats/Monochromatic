@@ -20,15 +20,35 @@
 
 /// Imports the atomic flag,
 /// counter and ordering that signal the workers.
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
 /// Imports the channel ends and errors through which the worker takes requests.
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+    Sender,
+    TryRecvError,
+};
 /// Imports the shared ownership and lock types that guard the index.
-use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError};
+use std::sync::{
+    Arc,
+    Mutex,
+    PoisonError,
+    RwLock,
+    RwLockReadGuard,
+    RwLockWriteGuard,
+    TryLockError,
+};
 /// Imports the thread module that runs the workers.
 use std::thread;
 /// Imports the duration and instant types that schedule refreshes and warm-ups.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Imports the index that the workers query.
 use crate::search_index::SearchIndex;
@@ -193,7 +213,12 @@ pub(crate) fn write_when_free(shared: &Shared) -> RwLockWriteGuard<'_, SearchInd
 ///  Ranks one query under the read lock.
 /// Why:
 ///       The worker calls it for new queries and for refreshes.
-fn answer_for(shared: &Shared, sequence: u64, query: &str, refresh: bool) -> SearchAnswer {
+fn answer_for(
+    shared: &Shared,
+    sequence: u64,
+    query: &str,
+    refresh: bool,
+) -> SearchAnswer {
     let guard = read_index(shared);
     return SearchAnswer {
         sequence,
@@ -230,7 +255,11 @@ fn warm_one(shared: &Shared) -> bool {
 /// Why:
 ///       Search must run off the window thread,
 /// and only the newest query matters.
-pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Box<dyn Fn(SearchAnswer) + Send>) {
+pub(crate) fn work(
+    shared: Arc<Shared>,
+    requests: Receiver<Request>,
+    deliver: Box<dyn Fn(SearchAnswer) + Send>,
+) {
     let mut current: Option<(u64, String)> = None;
     let mut refresh_due: Option<Instant> = None;
     let mut last_answer: Instant = Instant::now();
@@ -262,7 +291,11 @@ pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Bo
             tracing::debug!(sequence, query = %text, "search worker answers a new query");
             let computing: Instant = Instant::now();
             let answer: SearchAnswer = answer_for(&shared, sequence, &text, false);
-            tracing::debug!(sequence, compute_ms = computing.elapsed().as_millis(), "search answer computed; delivering it");
+            tracing::debug!(
+                sequence,
+                compute_ms = computing.elapsed().as_millis(),
+                "search answer computed; delivering it"
+            );
             deliver(answer);
             last_answer = Instant::now();
             current = Some((sequence, text));
@@ -273,7 +306,11 @@ pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Bo
                 tracing::debug!(sequence, "search worker refreshes the current query");
                 let computing: Instant = Instant::now();
                 let answer: SearchAnswer = answer_for(&shared, *sequence, text, true);
-                tracing::debug!(sequence, compute_ms = computing.elapsed().as_millis(), "refresh answer computed; delivering it");
+                tracing::debug!(
+                    sequence,
+                    compute_ms = computing.elapsed().as_millis(),
+                    "refresh answer computed; delivering it"
+                );
                 deliver(answer);
                 last_answer = Instant::now();
             }
@@ -289,7 +326,10 @@ pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Bo
 /// Why:
 ///       Doing it on its own thread means a keystroke never waits for a warm-up ranking,
 /// and read locks are shared.
-pub(crate) fn warm(shared: Arc<Shared>, signals: Receiver<Request>) {
+pub(crate) fn warm(
+    shared: Arc<Shared>,
+    signals: Receiver<Request>,
+) {
     let mut pending: bool = false;
     loop {
         if !pending {

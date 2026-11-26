@@ -48,7 +48,10 @@ use std::collections::HashSet;
 /// ```ts
 /// // Paths are plain strings in TypeScript.
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// What:
 /// `use std::sync::Arc;` imports the atomically counted shared pointer.
 /// Siblings:
@@ -78,7 +81,11 @@ use std::sync::Arc;
 /// ```ts
 /// import { type Plan, applyPlan, planChanges } from "./change_plan";
 /// ```
-use crate::change_plan::{Plan, apply_plan, plan_changes};
+use crate::change_plan::{
+    Plan,
+    apply_plan,
+    plan_changes,
+};
 /// What:
 /// `use crate::change_set::Change;` imports the "paths or everything" enum.
 /// Why:
@@ -152,7 +159,11 @@ use crate::playback::expand_paths;
 /// ```ts
 /// import { type Files, type Launch, type Work } from "./refresh_coalescer";
 /// ```
-use crate::refresh_coalescer::{Files, Launch, Work};
+use crate::refresh_coalescer::{
+    Files,
+    Launch,
+    Work,
+};
 /// What:
 /// `use crate::sweep_gate::SweepGate;` imports the pause gate type of the background sweep.
 /// Why:
@@ -223,7 +234,10 @@ impl Controller {
     /// ```ts
     /// handleSourceChanged(change: Change): void { if (change.kind === "everything") return this.rescanEverything(); /* plan, apply, refresh */ }
     /// ```
-    pub(crate) fn handle_source_changed(&mut self, change: Change) {
+    pub(crate) fn handle_source_changed(
+        &mut self,
+        change: Change,
+    ) {
         // What:     `let Change::Paths(dirty) = change else { ...; return; };` is a `let ... else`. It matches `change` against
         //           the `Paths` case of the enum and, when it fits, names the set inside it `dirty`; when `change` is
         //           `Everything` the `else` block runs and must leave the function.
@@ -400,7 +414,12 @@ impl Controller {
             // ```ts
             // logger.debug({ plannedUs, editedUs, settledUs }, "the list was edited");
             // ```
-            tracing::debug!(planned_us = planned.as_micros(), edited_us = edited.as_micros(), settled_us = started.elapsed().as_micros(), "the list was edited");
+            tracing::debug!(
+                planned_us = planned.as_micros(),
+                edited_us = edited.as_micros(),
+                settled_us = started.elapsed().as_micros(),
+                "the list was edited"
+            );
         }
         // What:     `if matches!(selected_path.as_ref(), Some(selected) if plan.touched.contains(selected)) { ... }`
         //           asks whether the selected path is among the replaced files: `.as_ref()` looks inside the
@@ -446,7 +465,11 @@ impl Controller {
         // ```ts
         // const check: Set<string> = new Set([...plan.touched, ...announce]);
         // ```
-        let mut check: HashSet<PathBuf> = plan.touched.into_iter().chain(announce.iter().cloned()).collect();
+        let mut check: HashSet<PathBuf> = plan
+            .touched
+            .into_iter()
+            .chain(announce.iter().cloned())
+            .collect();
         // What:     `check.extend(self.recorded_failures());` adds the paths that failed to decode in a previous pass. `.extend(list)` takes
         //           any sequence by value and inserts each item.
         // Why:      D113: a failed decode is retried at the next library change, whichever file changed.
@@ -466,7 +489,10 @@ impl Controller {
         // ```ts
         // this.requestRefresh({ kind: "files", files: { check, announce } });
         // ```
-        self.request_refresh(Work::Files(Files { check, announce }));
+        self.request_refresh(Work::Files(Files {
+            check,
+            announce,
+        }));
     }
 
     /// What:
@@ -657,7 +683,8 @@ impl Controller {
         // ```
         let mut gone: Vec<PathBuf> = Vec::new();
         for path in reported.iter() {
-            if matches!(std::fs::symlink_metadata(path), Err(error) if error.kind() == std::io::ErrorKind::NotFound) {
+            if matches!(std::fs::symlink_metadata(path), Err(error) if error.kind() == std::io::ErrorKind::NotFound)
+            {
                 gone.push(path.clone());
             }
         }
@@ -695,7 +722,11 @@ impl Controller {
     /// ```ts
     /// private settleSelection(root: string, selectedPath: string | null): void { /* find it again, or clear and say it left */ }
     /// ```
-    fn settle_selection(&mut self, root: &Path, selected_path: Option<PathBuf>) {
+    fn settle_selection(
+        &mut self,
+        root: &Path,
+        selected_path: Option<PathBuf>,
+    ) {
         // What:     `let found: Option<usize> = match selected_path.as_ref() { ... };` looks for the selected track in the new queue.
         //           When there is a selected path, `locate` tries the binary search first: `Ok(index)` when found, `Err(_)` when not
         //           (the insertion point is ignored), and the failure arm falls back to a scan by path.
@@ -814,7 +845,10 @@ impl Controller {
                     // ```ts
                     // this.emit({ kind: "fileGone", path, wasPlaying });
                     // ```
-                    self.emit(Update::FileGone { path, was_playing });
+                    self.emit(Update::FileGone {
+                        path,
+                        was_playing,
+                    });
                 }
             }
         }
@@ -833,7 +867,10 @@ impl Controller {
     /// ```ts
     /// requestRefresh(work: Work): void { const launch = this.refresh.submit(work); if (launch) this.launchRefresh(launch); }
     /// ```
-    pub(crate) fn request_refresh(&mut self, work: Work) {
+    pub(crate) fn request_refresh(
+        &mut self,
+        work: Work,
+    ) {
         // What:     `if let Some(launch) = self.refresh.submit(work) { self.launch_refresh(launch); }` is a one-arm match. `submit` answers
         //           `Option<Launch>`: `Some(launch)` when a sweep must start now, and `None` when the work joined the pending
         //           follow-up. The block runs only for `Some`, and `launch` is moved into `launch_refresh`.
@@ -865,7 +902,10 @@ impl Controller {
     /// ```ts
     /// finishRefresh(id: number): void { const next = this.refresh.finished(id); if (next) this.launchRefresh(next); }
     /// ```
-    pub(crate) fn finish_refresh(&mut self, id: u64) {
+    pub(crate) fn finish_refresh(
+        &mut self,
+        id: u64,
+    ) {
         // What:     `tracing::debug!(id, "a refresh sweep ended");` writes a debug line; the bare `id` is shorthand for `id = id`.
         // Why:      The end of each sweep is worth a line when a race between sweeps is read in the log.
         //
@@ -900,7 +940,10 @@ impl Controller {
     /// ```ts
     /// private launchRefresh(launch: Launch): void { /* loop: build the job, spawn the sweep, or end an empty one at once */ }
     /// ```
-    fn launch_refresh(&mut self, launch: Launch) {
+    fn launch_refresh(
+        &mut self,
+        launch: Launch,
+    ) {
         // What:     `let mut next: Option<Launch> = Some(launch);` starts a loop variable. `Some(launch)` wraps the launch in the
         //           present case of `Option`, and `mut` makes the variable changeable.
         // Why:      An empty sweep ends at once and the coalescer may hand back another, so the method loops until it has none.
@@ -939,7 +982,8 @@ impl Controller {
             // ```ts
             // const [tracks, listed, announce]: [string[], boolean, string[]] = current.work.kind === "everything" ? [...] : [...];
             // ```
-            let (tracks, listed, announce): (Vec<PathBuf>, bool, Vec<PathBuf>) = match current.work {
+            let (tracks, listed, announce): (Vec<PathBuf>, bool, Vec<PathBuf>) = match current.work
+            {
                 // What:     `Work::Everything => (self.queue.tracks().to_vec(), false, Vec::new()),` is the arm for "every track".
                 //           `.to_vec()` copies the borrowed slice into an owned `Vec`, `false` says that the list is not a subset,
                 //           and `Vec::new()` is an empty list of paths to announce.
@@ -1029,7 +1073,13 @@ impl Controller {
             // ```ts
             // logger.debug({ id: current.id, tracks: tracks.length, listed, generation: this.analysisGeneration }, "refresh sweep started");
             // ```
-            tracing::debug!(id = current.id, tracks = tracks.len(), listed, generation = self.analysis_generation, "refresh sweep started");
+            tracing::debug!(
+                id = current.id,
+                tracks = tracks.len(),
+                listed,
+                generation = self.analysis_generation,
+                "refresh sweep started"
+            );
             // What:     `spawn_queue_measurement(SweepJob { ... });` starts the background sweep. `SweepJob { ... }` builds a record with
             //           every field named: a bare name (`tracks`, `listed`, `announce`) is shorthand for `name: name`; `current: selected`
             //           names a field and a different variable; `cache: self.peaks.clone()` copies the handle to the cache (a cheap copy of

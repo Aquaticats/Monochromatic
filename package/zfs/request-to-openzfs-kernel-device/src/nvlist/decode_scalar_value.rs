@@ -22,12 +22,31 @@
 /// type numbers,
 /// alignment and version check.
 use super::data_type::{
-    DATA_TYPE_BOOLEAN, DATA_TYPE_BOOLEAN_ARRAY, DATA_TYPE_BOOLEAN_VALUE, DATA_TYPE_BYTE,
-    DATA_TYPE_BYTE_ARRAY, DATA_TYPE_DOUBLE, DATA_TYPE_HRTIME, DATA_TYPE_INT8, DATA_TYPE_INT8_ARRAY,
-    DATA_TYPE_INT16, DATA_TYPE_INT16_ARRAY, DATA_TYPE_INT32, DATA_TYPE_INT32_ARRAY,
-    DATA_TYPE_INT64, DATA_TYPE_INT64_ARRAY, DATA_TYPE_STRING, DATA_TYPE_STRING_ARRAY,
-    DATA_TYPE_UINT8, DATA_TYPE_UINT8_ARRAY, DATA_TYPE_UINT16, DATA_TYPE_UINT16_ARRAY,
-    DATA_TYPE_UINT32, DATA_TYPE_UINT32_ARRAY, DATA_TYPE_UINT64, DATA_TYPE_UINT64_ARRAY,
+    DATA_TYPE_BOOLEAN,
+    DATA_TYPE_BOOLEAN_ARRAY,
+    DATA_TYPE_BOOLEAN_VALUE,
+    DATA_TYPE_BYTE,
+    DATA_TYPE_BYTE_ARRAY,
+    DATA_TYPE_DOUBLE,
+    DATA_TYPE_HRTIME,
+    DATA_TYPE_INT8,
+    DATA_TYPE_INT8_ARRAY,
+    DATA_TYPE_INT16,
+    DATA_TYPE_INT16_ARRAY,
+    DATA_TYPE_INT32,
+    DATA_TYPE_INT32_ARRAY,
+    DATA_TYPE_INT64,
+    DATA_TYPE_INT64_ARRAY,
+    DATA_TYPE_STRING,
+    DATA_TYPE_STRING_ARRAY,
+    DATA_TYPE_UINT8,
+    DATA_TYPE_UINT8_ARRAY,
+    DATA_TYPE_UINT16,
+    DATA_TYPE_UINT16_ARRAY,
+    DATA_TYPE_UINT32,
+    DATA_TYPE_UINT32_ARRAY,
+    DATA_TYPE_UINT64,
+    DATA_TYPE_UINT64_ARRAY,
 };
 /// The codec own refusal type.
 use super::error::NvError;
@@ -61,7 +80,9 @@ pub fn decode_scalar_value(
     let array = |element_size: usize| -> Result<std::slice::ChunksExact<'_, u8>, NvError> {
         let total: usize = elements
             .checked_mul(element_size)
-            .ok_or(NvError::Overflow { elements })?;
+            .ok_or(NvError::Overflow {
+                elements,
+            })?;
         return Ok(need(total)?.chunks_exact(element_size));
     };
     return match data_type {
@@ -69,11 +90,15 @@ pub fn decode_scalar_value(
         DATA_TYPE_BOOLEAN_VALUE => Ok(NvData::Boolean {
             value: i32::from_le_bytes(le(need(4)?)) != 0,
         }),
-        DATA_TYPE_BYTE => Ok(NvData::Byte { value: need(1)?[0] }),
+        DATA_TYPE_BYTE => Ok(NvData::Byte {
+            value: need(1)?[0],
+        }),
         DATA_TYPE_INT8 => Ok(NvData::Int8 {
             value: need(1)?[0] as i8,
         }),
-        DATA_TYPE_UINT8 => Ok(NvData::Uint8 { value: need(1)?[0] }),
+        DATA_TYPE_UINT8 => Ok(NvData::Uint8 {
+            value: need(1)?[0],
+        }),
         DATA_TYPE_INT16 => Ok(NvData::Int16 {
             value: i16::from_le_bytes(le(need(2)?)),
         }),
@@ -183,10 +208,16 @@ pub fn decode_scalar_value(
 /// [`NvError::ValueOverflow`] when the placeholders do not fit,
 /// and
 /// [`NvError::BadString`] when a string has no NUL.
-fn decode_string_array(name: &str, elements: usize, value: &[u8]) -> Result<NvData, NvError> {
+fn decode_string_array(
+    name: &str,
+    elements: usize,
+    value: &[u8],
+) -> Result<NvData, NvError> {
     let placeholders: usize = elements
         .checked_mul(size_of::<u64>())
-        .ok_or(NvError::Overflow { elements })?;
+        .ok_or(NvError::Overflow {
+            elements,
+        })?;
     let Some(mut rest) = value.get(placeholders..) else {
         return Err(NvError::ValueOverflow {
             name: name.to_string(),
@@ -200,7 +231,9 @@ fn decode_string_array(name: &str, elements: usize, value: &[u8]) -> Result<NvDa
         strings.push(string);
         rest = &rest[consumed..];
     }
-    return Ok(NvData::StrArray { value: strings });
+    return Ok(NvData::StrArray {
+        value: strings,
+    });
 }
 
 /// Read a NUL-terminated string from the start of `buffer`,
@@ -211,7 +244,10 @@ fn decode_string_array(name: &str, elements: usize, value: &[u8]) -> Result<NvDa
 /// # Throws
 ///
 /// [`NvError::BadString`] when no NUL follows inside `buffer`.
-pub fn read_cstr(buffer: &[u8], pair_name: &str) -> Result<(String, usize), NvError> {
+pub fn read_cstr(
+    buffer: &[u8],
+    pair_name: &str,
+) -> Result<(String, usize), NvError> {
     let Some(end) = buffer.iter().position(|byte| {
         return *byte == 0;
     }) else {

@@ -6,16 +6,39 @@
 
 use super::server_environment;
 use crate::language::{
-    config::{LanguageSetup, Languages, Unavailable},
-    launch::{LaunchRequest, ServerLaunch, launch_directly},
-    toolchain::{Failed, Provided, RETRY_AFTER, ToolchainRequest, ToolchainState},
+    config::{
+        LanguageSetup,
+        Languages,
+        Unavailable,
+    },
+    launch::{
+        LaunchRequest,
+        ServerLaunch,
+        launch_directly,
+    },
+    toolchain::{
+        Failed,
+        Provided,
+        RETRY_AFTER,
+        ToolchainRequest,
+        ToolchainState,
+    },
 };
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     collections::HashMap,
     fs,
-    os::unix::fs::{PermissionsExt, symlink},
-    path::{Path, PathBuf},
+    os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 
@@ -84,13 +107,19 @@ fn project() -> (tempfile::TempDir, PathBuf) {
     return (directory, root);
 }
 
-fn tool(directory: &Path, name: &str) {
+fn tool(
+    directory: &Path,
+    name: &str,
+) {
     fs::create_dir_all(directory).expect("directory");
     fs::write(directory.join(name), "#!/bin/sh\n").expect("program");
     fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).expect("mode");
 }
 
-fn provided(directories: &[&Path], warnings: &str) -> ToolchainState {
+fn provided(
+    directories: &[&Path],
+    warnings: &str,
+) -> ToolchainState {
     let mut owned: Vec<PathBuf> = Vec::new();
     for directory in directories {
         owned.push(directory.to_path_buf());
@@ -107,7 +136,10 @@ fn failed(message: &str) -> ToolchainState {
     });
 }
 
-fn missing_reason(languages: &Languages, server: &str) -> String {
+fn missing_reason(
+    languages: &Languages,
+    server: &str,
+) -> String {
     let Some(Unavailable::Missing(reason)) = languages.unavailable(server) else {
         panic!(
             "{server} was not reported missing: {:?}",

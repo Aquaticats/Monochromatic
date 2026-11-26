@@ -18,7 +18,10 @@ use super::server_scan::Scan;
 use std::{
     collections::BTreeSet,
     path::PathBuf,
-    sync::{Mutex, MutexGuard},
+    sync::{
+        Mutex,
+        MutexGuard,
+    },
 };
 /// What:
 ///  `UnboundedSender` is the sending end of tokio's queue without a size limit;

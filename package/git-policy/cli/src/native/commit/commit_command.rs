@@ -437,8 +437,8 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     };
     // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
     //  push, the upkeep and the notice of them) is written after this point (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
-    //  finding 3). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it, so a command that is not a test reaches
-    //  nothing.
+    //  finding 3). A release build holds no read of `CLI_GIT_TEST_ONLY_SERVICE_FAULT`, so a command that is not a control
+    //  reaches nothing, and a build made for a control reaches it only when its variable names this point.
     crate::service_fault::reach("after-answer");
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     // Why nothing landed, read before the result is taken apart for the work after a landing.
@@ -529,7 +529,8 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     }
     // A test kills the wrapper here: the push record is runnable and nothing has been woken for it yet, so the service finds it
     //  only through the note the landing wrote (`service_claim_watch.rs`), and the person only through the line the next command
-    //  reads from the record (`held_push_notices`). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it.
+    //  reads from the record (`held_push_notices`). A release build holds no read of `CLI_GIT_TEST_ONLY_SERVICE_FAULT`, so only
+    //  a build made for a control reaches this point with its variable naming it.
     crate::service_fault::reach(crate::service_fault::AFTER_PROMOTE);
     let handing_over: Instant = Instant::now();
     let handed = hand_over(handoff, landed, &mut stderr);

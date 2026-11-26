@@ -24,17 +24,39 @@
 /// The streaming log line.
 use crate::lean_run_report::emit;
 /// Files and sets.
-use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{
+    collections::HashSet,
+    fs,
+    os::unix::fs::MetadataExt,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// The proof,
 /// the removal and the sizes.
 use crate::lean_guard::GuardEnvironment;
 /// Imports the names this file uses from `crate::lean_identity`.
-use crate::lean_identity::{Deadline, Identity};
+use crate::lean_identity::{
+    Deadline,
+    Identity,
+};
 /// Imports the names this file uses from `crate::lean_proc_scan`.
-use crate::lean_proc_scan::{ScanReport, scan_processes};
+use crate::lean_proc_scan::{
+    ScanReport,
+    scan_processes,
+};
 /// Imports the names this file uses from `crate::lean_removal`.
-use crate::lean_removal::{Refusal, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of, modes_named};
+use crate::lean_removal::{
+    Refusal,
+    TRASH_DIRECTORY_NAME,
+    claim_into_trash,
+    delete_claimed,
+    empty_trash,
+    item_of,
+    modes_named,
+};
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
 
@@ -203,7 +225,10 @@ fn newest_write(path: &Path) -> i64 {
 /// ```ts
 /// const olderFirst = (a: Record, b: Record): number => a.modified - b.modified;
 /// ```
-fn older_first(left: &Record, right: &Record) -> std::cmp::Ordering {
+fn older_first(
+    left: &Record,
+    right: &Record,
+) -> std::cmp::Ordering {
     return left.modified.cmp(&right.modified);
 }
 
@@ -217,10 +242,15 @@ fn older_first(left: &Record, right: &Record) -> std::cmp::Ordering {
 /// ```ts
 /// function recordsOf(directory: string, deadline: Deadline): Record[]
 /// ```
-fn records_of(directory: &Path, deadline: &Deadline) -> Vec<Record> {
+fn records_of(
+    directory: &Path,
+    deadline: &Deadline,
+) -> Vec<Record> {
     let mut records: Vec<Record> = Vec::new();
     let mut seen: HashSet<Identity> = HashSet::new();
-    let Ok(entries) = fs::read_dir(directory) else { return records };
+    let Ok(entries) = fs::read_dir(directory) else {
+        return records;
+    };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
         if !is_record_name(&name) {
@@ -228,7 +258,11 @@ fn records_of(directory: &Path, deadline: &Deadline) -> Vec<Record> {
         }
         let path: PathBuf = entry.path();
         let bytes: u64 = add_tree_bytes(&path, &mut seen, deadline).bytes;
-        records.push(Record { modified: newest_write(&path), path, bytes });
+        records.push(Record {
+            modified: newest_write(&path),
+            path,
+            bytes,
+        });
     }
     records.sort_by(older_first);
     return records;
@@ -259,12 +293,29 @@ pub fn sweep_run_records(
     for record in &records {
         total += record.bytes;
     }
-    let scan: ScanReport = if dry_run { ScanReport::default() } else { scan_processes(&environment.proc_root, &[directory], &[], environment.own_pid) };
+    let scan: ScanReport = if dry_run {
+        ScanReport::default()
+    } else {
+        scan_processes(
+            &environment.proc_root,
+            &[directory],
+            &[],
+            environment.own_pid,
+        )
+    };
     let trash: PathBuf = directory.join(TRASH_DIRECTORY_NAME);
     if !dry_run {
         let sweep = empty_trash(&trash);
         if !sweep.modes_added.is_empty() {
-            emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
+            emit(
+                log,
+                format!(
+                    "finished an earlier run's deletion in {} ({} disk bytes){};",
+                    trash.display(),
+                    sweep.bytes,
+                    modes_named(&sweep.modes_added)
+                ),
+            );
         }
         outcome.refusals.extend(sweep.failures);
     }
@@ -276,9 +327,15 @@ pub fn sweep_run_records(
             continue;
         }
         let why: String = if over_age {
-            format!("written {age} s ago, older than the retention of {} s", policy.max_age_seconds)
+            format!(
+                "written {age} s ago, older than the retention of {} s",
+                policy.max_age_seconds
+            )
         } else {
-            format!("the directory's records occupy {total} bytes, over the cap of {} bytes; oldest first", policy.max_bytes)
+            format!(
+                "the directory's records occupy {total} bytes, over the cap of {} bytes; oldest first",
+                policy.max_bytes
+            )
         };
         if dry_run {
             outcome.removed += 1;
@@ -288,44 +345,68 @@ pub fn sweep_run_records(
         }
         if let Some(used) = scan.blocks(&record.path) {
             outcome.kept_in_use += 1;
-            emit(log, format!("kept run record {}: pid {} uses {} as {}", record.path.display(), used.pid, used.path.display(), used.how));
+            emit(
+                log,
+                format!(
+                    "kept run record {}: pid {} uses {} as {}",
+                    record.path.display(),
+                    used.pid,
+                    used.path.display(),
+                    used.how
+                ),
+            );
             continue;
         }
         let item = match item_of(&record.path) {
             Ok(found) => found,
             Err(error) => {
-                outcome.refusals.push(format!("{}: {error}", record.path.display()));
+                outcome
+                    .refusals
+                    .push(format!("{}: {error}", record.path.display()));
                 continue;
             }
         };
         match claim_into_trash(&item, &trash, 0) {
             Ok(claimed) => match delete_claimed(&claimed, item.identity) {
                 Ok(deleted) => {
-                    emit(log, format!(
-                        "removed run record {} (device {} inode {}): {why}; proof: {}{}",
-                        record.path.display(),
-                        item.identity.device,
-                        item.identity.inode,
-                        scan.describe(),
-                        modes_named(&deleted.modes_added)
-                    ));
+                    emit(
+                        log,
+                        format!(
+                            "removed run record {} (device {} inode {}): {why}; proof: {}{}",
+                            record.path.display(),
+                            item.identity.device,
+                            item.identity.inode,
+                            scan.describe(),
+                            modes_named(&deleted.modes_added)
+                        ),
+                    );
                     outcome.removed += 1;
                     outcome.bytes += deleted.bytes;
                     total = total.saturating_sub(record.bytes);
                 }
-                Err(Refusal::PartlyRemoved { deleted, .. }) => {
-                    emit(log, format!(
-                        "partly removed run record {} (device {} inode {}): {why}; {} disk bytes are gone and {} part(s) stay{}; each stayed because: {}",
+                Err(Refusal::PartlyRemoved {
+                    deleted,
+                    ..
+                }) => {
+                    emit(
+                        log,
+                        format!(
+                            "partly removed run record {} (device {} inode {}): {why}; {} disk bytes are gone and {} part(s) stay{}; each stayed because: {}",
+                            record.path.display(),
+                            item.identity.device,
+                            item.identity.inode,
+                            deleted.bytes,
+                            deleted.remaining.len(),
+                            modes_named(&deleted.modes_added),
+                            deleted.remaining.join("; ")
+                        ),
+                    );
+                    outcome.bytes += deleted.bytes;
+                    outcome.refusals.push(format!(
+                        "{} was only partly removed: {}",
                         record.path.display(),
-                        item.identity.device,
-                        item.identity.inode,
-                        deleted.bytes,
-                        deleted.remaining.len(),
-                        modes_named(&deleted.modes_added),
                         deleted.remaining.join("; ")
                     ));
-                    outcome.bytes += deleted.bytes;
-                    outcome.refusals.push(format!("{} was only partly removed: {}", record.path.display(), deleted.remaining.join("; ")));
                 }
                 Err(refusal) => outcome.refusals.push(refusal.to_string()),
             },

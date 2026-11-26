@@ -9,25 +9,51 @@
 /// The tile the GPU draws,
 /// read back without a window,
 /// and how far two renders may differ.
-use super::tile_reads::{RENDER_NOISE, rendered_tile};
+use super::tile_reads::{
+    RENDER_NOISE,
+    rendered_tile,
+};
 /// The production layout and packing,
 ///  underline constants,
 ///  vertical mapping,
 ///  shaper,
 ///  and palette.
 use ide_app::{
-    annotation::{Label, Mark, Visible},
-    annotation_layout::{AnnotationColors, lay_out, pack},
+    annotation::{
+        Label,
+        Mark,
+        Visible,
+    },
+    annotation_layout::{
+        AnnotationColors,
+        lay_out,
+        pack,
+    },
     annotation_paint::DROP,
     code_colors::CodeColors,
     document::Document,
     language::diagnostics::Severity,
-    row_map::{CODE_ROW, RowMap},
-    shaped_text::{ShapedView, TextShaper, Viewport},
-    virtual_row::{BLOCK_GAP, Block, MessageRow, ROW_HEIGHT},
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+        Viewport,
+    },
+    virtual_row::{
+        BLOCK_GAP,
+        Block,
+        MessageRow,
+        ROW_HEIGHT,
+    },
 };
 /// The pixels the GPU drew.
-use slint::{Rgba8Pixel, SharedPixelBuffer};
+use slint::{
+    Rgba8Pixel,
+    SharedPixelBuffer,
+};
 /// Blocks are shared between the window state and the frames that paint them.
 use std::sync::Arc;
 
@@ -143,7 +169,11 @@ pub(super) fn block(
 }
 
 /// How many pixels of rows `rows.0..rows.1` of the tile carry `ink`.
-fn count(pixels: &SharedPixelBuffer<Rgba8Pixel>, rows: (usize, usize), ink: [u8; 4]) -> usize {
+fn count(
+    pixels: &SharedPixelBuffer<Rgba8Pixel>,
+    rows: (usize, usize),
+    ink: [u8; 4],
+) -> usize {
     let mut found = 0;
     for y in rows.0..rows.1 {
         for x in 0..pixels.width() as usize {
@@ -166,7 +196,12 @@ fn count(pixels: &SharedPixelBuffer<Rgba8Pixel>, rows: (usize, usize), ink: [u8;
 /// ```ts
 /// function inked(pixels: Pixels, x: number, y: number, ink: Rgba): boolean;
 /// ```
-fn inked(pixels: &SharedPixelBuffer<Rgba8Pixel>, x: usize, y: usize, ink: [u8; 4]) -> bool {
+fn inked(
+    pixels: &SharedPixelBuffer<Rgba8Pixel>,
+    x: usize,
+    y: usize,
+    ink: [u8; 4],
+) -> bool {
     let pixel = pixels.as_slice()[y * pixels.width() as usize + x];
     if pixel.a < 96 {
         return false;

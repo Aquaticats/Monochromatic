@@ -41,7 +41,11 @@
 /// ```ts
 /// import { log, formatTrace } from 'tracing-log';
 /// ```
-use tracing_log::{AsLog, AsTrace, log};
+use tracing_log::{
+    AsLog,
+    AsTrace,
+    log,
+};
 
 /// Each server's last standard-error lines are kept from the records seen here.
 use super::stderr_tail;
@@ -151,7 +155,11 @@ pub struct Matched<'text> {
 /// ```ts
 /// const shape = (target: string, level: Level, text: string) => matched(target, level, text)?.shape;
 /// ```
-pub fn shape(target: &str, level: log::Level, text: &str) -> Option<Shape> {
+pub fn shape(
+    target: &str,
+    level: log::Level,
+    text: &str,
+) -> Option<Shape> {
     let found = matched(target, level, text)?;
     return Some(found.shape);
 }
@@ -171,7 +179,11 @@ pub fn shape(target: &str, level: log::Level, text: &str) -> Option<Shape> {
 /// ```ts
 /// function matched(target: string, level: Level, text: string): Matched | undefined
 /// ```
-pub fn matched<'text>(target: &str, level: log::Level, text: &'text str) -> Option<Matched<'text>> {
+pub fn matched<'text>(
+    target: &str,
+    level: log::Level,
+    text: &'text str,
+) -> Option<Matched<'text>> {
     if level != log::Level::Error || target != TRANSPORT_TARGET {
         return None;
     }
@@ -238,7 +250,10 @@ impl log::Log for Relabel {
     ///  Callers that ask before building an expensive record get the subscriber's answer for
     ///      the record's own level,
     ///  which is the most severe level it can end up with.
-    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+    fn enabled(
+        &self,
+        metadata: &log::Metadata<'_>,
+    ) -> bool {
         // `Dispatch::default()` is a handle to the current subscriber, the one `get_default` lends.
         let dispatch = tracing::Dispatch::default();
         return dispatch.enabled(&metadata.as_trace());
@@ -255,7 +270,10 @@ impl log::Log for Relabel {
     ///  Only an ERROR record from the transport is formatted to text for the check;
     ///  every
     ///      other record goes through unchanged and without extra work.
-    fn log(&self, record: &log::Record<'_>) {
+    fn log(
+        &self,
+        record: &log::Record<'_>,
+    ) {
         if record.level() != log::Level::Error || record.target() != TRANSPORT_TARGET {
             forward(record);
             return;

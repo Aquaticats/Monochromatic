@@ -1,7 +1,12 @@
 //! Protocol limits are checked before unbounded allocation and stderr remains drained after truncation.
 
 /// Private helpers are exercised with the same async read traits used for child-process pipes.
-use super::{MAX_DIAGNOSTIC_BYTES, diagnostic, record, truncation_marker};
+use super::{
+    MAX_DIAGNOSTIC_BYTES,
+    diagnostic,
+    record,
+    truncation_marker,
+};
 /// Shared limit defines the exact accepted and rejected record boundary.
 use crate::search::MAX_SEARCH_RECORD;
 

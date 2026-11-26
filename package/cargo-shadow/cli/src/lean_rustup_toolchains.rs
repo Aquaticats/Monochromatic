@@ -25,12 +25,27 @@
 use crate::lean_run_report::emit;
 /// Files,
 /// sets and paths.
-use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{
+    collections::HashSet,
+    fs,
+    os::unix::fs::MetadataExt,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// The proof and the identity.
-use crate::lean_identity::{Deadline, Identity, identity_of};
+use crate::lean_identity::{
+    Deadline,
+    Identity,
+    identity_of,
+};
 /// Imports the names this file uses from `crate::lean_proc_scan`.
-use crate::lean_proc_scan::{ScanReport, scan_processes};
+use crate::lean_proc_scan::{
+    ScanReport,
+    scan_processes,
+};
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
 /// Named reads of directory entries.
@@ -72,7 +87,10 @@ pub enum ToolchainVerdict {
 /// Something that uninstalls a toolchain by name.
 pub trait Uninstaller {
     /// Uninstalls the toolchain with this directory name.
-    fn uninstall(&self, directory_name: &str) -> Result<(), String>;
+    fn uninstall(
+        &self,
+        directory_name: &str,
+    ) -> Result<(), String>;
 }
 
 /// What:
@@ -112,23 +130,34 @@ pub fn dated_nightly_name(directory_name: &str) -> Option<String> {
 /// ```ts
 /// function pinsIn(checkout: string, pinned: Set<string>): void
 /// ```
-fn pins_in(checkout: &Path, pinned: &mut HashSet<String>) {
+fn pins_in(
+    checkout: &Path,
+    pinned: &mut HashSet<String>,
+) {
     if let Ok(text) = fs::read_to_string(checkout.join("toolchain.lock.json"))
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
-        && let Some(version) = value.pointer("/tools/rust/version").and_then(serde_json::Value::as_str)
+        && let Some(version) = value
+            .pointer("/tools/rust/version")
+            .and_then(serde_json::Value::as_str)
     {
         pinned.insert(version.to_string());
     }
     if let Ok(text) = fs::read_to_string(checkout.join(".cache").join("toolchain.env.json"))
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
-        && let Some(name) = value.get(TOOLCHAIN_VARIABLE).and_then(serde_json::Value::as_str)
+        && let Some(name) = value
+            .get(TOOLCHAIN_VARIABLE)
+            .and_then(serde_json::Value::as_str)
     {
         pinned.insert(name.to_string());
     }
     for file in ["rust-toolchain", "rust-toolchain.toml"] {
         if let Ok(text) = fs::read_to_string(checkout.join(file)) {
             for line in text.lines() {
-                let trimmed: &str = line.trim().trim_start_matches("channel").trim_start_matches([' ', '=']).trim_matches(['"', ' ']);
+                let trimmed: &str = line
+                    .trim()
+                    .trim_start_matches("channel")
+                    .trim_start_matches([' ', '='])
+                    .trim_matches(['"', ' ']);
                 if trimmed.starts_with("nightly-") {
                     pinned.insert(trimmed.to_string());
                 }
@@ -147,7 +176,10 @@ fn pins_in(checkout: &Path, pinned: &mut HashSet<String>) {
 /// ```ts
 /// export function pinnedBy(checkouts: string[], settings: string): Set<string>
 /// ```
-pub fn pinned_by(checkouts: &[PathBuf], settings: &Path) -> HashSet<String> {
+pub fn pinned_by(
+    checkouts: &[PathBuf],
+    settings: &Path,
+) -> HashSet<String> {
     let mut pinned: HashSet<String> = HashSet::new();
     for checkout in checkouts {
         pins_in(checkout, &mut pinned);
@@ -187,7 +219,10 @@ fn is_nul(byte: &u8) -> bool {
 /// ```ts
 /// const byDirectoryName = (a: Installed, b: Installed): number => a.directoryName.localeCompare(b.directoryName);
 /// ```
-fn by_directory_name(left: &Installed, right: &Installed) -> std::cmp::Ordering {
+fn by_directory_name(
+    left: &Installed,
+    right: &Installed,
+) -> std::cmp::Ordering {
     return left.directory_name.cmp(&right.directory_name);
 }
 
@@ -203,12 +238,16 @@ fn by_directory_name(left: &Installed, right: &Installed) -> std::cmp::Ordering 
 /// ```
 fn named_in_environments(proc_root: &Path) -> HashSet<String> {
     let mut named: HashSet<String> = HashSet::new();
-    let Ok(entries) = fs::read_dir(proc_root) else { return named };
+    let Ok(entries) = fs::read_dir(proc_root) else {
+        return named;
+    };
     for entry in entries.flatten() {
         if entry.file_name().to_string_lossy().parse::<i32>().is_err() {
             continue;
         }
-        let Ok(bytes) = fs::read(entry.path().join("environ")) else { continue };
+        let Ok(bytes) = fs::read(entry.path().join("environ")) else {
+            continue;
+        };
         for pair in bytes.split(is_nul) {
             let text: String = String::from_utf8_lossy(pair).to_string();
             if let Some(value) = text.strip_prefix("RUSTUP_TOOLCHAIN=") {
@@ -233,7 +272,10 @@ pub fn installed_toolchains(toolchains: &Path) -> Vec<Installed> {
     if let Ok(entries) = fs::read_dir(toolchains) {
         for entry in entries.flatten() {
             if is_directory(&entry) {
-                installed.push(Installed { directory_name: entry.file_name().to_string_lossy().to_string(), path: entry.path() });
+                installed.push(Installed {
+                    directory_name: entry.file_name().to_string_lossy().to_string(),
+                    path: entry.path(),
+                });
             }
         }
     }
@@ -268,8 +310,23 @@ pub fn retire_nightlies(
     let mut verdicts: Vec<(String, ToolchainVerdict)> = Vec::new();
     let environment_names: HashSet<String> = named_in_environments(proc_root);
     for toolchain in installed {
-        let Some(short) = dated_nightly_name(&toolchain.directory_name) else { continue };
-        let verdict: ToolchainVerdict = judge(toolchain, &short, pinned, &environment_names, proc_root, own_pid, grace_seconds, now, dry_run, uninstaller, deadline, log);
+        let Some(short) = dated_nightly_name(&toolchain.directory_name) else {
+            continue;
+        };
+        let verdict: ToolchainVerdict = judge(
+            toolchain,
+            &short,
+            pinned,
+            &environment_names,
+            proc_root,
+            own_pid,
+            grace_seconds,
+            now,
+            dry_run,
+            uninstaller,
+            deadline,
+            log,
+        );
         verdicts.push((toolchain.directory_name.clone(), verdict));
     }
     return verdicts;
@@ -308,7 +365,9 @@ fn judge(
 ) -> ToolchainVerdict {
     for name in [short, toolchain.directory_name.as_str()] {
         if pinned.contains(name) {
-            return ToolchainVerdict::Keep(format!("a checkout's lock or rustup's settings pin {name}"));
+            return ToolchainVerdict::Keep(format!(
+                "a checkout's lock or rustup's settings pin {name}"
+            ));
         }
         if environment_names.contains(name) {
             return ToolchainVerdict::Keep(format!("a process has {TOOLCHAIN_VARIABLE}={name}"));
@@ -319,16 +378,32 @@ fn judge(
         Err(_) => now,
     };
     if now - modified <= grace_seconds {
-        return ToolchainVerdict::Keep(format!("installed or changed {} s ago, within the grace period of {grace_seconds} s", now - modified));
+        return ToolchainVerdict::Keep(format!(
+            "installed or changed {} s ago, within the grace period of {grace_seconds} s",
+            now - modified
+        ));
     }
     let scan: ScanReport = scan_processes(proc_root, &[toolchain.path.as_path()], &[], own_pid);
     if let Some(used) = scan.blocks(&toolchain.path) {
-        return ToolchainVerdict::Keep(format!("pid {} uses {} as {}", used.pid, used.path.display(), used.how));
+        return ToolchainVerdict::Keep(format!(
+            "pid {} uses {} as {}",
+            used.pid,
+            used.path.display(),
+            used.how
+        ));
     }
     let bytes: u64 = tree_bytes(&toolchain.path, deadline).bytes;
     if dry_run {
-        emit(log, format!("would retire toolchain {} ({bytes} bytes): no checkout's lock pins it, no process names or uses it", toolchain.directory_name));
-        return ToolchainVerdict::Retired { bytes };
+        emit(
+            log,
+            format!(
+                "would retire toolchain {} ({bytes} bytes): no checkout's lock pins it, no process names or uses it",
+                toolchain.directory_name
+            ),
+        );
+        return ToolchainVerdict::Retired {
+            bytes,
+        };
     }
     let judged: Identity = match identity_of(&toolchain.path) {
         Ok(found) => found,
@@ -336,19 +411,26 @@ fn judge(
     };
     // The identity is read again just before rustup is asked to remove the directory.
     if identity_of(&toolchain.path).ok() != Some(judged) {
-        return ToolchainVerdict::Skip(String::from("the directory changed identity before the removal"));
+        return ToolchainVerdict::Skip(String::from(
+            "the directory changed identity before the removal",
+        ));
     }
-    emit(log, format!(
-        "retiring toolchain {} (device {} inode {}, {bytes} bytes): no checkout's lock pins it, no process names or uses it, last changed {} s ago; proof: {} ; pinned names considered: {}",
-        toolchain.directory_name,
-        judged.device,
-        judged.inode,
-        now - modified,
-        scan.describe(),
-        pinned.len()
-    ));
+    emit(
+        log,
+        format!(
+            "retiring toolchain {} (device {} inode {}, {bytes} bytes): no checkout's lock pins it, no process names or uses it, last changed {} s ago; proof: {} ; pinned names considered: {}",
+            toolchain.directory_name,
+            judged.device,
+            judged.inode,
+            now - modified,
+            scan.describe(),
+            pinned.len()
+        ),
+    );
     return match uninstaller.uninstall(&toolchain.directory_name) {
-        Ok(()) => ToolchainVerdict::Retired { bytes },
+        Ok(()) => ToolchainVerdict::Retired {
+            bytes,
+        },
         Err(reason) => ToolchainVerdict::Skip(reason),
     };
 }

@@ -21,7 +21,12 @@
 /// ```ts
 /// import { ConfigLocations, Location, LocationNode, pointerSegment } from './configLocations';
 /// ```
-use crate::config_locations::{ConfigLocations, Location, LocationNode, pointer_segment};
+use crate::config_locations::{
+    ConfigLocations,
+    Location,
+    LocationNode,
+    pointer_segment,
+};
 /// What:
 ///  Imports `Diagnostic` from `crate::diagnostic`.
 /// Why:
@@ -42,17 +47,12 @@ use crate::diagnostic::Diagnostic;
 /// ```ts
 /// import { JsoncKind, JsoncSpan, JsoncSpans, JsoncValue } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{JsoncKind, JsoncSpan, JsoncSpans, JsoncValue};
-/// What:
-///  Imports `HashMap` from `std::collections`.
-/// Why:
-///  Each object node keeps a key-to-index table for lookups by pointer segment.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // Map is global in TS
-/// ```
-use std::collections::HashMap;
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncSpan,
+    JsoncSpans,
+    JsoncValue,
+};
 /// What:
 ///  Imports `Map`,
 /// `Number`,
@@ -64,7 +64,21 @@ use std::collections::HashMap;
 /// ```ts
 /// // JSON values are plain JS objects in TS
 /// ```
-use serde_json::{Map, Number, Value};
+use serde_json::{
+    Map,
+    Number,
+    Value,
+};
+/// What:
+///  Imports `HashMap` from `std::collections`.
+/// Why:
+///  Each object node keeps a key-to-index table for lookups by pointer segment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Map is global in TS
+/// ```
+use std::collections::HashMap;
 
 /// What:
 ///  The location of the start of a span.
@@ -78,7 +92,10 @@ use serde_json::{Map, Number, Value};
 /// function startOf(span: JsoncSpan): Location { return { line: span.start.line, column: span.start.column }; }
 /// ```
 fn start_of(span: JsoncSpan) -> Location {
-    return Location { line: span.start.line, column: span.start.column };
+    return Location {
+        line: span.start.line,
+        column: span.start.column,
+    };
 }
 
 /// What:
@@ -91,9 +108,17 @@ fn start_of(span: JsoncSpan) -> Location {
 /// ```ts
 /// function located(display: string, at: Location, pointer: string, message: string): string
 /// ```
-pub fn located_message(display_path: &str, at: Location, pointer: &str, message: &str) -> String {
+pub fn located_message(
+    display_path: &str,
+    at: Location,
+    pointer: &str,
+    message: &str,
+) -> String {
     let shown = if pointer.is_empty() { "/" } else { pointer };
-    return format!("{display_path}:{}:{}: {shown}: {message}", at.line, at.column);
+    return format!(
+        "{display_path}:{}:{}: {shown}: {message}",
+        at.line, at.column
+    );
 }
 
 /// What:
@@ -173,7 +198,12 @@ impl Converter<'_> {
     /// ```ts
     /// reject(at: Location, pointer: string, message: string): Diagnostic
     /// ```
-    fn reject(&self, at: Location, pointer: &str, message: &str) -> Diagnostic {
+    fn reject(
+        &self,
+        at: Location,
+        pointer: &str,
+        message: &str,
+    ) -> Diagnostic {
         let full = located_message(self.display_path, at, pointer, message);
         return Diagnostic::new("config-syntax", &full).with_path(self.display_path);
     }
@@ -189,24 +219,46 @@ impl Converter<'_> {
     /// ```ts
     /// convert(value: JsoncValue, pointer: string): [unknown, LocationNode]
     /// ```
-    fn convert(&mut self, value: &JsoncValue, pointer: &str) -> Result<(Value, LocationNode), Diagnostic> {
+    fn convert(
+        &mut self,
+        value: &JsoncValue,
+        pointer: &str,
+    ) -> Result<(Value, LocationNode), Diagnostic> {
         let here = start_of(self.next_value_span());
         match &value.kind {
             JsoncKind::Null => return Ok((Value::Null, scalar_node(here))),
-            JsoncKind::Boolean { value: flag } => return Ok((Value::Bool(*flag), scalar_node(here))),
-            JsoncKind::Text { units, .. } => {
+            JsoncKind::Boolean {
+                value: flag,
+            } => return Ok((Value::Bool(*flag), scalar_node(here))),
+            JsoncKind::Text {
+                units,
+                ..
+            } => {
                 let Ok(text) = String::from_utf16(units) else {
-                    return Err(self.reject(here, pointer, "the string holds an unpaired surrogate"));
+                    return Err(self.reject(
+                        here,
+                        pointer,
+                        "the string holds an unpaired surrogate",
+                    ));
                 };
                 return Ok((Value::String(text), scalar_node(here)));
             }
-            JsoncKind::Number { raw, .. } => {
+            JsoncKind::Number {
+                raw,
+                ..
+            } => {
                 let Some(number) = number_of(raw) else {
-                    return Err(self.reject(here, pointer, &format!("the number {raw} is not representable")));
+                    return Err(self.reject(
+                        here,
+                        pointer,
+                        &format!("the number {raw} is not representable"),
+                    ));
                 };
                 return Ok((Value::Number(number), scalar_node(here)));
             }
-            JsoncKind::Array { elements } => {
+            JsoncKind::Array {
+                elements,
+            } => {
                 let mut items: Vec<Value> = Vec::new();
                 let mut nodes: Vec<LocationNode> = Vec::new();
                 for (index, element) in elements.iter().enumerate() {
@@ -214,9 +266,19 @@ impl Converter<'_> {
                     items.push(converted);
                     nodes.push(node);
                 }
-                return Ok((Value::Array(items), LocationNode { value: here, key: None, items: nodes, by_key: None }));
+                return Ok((
+                    Value::Array(items),
+                    LocationNode {
+                        value: here,
+                        key: None,
+                        items: nodes,
+                        by_key: None,
+                    },
+                ));
             }
-            JsoncKind::Record { entries } => return self.convert_record(entries, here, pointer),
+            JsoncKind::Record {
+                entries,
+            } => return self.convert_record(entries, here, pointer),
         }
     }
 
@@ -245,7 +307,11 @@ impl Converter<'_> {
                 return Err(self.reject(key_at, pointer, "a key holds an unpaired surrogate"));
             };
             if object.contains_key(&key) {
-                return Err(self.reject(key_at, pointer, &format!("the key {key:?} appears twice in this object")));
+                return Err(self.reject(
+                    key_at,
+                    pointer,
+                    &format!("the key {key:?} appears twice in this object"),
+                ));
             }
             let child_pointer = format!("{pointer}/{}", pointer_segment(&key));
             let (converted, mut node) = self.convert(&entry.value, &child_pointer)?;
@@ -254,7 +320,12 @@ impl Converter<'_> {
             nodes.push(node);
             object.insert(key, converted);
         }
-        let table = LocationNode { value: here, key: None, items: nodes, by_key: Some(by_key) };
+        let table = LocationNode {
+            value: here,
+            key: None,
+            items: nodes,
+            by_key: Some(by_key),
+        };
         return Ok((Value::Object(object), table));
     }
 }
@@ -269,7 +340,12 @@ impl Converter<'_> {
 /// function scalarNode(at: Location): LocationNode
 /// ```
 fn scalar_node(at: Location) -> LocationNode {
-    return LocationNode { value: at, key: None, items: Vec::new(), by_key: None };
+    return LocationNode {
+        value: at,
+        key: None,
+        items: Vec::new(),
+        by_key: None,
+    };
 }
 
 /// What:
@@ -303,8 +379,22 @@ fn number_of(raw: &str) -> Option<Number> {
 /// ```ts
 /// function convertDocument(root: JsoncValue, spans: JsoncSpans, displayPath: string): [unknown, ConfigLocations]
 /// ```
-pub fn convert_document(root: &JsoncValue, spans: &JsoncSpans, display_path: &str) -> Result<(Value, ConfigLocations), Diagnostic> {
-    let mut converter = Converter { spans, display_path, value_index: 0, key_index: 0 };
+pub fn convert_document(
+    root: &JsoncValue,
+    spans: &JsoncSpans,
+    display_path: &str,
+) -> Result<(Value, ConfigLocations), Diagnostic> {
+    let mut converter = Converter {
+        spans,
+        display_path,
+        value_index: 0,
+        key_index: 0,
+    };
     let (value, table) = converter.convert(root, "")?;
-    return Ok((value, ConfigLocations { root: table }));
+    return Ok((
+        value,
+        ConfigLocations {
+            root: table,
+        },
+    ));
 }

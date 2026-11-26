@@ -6,19 +6,38 @@
 
 /// Windows are drawn on the hardware GPU,
 ///  so the platform is installed before the thread's first window.
-use super::gpu_snapshot::{install_gpu_platform, snapshot};
+use super::gpu_snapshot::{
+    install_gpu_platform,
+    snapshot,
+};
 /// Slint's own wgpu types,
 /// the ones the window's device is made of.
 use slint::wgpu_30::wgpu;
 /// The notifier,
 /// the image import,
 /// and the test component's handle.
-use slint::{ComponentHandle, GraphicsAPI, Image, RenderingState};
+use slint::{
+    ComponentHandle,
+    GraphicsAPI,
+    Image,
+    RenderingState,
+};
 /// Vello draws the scene into the texture.
 use vello::{
-    AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene,
-    kurbo::{Affine, Rect},
-    peniko::{Color, Fill},
+    AaConfig,
+    AaSupport,
+    RenderParams,
+    Renderer,
+    RendererOptions,
+    Scene,
+    kurbo::{
+        Affine,
+        Rect,
+    },
+    peniko::{
+        Color,
+        Fill,
+    },
 };
 
 // The fixture is test-only: one image over a mid-grey window.
@@ -48,7 +67,12 @@ fn vello_texture_appears_in_the_snapshot_with_straight_alpha() {
     window
         .window()
         .set_rendering_notifier(move |state, api| {
-            let GraphicsAPI::WGPU30 { device, queue, .. } = api else {
+            let GraphicsAPI::WGPU30 {
+                device,
+                queue,
+                ..
+            } = api
+            else {
                 panic!("the harness window offers a wgpu 30 device to the notifier");
             };
             if !matches!(state, RenderingState::RenderingSetup) {
@@ -143,7 +167,10 @@ fn vello_texture_appears_in_the_snapshot_with_straight_alpha() {
 
 /// Premultiplied difference of two straight RGBA texels,
 /// the largest over the four channels.
-fn premultiplied_difference(left: slint::Rgba8Pixel, right: slint::Rgba8Pixel) -> u8 {
+fn premultiplied_difference(
+    left: slint::Rgba8Pixel,
+    right: slint::Rgba8Pixel,
+) -> u8 {
     let premultiply =
         |value: u8, alpha: u8| return (u32::from(value) * u32::from(alpha) / 255) as u8;
     return premultiply(left.r, left.a)

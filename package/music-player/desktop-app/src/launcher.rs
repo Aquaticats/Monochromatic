@@ -301,7 +301,7 @@ pub fn set_window_app_id(attributes: WindowAttributes) -> WindowAttributes {
     // ```ts
     // return attributes.withName(APP_ID, APP_ID);
     // ```
-    return attributes.with_name(APP_ID, APP_ID)
+    return attributes.with_name(APP_ID, APP_ID);
 }
 
 /// What:
@@ -455,7 +455,7 @@ impl Launcher {
         return Launcher {
             connection,
             app_uri: format!("application://{APP_ID}.desktop"),
-        }
+        };
     }
 
     /// What:
@@ -472,7 +472,11 @@ impl Launcher {
     /// ```ts
     /// setProgress(fraction: number, visible: boolean): void { ... }
     /// ```
-    pub fn set_progress(&self, fraction: f64, visible: bool) {
+    pub fn set_progress(
+        &self,
+        fraction: f64,
+        visible: bool,
+    ) {
         // What:     `if let Some(connection) = self.connection.as_ref() { ... }`.
         //           `.as_ref()` borrows the inner connection without moving it out of
         //           `self`; the `if let Some(...)` runs the body only when present.
@@ -619,7 +623,12 @@ impl Launcher {
     /// ```ts
     /// setProgress(_fraction: number, _visible: boolean): void {}
     /// ```
-    pub fn set_progress(&self, _fraction: f64, _visible: bool) {}
+    pub fn set_progress(
+        &self,
+        _fraction: f64,
+        _visible: bool,
+    ) {
+    }
 }
 
 /// What:
@@ -651,6 +660,6 @@ impl Default for Launcher {
     /// static default() { return Launcher.connect(); }
     /// ```
     fn default() -> Self {
-        return Self::new()
+        return Self::new();
     }
 }

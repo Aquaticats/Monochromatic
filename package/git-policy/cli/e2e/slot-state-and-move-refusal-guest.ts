@@ -209,7 +209,7 @@ async function run(chosen: Options): Promise<void> {
     `mkdir --parents ${CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked > /root/slot-state-build.log 2>&1',
+    'cargo build --release --tests --locked --features test-only-switches > /root/slot-state-build.log 2>&1',
     'tail --lines=3 /root/slot-state-build.log',
   ].join('\n');
   guest({ chosen, script: prepare, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
@@ -221,7 +221,7 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${SBIN}`,
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_slot_state_guest)" > /root/slot-state-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=60 /root/slot-state-arm.log',
     'test "$status" = 0',

@@ -42,12 +42,24 @@ use std::collections::HashSet;
 /// ```ts
 /// import { parseJsonc, unitsToString, type JsoncKey, type JsoncKind, type JsoncValue } from '@monochromatic-dev/jsonc-edit-core-ts';
 /// ```
-use monochromatic_jsonc_edit::{JsoncKey, JsoncKind, JsoncValue, parse_jsonc, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncKey,
+    JsoncKind,
+    JsoncValue,
+    parse_jsonc,
+    units_to_string,
+};
 
 /// Imports the finding types from the sibling module.
-use crate::finding::{Finding, FindingKind};
+use crate::finding::{
+    Finding,
+    FindingKind,
+};
 /// Imports the grammar test and the section kind from the sibling module.
-use crate::grammar::{SectionKind, is_allowed_specifier};
+use crate::grammar::{
+    SectionKind,
+    is_allowed_specifier,
+};
 
 /// What:
 /// `const CHECKED_SECTIONS: [(&str, SectionKind); 4]` is a fixed-size array (length 4,
@@ -105,7 +117,10 @@ const BYTE_ORDER_MARK: [u8; 3] = [0xEF, 0xBB, 0xBF];
 /// ```ts
 /// function bareFinding(kind: FindingKind, path: string): Finding { return { kind, path }; }
 /// ```
-fn bare_finding(kind: FindingKind, path: &str) -> Finding {
+fn bare_finding(
+    kind: FindingKind,
+    path: &str,
+) -> Finding {
     // What: `path.to_string()` allocates a new owned `String` holding a copy of the borrowed text.
     // `None` is the empty case of `Option`, the Rust stand-in for `undefined`.
     // Why: The struct owns its path, so it can outlive the call; every optional field starts absent.
@@ -211,7 +226,10 @@ fn check_specifier(
     // if (value.kind.type !== 'string') { findings.push({ kind: 'non-string-specifier', /* ... */ }); return; }
     // ```
     match &value.kind {
-        JsoncKind::Text { units, .. } => {
+        JsoncKind::Text {
+            units,
+            ..
+        } => {
             // What: `units_to_string(units)` returns `Result<String, FromUtf16Error>`: `Ok(text)` or `Err(error)`.
             // `&units` is not needed because `units` is already a borrow here.
             // Why: A lone surrogate has no UTF-8 form, so such a specifier cannot be a catalog reference and is refused.
@@ -277,7 +295,13 @@ fn check_specifier(
 /// ```ts
 /// function checkSection(path: string, section: string, kind: SectionKind, value: JsoncValue, findings: Finding[]): void
 /// ```
-fn check_section(path: &str, section: &str, kind: SectionKind, value: &JsoncValue, findings: &mut Vec<Finding>) {
+fn check_section(
+    path: &str,
+    section: &str,
+    kind: SectionKind,
+    value: &JsoncValue,
+    findings: &mut Vec<Finding>,
+) {
     // What: `value.entries()` returns `Some(members)` for an object and `None` for any other JSON type.
     // `let ... else { ... }` binds on `Some` and otherwise runs the block, which must leave the function.
     // Why: A section holding `null`, an array, a string, a number or a boolean is one `malformed-section` finding.
@@ -372,7 +396,10 @@ pub fn check_manifest_path(path: &str) -> Option<Finding> {
 /// ```ts
 /// export function checkManifestBytes(path: string, bytes: Uint8Array): Finding[]
 /// ```
-pub fn check_manifest_bytes(path: &str, bytes: &[u8]) -> Vec<Finding> {
+pub fn check_manifest_bytes(
+    path: &str,
+    bytes: &[u8],
+) -> Vec<Finding> {
     // What: `bytes.strip_prefix(&BYTE_ORDER_MARK[..])` returns `Some(rest)` when the bytes start with the marker.
     // `[..]` slices the whole array into a `&[u8]`. `match` picks the stripped bytes or the original.
     // Why: pnpm removes one leading marker, so the contract does too.
@@ -460,7 +487,10 @@ pub fn check_manifest_bytes(path: &str, bytes: &[u8]) -> Vec<Finding> {
 ///   return checkManifestPath(path) ? [checkManifestPath(path)!] : checkManifestBytes(path, bytes);
 /// }
 /// ```
-pub fn check_manifest(path: &str, bytes: &[u8]) -> Vec<Finding> {
+pub fn check_manifest(
+    path: &str,
+    bytes: &[u8],
+) -> Vec<Finding> {
     // What: `if let Some(finding) = check_manifest_path(path)` runs the block only when the name is unsupported.
     // Why: Return that one finding and skip reading the bytes.
     if let Some(finding) = check_manifest_path(path) {

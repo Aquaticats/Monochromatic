@@ -40,7 +40,10 @@
 ///   return Math.max(1, Math.floor(windowSeconds * rate));
 /// }
 /// ```
-pub fn window_frames(window_seconds: f64, rate: u32) -> u64 {
+pub fn window_frames(
+    window_seconds: f64,
+    rate: u32,
+) -> u64 {
     // What:     `let raw = (window_seconds * f64::from(rate)).floor();`. `f64::from(rate)`
     //           widens the `u32` rate to `f64` (no precision loss); `.floor()` rounds
     //           down to a whole frame count, still as `f64`.
@@ -68,7 +71,7 @@ pub fn window_frames(window_seconds: f64, rate: u32) -> u64 {
     // ```ts
     // return Math.max(1, frames);
     // ```
-    return frames.max(1)
+    return frames.max(1);
 }
 
 /// What:
@@ -90,7 +93,11 @@ pub fn window_frames(window_seconds: f64, rate: u32) -> u64 {
 /// ```ts
 /// function windowFrameStarts(totalFrames: number, windowCount: number, windowFrames: number): number[] { ... }
 /// ```
-pub fn window_frame_starts(total_frames: u64, window_count: usize, window_frames: u64) -> Vec<u64> {
+pub fn window_frame_starts(
+    total_frames: u64,
+    window_count: usize,
+    window_frames: u64,
+) -> Vec<u64> {
     // What:     `if window_count == 0 { return Vec::new(); }`. `Vec::new()` is the empty
     //           owned vector (sibling `vec![]` macro form).
     // Why:      No windows requested means no starts; guard the divisor below.
@@ -276,7 +283,7 @@ impl WindowPlacement {
         return WindowPlacement {
             window_frames: frames,
             starts: window_frame_starts(total_frames, window_count, frames),
-        }
+        };
     }
 }
 

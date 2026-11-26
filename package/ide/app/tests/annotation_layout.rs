@@ -14,13 +14,37 @@
 ///  the records they consume,
 ///  and the vertical mapping blocks feed.
 use ide_app::{
-    annotation::{Label, Mark, Visible},
-    annotation_layout::{AnnotationColors, AnnotationFrame, lay_out, pack},
+    annotation::{
+        Label,
+        Mark,
+        Visible,
+    },
+    annotation_layout::{
+        AnnotationColors,
+        AnnotationFrame,
+        lay_out,
+        pack,
+    },
     document::Document,
     language::diagnostics::Severity,
-    row_map::{CODE_ROW, RowMap},
-    shaped_text::{ShapedView, TERMINATOR_MARK, TextShaper, Viewport},
-    virtual_row::{BLOCK_GAP, Block, CONTINUATION_INDENT, HINT_GAP, MessageRow, ROW_HEIGHT},
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
+    shaped_text::{
+        ShapedView,
+        TERMINATOR_MARK,
+        TextShaper,
+        Viewport,
+    },
+    virtual_row::{
+        BLOCK_GAP,
+        Block,
+        CONTINUATION_INDENT,
+        HINT_GAP,
+        MessageRow,
+        ROW_HEIGHT,
+    },
 };
 /// Blocks are shared between the window state and the frames that paint them.
 use std::sync::Arc;
@@ -47,7 +71,10 @@ const COLORS: AnnotationColors = AnnotationColors {
 /// ```ts
 /// function laidOut(source: string, visible: Visible): [Document, ShapedView, AnnotationFrame];
 /// ```
-fn laid_out(source: &str, visible: &Visible) -> (Document, ShapedView, AnnotationFrame) {
+fn laid_out(
+    source: &str,
+    visible: &Visible,
+) -> (Document, ShapedView, AnnotationFrame) {
     let document = Document::new(source);
     let mut shaper = TextShaper::new();
     let viewport = Viewport {
@@ -74,7 +101,10 @@ fn laid_out(source: &str, visible: &Visible) -> (Document, ShapedView, Annotatio
 /// ```ts
 /// function label(position: number, text: string): Label;
 /// ```
-fn label(position: usize, text: &str) -> Label {
+fn label(
+    position: usize,
+    text: &str,
+) -> Label {
     return Label {
         position,
         text: text.to_string(),
@@ -82,7 +112,12 @@ fn label(position: usize, text: &str) -> Label {
 }
 
 /// One message row of `severity` aligned to source character `start`.
-fn message(start: usize, continued: bool, severity: Severity, text: &str) -> MessageRow {
+fn message(
+    start: usize,
+    continued: bool,
+    severity: Severity,
+    text: &str,
+) -> MessageRow {
     return MessageRow {
         start,
         continued,
@@ -146,12 +181,19 @@ fn with_block(
 
 /// Compare two pixel positions within a thousandth of a pixel;
 ///  sums of floats may round differently.
-fn close(actual: f32, expected: f32) -> bool {
+fn close(
+    actual: f32,
+    expected: f32,
+) -> bool {
     return (actual - expected).abs() < 0.001;
 }
 
 /// A mark of `severity` over `start..end`.
-fn mark(start: usize, end: usize, severity: Severity) -> Mark {
+fn mark(
+    start: usize,
+    end: usize,
+    severity: Severity,
+) -> Mark {
     return Mark {
         start,
         end,

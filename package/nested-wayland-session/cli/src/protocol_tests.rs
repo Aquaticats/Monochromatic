@@ -10,7 +10,15 @@
 // describe("protocol", () => { /* cases below */ });
 // ```
 
-use super::{format_response, parse_command, ButtonAction, Command, KeyAction, PointerButton, Response};
+use super::{
+    ButtonAction,
+    Command,
+    KeyAction,
+    PointerButton,
+    Response,
+    format_response,
+    parse_command,
+};
 
 #[test]
 fn ping_and_quit_parse() {
@@ -212,8 +220,20 @@ fn record_parses_dir_fps_format_and_stop() {
 /// `move` takes two finite coordinates and nothing else.
 #[test]
 fn move_parses_coordinates_and_rejects_bad_input() {
-    assert_eq!(parse_command("move 10 20"), Ok(Command::Move { x: 10.0, y: 20.0 }));
-    assert_eq!(parse_command("move 1.5 -2"), Ok(Command::Move { x: 1.5, y: -2.0 }));
+    assert_eq!(
+        parse_command("move 10 20"),
+        Ok(Command::Move {
+            x: 10.0,
+            y: 20.0
+        })
+    );
+    assert_eq!(
+        parse_command("move 1.5 -2"),
+        Ok(Command::Move {
+            x: 1.5,
+            y: -2.0
+        })
+    );
     assert!(parse_command("move 10").is_err());
     assert!(parse_command("move 10 20 30").is_err());
     assert!(parse_command("move 10 20 quit").is_err());
@@ -226,9 +246,27 @@ fn move_parses_coordinates_and_rejects_bad_input() {
 /// then an optional button that defaults to left.
 #[test]
 fn button_parses_action_and_defaults_to_left() {
-    assert_eq!(parse_command("button down"), Ok(Command::Button { action: ButtonAction::Down, button: PointerButton::Left }));
-    assert_eq!(parse_command("button up right"), Ok(Command::Button { action: ButtonAction::Up, button: PointerButton::Right }));
-    assert_eq!(parse_command("button down middle"), Ok(Command::Button { action: ButtonAction::Down, button: PointerButton::Middle }));
+    assert_eq!(
+        parse_command("button down"),
+        Ok(Command::Button {
+            action: ButtonAction::Down,
+            button: PointerButton::Left
+        })
+    );
+    assert_eq!(
+        parse_command("button up right"),
+        Ok(Command::Button {
+            action: ButtonAction::Up,
+            button: PointerButton::Right
+        })
+    );
+    assert_eq!(
+        parse_command("button down middle"),
+        Ok(Command::Button {
+            action: ButtonAction::Down,
+            button: PointerButton::Middle
+        })
+    );
     assert!(parse_command("button").is_err());
     assert!(parse_command("button press").is_err());
     assert!(parse_command("button down purple").is_err());
@@ -252,8 +290,18 @@ fn argumentless_taskbar_and_window_verbs_reject_trailing_tokens() {
 /// defaulting to 64.
 #[test]
 fn launcher_log_parses_optional_count() {
-    assert_eq!(parse_command("launcher-log"), Ok(Command::LauncherLog { count: super::launcher::DEFAULT_LOG_COUNT }));
-    assert_eq!(parse_command("launcher-log 5"), Ok(Command::LauncherLog { count: 5 }));
+    assert_eq!(
+        parse_command("launcher-log"),
+        Ok(Command::LauncherLog {
+            count: super::launcher::DEFAULT_LOG_COUNT
+        })
+    );
+    assert_eq!(
+        parse_command("launcher-log 5"),
+        Ok(Command::LauncherLog {
+            count: 5
+        })
+    );
     assert!(parse_command("launcher-log 0").is_err());
     assert!(parse_command("launcher-log -1").is_err());
     assert!(parse_command("launcher-log x").is_err());

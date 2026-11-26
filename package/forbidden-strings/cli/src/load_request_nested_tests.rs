@@ -18,7 +18,11 @@
 /// ```ts
 /// import { protectedRequest, pending } from './load-request';
 /// ```
-use super::{LoadRequest, PENDING, protected_request};
+use super::{
+    LoadRequest,
+    PENDING,
+    protected_request,
+};
 /// Import the existing compiled-rule fixture and owned native filename.
 use crate::frx_load::LoadedRules;
 use crate::rules_list::RulesEntry;
@@ -38,7 +42,10 @@ use std::path::PathBuf;
 fn request(name: &str) -> LoadRequest {
     // Copy the borrowed name into an owned native path; return the request explicitly.
     return LoadRequest {
-        entries: vec![RulesEntry { path: PathBuf::from(name), optional: false }],
+        entries: vec![RulesEntry {
+            path: PathBuf::from(name),
+            optional: false,
+        }],
         builtin: false,
         implicit: false,
         access: CacheAccess::ReadWrite,
@@ -92,7 +99,10 @@ fn constructed_rules_are_discarded_after_a_panic() {
         Err(failure) => failure,
     };
     // to_string owns the redacted diagnostic independently of the caught payload.
-    assert_eq!(error.to_string(), "Forbidden-strings rule loading panicked; no rule set was accepted.");
+    assert_eq!(
+        error.to_string(),
+        "Forbidden-strings rule loading panicked; no rule set was accepted."
+    );
     assert!(protected_request(request("outer"), outer).is_ok());
     assert!(PENDING.take().is_none());
 }
@@ -102,7 +112,10 @@ fn constructed_rules_are_discarded_after_a_panic() {
 fn occupied_slot_restores_original_arguments() {
     // Some marks present arguments, rather than the empty None state.
     PENDING.set(Some(LoadRequest {
-        entries: vec![RulesEntry { path: PathBuf::from("original"), optional: true }],
+        entries: vec![RulesEntry {
+            path: PathBuf::from("original"),
+            optional: true,
+        }],
         builtin: true,
         implicit: true,
         access: CacheAccess::ReadOnly,

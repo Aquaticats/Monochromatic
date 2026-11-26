@@ -27,7 +27,10 @@
 /// Imports the future trait that a bounded step drives to completion.
 use std::future::Future;
 /// Imports the I/O error type and its kind that report a step that ran out of time.
-use std::io::{Error as IoError, ErrorKind};
+use std::io::{
+    Error as IoError,
+    ErrorKind,
+};
 /// Imports the duration type that bounds each step.
 use std::time::Duration;
 
@@ -73,7 +76,10 @@ pub(crate) const DBUS_STEP_BOUND: Duration = METHOD_TIMEOUT;
 /// # Errors
 /// The step's own error,
 /// or `zbus::Error::InputOutput` of kind `TimedOut` after `bound`.
-pub(crate) async fn within<T>(bound: Duration, work: impl Future<Output = zbus::Result<T>>) -> zbus::Result<T> {
+pub(crate) async fn within<T>(
+    bound: Duration,
+    work: impl Future<Output = zbus::Result<T>>,
+) -> zbus::Result<T> {
     let runtime = SharedRuntime::current()?;
     return match runtime.timeout(bound, work).await {
         Ok(outcome) => outcome,
@@ -112,7 +118,10 @@ pub(crate) fn step<T>(work: impl Future<Output = zbus::Result<T>>) -> zbus::Resu
 ///
 /// # Errors
 /// As `within`.
-pub(crate) fn connect(builder: Builder<'_>, timeout: Duration) -> zbus::Result<Connection> {
+pub(crate) fn connect(
+    builder: Builder<'_>,
+    timeout: Duration,
+) -> zbus::Result<Connection> {
     return zbus::block_on(within(timeout, builder.method_timeout(timeout).build()));
 }
 

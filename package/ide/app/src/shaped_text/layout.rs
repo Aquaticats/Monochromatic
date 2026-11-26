@@ -4,20 +4,38 @@
 //!  and the measurements that depend on it.
 
 /// The paint role of virtual-row glyphs.
-use super::{ROW_ROLE, TextShaper};
+use super::{
+    ROW_ROLE,
+    TextShaper,
+};
 /// Glyphs are set on a line box as tall as one code row.
 use crate::row_map::CODE_ROW;
 /// Syntax classifications stay independent of pixels.
 use crate::source_style::role_face;
 /// Height and text size of the virtual rows above annotated lines.
-use crate::virtual_row::{ROW_HEIGHT, ROW_TEXT};
+use crate::virtual_row::{
+    ROW_HEIGHT,
+    ROW_TEXT,
+};
 /// IntelliJ's break rules as a Parley override,
 /// and the continuation indent of a wrapped line.
-use crate::wrap::{INTELLIJ_LINE_BREAK, break_wrapped, has_wrap_width};
+use crate::wrap::{
+    INTELLIJ_LINE_BREAK,
+    break_wrapped,
+    has_wrap_width,
+};
 /// Font and paragraph layout are supplied by the same Parley stack Slint uses.
 use parley::{
-    Affinity, Cursor, FontFamily, FontFeatures, FontStyle, FontWeight, Layout, LineHeight,
-    OverflowWrap, StyleProperty,
+    Affinity,
+    Cursor,
+    FontFamily,
+    FontFeatures,
+    FontStyle,
+    FontWeight,
+    Layout,
+    LineHeight,
+    OverflowWrap,
+    StyleProperty,
 };
 /// Font bytes are shared immutably across the font database.
 use std::borrow::Cow;
@@ -95,7 +113,10 @@ impl TextShaper {
     /// ```ts
     /// wrappedLayout(text: string, scale: number, width: number): Layout;
     /// ```
-    pub(crate) fn wrapped_line_layout(&mut self, request: LineRequest<'_>) -> Layout<u32> {
+    pub(crate) fn wrapped_line_layout(
+        &mut self,
+        request: LineRequest<'_>,
+    ) -> Layout<u32> {
         let width = request.wrap.unwrap_or(0.0);
         if !has_wrap_width(width) {
             let unwrapped = LineRequest {
@@ -114,7 +135,10 @@ impl TextShaper {
 
     /// Build and break one line with the shared font setup;
     ///  a request that wraps is left unbroken for `break_wrapped`.
-    fn build_line(&mut self, request: LineRequest<'_>) -> Layout<u32> {
+    fn build_line(
+        &mut self,
+        request: LineRequest<'_>,
+    ) -> Layout<u32> {
         let mut builder =
             self.layouts
                 .ranged_builder(&mut self.fonts, request.text, request.scale, true);
@@ -201,7 +225,11 @@ impl TextShaper {
     /// ```ts
     /// rowLayout(text: string, scale: number): Layout;
     /// ```
-    pub fn row_layout(&mut self, text: &str, scale: f32) -> Layout<u32> {
+    pub fn row_layout(
+        &mut self,
+        text: &str,
+        scale: f32,
+    ) -> Layout<u32> {
         return self.build_row(text, scale, None);
     }
 
@@ -221,7 +249,12 @@ impl TextShaper {
     /// ```ts
     /// wrapRowText(text: string, scale: number, width: number): string[];
     /// ```
-    pub fn wrap_row_text(&mut self, text: &str, scale: f32, width: f32) -> Vec<String> {
+    pub fn wrap_row_text(
+        &mut self,
+        text: &str,
+        scale: f32,
+        width: f32,
+    ) -> Vec<String> {
         let layout = self.build_row(text, scale, Some(width));
         let mut pieces = Vec::new();
         for line in layout.lines() {
@@ -237,7 +270,12 @@ impl TextShaper {
 
     /// Shape virtual-row text in the interface face,
     /// broken at `wrap` logical pixels or not at all.
-    fn build_row(&mut self, text: &str, scale: f32, wrap: Option<f32>) -> Layout<u32> {
+    fn build_row(
+        &mut self,
+        text: &str,
+        scale: f32,
+        wrap: Option<f32>,
+    ) -> Layout<u32> {
         let mut builder = self
             .layouts
             .ranged_builder(&mut self.fonts, text, scale, true);
@@ -268,7 +306,10 @@ impl TextShaper {
     /// Tab stops are multiples of this advance,
     ///  so it comes from the font,
     ///  not from an assumed cell width.
-    pub(crate) fn space_advance(&mut self, scale: f32) -> f32 {
+    pub(crate) fn space_advance(
+        &mut self,
+        scale: f32,
+    ) -> f32 {
         // What: `if let Some((known, advance))` runs only when a measurement is stored, naming its two parts.
         // Why: A viewport reshapes many tab lines per frame; the font is asked once.
         //
@@ -291,7 +332,10 @@ impl TextShaper {
 
     /// Baseline of the primary font at `scale`;
     ///  a known primary glyph makes it the same for all source rows.
-    pub(super) fn baseline(&mut self, scale: f32) -> f32 {
+    pub(super) fn baseline(
+        &mut self,
+        scale: f32,
+    ) -> f32 {
         let probe = self.line_layout("M", scale, &[], &[]);
         return probe
             .lines()

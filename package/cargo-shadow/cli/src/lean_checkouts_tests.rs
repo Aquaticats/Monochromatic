@@ -2,9 +2,15 @@
 //! the main checkout and its registered worktrees are found from a worktree or from the main directory,
 //! and a worktree whose directory is gone is not listed.
 
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
-use crate::lean_checkouts::{common_git_directory, list_checkouts};
+use crate::lean_checkouts::{
+    common_git_directory,
+    list_checkouts,
+};
 use crate::test_scratch::scratch;
 
 /// Makes a main checkout with one live and one gone worktree.
@@ -17,10 +23,21 @@ fn repository(root: &std::path::Path) -> (PathBuf, PathBuf, PathBuf) {
     for (name, path) in [("live", &live), ("gone", &gone)] {
         let own: PathBuf = main.join(".git").join("worktrees").join(name);
         fs::create_dir_all(&own).expect("worktree entry");
-        fs::write(own.join("gitdir"), format!("{}\n", path.join(".git").display())).expect("gitdir");
+        fs::write(
+            own.join("gitdir"),
+            format!("{}\n", path.join(".git").display()),
+        )
+        .expect("gitdir");
         fs::write(own.join("commondir"), "../..\n").expect("commondir");
     }
-    fs::write(live.join(".git"), format!("gitdir: {}\n", main.join(".git").join("worktrees").join("live").display())).expect("dot git file");
+    fs::write(
+        live.join(".git"),
+        format!(
+            "gitdir: {}\n",
+            main.join(".git").join("worktrees").join("live").display()
+        ),
+    )
+    .expect("dot git file");
     return (main, live, gone);
 }
 

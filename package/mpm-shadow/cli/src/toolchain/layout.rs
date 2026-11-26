@@ -23,7 +23,10 @@
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `winning_root` from `super::across_roots`.
 use super::across_roots::winning_root;
@@ -32,13 +35,26 @@ use super::cargo_installs::cargo_bin_dir_of;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, OsFamily, Route};
+use super::model::{
+    LockedTool,
+    OsFamily,
+    Route,
+};
 /// Imports what this module uses from `super::published_archive`.
-use super::published_archive::{current_link_of, is_published_archive};
+use super::published_archive::{
+    current_link_of,
+    is_published_archive,
+};
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope};
+use super::scope::{
+    EnvMap,
+    Scope,
+};
 /// Imports the name checks from `super::segment`.
-use super::segment::{check_tool_id, check_version};
+use super::segment::{
+    check_tool_id,
+    check_version,
+};
 
 /// How many directory levels below a search root `find_bin_under` descends.
 const MAX_BIN_SEARCH_DEPTH: usize = 3;
@@ -59,7 +75,11 @@ const MAX_BIN_SEARCH_DEPTH: usize = 3;
 /// ```ts
 /// export function platformId(os: string, arch: string, musl: boolean): string
 /// ```
-pub fn platform_id(os: &str, arch: &str, musl: bool) -> String {
+pub fn platform_id(
+    os: &str,
+    arch: &str,
+    musl: bool,
+) -> String {
     let cpu: &str = match arch {
         "x86_64" => "x64",
         "aarch64" => "arm64",
@@ -80,7 +100,11 @@ pub fn platform_id(os: &str, arch: &str, musl: bool) -> String {
 /// The platform id of the running host (a musl build runs on a musl host,
 /// so the build's C library is the host's).
 pub fn current_platform_id() -> String {
-    return platform_id(std::env::consts::OS, std::env::consts::ARCH, cfg!(target_env = "musl"));
+    return platform_id(
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        cfg!(target_env = "musl"),
+    );
 }
 
 /// The OS family of the running host,
@@ -90,7 +114,10 @@ pub fn current_family() -> Option<OsFamily> {
 }
 
 /// Whether a tool with this OS filter installs on `family` (no filter means every family).
-pub fn applies_to_family(os: &Option<Vec<OsFamily>>, family: Option<OsFamily>) -> bool {
+pub fn applies_to_family(
+    os: &Option<Vec<OsFamily>>,
+    family: Option<OsFamily>,
+) -> bool {
     let Some(allowed) = os else {
         return true;
     };
@@ -122,7 +149,10 @@ pub fn install_dir_name(id: &str) -> String {
     let mut name: String = String::new();
     let mut previous_was_replaced: bool = false;
     for character in id.chars() {
-        let kept: bool = character.is_ascii_alphanumeric() || character == '.' || character == '_' || character == '-';
+        let kept: bool = character.is_ascii_alphanumeric()
+            || character == '.'
+            || character == '_'
+            || character == '-';
         if kept {
             name.push(character);
             previous_was_replaced = false;
@@ -146,7 +176,10 @@ pub fn install_dir_name(id: &str) -> String {
 /// ```ts
 /// export function toolDirectory(toolchainRoot: string, id: string): string  // throws
 /// ```
-pub fn tool_directory(toolchain_root: &Path, id: &str) -> Result<PathBuf, ToolchainError> {
+pub fn tool_directory(
+    toolchain_root: &Path,
+    id: &str,
+) -> Result<PathBuf, ToolchainError> {
     if let Err(message) = check_tool_id(id) {
         return Err(ToolchainError::failure(message));
     }
@@ -171,7 +204,11 @@ pub fn tool_directory(toolchain_root: &Path, id: &str) -> Result<PathBuf, Toolch
 /// ```ts
 /// export function toolInstallDir(toolchainRoot: string, id: string, version: string): string  // throws
 /// ```
-pub fn tool_install_dir(toolchain_root: &Path, id: &str, version: &str) -> Result<PathBuf, ToolchainError> {
+pub fn tool_install_dir(
+    toolchain_root: &Path,
+    id: &str,
+    version: &str,
+) -> Result<PathBuf, ToolchainError> {
     let tool_dir: PathBuf = tool_directory(toolchain_root, id)?;
     if let Err(message) = check_version(version) {
         return Err(ToolchainError::failure(message));
@@ -194,7 +231,11 @@ pub const GO_BIN_DIRECTORY_NAME: &str = "bin";
 /// ```ts
 /// export function goBinDirOf(toolchainRoot: string, id: string, version: string): string  // throws on an unsafe name
 /// ```
-pub fn go_bin_dir_of(toolchain_root: &Path, id: &str, version: &str) -> Result<PathBuf, ToolchainError> {
+pub fn go_bin_dir_of(
+    toolchain_root: &Path,
+    id: &str,
+    version: &str,
+) -> Result<PathBuf, ToolchainError> {
     return Ok(tool_install_dir(toolchain_root, id, version)?.join(GO_BIN_DIRECTORY_NAME));
 }
 
@@ -210,7 +251,11 @@ pub fn go_bin_dir_of(toolchain_root: &Path, id: &str, version: &str) -> Result<P
 /// ```ts
 /// export function toolDownloadsDir(toolchainRoot: string, id: string, version: string): string  // throws
 /// ```
-pub fn tool_downloads_dir(toolchain_root: &Path, id: &str, version: &str) -> Result<PathBuf, ToolchainError> {
+pub fn tool_downloads_dir(
+    toolchain_root: &Path,
+    id: &str,
+    version: &str,
+) -> Result<PathBuf, ToolchainError> {
     let downloads: PathBuf = toolchain_root.join("downloads");
     let tool_dir: PathBuf = tool_directory(&downloads, id)?;
     if let Err(message) = check_version(version) {
@@ -221,7 +266,10 @@ pub fn tool_downloads_dir(toolchain_root: &Path, id: &str, version: &str) -> Res
 
 /// `$CARGO_HOME`,
 /// default `~/.cargo`.
-pub fn cargo_home_dir(env: &EnvMap, home: &Path) -> PathBuf {
+pub fn cargo_home_dir(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     return match env.get("CARGO_HOME") {
         Some(directory) => PathBuf::from(directory),
         None => home.join(".cargo"),
@@ -229,13 +277,19 @@ pub fn cargo_home_dir(env: &EnvMap, home: &Path) -> PathBuf {
 }
 
 /// The directory below `$CARGO_HOME` (default `~/.cargo`) cargo installs binaries into.
-pub fn cargo_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
+pub fn cargo_bin_dir(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     return cargo_home_dir(env, home).join("bin");
 }
 
 /// `$UV_TOOL_BIN_DIR`,
 /// default `~/.local/bin`.
-fn uv_tool_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
+fn uv_tool_bin_dir(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     return match env.get("UV_TOOL_BIN_DIR") {
         Some(directory) => PathBuf::from(directory),
         None => home.join(".local").join("bin"),
@@ -244,7 +298,10 @@ fn uv_tool_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
 
 /// `$PNPM_HOME`,
 /// default `~/.local/share/pnpm`.
-fn pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
+fn pnpm_home(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     return match env.get("PNPM_HOME") {
         Some(directory) => PathBuf::from(directory),
         None => home.join(".local").join("share").join("pnpm"),
@@ -266,7 +323,10 @@ fn pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
 /// ```ts
 /// export function physicalPnpmHome(env: EnvMap, home: string): string
 /// ```
-pub fn physical_pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
+pub fn physical_pnpm_home(
+    env: &EnvMap,
+    home: &Path,
+) -> PathBuf {
     let spelled: PathBuf = pnpm_home(env, home);
     let mut missing_tail: Vec<std::ffi::OsString> = Vec::new();
     let mut existing: &Path = &spelled;
@@ -301,7 +361,10 @@ pub fn physical_pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
 /// ```ts
 /// export function managerNativeBinDirs(scope: Scope, env: EnvMap): string[]
 /// ```
-pub fn manager_native_bin_dirs(scope: &Scope, env: &EnvMap) -> Vec<PathBuf> {
+pub fn manager_native_bin_dirs(
+    scope: &Scope,
+    env: &EnvMap,
+) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = vec![
         scope.exposure_dir.clone(),
         scope.toolchain_bin_dir.clone(),
@@ -357,10 +420,16 @@ fn build_tools_version(tool: &LockedTool) -> String {
 /// ```ts
 /// export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[]): string[]
 /// ```
-pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
+pub fn bin_search_dirs(
+    tool: &LockedTool,
+    scope: &Scope,
+    env: &EnvMap,
+    extra_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
     // A name that is not one plain directory name is refused when the plan and the lock are decoded, so the error
     // arm is unreachable for a decoded lock; for any other value "nowhere to look" is the safe answer.
-    let install_dir: Option<PathBuf> = tool_install_dir(&scope.toolchain_root, &tool.declaration.id, &tool.version).ok();
+    let install_dir: Option<PathBuf> =
+        tool_install_dir(&scope.toolchain_root, &tool.declaration.id, &tool.version).ok();
     let mut dirs: Vec<PathBuf> = Vec::new();
     match tool.declaration.route {
         Route::CargoBinstall => dirs.push(cargo_bin_dir_of(tool, scope)),
@@ -467,7 +536,10 @@ fn sorted_child_directories(directory: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// export async function findBinUnder(root: string, name: string): Promise<string | undefined>
 /// ```
-pub fn find_bin_under(root: &Path, name: &str) -> Option<PathBuf> {
+pub fn find_bin_under(
+    root: &Path,
+    name: &str,
+) -> Option<PathBuf> {
     let mut level: Vec<PathBuf> = vec![root.to_path_buf()];
     for _depth in 0..=MAX_BIN_SEARCH_DEPTH {
         if level.is_empty() {
@@ -500,7 +572,13 @@ pub fn find_bin_under(root: &Path, name: &str) -> Option<PathBuf> {
 /// ```ts
 /// export async function findToolBin(tool, name, scope, env, extra): Promise<string | undefined>
 /// ```
-pub fn find_tool_bin(tool: &LockedTool, name: &str, scope: &Scope, env: &EnvMap, extra_dirs: &[PathBuf]) -> Option<PathBuf> {
+pub fn find_tool_bin(
+    tool: &LockedTool,
+    name: &str,
+    scope: &Scope,
+    env: &EnvMap,
+    extra_dirs: &[PathBuf],
+) -> Option<PathBuf> {
     for directory in bin_search_dirs(tool, scope, env, extra_dirs) {
         let direct: PathBuf = directory.join(name);
         if is_executable(&direct) {

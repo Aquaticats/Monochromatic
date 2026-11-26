@@ -25,8 +25,18 @@ use std::process::Command;
 use std::sync::Arc;
 
 use crate::cgroup_test_support::delegated_route;
-use crate::control_group::{ControlGroup, Route, RouteSettings, detect_route};
-use crate::inherited_limits::{InheritedLimits, caller_limits, own_cgroup, read_inherited_limits};
+use crate::control_group::{
+    ControlGroup,
+    Route,
+    RouteSettings,
+    detect_route,
+};
+use crate::inherited_limits::{
+    InheritedLimits,
+    caller_limits,
+    own_cgroup,
+    read_inherited_limits,
+};
 use crate::test_scratch::scratch;
 
 /// The kernel's default I/O weight,
@@ -39,7 +49,12 @@ const SECOND_IN_MICROSECONDS: u64 = 1_000_000;
 
 /// The file of a cgroup directory in a fixture tree,
 /// made with its parents.
-fn write_limit(root: &Path, cgroup: &str, name: &str, text: &str) {
+fn write_limit(
+    root: &Path,
+    cgroup: &str,
+    name: &str,
+    text: &str,
+) {
     let directory = root.join(cgroup.trim_start_matches('/'));
     fs::create_dir_all(&directory).expect("make the cgroup directory");
     fs::write(directory.join(name), text).expect("write the limit file");
@@ -47,7 +62,14 @@ fn write_limit(root: &Path, cgroup: &str, name: &str, text: &str) {
 
 /// The limits of one cgroup directory of a fixture tree,
 /// written as the kernel prints them.
-fn write_all(root: &Path, cgroup: &str, memory: &str, cpu: &str, pids: &str, io_weight: &str) {
+fn write_all(
+    root: &Path,
+    cgroup: &str,
+    memory: &str,
+    cpu: &str,
+    pids: &str,
+    io_weight: &str,
+) {
     write_limit(root, cgroup, "memory.max", memory);
     write_limit(root, cgroup, "cpu.max", cpu);
     write_limit(root, cgroup, "pids.max", pids);
@@ -57,9 +79,30 @@ fn write_all(root: &Path, cgroup: &str, memory: &str, cpu: &str, pids: &str, io_
 /// The fixture tree of the tightest-of-ancestors tests:
 /// each of the four limits is tightest on a different cgroup of the path `/a/b/c`.
 fn tree_where_each_limit_is_tightest_somewhere(root: &Path) {
-    write_all(root, "/a", "1000\n", "200000 100000\n", "50\n", "default 80\n");
-    write_all(root, "/a/b", "500\n", "50000 100000\n", "max\n", "default 40\n8:0 10\n");
-    write_all(root, "/a/b/c", "max\n", "max 100000\n", "70\n", "default 100\n");
+    write_all(
+        root,
+        "/a",
+        "1000\n",
+        "200000 100000\n",
+        "50\n",
+        "default 80\n",
+    );
+    write_all(
+        root,
+        "/a/b",
+        "500\n",
+        "50000 100000\n",
+        "max\n",
+        "default 40\n8:0 10\n",
+    );
+    write_all(
+        root,
+        "/a/b/c",
+        "max\n",
+        "max 100000\n",
+        "70\n",
+        "default 100\n",
+    );
 }
 
 /// Acceptance (limits kept):
@@ -77,7 +120,12 @@ fn the_tightest_value_of_each_limit_on_the_way_up_is_the_one_carried() {
 
     assert_eq!(
         limits,
-        InheritedLimits { memory_max: Some(500), cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS / 2), tasks_max: Some(50), io_weight: Some(40) }
+        InheritedLimits {
+            memory_max: Some(500),
+            cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS / 2),
+            tasks_max: Some(50),
+            io_weight: Some(40)
+        }
     );
 }
 
@@ -88,13 +136,25 @@ fn the_tightest_value_of_each_limit_on_the_way_up_is_the_one_carried() {
 fn limits_of_the_ancestors_the_slice_shares_are_not_copied() {
     let root = scratch();
     tree_where_each_limit_is_tightest_somewhere(root.path());
-    write_all(root.path(), "/a", "1\n", "1000 100000\n", "1\n", "default 1\n");
+    write_all(
+        root.path(),
+        "/a",
+        "1\n",
+        "1000 100000\n",
+        "1\n",
+        "default 1\n",
+    );
 
     let limits = read_inherited_limits(root.path(), "/a/b/c", "/a/slice").expect("the limits");
 
     assert_eq!(
         limits,
-        InheritedLimits { memory_max: Some(500), cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS / 2), tasks_max: Some(70), io_weight: Some(40) }
+        InheritedLimits {
+            memory_max: Some(500),
+            cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS / 2),
+            tasks_max: Some(70),
+            io_weight: Some(40)
+        }
     );
 }
 
@@ -105,14 +165,25 @@ fn limits_of_the_ancestors_the_slice_shares_are_not_copied() {
 #[test]
 fn limits_nobody_sets_stay_absent() {
     let root = scratch();
-    write_all(root.path(), "/a", "max\n", "max 100000\n", "max\n", "default 100\n");
+    write_all(
+        root.path(),
+        "/a",
+        "max\n",
+        "max 100000\n",
+        "max\n",
+        "default 100\n",
+    );
     write_limit(root.path(), "/a/b", "cgroup.procs", "");
     write_limit(root.path(), "/a/b/c", "memory.max", "max\n");
 
     let limits = read_inherited_limits(root.path(), "/a/b/c", "/elsewhere").expect("the limits");
 
     assert_eq!(limits, InheritedLimits::default());
-    assert!(limits.properties().is_empty(), "a property was made for a limit nobody set: {:?}", limits.properties());
+    assert!(
+        limits.properties().is_empty(),
+        "a property was made for a limit nobody set: {:?}",
+        limits.properties()
+    );
 }
 
 /// `io.weight` has a `default` line and lines for single devices:
@@ -132,7 +203,10 @@ fn the_io_weight_is_the_default_line_and_never_a_device_line() {
 
         let limits = read_inherited_limits(root.path(), "/a", "/elsewhere").expect("the limits");
 
-        assert_eq!(limits.io_weight, expected, "io.weight {text:?} (the kernel default is {KERNEL_DEFAULT_IO_WEIGHT})");
+        assert_eq!(
+            limits.io_weight, expected,
+            "io.weight {text:?} (the kernel default is {KERNEL_DEFAULT_IO_WEIGHT})"
+        );
     }
 }
 
@@ -144,13 +218,19 @@ fn a_limit_file_that_cannot_be_read_is_an_error_that_names_it() {
     let garbage = scratch();
     write_limit(garbage.path(), "/a", "memory.max", "plenty\n");
     let unreadable = scratch();
-    fs::create_dir_all(unreadable.path().join("a/pids.max")).expect("a directory where a file is expected");
+    fs::create_dir_all(unreadable.path().join("a/pids.max"))
+        .expect("a directory where a file is expected");
     let no_default = scratch();
     write_limit(no_default.path(), "/a", "io.weight", "8:0 5\n");
     let zero_period = scratch();
     write_limit(zero_period.path(), "/a", "cpu.max", "100 0\n");
 
-    for (root, name) in [(&garbage, "memory.max"), (&unreadable, "pids.max"), (&no_default, "io.weight"), (&zero_period, "cpu.max")] {
+    for (root, name) in [
+        (&garbage, "memory.max"),
+        (&unreadable, "pids.max"),
+        (&no_default, "io.weight"),
+        (&zero_period, "cpu.max"),
+    ] {
         let refused = read_inherited_limits(root.path(), "/a", "/elsewhere").expect_err(name);
         assert!(refused.to_string().contains(name), "{refused}");
     }
@@ -161,13 +241,38 @@ fn a_limit_file_that_cannot_be_read_is_an_error_that_names_it() {
 /// with the quota as a percent rounded down and never to nothing.
 #[test]
 fn the_limits_are_spelled_as_properties_systemd_run_reads() {
-    let limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS), tasks_max: Some(64), io_weight: Some(5) };
-    assert_eq!(limits.properties(), ["MemoryMax=1073741824", "CPUQuota=100.00%", "TasksMax=64", "IOWeight=5"]);
+    let limits = InheritedLimits {
+        memory_max: Some(1_073_741_824),
+        cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS),
+        tasks_max: Some(64),
+        io_weight: Some(5),
+    };
+    assert_eq!(
+        limits.properties(),
+        [
+            "MemoryMax=1073741824",
+            "CPUQuota=100.00%",
+            "TasksMax=64",
+            "IOWeight=5"
+        ]
+    );
 
-    let quotas: [(u64, &str); 4] = [(1_234_567, "CPUQuota=123.45%"), (12_345, "CPUQuota=1.23%"), (50, "CPUQuota=0.01%"), (2_500_000, "CPUQuota=250.00%")];
+    let quotas: [(u64, &str); 4] = [
+        (1_234_567, "CPUQuota=123.45%"),
+        (12_345, "CPUQuota=1.23%"),
+        (50, "CPUQuota=0.01%"),
+        (2_500_000, "CPUQuota=250.00%"),
+    ];
     for (quota, expected) in quotas {
-        let only_cpu = InheritedLimits { cpu_quota_per_sec_usec: Some(quota), ..InheritedLimits::default() };
-        assert_eq!(only_cpu.properties(), [expected], "a quota of {quota} microseconds per second");
+        let only_cpu = InheritedLimits {
+            cpu_quota_per_sec_usec: Some(quota),
+            ..InheritedLimits::default()
+        };
+        assert_eq!(
+            only_cpu.properties(),
+            [expected],
+            "a quota of {quota} microseconds per second"
+        );
     }
 }
 
@@ -175,10 +280,22 @@ fn the_limits_are_spelled_as_properties_systemd_run_reads() {
 /// other lines and a missing line are not a path.
 #[test]
 fn the_own_cgroup_is_the_unified_line_of_the_proc_file() {
-    assert_eq!(own_cgroup("0::/user.slice/run.scope\n").expect("a path"), "/user.slice/run.scope");
-    assert_eq!(own_cgroup("1:name=systemd:/legacy\n0::/unified\n").expect("a path"), "/unified");
-    assert_eq!(own_cgroup("0::/gone.scope (deleted)\n").expect("a path"), "/gone.scope");
-    assert!(own_cgroup("1:name=systemd:/legacy\n").is_err(), "a v1-only file has no cgroup v2 path");
+    assert_eq!(
+        own_cgroup("0::/user.slice/run.scope\n").expect("a path"),
+        "/user.slice/run.scope"
+    );
+    assert_eq!(
+        own_cgroup("1:name=systemd:/legacy\n0::/unified\n").expect("a path"),
+        "/unified"
+    );
+    assert_eq!(
+        own_cgroup("0::/gone.scope (deleted)\n").expect("a path"),
+        "/gone.scope"
+    );
+    assert!(
+        own_cgroup("1:name=systemd:/legacy\n").is_err(),
+        "a v1-only file has no cgroup v2 path"
+    );
 }
 
 /// The caller's limits are read from the file that names its group and the slice the manager reported:
@@ -189,41 +306,99 @@ fn the_callers_limits_come_from_its_cgroup_file_and_the_slice() {
     let root = scratch();
     let own = root.path().join("own-cgroup");
     fs::write(&own, "0::/user.slice/caller.scope\n").expect("the cgroup file");
-    write_all(root.path(), "/user.slice", "1\n", "max 100000\n", "1\n", "default 100\n");
-    write_all(root.path(), "/user.slice/app.slice", "max\n", "max 100000\n", "max\n", "default 100\n");
-    write_all(root.path(), "/user.slice/caller.scope", "1073741824\n", "100000 100000\n", "64\n", "default 5\n");
+    write_all(
+        root.path(),
+        "/user.slice",
+        "1\n",
+        "max 100000\n",
+        "1\n",
+        "default 100\n",
+    );
+    write_all(
+        root.path(),
+        "/user.slice/app.slice",
+        "max\n",
+        "max 100000\n",
+        "max\n",
+        "default 100\n",
+    );
+    write_all(
+        root.path(),
+        "/user.slice/caller.scope",
+        "1073741824\n",
+        "100000 100000\n",
+        "64\n",
+        "default 5\n",
+    );
 
-    let limits = caller_limits(&own, root.path(), &root.path().join("user.slice/app.slice")).expect("the limits");
+    let limits = caller_limits(&own, root.path(), &root.path().join("user.slice/app.slice"))
+        .expect("the limits");
 
-    assert_eq!(limits, InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS), tasks_max: Some(64), io_weight: Some(5) });
+    assert_eq!(
+        limits,
+        InheritedLimits {
+            memory_max: Some(1_073_741_824),
+            cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS),
+            tasks_max: Some(64),
+            io_weight: Some(5)
+        }
+    );
 
     fs::write(&own, "0::/../escaped\n").expect("the cgroup file");
-    assert!(caller_limits(&own, root.path(), &root.path().join("user.slice/app.slice")).is_err(), "a path above the mount was read");
+    assert!(
+        caller_limits(&own, root.path(), &root.path().join("user.slice/app.slice")).is_err(),
+        "a path above the mount was read"
+    );
 }
 
 /// A route whose scopes carry the given limits,
 /// for the launcher tests.
 fn route_with(limits: InheritedLimits) -> Route {
-    return Route { systemd_run: "systemd-run".to_string(), slice: "app.slice".to_string(), slice_dir: "/sys/fs/cgroup/app.slice".into(), namespace: 1, slice_view: crate::control_group::View { mount: 1, inode: 1 }, limits: Arc::new(limits) };
+    return Route {
+        systemd_run: "systemd-run".to_string(),
+        slice: "app.slice".to_string(),
+        slice_dir: "/sys/fs/cgroup/app.slice".into(),
+        namespace: 1,
+        slice_view: crate::control_group::View {
+            mount: 1,
+            inode: 1,
+        },
+        limits: Arc::new(limits),
+    };
 }
 
 /// The arguments of a launcher,
 /// as text.
 fn arguments_of(command: &Command) -> Vec<String> {
-    return command.get_args().map(|argument| { return argument.to_string_lossy().to_string(); }).collect();
+    return command
+        .get_args()
+        .map(|argument| {
+            return argument.to_string_lossy().to_string();
+        })
+        .collect();
 }
 
 /// The launcher passes exactly the caller's limits as properties,
 /// after `Delegate=yes` and before the unit and the program.
 #[test]
 fn the_launcher_carries_exactly_the_callers_limits_as_properties() {
-    let limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS), tasks_max: Some(64), io_weight: Some(5) };
+    let limits = InheritedLimits {
+        memory_max: Some(1_073_741_824),
+        cpu_quota_per_sec_usec: Some(SECOND_IN_MICROSECONDS),
+        tasks_max: Some(64),
+        io_weight: Some(5),
+    };
     let route = route_with(limits);
     let planned = ControlGroup::plan(&route).expect("a scope name");
 
     let launch = planned.launcher(&route, Command::new("true").arg("--flag"), false);
 
-    let name = planned.directory().file_stem().expect("the unit name").to_string_lossy().to_string();
+    let name = planned
+        .directory()
+        .file_stem()
+        .expect("the unit name")
+        .to_string_lossy()
+        .to_string();
     assert_eq!(
         arguments_of(&launch),
         [
@@ -254,7 +429,12 @@ fn a_caller_without_limits_gets_no_limit_properties() {
 
     let launch = planned.launcher(&route, &Command::new("true"), false);
 
-    let properties: Vec<String> = arguments_of(&launch).into_iter().filter(|argument| { return argument.starts_with("--property="); }).collect();
+    let properties: Vec<String> = arguments_of(&launch)
+        .into_iter()
+        .filter(|argument| {
+            return argument.starts_with("--property=");
+        })
+        .collect();
     assert_eq!(properties, ["--property=Delegate=yes"]);
 }
 
@@ -270,7 +450,11 @@ fn a_route_is_refused_when_the_callers_limits_cannot_be_read() {
     let own = root.path().join("own-cgroup");
     fs::write(&own, "no unified line here\n").expect("the cgroup file");
 
-    let refused = detect_route(&RouteSettings { own_cgroup_file: own, ..RouteSettings::default() }).expect_err("an unreadable caller group is a missing capability");
+    let refused = detect_route(&RouteSettings {
+        own_cgroup_file: own,
+        ..RouteSettings::default()
+    })
+    .expect_err("an unreadable caller group is a missing capability");
 
     assert!(refused.to_string().contains("resource limits"), "{refused}");
 }
@@ -300,25 +484,45 @@ const SCOPE_IO_WEIGHT: u64 = 7;
 fn a_real_scope_carries_the_limits_of_its_route() {
     let found = delegated_route();
     let route = Route {
-        limits: Arc::new(InheritedLimits { memory_max: Some(SCOPE_MEMORY_MAX), cpu_quota_per_sec_usec: Some(SCOPE_CPU_QUOTA), tasks_max: Some(SCOPE_TASKS_MAX), io_weight: Some(SCOPE_IO_WEIGHT) }),
+        limits: Arc::new(InheritedLimits {
+            memory_max: Some(SCOPE_MEMORY_MAX),
+            cpu_quota_per_sec_usec: Some(SCOPE_CPU_QUOTA),
+            tasks_max: Some(SCOPE_TASKS_MAX),
+            io_weight: Some(SCOPE_IO_WEIGHT),
+        }),
         ..found
     };
     let planned = ControlGroup::plan(&route).expect("a scope name");
     let mut program = Command::new("sh");
     program.arg("-c").arg("d=/sys/fs/cgroup$(sed -n 's/^0:://p' /proc/self/cgroup); for f in memory.max cpu.max pids.max io.weight; do echo \"$f=$(cat $d/$f | tr '\\n' ' ')\"; done");
 
-    let output = planned.launcher(&route, &program, false).output().expect("the launcher runs");
+    let output = planned
+        .launcher(&route, &program, false)
+        .output()
+        .expect("the launcher runs");
 
     let text = String::from_utf8_lossy(&output.stdout).to_string();
-    assert!(output.status.success(), "the launcher failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "the launcher failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     // The manager gives a `CPUQuota=` the period it has chosen (one tenth of a second, measured 2026-11-07), so the quota per period is a tenth.
     let expected = [
         format!("memory.max={SCOPE_MEMORY_MAX}"),
-        format!("cpu.max={} {SCOPE_CPU_PERIOD}", SCOPE_CPU_QUOTA * SCOPE_CPU_PERIOD / SECOND_IN_MICROSECONDS),
+        format!(
+            "cpu.max={} {SCOPE_CPU_PERIOD}",
+            SCOPE_CPU_QUOTA * SCOPE_CPU_PERIOD / SECOND_IN_MICROSECONDS
+        ),
         format!("pids.max={SCOPE_TASKS_MAX}"),
         format!("io.weight=default {SCOPE_IO_WEIGHT}"),
     ];
     for line in expected {
-        assert!(text.lines().any(|found_line| { return found_line.trim_end() == line; }), "{line:?} is not in the scope's files:\n{text}");
+        assert!(
+            text.lines().any(|found_line| {
+                return found_line.trim_end() == line;
+            }),
+            "{line:?} is not in the scope's files:\n{text}"
+        );
     }
 }

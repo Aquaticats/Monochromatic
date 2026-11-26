@@ -14,14 +14,14 @@
 //!  The base file's integer and the name are one entry there,
 //!  which is why one call makes both.
 
-/// The writer of the two files.
-use super::blob_fixture::Blob;
 /// The approved declaration over the base file,
 /// with one member moved into it.
 use super::approved_module_fixture::module_over_a_member;
 /// The base file's integer width,
 /// which is the approved `zc_simple`'s.
 use super::approved_module_member_fixture::BYTE_BYTES;
+/// The writer of the two files.
+use super::blob_fixture::Blob;
 
 /// The byte member's name,
 /// which the base file holds and the module's member points at.

@@ -54,25 +54,60 @@ pub mod requests;
 /// The gate's entry point,
 /// its refusal and what a pass read.
 pub use compatibility_check::{
-    Compatible, LayoutRequest, Refusal as CompatibilityRefusal, Step as CompatibilityStep,
+    Compatible,
+    LayoutRequest,
+    Refusal as CompatibilityRefusal,
+    Step as CompatibilityStep,
     check_module_layout,
 };
 /// The open device,
 /// why a live call failed,
 /// the identity read and one step of a listing.
-pub use kernel_device::{DEVICE_PATH, DatasetIdentity, DeviceError, ListedObject, ZfsDevice};
+pub use kernel_device::{
+    DEVICE_PATH,
+    DatasetIdentity,
+    DeviceError,
+    ListedObject,
+    ZfsDevice,
+};
 /// The buffer and struct a request writes into.
-pub use layout::{CommandBuffer, DmuObjsetStats, ZfsCmd};
+pub use layout::{
+    CommandBuffer,
+    DmuObjsetStats,
+    ZfsCmd,
+};
 /// The checked name types and their field bounds.
-pub use names::{CheckedName, NameError, NameField};
+pub use names::{
+    CheckedName,
+    NameError,
+    NameField,
+};
 /// The codec list,
 /// values and refusal type.
-pub use nvlist::{NvData, NvError, NvList};
+pub use nvlist::{
+    NvData,
+    NvError,
+    NvList,
+};
 /// The request constructors,
 /// their value,
 /// operation and failure type.
 pub use requests::{
-    ChannelProgramRequest, Error, Operation, ReplyBuffer, Request, channel_program, clone,
-    dataset_list_next, destroy, destroy_snaps, get_bookmarks, get_fsacl, objset_stats, promote,
-    set_prop, snapshot, snapshot_list_next,
+    ChannelProgramRequest,
+    Error,
+    Operation,
+    ReplyBuffer,
+    Request,
+    channel_program,
+    clone,
+    dataset_list_next,
+    destroy,
+    destroy_snaps,
+    get_bookmarks,
+    get_fsacl,
+    objset_stats,
+    promote,
+    set_prop,
+    snapshot,
+    snapshot_list_next,
 };

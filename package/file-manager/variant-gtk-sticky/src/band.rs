@@ -22,7 +22,11 @@
 ///  imports pane geometry constants.
 /// Why:
 ///  every band and position calculation shares the one pane-size source of truth.
-use crate::constants::{PANE_GAP, PANE_HEIGHT, PANE_WIDTH};
+use crate::constants::{
+    PANE_GAP,
+    PANE_HEIGHT,
+    PANE_WIDTH,
+};
 
 /// What:
 ///  imports the stable pane identity type from the original app's crate.
@@ -71,20 +75,23 @@ pub struct Band {
 /// Why:
 ///  panes tile down each column at a fixed stride shared by every column.
 pub fn row_y(row: usize) -> f64 {
-    return row as f64 * f64::from(PANE_HEIGHT + PANE_GAP)
+    return row as f64 * f64::from(PANE_HEIGHT + PANE_GAP);
 }
 
 /// What:
 ///  look up a placement by pane id.
 /// Why:
 ///  reveal needs the target pane's placement snapshot.
-pub fn placement_by_id(placements: &[Placement], id: PaneId) -> Option<Placement> {
+pub fn placement_by_id(
+    placements: &[Placement],
+    id: PaneId,
+) -> Option<Placement> {
     for placement in placements {
         if placement.id == id {
-            return Some(*placement)
+            return Some(*placement);
         }
     }
-    return None
+    return None;
 }
 
 /// What:
@@ -94,7 +101,10 @@ pub fn placement_by_id(placements: &[Placement], id: PaneId) -> Option<Placement
 ///  a parent's band stretches to its deepest
 ///      DIRECT child's bottom edge,
 ///  so the parent stays visible while any direct child is.
-pub fn band_for(placement: Placement, placements: &[Placement]) -> Band {
+pub fn band_for(
+    placement: Placement,
+    placements: &[Placement],
+) -> Band {
     let mut deepest = placement.row;
     for candidate in placements {
         if candidate.parent == Some(placement.id) {
@@ -104,7 +114,7 @@ pub fn band_for(placement: Placement, placements: &[Placement]) -> Band {
     return Band {
         top: row_y(placement.row),
         height: row_y(deepest) + f64::from(PANE_HEIGHT) - row_y(placement.row),
-    }
+    };
 }
 
 /// What:
@@ -118,9 +128,12 @@ pub fn band_for(placement: Placement, placements: &[Placement]) -> Band {
 ///      accumulation,
 ///  rail clamping,
 ///  and relaxation passes.
-pub fn sticky_y(band: Band, scroll: f64) -> f64 {
+pub fn sticky_y(
+    band: Band,
+    scroll: f64,
+) -> f64 {
     let travel = (band.height - f64::from(PANE_HEIGHT)).max(0.0);
-    return band.top + (scroll - band.top).clamp(0.0, travel)
+    return band.top + (scroll - band.top).clamp(0.0, travel);
 }
 
 /// What:
@@ -129,14 +142,17 @@ pub fn sticky_y(band: Band, scroll: f64) -> f64 {
 ///  positioning is a pure function of the snapshot and the scroll,
 ///  so the GTK adapter holds
 ///      no per-lane state and the boundary test can assert geometry without a GUI.
-pub fn positions(placements: &[Placement], scroll: f64) -> Vec<(PaneId, f64, f64)> {
+pub fn positions(
+    placements: &[Placement],
+    scroll: f64,
+) -> Vec<(PaneId, f64, f64)> {
     let mut resolved = Vec::new();
     for placement in placements {
         let x = placement.column as f64 * f64::from(PANE_WIDTH + PANE_GAP);
         let y = sticky_y(band_for(*placement, placements), scroll);
         resolved.push((placement.id, x, y));
     }
-    return resolved
+    return resolved;
 }
 
 /// What:
@@ -145,7 +161,10 @@ pub fn positions(placements: &[Placement], scroll: f64) -> Vec<(PaneId, f64, f64
 ///  the observable non-overlap invariant;
 ///  sticky bands must keep this zero at every scroll,
 ///      which the unit tests sweep and the boundary test asserts live.
-pub fn overlap_count(placements: &[Placement], scroll: f64) -> usize {
+pub fn overlap_count(
+    placements: &[Placement],
+    scroll: f64,
+) -> usize {
     let resolved = positions(placements, scroll);
     let width = f64::from(PANE_WIDTH);
     let height = f64::from(PANE_HEIGHT);
@@ -161,7 +180,7 @@ pub fn overlap_count(placements: &[Placement], scroll: f64) -> usize {
             }
         }
     }
-    return overlaps
+    return overlaps;
 }
 
 /// What:
@@ -172,7 +191,10 @@ pub fn overlap_count(placements: &[Placement], scroll: f64) -> usize {
 ///  the one observable fact that proves sticking is happening;
 ///  both prototypes report it under
 ///      the same state key so the two boundary tests share assertions.
-pub fn root_pinned(placements: &[Placement], scroll: f64) -> bool {
+pub fn root_pinned(
+    placements: &[Placement],
+    scroll: f64,
+) -> bool {
     if scroll <= 0.0 {
         return false;
     }
@@ -190,5 +212,5 @@ pub fn root_pinned(placements: &[Placement], scroll: f64) -> bool {
         return false;
     };
     let y = sticky_y(band_for(root, placements), scroll);
-    return (y - scroll).abs() < 1.0
+    return (y - scroll).abs() < 1.0;
 }

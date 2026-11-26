@@ -33,13 +33,19 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the lookup that names the shadow a program is or leads to.
 use crate::shadow_identity::shadow_behind;
 
 /// Imports the launcher record reader.
-use crate::toolchain::launcher::{parse_record, record_path};
+use crate::toolchain::launcher::{
+    parse_record,
+    record_path,
+};
 
 /// What:
 /// `const EXECUTE_BITS: u32 = 0o111;` is a constant unsigned 32-bit integer (siblings `i32`,
@@ -96,7 +102,10 @@ fn is_executable_file(path: &Path) -> bool {
 /// ```ts
 /// function isLauncherOf(candidate: string, shadow: string): boolean
 /// ```
-fn is_launcher_of(candidate: &Path, shadow: &Path) -> bool {
+fn is_launcher_of(
+    candidate: &Path,
+    shadow: &Path,
+) -> bool {
     let Ok(text) = fs::read_to_string(record_path(candidate)) else {
         return false;
     };
@@ -126,7 +135,11 @@ fn is_launcher_of(candidate: &Path, shadow: &Path) -> bool {
 /// ```ts
 /// export function findInPath(name: string, pathVariable: string, skip: string): string | undefined
 /// ```
-pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf> {
+pub fn find_in_path(
+    name: &str,
+    path_variable: &str,
+    skip: &Path,
+) -> Option<PathBuf> {
     for directory in path_variable.split(':') {
         // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
         if directory.is_empty() {

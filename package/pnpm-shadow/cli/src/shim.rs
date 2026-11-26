@@ -68,27 +68,65 @@ use std::os::unix::process::ExitStatusExt;
 use std::os::unix::process::CommandExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `Command` (build and start a program) and `ExitStatus` (how a finished program ended).
-use std::process::{Command, ExitStatus};
+use std::process::{
+    Command,
+    ExitStatus,
+};
 
 /// Imports the fixed values.
-use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+use crate::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+    SHADOWED_NAME,
+    SIGNAL_EXIT_CODE_OFFSET,
+};
 /// Imports the loop guard.
-use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
+use crate::guard::{
+    GUARD_VARIABLE,
+    Guard,
+    GuardKind,
+    MAX_HOPS,
+    format_guard,
+    is_meant_for,
+    parse_guard,
+};
 /// Imports the notice handshake.
-use crate::notice_marker::{claim_marker_in, leave_marker_in, runtime_dir};
+use crate::notice_marker::{
+    claim_marker_in,
+    leave_marker_in,
+    runtime_dir,
+};
 /// Imports the PATH lookup.
 use crate::real_binary::find_in_path;
 /// Imports the report renderer.
 use crate::report::render_report;
 /// Imports the workspace scan.
-use crate::scan::{find_workspace_root, scan_workspace};
+use crate::scan::{
+    find_workspace_root,
+    scan_workspace,
+};
 /// Imports the arrival and vetting rules a start goes through.
-use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
+use crate::shadow_identity::{
+    ARRIVAL_EXIT_CODE,
+    StartMode,
+    Vetted,
+    arrival_at_this_process,
+    arrival_line,
+    mark_start,
+    vet,
+};
 /// Imports the notice that follows pnpm's version and help.
-use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
+use crate::shadow_notice::{
+    TopLevelRequest,
+    notice_text,
+    top_level_request,
+};
 /// Imports the rule that says whether the manifest warning makes sense for a command line.
 use crate::verb::warning_makes_sense;
 
@@ -124,7 +162,11 @@ pub fn exit_code_of(status: ExitStatus) -> i32 {
 /// ```ts
 /// export function runProgram(program: string, args: string[]): number  // throws when the spawn fails
 /// ```
-pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&str>) -> std::io::Result<i32> {
+pub fn run_program(
+    program: &Path,
+    arguments: &[OsString],
+    guard_value: Option<&str>,
+) -> std::io::Result<i32> {
     // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
@@ -176,7 +218,10 @@ fn own_real_path() -> PathBuf {
 /// ```ts
 /// export function warnAboutWorkspace(start: string, sink: Writable): void
 /// ```
-pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write) {
+pub fn warn_about_workspace(
+    start: &Path,
+    sink: &mut dyn Write,
+) {
     // No `pnpm-workspace.yaml` above `start` means there is no workspace to check; pnpm runs without a word.
     let root: PathBuf = match find_workspace_root(start) {
         Some(found) => found,
@@ -224,7 +269,11 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     let mut outer_pid: Option<u32> = None;
     if let Ok(text) = env::var(GUARD_VARIABLE)
         && let Some(guard) = parse_guard(&text)
-        && is_meant_for(&guard, std::process::id(), std::os::unix::process::parent_id())
+        && is_meant_for(
+            &guard,
+            std::process::id(),
+            std::os::unix::process::parent_id(),
+        )
     {
         if guard.kind == GuardKind::Spawn {
             outer_pid = Some(guard.pid);
@@ -271,8 +320,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         Err(_) => program.clone(),
     };
     skipped.push(chosen);
-    let guard_kind: GuardKind = if request == TopLevelRequest::Other { GuardKind::Exec } else { GuardKind::Spawn };
-    let guard_value: String = format_guard(&Guard { kind: guard_kind, pid: std::process::id(), hops: hops + 1, skipped });
+    let guard_kind: GuardKind = if request == TopLevelRequest::Other {
+        GuardKind::Exec
+    } else {
+        GuardKind::Spawn
+    };
+    let guard_value: String = format_guard(&Guard {
+        kind: guard_kind,
+        pid: std::process::id(),
+        hops: hops + 1,
+        skipped,
+    });
 
     // What:     `Command::new(&program).args(&arguments).exec()` replaces this process with pnpm: same process id, same
     //           standard streams, and the exit status and signals are pnpm's own because nothing of the shadow is left to
@@ -287,7 +345,10 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         let vetted: Vetted = match vet(&program) {
             Ok(checked) => checked,
             Err(reason) => {
-                eprintln!("pnpm-shadow: could not start {}: {reason}", program.display());
+                eprintln!(
+                    "pnpm-shadow: could not start {}: {reason}",
+                    program.display()
+                );
                 return EXEC_FAILED_EXIT_CODE;
             }
         };
@@ -295,7 +356,10 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
         mark_start(&mut command, StartMode::Exec);
         let error: std::io::Error = command.exec();
-        eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
+        eprintln!(
+            "pnpm-shadow: could not start {}: {error}",
+            program.display()
+        );
         return EXEC_FAILED_EXIT_CODE;
     }
 
@@ -333,7 +397,10 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             return code;
         }
         Err(error) => {
-            eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
+            eprintln!(
+                "pnpm-shadow: could not start {}: {error}",
+                program.display()
+            );
             return EXEC_FAILED_EXIT_CODE;
         }
     }

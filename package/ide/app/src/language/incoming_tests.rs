@@ -1,10 +1,23 @@
 //! Exact replies of the server-request policy,
 //!  without a server.
 
-use super::{ClientView, Decision, EDIT_REFUSAL, Effect, configuration_section, decide};
+use super::{
+    ClientView,
+    Decision,
+    EDIT_REFUSAL,
+    Effect,
+    configuration_section,
+    decide,
+};
 use crate::json_value;
-use helix_lsp::{jsonrpc, lsp};
-use serde_json::{Value, json};
+use helix_lsp::{
+    jsonrpc,
+    lsp,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn params(value: Value) -> jsonrpc::Params {
     return match value {
@@ -18,7 +31,10 @@ fn settings() -> Value {
     return json_value!({ "scripted": { "flag": true, "nested": { "value": 42 } } });
 }
 
-fn decided(method: &str, value: Value) -> Decision {
+fn decided(
+    method: &str,
+    value: Value,
+) -> Decision {
     let settings = settings();
     let folders = vec![lsp::WorkspaceFolder {
         uri: lsp::Url::parse("file:///project").expect("folder address"),

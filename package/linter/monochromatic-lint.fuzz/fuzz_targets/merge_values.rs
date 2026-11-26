@@ -13,7 +13,10 @@
 ///  native parser and verified invariants.
 use jsonc_edit_fuzz::GeneratedDocument;
 use libfuzzer_sys::fuzz_target;
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 use monochromatic_lint_fuzz::check_merge;
 
 // The macro supplies libFuzzer's executable entry and decodes structured inputs.

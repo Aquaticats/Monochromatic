@@ -2,13 +2,20 @@
 //!  the read-only application never invokes this executable.
 
 /// Asset preparation failures must stop the build instead of shipping partial language support.
-use anyhow::{Context, Result, bail};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Serialize configuration through TOML rather than interpolating a configuration language.
 use serde::Serialize;
 /// Filesystem paths are owned when retained and borrowed during recursive directory copies.
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -84,7 +91,10 @@ struct Configuration {
 }
 
 /// Copy the pinned runtime's query tree and preserve its exact file contents.
-fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
+fn copy_tree(
+    source: &Path,
+    destination: &Path,
+) -> Result<()> {
     fs::create_dir_all(destination)?;
     for entry_result in fs::read_dir(source)? {
         let entry = entry_result?;
@@ -103,7 +113,10 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
 }
 
 /// Validate the build boundary before the Helix helper writes configuration or grammars.
-fn prepare(source: &Path, operation: &str) -> Result<()> {
+fn prepare(
+    source: &Path,
+    operation: &str,
+) -> Result<()> {
     let target = std::env::current_dir()?.join("target");
     let config = helix_loader::config_dir();
     let runtime = helix_loader::runtime_dirs()
@@ -128,7 +141,9 @@ fn prepare(source: &Path, operation: &str) -> Result<()> {
         only.push((*name).to_string());
     }
     let configuration = Configuration {
-        selection: Selection { only },
+        selection: Selection {
+            only,
+        },
     };
     let encoded = toml::to_string(&configuration)?;
     fs::write(config.join("languages.toml"), encoded)?;

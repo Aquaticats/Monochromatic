@@ -125,7 +125,9 @@ pub const SUPPORTED_VERSION: i32 = 0;
 /// Refuse a list version this crate does not know.
 pub fn check_version(version: i32) -> Result<(), super::error::NvError> {
     if version != SUPPORTED_VERSION {
-        return Err(super::error::NvError::UnsupportedVersion { version });
+        return Err(super::error::NvError::UnsupportedVersion {
+            version,
+        });
     }
     return Ok(());
 }

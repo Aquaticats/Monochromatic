@@ -22,7 +22,11 @@
 //! ```
 
 /// Imports what this module uses from `std::fs`.
-use std::fs::{self, File, OpenOptions};
+use std::fs::{
+    self,
+    File,
+    OpenOptions,
+};
 /// Imports what this module uses from `std::path`.
 use std::path::Path;
 
@@ -33,7 +37,10 @@ use super::hash::sha256_hex;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports the shared named helpers.
-use super::util::{write_atomically as write_bytes_atomically, write_atomically_with_mode};
+use super::util::{
+    write_atomically as write_bytes_atomically,
+    write_atomically_with_mode,
+};
 
 /// What:
 /// The content hash of one file,
@@ -72,7 +79,10 @@ pub fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, ToolchainError> {
     return match fs::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(ToolchainError::config(format!("cannot read {}: {error}", path.display()))),
+        Err(error) => Err(ToolchainError::config(format!(
+            "cannot read {}: {error}",
+            path.display()
+        ))),
     };
 }
 
@@ -88,7 +98,10 @@ pub fn revision_of(bytes: &Option<Vec<u8>>) -> Revision {
 pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
     let plan: Option<Vec<u8>> = read_optional(&scope.plan_file)?;
     let lock: Option<Vec<u8>> = read_optional(&scope.lock_file)?;
-    return Ok(Revisions { plan: revision_of(&plan), lock: revision_of(&lock) });
+    return Ok(Revisions {
+        plan: revision_of(&plan),
+        lock: revision_of(&lock),
+    });
 }
 
 /// What:
@@ -116,11 +129,22 @@ fn open_guard_file(path: &Path) -> Result<File, ToolchainError> {
     if let Some(parent) = path.parent()
         && let Err(error) = fs::create_dir_all(parent)
     {
-        return Err(ToolchainError::failure(format!("cannot create {} for the scope lock: {error}", parent.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {} for the scope lock: {error}",
+            parent.display()
+        )));
     }
-    return match OpenOptions::new().create(true).truncate(false).write(true).open(path) {
+    return match OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(path)
+    {
         Ok(file) => Ok(file),
-        Err(error) => Err(ToolchainError::failure(format!("cannot open the scope lock file {}: {error}", path.display()))),
+        Err(error) => Err(ToolchainError::failure(format!(
+            "cannot open the scope lock file {}: {error}",
+            path.display()
+        ))),
     };
 }
 
@@ -134,7 +158,9 @@ pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
             scope.guard_file.display()
         )));
     }
-    return Ok(Guard { _file: file });
+    return Ok(Guard {
+        _file: file,
+    });
 }
 
 /// Takes the scope's exclusive lock without waiting;
@@ -142,7 +168,9 @@ pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
 pub fn try_acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
     let file: File = open_guard_file(&scope.guard_file)?;
     return match file.try_lock() {
-        Ok(()) => Ok(Some(Guard { _file: file })),
+        Ok(()) => Ok(Some(Guard {
+            _file: file,
+        })),
         Err(std::fs::TryLockError::WouldBlock) => Ok(None),
         Err(std::fs::TryLockError::Error(error)) => Err(ToolchainError::failure(format!(
             "cannot test the scope lock {}: {error}",
@@ -153,7 +181,11 @@ pub fn try_acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError>
 
 /// The name of the file revision `kind` came from,
 /// for the refusal message.
-fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec<String> {
+fn moved_files(
+    expected: &Revisions,
+    observed: &Revisions,
+    scope: &Scope,
+) -> Vec<String> {
     let mut moved: Vec<String> = Vec::new();
     if expected.plan != observed.plan {
         moved.push(scope.plan_file.display().to_string());
@@ -175,7 +207,10 @@ fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec
 /// ```ts
 /// function writeAtomically(target: string, text: string): void
 /// ```
-pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError> {
+pub fn write_atomically(
+    target: &Path,
+    text: &str,
+) -> Result<(), ToolchainError> {
     return write_bytes_atomically(target, text.as_bytes());
 }
 
@@ -194,7 +229,11 @@ pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError>
 /// ```ts
 /// export function publishLock(scope: Scope, expected: Revisions, text: string): void
 /// ```
-pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(), ToolchainError> {
+pub fn publish_lock(
+    scope: &Scope,
+    expected: &Revisions,
+    text: &str,
+) -> Result<(), ToolchainError> {
     let guard: Guard = acquire_guard(scope)?;
     let observed: Revisions = read_revisions(scope)?;
     let moved: Vec<String> = moved_files(expected, &observed, scope);
@@ -209,7 +248,10 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
     if let Some(parent) = scope.lock_file.parent()
         && let Err(error) = fs::create_dir_all(parent)
     {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            parent.display()
+        )));
     }
     write_atomically(&scope.lock_file, text)?;
     drop(guard);
@@ -234,7 +276,10 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
 /// function writeAtomicallyKeepingMode(target: string, text: string): void
 /// ```
 #[cfg(unix)]
-fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), ToolchainError> {
+fn write_atomically_keeping_mode(
+    target: &Path,
+    text: &str,
+) -> Result<(), ToolchainError> {
     use std::os::unix::fs::PermissionsExt;
     let mode: Option<u32> = match fs::metadata(target) {
         Ok(metadata) => Some(metadata.permissions().mode()),
@@ -255,7 +300,10 @@ fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), Toolch
 /// Windows and macOS are out of scope for now,
 /// and a plan written there is an ordinary new file.
 #[cfg(not(unix))]
-fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), ToolchainError> {
+fn write_atomically_keeping_mode(
+    target: &Path,
+    text: &str,
+) -> Result<(), ToolchainError> {
     return write_atomically(target, text);
 }
 
@@ -274,7 +322,11 @@ fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), Toolch
 /// ```ts
 /// export function publishPlan(scope: Scope, expected: Revision, text: string): void
 /// ```
-pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<(), ToolchainError> {
+pub fn publish_plan(
+    scope: &Scope,
+    expected: &Revision,
+    text: &str,
+) -> Result<(), ToolchainError> {
     let guard: Guard = acquire_guard(scope)?;
     let observed: Revisions = read_revisions(scope)?;
     if expected != &observed.plan {

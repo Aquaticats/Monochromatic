@@ -29,14 +29,25 @@ use super::context::Context;
 use super::install_support::atomic_symlink;
 /// Imports `is_executable` from `super::layout`.
 use super::layout::is_executable;
-/// Imports what this module uses from `super::old_copies`.
-use super::old_copies::{OldCopyPlan, OldCopyPlans, Repoint, plan_old_copies};
 /// Imports what this module uses from `super::managed_losers`.
-use super::managed_losers::{LoserPlan, emptied_by};
-/// Imports what this module uses from `super::old_copy_remove`.
-use super::old_copy_remove::{remove_copy, remove_version};
+use super::managed_losers::{
+    LoserPlan,
+    emptied_by,
+};
+/// Imports what this module uses from `super::old_copies`.
+use super::old_copies::{
+    OldCopyPlan,
+    OldCopyPlans,
+    Repoint,
+    plan_old_copies,
+};
 /// Imports `links_to_copy` from `super::old_copy_places`.
 use super::old_copy_places::links_to_copy;
+/// Imports what this module uses from `super::old_copy_remove`.
+use super::old_copy_remove::{
+    remove_copy,
+    remove_version,
+};
 
 /// What the cleanup did:
 /// the action lines,
@@ -57,7 +68,10 @@ pub struct OldCopyOutcome {
 }
 
 /// The warning for an old copy that stays.
-fn kept_warning(plan: &OldCopyPlan, reason: &str) -> String {
+fn kept_warning(
+    plan: &OldCopyPlan,
+    reason: &str,
+) -> String {
     return format!(
         "old copy {} of {} is kept (it is not the one `install` put there): {reason}",
         plan.path.display(),
@@ -74,10 +88,21 @@ fn failure_label(plan: &OldCopyPlan) -> String {
 /// recording the line or the failure under `label`.
 /// A link that could not move still resolves to the copy,
 /// and the search before the removal keeps the copy for that reason.
-fn repoint(label: &str, link: &Repoint, outcome: &mut OldCopyOutcome) {
+fn repoint(
+    label: &str,
+    link: &Repoint,
+    outcome: &mut OldCopyOutcome,
+) {
     match atomic_symlink(&link.link, &link.target) {
-        Ok(()) => outcome.lines.push(format!("re-pointed {} -> {}", link.link.display(), link.target.display())),
-        Err(error) => outcome.failed.push((label.to_string(), format!("cannot re-point {}: {error}", link.link.display()))),
+        Ok(()) => outcome.lines.push(format!(
+            "re-pointed {} -> {}",
+            link.link.display(),
+            link.target.display()
+        )),
+        Err(error) => outcome.failed.push((
+            label.to_string(),
+            format!("cannot re-point {}: {error}", link.link.display()),
+        )),
     }
 }
 
@@ -94,7 +119,12 @@ fn repoint(label: &str, link: &Repoint, outcome: &mut OldCopyOutcome) {
 /// ```ts
 /// function applyPlan(ctx: Context, plans: OldCopyPlans, plan: OldCopyPlan, outcome: OldCopyOutcome): void
 /// ```
-fn apply_plan(ctx: &Context, plans: &OldCopyPlans, plan: &OldCopyPlan, outcome: &mut OldCopyOutcome) {
+fn apply_plan(
+    ctx: &Context,
+    plans: &OldCopyPlans,
+    plan: &OldCopyPlan,
+    outcome: &mut OldCopyOutcome,
+) {
     for link in &plan.repoints {
         repoint(&failure_label(plan), link, outcome);
     }
@@ -103,16 +133,27 @@ fn apply_plan(ctx: &Context, plans: &OldCopyPlans, plan: &OldCopyPlan, outcome: 
         return;
     }
     let Some(managed) = &plan.managed else {
-        outcome.warnings.push(kept_warning(plan, "there is no managed copy to take over"));
+        outcome
+            .warnings
+            .push(kept_warning(plan, "there is no managed copy to take over"));
         return;
     };
     if !is_executable(managed) {
-        outcome.warnings.push(kept_warning(plan, &format!("the managed copy {} is no longer executable", managed.display())));
+        outcome.warnings.push(kept_warning(
+            plan,
+            &format!(
+                "the managed copy {} is no longer executable",
+                managed.display()
+            ),
+        ));
         return;
     }
     let remaining = links_to_copy(&plans.places, &plan.path);
     if !remaining.found.is_empty() || !remaining.unreadable.is_empty() {
-        outcome.warnings.push(kept_warning(plan, "a link to it still resolves to it, so removing it would leave that link dangling"));
+        outcome.warnings.push(kept_warning(
+            plan,
+            "a link to it still resolves to it, so removing it would leave that link dangling",
+        ));
         return;
     }
     match remove_copy(ctx, plan) {
@@ -128,11 +169,18 @@ fn apply_plan(ctx: &Context, plans: &OldCopyPlans, plan: &OldCopyPlan, outcome: 
 
 /// The label of a failure about the older copies of one tool in one root.
 fn loser_label(plan: &LoserPlan) -> String {
-    return format!("older managed copy of {} in {}", plan.tool_id, plan.root.display());
+    return format!(
+        "older managed copy of {} in {}",
+        plan.tool_id,
+        plan.root.display()
+    );
 }
 
 /// The warning for older managed copies that stay.
-fn loser_kept_warning(plan: &LoserPlan, reason: &str) -> String {
+fn loser_kept_warning(
+    plan: &LoserPlan,
+    reason: &str,
+) -> String {
     return format!(
         "older managed copy of {} in {} is kept ({} in {} runs): {reason}",
         plan.tool_id,
@@ -154,7 +202,12 @@ fn loser_kept_warning(plan: &LoserPlan, reason: &str) -> String {
 /// ```ts
 /// function applyLoser(plans: OldCopyPlans, plan: LoserPlan, outcome: OldCopyOutcome): void
 /// ```
-fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {
+fn apply_loser(
+    ctx: &Context,
+    plans: &OldCopyPlans,
+    plan: &LoserPlan,
+    outcome: &mut OldCopyOutcome,
+) {
     for link in &plan.repoints {
         repoint(&loser_label(plan), link, outcome);
     }
@@ -178,8 +231,15 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
         && emptied_by(ctx, plan)
     {
         match atomic_symlink(link, target) {
-            Ok(()) => outcome.lines.push(format!("{} now forwards to {}", link.display(), target.display())),
-            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot forward {}: {error}", link.display()))),
+            Ok(()) => outcome.lines.push(format!(
+                "{} now forwards to {}",
+                link.display(),
+                target.display()
+            )),
+            Err(error) => outcome.failed.push((
+                loser_label(plan),
+                format!("cannot forward {}: {error}", link.display()),
+            )),
         }
     }
     for copy in &plan.copies {
@@ -205,7 +265,10 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
 /// ```ts
 /// export function applyOldCopies(ctx: Context, plans: OldCopyPlans): OldCopyOutcome
 /// ```
-pub fn apply_old_copies(ctx: &Context, plans: &OldCopyPlans) -> OldCopyOutcome {
+pub fn apply_old_copies(
+    ctx: &Context,
+    plans: &OldCopyPlans,
+) -> OldCopyOutcome {
     let mut outcome: OldCopyOutcome = OldCopyOutcome::default();
     for plan in &plans.plans {
         apply_plan(ctx, plans, plan, &mut outcome);
@@ -227,7 +290,10 @@ pub fn apply_old_copies(ctx: &Context, plans: &OldCopyPlans) -> OldCopyOutcome {
 /// ```ts
 /// export function retireOldCopies(ctx: Context, failed: [string, string][]): OldCopyOutcome
 /// ```
-pub fn retire_old_copies(ctx: &Context, failed: &[(String, String)]) -> OldCopyOutcome {
+pub fn retire_old_copies(
+    ctx: &Context,
+    failed: &[(String, String)],
+) -> OldCopyOutcome {
     return apply_old_copies(ctx, &plan_old_copies(ctx, failed));
 }
 

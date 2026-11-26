@@ -22,15 +22,26 @@
 use super::gpu_snapshot::snapshot;
 /// The window of the application's markup before any frame,
 ///  and the width of the textures the tests make.
-use super::tile_slice_frame_tests::{STACK_WIDTH, unframed};
+use super::tile_slice_frame_tests::{
+    STACK_WIDTH,
+    unframed,
+};
 /// The painted textures,
 ///  the window that shows them,
 ///  and the count of the pixels they are drawn in.
-use super::tile_slice_frame_tests::{filled, ink_pixels, painted_window};
+use super::tile_slice_frame_tests::{
+    filled,
+    ink_pixels,
+    painted_window,
+};
 /// The scenes of a picture's chunks.
 use ide_app::tile_scene::TileScene;
 /// The window handle and the model trait.
-use slint::{ComponentHandle, Model, ModelRc};
+use slint::{
+    ComponentHandle,
+    Model,
+    ModelRc,
+};
 /// An empty scene:
 ///  the textures are made and drawn,
 ///  with nothing in them.

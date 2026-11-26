@@ -8,16 +8,36 @@
 /// ```ts
 /// type Applied = Map<string, number>;
 /// ```
-use std::{collections::BTreeMap, io, path::PathBuf, thread, time::Duration};
+use std::{
+    collections::BTreeMap,
+    io,
+    path::PathBuf,
+    thread,
+    time::Duration,
+};
 
 /// The pure feedback calculation and its unrestricted endpoint.
-use crate::feedback::{FULL_RANGE, adjust_ceiling};
+use crate::feedback::{
+    FULL_RANGE,
+    adjust_ceiling,
+};
 /// Linux policy updates and release.
-use crate::policy::{limit_all, release_all};
+use crate::policy::{
+    limit_all,
+    release_all,
+};
 /// Sensor resolution and sample aggregation.
-use crate::sensor::{Sensor, find_inputs, read_highest};
+use crate::sensor::{
+    Sensor,
+    find_inputs,
+    read_highest,
+};
 /// Runtime target and Celsius-unit conversion.
-use crate::target::{MILLIDEGREES, Target, read_target};
+use crate::target::{
+    MILLIDEGREES,
+    Target,
+    read_target,
+};
 
 /// Directories used by the service, which can also refer to a disposable test fixture.
 pub struct Paths {
@@ -55,7 +75,11 @@ pub struct Watcher {
 
 impl Watcher {
     /// Set up one controller. The first sample begins with the full adjustable range.
-    pub fn new(paths: Paths, selectors: Vec<Sensor>, margin_degrees: u16) -> Self {
+    pub fn new(
+        paths: Paths,
+        selectors: Vec<Sensor>,
+        margin_degrees: u16,
+    ) -> Self {
         // What
         // `Self` names the struct of this method, `Vec::new` starts a list and
         // `BTreeMap::new` starts a map. `i32::from` widens an unsigned short losslessly.
@@ -105,7 +129,12 @@ impl Watcher {
     /// Apply the current adjustable frequency percentage to each online policy.
     fn apply(&mut self) -> io::Result<()> {
         // Lend the current values to the policy layer, which records successful writes.
-        return limit_all(&self.paths.cpufreq, &self.paths.runtime, self.ceiling, &mut self.requested);
+        return limit_all(
+            &self.paths.cpufreq,
+            &self.paths.runtime,
+            self.ceiling,
+            &mut self.requested,
+        );
     }
 
     /// One service pass, using the latest requested temperature or explicit off.
@@ -161,7 +190,10 @@ impl Watcher {
 }
 
 /// Run under systemd, which calls release after this process exits.
-pub fn run(mut watcher: Watcher, interval: Duration) {
+pub fn run(
+    mut watcher: Watcher,
+    interval: Duration,
+) {
     // What
     // `None` starts an optional last diagnostic with no saved value.
     // Why

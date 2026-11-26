@@ -31,33 +31,60 @@ fn attach_is_tried_when_both_are_missing() {
 
 #[test]
 fn a_passed_on_handle_the_attach_left_alone_is_kept() {
-    assert_eq!(std_handle_action_after_attach(Some(PASSED_ON), Some(PASSED_ON)), StdHandleAction::Keep);
+    assert_eq!(
+        std_handle_action_after_attach(Some(PASSED_ON), Some(PASSED_ON)),
+        StdHandleAction::Keep
+    );
 }
 
 #[test]
 fn a_passed_on_handle_the_attach_replaced_is_restored() {
-    assert_eq!(std_handle_action_after_attach(Some(PASSED_ON), Some(REPLACED)), StdHandleAction::Restore { original: PASSED_ON });
+    assert_eq!(
+        std_handle_action_after_attach(Some(PASSED_ON), Some(REPLACED)),
+        StdHandleAction::Restore {
+            original: PASSED_ON
+        }
+    );
 }
 
 #[test]
 fn a_passed_on_handle_the_attach_cleared_is_restored() {
-    assert_eq!(std_handle_action_after_attach(Some(PASSED_ON), None), StdHandleAction::Restore { original: PASSED_ON });
+    assert_eq!(
+        std_handle_action_after_attach(Some(PASSED_ON), None),
+        StdHandleAction::Restore {
+            original: PASSED_ON
+        }
+    );
 }
 
 #[test]
 fn a_missing_handle_the_attach_supplied_is_kept() {
-    assert_eq!(std_handle_action_after_attach(None, Some(REPLACED)), StdHandleAction::Keep);
+    assert_eq!(
+        std_handle_action_after_attach(None, Some(REPLACED)),
+        StdHandleAction::Keep
+    );
 }
 
 #[test]
 fn a_missing_handle_the_attach_did_not_supply_opens_the_console_output() {
-    assert_eq!(std_handle_action_after_attach(None, None), StdHandleAction::OpenConsoleOutput);
+    assert_eq!(
+        std_handle_action_after_attach(None, None),
+        StdHandleAction::OpenConsoleOutput
+    );
 }
 
 #[test]
 fn every_outcome_can_be_logged_without_a_subscriber() {
-    let report = StreamReport { action: StdHandleAction::Keep, failure_code: None };
+    let report = StreamReport {
+        action: StdHandleAction::Keep,
+        failure_code: None,
+    };
     log_console_attach(&ConsoleAttachOutcome::HandlesPassedOn);
-    log_console_attach(&ConsoleAttachOutcome::NoParentConsole { error_code: 6 });
-    log_console_attach(&ConsoleAttachOutcome::Attached { stdout: report, stderr: report });
+    log_console_attach(&ConsoleAttachOutcome::NoParentConsole {
+        error_code: 6,
+    });
+    log_console_attach(&ConsoleAttachOutcome::Attached {
+        stdout: report,
+        stderr: report,
+    });
 }

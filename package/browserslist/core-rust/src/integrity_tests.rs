@@ -11,11 +11,15 @@
 //! ```
 
 use crate::error::BrowserslistError;
-use crate::integrity::{cache_key, integrity_of, parse_sha512, verify};
+use crate::integrity::{
+    cache_key,
+    integrity_of,
+    parse_sha512,
+    verify,
+};
 
 /// The SHA-512 of the three bytes `abc` (FIPS 180-2 test vector) in npm's spelling.
-const ABC_INTEGRITY: &str =
-    "sha512-3a81oZNherrMQXNJriBBMRLm+k6JqX6iCp7u5ktV05ohkpkqJ0/BqDa6PCOj/uu9RU1EI2Q86A4qmslPpUyknw==";
+const ABC_INTEGRITY: &str = "sha512-3a81oZNherrMQXNJriBBMRLm+k6JqX6iCp7u5ktV05ohkpkqJ0/BqDa6PCOj/uu9RU1EI2Q86A4qmslPpUyknw==";
 
 /// The vector matches,
 /// and `integrity_of` reproduces it.
@@ -23,14 +27,22 @@ const ABC_INTEGRITY: &str =
 fn known_vector() {
     assert_eq!(integrity_of(b"abc"), ABC_INTEGRITY);
     assert_eq!(verify("pkg", ABC_INTEGRITY, b"abc"), Ok(()));
-    assert_eq!(parse_sha512(ABC_INTEGRITY).expect("parses").len(), super::DIGEST_LENGTH);
+    assert_eq!(
+        parse_sha512(ABC_INTEGRITY).expect("parses").len(),
+        super::DIGEST_LENGTH
+    );
 }
 
 /// Changed bytes fail with both digests in the error.
 #[test]
 fn mismatch_reports_both_digests() {
     let error = verify("pkg", ABC_INTEGRITY, b"abd").expect_err("mismatch");
-    let BrowserslistError::Integrity { subject, expected, actual } = error else {
+    let BrowserslistError::Integrity {
+        subject,
+        expected,
+        actual,
+    } = error
+    else {
         panic!("expected an integrity error");
     };
     assert_eq!(subject, "pkg");
@@ -65,7 +77,10 @@ fn rejects_malformed_strings() {
 fn cache_keys() {
     let key = cache_key(ABC_INTEGRITY).expect("key");
     assert_eq!(key.len(), 128);
-    assert!(key.bytes().all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+    assert!(
+        key.bytes()
+            .all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
     assert!(key.starts_with("ddaf35a193617aba"));
     assert_ne!(key, cache_key(&integrity_of(b"abd")).expect("key"));
     assert!(cache_key("nope").is_err());

@@ -11,18 +11,37 @@
 ///  the tile's request and hold rule,
 ///  and the render a request ends in.
 use super::{
-    AppWindow, State, render, rows, tile,
-    viewport::{holds, place_scrolled, request_window, wrap_width},
+    AppWindow,
+    State,
+    render,
+    rows,
+    tile,
+    viewport::{
+        holds,
+        place_scrolled,
+        request_window,
+        wrap_width,
+    },
 };
 /// The winit events the window's event hook sees before the toolkit does.
-use i_slint_backend_winit::winit::event::{MouseScrollDelta, WindowEvent};
+use i_slint_backend_winit::winit::event::{
+    MouseScrollDelta,
+    WindowEvent,
+};
 /// The weak handles of a timer's callback and the single-shot timer.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{
+    ComponentHandle,
+    Timer,
+    TimerMode,
+};
 /// Shared state and the clocks.
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// What:
@@ -140,7 +159,10 @@ pub(super) struct Wheel {
 /// ```ts
 /// function noteEvent(state: Shared<State>, event: WindowEvent): void;
 /// ```
-pub(super) fn note_event(state: &Rc<RefCell<State>>, event: &WindowEvent) {
+pub(super) fn note_event(
+    state: &Rc<RefCell<State>>,
+    event: &WindowEvent,
+) {
     // Only a notched wheel is eased by the toolkit; a pan sets the offset step by step and asks for nothing.
     if let WindowEvent::MouseWheel {
         delta: MouseScrollDelta::LineDelta(_, lines),
@@ -155,7 +177,10 @@ pub(super) fn note_event(state: &Rc<RefCell<State>>, event: &WindowEvent) {
 /// Remember a wheel turn of `distance` logical pixels (positive moves the text down,
 ///  as the toolkit's scroll does)
 /// until the scroll reports that it took the turn.
-pub(super) fn note_turn(state: &Rc<RefCell<State>>, distance: f32) {
+pub(super) fn note_turn(
+    state: &Rc<RefCell<State>>,
+    distance: f32,
+) {
     match state.try_borrow_mut() {
         Ok(mut current) => current.wheel.pending = Some((distance, Instant::now())),
         // The turn is then never matched with the scroll's report, so no tile is asked for its end.
@@ -177,7 +202,10 @@ pub(super) fn note_turn(state: &Rc<RefCell<State>>, distance: f32) {
 /// ```ts
 /// function flicked(window: AppWindow, state: Shared<State>): void;
 /// ```
-pub(super) fn flicked(window: &AppWindow, state: &Rc<RefCell<State>>) {
+pub(super) fn flicked(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let Ok(mut current) = state.try_borrow_mut() else {
         return;
     };
@@ -219,7 +247,11 @@ pub(super) fn flicked(window: &AppWindow, state: &Rc<RefCell<State>>) {
 /// ```ts
 /// function turn(window: AppWindow, state: Shared<State>, distance: number): void;
 /// ```
-pub(super) fn turn(window: &AppWindow, state: &Rc<RefCell<State>>, distance: f32) {
+pub(super) fn turn(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    distance: f32,
+) {
     let height = window.get_viewport_height();
     let now = Instant::now();
     let mut current = state.borrow_mut();
@@ -272,7 +304,11 @@ pub(super) fn turn(window: &AppWindow, state: &Rc<RefCell<State>>, distance: f32
 /// Wake the window at the time a followed ease should have ended,
 ///  once,
 /// replacing any earlier wake-up.
-fn arm_release(window: &AppWindow, state: &Rc<RefCell<State>>, current: &State) {
+fn arm_release(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    current: &State,
+) {
     let weak_window = window.as_weak();
     let weak_state = Rc::downgrade(state);
     current
@@ -298,7 +334,10 @@ fn arm_release(window: &AppWindow, state: &Rc<RefCell<State>>, current: &State) 
 /// ```ts
 /// function finish(window: AppWindow, state: Shared<State>): void;
 /// ```
-fn finish(window: &AppWindow, state: &Rc<RefCell<State>>) {
+fn finish(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let offset = -window.get_scroll_y();
     let width = window.get_viewport_width();
     let height = window.get_viewport_height();
@@ -330,7 +369,11 @@ fn finish(window: &AppWindow, state: &Rc<RefCell<State>>) {
 /// ```ts
 /// function refit(current: State, width: number, height: number): void;
 /// ```
-pub(super) fn refit(current: &mut State, width: f32, height: f32) {
+pub(super) fn refit(
+    current: &mut State,
+    width: f32,
+    height: f32,
+) {
     let Some(ease) = aimed_ease(current) else {
         return;
     };
@@ -375,7 +418,10 @@ pub(super) fn release(current: &mut State) {
 /// ```ts
 /// function following(current: State, offset: number): boolean;
 /// ```
-pub(super) fn following(current: &State, offset: f32) -> bool {
+pub(super) fn following(
+    current: &State,
+    offset: f32,
+) -> bool {
     let Some(ease) = aimed_ease(current) else {
         return false;
     };
@@ -406,7 +452,11 @@ pub(super) fn unsent(current: &State) -> bool {
 /// ```ts
 /// function holdsEnd(current: State, bounds: TileBounds, height: number): boolean;
 /// ```
-pub(super) fn holds_end(current: &State, bounds: tile::TileBounds, height: f32) -> bool {
+pub(super) fn holds_end(
+    current: &State,
+    bounds: tile::TileBounds,
+    height: f32,
+) -> bool {
     let Some(ease) = aimed_ease(current) else {
         return false;
     };

@@ -23,19 +23,25 @@
 //! because a user bus refuses a connection from root,
 //! and because the impostor is that user's own process.
 
-/// The real steps the guard performs.
-#[path = "impostor_guard_steps.rs"]
-pub mod steps;
 /// The guard as the watcher starts it.
 #[path = "impostor_guard_child.rs"]
 pub mod child;
-/// The real steps,
-/// re-exported where the program uses them.
-pub use steps::RealSteps;
+/// The real steps the guard performs.
+#[path = "impostor_guard_steps.rs"]
+pub mod steps;
 /// Starting the guard,
 /// its command and its setup,
 /// re-exported where the watcher uses them.
-pub use child::{GUARD_COMMAND, GuardHandle, GuardSetup, run_child, spawn};
+pub use child::{
+    GUARD_COMMAND,
+    GuardHandle,
+    GuardSetup,
+    run_child,
+    spawn,
+};
+/// The real steps,
+/// re-exported where the program uses them.
+pub use steps::RealSteps;
 
 /// The bus name that must belong to the user's manager and to nothing else.
 pub const MANAGER_BUS_NAME: &str = "org.freedesktop.systemd1";
@@ -50,7 +56,9 @@ pub const REEXEC_GAP: std::time::Duration = std::time::Duration::from_secs(5 * 6
 
 /// The signal the guard asks the bus daemon for.
 pub fn match_rule(name: &str) -> String {
-    return format!("type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged',arg0='{name}'");
+    return format!(
+        "type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged',arg0='{name}'"
+    );
 }
 
 /// What the bus says about the name's owner.
@@ -111,11 +119,17 @@ pub struct GuardMemory {
 impl GuardMemory {
     /// Builds the memory of a guard that has not re-executed anything yet.
     pub fn new(gap: std::time::Duration) -> GuardMemory {
-        return GuardMemory { last_reexec: None, gap };
+        return GuardMemory {
+            last_reexec: None,
+            gap,
+        };
     }
 
     /// Whether a re-execution may be asked for at `now`.
-    fn may_reexec(&self, now: std::time::Instant) -> bool {
+    fn may_reexec(
+        &self,
+        now: std::time::Instant,
+    ) -> bool {
         return match self.last_reexec {
             Some(last) => now.duration_since(last) >= self.gap,
             None => true,
@@ -124,22 +138,39 @@ impl GuardMemory {
 
     /// What to do about the ownership the bus reported,
     /// for the manager whose main process is `expected`.
-    pub fn decide(&mut self, expected: i32, ownership: Ownership, now: std::time::Instant) -> Action {
+    pub fn decide(
+        &mut self,
+        expected: i32,
+        ownership: Ownership,
+        now: std::time::Instant,
+    ) -> Action {
         return match ownership {
-            Ownership::Owner { pid, .. } if pid == expected => Action::Nothing,
-            Ownership::Owner { pid, unique } => {
+            Ownership::Owner {
+                pid,
+                ..
+            } if pid == expected => Action::Nothing,
+            Ownership::Owner {
+                pid,
+                unique,
+            } => {
                 let reexec = self.may_reexec(now);
                 if reexec {
                     self.last_reexec = Some(now);
                 }
-                Action::KillImpostor { pid, unique, reexec }
+                Action::KillImpostor {
+                    pid,
+                    unique,
+                    reexec,
+                }
             }
             Ownership::Nobody => {
                 let ask = self.may_reexec(now);
                 if ask {
                     self.last_reexec = Some(now);
                 }
-                Action::Reexec { ask }
+                Action::Reexec {
+                    ask,
+                }
             }
             Ownership::Unknown => Action::Nothing,
         };
@@ -150,18 +181,37 @@ impl GuardMemory {
 /// so a test can watch them without a bus or a manager.
 pub trait GuardSteps {
     /// The main process of the user's manager.
-    fn expected_pid(&self, uid: u32) -> Option<i32>;
+    fn expected_pid(
+        &self,
+        uid: u32,
+    ) -> Option<i32>;
     /// Who holds the bus name now.
-    fn ownership(&mut self, uid: u32) -> Ownership;
+    fn ownership(
+        &mut self,
+        uid: u32,
+    ) -> Ownership;
     /// Waits up to `timeout` for the bus to say that the name's owner changed,
     /// and reports whether it did.
-    fn wait_for_change(&mut self, uid: u32, timeout: std::time::Duration) -> bool;
+    fn wait_for_change(
+        &mut self,
+        uid: u32,
+        timeout: std::time::Duration,
+    ) -> bool;
     /// Ends the process that holds the name,
     /// after proving that `unique` still names `pid`.
-    fn kill(&mut self, uid: u32, unique: &str, pid: i32) -> Result<(), String>;
+    fn kill(
+        &mut self,
+        uid: u32,
+        unique: &str,
+        pid: i32,
+    ) -> Result<(), String>;
     /// Asks the manager to take the bus name again,
     /// as the watched user with the primary group `gid`.
-    fn reexec(&self, uid: u32, gid: u32) -> Result<(), String>;
+    fn reexec(
+        &self,
+        uid: u32,
+        gid: u32,
+    ) -> Result<(), String>;
 }
 
 /// One line the guard says about what it did,
@@ -192,7 +242,11 @@ impl Guard<'_> {
     /// Checks the name once at `now` and does what the answer requires.
     /// Every action is reported,
     /// and so is a bus that could not be asked.
-    pub fn check(&mut self, uid: u32, now: std::time::Instant) -> Vec<GuardReport> {
+    pub fn check(
+        &mut self,
+        uid: u32,
+        now: std::time::Instant,
+    ) -> Vec<GuardReport> {
         let Some(expected) = self.steps.expected_pid(uid) else {
             return vec![GuardReport {
                 loud: true,
@@ -205,8 +259,12 @@ impl Guard<'_> {
         let mut reports: Vec<GuardReport> = Vec::new();
         match self.memory.decide(expected, ownership, now) {
             Action::Nothing => {}
-            Action::Reexec { ask: false } => {}
-            Action::Reexec { ask: true } => {
+            Action::Reexec {
+                ask: false,
+            } => {}
+            Action::Reexec {
+                ask: true,
+            } => {
                 reports.push(GuardReport {
                     loud: true,
                     text: format!(
@@ -224,7 +282,11 @@ impl Guard<'_> {
                     }),
                 }
             }
-            Action::KillImpostor { pid, unique, reexec } => {
+            Action::KillImpostor {
+                pid,
+                unique,
+                reexec,
+            } => {
                 reports.push(GuardReport {
                     loud: true,
                     text: format!(
@@ -232,8 +294,16 @@ impl Guard<'_> {
                     ),
                 });
                 match self.steps.kill(uid, &unique, pid) {
-                    Ok(()) => reports.push(GuardReport { loud: false, text: format!("killed pid {pid}, which was not the user's manager") }),
-                    Err(error) => reports.push(GuardReport { loud: true, text: format!("pid {pid} holds {MANAGER_BUS_NAME} and could not be killed: {error}") }),
+                    Ok(()) => reports.push(GuardReport {
+                        loud: false,
+                        text: format!("killed pid {pid}, which was not the user's manager"),
+                    }),
+                    Err(error) => reports.push(GuardReport {
+                        loud: true,
+                        text: format!(
+                            "pid {pid} holds {MANAGER_BUS_NAME} and could not be killed: {error}"
+                        ),
+                    }),
                 }
                 if reexec {
                     match self.steps.reexec(uid, self.gid) {

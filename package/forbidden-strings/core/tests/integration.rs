@@ -10,7 +10,11 @@
 //! // module integration: see exported functions and types below.
 //! ```
 
-use forbidden_regex::{CompileError, RegexSet, compile};
+use forbidden_regex::{
+    CompileError,
+    RegexSet,
+    compile,
+};
 
 /// What:
 ///     A valid 20-byte AWS-style key:
@@ -115,7 +119,10 @@ fn alternation_intersection_complement() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(matches!(compile("(?:cat|dog)"), Err(CompileError::Syntax { .. })));
+    assert!(matches!(
+        compile("(?:cat|dog)"),
+        Err(CompileError::Syntax { .. })
+    ));
 
     // What:    The canonical set-algebra case, wrapped to the single-atom-operand grammar: an
     //          AWS-style key, excluding the documented all-2s placeholder.
@@ -126,10 +133,8 @@ fn alternation_intersection_complement() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    let aws = compile(
-        "(?:\\b(?:(?:A3T[A-Z0-9])|(?:AKIA)|(?:ASIA))[A-Z2-7]{16}\\b)&~(AKIA2{16})",
-    )
-    .expect("compile the AWS set-algebra pattern");
+    let aws = compile("(?:\\b(?:(?:A3T[A-Z0-9])|(?:AKIA)|(?:ASIA))[A-Z2-7]{16}\\b)&~(AKIA2{16})")
+        .expect("compile the AWS set-algebra pattern");
     assert!(aws.is_match(AKIA_KEY.as_bytes()));
     assert!(aws.is_match(format!("prefix {AKIA_KEY} suffix").as_bytes()));
     assert!(!aws.is_match(b"AKIA222222222222222\x32"));
@@ -138,7 +143,10 @@ fn alternation_intersection_complement() {
 #[test]
 fn empty_matchable_rejected() {
     assert!(matches!(compile("a?"), Err(CompileError::EmptyMatchable)));
-    assert!(matches!(compile("~(abc)"), Err(CompileError::EmptyMatchable)));
+    assert!(matches!(
+        compile("~(abc)"),
+        Err(CompileError::EmptyMatchable)
+    ));
 }
 
 #[test]
@@ -172,8 +180,11 @@ fn product_rule_survives_roundtrip() {
         "ghp_[A-Za-z0-9]{36}",
     ])
     .expect("build a regex set for the product-rule pattern");
-    let bytes = set.to_bytes().expect("serialize the product-rule set to bytes");
-    let reloaded = RegexSet::from_bytes(&bytes).expect("deserialize the product-rule set from bytes");
+    let bytes = set
+        .to_bytes()
+        .expect("serialize the product-rule set to bytes");
+    let reloaded =
+        RegexSet::from_bytes(&bytes).expect("deserialize the product-rule set from bytes");
     assert!(reloaded.is_match(format!("key {AKIA_KEY} end").as_bytes()));
     // What:    The all-2s placeholder is vetoed by the complement, even after a round-trip.
     // Why:     The test uses this setup or assertion to pin the behavior named by the test
@@ -338,7 +349,10 @@ fn mixed_ruleset_routes_each_rule_correctly() {
     .expect("build a regex set from a mixed ruleset");
     assert_eq!(set.len(), 3);
     assert_eq!(set.matches(b"PR1:").collect::<Vec<_>>(), vec![0]);
-    assert_eq!(set.matches(AKIA_KEY.as_bytes()).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(
+        set.matches(AKIA_KEY.as_bytes()).collect::<Vec<_>>(),
+        vec![1]
+    );
     assert_eq!(set.matches(b"abcQ~def").collect::<Vec<_>>(), vec![2]);
     assert!(!set.is_match(b"unrelated content"));
 }
@@ -413,8 +427,12 @@ fn single_regex_round_trips_through_bytes() {
     let regex = compile("AKIA[A-Z2-7]{16}").expect("compile a leading-literal AKIA pattern");
     let bytes = regex.to_bytes().expect("serialize the regex to bytes");
     assert!(!bytes.is_empty());
-    let reloaded = forbidden_regex::Regex::from_bytes(&bytes).expect("deserialize the regex from bytes");
-    assert_eq!(regex.is_match(AKIA_KEY.as_bytes()), reloaded.is_match(AKIA_KEY.as_bytes()));
+    let reloaded =
+        forbidden_regex::Regex::from_bytes(&bytes).expect("deserialize the regex from bytes");
+    assert_eq!(
+        regex.is_match(AKIA_KEY.as_bytes()),
+        reloaded.is_match(AKIA_KEY.as_bytes())
+    );
     assert!(reloaded.is_match(AKIA_KEY.as_bytes()));
     assert!(!reloaded.is_match(b"not a key"));
 }
@@ -466,7 +484,11 @@ fn diagnostic_accessors_report_structure() {
         .expect("build a regex set from the line-start marker pattern");
     assert_eq!(marker.line_start_count(), 1);
 
-    assert!(RegexSet::new::<&str>(&[]).expect("build an empty regex set").is_empty());
+    assert!(
+        RegexSet::new::<&str>(&[])
+            .expect("build an empty regex set")
+            .is_empty()
+    );
 }
 
 #[test]
@@ -591,10 +613,19 @@ fn debug_seedless_reports_only_literal_free_patterns() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let dump = forbidden_regex::debug_seedless("[a-z]{5}").expect("a class repetition is seedless");
-    assert!(dump.len() > 10, "the dump must be the real parsed node, got {dump:?}");
+    assert!(
+        dump.len() > 10,
+        "the dump must be the real parsed node, got {dump:?}"
+    );
     assert_ne!(dump, "xyzzy");
-    assert!(forbidden_regex::debug_seedless("[a-z]{3}abc").is_none(), "an inner literal is a seed");
-    assert!(forbidden_regex::debug_seedless("AKIA[A-Z2-7]{16}").is_none(), "a leading literal is a seed");
+    assert!(
+        forbidden_regex::debug_seedless("[a-z]{3}abc").is_none(),
+        "an inner literal is a seed"
+    );
+    assert!(
+        forbidden_regex::debug_seedless("AKIA[A-Z2-7]{16}").is_none(),
+        "a leading literal is a seed"
+    );
 }
 
 #[test]
@@ -610,7 +641,10 @@ fn try_combined_dfa_reports_a_real_state_count() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let count = forbidden_regex::try_combined_dfa(&["abc", "def", "[0-9]{3}"]).expect("builds");
-    assert!(count > 2, "a three-rule combined DFA has many states, got {count}");
+    assert!(
+        count > 2,
+        "a three-rule combined DFA has many states, got {count}"
+    );
 }
 
 #[test]
@@ -632,7 +666,10 @@ fn seedless_rule_above_the_group_state_cap_still_matches() {
         set.matches(line).next().is_some(),
         "is_match must agree with matches for every line",
     );
-    assert!(set.is_match(line), "the boolean fast path must report the rule");
+    assert!(
+        set.is_match(line),
+        "the boolean fast path must report the rule"
+    );
     assert_eq!(set.matches(line).collect::<Vec<usize>>(), vec![0]);
     // What:    The batch boolean kernels read the same union engines, so they must report the
     //          rule on the line that holds it and stay false on the line that does not;
@@ -647,7 +684,11 @@ fn seedless_rule_above_the_group_state_cap_still_matches() {
     // assert.deepEqual(set.isMatchBatchConcat(lines), [true, false]);
     // ```
     let lines: [&[u8]; 2] = [line, b"no digit run here"];
-    assert_eq!(set.is_match_batch(&lines), vec![true, false], "batch kernels keep the rule");
+    assert_eq!(
+        set.is_match_batch(&lines),
+        vec![true, false],
+        "batch kernels keep the rule"
+    );
     assert_eq!(
         set.is_match_batch_concat(&lines),
         vec![true, false],

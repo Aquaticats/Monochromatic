@@ -1,18 +1,34 @@
 //! Resolve each selected search directory inside the fixed project before starting child processes.
 
 /// The worker owns request identity and immutable reply publication.
-use super::{Request, SearchReply};
+use super::{
+    Request,
+    SearchReply,
+};
 /// Search scopes do not create another project;
 ///  they narrow the existing read-only boundary.
-use crate::{search::SearchResults, search_process, workspace::Workspace};
+use crate::{
+    search::SearchResults,
+    search_process,
+    workspace::Workspace,
+};
 /// Resolution and directory-kind failures retain their affected input.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Native scope paths retain byte identity across relative and absolute input forms.
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 /// Validate a selected directory on the background thread,
 ///  before ripgrep can enumerate it.
-fn scope(workspace: &Workspace, request: &Request) -> Result<PathBuf> {
+fn scope(
+    workspace: &Workspace,
+    request: &Request,
+) -> Result<PathBuf> {
     let path = if let Some(selected) = &request.scope {
         workspace.resolve(selected)?
     } else {
@@ -35,7 +51,10 @@ fn scope(workspace: &Workspace, request: &Request) -> Result<PathBuf> {
 
 /// A scope failure belongs to the whole query;
 ///  both streams report the same operation-specific diagnostic.
-pub(super) async fn run(workspace: &Workspace, request: &Request) -> Option<SearchReply> {
+pub(super) async fn run(
+    workspace: &Workspace,
+    request: &Request,
+) -> Option<SearchReply> {
     if request.cancellation.is_cancelled() {
         return None;
     }

@@ -163,7 +163,10 @@ impl std::fmt::Display for FirstRunError {
     /// ```ts
     /// toString(): string { return "The folder no-audio state needs a non-blank folder name."; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
             Self::BlankFolderName => {
                 formatter.write_str("The folder no-audio state needs a non-blank folder name.")

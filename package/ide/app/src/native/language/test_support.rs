@@ -15,10 +15,16 @@
 ///  state,
 ///  bindings,
 ///  and the language binding under test.
-use super::{LanguageBinding, bind};
+use super::{
+    LanguageBinding,
+    bind,
+};
 /// Shared helpers of the other window tests:
 ///  key events and bounded waiting.
-use crate::native::find_tests::{chord, key};
+use crate::native::find_tests::{
+    chord,
+    key,
+};
 /// Windows are drawn on the hardware GPU,
 ///  so the platform is installed before the thread's first window.
 use crate::native::gpu_snapshot::install_gpu_platform;
@@ -26,8 +32,16 @@ use crate::native::gpu_snapshot::install_gpu_platform;
 ///  source state,
 ///  and every binding the application installs.
 use crate::native::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, find, navigation,
-    reload, render,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    find,
+    navigation,
+    reload,
+    render,
 };
 /// The handle,
 ///  its setup,
@@ -38,14 +52,24 @@ use ide_app::{
         LanguageWorker,
         config::LanguageSetup,
         enter_project_directory,
-        launch::{LaunchPolicy, launch_directly},
+        launch::{
+            LaunchPolicy,
+            launch_directly,
+        },
     },
     workspace::Workspace,
 };
 /// Window events as a seat delivers them.
 use slint::{
-    ComponentHandle, LogicalPosition, SharedString, Timer,
-    platform::{Key, PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    SharedString,
+    Timer,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// What:
 ///  Disposable files,
@@ -62,9 +86,15 @@ use slint::{
 use std::{
     cell::RefCell,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Waiting for timers and for the scripted server,
@@ -138,7 +168,12 @@ pub(super) fn address(path: &Path) -> String {
 
 /// A JSON location for the scripted server:
 ///  an address and a zero-based line and column range.
-pub(super) fn location(uri: &str, line: u32, start: u32, end: u32) -> String {
+pub(super) fn location(
+    uri: &str,
+    line: u32,
+    start: u32,
+    end: u32,
+) -> String {
     return format!(
         r#"{{"uri":"{uri}","range":{{"start":{{"line":{line},"character":{start}}},"end":{{"line":{line},"character":{end}}}}}}}"#
     );
@@ -155,7 +190,10 @@ pub(super) fn location(uri: &str, line: u32, start: u32, end: u32) -> String {
 /// ```ts
 /// function definitions(variables: [string, string][], command?: string): string
 /// ```
-pub(super) fn definitions(variables: &[(&str, &str)], command: Option<&str>) -> String {
+pub(super) fn definitions(
+    variables: &[(&str, &str)],
+    command: Option<&str>,
+) -> String {
     // The scripted server is built beside the test binary's `deps` directory.
     let program = std::env::current_exe()
         .expect("test executable")
@@ -247,7 +285,11 @@ pub(super) struct LanguageReader {
 /// ```ts
 /// function reader(project: Project, name: string, definitions: string): LanguageReader
 /// ```
-pub(super) fn reader(project: &Project, name: &str, languages: String) -> LanguageReader {
+pub(super) fn reader(
+    project: &Project,
+    name: &str,
+    languages: String,
+) -> LanguageReader {
     // Why direct launch: these tests run in the build container, whose image has no bubblewrap,
     // so the production policy would refuse every launch; the server here is this crate's own
     // scripted binary and the project is a disposable directory.
@@ -349,7 +391,10 @@ pub(super) fn idle(millis: u64) {
 
 /// Place the caret at `position` through the document,
 ///  as a click would.
-pub(super) fn caret(reader: &LanguageReader, position: usize) {
+pub(super) fn caret(
+    reader: &LanguageReader,
+    position: usize,
+) {
     let mut current = reader.source.borrow_mut();
     let mut reading = current.document.position();
     reading.anchor = position;
@@ -398,7 +443,11 @@ pub(super) fn escape(reader: &LanguageReader) {
 /// ```ts
 /// function point(reader: LanguageReader, line: number, x: number): LogicalPosition;
 /// ```
-pub(super) fn point(reader: &LanguageReader, line: usize, x: f32) -> LogicalPosition {
+pub(super) fn point(
+    reader: &LanguageReader,
+    line: usize,
+    x: f32,
+) -> LogicalPosition {
     let top = reader.source.borrow().row_map.code_top(line);
     return LogicalPosition::new(
         TEXT_LEFT + x,
@@ -418,7 +467,12 @@ pub(super) fn point(reader: &LanguageReader, line: usize, x: f32) -> LogicalPosi
 /// ```ts
 /// function above(reader: LanguageReader, line: number, x: number, rise: number): LogicalPosition;
 /// ```
-pub(super) fn above(reader: &LanguageReader, line: usize, x: f32, rise: f32) -> LogicalPosition {
+pub(super) fn above(
+    reader: &LanguageReader,
+    line: usize,
+    x: f32,
+    rise: f32,
+) -> LogicalPosition {
     let top = reader.source.borrow().row_map.code_top(line);
     return LogicalPosition::new(
         TEXT_LEFT + x,
@@ -459,14 +513,20 @@ pub(super) fn rows(reader: &LanguageReader) -> (usize, usize) {
 }
 
 /// Move the pointer to a window point without a button held.
-pub(super) fn move_to(window: &AppWindow, position: LogicalPosition) {
-    window
-        .window()
-        .dispatch_event(WindowEvent::PointerMoved { position });
+pub(super) fn move_to(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
+    window.window().dispatch_event(WindowEvent::PointerMoved {
+        position,
+    });
 }
 
 /// A left click at a window point.
-pub(super) fn click(window: &AppWindow, position: LogicalPosition) {
+pub(super) fn click(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position,
         button: PointerEventButton::Left,
@@ -480,7 +540,10 @@ pub(super) fn click(window: &AppWindow, position: LogicalPosition) {
 }
 
 /// A Ctrl+click at a window point.
-pub(super) fn control_click(window: &AppWindow, position: LogicalPosition) {
+pub(super) fn control_click(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window.window().dispatch_event(WindowEvent::KeyPressed {
         text: Key::Control.into(),
     });
@@ -491,7 +554,10 @@ pub(super) fn control_click(window: &AppWindow, position: LogicalPosition) {
 }
 
 /// Logical x of the caret before character `position` on its shaped row.
-pub(super) fn caret_x(reader: &LanguageReader, position: usize) -> f32 {
+pub(super) fn caret_x(
+    reader: &LanguageReader,
+    position: usize,
+) -> f32 {
     let state = reader.source.borrow();
     let line = state.document.text().char_to_line(position);
     let view = state.shaped.as_ref().expect("shaped source");

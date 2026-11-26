@@ -14,7 +14,7 @@ fn update(index: u64) -> LauncherUpdate {
         count: 0,
         count_visible: false,
         urgent: false,
-    }
+    };
 }
 
 /// An empty history has no latest update and returns nothing.
@@ -34,7 +34,11 @@ fn records_come_back_in_arrival_order() {
         history.push(update(index));
     }
     assert_eq!(history.latest(), Some(&update(4)));
-    let recent: Vec<u64> = history.last_n(3).iter().map(|record| return record.at_ms).collect();
+    let recent: Vec<u64> = history
+        .last_n(3)
+        .iter()
+        .map(|record| return record.at_ms)
+        .collect();
     assert_eq!(recent, [2, 3, 4]);
 }
 
@@ -44,7 +48,11 @@ fn last_n_larger_than_history_returns_everything() {
     let mut history = LauncherHistory::default();
     history.push(update(7));
     history.push(update(8));
-    let all: Vec<u64> = history.last_n(64).iter().map(|record| return record.at_ms).collect();
+    let all: Vec<u64> = history
+        .last_n(64)
+        .iter()
+        .map(|record| return record.at_ms)
+        .collect();
     assert_eq!(all, [7, 8]);
 }
 
@@ -59,7 +67,10 @@ fn history_is_bounded_and_evicts_oldest() {
     let kept = history.last_n(usize::MAX);
     assert_eq!(kept.len(), LAUNCHER_HISTORY_CAPACITY);
     assert_eq!(kept.first().map(|record| return record.at_ms), Some(3));
-    assert_eq!(kept.last().map(|record| return record.at_ms), Some(total - 1));
+    assert_eq!(
+        kept.last().map(|record| return record.at_ms),
+        Some(total - 1)
+    );
 }
 
 /// Clearing empties the history so the next latest query sees nothing.

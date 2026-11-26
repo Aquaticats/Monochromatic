@@ -12,24 +12,54 @@ use super::inspect;
 ///  the shared state,
 ///  and the modules whose bindings are installed at startup.
 use super::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, find, frame_trace,
-    language, minimap, navigation, reload, render,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    find,
+    frame_trace,
+    language,
+    minimap,
+    navigation,
+    reload,
+    render,
 };
 /// Source-open errors identify their input instead of exposing an unlabelled I/O failure.
-use anyhow::{Context, bail};
+use anyhow::{
+    Context,
+    bail,
+};
 /// The Language module's handle,
 ///  and its startup rule.
-use ide_app::language::{LanguageWorker, enter_project_directory};
+use ide_app::language::{
+    LanguageWorker,
+    enter_project_directory,
+};
 /// The log filter,
 ///  the subscriber with the helix-lsp bridge,
 ///  and the writer thread.
-use ide_app::logging::{self, background};
+use ide_app::logging::{
+    self,
+    background,
+};
 /// Explicit startup paths retain one canonical project boundary.
-use ide_app::{cli::Options, workspace::Workspace};
+use ide_app::{
+    cli::Options,
+    workspace::Workspace,
+};
 /// Toolkit handles bridge owned Rust state to the window.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 /// Callbacks need the same document without cross-thread Arc/Mutex overhead.
-use std::{cell::RefCell, path::Path, rc::Rc};
+use std::{
+    cell::RefCell,
+    path::Path,
+    rc::Rc,
+};
 
 /// What:
 ///  Success when this window may start language servers,

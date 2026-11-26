@@ -39,7 +39,9 @@ pub fn is_xml_char(character: char) -> bool {
     if code == 0x9 || code == 0xA || code == 0xD {
         return true;
     }
-    return (0x20..=0xD7FF).contains(&code) || (0xE000..=0xFFFD).contains(&code) || (0x10000..=0x10FFFF).contains(&code);
+    return (0x20..=0xD7FF).contains(&code)
+        || (0xE000..=0xFFFD).contains(&code)
+        || (0x10000..=0x10FFFF).contains(&code);
 }
 
 /// What:

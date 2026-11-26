@@ -60,7 +60,11 @@ impl Coverage {
     /// ```ts
     /// note(stamp: DocumentStamp, lines: [number, number]): void;
     /// ```
-    pub(super) fn note(&mut self, stamp: DocumentStamp, lines: Range<usize>) {
+    pub(super) fn note(
+        &mut self,
+        stamp: DocumentStamp,
+        lines: Range<usize>,
+    ) {
         if self.stamp != Some(stamp) {
             self.ranges.clear();
             self.stamp = Some(stamp);
@@ -91,7 +95,11 @@ impl Coverage {
     /// ```ts
     /// covers(stamp: DocumentStamp, lines: [number, number]): boolean;
     /// ```
-    pub(super) fn covers(&self, stamp: DocumentStamp, lines: Range<usize>) -> bool {
+    pub(super) fn covers(
+        &self,
+        stamp: DocumentStamp,
+        lines: Range<usize>,
+    ) -> bool {
         if self.stamp != Some(stamp) || lines.is_empty() {
             return false;
         }
@@ -115,7 +123,10 @@ impl Coverage {
     /// ```ts
     /// uncover(lines: [number, number]): void;
     /// ```
-    pub(super) fn uncover(&mut self, lines: Range<usize>) {
+    pub(super) fn uncover(
+        &mut self,
+        lines: Range<usize>,
+    ) {
         let mut kept: Vec<Range<usize>> = Vec::new();
         for range in self.ranges.drain(..) {
             if range.end <= lines.start || lines.end <= range.start {

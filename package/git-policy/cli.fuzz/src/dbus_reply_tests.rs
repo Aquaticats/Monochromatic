@@ -9,7 +9,11 @@
 //! ```
 
 /// Import the generator and the invariants under control.
-use super::{check_generated_reply, check_raw_reply, generated_reply};
+use super::{
+    check_generated_reply,
+    check_raw_reply,
+    generated_reply,
+};
 
 /// Inputs over a spread of leading bytes,
 /// with longer derived ones.
@@ -18,7 +22,15 @@ fn inputs() -> Vec<Vec<u8>> {
     for first in 0..=255_u8 {
         for second in [0_u8, 1, 2, 3, 64, 127, 255] {
             all.push(vec![first, second, first ^ second, second]);
-            all.push((0..48_u8).map(|index| { return first.wrapping_mul(31).wrapping_add(index.wrapping_mul(second)); }).collect());
+            all.push(
+                (0..48_u8)
+                    .map(|index| {
+                        return first
+                            .wrapping_mul(31)
+                            .wrapping_add(index.wrapping_mul(second));
+                    })
+                    .collect(),
+            );
         }
     }
     return all;
@@ -39,7 +51,10 @@ fn the_generator_reaches_returns_and_errors() {
             returns += 1;
         }
     }
-    assert!(returns > 0 && errors > 0, "returns {returns}, errors {errors}");
+    assert!(
+        returns > 0 && errors > 0,
+        "returns {returns}, errors {errors}"
+    );
 }
 
 /// The checks hold on every generated input.

@@ -10,7 +10,11 @@ use vello::peniko::FontData;
 /// in the layout's own pixel units,
 /// the scene,
 /// and the path of a stroke.
-use vello::{Glyph, Scene, kurbo::BezPath};
+use vello::{
+    Glyph,
+    Scene,
+    kurbo::BezPath,
+};
 
 /// What:
 ///  One run of glyphs in one ink,

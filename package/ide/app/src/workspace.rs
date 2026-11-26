@@ -2,14 +2,23 @@
 //!  no mutation operations are exposed.
 
 /// Sibling names sort in the order the tree shows them.
-use crate::name_order::{NameKey, name_key};
+use crate::name_order::{
+    NameKey,
+    name_key,
+};
 /// Every failure identifies the operation and affected input.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Paths retain native filenames rather than round-tripping lossy UI strings.
 use std::{
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// One filesystem entry;
@@ -65,7 +74,9 @@ impl Workspace {
             );
         }
         tracing::info!(root = %root.display(), "opened read-only project boundary");
-        return Ok(Self { root });
+        return Ok(Self {
+            root,
+        });
     }
 
     /// Borrow the canonical root for read-only subprocess working directories.
@@ -76,7 +87,10 @@ impl Workspace {
     /// Resolve relative names from the explicit project root,
     ///  never ambient process cwd.
     /// Symlinks resolving outside the root are rejected for tree/project-search operations.
-    pub fn resolve(&self, path: &Path) -> Result<PathBuf> {
+    pub fn resolve(
+        &self,
+        path: &Path,
+    ) -> Result<PathBuf> {
         let candidate = self.root.join(path);
         let resolved = match candidate.canonicalize() {
             Ok(found) => found,
@@ -100,7 +114,10 @@ impl Workspace {
     /// Read only the requested directory,
     ///  sorted as `name_order` defines;
     ///  hidden entries remain visible as in editord.
-    pub fn list(&self, path: &Path) -> Result<Vec<DirectoryEntry>> {
+    pub fn list(
+        &self,
+        path: &Path,
+    ) -> Result<Vec<DirectoryEntry>> {
         let directory = self.resolve(path)?;
         let entries = match fs::read_dir(&directory) {
             Ok(found) => found,

@@ -21,30 +21,58 @@
 /// Imports `GzDecoder` from `flate2::read`.
 use flate2::read::GzDecoder;
 /// Imports what this module uses from `std::fs`.
-use std::fs::{self, File};
+use std::fs::{
+    self,
+    File,
+};
 /// Imports `io` from `std`.
 use std::io;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports what this module uses from `super::archive_staging`.
-use super::archive_staging::{discard_path, publish_staged, staging_dir_of, write_complete_marker};
+use super::archive_staging::{
+    discard_path,
+    publish_staged,
+    staging_dir_of,
+    write_complete_marker,
+};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::install_support`.
 use super::install_support::{
-    ARCHIVE_SUFFIXES, artifact_for_host, atomic_symlink, download_verified, extract_archive, extract_conda, make_executable, restore_exec_bits,
+    ARCHIVE_SUFFIXES,
+    artifact_for_host,
+    atomic_symlink,
+    download_verified,
+    extract_archive,
+    extract_conda,
+    make_executable,
+    restore_exec_bits,
 };
 /// Imports what this module uses from `super::layout`.
-use super::layout::{find_bin_under, install_dir_name, tool_downloads_dir, tool_install_dir};
-/// Imports the suffix check.
-use super::util::ends_with_any;
+use super::layout::{
+    find_bin_under,
+    install_dir_name,
+    tool_downloads_dir,
+    tool_install_dir,
+};
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::published_archive`.
-use super::published_archive::{first_bin_of_tool, is_published_archive, point_current_at_newest_archive, remove_older_archives};
+use super::published_archive::{
+    first_bin_of_tool,
+    is_published_archive,
+    point_current_at_newest_archive,
+    remove_older_archives,
+};
+/// Imports the suffix check.
+use super::util::ends_with_any;
 
 /// What:
 /// The last path segment of a URL (query and fragment removed) made safe as a file name:
@@ -112,7 +140,10 @@ fn program_names(tool: &LockedTool) -> Vec<String> {
 /// the program's path relative to the version directory,
 /// so the link stays right when the whole toolchain root moves.
 #[cfg(unix)]
-fn stable_link_target(version_dir: &Path, program: &Path) -> PathBuf {
+fn stable_link_target(
+    version_dir: &Path,
+    program: &Path,
+) -> PathBuf {
     return match program.strip_prefix(version_dir) {
         Ok(relative) => relative.to_path_buf(),
         Err(_) => program.to_path_buf(),
@@ -122,7 +153,10 @@ fn stable_link_target(version_dir: &Path, program: &Path) -> PathBuf {
 /// A platform without symbolic links makes a hard link,
 /// whose relative target would resolve against the working directory.
 #[cfg(not(unix))]
-fn stable_link_target(_version_dir: &Path, program: &Path) -> PathBuf {
+fn stable_link_target(
+    _version_dir: &Path,
+    program: &Path,
+) -> PathBuf {
     return program.to_path_buf();
 }
 
@@ -148,7 +182,10 @@ fn stable_link_target(_version_dir: &Path, program: &Path) -> PathBuf {
 /// ```ts
 /// export function linkStablePrograms(tool: LockedTool, versionDir: string): void  // throws
 /// ```
-pub fn link_stable_programs(tool: &LockedTool, version_dir: &Path) -> Result<(), ToolchainError> {
+pub fn link_stable_programs(
+    tool: &LockedTool,
+    version_dir: &Path,
+) -> Result<(), ToolchainError> {
     if !is_published_archive(tool) {
         return Ok(());
     }
@@ -166,18 +203,34 @@ pub fn link_stable_programs(tool: &LockedTool, version_dir: &Path) -> Result<(),
 }
 
 /// Writes the gunzipped contents of `source` to `target`.
-fn gunzip_to(source: &Path, target: &Path) -> Result<(), ToolchainError> {
+fn gunzip_to(
+    source: &Path,
+    target: &Path,
+) -> Result<(), ToolchainError> {
     let input: File = match File::open(source) {
         Ok(opened) => opened,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot open {}: {error}", source.display()))),
+        Err(error) => {
+            return Err(ToolchainError::failure(format!(
+                "cannot open {}: {error}",
+                source.display()
+            )));
+        }
     };
     let mut output: File = match File::create(target) {
         Ok(created) => created,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot create {}: {error}", target.display()))),
+        Err(error) => {
+            return Err(ToolchainError::failure(format!(
+                "cannot create {}: {error}",
+                target.display()
+            )));
+        }
     };
     let mut decoder: GzDecoder<File> = GzDecoder::new(input);
     if let Err(error) = io::copy(&mut decoder, &mut output) {
-        return Err(ToolchainError::failure(format!("cannot decompress {}: {error}", source.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot decompress {}: {error}",
+            source.display()
+        )));
     }
     return Ok(());
 }
@@ -194,11 +247,18 @@ fn gunzip_to(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 /// ```ts
 /// export function installArchive(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_archive(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     install_archive_files(ctx, tool)?;
     if is_published_archive(tool) {
         let first_bin: &str = first_bin_of_tool(tool);
-        point_current_at_newest_archive(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin)?;
+        point_current_at_newest_archive(
+            &ctx.scope.toolchain_root,
+            &tool.declaration.id,
+            first_bin,
+        )?;
         remove_older_archives(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin)?;
     }
     return Ok(());
@@ -233,7 +293,13 @@ fn required_program(tool: &LockedTool) -> Option<&str> {
 /// ```ts
 /// function unpackInto(ctx: Context, tool: LockedTool, url: string, download: string, into: string): void
 /// ```
-fn unpack_into(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path, into: &Path) -> Result<(), ToolchainError> {
+fn unpack_into(
+    ctx: &Context,
+    tool: &LockedTool,
+    url: &str,
+    download_path: &Path,
+    into: &Path,
+) -> Result<(), ToolchainError> {
     let is_archive: bool = ends_with_any(url, &ARCHIVE_SUFFIXES);
     if is_archive || url.ends_with(".conda") {
         if url.ends_with(".conda") {
@@ -257,7 +323,11 @@ fn unpack_into(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path
         if url.ends_with(".gz") {
             gunzip_to(download_path, &target)?;
         } else if let Err(error) = fs::copy(download_path, &target) {
-            return Err(ToolchainError::failure(format!("cannot copy {} to {}: {error}", download_path.display(), target.display())));
+            return Err(ToolchainError::failure(format!(
+                "cannot copy {} to {}: {error}",
+                download_path.display(),
+                target.display()
+            )));
         }
         make_executable(&target)?;
     }
@@ -276,7 +346,13 @@ fn unpack_into(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path
 /// Unpacks the verified download into `staging`,
 /// gives a release archive of this repository its version-independent program paths,
 /// and writes the completion marker last.
-fn unpack_and_mark(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path, staging: &Path) -> Result<(), ToolchainError> {
+fn unpack_and_mark(
+    ctx: &Context,
+    tool: &LockedTool,
+    url: &str,
+    download_path: &Path,
+    staging: &Path,
+) -> Result<(), ToolchainError> {
     unpack_into(ctx, tool, url, download_path, staging)?;
     link_stable_programs(tool, staging)?;
     return write_complete_marker(staging, &tool.declaration.id, &tool.version);
@@ -297,17 +373,32 @@ fn unpack_and_mark(ctx: &Context, tool: &LockedTool, url: &str, download_path: &
 /// ```ts
 /// function installArchiveFiles(ctx: Context, tool: LockedTool): void
 /// ```
-fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+fn install_archive_files(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let artifact = artifact_for_host(tool, &ctx.host.platform)?;
     let file_name: String = safe_file_name(&artifact.url);
-    let download_path: PathBuf = tool_downloads_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?.join(&file_name);
+    let download_path: PathBuf = tool_downloads_dir(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )?
+    .join(&file_name);
     download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
-    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
+    let install_dir: PathBuf = tool_install_dir(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )?;
     let staging: PathBuf = staging_dir_of(&install_dir);
     // A leftover of a killed run that had this process id would be unpacked over.
     discard_path(&staging);
     if let Err(error) = fs::create_dir_all(&staging) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", staging.display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            staging.display()
+        )));
     }
     if let Err(error) = unpack_and_mark(ctx, tool, &artifact.url, &download_path, &staging) {
         discard_path(&staging);

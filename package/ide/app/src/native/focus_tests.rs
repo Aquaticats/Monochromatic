@@ -6,7 +6,12 @@
 /// The production window whose focus state is read back.
 use super::AppWindow;
 /// The complete reader fixture and real key-event helpers shared with the find tests.
-use super::find_tests::{chord, key, reader, type_text};
+use super::find_tests::{
+    chord,
+    key,
+    reader,
+    type_text,
+};
 /// What:
 ///  `Key` names toolkit special keys;
 ///  converting one into text yields the encoded key string.
@@ -17,7 +22,10 @@ use super::find_tests::{chord, key, reader, type_text};
 /// ```ts
 /// import { Key } from 'slint';
 /// ```
-use slint::{ComponentHandle, platform::Key};
+use slint::{
+    ComponentHandle,
+    platform::Key,
+};
 /// Disposable project files back every native window in these tests.
 use std::fs;
 
@@ -48,7 +56,10 @@ fn focused(window: &AppWindow) -> &'static str {
 }
 
 /// Press Tab `count` times and collect the focus owner after each press.
-fn tab(window: &AppWindow, count: usize) -> Vec<&'static str> {
+fn tab(
+    window: &AppWindow,
+    count: usize,
+) -> Vec<&'static str> {
     // What: `Vec::new()` creates an empty growable list (siblings: fixed array `[T; N]`, borrowed slice `&[T]`).
     // Why: The number of presses is a parameter, so the list grows per press.
     //
@@ -67,7 +78,10 @@ fn tab(window: &AppWindow, count: usize) -> Vec<&'static str> {
 /// Press Shift+Tab `count` times,
 ///  as the seat delivers it:
 ///  the Tab key while Shift is held.
-fn shift_tab(window: &AppWindow, count: usize) -> Vec<&'static str> {
+fn shift_tab(
+    window: &AppWindow,
+    count: usize,
+) -> Vec<&'static str> {
     let mut seen = Vec::new();
     for _ in 0..count {
         chord(window, Key::Shift, Key::Tab);

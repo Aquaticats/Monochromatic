@@ -97,8 +97,7 @@ fn main() {
         kept.len(),
         serialized.len()
     );
-    let fset =
-        forbidden_regex::RegexSet::from_bytes(&serialized).expect("forbidden-regex reloads");
+    let fset = forbidden_regex::RegexSet::from_bytes(&serialized).expect("forbidden-regex reloads");
     tracing::debug!(
         seedless = fset.seedless_count(),
         groups = fset.seedless_group_count(),
@@ -133,7 +132,11 @@ fn main() {
         .dfa_size_limit(1 << 30)
         .build()
         .expect("regex compiles");
-    println!("build regex: {:.2}s for {} rules", build_regex.elapsed().as_secs_f64(), bare_kept.len());
+    println!(
+        "build regex: {:.2}s for {} rules",
+        build_regex.elapsed().as_secs_f64(),
+        bare_kept.len()
+    );
 
     let corpus = build_corpus();
     let lines = corpus.len();
@@ -142,9 +145,18 @@ fn main() {
     // Parity on a bounded sample: a systematic porter mismatch shows up here without
     // an unbounded full-corpus pass.
     let sample = &corpus[..corpus.len().min(PARITY_SAMPLE)];
-    let fhits = sample.iter().filter(|line| return fset.is_match(line.as_slice())).count();
-    let rhits = sample.iter().filter(|line| return rset.is_match(line.as_slice())).count();
-    println!("parity ({} lines): forbidden-regex={fhits}, regex={rhits}", sample.len());
+    let fhits = sample
+        .iter()
+        .filter(|line| return fset.is_match(line.as_slice()))
+        .count();
+    let rhits = sample
+        .iter()
+        .filter(|line| return rset.is_match(line.as_slice()))
+        .count();
+    println!(
+        "parity ({} lines): forbidden-regex={fhits}, regex={rhits}",
+        sample.len()
+    );
     if fhits != rhits {
         tracing::warn!("engines disagree on the sample; comparison is not apples to apples");
     }
@@ -165,13 +177,28 @@ fn main() {
     if missed == 0 {
         tracing::info!(lines, "fold misses no literal-free match");
     } else {
-        tracing::warn!(missed, lines, "fold misses literal-free matches (false negatives)");
+        tracing::warn!(
+            missed,
+            lines,
+            "fold misses literal-free matches (false negatives)"
+        );
     }
 
-    let prefilter_hits = corpus.iter().filter(|l| return fset.prefilter_only_is_match(l)).count();
-    tracing::debug!(prefilter_hits, lines, "prefilter flags lines (each triggers the per-rule fallback)");
+    let prefilter_hits = corpus
+        .iter()
+        .filter(|l| return fset.prefilter_only_is_match(l))
+        .count();
+    tracing::debug!(
+        prefilter_hits,
+        lines,
+        "prefilter flags lines (each triggers the per-rule fallback)"
+    );
     let seeded = fset.len() - fset.seedless_count();
-    tracing::debug!(anchored = fset.anchored_count(), seeded, "anchored seeded rules (rest fall back to counting)");
+    tracing::debug!(
+        anchored = fset.anchored_count(),
+        seeded,
+        "anchored seeded rules (rest fall back to counting)"
+    );
 
     let avg_len = bytes as f64 / lines as f64;
     let threads = std::thread::available_parallelism().map_or(1, |n| return n.get());
@@ -180,16 +207,56 @@ fn main() {
     // per-thread state). regex needs a mutable lazy-DFA cache, so each thread clones
     // it (the program is Arc-shared, so this is the cheap idiomatic parallel form and
     // lets regex scale instead of contending on a shared cache).
-    let frate = throughput(&corpus, || (), |_, line| return fset.is_match(line), threads);
-    let rrate = throughput(&corpus, || return rset.clone(), |r, line| return r.is_match(line), threads);
+    let frate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.is_match(line),
+        threads,
+    );
+    let rrate = throughput(
+        &corpus,
+        || return rset.clone(),
+        |r, line| return r.is_match(line),
+        threads,
+    );
     // Profiling split: prefilter-only vs gate-only vs seedless-only, to locate the
     // per-line bottleneck (prefilter cost vs per-rule fallback vs literal-free scans).
-    let prefilter_rate = throughput(&corpus, || (), |_, line| return fset.prefilter_only_is_match(line), threads);
-    let candidates_rate = throughput(&corpus, || (), |_, line| return fset.candidates_only_is_match(line), threads);
-    let anchored_rate = throughput(&corpus, || (), |_, line| return fset.gate_anchored_only_is_match(line), threads);
-    let gate_rate = throughput(&corpus, || (), |_, line| return fset.gate_only_is_match(line), threads);
-    let seedless_rate = throughput(&corpus, || (), |_, line| return fset.seedless_only_is_match(line), threads);
-    let csa_rate = throughput(&corpus, || (), |_, line| return fset.csa_only_is_match(line), threads);
+    let prefilter_rate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.prefilter_only_is_match(line),
+        threads,
+    );
+    let candidates_rate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.candidates_only_is_match(line),
+        threads,
+    );
+    let anchored_rate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.gate_anchored_only_is_match(line),
+        threads,
+    );
+    let gate_rate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.gate_only_is_match(line),
+        threads,
+    );
+    let seedless_rate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.seedless_only_is_match(line),
+        threads,
+    );
+    let csa_rate = throughput(
+        &corpus,
+        || (),
+        |_, line| return fset.csa_only_is_match(line),
+        threads,
+    );
     report("forbidden-regex", frate, avg_len);
     report("  prefilter-only", prefilter_rate, avg_len);
     report("  candidates    ", candidates_rate, avg_len);
@@ -198,7 +265,10 @@ fn main() {
     report("  seedless-only ", seedless_rate, avg_len);
     report("  csa-union-only", csa_rate, avg_len);
     report("regex          ", rrate, avg_len);
-    println!("\nforbidden-regex is {:.2}x the throughput of regex", frate / rrate);
+    println!(
+        "\nforbidden-regex is {:.2}x the throughput of regex",
+        frate / rrate
+    );
 
     // Batch-kernel experiment: race the scalar, interleaved, tight, bucketed, and Sheng
     // layouts on a seedless single DFA over the same corpus (the one place a many-lines DFA
@@ -232,7 +302,12 @@ fn main() {
 ///  sharing one matcher would serialize an engine on its internal cache
 /// and unfairly slow it down.
 ///  The fixed time budget bounds the run.
-fn throughput<M, Make, Run>(corpus: &[Vec<u8>], make: Make, run: Run, threads: usize) -> f64
+fn throughput<M, Make, Run>(
+    corpus: &[Vec<u8>],
+    make: Make,
+    run: Run,
+    threads: usize,
+) -> f64
 where
     Make: Fn() -> M + Sync,
     Run: Fn(&M, &[u8]) -> bool + Sync,
@@ -254,15 +329,18 @@ where
                         scanned += corpus.len() as u64;
                     }
                     black_box(acc);
-                    return scanned
-                })
+                    return scanned;
+                });
             })
             .collect();
         // expect, not unwrap: the repo's clippy.toml bans Result::unwrap; a worker join only
         // fails if that benchmark thread panicked, which is a bug we want to surface.
-        return workers.into_iter().map(|w| return w.join().expect("benchmark worker thread panicked")).sum()
+        return workers
+            .into_iter()
+            .map(|w| return w.join().expect("benchmark worker thread panicked"))
+            .sum();
     });
-    return total as f64 / start.elapsed().as_secs_f64()
+    return total as f64 / start.elapsed().as_secs_f64();
 }
 
 /// Prints one engine's throughput line.
@@ -272,7 +350,11 @@ where
 ///  Why:
 ///  the
 /// two figures make the comparison legible at a glance.
-fn report(name: &str, lines_per_sec: f64, avg_len: f64) {
+fn report(
+    name: &str,
+    lines_per_sec: f64,
+    avg_len: f64,
+) {
     let mb_per_sec = lines_per_sec * avg_len / 1_000_000.0;
     println!("{name}: {lines_per_sec:>13.0} lines/s   {mb_per_sec:>8.1} MB/s");
 }

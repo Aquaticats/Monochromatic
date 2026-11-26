@@ -183,7 +183,10 @@ impl Operation {
 /// How the value prints to a person.
 impl fmt::Display for Operation {
     /// Prints the C operation name.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.as_str());
     }
 }

@@ -7,12 +7,21 @@
 //! `languages.toml` could replace a server's command.
 
 /// The launch seam decides what is spawned for each server.
-use super::launch::{LaunchRequest, ServerLaunch};
+use super::launch::{
+    LaunchRequest,
+    ServerLaunch,
+};
 /// What the toolchain provided for the project,
 ///  and when it was asked.
-use super::toolchain::{self, ToolchainState};
+use super::toolchain::{
+    self,
+    ToolchainState,
+};
 /// Errors name the operation that failed.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// What:
 ///  `ArcSwap` is a cell holding a shared pointer that can be replaced atomically.
 /// Why:
@@ -24,7 +33,10 @@ use anyhow::{Context, Result};
 /// ```
 use arc_swap::ArcSwap;
 /// Helix's language registry and its typed configuration.
-use helix_core::syntax::{Loader, config::Configuration};
+use helix_core::syntax::{
+    Loader,
+    config::Configuration,
+};
 /// What:
 ///  `HashMap` is a key-value table;
 ///  `Path`/`PathBuf` are borrowed and owned filesystem
@@ -41,7 +53,10 @@ use helix_core::syntax::{Loader, config::Configuration};
 /// ```
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Instant,
 };
@@ -317,7 +332,10 @@ fn build(
 /// Registry operations used by the worker.
 impl Languages {
     /// Build the registry for one project root.
-    pub(super) fn new(root: &Path, setup: LanguageSetup) -> Result<Self> {
+    pub(super) fn new(
+        root: &Path,
+        setup: LanguageSetup,
+    ) -> Result<Self> {
         let toolchain = tools::resolve(root, &setup);
         let built = build(root, &setup, None, &toolchain)?;
         return Ok(Self {
@@ -344,7 +362,10 @@ impl Languages {
     /// ```ts
     /// configured(language: string): readonly string[]
     /// ```
-    pub(super) fn configured(&self, language: &str) -> &[String] {
+    pub(super) fn configured(
+        &self,
+        language: &str,
+    ) -> &[String] {
         // An unknown language has an empty list.
         return match self.configured.get(language) {
             Some(names) => names.as_slice(),
@@ -354,13 +375,19 @@ impl Languages {
 
     /// Why a server cannot be started,
     ///  or nothing when it can.
-    pub(super) fn unavailable(&self, server: &str) -> Option<&Unavailable> {
+    pub(super) fn unavailable(
+        &self,
+        server: &str,
+    ) -> Option<&Unavailable> {
         return self.unavailable.get(server);
     }
 
     /// Seconds a request to the server may take;
     ///  Helix's default when the server is unknown.
-    pub(super) fn timeout(&self, server: &str) -> u64 {
+    pub(super) fn timeout(
+        &self,
+        server: &str,
+    ) -> u64 {
         return match self.definitions.get(server) {
             Some(definition) => definition.timeout,
             None => 20,
@@ -369,13 +396,19 @@ impl Languages {
 
     /// Seconds a server may take to answer `initialize`:
     ///  `START_FACTOR` request timeouts.
-    pub(super) fn start_timeout(&self, server: &str) -> u64 {
+    pub(super) fn start_timeout(
+        &self,
+        server: &str,
+    ) -> u64 {
         return self.timeout(server).saturating_mul(START_FACTOR);
     }
 
     /// The launch the policy produced for a server,
     ///  when it is available.
-    pub(super) fn launch(&self, server: &str) -> Option<&ServerLaunch> {
+    pub(super) fn launch(
+        &self,
+        server: &str,
+    ) -> Option<&ServerLaunch> {
         // `and_then` continues into the inner `Option`; `as_ref` borrows instead of moving.
         let definition = self.definitions.get(server)?;
         return definition.launch.as_ref();
@@ -404,7 +437,10 @@ impl Languages {
     /// ```ts
     /// askToolchainAgain(language: string): boolean
     /// ```
-    fn ask_toolchain_again(&mut self, language: &str) -> bool {
+    fn ask_toolchain_again(
+        &mut self,
+        language: &str,
+    ) -> bool {
         let mut missing = false;
         for name in self.configured(language).iter() {
             if matches!(self.unavailable.get(name), Some(Unavailable::Missing(_))) {
@@ -439,7 +475,11 @@ impl Languages {
     /// ```ts
     /// refresh(language: string, document?: string): boolean
     /// ```
-    pub(super) fn refresh(&mut self, language: &str, document: Option<&Path>) -> Result<bool> {
+    pub(super) fn refresh(
+        &mut self,
+        language: &str,
+        document: Option<&Path>,
+    ) -> Result<bool> {
         // What the toolchain provides is asked again only when the answer may have changed: a failure
         // that may have been fixed, or a missing server that may have been installed.
         let mut changed = self.ask_toolchain_again(language);

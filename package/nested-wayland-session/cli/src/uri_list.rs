@@ -3,7 +3,11 @@
 /// The percent escape every answer format shares.
 use crate::percent_escape::percent_escape;
 /// Standard library items.
-use std::{ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
+use std::{
+    ffi::OsStr,
+    os::unix::ffi::OsStrExt,
+    path::Path,
+};
 
 /// Encode a file path as a `file:` URI.
 ///
@@ -41,7 +45,7 @@ use std::{ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
 pub fn file_uri(path: &Path) -> String {
     let mut uri = String::from("file://");
     encode_into(&mut uri, path.as_os_str());
-    return uri
+    return uri;
 }
 
 /// Tells whether a byte passes through a `file:` URI unchanged.
@@ -62,7 +66,7 @@ pub fn file_uri(path: &Path) -> String {
 ///  `?`,
 ///  and every non-ASCII byte are escaped.
 fn is_file_uri_safe(byte: u8) -> bool {
-    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/')
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
 }
 
 /// Append the percent-encoded bytes of a path.
@@ -76,7 +80,10 @@ fn is_file_uri_safe(byte: u8) -> bool {
 /// ```ts
 /// function encodeInto(uri: { text: string }, path: Buffer): void { ... }
 /// ```
-fn encode_into(uri: &mut String, path: &OsStr) {
+fn encode_into(
+    uri: &mut String,
+    path: &OsStr,
+) {
     uri.push_str(&percent_escape(path.as_bytes(), is_file_uri_safe));
 }
 
@@ -100,7 +107,7 @@ pub fn uri_list(paths: &[&Path]) -> Vec<u8> {
         list.push_str(&file_uri(path));
         list.push_str("\r\n");
     }
-    return list.into_bytes()
+    return list.into_bytes();
 }
 
 /// What:

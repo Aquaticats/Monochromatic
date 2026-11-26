@@ -1,8 +1,16 @@
 //! Position conversion in the three column units a language server can negotiate.
 
-use super::{from_lsp_position, from_lsp_range, to_lsp_position, to_lsp_range};
+use super::{
+    from_lsp_position,
+    from_lsp_range,
+    to_lsp_position,
+    to_lsp_range,
+};
 use helix_core::Rope;
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 
 /// Line 0 has a tab and CRLF;
 ///  line 1 has a combining mark and an astral character;

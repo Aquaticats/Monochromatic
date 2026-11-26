@@ -70,11 +70,19 @@ pub fn format_size(bytes: u64) -> String {
 /// ```ts
 /// export function cleanupLines(report: PruneReport, cargoHome: string, verbose: boolean): string[]
 /// ```
-pub fn cleanup_lines(report: &PruneReport, cargo_home: &Path, verbose: bool) -> Vec<String> {
+pub fn cleanup_lines(
+    report: &PruneReport,
+    cargo_home: &Path,
+    verbose: bool,
+) -> Vec<String> {
     if report.deleted.is_empty() && report.failed.is_empty() {
         return Vec::new();
     }
-    let noun: &str = if report.deleted.len() == 1 { "copy" } else { "copies" };
+    let noun: &str = if report.deleted.len() == 1 {
+        "copy"
+    } else {
+        "copies"
+    };
     let mut summary: String = format!(
         "mpm-shadow: post-run cleanup after the mpm command (not part of it): removed {} superseded cached {noun} of this repository's crates ({}) under {}",
         report.deleted.len(),
@@ -82,7 +90,10 @@ pub fn cleanup_lines(report: &PruneReport, cargo_home: &Path, verbose: bool) -> 
         cargo_home.join("registry").display()
     );
     if !report.failed.is_empty() {
-        summary.push_str(&format!("; {} could not be removed (listed below)", report.failed.len()));
+        summary.push_str(&format!(
+            "; {} could not be removed (listed below)",
+            report.failed.len()
+        ));
     }
     if !verbose && !report.deleted.is_empty() {
         summary.push_str(&format!("; set {VERBOSE_ENV}=1 to list every path"));
@@ -94,7 +105,10 @@ pub fn cleanup_lines(report: &PruneReport, cargo_home: &Path, verbose: bool) -> 
         }
     }
     for (path, reason) in &report.failed {
-        lines.push(format!("mpm-shadow: could not remove {}: {reason}", path.display()));
+        lines.push(format!(
+            "mpm-shadow: could not remove {}: {reason}",
+            path.display()
+        ));
     }
     return lines;
 }

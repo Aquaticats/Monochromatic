@@ -42,7 +42,10 @@ use crate::error::JsoncNumberError;
 /// ```ts
 /// import { isDigit, signedSum } from './numberScale';
 /// ```
-use crate::number_scale::{is_digit, signed_sum};
+use crate::number_scale::{
+    is_digit,
+    signed_sum,
+};
 
 /// What:
 ///      One number's canonical mathematical value,
@@ -130,7 +133,10 @@ struct NumberParts {
 /// ```ts
 /// function normalize(raw: string, parts: NumberParts): JsoncNumberIdentity;
 /// ```
-fn normalize(raw: &str, parts: &NumberParts) -> JsoncNumberIdentity {
+fn normalize(
+    raw: &str,
+    parts: &NumberParts,
+) -> JsoncNumberIdentity {
     // What:     `format!` allocates one string holding the integer digits followed by the fraction
     //           digits.
     // Why:      Zero stripping and the exponent shift both need the digits in source order.

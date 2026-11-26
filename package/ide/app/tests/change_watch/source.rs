@@ -3,10 +3,19 @@
 //!  and silence for the IDE's own reads.
 
 /// Waits and fixture helpers shared by this crate.
-use super::support::{Arrival, quiet, set, settle, start};
+use super::support::{
+    Arrival,
+    quiet,
+    set,
+    settle,
+    start,
+};
 /// Settled changes are read at once;
 ///  unsettled ones wait for the writer to go quiet.
-use ide_app::change_watch::{ChangeWatcher, SourceChange};
+use ide_app::change_watch::{
+    ChangeWatcher,
+    SourceChange,
+};
 /// What:
 ///  `OpenOptions` opens a file with chosen flags;
 ///  `Write` provides `write_all` on the open handle.
@@ -18,13 +27,19 @@ use ide_app::change_watch::{ChangeWatcher, SourceChange};
 /// const handle = openSync(path, 'w'); writeSync(handle, 'partial');
 /// ```
 use std::{
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
 };
 
 /// Return the latest classification reported for the displayed file,
 ///  after the caller drained and made one change.
-fn classification(watcher: &mut ChangeWatcher, what: &str) -> Option<SourceChange> {
+fn classification(
+    watcher: &mut ChangeWatcher,
+    what: &str,
+) -> Option<SourceChange> {
     let first = {
         let mut arrival = Arrival::begin(watcher, what);
         while !(arrival.record.source.is_some()) {

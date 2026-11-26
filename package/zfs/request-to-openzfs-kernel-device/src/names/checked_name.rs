@@ -67,7 +67,10 @@ impl CheckedName {
     /// carries a NUL byte,
     /// or does not
     /// fit the field with its terminating NUL.
-    pub fn new(field: NameField, text: &str) -> Result<CheckedName, NameError> {
+    pub fn new(
+        field: NameField,
+        text: &str,
+    ) -> Result<CheckedName, NameError> {
         let bytes: &[u8] = text.as_bytes();
         if bytes.is_empty() {
             return Err(NameError {
@@ -80,7 +83,9 @@ impl CheckedName {
         }) {
             return Err(NameError {
                 field,
-                problem: NameProblem::InteriorNul { at },
+                problem: NameProblem::InteriorNul {
+                    at,
+                },
             });
         }
         if bytes.len() >= field.max_bytes() {
@@ -116,7 +121,10 @@ impl CheckedName {
     /// the constructor
     /// guarantees the text fits,
     /// and the fields are private.
-    pub fn write_into(&self, command: &mut ZfsCmd) {
+    pub fn write_into(
+        &self,
+        command: &mut ZfsCmd,
+    ) {
         let text: &[u8] = self.text.as_bytes();
         let field: &mut [u8] = match self.field {
             NameField::CommandName => &mut command.zc_name,
@@ -146,8 +154,13 @@ impl NameError {
     /// a caller can report an input refusal like a kernel refusal.
     pub fn errno(&self) -> i32 {
         return match self.problem {
-            NameProblem::TooLong { .. } => libc::ENAMETOOLONG,
-            NameProblem::Empty | NameProblem::InteriorNul { .. } => libc::EINVAL,
+            NameProblem::TooLong {
+                ..
+            } => libc::ENAMETOOLONG,
+            NameProblem::Empty
+            | NameProblem::InteriorNul {
+                ..
+            } => libc::EINVAL,
         };
     }
 }
@@ -155,16 +168,24 @@ impl NameError {
 /// How the value prints to a person.
 impl fmt::Display for NameError {
     /// Explains which field is wrong and why.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         let field: &str = self.field.as_str();
         return match self.problem {
             NameProblem::Empty => write!(formatter, "{field} may not be empty"),
-            NameProblem::TooLong { length, maximum } => write!(
+            NameProblem::TooLong {
+                length,
+                maximum,
+            } => write!(
                 formatter,
                 "{field} holds at most {} bytes and the terminating NUL, but the name is {length} bytes",
                 maximum - 1
             ),
-            NameProblem::InteriorNul { at } => {
+            NameProblem::InteriorNul {
+                at,
+            } => {
                 write!(formatter, "{field} carries a NUL byte at offset {at}")
             }
         };

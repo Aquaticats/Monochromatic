@@ -37,19 +37,37 @@ use std::io;
 // Imports `std::os::unix::fs::MetadataExt`.
 /// Imports `std::os::unix::fs::MetadataExt` for this file.
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Imports `crate::constants::LOCKFILE_NAME`.
 /// Imports `crate::constants::LOCKFILE_NAME` for this file.
 use crate::constants::LOCKFILE_NAME;
 /// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
-use crate::crates::{LockSnapshot, read_locks};
+use crate::crates::{
+    LockSnapshot,
+    read_locks,
+};
 // Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, J...`.
 /// Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, KeepAs, LOCK_FILE, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, decode_path, file_name_text, no_hook, replace_keeping_with_hook, sync_directory}` for this file.
-use crate::journal::{JOURNAL_DIR, KeepAs, REFUSED_SUFFIX, ReplaceOutcome, file_name_text, make_durable, no_hook, replace_keeping_with_hook};
+use crate::journal::{
+    JOURNAL_DIR,
+    KeepAs,
+    REFUSED_SUFFIX,
+    ReplaceOutcome,
+    file_name_text,
+    make_durable,
+    no_hook,
+    replace_keeping_with_hook,
+};
 // Imports `crate::journal_transaction::{mark_done_and_...`.
 /// Imports `crate::journal_transaction::{finish_journal, take_workspace}` for this file.
-use crate::journal_transaction::{finish_journal, take_workspace};
+use crate::journal_transaction::{
+    finish_journal,
+    take_workspace,
+};
 /// Imports the process-group probe and the error code that says a group is empty.
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
@@ -60,15 +78,29 @@ use crate::journal_transaction::{finish_journal, take_workspace};
 // ```
 /// Re-exports the unready-journal and survivor checks,
 /// which live in their own file.
-pub(crate) use crate::journal_unready::{recover_unready, survivor_note};
+pub(crate) use crate::journal_unready::{
+    recover_unready,
+    survivor_note,
+};
 
 /// Imports the manifest side of a recovery.
-use crate::journal_manifests::{JournaledManifest, RootDecision, read_manifest_index, recover_manifests};
+use crate::journal_manifests::{
+    JournaledManifest,
+    RootDecision,
+    read_manifest_index,
+    recover_manifests,
+};
 
 /// Reads of a journal directory:
 /// index,
 /// ready record and listing (split out of the journal recovery module).
-pub(crate) use crate::journal_directory_readers::{read_journal, Ready, read_ready, JournalListing, list_journals};
+pub(crate) use crate::journal_directory_readers::{
+    JournalListing,
+    Ready,
+    list_journals,
+    read_journal,
+    read_ready,
+};
 
 /// What:
 /// `pub fn recover(root, judge) -> Vec<String>` finishes the journals of runs that no longer exist.
@@ -79,7 +111,10 @@ pub(crate) use crate::journal_directory_readers::{read_journal, Ready, read_read
 /// ```ts
 /// export function recover(root: string, judge: Judge): string[]
 /// ```
-pub fn recover(root: &Path, judge: &dyn Judge) -> Vec<String> {
+pub fn recover(
+    root: &Path,
+    judge: &dyn Judge,
+) -> Vec<String> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
     return recover_with(root, judge, &no_hook);
 }
@@ -120,7 +155,11 @@ pub trait Judge {
     /// `judge(&self, old, live)` returns the refusals for one root.
     /// Why:
     /// An empty list lets the recovery restore or keep the lockfile.
-    fn judge(&self, old: &[LockSnapshot], live: &[LockSnapshot]) -> Vec<String>;
+    fn judge(
+        &self,
+        old: &[LockSnapshot],
+        live: &[LockSnapshot],
+    ) -> Vec<String>;
 }
 
 /// What:
@@ -132,7 +171,11 @@ impl<F: Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>> Judge for F {
     /// Calls the function.
     /// Why:
     /// The function is the judgement.
-    fn judge(&self, old: &[LockSnapshot], live: &[LockSnapshot]) -> Vec<String> {
+    fn judge(
+        &self,
+        old: &[LockSnapshot],
+        live: &[LockSnapshot],
+    ) -> Vec<String> {
         return self(old, live);
     }
 }
@@ -148,7 +191,10 @@ impl<F: Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>> Judge for F {
 /// ```ts
 /// export function recoverReport(root: string, judge: Judge): { messages: string[]; mandatoryFailure: boolean }
 /// ```
-pub fn recover_report(root: &Path, judge: &dyn Judge) -> RecoveryReport {
+pub fn recover_report(
+    root: &Path,
+    judge: &dyn Judge,
+) -> RecoveryReport {
     return recover_report_with(root, judge, &no_hook);
 }
 
@@ -164,7 +210,11 @@ pub fn recover_report(root: &Path, judge: &dyn Judge) -> RecoveryReport {
 /// ```ts
 /// export function recoverWith(root: string, judge: Judge, between: (path: string) => void): string[]
 /// ```
-pub fn recover_with(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path)) -> Vec<String> {
+pub fn recover_with(
+    root: &Path,
+    judge: &dyn Judge,
+    between: &dyn Fn(&Path),
+) -> Vec<String> {
     return recover_report_with(root, judge, between).messages;
 }
 
@@ -177,10 +227,17 @@ pub fn recover_with(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path)) -> 
 /// ```ts
 /// export function recoverReportWith(root: string, judge: Judge, between: (path: string) => void): RecoveryReport
 /// ```
-pub fn recover_report_with(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path)) -> RecoveryReport {
+pub fn recover_report_with(
+    root: &Path,
+    judge: &dyn Judge,
+    between: &dyn Fn(&Path),
+) -> RecoveryReport {
     let mut mandatory: bool = false;
     let messages: Vec<String> = recover_messages(root, judge, between, &mut mandatory);
-    return RecoveryReport { messages, mandatory_failure: mandatory };
+    return RecoveryReport {
+        messages,
+        mandatory_failure: mandatory,
+    };
 }
 
 /// What:
@@ -193,14 +250,22 @@ pub fn recover_report_with(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Pat
 /// ```ts
 /// function recoverMessages(root: string, judge: Judge, between: (path: string) => void, mandatory: { value: boolean }): string[]
 /// ```
-fn recover_messages(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path), mandatory: &mut bool) -> Vec<String> {
+fn recover_messages(
+    root: &Path,
+    judge: &dyn Judge,
+    between: &dyn Fn(&Path),
+    mandatory: &mut bool,
+) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
     let journals: PathBuf = root.join(JOURNAL_DIR);
     // A metadata failure is not "no journals" (round 7, 6b2 1).
     match fs::metadata(&journals) {
         Ok(found) if found.is_dir() => {}
         Ok(_) => {
-            messages.push(format!("{} is not a directory; the journals of earlier runs were left for a later run", journals.display()));
+            messages.push(format!(
+                "{} is not a directory; the journals of earlier runs were left for a later run",
+                journals.display()
+            ));
             return messages;
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => return messages,
@@ -212,7 +277,9 @@ fn recover_messages(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path), man
     let _workspace = match take_workspace(root) {
         Ok(Ok(held)) => held,
         Ok(Err(holder)) => {
-            messages.push(format!("{holder}; the journals of earlier runs were left for a later run"));
+            messages.push(format!(
+                "{holder}; the journals of earlier runs were left for a later run"
+            ));
             return messages;
         }
         Err(error) => {
@@ -271,7 +338,11 @@ fn recover_messages(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path), man
 /// ```ts
 /// function reportLeftoverTemporaries(root: string, crateDirs: string[], messages: string[]): void
 /// ```
-fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mut Vec<String>) {
+fn report_leftover_temporaries(
+    root: &Path,
+    crate_dirs: &[String],
+    messages: &mut Vec<String>,
+) {
     for crate_dir in crate_dirs {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
@@ -302,7 +373,14 @@ fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mu
 /// ```ts
 /// function recoverOne(root: string, directory: string, judge: Judge, messages: string[]): void
 /// ```
-fn recover_one(root: &Path, directory: &Path, judge: &dyn Judge, between: &dyn Fn(&Path), messages: &mut Vec<String>, mandatory: &mut bool) {
+fn recover_one(
+    root: &Path,
+    directory: &Path,
+    judge: &dyn Judge,
+    between: &dyn Fn(&Path),
+    messages: &mut Vec<String>,
+    mandatory: &mut bool,
+) {
     let ready: Ready = match read_ready(directory) {
         Ok(Some(found)) => found,
         Ok(None) => {
@@ -310,14 +388,20 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Judge, between: &dyn F
             return;
         }
         Err(error) => {
-            messages.push(format!("{}: the journal of a killed run is damaged ({error}); it was kept", directory.display()));
+            messages.push(format!(
+                "{}: the journal of a killed run is damaged ({error}); it was kept",
+                directory.display()
+            ));
             return;
         }
     };
     let before: Vec<LockSnapshot> = match read_journal(directory) {
         Ok(found) => found,
         Err(error) => {
-            messages.push(format!("{}: the journal of a killed run could not be read ({error}); it was kept", directory.display()));
+            messages.push(format!(
+                "{}: the journal of a killed run could not be read ({error}); it was kept",
+                directory.display()
+            ));
             return;
         }
     };
@@ -336,7 +420,10 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Judge, between: &dyn F
     let live: Vec<LockSnapshot> = match read_locks(root, &dirs) {
         Ok(found) => found,
         Err(error) => {
-            messages.push(format!("{}: a lockfile of a killed run could not be read ({error}); its journal was kept", directory.display()));
+            messages.push(format!(
+                "{}: a lockfile of a killed run could not be read ({error}); its journal was kept",
+                directory.display()
+            ));
             return;
         }
     };
@@ -373,13 +460,19 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Judge, between: &dyn F
         }
         for manifest in &manifests {
             if let Err(error) = make_durable(&manifest.path) {
-                messages.push(format!("{} could not be synced ({error}); the journal was kept", manifest.path.display()));
+                messages.push(format!(
+                    "{} could not be synced ({error}); the journal was kept",
+                    manifest.path.display()
+                ));
                 *mandatory = true;
                 return;
             }
         }
         if let Err(error) = finish_journal(directory) {
-            messages.push(format!("{}: a settled journal could not be removed ({error}); it will be tried again", directory.display()));
+            messages.push(format!(
+                "{}: a settled journal could not be removed ({error}); it will be tried again",
+                directory.display()
+            ));
             if !error.cleanup_only() {
                 *mandatory = true;
             }
@@ -399,7 +492,14 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Judge, between: &dyn F
 /// ```ts
 /// function recoverRoot(root: string, old: LockSnapshot, now: LockSnapshot, judge: Judge, messages: string[]): RootDecision
 /// ```
-fn recover_root(root: &Path, old: &LockSnapshot, now: &LockSnapshot, judge: &dyn Judge, between: &dyn Fn(&Path), messages: &mut Vec<String>) -> RootDecision {
+fn recover_root(
+    root: &Path,
+    old: &LockSnapshot,
+    now: &LockSnapshot,
+    judge: &dyn Judge,
+    between: &dyn Fn(&Path),
+    messages: &mut Vec<String>,
+) -> RootDecision {
     if old.source == now.source {
         return RootDecision::Restored;
     }
@@ -444,7 +544,10 @@ fn recover_root(root: &Path, old: &LockSnapshot, now: &LockSnapshot, judge: &dyn
             RootDecision::LeftAlone
         }
         Err(error) => {
-            messages.push(format!("{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept", old.crate_dir));
+            messages.push(format!(
+                "{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept",
+                old.crate_dir
+            ));
             RootDecision::Failed
         }
     };

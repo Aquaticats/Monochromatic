@@ -11,11 +11,19 @@
 
 /// Imports the discovery entry points under test.
 use super::{
-    discover, gitdir_from_git_file, index_hash_kind, lexically_normalized, Discovery, GitWorkingTree,
+    Discovery,
+    GitWorkingTree,
+    discover,
+    gitdir_from_git_file,
+    index_hash_kind,
+    lexically_normalized,
 };
 /// Imports the filesystem and path types the fixtures use.
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the real Git binary for the fixtures that need a repository.
 use std::process::Command;
 
@@ -39,7 +47,7 @@ fn unique_tmp(label: &str) -> PathBuf {
     ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create tmp dir");
-    return dir
+    return dir;
 }
 
 /// What:
@@ -56,9 +64,9 @@ fn unique_tmp(label: &str) -> PathBuf {
 /// ```
 fn git_binary() -> &'static str {
     if Path::new("/usr/bin/git").exists() {
-        return "/usr/bin/git"
+        return "/usr/bin/git";
     }
-    return "git"
+    return "git";
 }
 
 /// What:
@@ -72,7 +80,10 @@ fn git_binary() -> &'static str {
 /// ```ts
 /// function runGit(dir: string, args: string[]) { execFileSync(GIT, args, { cwd: dir }); }
 /// ```
-fn run_git(dir: &Path, args: &[&str]) {
+fn run_git(
+    dir: &Path,
+    args: &[&str],
+) {
     let status = Command::new(git_binary())
         .args(args)
         .current_dir(dir)
@@ -116,7 +127,10 @@ fn seed_repository(repository: &Path) {
 /// ```ts
 /// function writeGitFile(root: string, contents: Buffer) { writeFileSync(path.join(root, '.git'), contents); }
 /// ```
-fn write_git_file(root: &Path, contents: &[u8]) {
+fn write_git_file(
+    root: &Path,
+    contents: &[u8],
+) {
     fs::create_dir_all(root).expect("create fixture dir");
     fs::write(root.join(".git"), contents).expect("write .git file");
 }
@@ -137,8 +151,11 @@ fn expect_tree(discovery: Discovery) -> GitWorkingTree {
     return match discovery {
         Discovery::WorkingTree(tree) => tree,
         Discovery::NoRepository => panic!("discovery found no repository"),
-        Discovery::Unusable { entry, cause } => panic!("discovery rejected {:?}: {}", entry, cause),
-    }
+        Discovery::Unusable {
+            entry,
+            cause,
+        } => panic!("discovery rejected {:?}: {}", entry, cause),
+    };
 }
 
 /// What:
@@ -158,13 +175,16 @@ fn expect_tree(discovery: Discovery) -> GitWorkingTree {
 /// function resolved(path: string): string { return join(realpathSync(dirname(path)), basename(path)); }
 /// ```
 fn resolved(path: &Path) -> PathBuf {
-    let Some(parent) = path.parent().and_then(|parent| return std::fs::canonicalize(parent).ok()) else {
-        return path.to_path_buf()
+    let Some(parent) = path
+        .parent()
+        .and_then(|parent| return std::fs::canonicalize(parent).ok())
+    else {
+        return path.to_path_buf();
     };
     return match path.file_name() {
         Some(name) => parent.join(name),
         None => parent,
-    }
+    };
 }
 
 /// What:
@@ -187,10 +207,10 @@ fn git_git_dir(root: &Path) -> Option<PathBuf> {
         .output()
         .expect("git rev-parse failed to spawn");
     if !output.status.success() {
-        return None
+        return None;
     }
     let text: String = String::from_utf8(output.stdout).expect("git path utf8");
-    return Some(PathBuf::from(text.trim_end_matches(['\n', '\r'])))
+    return Some(PathBuf::from(text.trim_end_matches(['\n', '\r'])));
 }
 
 #[test]
@@ -201,7 +221,14 @@ fn discover_finds_the_index_of_a_linked_worktree() {
     let worktree: PathBuf = base.join("wt");
     run_git(
         &main,
-        &["worktree", "add", "-q", worktree.to_str().expect("worktree utf8"), "-b", "wt-branch"],
+        &[
+            "worktree",
+            "add",
+            "-q",
+            worktree.to_str().expect("worktree utf8"),
+            "-b",
+            "wt-branch",
+        ],
     );
 
     let tree = expect_tree(discover(&worktree));
@@ -231,10 +258,16 @@ fn discover_reads_the_scope_of_a_subfolder_walk_root() {
     fs::create_dir_all(&subfolder).expect("create subfolder");
     fs::write(subfolder.join("inner.txt"), "ordinary content").expect("write inner.txt");
     run_git(&repository, &["add", "-f", "sub/inner.txt"]);
-    run_git(&repository, &["commit", "-q", "-m", "inner", "sub/inner.txt"]);
+    run_git(
+        &repository,
+        &["commit", "-q", "-m", "inner", "sub/inner.txt"],
+    );
 
     let tree = expect_tree(discover(&subfolder));
-    assert_eq!(resolved(&tree.index_path()), resolved(&repository.join(".git/index")));
+    assert_eq!(
+        resolved(&tree.index_path()),
+        resolved(&repository.join(".git/index"))
+    );
     assert_eq!(
         tree.below_walk_root(b"sub/inner.txt"),
         Some(&b"inner.txt"[..]),
@@ -266,7 +299,15 @@ fn discover_reads_a_relative_gitdir_line_of_a_submodule() {
     run_git(&host, &["config", "user.name", "t"]);
     run_git(
         &host,
-        &["-c", "protocol.file.allow=always", "submodule", "add", "-q", "../other", "vendor/sub"],
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-q",
+            "../other",
+            "vendor/sub",
+        ],
     );
 
     let tree = expect_tree(discover(&host.join("vendor/sub")));
@@ -340,7 +381,10 @@ fn discover_reports_a_malformed_git_file_instead_of_stepping_over_it() {
     // rather than using the repository above it; the same stop here is the
     // value the caller turns into a diagnostic.
     match discover(&nested) {
-        Discovery::Unusable { entry, cause } => {
+        Discovery::Unusable {
+            entry,
+            cause,
+        } => {
             assert_eq!(entry, nested.join(".git"));
             assert!(
                 cause.contains("gitdir: "),
@@ -368,7 +412,11 @@ fn discover_reports_a_git_file_naming_something_that_is_not_a_repository() {
     let nested: PathBuf = repository.join("nested");
     write_git_file(
         &nested,
-        format!("gitdir: {}\n", not_a_repository.to_str().expect("plain utf8")).as_bytes(),
+        format!(
+            "gitdir: {}\n",
+            not_a_repository.to_str().expect("plain utf8")
+        )
+        .as_bytes(),
     );
     assert!(
         git_git_dir(&nested).is_none(),
@@ -376,7 +424,10 @@ fn discover_reports_a_git_file_naming_something_that_is_not_a_repository() {
     );
 
     match discover(&nested) {
-        Discovery::Unusable { cause, .. } => assert!(
+        Discovery::Unusable {
+            cause,
+            ..
+        } => assert!(
             cause.contains("not a Git directory"),
             "the cause must say the named directory is not a repository; got {:?}",
             cause
@@ -403,8 +454,10 @@ fn describe(discovery: &Discovery) -> &'static str {
     return match discovery {
         Discovery::WorkingTree(_) => "a working tree",
         Discovery::NoRepository => "no repository",
-        Discovery::Unusable { .. } => "an unusable .git entry",
-    }
+        Discovery::Unusable {
+            ..
+        } => "an unusable .git entry",
+    };
 }
 
 #[test]
@@ -487,7 +540,12 @@ fn gitdir_from_git_file_keeps_a_path_with_spaces_whole() {
 
 #[test]
 fn gitdir_from_git_file_rejects_a_file_without_the_prefix_or_a_path() {
-    for contents in [&b"/srv/repo/.git\n"[..], &b"gitdir:/srv/repo/.git\n"[..], &b""[..], &b"gitdir: \n"[..]] {
+    for contents in [
+        &b"/srv/repo/.git\n"[..],
+        &b"gitdir:/srv/repo/.git\n"[..],
+        &b""[..],
+        &b"gitdir: \n"[..],
+    ] {
         assert!(
             gitdir_from_git_file(contents).is_err(),
             "Git refuses {:?}",
@@ -509,7 +567,10 @@ fn discover_resolves_a_gitdir_line_naming_an_absolute_path_outside_the_tree() {
     );
 
     let tree = expect_tree(discover(&worktree));
-    assert_eq!(resolved(&tree.index_path()), resolved(&git_dir.join("index")));
+    assert_eq!(
+        resolved(&tree.index_path()),
+        resolved(&git_dir.join("index"))
+    );
 
     let _ = fs::remove_dir_all(&base);
 }
@@ -545,11 +606,18 @@ fn discover_follows_a_commondir_of_a_linked_worktree() {
     let worktree: PathBuf = base.join("wt");
     write_git_file(
         &worktree,
-        format!("gitdir: {}\n", worktree_git_dir.to_str().expect("git dir utf8")).as_bytes(),
+        format!(
+            "gitdir: {}\n",
+            worktree_git_dir.to_str().expect("git dir utf8")
+        )
+        .as_bytes(),
     );
 
     let tree = expect_tree(discover(&worktree));
-    assert_eq!(resolved(&tree.index_path()), resolved(&worktree_git_dir.join("index")));
+    assert_eq!(
+        resolved(&tree.index_path()),
+        resolved(&worktree_git_dir.join("index"))
+    );
     assert_eq!(
         resolved(&tree.config_path()),
         resolved(&git_dir.join("config")),
@@ -565,7 +633,10 @@ fn lexically_normalized_drops_navigation_components() {
         lexically_normalized(Path::new("/srv/a/./b/../c")),
         PathBuf::from("/srv/a/c")
     );
-    assert_eq!(lexically_normalized(Path::new("/srv/a/../../..")), PathBuf::from("/"));
+    assert_eq!(
+        lexically_normalized(Path::new("/srv/a/../../..")),
+        PathBuf::from("/")
+    );
 }
 
 /// What:
@@ -580,7 +651,10 @@ fn lexically_normalized_drops_navigation_components() {
 /// ```ts
 /// function writeConfig(dir: string, contents: string) { writeFileSync(path.join(dir, 'config'), contents); }
 /// ```
-fn write_config(dir: &Path, contents: &str) {
+fn write_config(
+    dir: &Path,
+    contents: &str,
+) {
     fs::create_dir_all(dir).expect("create config dir");
     fs::write(dir.join("config"), contents).expect("write config");
 }
@@ -588,7 +662,10 @@ fn write_config(dir: &Path, contents: &str) {
 #[test]
 fn index_hash_kind_reads_sha256_from_the_standard_shape() {
     let dir = unique_tmp("detect-sha256-standard");
-    write_config(&dir, "[extensions]\n\tobjectformat = sha256\n[core]\n\tbare = false\n");
+    write_config(
+        &dir,
+        "[extensions]\n\tobjectformat = sha256\n[core]\n\tbare = false\n",
+    );
     assert_eq!(index_hash_kind(&dir.join("config")), gix_hash::Kind::Sha256);
     let _ = fs::remove_dir_all(&dir);
 }

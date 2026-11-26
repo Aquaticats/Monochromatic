@@ -23,7 +23,11 @@ fn folder_result(name: &str) -> SearchResult {
 
 // What:     `fn track_result(name: &str, parent: Option<&str>, index: usize) -> SearchResult` test helper: a track result.
 // Why:      Track cases vary by parent and library index, which are the two fields the labels depend on.
-fn track_result(name: &str, parent: Option<&str>, index: usize) -> SearchResult {
+fn track_result(
+    name: &str,
+    parent: Option<&str>,
+    index: usize,
+) -> SearchResult {
     return SearchResult {
         kind: SearchResultKind::Track,
         name: name.to_string(),
@@ -38,8 +42,14 @@ fn track_result(name: &str, parent: Option<&str>, index: usize) -> SearchResult 
 
 // What:     `fn span(start: i32, end: i32) -> SearchHighlight` test helper: builds one highlight range.
 // Why:      Emphasis cases compare lists of ranges, and the literal struct form is long.
-fn span(start: i32, end: i32) -> SearchHighlight {
-    return SearchHighlight { start, end };
+fn span(
+    start: i32,
+    end: i32,
+) -> SearchHighlight {
+    return SearchHighlight {
+        start,
+        end,
+    };
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -69,10 +79,7 @@ fn unavailable_status_names_no_cause() {
     let line: SearchStatusLine =
         search_status_line(&SearchState::Unavailable).expect("unavailable has a status line");
     assert_eq!(line.title, SEARCH_UNAVAILABLE_TITLE);
-    assert_eq!(
-        line.detail,
-        Some(SEARCH_UNAVAILABLE_DETAIL)
-    );
+    assert_eq!(line.detail, Some(SEARCH_UNAVAILABLE_DETAIL));
     assert!(!line.title.contains("Library unavailable"));
 }
 
@@ -82,7 +89,10 @@ fn unavailable_status_names_no_cause() {
 fn no_match_status_names_query() {
     let line: SearchStatusLine = search_status_line(&SearchState::NoMatch("zzq".to_string()))
         .expect("no match has a status line");
-    assert_eq!(line.title, format!("{SEARCH_NO_MATCH_PREFIX}zzq{SEARCH_NO_MATCH_SUFFIX}"));
+    assert_eq!(
+        line.title,
+        format!("{SEARCH_NO_MATCH_PREFIX}zzq{SEARCH_NO_MATCH_SUFFIX}")
+    );
     assert_eq!(line.detail, Some(SEARCH_NO_MATCH_DETAIL));
 }
 
@@ -139,7 +149,10 @@ fn root_track_semantics_names_no_library_root() {
 // Why:      The kind is spoken once in the row (D77), so each kind needs its own word.
 #[test]
 fn kind_labels_name_folder_and_track() {
-    assert_eq!(search_row_kind_label(&folder_result("Camellia")), SEARCH_FOLDER_KIND);
+    assert_eq!(
+        search_row_kind_label(&folder_result("Camellia")),
+        SEARCH_FOLDER_KIND
+    );
     assert_eq!(
         search_row_kind_label(&track_result("Night", Some("Live"), 1)),
         SEARCH_TRACK_KIND
@@ -195,7 +208,12 @@ fn folder_action_opens_without_autoplay() {
 #[test]
 fn other_track_action_selects() {
     assert_eq!(
-        search_row_action_label(&track_result("Night", Some("Live"), 1), Some(2), Some(true), false),
+        search_row_action_label(
+            &track_result("Night", Some("Live"), 1),
+            Some(2),
+            Some(true),
+            false
+        ),
         SEARCH_TRACK_SELECT_ACTION
     );
 }
@@ -205,7 +223,12 @@ fn other_track_action_selects() {
 #[test]
 fn playing_current_track_action_pauses() {
     assert_eq!(
-        search_row_action_label(&track_result("Night", Some("Live"), 2), Some(2), Some(true), false),
+        search_row_action_label(
+            &track_result("Night", Some("Live"), 2),
+            Some(2),
+            Some(true),
+            false
+        ),
         SEARCH_TRACK_PAUSE_ACTION
     );
 }
@@ -230,7 +253,12 @@ fn paused_current_track_action_plays() {
 #[test]
 fn unknown_state_current_track_action_toggles() {
     assert_eq!(
-        search_row_action_label(&track_result("Night", Some("Live"), 2), Some(2), None, false),
+        search_row_action_label(
+            &track_result("Night", Some("Live"), 2),
+            Some(2),
+            None,
+            false
+        ),
         SEARCH_TRACK_TOGGLE_ACTION
     );
 }
@@ -271,8 +299,12 @@ fn state_label_reports_playing_current_track() {
 // Why:      The page reads all three labels from one call, so the bundle must match the pieces.
 #[test]
 fn semantics_bundle_combines_kind_action_and_state() {
-    let semantics: SearchRowSemantics =
-        search_row_semantics(&track_result("Night", Some("Live"), 2), Some(2), Some(true), false);
+    let semantics: SearchRowSemantics = search_row_semantics(
+        &track_result("Night", Some("Live"), 2),
+        Some(2),
+        Some(true),
+        false,
+    );
     assert_eq!(semantics.kind_label, SEARCH_TRACK_KIND);
     assert_eq!(semantics.action_label, SEARCH_TRACK_PAUSE_ACTION);
     assert_eq!(semantics.state_label, Some("Current track, playing"));
@@ -387,11 +419,17 @@ fn restored_results_start_at_first_index() {
 #[test]
 fn other_track_action_plays_with_auto_play_on() {
     assert_eq!(
-        search_row_action_label(&track_result("Night", Some("Live"), 1), Some(2), Some(true), true),
+        search_row_action_label(
+            &track_result("Night", Some("Live"), 1),
+            Some(2),
+            Some(true),
+            true
+        ),
         SEARCH_TRACK_PLAY_ACTION
     );
     assert_eq!(
-        search_row_semantics(&track_result("Night", Some("Live"), 1), None, None, true).action_label,
+        search_row_semantics(&track_result("Night", Some("Live"), 1), None, None, true)
+            .action_label,
         SEARCH_TRACK_PLAY_ACTION
     );
 }
@@ -405,7 +443,12 @@ fn auto_play_does_not_change_the_folder_or_current_track_labels() {
         SEARCH_FOLDER_ACTION
     );
     assert_eq!(
-        search_row_action_label(&track_result("Night", Some("Live"), 2), Some(2), Some(true), true),
+        search_row_action_label(
+            &track_result("Night", Some("Live"), 2),
+            Some(2),
+            Some(true),
+            true
+        ),
         SEARCH_TRACK_PAUSE_ACTION
     );
 }

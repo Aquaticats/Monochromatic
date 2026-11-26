@@ -12,10 +12,22 @@ use super::gpu_tile::render_scene;
 use ide_app::{
     annotation_layout::AnnotationColors,
     code_colors::CodeColors,
-    document::{Document, ReadingAffinity, ReadingPosition},
+    document::{
+        Document,
+        ReadingAffinity,
+        ReadingPosition,
+    },
     find::FindRange,
     line_rows::LineRows,
-    minimap::{CHUNK_ROWS, Cancel, Fills, Input, LineCache, Source, build},
+    minimap::{
+        CHUNK_ROWS,
+        Cancel,
+        Fills,
+        Input,
+        LineCache,
+        Source,
+        build,
+    },
     row_map::RowMap,
     shaped_text::TextShaper,
     source_style::StyleSpan,
@@ -96,7 +108,11 @@ pub(super) fn styles_of(text: &str) -> Vec<StyleSpan> {
 /// The chunks a dense text of `lines` lines draws for `bands` bands,
 /// every line selected and found,
 /// when `crowded` is set.
-fn chunks_of(lines: usize, bands: usize, crowded: bool) -> Vec<TileScene> {
+fn chunks_of(
+    lines: usize,
+    bands: usize,
+    crowded: bool,
+) -> Vec<TileScene> {
     let text = dense_text(lines);
     let mut document = Document::new(&text);
     let mut shaper = TextShaper::new();
@@ -182,7 +198,10 @@ fn the_densest_chunks_are_not_blank() {
 
 /// The ink of the first `count` chunks drawn as one render,
 /// and drawn one render each.
-fn together_and_apart(chunks: &[TileScene], count: usize) -> (usize, usize, u32) {
+fn together_and_apart(
+    chunks: &[TileScene],
+    count: usize,
+) -> (usize, usize, u32) {
     let kept = &chunks[..count];
     let width = kept[0].width;
     let height: u32 = kept.iter().map(|chunk| return chunk.height).sum();
@@ -245,7 +264,10 @@ fn one_render_of_every_dense_chunk_comes_out_blank() {
 /// the sum of the two rectangles' partial areas in one pixel and that is not the area between them.
 #[test]
 fn a_frame_scaled_down_keeps_the_coverage_of_its_edges() {
-    use ide_app::tile_scene::{Item, encode};
+    use ide_app::tile_scene::{
+        Item,
+        encode,
+    };
     let items = vec![Item::Fill {
         left: 12.0,
         top: 25.0,

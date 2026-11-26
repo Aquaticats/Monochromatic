@@ -1,7 +1,10 @@
 //! Search content hits reveal a source line without introducing a go-to-line command or editable source.
 
 /// The existing source renderer and document remain the only geometry and reading-state owners.
-use super::{AppWindow, State};
+use super::{
+    AppWindow,
+    State,
+};
 /// The vertical mapping places the revealed line and bounds the scroll offset.
 use crate::native::rows;
 /// Character positions are canonical even when source lines contain multibyte UTF-8 or ligatures.
@@ -10,11 +13,18 @@ use ide_app::document::ReadingPosition;
 ///  which hint rows are packed at.
 use slint::ComponentHandle;
 /// Reading-state changes stay on the native event-loop thread.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Reveal a one-based search line,
 ///  clamping a now-stale line number to the current source snapshot.
-pub(super) fn reveal(window: &AppWindow, source: &Rc<RefCell<State>>, requested: usize) {
+pub(super) fn reveal(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+    requested: usize,
+) {
     let mut current = source.borrow_mut();
     let line = requested
         .saturating_sub(1)

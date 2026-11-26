@@ -12,7 +12,10 @@ use std::collections::HashSet;
 /// Imports the line-by-line file reader pieces.
 use std::fs::File;
 /// Imports buffered reading so a multi-megabyte corpus streams instead of loading whole.
-use std::io::{BufRead, BufReader};
+use std::io::{
+    BufRead,
+    BufReader,
+};
 /// Imports the borrowed path type for the corpus location.
 use std::path::Path;
 
@@ -55,7 +58,7 @@ pub struct Track {
 
 /// The default bin resolution for corpora that predate the `bin_seconds` field.
 fn one_second() -> f64 {
-    return 1.0
+    return 1.0;
 }
 
 /// Read a JSONL corpus file into one `Track` per non-empty line.
@@ -82,7 +85,7 @@ pub fn load_tracks(path: &Path) -> Result<Vec<Track>> {
         let track: Track = serde_json::from_str(&text)?;
         tracks.push(track);
     }
-    return Ok(tracks)
+    return Ok(tracks);
 }
 
 /// One provenance metadata row:
@@ -125,5 +128,5 @@ pub fn load_safe_paths(path: &Path) -> Result<HashSet<String>> {
             safe.insert(row.path);
         }
     }
-    return Ok(safe)
+    return Ok(safe);
 }

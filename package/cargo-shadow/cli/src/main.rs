@@ -19,7 +19,10 @@
 /// declared in `Cargo.toml`).
 use cargo_shadow::cli::run_cli;
 /// Imports the name the shadow answers to.
-use cargo_shadow::constants::{PLUGIN_WORD, SHADOWED_NAME};
+use cargo_shadow::constants::{
+    PLUGIN_WORD,
+    SHADOWED_NAME,
+};
 /// Imports the shadow-mode function.
 use cargo_shadow::shim::run_shim;
 

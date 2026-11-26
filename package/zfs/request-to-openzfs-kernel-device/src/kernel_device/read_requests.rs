@@ -22,12 +22,20 @@ use super::device::ZfsDevice;
 use super::device_error::DeviceError;
 /// One step of a listing,
 /// and the identity read's statistics with its properties.
-use super::listed_object::{DatasetIdentity, ListedObject};
+use super::listed_object::{
+    DatasetIdentity,
+    ListedObject,
+};
 /// The decoded list a read returns.
 use crate::nvlist::NvList;
 /// The request constructors and the request value.
 use crate::requests::{
-    Request, dataset_list_next, get_bookmarks, get_fsacl, objset_stats, snapshot_list_next,
+    Request,
+    dataset_list_next,
+    get_bookmarks,
+    get_fsacl,
+    objset_stats,
+    snapshot_list_next,
 };
 
 /// The methods of `ZfsDevice` that read.
@@ -42,7 +50,10 @@ impl ZfsDevice {
     /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when the
     /// kernel finished without a property list.
-    pub fn objset_stats(&self, target: &str) -> Result<DatasetIdentity, DeviceError> {
+    pub fn objset_stats(
+        &self,
+        target: &str,
+    ) -> Result<DatasetIdentity, DeviceError> {
         let mut request: Request = objset_stats(target)?;
         let reply: Option<NvList> = self.read(&mut request)?;
         let properties: NvList = require_reply(request.operation(), request.target(), reply)?;
@@ -98,7 +109,10 @@ impl ZfsDevice {
     /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when the
     /// kernel finished without a delegation list.
-    pub fn get_fsacl(&self, target: &str) -> Result<NvList, DeviceError> {
+    pub fn get_fsacl(
+        &self,
+        target: &str,
+    ) -> Result<NvList, DeviceError> {
         let mut request: Request = get_fsacl(target)?;
         let reply: Option<NvList> = self.read(&mut request)?;
         return require_reply(request.operation(), request.target(), reply);
@@ -113,7 +127,11 @@ impl ZfsDevice {
     /// What `ZfsDevice::read` throws,
     /// and [`DeviceError::MissingReply`] when the
     /// kernel finished without a bookmark list.
-    pub fn get_bookmarks(&self, target: &str, properties: &[&str]) -> Result<NvList, DeviceError> {
+    pub fn get_bookmarks(
+        &self,
+        target: &str,
+        properties: &[&str],
+    ) -> Result<NvList, DeviceError> {
         let mut request: Request = get_bookmarks(target, properties)?;
         let reply: Option<NvList> = self.read(&mut request)?;
         return require_reply(request.operation(), request.target(), reply);

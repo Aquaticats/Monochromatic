@@ -28,7 +28,10 @@
 
 use super::ZfsDevice;
 use super::fixture::Fixture;
-use super::fixture_pool::{FIXTURE_POOL_PREFIX, FixturePool};
+use super::fixture_pool::{
+    FIXTURE_POOL_PREFIX,
+    FixturePool,
+};
 use super::write_requests::Promotion;
 
 /// The clone names the account arms use,
