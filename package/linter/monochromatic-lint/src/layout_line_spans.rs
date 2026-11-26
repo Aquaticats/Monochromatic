@@ -89,10 +89,21 @@ pub(crate) struct LineSpans {
 fn read_line_spans(file: &Path) -> Option<Vec<Span>> {
     // What: the file opened for a bounded read, or nothing when it cannot be opened.
     // Why: a folder or a link that vanished between two findings must not fail the run.
-    let opened: std::fs::File = std::fs::File::open(file).ok()?;
+    let mut opened: std::fs::File = std::fs::File::open(file).ok()?;
     let mut bytes: Vec<u8> = Vec::<u8>::new();
-    opened.take(MAX_SPAN_BYTES).read_to_end(&mut bytes).ok()?;
-    let cut: bool = bytes.len() as u64 == MAX_SPAN_BYTES;
+    // What: at most the bound, read through a handle that stays open for the byte after it.
+    // Why: the handle must still be usable to ask whether a byte follows, which a consumed reader could not answer.
+    (&mut opened)
+        .take(MAX_SPAN_BYTES)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    // What: the one byte a file longer than the bound still holds, and whether it was there.
+    // Why: a read of exactly the bound cannot tell a whole file of that size from a longer one.
+    let mut past: [u8; 1] = [0; 1];
+    let cut: bool = match opened.read(&mut past) {
+        Ok(read) => read > 0,
+        Err(_) => true,
+    };
     let mut spans: Vec<Span> = Vec::<Span>::new();
     let mut start: usize = 0;
     for (index, part) in bytes
