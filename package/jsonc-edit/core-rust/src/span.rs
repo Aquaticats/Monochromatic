@@ -212,7 +212,12 @@ impl<'a> Cursor<'a> {
     /// new Cursor(source)
     /// ```
     fn new(source: &'a str) -> Self {
-        return Self { source, offset: 0, line: 1, column: 1 };
+        return Self {
+            source,
+            offset: 0,
+            line: 1,
+            column: 1,
+        };
     }
 
     /// What:
@@ -233,7 +238,10 @@ impl<'a> Cursor<'a> {
     ///   return { offset: this.offset, line: this.line, column: this.column };
     /// }
     /// ```
-    fn advance_to(&mut self, target: usize) -> JsoncPosition {
+    fn advance_to(
+        &mut self,
+        target: usize,
+    ) -> JsoncPosition {
         let end = target.min(self.source.len());
         if end < self.offset {
             unreachable!("span positions must be requested in non-decreasing offset order");
@@ -258,7 +266,11 @@ impl<'a> Cursor<'a> {
             }
             self.offset += 1;
         }
-        return JsoncPosition { offset: self.offset, line: self.line, column: self.column };
+        return JsoncPosition {
+            offset: self.offset,
+            line: self.line,
+            column: self.column,
+        };
     }
 }
 
@@ -310,8 +322,16 @@ impl<'a> SpanRecorder<'a> {
     /// ```ts
     /// new SpanRecorder(source, enabled)
     /// ```
-    pub fn new(source: &'a str, enabled: bool) -> Self {
-        return Self { enabled, cursor: Cursor::new(source), spans: JsoncSpans::default(), open: Vec::new() };
+    pub fn new(
+        source: &'a str,
+        enabled: bool,
+    ) -> Self {
+        return Self {
+            enabled,
+            cursor: Cursor::new(source),
+            spans: JsoncSpans::default(),
+            open: Vec::new(),
+        };
     }
 
     /// What:
@@ -324,13 +344,20 @@ impl<'a> SpanRecorder<'a> {
     /// ```ts
     /// scalar(start: number, end: number): void
     /// ```
-    pub fn scalar(&mut self, start: usize, end: usize) {
+    pub fn scalar(
+        &mut self,
+        start: usize,
+        end: usize,
+    ) {
         if !self.enabled {
             return;
         }
         let first = self.cursor.advance_to(start);
         let last = self.cursor.advance_to(end);
-        self.spans.values.push(JsoncSpan { start: first, end: last });
+        self.spans.values.push(JsoncSpan {
+            start: first,
+            end: last,
+        });
     }
 
     /// What:
@@ -345,13 +372,19 @@ impl<'a> SpanRecorder<'a> {
     /// ```ts
     /// containerStart(start: number): void
     /// ```
-    pub fn container_start(&mut self, start: usize) {
+    pub fn container_start(
+        &mut self,
+        start: usize,
+    ) {
         if !self.enabled {
             return;
         }
         let first = self.cursor.advance_to(start);
         self.open.push(self.spans.values.len());
-        self.spans.values.push(JsoncSpan { start: first, end: first });
+        self.spans.values.push(JsoncSpan {
+            start: first,
+            end: first,
+        });
     }
 
     /// What:
@@ -364,7 +397,10 @@ impl<'a> SpanRecorder<'a> {
     /// ```ts
     /// containerEnd(end: number): void
     /// ```
-    pub fn container_end(&mut self, end: usize) {
+    pub fn container_end(
+        &mut self,
+        end: usize,
+    ) {
         if !self.enabled {
             return;
         }
@@ -385,13 +421,20 @@ impl<'a> SpanRecorder<'a> {
     /// ```ts
     /// key(start: number, end: number): void
     /// ```
-    pub fn key(&mut self, start: usize, end: usize) {
+    pub fn key(
+        &mut self,
+        start: usize,
+        end: usize,
+    ) {
         if !self.enabled {
             return;
         }
         let first = self.cursor.advance_to(start);
         let last = self.cursor.advance_to(end);
-        self.spans.keys.push(JsoncSpan { start: first, end: last });
+        self.spans.keys.push(JsoncSpan {
+            start: first,
+            end: last,
+        });
     }
 
     /// What:
@@ -435,7 +478,10 @@ pub fn parse_jsonc_with_spans(source: &str) -> Result<JsoncSpanned, JsoncParseEr
     // return { value, spans: recorder.finish() };
     // ```
     let (value, recorder) = parse_document(Scanner::with_spans(source))?;
-    return Ok(JsoncSpanned { value, spans: recorder.finish() });
+    return Ok(JsoncSpanned {
+        value,
+        spans: recorder.finish(),
+    });
 }
 
 /// What:
@@ -455,7 +501,10 @@ pub fn parse_jsonc_with_spans(source: &str) -> Result<JsoncSpanned, JsoncParseEr
 /// ```ts
 /// function jsoncPositionAt(source: string, offset: number): JsoncPosition
 /// ```
-pub fn jsonc_position_at(source: &str, offset: usize) -> JsoncPosition {
+pub fn jsonc_position_at(
+    source: &str,
+    offset: usize,
+) -> JsoncPosition {
     let mut cursor = Cursor::new(source);
     return cursor.advance_to(offset);
 }

@@ -13,17 +13,6 @@
 //! ```
 
 /// What:
-///      Import the failure enum so tests can name the expected variant.
-/// Why:
-///       A missing address and a wrong shape are different outcomes and must not be conflated.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import type { JsoncEditError } from './error';
-/// ```
-use crate::error::JsoncEditError;
-use crate::parse::MAX_CONTAINERS;
-/// What:
 ///      Import the canonical emitter for edited values.
 /// Why:
 ///       An edit returns a value,
@@ -35,6 +24,17 @@ use crate::parse::MAX_CONTAINERS;
 /// ```
 use crate::emit::emit_jsonc_value;
 /// What:
+///      Import the failure enum so tests can name the expected variant.
+/// Why:
+///       A missing address and a wrong shape are different outcomes and must not be conflated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { JsoncEditError } from './error';
+/// ```
+use crate::error::JsoncEditError;
+use crate::parse::MAX_CONTAINERS;
+/// What:
 ///      Import the address segment type and the key-path helper.
 /// Why:
 ///       Addresses are built from key and index segments rather than from a string syntax.
@@ -43,7 +43,10 @@ use crate::emit::emit_jsonc_value;
 /// ```ts
 /// import { jsoncKeyPath, type JsoncPathSegment } from './path';
 /// ```
-use crate::path::{jsonc_key_path, JsoncPathSegment};
+use crate::path::{
+    JsoncPathSegment,
+    jsonc_key_path,
+};
 /// What:
 ///      Import the quoted-text conversion used to read key names.
 /// Why:
@@ -64,9 +67,18 @@ use crate::text_units::units_to_string;
 /// ```ts
 /// import { jsoncLookup, jsoncSet, jsoncDelete, parseJsoncEdit } from './index';
 /// ```
-use crate::value::{JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncKind,
+    JsoncValue,
+};
 use crate::{
-    jsonc_delete, jsonc_has, jsonc_keys, jsonc_lookup, jsonc_set, jsonc_state_from_value, jsonc_stringify,
+    jsonc_delete,
+    jsonc_has,
+    jsonc_keys,
+    jsonc_lookup,
+    jsonc_set,
+    jsonc_state_from_value,
+    jsonc_stringify,
     parse_jsonc_edit,
 };
 
@@ -81,7 +93,9 @@ use crate::{
 /// const at = (index: number) => ({ kind: 'index', index });
 /// ```
 fn at(index: usize) -> JsoncPathSegment {
-    return JsoncPathSegment::Index { index };
+    return JsoncPathSegment::Index {
+        index,
+    };
 }
 
 /// Check that parsing into a state and serializing it round-trips through the public surface.
@@ -122,13 +136,23 @@ fn lookup_walks_addresses() {
 fn lookup_reports_missing_and_mismatched_addresses() {
     let state = parse_jsonc_edit("{\"a\":[1],\"s\":\"text\"}").expect("valid document");
     let missing = jsonc_lookup(&state.root, &jsonc_key_path(["nope"])).expect_err("missing key");
-    assert!(matches!(missing, JsoncEditError::PathNotFound { .. }), "expected missing address: {missing:?}");
+    assert!(
+        matches!(missing, JsoncEditError::PathNotFound { .. }),
+        "expected missing address: {missing:?}"
+    );
     // An index cannot address an object member.
     let mismatched = jsonc_lookup(&state.root, &[at(0)]).expect_err("index against record");
-    assert!(matches!(mismatched, JsoncEditError::Type { .. }), "expected shape failure: {mismatched:?}");
+    assert!(
+        matches!(mismatched, JsoncEditError::Type { .. }),
+        "expected shape failure: {mismatched:?}"
+    );
     // A key cannot address an array element.
-    let mismatched_key = jsonc_lookup(&state.root, &jsonc_key_path(["a", "b"])).expect_err("key against array");
-    assert!(matches!(mismatched_key, JsoncEditError::Type { .. }), "expected shape failure");
+    let mismatched_key =
+        jsonc_lookup(&state.root, &jsonc_key_path(["a", "b"])).expect_err("key against array");
+    assert!(
+        matches!(mismatched_key, JsoncEditError::Type { .. }),
+        "expected shape failure"
+    );
     // An out-of-range index is a missing address.
     let mut out_of_range = jsonc_key_path(["a"]);
     out_of_range.push(at(5));
@@ -137,8 +161,12 @@ fn lookup_reports_missing_and_mismatched_addresses() {
         JsoncEditError::PathNotFound { .. }
     ));
     // A scalar cannot be indexed at all.
-    let scalar = jsonc_lookup(&state.root, &jsonc_key_path(["s", "x"])).expect_err("index into scalar");
-    assert!(matches!(scalar, JsoncEditError::Type { .. }), "expected shape failure");
+    let scalar =
+        jsonc_lookup(&state.root, &jsonc_key_path(["s", "x"])).expect_err("index into scalar");
+    assert!(
+        matches!(scalar, JsoncEditError::Type { .. }),
+        "expected shape failure"
+    );
 }
 
 /// Check that keys come back in source order,
@@ -146,7 +174,8 @@ fn lookup_reports_missing_and_mismatched_addresses() {
 ///  and only for records.
 #[test]
 fn keys_list_members_in_order() {
-    let state = parse_jsonc_edit("{\"b\":1,\"a\":2,\"b\":3}").expect("valid document with a duplicate key");
+    let state =
+        parse_jsonc_edit("{\"b\":1,\"a\":2,\"b\":3}").expect("valid document with a duplicate key");
     let keys = jsonc_keys(&state.root, &[]).expect("root keys");
     let names: Vec<String> = keys
         .iter()
@@ -154,7 +183,8 @@ fn keys_list_members_in_order() {
         .collect();
     assert_eq!(names, ["b", "a", "b"]);
     // A duplicate key resolves to its last member.
-    let duplicate = jsonc_lookup(&state.root, &jsonc_key_path(["b"])).expect("duplicate key lookup");
+    let duplicate =
+        jsonc_lookup(&state.root, &jsonc_key_path(["b"])).expect("duplicate key lookup");
     assert_eq!(duplicate.number_token(), Some("3"));
     // An array has no keys.
     let array_state = parse_jsonc_edit("[1]").expect("valid array");
@@ -170,20 +200,29 @@ fn keys_list_members_in_order() {
 fn set_replaces_and_appends_only_a_final_segment() {
     let state = parse_jsonc_edit("{\"a\":1,\"list\":[1,2]} // doc").expect("valid document");
     // Replacing a value keeps the document comment.
-    let replaced = jsonc_set(&state.root, &jsonc_key_path(["a"]), JsoncValue::boolean(true))
-        .expect("replace scalar");
+    let replaced = jsonc_set(
+        &state.root,
+        &jsonc_key_path(["a"]),
+        JsoncValue::boolean(true),
+    )
+    .expect("replace scalar");
     assert!(emit_jsonc_value(&replaced).contains("\"a\": true"));
     assert!(emit_jsonc_value(&replaced).contains("// doc"));
     // The original state is unchanged, which is the immutability contract.
     assert!(jsonc_stringify(&state).contains("\"a\": 1"));
     // A missing final key is appended.
-    let appended = jsonc_set(&state.root, &jsonc_key_path(["b"]), JsoncValue::null()).expect("append key");
+    let appended =
+        jsonc_set(&state.root, &jsonc_key_path(["b"]), JsoncValue::null()).expect("append key");
     assert!(emit_jsonc_value(&appended).contains("\"b\": null"));
     // A missing final index at the array length appends an element.
     let mut tail = jsonc_key_path(["list"]);
     tail.push(at(2));
-    let pushed = jsonc_set(&state.root, &tail, JsoncValue::number_from_token("3").expect("valid number"))
-        .expect("append element");
+    let pushed = jsonc_set(
+        &state.root,
+        &tail,
+        JsoncValue::number_from_token("3").expect("valid number"),
+    )
+    .expect("append element");
     assert!(emit_jsonc_value(&pushed).contains('3'));
     // An index beyond the length is a missing address, not an insertion.
     let mut beyond = jsonc_key_path(["list"]);
@@ -212,10 +251,14 @@ fn set_replaces_and_appends_only_a_final_segment() {
 ///  including duplicates and the root guard.
 #[test]
 fn delete_removes_members_and_elements() {
-    let state = parse_jsonc_edit("{\"a\":1,\"dup\":2,\"dup\":3,\"list\":[10,20,30]}").expect("valid document");
+    let state = parse_jsonc_edit("{\"a\":1,\"dup\":2,\"dup\":3,\"list\":[10,20,30]}")
+        .expect("valid document");
     // Deleting a key removes every member with that name.
     let deduped = jsonc_delete(&state.root, &jsonc_key_path(["dup"])).expect("delete duplicates");
-    assert_eq!(jsonc_keys(&deduped, &[]).expect("keys after delete").len(), 2);
+    assert_eq!(
+        jsonc_keys(&deduped, &[]).expect("keys after delete").len(),
+        2
+    );
     // Deleting an element shifts the rest.
     let mut middle = jsonc_key_path(["list"]);
     middle.push(at(1));
@@ -250,15 +293,26 @@ fn delete_removes_members_and_elements() {
 /// Check that an edit and a deletion at the accepted depth complete without exhausting the stack.
 #[test]
 fn set_and_delete_at_accepted_depth() {
-    let source = format!("{}0{}", "{\"k\":".repeat(MAX_CONTAINERS), "}".repeat(MAX_CONTAINERS));
+    let source = format!(
+        "{}0{}",
+        "{\"k\":".repeat(MAX_CONTAINERS),
+        "}".repeat(MAX_CONTAINERS)
+    );
     let state = parse_jsonc_edit(&source).expect("depth 512 document");
     let mut path: Vec<JsoncPathSegment> = Vec::new();
     for _ in 0..MAX_CONTAINERS {
-        path.push(JsoncPathSegment::Key { key: String::from("k") });
+        path.push(JsoncPathSegment::Key {
+            key: String::from("k"),
+        });
     }
     let replaced = jsonc_set(&state.root, &path, JsoncValue::boolean(true)).expect("deep set");
     let deep = jsonc_lookup(&replaced, &path).expect("deep lookup");
-    assert!(matches!(deep.kind, JsoncKind::Boolean { value: true }));
+    assert!(matches!(
+        deep.kind,
+        JsoncKind::Boolean {
+            value: true
+        }
+    ));
     // Deleting the leaf empties the record that held it.
     let removed = jsonc_delete(&replaced, &path).expect("deep delete");
     let parent = jsonc_lookup(&removed, &path[..511]).expect("parent record");
@@ -275,17 +329,38 @@ fn constructors_build_consistent_values() {
     let lone = JsoncValue::text_from_units(vec![0xD800]);
     assert_eq!(lone.text_units(), Some([0xD800].as_slice()));
     let emitted = emit_jsonc_value(&lone);
-    assert!(emitted.contains("\\ud800"), "lone surrogate must stay escaped: {emitted}");
+    assert!(
+        emitted.contains("\\ud800"),
+        "lone surrogate must stay escaped: {emitted}"
+    );
     // A number token is validated and normalized.
     let number = JsoncValue::number_from_token("1.500").expect("valid number token");
     assert_eq!(number.number_token(), Some("1.500"));
-    assert!(JsoncValue::number_from_token("01").is_err(), "leading zero must be rejected");
-    assert!(JsoncValue::number_from_token("+1").is_err(), "leading plus must be rejected");
+    assert!(
+        JsoncValue::number_from_token("01").is_err(),
+        "leading zero must be rejected"
+    );
+    assert!(
+        JsoncValue::number_from_token("+1").is_err(),
+        "leading plus must be rejected"
+    );
     // Containers and scalars build without comments.
     assert!(JsoncValue::null().comment.is_none());
     assert!(JsoncValue::boolean(false).comment.is_none());
-    assert_eq!(JsoncValue::array(Vec::new()).elements().expect("array payload").len(), 0);
-    assert_eq!(JsoncValue::record(Vec::new()).entries().expect("record payload").len(), 0);
+    assert_eq!(
+        JsoncValue::array(Vec::new())
+            .elements()
+            .expect("array payload")
+            .len(),
+        0
+    );
+    assert_eq!(
+        JsoncValue::record(Vec::new())
+            .entries()
+            .expect("record payload")
+            .len(),
+        0
+    );
 }
 
 /// The document root must stay a container.
@@ -295,13 +370,27 @@ fn constructors_build_consistent_values() {
 #[test]
 fn root_set_to_a_scalar_is_refused() {
     let document = parse_jsonc_edit("{\"a\":1}").expect("source parses").root;
-    let scalar = JsoncValue { kind: JsoncKind::Null, comment: None };
+    let scalar = JsoncValue {
+        kind: JsoncKind::Null,
+        comment: None,
+    };
     let error = jsonc_set(&document, &[], scalar).expect_err("a scalar root must be refused");
-    assert!(format!("{error}").contains("root"), "refusal did not name the root: {error}");
+    assert!(
+        format!("{error}").contains("root"),
+        "refusal did not name the root: {error}"
+    );
 
     // A container replacement at the root stays allowed, so the guard is about shape, not address.
-    let replacement = JsoncValue { kind: JsoncKind::Array { elements: Vec::new() }, comment: None };
-    assert!(jsonc_set(&document, &[], replacement).is_ok(), "a container root must be accepted");
+    let replacement = JsoncValue {
+        kind: JsoncKind::Array {
+            elements: Vec::new(),
+        },
+        comment: None,
+    };
+    assert!(
+        jsonc_set(&document, &[], replacement).is_ok(),
+        "a container root must be accepted"
+    );
 }
 
 /// A shape mismatch must name both the operation and the mismatch.
@@ -311,22 +400,60 @@ fn root_set_to_a_scalar_is_refused() {
 #[test]
 fn mismatched_segments_name_operation_and_shape() {
     let state = parse_jsonc_edit("{\"list\":[10],\"rec\":{\"a\":1}}").expect("document parses");
-    let list_by_key = [JsoncPathSegment::Key { key: "list".to_string() }, JsoncPathSegment::Key { key: "a".to_string() }];
-    let rec_by_position = [JsoncPathSegment::Key { key: "rec".to_string() }, at(0)];
-    let replacement = JsoncValue { kind: JsoncKind::Null, comment: None };
+    let list_by_key = [
+        JsoncPathSegment::Key {
+            key: "list".to_string(),
+        },
+        JsoncPathSegment::Key {
+            key: "a".to_string(),
+        },
+    ];
+    let rec_by_position = [
+        JsoncPathSegment::Key {
+            key: "rec".to_string(),
+        },
+        at(0),
+    ];
+    let replacement = JsoncValue {
+        kind: JsoncKind::Null,
+        comment: None,
+    };
 
     let lookup_error = jsonc_lookup(&state.root, &list_by_key).expect_err("an array takes no key");
-    assert_eq!(format!("{lookup_error}"), "jsonc lookup: cannot index an array with key \"a\"");
-    let lookup_position = jsonc_lookup(&state.root, &rec_by_position).expect_err("a record takes no position");
-    assert_eq!(format!("{lookup_position}"), "jsonc lookup: cannot index an object with position 0");
+    assert_eq!(
+        format!("{lookup_error}"),
+        "jsonc lookup: cannot index an array with key \"a\""
+    );
+    let lookup_position =
+        jsonc_lookup(&state.root, &rec_by_position).expect_err("a record takes no position");
+    assert_eq!(
+        format!("{lookup_position}"),
+        "jsonc lookup: cannot index an object with position 0"
+    );
 
-    let set_error = jsonc_set(&state.root, &list_by_key, replacement.clone()).expect_err("set into an array by key");
-    assert_eq!(format!("{set_error}"), "jsonc edit: cannot index an array with key \"a\"");
-    let set_position = jsonc_set(&state.root, &rec_by_position, replacement).expect_err("set into a record by position");
-    assert_eq!(format!("{set_position}"), "jsonc edit: cannot index an object with position 0");
+    let set_error = jsonc_set(&state.root, &list_by_key, replacement.clone())
+        .expect_err("set into an array by key");
+    assert_eq!(
+        format!("{set_error}"),
+        "jsonc edit: cannot index an array with key \"a\""
+    );
+    let set_position = jsonc_set(&state.root, &rec_by_position, replacement)
+        .expect_err("set into a record by position");
+    assert_eq!(
+        format!("{set_position}"),
+        "jsonc edit: cannot index an object with position 0"
+    );
 
-    let delete_error = jsonc_delete(&state.root, &list_by_key).expect_err("delete from an array by key");
-    assert_eq!(format!("{delete_error}"), "jsonc delete: cannot index an array with key \"a\"");
-    let delete_position = jsonc_delete(&state.root, &rec_by_position).expect_err("delete from a record by position");
-    assert_eq!(format!("{delete_position}"), "jsonc delete: cannot index an object with position 0");
+    let delete_error =
+        jsonc_delete(&state.root, &list_by_key).expect_err("delete from an array by key");
+    assert_eq!(
+        format!("{delete_error}"),
+        "jsonc delete: cannot index an array with key \"a\""
+    );
+    let delete_position =
+        jsonc_delete(&state.root, &rec_by_position).expect_err("delete from a record by position");
+    assert_eq!(
+        format!("{delete_position}"),
+        "jsonc delete: cannot index an object with position 0"
+    );
 }

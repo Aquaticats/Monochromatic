@@ -23,7 +23,10 @@
 /// ```ts
 /// import { deleteValue, setValue } from './editSpine';
 /// ```
-use crate::edit_spine::{delete_value, set_value};
+use crate::edit_spine::{
+    delete_value,
+    set_value,
+};
 /// What:
 ///      Import the edit failure enum.
 /// Why:
@@ -55,7 +58,10 @@ use crate::path::JsoncPathSegment;
 /// ```ts
 /// import type { JsoncValue } from './value';
 /// ```
-use crate::value::{JsoncKind, JsoncValue};
+use crate::value::{
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///      Return a new document with one address set to a replacement value.
@@ -84,7 +90,12 @@ pub fn jsonc_set(
     // Why: The document contract is a record or array root. Accepting a scalar here would return a
     //      state whose canonical emission the parser rejects, so the invariant would break inside
     //      the crate's own round trip. Fuzzing found it as an emission of `null`.
-    if path.is_empty() && !matches!(value.kind, JsoncKind::Record { .. } | JsoncKind::Array { .. }) {
+    if path.is_empty()
+        && !matches!(
+            value.kind,
+            JsoncKind::Record { .. } | JsoncKind::Array { .. }
+        )
+    {
         return Err(JsoncEditError::Type {
             error: crate::error::JsoncTypeError {
                 message: "jsonc set: the document root must stay an object or array".to_string(),
@@ -111,6 +122,9 @@ pub fn jsonc_set(
 /// Returns a shape failure for an empty address or a mismatched step,
 ///  and the missing address when a step
 /// names nothing.
-pub fn jsonc_delete(root: &JsoncValue, path: &[JsoncPathSegment]) -> Result<JsoncValue, JsoncEditError> {
+pub fn jsonc_delete(
+    root: &JsoncValue,
+    path: &[JsoncPathSegment],
+) -> Result<JsoncValue, JsoncEditError> {
     return delete_value(root, path);
 }
