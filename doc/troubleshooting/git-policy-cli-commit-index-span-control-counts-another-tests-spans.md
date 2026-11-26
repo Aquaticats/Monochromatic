@@ -83,3 +83,8 @@ ending, so the run's own watchdog aborted the whole module run after 120 s with 
 `test result` line. That is a second defect: the control needs a process whose standard input is not the run's,
 which the same child helper gives. It is recorded here because it hid the counts above, and it is not fixed by
 this change.
+
+The child that hang left behind is worth its own line: the watchdog aborted the test process, and the
+`git add --interactive` it had started kept the run's output pipe open, so the capped scope around the run stayed
+alive for 21 minutes after the abort and was stopped by hand. A control whose body runs in a child of the test
+binary ends with that child (`spawn_owned`), which is the other half of why the controls above run there.

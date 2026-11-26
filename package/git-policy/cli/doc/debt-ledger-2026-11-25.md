@@ -498,6 +498,9 @@ where no `test result` line was printed.
 That abort is a second defect of the module and not this cause:
 `commit::commit_index::tests::interactive_selection_succeeds_without_changes` runs `git add --interactive`,
 which read the standard input the run inherits and printed its `What now>` prompt without ending;
+the `git add --interactive` it started outlived the aborted run,
+held the run's output pipe open and kept the capped scope alive for 21 minutes,
+until that scope was stopped by hand;
 it is recorded in `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`
 and not fixed here.
 Each of the five controls answered `ok. 1 passed` alone with `--exact` before and after the change.
