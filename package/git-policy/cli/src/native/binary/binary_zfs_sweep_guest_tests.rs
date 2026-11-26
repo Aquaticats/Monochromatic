@@ -616,7 +616,7 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
         ExpectedMount { clone_guid: request.dataset, clone_dataset: clone.clone(), slot_path: slot_folder.clone(), nonce: second_nonce.clone() };
     let proof = verify_the_mount_answer(&MountAnswer::of_receipt(&answered_receipt), &expected).expect("the cancel command's own verification accepts the answer");
     assert_eq!(Some(proof.mount.mount_id), mount_id_of(&std::fs::File::open(slot_folder.as_path()).expect("the slot opens")).ok(), "the verified answer names the mount the kernel shows at the slot");
-    println!("SWEEP second-request nonce={second_digits} answered=done mounts=1 mount={}", proof.mount.mount_id);
+    println!("SWEEP second-request answered=done mounts=1 nonce={second_digits} mount={}", proof.mount.mount_id);
 
     unmount_at(slot_folder.as_path());
     assert!(!mounted(clone.as_str()), "the control's cleanup took the mount down");
