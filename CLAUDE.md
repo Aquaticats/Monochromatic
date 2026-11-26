@@ -1726,10 +1726,9 @@ URF:
 ### Verify on a throwaway, not against real state
 
 THR:
- State-mutating verification uses disposable fixtures (`mktemp -d`,
- throwaway worktree,
- container),
- never real or shared state,
+ State-mutating verification uses disposable fixtures,
+ including temporary `HOME` and browser profiles,
+ never real/shared state,
  even when idempotent;
  guard tests need allowed and rejected fixtures.
 
@@ -1806,6 +1805,12 @@ MD1:
  Break lines at semantic boundaries,
  under 120 chars,
  so text reads without editor wrapping.
+
+GLB:
+ GitHub issue,
+ pull-request and comment text turns each newline into a line break:
+ post every paragraph on one line;
+ semantic line breaks stay in repository files.
 
 MD2:
  `-` for unordered lists;
