@@ -471,16 +471,21 @@ and
 `subvolume::subvolume_index_refresh_of_every_worktree::tests`'s
 `an_index_rewrite_reported_as_never_started_does_not_run_afterwards`.
 Measured:
-with `RewriteEachIndex::run`'s claim check removed, both answered `1 passed; 0 failed`;
+with `RewriteEachIndex::run`'s claim check removed,
+both answered `1 passed; 0 failed`;
 with the claim the process's bound takes removed as well,
 the second answered `0 passed; 1 failed` at `the rewrite the report gave up on ran afterwards`
 (`left: 1`),
 and a print inside the queued closure appeared twice,
 so one awaited blocking job does drain the queue.
 tokio 1.54.1's blocking queue is one `VecDeque` unless `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE` names a
-value other than zero (`runtime/builder.rs`, `sharded_blocking_queue_default`, and
-`runtime/blocking/pool.rs`, which picks `LockedImpl`),
-pushed at the back before a thread is asked for and popped at the front (`spawn_task`, `run_worker`).
+value other than zero (`runtime/builder.rs`,
+`sharded_blocking_queue_default`,
+and
+`runtime/blocking/pool.rs`,
+which picks `LockedImpl`),
+pushed at the back before a thread is asked for and popped at the front (`spawn_task`,
+`run_worker`).
 Two claims guarded the one queued closure,
 so either could be removed unseen:
 the process's bound takes one before that closure's first effect and takes it again when it gives up,

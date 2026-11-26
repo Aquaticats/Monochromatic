@@ -501,30 +501,34 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
 }
 
 /// What:
-///  A report whose first job could not be started names no index, leaves every index untouched,
+///  A report whose first job could not be started names no index,
+/// leaves every index untouched,
 ///  and says the refused step will not run.
 ///  With the preparation itself a job of the blocking pool (`prepare_the_run`),
 /// a process with no thread to start now fails at the preparation,
 ///  so the rewrites are never even queued:
-/// no rewrite runs after the report, before or after the pool runs what it queued.
+/// no rewrite runs after the report,
+/// before or after the pool runs what it queued.
 /// Why:
 ///  A report that never reached an index must not say anything about one,
 /// and "the indexes stay as they were" must hold however the run ended.
 ///  `BlockingJobError::NoThreadToStart` is the one end that promises the step will not run:
-/// the process's bound on blocking jobs takes one claim on the closure it queues, before that closure's first
-/// effect,
+/// the process's bound on blocking jobs takes one claim on the closure it queues,
+/// before that closure's first effect,
 ///  and takes the same claim when it answers that no thread could start it,
 /// so the report that reads that answer may promise the indexes are as they were.
 ///  The control lets the pool run what it queued before it asserts that no rewrite ran afterwards:
-///  the job it asks for after the queued one runs after it, because the pool's queue is one queue whose back is
-/// pushed to and whose front is popped,
-///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`, read by `sharded_blocking_queue_default` in
-/// `tokio-1.54.1/src/runtime/builder.rs`, is the only thing that would make it shards,
+///  the job it asks for after the queued one runs after it,
+/// because the pool's queue is one queue whose back is pushed to and whose front is popped,
+///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`,
+/// read by `sharded_blocking_queue_default` in `tokio-1.54.1/src/runtime/builder.rs`,
+/// is the only thing that would make it shards,
 ///  which this crate never sets.
 ///  The promise about a queued rewrite belongs to the control beside this one in
 /// `subvolume_index_refresh_of_every_worktree_tests.rs`,
 /// which runs one item and so reaches a queued rewrite;
-///  this whole-report face cannot, because its first job is the preparation.
+///  this whole-report face cannot,
+/// because its first job is the preparation.
 /// The control runs in a child whose process limit is one,
 /// because only a refused thread start ends a run this way.
 #[test]

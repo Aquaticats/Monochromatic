@@ -20,14 +20,15 @@ use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 /// so those stay as they were" is only true
 ///  when the queued job finds the claim taken and does nothing.
 ///  That claim is the process's bound on blocking jobs (`blocking_jobs_within_the_budget.rs`):
-/// it takes one claim on the closure it queues, before that closure's first effect,
+/// it takes one claim on the closure it queues,
+/// before that closure's first effect,
 ///  and takes the same claim when it answers that no thread could start the job.
 ///  The control lets the pool start a thread again and waits for a job it asks for after the queued one,
 /// so the queued rewrite gets its turn before this control asserts that it did nothing:
 ///  the pool's queue is one queue whose back is pushed to and whose front is popped,
 /// so a job asked for later runs later,
-///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`, read by `sharded_blocking_queue_default` in
-/// `tokio-1.54.1/src/runtime/builder.rs`,
+///  and `TOKIO_UNSTABLE_SHARDED_BLOCKING_QUEUE`,
+/// read by `sharded_blocking_queue_default` in `tokio-1.54.1/src/runtime/builder.rs`,
 /// is the only thing that would make it shards,
 ///  which this crate never sets.
 /// The control runs in a child whose process limit is one,
