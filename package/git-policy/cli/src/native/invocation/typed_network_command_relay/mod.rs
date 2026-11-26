@@ -289,13 +289,14 @@ pub fn relay_when_ssh_carries(
     let shape: ErrorStreamShape = shape_of_this_process();
     // What: `git_command` builds the child exactly as the process replacement would have, so the arguments, the hooks-off
     //       prefix and the marker are the same in both shapes.
-    // Why:   A relayed command must be the same command, with one stream connected differently.
+    // Why:   A relayed command must be the same command, with one stream connected differently, and the relay takes it by
+    //        value so this process's own handle on that stream is closed once the child runs.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const command = gitCommand(git, argv, overlay, owner);
     // ```
-    let mut git_to_run: std::process::Command = git_command(real_git, arguments, overlay, owner);
+    let git_to_run: std::process::Command = git_command(real_git, arguments, overlay, owner);
     // What: `Err(io::Error)` is the failure variant: the operating system refused the start, which the caller reports.
     // Why:   A refused start is an engine failure and not a Git answer.
     //
@@ -304,7 +305,7 @@ pub fn relay_when_ssh_carries(
     // let start; try { start = startRelaying(shape, guard, command); } catch (error) { return { error }; }
     // ```
     let started: git_error_stream_relayed_as_it_arrives::RelayedStart =
-        match start_relaying(shape, Some(&guard), &mut git_to_run) {
+        match start_relaying(shape, Some(&guard), git_to_run) {
             Ok(running) => running,
             Err(error) => return Some(Err(error)),
         };

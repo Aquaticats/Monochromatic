@@ -9,10 +9,27 @@ use super::{
     ErrorStreamShape,
     RelayedErrorStream,
     read_to_the_child_s_end,
+    shape_of_this_process,
     start_relaying,
+};
+// What: `ChildTest` is a request for this test binary running one named test, and `passed` is that request plus the check
+//       that exactly one test ran and passed.
+// Why:  A stream belongs to one process, so the answer below is read in a child whose own standard error this control
+//       decides, and a name that matched no test would otherwise pass a run that proved nothing.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { ChildTest, passed } from '../../child-test-process';
+// ```
+use crate::child_test_process::{
+    ChildTest,
+    passed,
 };
 use crate::forwarding::ChildOutcome;
 use crate::test_process_owner::own_group_of_number;
+// What: `Stdio` is how one of a child's streams is connected, and `From<OwnedFd>` builds it from a terminal's slave.
+// Why:  One child gets a pseudo-terminal's slave as its standard error and the other keeps the plain pipe.
+use std::process::Stdio;
 // What: `CommandExt` adds `process_group` to the standard library's command type, which is the group a child leads.
 // Why:  A child the relay starts is ended by the relay, and only the group it leads can carry what it left to this
 //  control.
@@ -52,10 +69,10 @@ fn a_child_writing(script: &str) -> std::process::Command {
 /// The bytes a child wrote reach the caller on a pipe, and its exit code is the answer.
 #[test]
 fn a_pipe_relays_the_child_s_bytes_and_its_code() {
-    let mut command: std::process::Command = a_child_writing("printf 'one\\ntwo\\n' >&2; exit 3");
+    let command: std::process::Command = a_child_writing("printf 'one\\ntwo\\n' >&2; exit 3");
     let mut relayed_bytes: Vec<u8> = Vec::new();
     let start: super::RelayedStart =
-        start_relaying(ErrorStreamShape::Pipe, None, &mut command).expect("the child starts");
+        start_relaying(ErrorStreamShape::Pipe, None, command).expect("the child starts");
     let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes)
         .expect("the relay reads to the child's end");
     assert_eq!(
@@ -70,24 +87,24 @@ fn a_pipe_relays_the_child_s_bytes_and_its_code() {
 /// A terminal gives the child the answer plain Git sees, and clearing the output processing keeps the bytes plain Git's.
 #[test]
 fn a_terminal_is_a_terminal_and_keeps_the_line_feeds_it_got() {
-    let mut asking: std::process::Command = a_child_writing(
+    let asking: std::process::Command = a_child_writing(
         "if [ -t 2 ]; then printf 'terminal\\n' >&2; else printf 'pipe\\n' >&2; fi",
     );
     let mut relayed_bytes: Vec<u8> = Vec::new();
     let start: super::RelayedStart =
-        start_relaying(ErrorStreamShape::Terminal, None, &mut asking).expect("the child starts");
+        start_relaying(ErrorStreamShape::Terminal, None, asking).expect("the child starts");
     let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes)
         .expect("the relay reads to the child's end");
     assert_eq!(
         String::from_utf8_lossy(relayed.kept.as_slice()),
         "terminal\n"
     );
-    let mut piped: std::process::Command = a_child_writing(
+    let piped: std::process::Command = a_child_writing(
         "if [ -t 2 ]; then printf 'terminal\\n' >&2; else printf 'pipe\\n' >&2; fi",
     );
     let mut piped_bytes: Vec<u8> = Vec::new();
     let piped_start: super::RelayedStart =
-        start_relaying(ErrorStreamShape::Pipe, None, &mut piped).expect("the child starts");
+        start_relaying(ErrorStreamShape::Pipe, None, piped).expect("the child starts");
     let piped_relayed: RelayedErrorStream = read_to_the_child_s_end(piped_start, &mut piped_bytes)
         .expect("the relay reads to the child's end");
     assert_eq!(
@@ -99,10 +116,10 @@ fn a_terminal_is_a_terminal_and_keeps_the_line_feeds_it_got() {
 /// A terminal whose output processing was left on would turn every line feed into a carriage return and a line feed.
 #[test]
 fn a_terminal_does_not_double_the_line_endings() {
-    let mut command: std::process::Command = a_child_writing("printf 'a\\nb\\n' >&2; exit 0");
+    let command: std::process::Command = a_child_writing("printf 'a\\nb\\n' >&2; exit 0");
     let mut relayed_bytes: Vec<u8> = Vec::new();
     let start: super::RelayedStart =
-        start_relaying(ErrorStreamShape::Terminal, None, &mut command).expect("the child starts");
+        start_relaying(ErrorStreamShape::Terminal, None, command).expect("the child starts");
     let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes)
         .expect("the relay reads to the child's end");
     assert_eq!(relayed.kept, b"a\nb\n".to_vec());
@@ -111,12 +128,12 @@ fn a_terminal_does_not_double_the_line_endings() {
 /// The kept tail is the stream's end and no more, so one command cannot hold all of what it printed.
 #[test]
 fn the_kept_tail_is_the_stream_s_end_and_no_more() {
-    let mut command: std::process::Command = a_child_writing(
+    let command: std::process::Command = a_child_writing(
         "dd if=/dev/zero bs=1000 count=100 2>/dev/null | tr '\\0' 'A' >&2; printf 'BBBBBBBBBB' >&2",
     );
     let mut relayed_bytes: Vec<u8> = Vec::new();
     let start: super::RelayedStart =
-        start_relaying(ErrorStreamShape::Pipe, None, &mut command).expect("the child starts");
+        start_relaying(ErrorStreamShape::Pipe, None, command).expect("the child starts");
     let relayed: RelayedErrorStream = read_to_the_child_s_end(start, &mut relayed_bytes)
         .expect("the relay reads to the child's end");
     assert_eq!(relayed.kept.len(), super::KEPT_TAIL_BYTES);
@@ -156,7 +173,7 @@ fn a_process_that_outlives_the_child_does_not_hold_the_relay() {
     command.process_group(0);
     let mut relayed_bytes: Vec<u8> = Vec::new();
     let start: super::RelayedStart =
-        start_relaying(ErrorStreamShape::Pipe, None, &mut command).expect("the child starts");
+        start_relaying(ErrorStreamShape::Pipe, None, command).expect("the child starts");
     // What: `Instant` is a clock reading whose difference is an elapsed time.
     // Why:  The design's end rule is a bound, and a bound is measured.
     //
@@ -254,7 +271,7 @@ fn end_the_group(group: libc::pid_t) {
 /// A program the system will not start is a refused start, not an empty transcript.
 #[test]
 fn a_child_that_cannot_start_is_refused() {
-    let mut command: std::process::Command =
+    let command: std::process::Command =
         std::process::Command::new("/nonexistent/typed-network-command-relay-control");
     // What: `match` reads the result without needing the success value to be printable.
     // Why:  The started child owns descriptors and a process, so it is not a value a control prints.
@@ -263,8 +280,111 @@ fn a_child_that_cannot_start_is_refused() {
     // ```ts
     // const answered = startRelaying(...); assert(answered.error?.kind === 'NotFound');
     // ```
-    match start_relaying(ErrorStreamShape::Pipe, None, &mut command) {
+    match start_relaying(ErrorStreamShape::Pipe, None, command) {
         Ok(_started) => panic!("a missing program is not started"),
         Err(refused) => assert_eq!(refused.kind(), std::io::ErrorKind::NotFound),
     }
 }
+
+//region The shape a child gets is this process's own standard error's shape
+
+/// What:
+///  The libtest name of the body `name` in this file's own module: the module path after the crate's first segment,
+///  then the function's name.
+/// Why:
+///  `--exact` matches this whole name, so a name built any other way runs no test and the `passed` check says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const childPath = (name: string) => `${modulePath().split('::').slice(1).join('::')}::${name}`;
+/// ```
+fn child_path(name: &str) -> String {
+    let module: &str = module_path!();
+    let without_the_crate: &str = module.split_once("::").map_or(module, |(_, rest)| {
+        return rest;
+    });
+    return format!("{without_the_crate}::{name}");
+}
+
+/// Child of `the_shape_a_child_gets_is_the_standard_error_this_process_has`:
+/// the answer where this child's own standard error is a pseudo-terminal.
+#[test]
+#[ignore = "started by the_shape_a_child_gets_is_the_standard_error_this_process_has in a process whose standard error this control decides"]
+fn the_shape_in_a_child_whose_error_stream_is_a_terminal() {
+    assert_eq!(
+        shape_of_this_process(),
+        ErrorStreamShape::Terminal,
+        "this child's standard error is a terminal, so the relay must give Git a terminal too"
+    );
+}
+
+/// Child of `the_shape_a_child_gets_is_the_standard_error_this_process_has`:
+/// the answer where this child's own standard error is a pipe.
+#[test]
+#[ignore = "started by the_shape_a_child_gets_is_the_standard_error_this_process_has in a process whose standard error this control decides"]
+fn the_shape_in_a_child_whose_error_stream_is_a_pipe() {
+    assert_eq!(
+        shape_of_this_process(),
+        ErrorStreamShape::Pipe,
+        "this child's standard error is a pipe, so the relay must give Git a pipe too"
+    );
+}
+
+/// What:
+///  The shape this process chooses for its child is the shape this process's own standard error has, read from that stream.
+/// Why:
+///  K2 is one `isatty(2)` call and everything the relay connects follows that answer,
+///  and a plant that made the answer "pipe" whatever the stream is left every control of the relay green,
+///  because the end-to-end arms need a throwaway `sshd` that a host without one cannot start.
+///  A stream belongs to one process, so this control asks two children of its own:
+///  one whose standard error is a pseudo-terminal's slave, and one whose standard error is the default pipe.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// passed({ exactTest: childPath('...the_shape_in_a_child_whose_error_stream_is_a_terminal'), ignored: true, stderr: Stdio.from(slave) });
+/// passed({ exactTest: childPath('...the_shape_in_a_child_whose_error_stream_is_a_pipe'), ignored: true });
+/// ```
+#[test]
+fn the_shape_a_child_gets_is_the_standard_error_this_process_has() {
+    // What: `(master, slave)` are the two ends of a pseudo-terminal this control opens for one child's standard error.
+    // Why:   The slave is what makes that child's own `isatty(2)` answer yes, and the master is dropped once it ended.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [master, slave] = openATerminalPair();
+    // ```
+    let (master, slave): (std::os::fd::OwnedFd, std::os::fd::OwnedFd) =
+        crate::typed_network_command_relay::a_terminal_the_child_writes_its_error_stream_to::open_a_terminal_pair()
+            .expect("this control's own terminal opens");
+    // What: `passed(..)` starts the child, waits for it with a deadline, and fails this control when its one test failed.
+    // Why:   The child's own assertion is the answer, so nothing here can read it inverted.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // passed({ exactTest: onATerminal, ignored: true, stderr: Stdio.from(slave) });
+    // ```
+    let on_a_terminal: String = child_path("the_shape_in_a_child_whose_error_stream_is_a_terminal");
+    passed(ChildTest {
+        exact_test: on_a_terminal.as_str(),
+        ignored: true,
+        standard_error: Stdio::from(slave),
+        ..ChildTest::default()
+    });
+    // The master is this control's own, and a child that ended cannot be waited on by a terminal no one reads.
+    drop(master);
+    // What: `ChildTest::default()` connects this child's standard error to a pipe, which is the other half of the claim.
+    // Why:   One child alone would prove one answer; the pair proves the answer follows the stream.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // passed({ exactTest: onAPipe, ignored: true });
+    // ```
+    let on_a_pipe: String = child_path("the_shape_in_a_child_whose_error_stream_is_a_pipe");
+    passed(ChildTest {
+        exact_test: on_a_pipe.as_str(),
+        ignored: true,
+        ..ChildTest::default()
+    });
+}
+
+//endregion

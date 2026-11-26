@@ -191,19 +191,25 @@ pub struct RelayedStart {
 ///   (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`, "the child is published to the existing
 ///   signal relay"),
 ///   and the child's error stream must be the terminal or the pipe K2 chose before it starts.
+///   The command is taken here rather than borrowed, so this process's own handle on that stream is closed once the child
+///   is running:
+///   a wrapper that kept the terminal's slave open held its master from ever reporting the child's end,
+///   so the read noticed Git's exit only at its next `poll` slice,
+///   which cost about 94 ms on every typed ssh command at a terminal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const pair = shape === 'terminal' ? openpty() : undefined;
 /// command.stderr = pair?.slave ?? 'pipe';
 /// const relayed = await guard.startRelayed(command);
+/// command[Symbol.dispose](); // the wrapper's own handle on the child's stream, closed before the read
 /// const source = pair?.master ?? relayed.child.stderr;
 /// return { child, source, relayed };
 /// ```
 pub fn start_relaying(
     shape: ErrorStreamShape,
     guard: Option<&SignalGuard>,
-    command: &mut Command,
+    mut command: Command,
 ) -> io::Result<RelayedStart> {
     // What: `Option<OwnedFd>` is "a descriptor or nothing": the pseudo-terminal's master when K2 chose a terminal.
     // Why:  A pipe's reading end belongs to the child value, so only one shape opens a descriptor here.
@@ -240,7 +246,7 @@ pub fn start_relaying(
     // ```
     let (mut child, relayed): (Child, Option<RelayedChild>) = match guard {
         Some(owning) => {
-            let mut token: RelayedChild = owning.start_relayed_now(command)?;
+            let mut token: RelayedChild = owning.start_relayed_now(&mut command)?;
             // What: `Some(child)` is the present variant of `Option`; no trailing `;` would make it a return, and the token
             //       keeps pointing at the child while the read waits.
             // Why:  The read that ends the child must own it, and the relay must cover the whole wait.
@@ -265,7 +271,7 @@ pub fn start_relaying(
         // (await spawnRetrying(command), undefined)
         // ```
         None => (
-            crate::start_retry::RetryStart::spawn_retrying(command)?,
+            crate::start_retry::RetryStart::spawn_retrying(&mut command)?,
             None,
         ),
     };
@@ -289,6 +295,15 @@ pub fn start_relaying(
     };
     // The relay waits with `poll` and reads only what is there; a blocking read would hold this process past the child's end.
     make_non_blocking(source.as_fd())?;
+    // What: `drop(command)` closes the wrapper's own handles on the child's streams, which is the terminal's slave here.
+    // Why:  A slave this process still held would keep the master from reporting the child's end, so the read would wait a
+    //        whole poll slice after Git ended (measured: about 94 ms on a typed ssh command at a terminal).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // command[Symbol.dispose]();
+    // ```
+    drop(command);
     // What: The three values together, as the present variant of the result.
     // Why:  The caller reads the stream and then ends the child.
     //
