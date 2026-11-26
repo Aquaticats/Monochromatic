@@ -8,7 +8,8 @@ Generated from [`cli-git-source-layout-groups.json`](cli-git-source-layout-group
 (key `after_the_reformat`,
 which the 2026-11-26 rescan wrote;
 the 2026-11-07 rows are under key `target`),
-from `main` at `aba76005c3` (2026-11-26T02:00:00-05:00),
+from `main` at `aba76005c3`;
+the document itself was committed at 2026-11-26T02:32:42-05:00,
 and from the one line each file's own top doc gives.
 Regenerated 2026-11-26 by a script that reads those three things,
 so every tree below is a copy of the table and no line of it was edited by hand;

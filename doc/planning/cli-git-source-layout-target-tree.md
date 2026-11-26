@@ -22,7 +22,7 @@ the program's group folders and the options for the rule that relates a group to
 (section "One level of groups in the program"),
 the open points of the test helpers and of where the libraries live brought to today's facts,
 and the third review.
-Updated 2026-11-26T02:00:00-05:00 after the rustfmt reformat and the layout rules:
+Updated 2026-11-26T02:32:42-05:00 after the rustfmt reformat and the layout rules:
 the rescan of `aba76005c3` (section "Rescan of main after the reformat (2026-11-26)"),
 where each move-order step stands (section "Where each step stands today (2026-11-26)"),
 the 67 file loops and one folder loop with a break for each,
