@@ -278,6 +278,11 @@
 //!   the clone rung itself:
 //!   tracked files cloned into the new worktree,
 //!   the source's index installed with fresh stat fields.
+//! - `worktree_ladder_target_conversion_agreement.rs`:
+//!   the checks that the new worktree converts files the way the source does:
+//!   its conversion settings in the order the configuration gives them,
+//!   its `.gitattributes` files against the source's,
+//!   and every filter an attribute selects or the configuration extends.
 //! - `worktree_ladder_target.rs`:
 //!   what both filling rungs read from Git's `--no-checkout` result,
 //!   and the one step that applies the tree difference.
@@ -883,6 +888,13 @@ pub mod worktree_clone_conversion_size_read_start;
 /// The pool's block-cloning switch and what the clone rung does when it reads off.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_block_cloning;
+
+/// The checks that the new worktree converts files the way the source does:
+/// its conversion settings in the order the configuration gives them,
+/// its `.gitattributes` files against the source's,
+/// and every filter an attribute selects or the configuration extends.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_target_conversion_agreement;
 
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
