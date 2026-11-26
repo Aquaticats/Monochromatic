@@ -1169,14 +1169,16 @@ Every key names exactly one finding:
   such as `index-item src/a/mod.rs function-end_after_the_log`,
   or its own words when the kind has no name,
   such as `index-item src/a/mod.rs private-use-std::fmt`,
-  `impl-Display for Holder`, `macro-call-println!("first")` or `extern-crate-alloc`.
+  `impl-Display for Holder`,
+  `macro-call-println!("first")` or `extern-crate-alloc`.
 - A key about an entry of a `uses` folder carries the fault,
   such as `link src/a/uses/b broken`,
   because one entry can go wrong in seven ways.
 - Two findings a rule still cannot tell apart,
   such as two `impl` blocks of one type or two glob re-exports of one module,
   are numbered in document order:
-  the first keeps the plain key and the next gain `#2`, `#3` and so on,
+  the first keeps the plain key and the next gain `#2`,
+  `#3` and so on,
   which `--debug` prints.
   Adding one of them therefore adds a finding no line holds,
   and removing one leaves a line that tolerates nothing.
@@ -1206,11 +1208,13 @@ What a hand-written line can and cannot hide:
   and nothing in the rule can tell such a line from one recorded on the round that fixed it.
   A list that holds every use of a loop nobody tolerated before therefore hides that loop:
   `uses src/x -> src/y` and `uses src/y -> src/x` silence a new loop of two folders.
-  Reviewing the list is what keeps the list honest, and writing a line for a new finding is a review blocker.
+  Reviewing the list is what keeps the list honest,
+  and writing a line for a new finding is a review blocker.
 - A line cannot hide a finding of one of the shapes a line names nothing for:
   a loop finding and a use added inside a tolerated loop carry no key,
   so no line recorded from `--debug` can hold one,
-  and only a hand-written `uses` line for every use of that loop can, which the point above already covers.
+  and only a hand-written `uses` line for every use of that loop can,
+  which the point above already covers.
 
 Which package a list belongs to is the rule's file,
 so the two rules of a crate take two lists.
@@ -1233,7 +1237,9 @@ and every other line stays as it is:
 - A folder whose top doc has no list now reports `missing-entry <index> <file>` for every file
   beside its `no-file-list` line,
   so a folder that grows a file is a finding.
-- A second finding of one shape gains `#2`, a third `#3`, and so on,
+- A second finding of one shape gains `#2`,
+  a third `#3`,
+  and so on,
   which `--debug` prints.
 
 ### Known limits
