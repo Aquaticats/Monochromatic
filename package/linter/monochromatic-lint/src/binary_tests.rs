@@ -1959,6 +1959,95 @@ fn layout_an_unreadable_index_reports_every_file_it_cannot_list() {
     }
 }
 
+/// A module file whose name holds a space is refused by a finding that names the folder in its key,
+///  because a key separates its words by spaces and no line could name that file unambiguously.
+#[test]
+fn layout_a_file_name_holding_a_space_is_refused_in_the_built_executable() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(
+        "src/lib.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n#[path = \"a b.rs\"] mod ab;\n",
+    );
+    fixture.write("src/a b.rs", "pub struct X;\n");
+    fixture.write(
+        CONFIG,
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let found: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    assert_eq!(
+        located(found.stdout.as_str()),
+        [String::from("src/a b.rs rust/file-order-in-folder 1 1")],
+        "{}",
+        found.stdout
+    );
+    assert!(
+        found
+            .stdout
+            .contains("a b.rs in the folder src holds a space"),
+        "{}",
+        found.stdout
+    );
+    // The key names the folder and never the file, so no list line is ambiguous either.
+    let key_lines: Vec<&str> = found
+        .stderr
+        .lines()
+        .filter(|line| return line.contains("allow-list key:"))
+        .collect::<Vec<&str>>();
+    assert_eq!(
+        key_lines,
+        [
+            "monochromatic-lint: debug: rust/file-order-in-folder: allow-list key: space-in-file-name src"
+        ],
+        "{}",
+        found.stderr
+    );
+}
+
+/// A module file a `#[path]` names outside the package is keyed by the walk from the package folder,
+///  never by an absolute path,
+///  so the line that tolerates its finding reads the same in every checkout.
+#[test]
+fn layout_a_module_outside_the_package_is_keyed_from_the_package() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    // The package folder is `pkg`, so `../../outside/x.rs` from its `src` folder leaves it.
+    fixture.write(
+        "pkg/src/lib.rs",
+        "#[path = \"../../outside/x.rs\"] mod x;\n",
+    );
+    fixture.write("outside/x.rs", "pub struct X;\n");
+    fixture.write(
+        "pkg/monochromatic-lint.config.jsonc",
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error" } } }]"#,
+    );
+    let found: Run = run(&fixture.path.join("pkg"), &["--debug", "src"], b"");
+    assert_eq!(found.status, 1, "{}", found.stderr);
+    // The folder is one step above the package, so both keys write it from the package folder.
+    for key in [
+        "rust/file-order-in-folder: allow-list key: no-top-doc ../outside",
+        "rust/file-order-in-folder: allow-list key: missing-entry ../outside x.rs",
+    ] {
+        assert!(
+            found.stderr.contains(key),
+            "{key} missing in {}",
+            found.stderr
+        );
+    }
+    assert!(
+        !found.stderr.contains("allow-list key: /"),
+        "a key never holds an absolute path: {}",
+        found.stderr
+    );
+}
+
 /// The unit-test scratch root,
 /// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]

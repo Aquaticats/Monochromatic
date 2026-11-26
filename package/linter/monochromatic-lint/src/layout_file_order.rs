@@ -56,6 +56,8 @@ use crate::{
         files_by_folder,
         index_file,
         index_file_findings,
+        name_holds_space,
+        space_finding,
     },
     layout_group_entries::find_groups,
     layout_loops::find_loops,
@@ -664,6 +666,12 @@ pub fn check_file_order(
         let mut listed: Vec<PathBuf> = Vec::<PathBuf>::new();
         for file in files {
             if Some(file) == index.as_ref() || roots.contains(file) {
+                continue;
+            }
+            // A name holding a space cannot be written back into a key, so the name is the finding
+            // and the file stays out of the list and loop checks until it is renamed.
+            if name_holds_space(file) {
+                findings.push(space_finding(file, folder, base));
                 continue;
             }
             listed.push(file.clone());
