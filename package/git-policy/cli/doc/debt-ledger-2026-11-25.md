@@ -675,6 +675,38 @@ issue 6477's shape, and that control guards no child before or after this round)
 and `source_guard::` answered `test result: ok. 144 passed; 0 failed`.
 The measured reds and greens are in
 `doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
+
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6511-push-child-watch-controls-own-their-clock`:
+issue 6511 is fixed,
+and it is a mechanism this item did not list:
+the two stand-ins `foundation/lazy_runtime.rs` holds for a system that refused every thread
+(`a_control_refuses_every_task`),
+and for a build that outlasted its deadline (`a_control_stands_in_for_a_late_runtime`).
+`tasks_can_run` and `built_flavor` answer for the whole process,
+so a threaded run of `push::child_watch::` failed a different set of controls each time:
+measured on this host,
+`test result: FAILED. 42 passed; 5 failed; 1 ignored`,
+whose two groups name the two facts,
+no watcher where a thread was refused,
+and a count of `/proc/self/fd` reading every thread's table.
+Each control that arms one,
+and the two controls that count this process's descriptors,
+runs its body in a child of its own,
+and both setters call `refuse_outside_the_child`,
+which names the starter.
+After the change the module answered `test result: ok. 47 passed; 0 failed; 1 ignored`
+in two threaded runs of 21.38 s each,
+and with `--test-threads=1` in 41.35 s.
+Issue 6503 landed while this branch was open,
+so the ten guards hand their body to `run_the_body_in_a_child_of_its_own`.
+The measured reds and greens are in
+`doc/troubleshooting/git-policy-cli-controls-that-arm-state-the-whole-process-shares.md`.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
