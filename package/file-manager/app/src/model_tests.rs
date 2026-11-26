@@ -7,15 +7,21 @@ use crate::model::PaneStripState;
 use crate::types::PaneLocation;
 
 fn dir(path: &str) -> PaneLocation {
-    return PaneLocation::Directory(PathBuf::from(path))
+    return PaneLocation::Directory(PathBuf::from(path));
 }
 
 fn preview(path: &str) -> PaneLocation {
-    return PaneLocation::Preview(PathBuf::from(path))
+    return PaneLocation::Preview(PathBuf::from(path));
 }
 
-fn panes_in_column(strip: &PaneStripState, column: usize) -> usize {
-    return strip.panes().filter(|pane| return pane.column == column).count()
+fn panes_in_column(
+    strip: &PaneStripState,
+    column: usize,
+) -> usize {
+    return strip
+        .panes()
+        .filter(|pane| return pane.column == column)
+        .count();
 }
 
 #[test]
@@ -49,11 +55,29 @@ fn child_aligns_with_parent_row_and_siblings_stack_downward() {
     let first = strip.spawn_child(root, dir("/home/a"), false);
     let second = strip.spawn_child(root, dir("/home/b"), false);
     // siblings of the root stack: first at row 0, second pushed to row 1
-    assert_eq!((strip.pane(first).unwrap().column, strip.pane(first).unwrap().row), (1, 0));
-    assert_eq!((strip.pane(second).unwrap().column, strip.pane(second).unwrap().row), (1, 1));
+    assert_eq!(
+        (
+            strip.pane(first).unwrap().column,
+            strip.pane(first).unwrap().row
+        ),
+        (1, 0)
+    );
+    assert_eq!(
+        (
+            strip.pane(second).unwrap().column,
+            strip.pane(second).unwrap().row
+        ),
+        (1, 1)
+    );
     // a child of `second` (row 1) aligns with it at row 1, not the top of the next column
     let grandchild = strip.spawn_child(second, dir("/home/b/c"), false);
-    assert_eq!((strip.pane(grandchild).unwrap().column, strip.pane(grandchild).unwrap().row), (2, 1));
+    assert_eq!(
+        (
+            strip.pane(grandchild).unwrap().column,
+            strip.pane(grandchild).unwrap().row
+        ),
+        (2, 1)
+    );
 }
 
 #[test]

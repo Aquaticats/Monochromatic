@@ -14,22 +14,26 @@
 use std::rc::Rc;
 
 /// What:
-///  imports the event-controller extension trait.
-/// Why:
-///  the key controller needs capture-phase propagation.
-use gtk4::prelude::EventControllerExt;
-/// What:
 ///  imports the key-symbol type.
 /// Why:
 ///  the handler matches Left/Right.
 use gtk4::gdk::Key;
+/// What:
+///  imports the event-controller extension trait.
+/// Why:
+///  the key controller needs capture-phase propagation.
+use gtk4::prelude::EventControllerExt;
 /// What:
 ///  imports the key event controller,
 ///  its propagation phase,
 ///  and the glib module.
 /// Why:
 ///  a capture-phase `EventControllerKey` intercepts Left/Right and returns a `glib::Propagation`.
-use gtk4::{EventControllerKey, PropagationPhase, glib};
+use gtk4::{
+    EventControllerKey,
+    PropagationPhase,
+    glib,
+};
 
 /// What:
 ///  imports the strip's shared inner state.
@@ -70,7 +74,10 @@ pub(crate) fn install_column_nav(inner: &Rc<StripInner>) {
 /// Why:
 ///  Left/Right walk the lineage;
 ///  an out-of-range move is ignored and the key passes through.
-fn focus_relative_column(inner: &Rc<StripInner>, delta: i32) -> glib::Propagation {
+fn focus_relative_column(
+    inner: &Rc<StripInner>,
+    delta: i32,
+) -> glib::Propagation {
     let target = inner.layout.focused_column() as i32 + delta;
     let columns = inner.state.borrow().column_count() as i32;
     if target < 0 || target >= columns {
@@ -87,5 +94,5 @@ fn focus_relative_column(inner: &Rc<StripInner>, delta: i32) -> glib::Propagatio
         return glib::Propagation::Proceed;
     }
     inner.layout.set_focused_column(target_column);
-    return glib::Propagation::Stop
+    return glib::Propagation::Stop;
 }
