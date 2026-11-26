@@ -1,14 +1,18 @@
 # The git wrapper keeps the layout rules from now on, with today's loops on a list that only shrinks
 
-Status: accepted by the owner on 2026-11-25,
+Status:
+accepted by the owner on 2026-11-25,
 answering item 16 of `package/git-policy/cli/doc/debt-ledger-2026-11-25.md`.
 
 ## Decision
 
 The layout rules `AGENTS.md` sets for every crate
-(LYD, a `uses/` folder of links in every source folder;
-LYL, no two folders using each other;
-LYF, no loop among a folder's files)
+(LYD,
+a `uses/` folder of links in every source folder;
+LYL,
+no two folders using each other;
+LYF,
+no loop among a folder's files)
 are switched on for `package/git-policy/cli` now,
 through the repository linter's rules that enforce them
 (`rust/folder-uses-links` and `rust/file-order-in-folder`,
@@ -17,13 +21,16 @@ The loops and mutual uses that exist today go on an allow-list that may only shr
 so new code cannot add one,
 and later rounds untangle the crate folder by folder.
 
-The owner chose "Enable now, untangle over time (Recommended)"
-over untangling everything before other work lands, which would pause the ZFS route,
+The owner chose "Enable now,
+untangle over time (Recommended)"
+over untangling everything before other work lands,
+which would pause the ZFS route,
 and over recording the crate as an exception.
 
 ## Why
 
-The ledger measured, on 2026-11-25:
+The ledger measured,
+on 2026-11-25:
 29 of the crate's 55 source folders in one strongly connected set,
 97 pairs of folders that use each other,
 and a `uses/` folder in 19 of the 55.
@@ -47,7 +54,9 @@ by 22:35 the merges since then left 63 list lines that tolerate nothing
 and about 190 findings no line records,
 so the lists are regenerated against `main` before they land.
 Asked whether that happens before or after the crate split
-(`doc/planning/cli-git-source-layout.md`, "Splitting into crates (owner, 2026-11-04)"),
+(`doc/planning/cli-git-source-layout.md`,
+"Splitting into crates (owner,
+2026-11-04)"),
 the owner chose "Before the split (Recommended)":
 the lists are regenerated once the open wrapper rounds merge,
 the branch merges,
@@ -55,12 +64,31 @@ and then the reformat and the split run.
 Each crate the split creates is switched on with an empty list,
 and every split round deletes the list lines of the folders it moves.
 
+The linter that carries the `allow` option this list needs is `monochromatic-lint` `0.5.2-alpha.9`,
+locked as `ef648a619e`,
+with the option's own branch merged as `3cefd4f7c5`.
+The alpha.9 release pass
+(`~/temp/agent/monochromatic-lint-alpha-9-release-review-2026-11-25/keep/review.md`)
+found three defects,
+and the round that fixed them is on `main`,
+released as `alpha.10` (`6cfbcbb5f4`,
+whose note names them):
+a `no-file-list` line switched off every other file check for its folder,
+so a new file added to such a folder and not listed there passed;
+finding keys were not unique,
+so one line tolerated every finding that shares its key;
+and a folder in both a folder loop and a group loop could make a list that no set of lines satisfied.
+The gate also scanned an unclosed `[` once per bracket.
+`toolchain.lock.json` still locks `0.5.2-alpha.9`,
+so the lock's bump to `alpha.10` is a step of its own.
+
 The `uses/` links for the 36 folders that lack one,
 named as a cost in "What it costs",
 cannot be written while their folders loop:
 the round measured `cargo package --list` giving no answer after 120 seconds with the 421 links in place,
 against 1.9 seconds without them
-(`doc/planning/cli-git-source-layout.md`, the section the round's commit `457a1f6142` added),
+(`doc/planning/cli-git-source-layout.md`,
+the section the round's commit `457a1f6142` added),
 so each folder's links are written when its uses no longer loop.
 
 ## What the list holds (owner, 2026-11-25T22:45-05:00)
@@ -74,6 +102,7 @@ at its count 421 `uses/` links not yet written,
 and one function beside `fn main` in `main.rs`,
 beside the 524 folder uses and 544 file uses inside today's loops.
 Asked whether to keep that or list only the loops and the links,
-the owner answered "Everything now, untangle over time.":
+the owner answered "Everything now,
+untangle over time.":
 every finding of the two rules on the day the rules land goes on the list,
 and each line is deleted when its finding goes.
