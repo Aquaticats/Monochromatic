@@ -5145,6 +5145,10 @@ which can name a remote.
 every path segment of 20 characters or more or carrying a percent encoding or another punctuation mark,
 and every query and fragment value are replaced by `<credentials>`,
 and every control character by a space.
+Those lines are written by a thread of their own,
+so a reader that stopped draining costs the command no wait.
+A process whose process limit refuses that thread says which limit refused it and writes every line on the thread that says it from then on,
+so a command that fails at its process limit still says why (issue 6476).
 
 ## Configuration
 
