@@ -207,3 +207,11 @@ pub mod guarded_forwarded_command;
 /// The repository a command line names by its global options,
 /// as the arguments that name it in another process.
 pub mod repository_selection;
+
+/// The relay a typed network command gets when ssh carries its remote:
+/// the remote read first,
+/// Git as this process's child with its error stream on a terminal or a pipe,
+/// and the sentence after a refusal
+/// (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
+#[cfg(unix)]
+pub mod typed_network_command_relay;

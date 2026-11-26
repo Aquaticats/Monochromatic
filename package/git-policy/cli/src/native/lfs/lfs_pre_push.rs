@@ -440,7 +440,75 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 /// text.includes('Permission denied (')
 /// ```
 pub fn reads_as_a_key_failure(text: &str) -> bool {
-    return text.contains("Permission denied (");
+    return own_lines_of(text).contains("Permission denied (");
+}
+
+/// What:
+///  The lines of a transcript that the program the wrapper started wrote itself,
+///  without the lines Git relayed from the far end.
+/// Why:
+///   Git prefixes every line the other end writes with `remote: `,
+///   and with a terminal and a real `TERM` it writes an erase-line escape before that prefix;
+///   a server's hook can write a refusal's own words there,
+///   and a push whose hook writes them and then lands must not be read as a refusal
+///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "What a shipped K, K2 or C must get
+///   right").
+///   The rule belongs to the reading and not to a caller, so every face that reads a transcript gets it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lines.filter((line) => !line.replace(/^\u001b\[K/, '').startsWith('remote: ')).join('\n')
+/// ```
+pub(crate) fn own_lines_of(text: &str) -> String {
+    // What: `Vec::new()` is an empty growable list; its siblings are `&[&str]`, a borrowed view, and `[&str; N]`, a fixed array.
+    // Why:   The lines kept are joined again into one text the readings below compare words in.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kept: string[] = [];
+    // ```
+    let mut kept: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        // What: `strip_prefix` removes the erase-line escape when it is there, and answers nothing when it is not.
+        // Why:   The prefix sits in front of the `remote: ` marker exactly on the arms that run at a terminal.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const withoutEscape = line.startsWith('\u001b[K') ? line.slice(3) : line;
+        // ```
+        let without_escape: &str = line.strip_prefix(ERASE_LINE_ESCAPE).unwrap_or(line);
+        if without_escape.starts_with(RELAYED_LINE_PREFIX) {
+            continue;
+        }
+        kept.push(line);
+    }
+    return kept.join("\n");
+}
+
+/// What:
+///  Whether a transcript says the person's settings refuse to ask about a new host key.
+/// Why:
+///   OpenSSH's strict-checking line is also an unknown key's own line,
+///   so a reading that only knew an unknown key from it would advise `ssh <host>`,
+///   which reads the same configuration and refuses the same way;
+///   the strict sentence's own command overrides that setting for one connection
+///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, the strict sentence).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.toLowerCase().includes('host key is known for') && text.toLowerCase().includes('and you have requested strict checking')
+/// ```
+pub fn reads_as_a_strict_host_key_refusal(text: &str) -> bool {
+    // What: `to_ascii_lowercase` copies the text with its capital letters lowered; the sibling `to_lowercase` also rewrites
+    //       letters outside ASCII, which OpenSSH's lines have none of.
+    // Why:   The comparison is over words, and OpenSSH's sentence starts with a capital.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const folded = text.toLowerCase();
+    // ```
+    let folded: String = own_lines_of(text).to_ascii_lowercase();
+    return folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE) && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE);
 }
 
 /// What:
@@ -528,12 +596,21 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 /// text.includes('Host key verification failed') && lines.every((line) => !namesAHostKeyOutsideQuotes(line) || isAnUnknownKeysOwnLine(line))
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
-    if !text.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
+    // What: `own` holds the lines this program wrote, without what Git relayed from the far end.
+    // Why:   The phrase is looked for in the same lines the loop below reads, so a transcript whose only refusal's words came
+    //        from the far end is not read as one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const own = ownLinesOf(text); if (!own.includes('Host key verification failed')) return false;
+    // ```
+    let own: String = own_lines_of(text);
+    if !own.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
         return false;
     }
     // One fold of the constant, and one of each line: the comparison is the whole reason to read the lines.
     let last_line: String = HOST_KEY_NOT_KNOWN_PHRASE.to_ascii_lowercase();
-    for line in text.lines() {
+    for line in own.lines() {
         let folded: String = line.to_ascii_lowercase();
         if is_a_debug_line(folded.as_str()) || !names_a_host_key_outside_quotes(folded.as_str()) {
             continue;
@@ -590,6 +667,13 @@ fn is_a_debug_line(folded: &str) -> bool {
 /// whichever refusal it found (`sshconnect2.c` at `V_10_6_P2` lines 102 to 104,
 /// after `verify_host_key` answered non-zero).
 const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
+
+/// The erase-line escape Git writes in front of every line it relays from the far end,
+/// when its standard error is a terminal and `TERM` is not dumb (`sideband.c` at `v2.56.1`, lines 316 to 318).
+const ERASE_LINE_ESCAPE: &str = "\u{1b}[K";
+
+/// The prefix Git writes in front of every line the far end printed (`sideband.c` at `v2.56.1`).
+const RELAYED_LINE_PREFIX: &str = "remote: ";
 
 /// The words,
 /// in lower case,
