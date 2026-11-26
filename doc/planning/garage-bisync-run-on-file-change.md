@@ -7,6 +7,92 @@ Status:
  not final.
 Nothing in this file is decided until the owner answers the open questions it lists.
 
+## Current design, as settled at 2026-11-25T20:41:14-05:00
+
+This section is the design as it stands after eight owner rounds and two reviews;
+the sections after it are the record of how each part was decided and measured.
+Status: not implemented, not confirmed by the owner, not final.
+
+### Scope
+
+This CachyOS PC now.
+The Mac and Windows clients later,
+each with its own watcher wrapper,
+because the merging below relies on systemd (Sonnet review).
+The Mac goes second (round 8): its agent first gains `--conflict-resolve newer` and the settle pass.
+
+### Parts on this PC
+
+1.  Watcher:
+    directory-watcher 3.2.1 (`seungyeop-lee/directory-watcher` tag `v3.2.1`),
+    installed through the repository toolchain (`toolchain.plan.jsonc`, then `mise run toolchain:update`),
+    run by a new user unit:
+    `Type=simple`,
+    the binary resolved through the login shell as the sync unit resolves rclone (`|@`),
+    `Restart=on-failure` with `RestartSec=30s`
+    (so the default limit of five starts in 10 s cannot trip, measured),
+    `OnFailure=` the alert template,
+    `WantedBy=default.target` (linger is on).
+    Config:
+    one target, the absolute path of `~/Plain`;
+    `hookBatch.waitMillisecond` 10000 and `maxWaitMillisecond` 60000 (round 8);
+    `exclude` `**/*.partial`, `**/*.part`, `**/*.tmp`, `**/*.crdownload`;
+    run defaults.
+    Hook:
+    `systemctl --user start --no-block` of the trigger unit,
+    and on failure of that call the same alert for the watcher unit.
+    Accepted exception (round 8):
+    names starting with `.` or `_` (168 entries) are never watched,
+    so they reach the bucket only through the 5-minute timer.
+2.  Trigger unit:
+    `Type=oneshot`,
+    `After=` the sync unit and no `Requires=` or `Wants=`,
+    no `RemainAfterExit=`,
+    one step:
+    `systemctl --user start --no-block` of the sync unit.
+    Requests during a sync merge into one follow-up (measured, system scope).
+3.  Sync unit, `rclone-bisync-garage.service`, changed:
+    a second `ExecStart=` line identical to the first (the settle pass);
+    `StartLimitIntervalSec=0`, so fast failures cannot lock out the timer's start (adopted unless vetoed);
+    `TimeoutStartSec=3000` kept (round 7), which applies per pass (measured), with its comment corrected;
+    the existing `OnFailure=` drop-in kept, plus `OnSuccess=` for the recovery alert.
+4.  Timer, `rclone-bisync-garage.timer`, changed:
+    `OnCalendar=*:0/5`,
+    `RandomizedDelaySec=30` (adopted unless vetoed),
+    `Persistent=true` kept.
+5.  Alerts:
+    `~/.local/bin/rclone-bisync-garage-alert.ts` keeps state per unit,
+    alerts on the first failure of a streak and again every hour while it lasts,
+    alerts once on recovery through `OnSuccess=`,
+    and writes its state only after `notify-send` succeeds (round 8);
+    its "next hourly run" text and its look-back window are corrected for 5-minute runs.
+6.  Where the files live (round 7):
+    sources in the repository,
+    written to `~/.config` by file-enforcer's per-user rules;
+    no rule kind does that today (`file-enforcer.schema.json`),
+    so this needs a change to file-enforcer.
+    The runbook's Stage D is rewritten from the result.
+
+### Verified before go-live, on the real user manager
+
+One edit gives one sync;
+an edit during a sync gives exactly one follow-up;
+a timer-started sync plus an edit gives one follow-up;
+an edit inside a dot-named folder starts nothing (the accepted exception);
+stopping the watcher leaves a running sync to finish;
+a forced failure gives one alert, an hour later another, and one on recovery.
+Then the decision record for directory-watcher is written.
+
+### Accepted risks and open items
+
+- Until the Mac's agent gains `--conflict-resolve newer`,
+  a conflict there renames both copies and this PC mirrors that within 5 minutes (round 8: this PC first).
+- A save that lands inside an upload or between the two passes still makes a `.conflictN` copy (measured);
+  five `main.kdbx.conflict` copies exist now, and removing one needs deleting it on both sides in one window.
+- The rclone root cause is drafted upstream and not posted (owner's decision).
+- One maintainer, unsigned releases;
+  a watch-limit failure exits without the watcher's own notice, so the unit's failure alert covers it.
+
 ## Purpose
 
 The owner asked for their Garage setup to start a manual sync whenever something changes in the relevant folders,
@@ -382,6 +468,14 @@ each checked or labelled:
   `WantedBy=default.target` (linger is on).
 - Round 2's "later clients only add a service wrapper" does not hold:
   the Linux shape relies on systemd's job merging.
+
+## Owner answers, round 8 (2026-11-25T20:41:14-05:00)
+
+- Watcher: keep directory-watcher 3.2.1;
+  names starting with `.` or `_` sync only by the 5-minute timer, an accepted exception to round 1.
+- Order: this PC goes live first; the Mac's agent gets `--conflict-resolve newer` and the settle pass afterwards.
+- Alerts: first failure of a streak, then hourly while it lasts, plus one on recovery.
+- Quiet period: 10 s, capped at 60 s.
 
 ## Design consequences still to settle
 
