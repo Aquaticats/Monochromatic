@@ -400,6 +400,34 @@
         }
       }
     },
+    "directory-watcher": {
+      "request": "github:seungyeop-lee/directory-watcher@latest",
+      "version": "3.2.1",
+      "route": "bin-sourced",
+      "bins": [
+        "directory-watcher"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/seungyeop-lee/directory-watcher/releases/download/v3.2.1/directory-watcher_Linux_arm64.tar.gz",
+          "sha256": "8748d121f715a6f193e46536e871fb85c6dcff55e9487204732f1f06e6617373"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/seungyeop-lee/directory-watcher/releases/download/v3.2.1/directory-watcher_Linux_arm64.tar.gz",
+          "sha256": "8748d121f715a6f193e46536e871fb85c6dcff55e9487204732f1f06e6617373"
+        },
+        "linux-x64": {
+          "url": "https://github.com/seungyeop-lee/directory-watcher/releases/download/v3.2.1/directory-watcher_Linux_x86_64.tar.gz",
+          "sha256": "eb07d000d21069f528511a16d56ee529542f70daa1da527016cf74f8d9ba437a"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/seungyeop-lee/directory-watcher/releases/download/v3.2.1/directory-watcher_Linux_x86_64.tar.gz",
+          "sha256": "eb07d000d21069f528511a16d56ee529542f70daa1da527016cf74f8d9ba437a"
+        }
+      }
+    },
     "sops": {
       "request": "github:getsops/sops@latest",
       "version": "3.13.3",
@@ -1654,5 +1682,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:0d5cc98262119ea1f47bf07aeef90508e4b91afbb1d2de641c40134c3e2ca8b5"
+  "digest": "sha256:0352d126073889806958c45379041a9ac8fa0efbac5a0453d8e12d694c47e921"
 }
