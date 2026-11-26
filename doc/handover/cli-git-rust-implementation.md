@@ -145,8 +145,11 @@ Rounds started before that decision run on flex.
   window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
   then the `alpha.14` release, its Sonnet release pass and the lock bump.
 - The virtual writer with Qwen first,
-  window `virtual-writer-qwen-first`,
-  starting on flex behind its launch delay.
+  window `virtual-writer-qwen-first`, run 2 on Qwen
+  (run 1 on flex ended the same way at turn 151, its work committed as `f5bca9e28f`).
+
+Flex timed out three runs between 05:55 and 06:10 ("The model did not begin responding in time"),
+so a flex run that ends with `model-error` has its work committed and restarts on Qwen with a note to continue.
 
 ### Merged tonight
 
