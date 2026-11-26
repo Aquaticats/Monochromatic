@@ -15,6 +15,7 @@ import {
   type QuotaEvidence,
   type RoutingRegistry,
 } from './quota-endpoints.ts';
+import { UNREACHABLE_MEMBER_HOLD_MS, } from './rate-limit-evidence.ts';
 import { digitsEnd, } from './provider-wire-text.ts';
 
 //region One live view per exact member
@@ -43,6 +44,14 @@ export type MemberCapacity = {
    Retry/reset timestamp supplied by the provider or its documented guidance.
    */
   retryAt: number;
+  /**
+   Time before which the pool asks this member last, because its request could not be delivered.
+
+   Separate from {@link retryAt}: that time is a provider's own statement about when it will serve a
+   request, while this one is the pool's, so the member may still be tried when nothing else can
+   answer.
+   */
+  unreachableUntil: number;
   /**
    Most recent published limits and subscription facts.
    */
@@ -91,6 +100,7 @@ export function capacityOf({
     lastReadAt: 0,
     concurrencyReadAt: 0,
     retryAt: 0,
+    unreachableUntil: 0,
     evidence: {},
   };
   members.set(
@@ -398,6 +408,86 @@ export async function readAtRefusal({
     pending: capacity.pending,
     ...cancellation,
   },);
+}
+
+/**
+ Record that a request never reached this member, and hold it from the next one for a while.
+
+ The hold is the pool's own guess, not a provider's timing: the failure carries no status and names
+ no time, and {@link UNREACHABLE_MEMBER_HOLD_MS} says how long it lasts and why. A member held this
+ way is asked last rather than refused, so a request no member answered still returns that member's
+ refusal and Pi's own retry can ride out the outage.
+
+ @param capacity - admitted member's per-session state
+
+ @param now - time the failure arrived
+
+ @example
+ ```ts
+ noteUnreachable({ capacity, now: Date.now() });
+ ```
+ */
+export function noteUnreachable({
+  capacity,
+  now,
+}: {
+  capacity: MemberCapacity;
+  readonly now: number;
+},): void {
+  capacity.unreachableUntil = Math.max(
+    capacity.unreachableUntil,
+    now + UNREACHABLE_MEMBER_HOLD_MS,
+  );
+}
+
+/**
+ A seat this member's request holds while its stream runs.
+ */
+export type MemberSeat = {
+  /**
+   Give the seat back, once.
+   */
+  readonly release: () => void;
+  /**
+   Scope exit, so every path from admission to a terminal event gives the seat back.
+   */
+  readonly [Symbol.dispose]: () => void;
+};
+
+/**
+ Take one seat of this member's local concurrency and return the one owner that gives it back.
+
+ The seat is idempotent, because cancellation, an error and terminal output all reach the same
+ cleanup: a second release must not free another request's seat.
+
+ @param capacity - admitted member's per-session state
+
+ @returns holder that releases the seat on scope exit
+
+ @example
+ ```ts
+ using seat = occupySeat(capacity);
+ ```
+ */
+export function occupySeat(capacity: MemberCapacity,): MemberSeat {
+  /**
+   Whether this holder still owns its seat; a released seat is never taken twice.
+   */
+  const held = { occupied: true, };
+  /**
+   Give back this holder's own seat, whichever path reaches it first.
+   */
+  function release(): void {
+    if (!held.occupied)
+      return;
+    held.occupied = false;
+    capacity.active -= 1;
+  }
+  capacity.active += 1;
+  return {
+    release,
+    [Symbol.dispose](): void { release(); },
+  };
 }
 
 /**
