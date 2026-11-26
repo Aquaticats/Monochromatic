@@ -125,6 +125,13 @@ Rounds started earlier run on the pool they named.
   the last two that did (6494 and the setgroups skip) merged by 07:57,
   so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
+- Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
+  (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
+  the alpha.47 ZFS pass's High (the removal and move refusals skip global options before `worktree`, `-C <git dir>` and `--git-dir`),
+  6500, 6501, 6514, 6503, the alpha.47 ZFS pass's words round, its guards round, and 6512.
+  Briefs in `~/temp/agent/<round>-2026-11-26/prompt.md`.
+  The ZFS pass (`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`) found one High, two Mediums and nine Lows;
+  its finding 12 is decided text and waits in `doc/handover/questions-for-the-owner.md`.
 - The split's round 1 ended at 09:14 with four of step 2's five items moved and `copy_file_exclusive` stopped on an open point
   (`doc/handover/questions-for-the-owner.md`);
   it ran no `cargo fmt` because `~/temp/agent/rounds-common-rules-2026-11-25.md` still said the crate was unformatted,
