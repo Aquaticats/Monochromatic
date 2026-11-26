@@ -14,7 +14,10 @@
 
 /// Imports `Map`,
 /// `Value` from `serde_json`.
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What:
 ///  The version number every event line carries as `schemaVersion`.
@@ -88,7 +91,11 @@ impl Event {
     /// ```ts
     /// function event(type: string, code: string, message: string): Event;
     /// ```
-    pub fn new(event_type: &str, code: &str, message: &str) -> Event {
+    pub fn new(
+        event_type: &str,
+        code: &str,
+        message: &str,
+    ) -> Event {
         return Event {
             event_type: event_type.to_string(),
             code: code.to_string(),
@@ -108,7 +115,11 @@ impl Event {
     /// ```ts
     /// setField(key: string, value: unknown): void;
     /// ```
-    pub fn set_field(&mut self, key: &str, value: Value) {
+    pub fn set_field(
+        &mut self,
+        key: &str,
+        value: Value,
+    ) {
         self.fields.insert(key.to_string(), value);
     }
 
@@ -121,7 +132,10 @@ impl Event {
     /// ```ts
     /// toJson(sequence: number): object;
     /// ```
-    pub fn to_json(&self, sequence: u64) -> Value {
+    pub fn to_json(
+        &self,
+        sequence: u64,
+    ) -> Value {
         let mut object = Map::new();
         object.insert("schemaVersion".to_string(), Value::from(SCHEMA_VERSION));
         object.insert("sequence".to_string(), Value::from(sequence));
@@ -146,7 +160,10 @@ impl Event {
     /// ```ts
     /// toLine(sequence: number): string { return JSON.stringify(this.toJson(sequence)) + '\n'; }
     /// ```
-    pub fn to_line(&self, sequence: u64) -> String {
+    pub fn to_line(
+        &self,
+        sequence: u64,
+    ) -> String {
         let mut line = self.to_json(sequence).to_string();
         line.push('\n');
         return line;
@@ -201,7 +218,10 @@ impl Event {
 pub trait EventSink {
     /// Receive one event;
     /// sinks that can fail keep the failure to themselves.
-    fn emit(&mut self, event: Event);
+    fn emit(
+        &mut self,
+        event: Event,
+    );
 }
 
 /// What:
@@ -239,7 +259,10 @@ impl EventSink for CollectingSink {
     /// ```ts
     /// emit(event: Event) { this.events.push(event); }
     /// ```
-    fn emit(&mut self, event: Event) {
+    fn emit(
+        &mut self,
+        event: Event,
+    ) {
         self.events.push(event);
     }
 }

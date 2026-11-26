@@ -15,13 +15,21 @@ use std::collections::HashMap;
 
 /// Imports the connection,
 /// proxy and variant types of the D-Bus client.
-use zbus::{Connection, Proxy, Variant};
+use zbus::{
+    Connection,
+    Proxy,
+    Variant,
+};
 
 /// Imports the identity that names the player to the notification service.
 use crate::analysis_notification::Identity;
 /// Imports the interface,
 /// name and path of the notification service.
-use crate::analysis_notification_wire::{NOTIFICATIONS_INTERFACE, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH};
+use crate::analysis_notification_wire::{
+    NOTIFICATIONS_INTERFACE,
+    NOTIFICATIONS_NAME,
+    NOTIFICATIONS_PATH,
+};
 /// Imports the time-bounded step that stops a bus call from blocking its thread for ever.
 use crate::dbus_step_bound::step;
 /// Imports the notice that the call posts.
@@ -56,7 +64,10 @@ pub const EXPIRY_SERVER_DEFAULT: i32 = -1;
 pub fn notice_hints(identity: &Identity) -> HashMap<&'static str, Variant<'_>> {
     return HashMap::from([
         ("urgency", Variant::U8(URGENCY_NORMAL)),
-        ("desktop-entry", Variant::from(identity.desktop_entry.as_str())),
+        (
+            "desktop-entry",
+            Variant::from(identity.desktop_entry.as_str()),
+        ),
     ]);
 }
 
@@ -67,8 +78,17 @@ pub fn notice_hints(identity: &Identity) -> HashMap<&'static str, Variant<'_>> {
 /// the action list is empty because there is nothing to press,
 /// and the expiry is the service's default;
 /// the app name and icon are those of the app's identity.
-pub fn post(connection: &Connection, identity: &Identity, notice: &Notice) -> zbus::Result<u32> {
-    let proxy = step(Proxy::new(connection, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE))?;
+pub fn post(
+    connection: &Connection,
+    identity: &Identity,
+    notice: &Notice,
+) -> zbus::Result<u32> {
+    let proxy = step(Proxy::new(
+        connection,
+        NOTIFICATIONS_NAME,
+        NOTIFICATIONS_PATH,
+        NOTIFICATIONS_INTERFACE,
+    ))?;
     let actions: Vec<&str> = Vec::new();
     let id: u32 = step(proxy.call(
         "Notify",

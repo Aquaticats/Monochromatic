@@ -8,7 +8,11 @@
 // What:     `use super::*;` imports everything from the parent module into the test scope.
 // Why:      Tests need `supporting_line_from_template` and the track fields type.
 use super::*;
-use crate::template_fixtures::{analysed, bare, waiting};
+use crate::template_fixtures::{
+    analysed,
+    bare,
+    waiting,
+};
 use crate::template_model::DEFAULT_TRACK_TEMPLATE;
 
 // What:     `#[test]` marks the next function as a test case.
@@ -16,7 +20,10 @@ use crate::template_model::DEFAULT_TRACK_TEMPLATE;
 #[test]
 fn default_template_shows_length_and_peak() {
     let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE);
-    assert_eq!(line.evaluate(&analysed()), Some("4:35 \u{2212}0.3 dBTP".to_string()));
+    assert_eq!(
+        line.evaluate(&analysed()),
+        Some("4:35 \u{2212}0.3 dBTP".to_string())
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -51,7 +58,10 @@ fn custom_template_joins_folder_and_file_fields() {
 #[test]
 fn custom_template_keeps_text_outside_formulas() {
     let line = supporting_line_from_template("Now: $mi(title)$");
-    assert_eq!(line.evaluate(&analysed()), Some("Now: Another Xronixle".to_string()));
+    assert_eq!(
+        line.evaluate(&analysed()),
+        Some("Now: Another Xronixle".to_string())
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -59,7 +69,10 @@ fn custom_template_keeps_text_outside_formulas() {
 #[test]
 fn shown_text_is_trimmed() {
     let line = supporting_line_from_template("  $mi(title)$  ");
-    assert_eq!(line.evaluate(&analysed()), Some("Another Xronixle".to_string()));
+    assert_eq!(
+        line.evaluate(&analysed()),
+        Some("Another Xronixle".to_string())
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -91,8 +104,14 @@ fn empty_template_gives_none() {
 #[test]
 fn one_function_reads_each_track_it_is_given() {
     let line = supporting_line_from_template("$mi(title)$");
-    assert_eq!(line.evaluate(&analysed()), Some("Another Xronixle".to_string()));
-    assert_eq!(line.evaluate(&waiting()), Some("Exit This Earth's Atomosphere".to_string()));
+    assert_eq!(
+        line.evaluate(&analysed()),
+        Some("Another Xronixle".to_string())
+    );
+    assert_eq!(
+        line.evaluate(&waiting()),
+        Some("Exit This Earth's Atomosphere".to_string())
+    );
 }
 
 // What:     Parsing the template once gives the lines that parsing it for every track gave.
@@ -101,13 +120,23 @@ fn one_function_reads_each_track_it_is_given() {
 #[test]
 fn parsing_once_gives_what_parsing_per_track_gave() {
     let fields = track_template_fields();
-    for template in [DEFAULT_TRACK_TEMPLATE, "$mi(title)$ / $mi(folder)$", "$nosuch(mi(title))$", "", "plain text", "$tf(mi(len), m:ss)$"] {
+    for template in [
+        DEFAULT_TRACK_TEMPLATE,
+        "$mi(title)$ / $mi(folder)$",
+        "$nosuch(mi(title))$",
+        "",
+        "plain text",
+        "$tf(mi(len), m:ss)$",
+    ] {
         let line = supporting_line_from_template(template);
         for track in [analysed(), waiting(), bare()] {
-            let expected: Option<String> = match crate::template_eval::evaluate_template(template, &track, &fields) {
-                TemplateResult::Shown(text) => Some(text.trim().to_string()).filter(|trimmed| return !trimmed.is_empty()),
-                TemplateResult::Refused(_) => None,
-            };
+            let expected: Option<String> =
+                match crate::template_eval::evaluate_template(template, &track, &fields) {
+                    TemplateResult::Shown(text) => {
+                        Some(text.trim().to_string()).filter(|trimmed| return !trimmed.is_empty())
+                    }
+                    TemplateResult::Refused(_) => None,
+                };
             assert_eq!(line.evaluate(&track), expected, "template {template:?}");
         }
     }

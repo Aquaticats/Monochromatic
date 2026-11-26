@@ -8,21 +8,38 @@
 
 /// Windows are drawn on the hardware GPU,
 ///  so the platform is installed before the thread's first window.
-use super::gpu_snapshot::{install_gpu_platform, snapshot};
+use super::gpu_snapshot::{
+    install_gpu_platform,
+    snapshot,
+};
 /// Reuse production viewport callbacks,
 /// appearance callbacks,
 /// and the raster presentation.
 use super::{
-    AppWindow, State, bind_appearance, bind_viewport, render,
-    tile_reads::{same_rows, shown},
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_viewport,
+    render,
+    tile_reads::{
+        same_rows,
+        shown,
+    },
 };
 /// Toolkit windows and component ownership stay on the test's event-loop thread.
-use slint::{ComponentHandle, Model, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    Model,
+    platform::update_timers_and_animations,
+};
 /// UI state is shared between the window callbacks and the test.
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Lines of the disposable document;
@@ -86,7 +103,10 @@ fn await_worker_ready(state: &Rc<RefCell<State>>) {
 }
 
 /// Scroll to `offset` and let the toolkit deliver the viewport-changed callback.
-pub(super) fn scroll_to(window: &AppWindow, offset: f32) {
+pub(super) fn scroll_to(
+    window: &AppWindow,
+    offset: f32,
+) {
     window.set_scroll_y(-offset);
     update_timers_and_animations();
 }
@@ -115,7 +135,10 @@ pub(super) fn settle_tile(state: &Rc<RefCell<State>>) {
 
 /// Advance timers until the worker has answered one more request than `before`,
 /// failing after `PATIENCE`.
-fn until_worker_reply(state: &Rc<RefCell<State>>, before: u64) {
+fn until_worker_reply(
+    state: &Rc<RefCell<State>>,
+    before: u64,
+) {
     let start = Instant::now();
     loop {
         update_timers_and_animations();

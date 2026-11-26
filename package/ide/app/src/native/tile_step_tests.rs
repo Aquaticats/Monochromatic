@@ -13,18 +13,35 @@
 /// The disposable document,
 /// the window on it,
 /// and the scroll helpers.
-use super::overscan_tile_tests::{START, document, open, reset, scroll_to, settle_tile};
+use super::overscan_tile_tests::{
+    START,
+    document,
+    open,
+    reset,
+    scroll_to,
+    settle_tile,
+};
 /// The window and its state,
 /// and the delay of a wake-up.
-use super::{AppWindow, State, tile::wait::wake_delay};
+use super::{
+    AppWindow,
+    State,
+    tile::wait::wake_delay,
+};
 /// Toolkit events.
-use slint::{ComponentHandle, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    platform::update_timers_and_animations,
+};
 /// Shared state and its cell,
 /// and the clocks.
 use std::{
     cell::RefCell,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Longest wait for the tile worker to answer one re-center;
@@ -53,7 +70,10 @@ fn tiles_applied(state: &Rc<RefCell<State>>) -> u64 {
 /// and scroll out of that tile,
 /// so the worker builds another;
 /// return the offset the window is at.
-fn leave_the_tile(window: &AppWindow, state: &Rc<RefCell<State>>) -> f32 {
+fn leave_the_tile(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) -> f32 {
     let height = window.get_viewport_height();
     scroll_to(window, START);
     settle_tile(state);

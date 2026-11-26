@@ -16,11 +16,17 @@
 //!  a lost read by the operation it belongs to.
 
 /// The per-name failures and their diagnostic suffix.
-use super::element_error::{ElementError, elements_suffix};
+use super::element_error::{
+    ElementError,
+    elements_suffix,
+};
 /// The typed request numbers.
 use super::operation::Operation;
 /// The reply decode error and the growth refusal.
-use super::reply::{ReplyError, ReplyRefusal};
+use super::reply::{
+    ReplyError,
+    ReplyRefusal,
+};
 /// The name refusal a request reports.
 use crate::names::NameError;
 /// The codec refusal type.
@@ -97,24 +103,60 @@ impl Error {
     /// The operation that failed.
     pub fn operation(&self) -> Operation {
         return match self {
-            Error::Name { operation, .. }
-            | Error::Encode { operation, .. }
-            | Error::Reply { operation, .. }
-            | Error::Refuse { operation, .. }
-            | Error::Call { operation, .. }
-            | Error::Elements { operation, .. } => *operation,
+            Error::Name {
+                operation,
+                ..
+            }
+            | Error::Encode {
+                operation,
+                ..
+            }
+            | Error::Reply {
+                operation,
+                ..
+            }
+            | Error::Refuse {
+                operation,
+                ..
+            }
+            | Error::Call {
+                operation,
+                ..
+            }
+            | Error::Elements {
+                operation,
+                ..
+            } => *operation,
         };
     }
 
     /// The dataset or pool the request named.
     pub fn target(&self) -> &str {
         return match self {
-            Error::Name { target, .. }
-            | Error::Encode { target, .. }
-            | Error::Reply { target, .. }
-            | Error::Refuse { target, .. }
-            | Error::Call { target, .. }
-            | Error::Elements { target, .. } => target,
+            Error::Name {
+                target,
+                ..
+            }
+            | Error::Encode {
+                target,
+                ..
+            }
+            | Error::Reply {
+                target,
+                ..
+            }
+            | Error::Refuse {
+                target,
+                ..
+            }
+            | Error::Call {
+                target,
+                ..
+            }
+            | Error::Elements {
+                target,
+                ..
+            } => target,
         };
     }
 
@@ -122,8 +164,18 @@ impl Error {
     /// when the kernel supplied one.
     pub fn errno(&self) -> Option<i32> {
         return match self {
-            Error::Call { errno, .. } | Error::Elements { errno, .. } => Some(*errno),
-            Error::Name { source, .. } => Some(source.errno()),
+            Error::Call {
+                errno,
+                ..
+            }
+            | Error::Elements {
+                errno,
+                ..
+            } => Some(*errno),
+            Error::Name {
+                source,
+                ..
+            } => Some(source.errno()),
             _ => None,
         };
     }
@@ -132,7 +184,10 @@ impl Error {
     /// empty when it supplied none.
     pub fn elements(&self) -> &[ElementError] {
         return match self {
-            Error::Elements { elements, .. } => elements,
+            Error::Elements {
+                elements,
+                ..
+            } => elements,
             _ => &[],
         };
     }
@@ -153,33 +208,53 @@ impl fmt::Display for Error {
     /// Prints the operation,
     /// target,
     /// error number and elements.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         let operation: Operation = self.operation();
         let target: &str = self.target();
         return match self {
-            Error::Name { source, .. } => {
+            Error::Name {
+                source,
+                ..
+            } => {
                 write!(formatter, "{operation} on '{target}': {source}")
             }
-            Error::Encode { source, .. } => {
+            Error::Encode {
+                source,
+                ..
+            } => {
                 write!(
                     formatter,
                     "{operation} on '{target}': encoding the request: {source}"
                 )
             }
-            Error::Reply { source, .. } => {
+            Error::Reply {
+                source,
+                ..
+            } => {
                 write!(formatter, "{operation} on '{target}': {source}")
             }
-            Error::Refuse { source, .. } => {
+            Error::Refuse {
+                source,
+                ..
+            } => {
                 write!(formatter, "{operation} on '{target}': {source}")
             }
-            Error::Call { errno, .. } => write!(
+            Error::Call {
+                errno,
+                ..
+            } => write!(
                 formatter,
                 "{operation} on '{target}' failed: {}{}",
                 errno_text(*errno),
                 errno_hint(operation, *errno)
             ),
             Error::Elements {
-                errno, elements, ..
+                errno,
+                elements,
+                ..
             } => write!(
                 formatter,
                 "{operation} on '{target}' failed: {}{}{}",
@@ -197,11 +272,28 @@ impl std::error::Error for Error {
     /// if any.
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         return match self {
-            Error::Name { source, .. } => Some(source),
-            Error::Encode { source, .. } => Some(source),
-            Error::Reply { source, .. } => Some(source),
-            Error::Refuse { source, .. } => Some(source),
-            Error::Call { .. } | Error::Elements { .. } => None,
+            Error::Name {
+                source,
+                ..
+            } => Some(source),
+            Error::Encode {
+                source,
+                ..
+            } => Some(source),
+            Error::Reply {
+                source,
+                ..
+            } => Some(source),
+            Error::Refuse {
+                source,
+                ..
+            } => Some(source),
+            Error::Call {
+                ..
+            }
+            | Error::Elements {
+                ..
+            } => None,
         };
     }
 }
@@ -221,7 +313,10 @@ fn errno_text(errno: i32) -> String {
 /// and leaves the size it needs there
 /// (`module/zfs/zfs_ioctl.c:1437-1447`),
 /// so the hint names both causes.
-fn errno_hint(operation: Operation, errno: i32) -> &'static str {
+fn errno_hint(
+    operation: Operation,
+    errno: i32,
+) -> &'static str {
     if operation.lists() && errno == libc::ESRCH {
         return " (end of the listing)";
     }

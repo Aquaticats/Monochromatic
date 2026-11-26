@@ -114,13 +114,16 @@ fn dead_holder() -> (i64, String) {
 ///  which exits before a reader can look.
 ///  A program that waits for its own end keeps the identity readable until this control ends it,
 ///  and the bounds below say how long the wait for that identity may take.
+///  The helper leads a process group of its own, which the test thread's fixtures kill when the thread ends,
+///  so an assertion that unwinds past the kill below leaves no helper behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const helper = spawn('sleep 600'); const identity = identityOf(helper.pid); helper.kill(); helper.wait();
+/// const helper = spawnOwnedQuiet('sleep 600'); const identity = identityOf(helper.pid); helper.kill(); helper.wait();
 /// ```
 fn end_a_helper(mut program: Command) -> (i64, String) {
-    let mut child: Child = program.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a helper starts");
+    // Quiet, because nothing reads this helper's output: it holds no stream of the run open.
+    let mut child: Child = crate::test_support::spawn_owned_quiet(&mut program).expect("a helper starts");
     let pid: i64 = i64::from(child.id());
     let identity: String = identity_of_process(pid).expect("the helper's identity is readable while it waits");
     let _killed = child.kill();
@@ -139,7 +142,10 @@ fn end_a_helper(mut program: Command) -> (i64, String) {
 /// const live = liveHolder(); // killed when dropped
 /// ```
 fn live_holder() -> (i64, String, Helper) {
-    let child: Child = Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live helper");
+    let mut command: Command = Command::new("sleep");
+    command.arg("600");
+    // The control ends this helper through `Helper`, and the fixtures end the group it leads should an assertion unwind first.
+    let child: Child = crate::test_support::spawn_owned_quiet(&mut command).expect("a live helper");
     let pid: i64 = i64::from(child.id());
     let identity: String = identity_of_process(pid).expect("the live helper's identity");
     return (pid, identity, Helper(child));
@@ -555,15 +561,15 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
 /// spawn(process.execPath, ['--exact', name], { env: { [HOLD]: lock } })
 /// ```
 fn start_non_dumpable_holder(lock: &Path) -> Child {
-    let binary: PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-    return Command::new(binary)
-        .args(["--exact", "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control", "--nocapture", "--test-threads=1"])
-        .env(HOLD_NON_DUMPABLY, lock)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the non-dumpable holder starts");
+    // The holder answers nothing the parent reads: it records itself through the lock file and its ready marker.
+    let environment: [(&str, &std::ffi::OsStr); 1] = [(HOLD_NON_DUMPABLY, lock.as_os_str())];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: "lock::abandoned_lock_proving_tests::a_non_dumpable_writer_holds_the_lock_for_the_control",
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// What:
@@ -608,14 +614,10 @@ fn a_lock_only_a_reader_holds_open_is_cleared_because_a_reader_cannot_write_into
     let (pid, identity) = dead_holder();
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
     let lock: PathBuf = common_dir.join("index.lock");
-    let mut reader: Child = Command::new("sh")
-        .args(["-c", "exec 9<\"$1\"; exec sleep 120", "sh"])
-        .arg(lock.as_path())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("a reader starts");
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "exec 9<\"$1\"; exec sleep 120", "sh"]).arg(lock.as_path());
+    // Owned, so the `sleep` behind this shell goes with the test whichever way the control ends.
+    let mut reader: Child = crate::test_support::spawn_owned_quiet(&mut command).expect("a reader starts");
     assert!(wait_until_open(lock.as_path(), i64::from(reader.id())), "the reader must hold the lock open before the proof is asked");
     assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Cleared(_)), "a reader cannot write into the file, so its name may go");
     let _killed = reader.kill();

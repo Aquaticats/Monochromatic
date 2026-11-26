@@ -170,7 +170,10 @@ mod edit_content;
 /// ```ts
 /// export { XmlElementSpec, XmlNodeSpec } from './render';
 /// ```
-pub use render::{XmlElementSpec, XmlNodeSpec};
+pub use render::{
+    XmlElementSpec,
+    XmlNodeSpec,
+};
 
 /// What:
 /// Re-export the parser entry point at the crate root.
@@ -192,7 +195,10 @@ pub use parse::parse_xml;
 /// ```ts
 /// export { XmlParseError, XmlEditError } from './errors';
 /// ```
-pub use error::{XmlEditError, XmlParseError};
+pub use error::{
+    XmlEditError,
+    XmlParseError,
+};
 
 /// What:
 /// Re-export the document types at the crate root.
@@ -203,7 +209,11 @@ pub use error::{XmlEditError, XmlParseError};
 /// ```ts
 /// export { XmlDocument, XmlElementId, XmlSpan } from './document';
 /// ```
-pub use document::{XmlDocument, XmlElementId, XmlSpan};
+pub use document::{
+    XmlDocument,
+    XmlElementId,
+    XmlSpan,
+};
 
 /// What:
 /// Synthetic JetBrains-shaped fixtures.

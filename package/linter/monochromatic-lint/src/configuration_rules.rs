@@ -178,6 +178,18 @@ pub(crate) fn validate_setting(id: &str, setting: &JsoncValue) -> Result<(), Con
             strings(&entry.value, "exclude")?;
             continue;
         }
+        if (id == "rust/folder-uses-links" || id == "rust/file-order-in-folder") && name == "allow" {
+            // The path is read when the rule runs; an empty one names no file.
+            if text(&entry.value, "allow")?.is_empty() {
+                return Err(ConfigError::new(
+                    format!(
+                        "Rule {id} option allow must name the file that holds the findings it tolerates."
+                    )
+                    .as_str(),
+                ));
+            }
+            continue;
+        }
         if id == "rust/avoidable-closure" && name == "library" {
             // The path is read when the rule runs; an empty one can name no directory.
             if text(&entry.value, "library")?.is_empty() {

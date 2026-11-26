@@ -73,7 +73,10 @@ use std::fs;
 /// ```ts
 /// import { Path, PathBuf } from 'std/path';
 /// ```
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use monochromatic_dependency_catalog::Settings;` imports `Settings` from the external crate `monochromatic_dependency_catalog` so this file can name it unqualified.
@@ -100,8 +103,22 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { Digest, Sha256 } from 'sha2';
 /// ```
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
+/// What:
+/// `use crate::adapt::message_of;` imports `message_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `message_of` is used by `verify_locked_entries`,
+/// `verify_added_since_base`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { message_of } from 'crate/adapt';
+/// ```
+use crate::adapt::message_of;
 /// What:
 /// `use crate::checks::{CheckOutcome, check_policy};` imports `CheckOutcome`,
 /// `check_policy` from another module of this crate so this file can name them unqualified.
@@ -113,7 +130,10 @@ use sha2::{Digest, Sha256};
 /// ```ts
 /// import { CheckOutcome, checkPolicy } from 'crate/checks';
 /// ```
-use crate::checks::{CheckOutcome, check_policy};
+use crate::checks::{
+    CheckOutcome,
+    check_policy,
+};
 /// What:
 /// `use crate::crates::LockSnapshot;` imports `LockSnapshot` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -141,7 +161,11 @@ use crate::crates::LockSnapshot;
 /// ```ts
 /// import { LockedVersion, added_versions, registry_versions } from 'crate/lockfile';
 /// ```
-use crate::lockfile::{LockedVersion, added_versions, registry_versions};
+use crate::lockfile::{
+    LockedVersion,
+    added_versions,
+    registry_versions,
+};
 /// What:
 /// `use crate::registry::Registry;` imports `Registry` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -153,17 +177,6 @@ use crate::lockfile::{LockedVersion, added_versions, registry_versions};
 /// import { Registry } from 'crate/registry';
 /// ```
 use crate::registry::Registry;
-/// What:
-/// `use crate::adapt::message_of;` imports `message_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `message_of` is used by `verify_locked_entries`,
-/// `verify_added_since_base`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { message_of } from 'crate/adapt';
-/// ```
-use crate::adapt::message_of;
 
 /// Where passing digests are remembered,
 /// relative to the repository root.
@@ -197,7 +210,11 @@ pub const ALL_ENTRIES_SCOPE: &str = "frozen-all-entries";
 /// ```ts
 /// export const cacheKey = (snapshot: LockSnapshot, settings: Settings, scope: string): string => sha256(snapshot.source + JSON.stringify(settings) + scope);
 /// ```
-pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> String {
+pub fn cache_key(
+    snapshot: &LockSnapshot,
+    settings: &Settings,
+    scope: &str,
+) -> String {
     let mut hasher: Sha256 = Sha256::new();
     hasher.update(snapshot.source.as_bytes());
     hasher.update(format!("{settings:?}").as_bytes());
@@ -218,7 +235,12 @@ pub fn cache_key(snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> S
 /// ```ts
 /// cacheFile(root: string, snapshot: LockSnapshot, settings: Settings, scope: string): string
 /// ```
-fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> PathBuf {
+fn cache_file(
+    root: &Path,
+    snapshot: &LockSnapshot,
+    settings: &Settings,
+    scope: &str,
+) -> PathBuf {
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
     //
@@ -228,7 +250,11 @@ fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: 
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    return root.join(VERIFIED_DIR).join(format!("{}.{}.ok", snapshot.crate_dir.replace('/', "__"), cache_key(snapshot, settings, scope)));
+    return root.join(VERIFIED_DIR).join(format!(
+        "{}.{}.ok",
+        snapshot.crate_dir.replace('/', "__"),
+        cache_key(snapshot, settings, scope)
+    ));
 }
 
 /// What:
@@ -242,7 +268,12 @@ fn cache_file(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: 
 /// ```ts
 /// export const isVerified = (root, snapshot, settings, scope): boolean => existsSync(cacheFile(root, snapshot, settings, scope));
 /// ```
-pub fn is_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) -> bool {
+pub fn is_verified(
+    root: &Path,
+    snapshot: &LockSnapshot,
+    settings: &Settings,
+    scope: &str,
+) -> bool {
     return cache_file(root, snapshot, settings, scope).exists();
 }
 
@@ -257,7 +288,12 @@ pub fn is_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, sc
 /// ```ts
 /// export function markVerified(root, snapshot, settings, scope): void  // best effort
 /// ```
-pub fn mark_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, scope: &str) {
+pub fn mark_verified(
+    root: &Path,
+    snapshot: &LockSnapshot,
+    settings: &Settings,
+    scope: &str,
+) {
     // Typed binding: `path: PathBuf`.
     // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
     // Why:      Joined or stored paths are owned; paths passed in are borrowed.
@@ -308,7 +344,13 @@ pub fn mark_verified(root: &Path, snapshot: &LockSnapshot, settings: &Settings, 
 /// ```ts
 /// export async function verifyLockedEntries(args): Promise<string[]>
 /// ```
-pub fn verify_locked_entries(root: &Path, snapshots: &[LockSnapshot], settings: &Settings, registry: &dyn Registry, now: i64) -> Result<Vec<String>, String> {
+pub fn verify_locked_entries(
+    root: &Path,
+    snapshots: &[LockSnapshot],
+    settings: &Settings,
+    registry: &dyn Registry,
+    now: i64,
+) -> Result<Vec<String>, String> {
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
     // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
     //
@@ -346,13 +388,13 @@ pub fn verify_locked_entries_outcome(
     settings: &Settings,
     registry: &dyn Registry,
     now: i64,
-// What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-// Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// // TS has one type for this: string
-// ```
+    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
+    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // // TS has one type for this: string
+    // ```
 ) -> Result<CheckOutcome, String> {
     let mut pending: Vec<&LockSnapshot> = Vec::new();
     for snapshot in snapshots {
@@ -364,9 +406,17 @@ pub fn verify_locked_entries_outcome(
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(CheckOutcome::default());
     }
-    let sources: Vec<String> = pending.iter().copied().map(LockSnapshot::source_text).collect();
+    let sources: Vec<String> = pending
+        .iter()
+        .copied()
+        .map(LockSnapshot::source_text)
+        .collect();
     let versions: Vec<LockedVersion> = registry_versions(&sources)?;
-    eprintln!("cargo-shadow: verifying {} locked versions from {} lockfiles", versions.len(), pending.len());
+    eprintln!(
+        "cargo-shadow: verifying {} locked versions from {} lockfiles",
+        versions.len(),
+        pending.len()
+    );
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
     // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
@@ -384,7 +434,8 @@ pub fn verify_locked_entries_outcome(
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
     // Typed binding: `outcome: CheckOutcome`.
-    let outcome: CheckOutcome = check_policy(&versions, settings, registry, now).map_err(message_of)?;
+    let outcome: CheckOutcome =
+        check_policy(&versions, settings, registry, now).map_err(message_of)?;
     if outcome.problems.is_empty() && outcome.warnings.is_empty() {
         for snapshot in pending {
             mark_verified(root, snapshot, settings, ALL_ENTRIES_SCOPE);
@@ -425,7 +476,14 @@ pub fn verify_added_since_base(
 ) -> Result<Vec<String>, String> {
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    return Ok(verify_added_since_base_outcome(snapshots, read_base_lock, settings, registry, now)?.problems);
+    return Ok(verify_added_since_base_outcome(
+        snapshots,
+        read_base_lock,
+        settings,
+        registry,
+        now,
+    )?
+    .problems);
 }
 
 /// What:
@@ -474,7 +532,11 @@ pub fn verify_added_since_base_outcome(
     }
     let current: Vec<String> = snapshots.iter().map(LockSnapshot::source_text).collect();
     let versions: Vec<LockedVersion> = added_versions(&base_sources, &current)?;
-    eprintln!("cargo-shadow: verifying {} versions newly locked since the base from {} lockfiles", versions.len(), snapshots.len());
+    eprintln!(
+        "cargo-shadow: verifying {} versions newly locked since the base from {} lockfiles",
+        versions.len(),
+        snapshots.len()
+    );
     if versions.is_empty() {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(CheckOutcome::default());

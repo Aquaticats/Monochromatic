@@ -6,7 +6,13 @@
 /// Reuse the protocol's numeric parsing,
 /// button names,
 /// and command representation.
-use super::{parse_button, parse_f64, ButtonAction, Command, PointerButton};
+use super::{
+    ButtonAction,
+    Command,
+    PointerButton,
+    parse_button,
+    parse_f64,
+};
 
 /// Parse the coordinates of a `move` request (`move X Y`).
 ///
@@ -27,7 +33,10 @@ pub(super) fn parse_move(tokens: &mut std::str::SplitWhitespace) -> Result<Comma
     if tokens.next().is_some() {
         return Err("move expects X Y".to_string());
     }
-    return Ok(Command::Move { x, y });
+    return Ok(Command::Move {
+        x,
+        y,
+    });
 }
 
 /// Parse the arguments of a `button` request (`button down|up [left|right|middle]`).
@@ -39,7 +48,9 @@ pub(super) fn parse_move(tokens: &mut std::str::SplitWhitespace) -> Result<Comma
 /// the button is optional and defaults to `left`.
 /// Why:
 ///       Matches the `click` default so a bare `button down` holds the primary button.
-pub(super) fn parse_button_command(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
+pub(super) fn parse_button_command(
+    tokens: &mut std::str::SplitWhitespace
+) -> Result<Command, String> {
     let action = match tokens.next() {
         Some("down") => ButtonAction::Down,
         Some("up") => ButtonAction::Up,
@@ -53,5 +64,8 @@ pub(super) fn parse_button_command(tokens: &mut std::str::SplitWhitespace) -> Re
     if tokens.next().is_some() {
         return Err("button expects down|up and an optional left|right|middle".to_string());
     }
-    return Ok(Command::Button { action, button });
+    return Ok(Command::Button {
+        action,
+        button,
+    });
 }

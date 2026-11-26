@@ -140,16 +140,28 @@ fn resolve_reference(body: &str) -> Option<char> {
 /// ```ts
 /// function decodeContent(raw: string, isAttribute: boolean): string;
 /// ```
-fn decode_content(raw: &str, is_attribute: bool) -> Result<String, CodingError> {
+fn decode_content(
+    raw: &str,
+    is_attribute: bool,
+) -> Result<String, CodingError> {
     let mut output: String = String::with_capacity(raw.len());
     let mut characters = raw.char_indices().peekable();
     while let Some((index, character)) = characters.next() {
         if !is_xml_char(character) {
-            let message: String = format!("U+{:04X} is not a character XML 1.0 allows", u32::from(character));
-            return Err(CodingError { offset: index, message });
+            let message: String = format!(
+                "U+{:04X} is not a character XML 1.0 allows",
+                u32::from(character)
+            );
+            return Err(CodingError {
+                offset: index,
+                message,
+            });
         }
         if character == '<' {
-            return Err(CodingError { offset: index, message: "a literal < must be written as &lt;".to_string() });
+            return Err(CodingError {
+                offset: index,
+                message: "a literal < must be written as &lt;".to_string(),
+            });
         }
         if character == '&' {
             // Look at most MAX_REFERENCE_BODY + 1 bytes ahead for the closing semicolon.
@@ -163,13 +175,21 @@ fn decode_content(raw: &str, is_attribute: bool) -> Result<String, CodingError> 
                 }
             }
             let Some(length) = semicolon else {
-                let message: &str = "a reference starting with & has no closing ; within a reasonable length";
-                return Err(CodingError { offset: index, message: message.to_string() });
+                let message: &str =
+                    "a reference starting with & has no closing ; within a reasonable length";
+                return Err(CodingError {
+                    offset: index,
+                    message: message.to_string(),
+                });
             };
             let body: &str = &raw[index + 1..index + 1 + length];
             let Some(resolved) = resolve_reference(body) else {
-                let message: String = format!("&{body}; is not a predefined entity or a valid character reference");
-                return Err(CodingError { offset: index, message });
+                let message: String =
+                    format!("&{body}; is not a predefined entity or a valid character reference");
+                return Err(CodingError {
+                    offset: index,
+                    message,
+                });
             };
             output.push(resolved);
             // Skip the body and the semicolon (all ASCII, so byte offsets equal character counts).
@@ -187,7 +207,10 @@ fn decode_content(raw: &str, is_attribute: bool) -> Result<String, CodingError> 
             }
             output.push(if is_attribute { ' ' } else { '\n' });
         } else if !is_attribute && character == '>' && raw[..index].ends_with("]]") {
-            return Err(CodingError { offset: index - 2, message: "]]> is not allowed in text content".to_string() });
+            return Err(CodingError {
+                offset: index - 2,
+                message: "]]> is not allowed in text content".to_string(),
+            });
         } else {
             output.push(character);
         }
@@ -239,12 +262,18 @@ pub fn decode_text(raw: &str) -> Result<String, CodingError> {
 /// ```ts
 /// function encodeAttributeValue(text: string, quote: '"' | "'"): string;
 /// ```
-pub fn encode_attribute_value(text: &str, quote: char) -> Result<String, XmlEditError> {
+pub fn encode_attribute_value(
+    text: &str,
+    quote: char,
+) -> Result<String, XmlEditError> {
     let mut output: String = String::with_capacity(text.len());
     for character in text.chars() {
         if !is_xml_char(character) {
             let context: String = "attribute value".to_string();
-            return Err(XmlEditError::InvalidCharacter { context, character });
+            return Err(XmlEditError::InvalidCharacter {
+                context,
+                character,
+            });
         }
         if character == '&' {
             output.push_str("&amp;");
@@ -284,7 +313,10 @@ pub fn encode_text(text: &str) -> Result<String, XmlEditError> {
     for character in text.chars() {
         if !is_xml_char(character) {
             let context: String = "text content".to_string();
-            return Err(XmlEditError::InvalidCharacter { context, character });
+            return Err(XmlEditError::InvalidCharacter {
+                context,
+                character,
+            });
         }
         if character == '&' {
             output.push_str("&amp;");

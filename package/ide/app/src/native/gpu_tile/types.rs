@@ -8,13 +8,21 @@
 /// and the markup's record of one texture of the minimap and of the tile.
 use crate::native::{
     AppWindow,
-    ui::{MinimapSlice, SourceSlice},
+    ui::{
+        MinimapSlice,
+        SourceSlice,
+    },
 };
 /// Slint's own wgpu types.
 use slint::wgpu_30::wgpu;
 /// The image import,
 /// and the shared list the window shows the minimap's textures from.
-use slint::{Image, Model, ModelRc, VecModel};
+use slint::{
+    Image,
+    Model,
+    ModelRc,
+    VecModel,
+};
 /// The list is shared with the window.
 use std::rc::Rc;
 
@@ -179,7 +187,10 @@ pub(super) struct Outcome {
 /// Show what a step changed.
 impl Outcome {
     /// Set the images and the last error on `window`.
-    pub(super) fn apply(self, window: &AppWindow) {
+    pub(super) fn apply(
+        self,
+        window: &AppWindow,
+    ) {
         if let Some(limit) = self.texture_limit {
             window.set_texture_limit(i32::try_from(limit).unwrap_or(i32::MAX));
         }

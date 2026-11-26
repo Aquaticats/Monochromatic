@@ -69,9 +69,13 @@ pub const MAX_SPARE_KEYS: usize = 64;
 /// ```
 pub fn base_keymap_text() -> Result<String, String> {
     let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
-    let compiled = xkb::Keymap::new_from_names(&context, "", "", "", "", None, xkb::KEYMAP_COMPILE_NO_FLAGS);
-    let keymap = option_or_text(compiled, format_args!("compiling the default keymap failed"))?;
-    return Ok(keymap.get_as_string(xkb::KEYMAP_FORMAT_TEXT_V1))
+    let compiled =
+        xkb::Keymap::new_from_names(&context, "", "", "", "", None, xkb::KEYMAP_COMPILE_NO_FLAGS);
+    let keymap = option_or_text(
+        compiled,
+        format_args!("compiling the default keymap failed"),
+    )?;
+    return Ok(keymap.get_as_string(xkb::KEYMAP_FORMAT_TEXT_V1));
 }
 
 /// Evdev code of the spare key that types the character at an index.
@@ -87,7 +91,7 @@ pub fn base_keymap_text() -> Result<String, String> {
 /// ```
 #[must_use]
 pub fn spare_evdev(index: usize) -> u32 {
-    return FIRST_SPARE_EVDEV + u32::try_from(index).unwrap_or(0)
+    return FIRST_SPARE_EVDEV + u32::try_from(index).unwrap_or(0);
 }
 
 /// Insert text just after the first line break following a marker.
@@ -101,14 +105,21 @@ pub fn spare_evdev(index: usize) -> u32 {
 /// ```ts
 /// function insertAfterHeader(keymap: string, marker: string, addition: string): string { ... }
 /// ```
-fn insert_after_header(keymap: &str, marker: &str, addition: &str) -> Result<String, String> {
-    let header = option_or_text(keymap.find(marker), format_args!("the keymap has no {marker} section"))?;
+fn insert_after_header(
+    keymap: &str,
+    marker: &str,
+    addition: &str,
+) -> Result<String, String> {
+    let header = option_or_text(
+        keymap.find(marker),
+        format_args!("the keymap has no {marker} section"),
+    )?;
     let line_end = option_or_text(
         keymap[header..].find('\n'),
         format_args!("the keymap {marker} header has no line break"),
     )?;
     let at = header + line_end + 1;
-    return Ok(format!("{}{}{}", &keymap[..at], addition, &keymap[at..]))
+    return Ok(format!("{}{}{}", &keymap[..at], addition, &keymap[at..]));
 }
 
 /// Add spare keys that type the given characters to a keymap's text.
@@ -130,20 +141,31 @@ fn insert_after_header(keymap: &str, marker: &str, addition: &str) -> Result<Str
 /// ```ts
 /// withUnicodeKeys(baseKeymap, ["ö"]); // adds `<X00> = 776;` and `key <X00> { [ U00F6 ] };`
 /// ```
-pub fn with_unicode_keys(base: &str, characters: &[char]) -> Result<String, String> {
+pub fn with_unicode_keys(
+    base: &str,
+    characters: &[char],
+) -> Result<String, String> {
     if characters.len() > MAX_SPARE_KEYS {
-        return Err(format!("a keymap carries at most {MAX_SPARE_KEYS} spare keys"))
+        return Err(format!(
+            "a keymap carries at most {MAX_SPARE_KEYS} spare keys"
+        ));
     }
     let mut keycodes = String::new();
     let mut symbols = String::new();
     for (index, character) in characters.iter().enumerate() {
         let keycode = spare_evdev(index) + XKB_OFFSET;
         keycodes.push_str(&format!("\t<X{index:02X}> = {keycode};\n"));
-        symbols.push_str(&format!("\tkey <X{index:02X}> {{ [ U{:04X} ] }};\n", u32::from(*character)));
+        symbols.push_str(&format!(
+            "\tkey <X{index:02X}> {{ [ U{:04X} ] }};\n",
+            u32::from(*character)
+        ));
     }
     let with_codes = insert_after_header(base, "xkb_keycodes", &keycodes)?;
     let with_symbols = insert_after_header(&with_codes, "xkb_symbols", &symbols)?;
-    return Ok(raise_maximum(&with_symbols, spare_evdev(MAX_SPARE_KEYS) + XKB_OFFSET))
+    return Ok(raise_maximum(
+        &with_symbols,
+        spare_evdev(MAX_SPARE_KEYS) + XKB_OFFSET,
+    ));
 }
 
 /// The number in the text after `maximum = `,
@@ -155,7 +177,7 @@ pub fn with_unicode_keys(base: &str, characters: &[char]) -> Result<String, Stri
 /// Why:
 ///       `Option::and_then` takes it by path instead of a closure.
 fn parse_maximum(rest: &str) -> Option<u32> {
-    return rest.trim_end_matches(';').parse::<u32>().ok()
+    return rest.trim_end_matches(';').parse::<u32>().ok();
 }
 
 /// Raise a keycodes section's `maximum = N;` line to at least a value.
@@ -170,16 +192,24 @@ fn parse_maximum(rest: &str) -> Option<u32> {
 /// ```ts
 /// function raiseMaximum(keymap: string, atLeast: number): string { ... }
 /// ```
-fn raise_maximum(keymap: &str, minimum_maximum: u32) -> String {
+fn raise_maximum(
+    keymap: &str,
+    minimum_maximum: u32,
+) -> String {
     let mut out = String::with_capacity(keymap.len());
     for line in keymap.split_inclusive('\n') {
-        let current = line.trim().strip_prefix("maximum = ").and_then(parse_maximum);
+        let current = line
+            .trim()
+            .strip_prefix("maximum = ")
+            .and_then(parse_maximum);
         match current {
-            Some(value) if value < minimum_maximum => out.push_str(&format!("\tmaximum = {minimum_maximum};\n")),
+            Some(value) if value < minimum_maximum => {
+                out.push_str(&format!("\tmaximum = {minimum_maximum};\n"))
+            }
             _ => out.push_str(line),
         }
     }
-    return out
+    return out;
 }
 
 /// What:

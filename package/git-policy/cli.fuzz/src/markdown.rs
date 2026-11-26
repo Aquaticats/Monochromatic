@@ -31,26 +31,56 @@
 /// Import the selectable rules.
 use git_policy_cli::config_schema::MarkdownRule;
 /// Import the event form of a pathname and its encoder.
-use git_policy_cli::event_path::{EventPath, base64_standard};
+use git_policy_cli::event_path::{
+    EventPath,
+    base64_standard,
+};
 /// Import the one-rule configuration builder.
-use git_policy_cli::markdown_linter_config::{MARKDOWN_FILE_PATTERNS, one_rule_configuration};
+use git_policy_cli::markdown_linter_config::{
+    MARKDOWN_FILE_PATTERNS,
+    one_rule_configuration,
+};
 /// Import the reading of one in-process linter run,
 /// its explanation bound and its size bounds.
 use git_policy_cli::markdown_linter_output::{
-    EXPLANATION_LIMIT, LintRun, MAX_FINDINGS_BYTES, MAX_FIXED_BYTES, RemainingFinding,
+    EXPLANATION_LIMIT,
+    LintRun,
+    MAX_FINDINGS_BYTES,
+    MAX_FIXED_BYTES,
+    RemainingFinding,
     interpret_embedded_run,
 };
 /// Import the finding event and its renderer.
-use git_policy_cli::policy_events::{FindingEvent, PolicyEvent, render_policy_event};
+use git_policy_cli::policy_events::{
+    FindingEvent,
+    PolicyEvent,
+    render_policy_event,
+};
 /// Import the policy and lifecycle names a finding event carries.
-use git_policy_cli::policy_registry::{PolicyId, Severity};
+use git_policy_cli::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use git_policy_cli::policy_trigger::Trigger;
 /// Import the JSONC parser and value model,
 /// used as an independent reader.
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncValue, parse_jsonc, units_to_string};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncValue,
+    parse_jsonc,
+    units_to_string,
+};
 /// Import the linter's finding model and the two results of one in-process run.
-use monochromatic_lint::diagnostic::{Diagnostic, Label, Severity as LintSeverity, Span};
-use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRun};
+use monochromatic_lint::diagnostic::{
+    Diagnostic,
+    Label,
+    Severity as LintSeverity,
+    Span,
+};
+use monochromatic_lint::run_embedded::{
+    EmbeddedFailure,
+    EmbeddedRun,
+};
 
 /// The rules every check selects:
 /// the shipped one.
@@ -65,7 +95,10 @@ const SELECTED_CODE: &str = "markdown/lfs-image-url";
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// The members of a record named `key`.
-fn members<'a>(entries: &'a [JsoncEntry], key: &str) -> Vec<&'a JsoncValue> {
+fn members<'a>(
+    entries: &'a [JsoncEntry],
+    key: &str,
+) -> Vec<&'a JsoncValue> {
     let mut found: Vec<&'a JsoncValue> = Vec::new();
     for entry in entries {
         if let Ok(name) = units_to_string(&entry.key.units)
@@ -79,7 +112,10 @@ fn members<'a>(entries: &'a [JsoncEntry], key: &str) -> Vec<&'a JsoncValue> {
 
 /// The one member named `key`,
 /// when there is exactly one.
-fn only<'a>(entries: &'a [JsoncEntry], key: &str) -> Option<&'a JsoncValue> {
+fn only<'a>(
+    entries: &'a [JsoncEntry],
+    key: &str,
+) -> Option<&'a JsoncValue> {
     let found: Vec<&'a JsoncValue> = members(entries, key);
     if found.len() == 1 {
         return Some(found[0]);
@@ -141,7 +177,11 @@ pub struct GeneratedFinding {
 /// ```
 fn generated_finding(chunk: &[u8]) -> GeneratedFinding {
     let first: u8 = *chunk.first().unwrap_or(&1);
-    let line: usize = if first == 255 { usize::MAX } else { usize::from(first) };
+    let line: usize = if first == 255 {
+        usize::MAX
+    } else {
+        usize::from(first)
+    };
     let column: usize = usize::from(*chunk.get(1).unwrap_or(&1)) << 20;
     let chooser: u8 = *chunk.get(2).unwrap_or(&0);
     let message: String =
@@ -168,16 +208,29 @@ fn generated_finding(chunk: &[u8]) -> GeneratedFinding {
         severity,
         message,
         String::from("pkg/README.md"),
-        Span { offset: 0, length: 1, line, column },
+        Span {
+            offset: 0,
+            length: 1,
+            line,
+            column,
+        },
     );
     if corruption == Some("no labels") {
         finding.labels.clear();
     } else if line % 2 == 1 {
         finding.labels.push(Label {
-            span: Span { offset: 5, length: 2, line: 7, column: 9 },
+            span: Span {
+                offset: 5,
+                length: 2,
+                line: 7,
+                column: 9,
+            },
         });
     }
-    return GeneratedFinding { finding, corruption };
+    return GeneratedFinding {
+        finding,
+        corruption,
+    };
 }
 
 /// The finding of a generated finding,
@@ -261,9 +314,15 @@ impl RunSpec {
     /// The result the linter library would return for these fields.
     fn outcome(&self) -> Result<EmbeddedRun, EmbeddedFailure> {
         if let Some(exit_status) = self.failure {
-            return Err(EmbeddedFailure { exit_status, explanation: self.explanation.clone() });
+            return Err(EmbeddedFailure {
+                exit_status,
+                explanation: self.explanation.clone(),
+            });
         }
-        return Ok(EmbeddedRun { fixed: self.fixed.clone(), findings: self.findings.clone() });
+        return Ok(EmbeddedRun {
+            fixed: self.fixed.clone(),
+            findings: self.findings.clone(),
+        });
     }
 }
 
@@ -293,21 +352,34 @@ fn quoted_explanation(explanation: &str) -> String {
 /// ```ts
 /// function checkRun(input: Buffer, spec: RunSpec): void;
 /// ```
-pub fn check_run(input: &[u8], spec: &RunSpec) {
+pub fn check_run(
+    input: &[u8],
+    spec: &RunSpec,
+) {
     let verdict: Result<LintRun, String> = interpret_embedded_run(input, RULES, spec.outcome());
     if let Some(status) = spec.failure {
         let reason: String = verdict.expect_err("a failed run is refused");
         let quoted: String = quoted_explanation(spec.explanation.as_str());
-        assert!(reason.ends_with(quoted.as_str()), "the reason quotes the explanation: {reason}");
+        assert!(
+            reason.ends_with(quoted.as_str()),
+            "the reason quotes the explanation: {reason}"
+        );
         if status == 2 {
-            assert!(reason.contains("could not finish (exit status 2)"), "{reason}");
+            assert!(
+                reason.contains("could not finish (exit status 2)"),
+                "{reason}"
+            );
         } else {
-            assert!(reason.contains(format!("exited with status {status}").as_str()), "{reason}");
+            assert!(
+                reason.contains(format!("exited with status {status}").as_str()),
+                "{reason}"
+            );
         }
         return;
     }
     if spec.fixed.is_empty() && !input.is_empty() {
-        let reason: String = verdict.expect_err("an empty fixed source for a non-empty file is refused");
+        let reason: String =
+            verdict.expect_err("an empty fixed source for a non-empty file is refused");
         assert!(reason.contains("empty fixed source"), "{reason}");
         return;
     }
@@ -318,14 +390,24 @@ pub fn check_run(input: &[u8], spec: &RunSpec) {
             None => {
                 let reason: String =
                     verdict.expect_err("a finding the contract refuses refuses the run");
-                assert!(reason.contains(format!("finding {} ", index + 1).as_str()), "{reason}");
+                assert!(
+                    reason.contains(format!("finding {} ", index + 1).as_str()),
+                    "{reason}"
+                );
                 return;
             }
         }
     }
     let run: LintRun = verdict.expect("a run the contract accepts is used");
-    assert_eq!(run.fixed, spec.fixed.as_bytes(), "the fixed source is the output");
-    assert_eq!(run.remaining, expected, "the findings are the warnings, in order");
+    assert_eq!(
+        run.fixed,
+        spec.fixed.as_bytes(),
+        "the fixed source is the output"
+    );
+    assert_eq!(
+        run.remaining, expected,
+        "the findings are the warnings, in order"
+    );
 }
 
 /// What:
@@ -438,7 +520,10 @@ pub fn check_oversized_runs() {
     };
     let reason: String = interpret_embedded_run(b"a", RULES, fixed_too_large.outcome())
         .expect_err("a fixed source over the bound is refused");
-    assert!(reason.contains(MAX_FIXED_BYTES.to_string().as_str()), "{reason}");
+    assert!(
+        reason.contains(MAX_FIXED_BYTES.to_string().as_str()),
+        "{reason}"
+    );
     let mut large_finding: GeneratedFinding = generated_finding(&[1, 1, 0]);
     large_finding.finding.message = "m".repeat(MAX_FINDINGS_BYTES + 1);
     let findings_too_large: RunSpec = RunSpec {

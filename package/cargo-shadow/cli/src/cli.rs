@@ -37,7 +37,10 @@
 /// ```ts
 /// import { Parser, Subcommand } from 'clap';
 /// ```
-use clap::{Parser, Subcommand};
+use clap::{
+    Parser,
+    Subcommand,
+};
 
 /// What:
 /// `use crate::commands::run_command;` imports `run_command` from another module of this crate so this file can name it unqualified.

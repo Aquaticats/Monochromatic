@@ -36,11 +36,17 @@ pub struct UnderRead {
 /// The loudest sampled window (linear) when a track is probed at `coverage` of its length
 /// with windows of `window_secs`,
 ///  placed evenly across its bins.
-fn sampled_max(track: &Track, coverage: f64, window_secs: f64) -> f64 {
+fn sampled_max(
+    track: &Track,
+    coverage: f64,
+    window_secs: f64,
+) -> f64 {
     let bins = &track.bin_peaks;
     let n = bins.len();
     let window_bins = (window_secs / track.bin_seconds).round().max(1.0) as usize;
-    let count = ((coverage * track.duration_secs) / window_secs).round().max(1.0) as usize;
+    let count = ((coverage * track.duration_secs) / window_secs)
+        .round()
+        .max(1.0) as usize;
     let span = n.saturating_sub(window_bins);
     // Evenly spaced window starts, each covering `window_bins` bins; take the loudest bin.
     return (0..count)
@@ -51,12 +57,13 @@ fn sampled_max(track: &Track, coverage: f64, window_secs: f64) -> f64 {
                 ((index as f64 / (count - 1) as f64) * span as f64).round() as usize
             };
             let hi = (start + window_bins).min(n);
-            return bins.get(start..hi)
+            return bins
+                .get(start..hi)
                 .unwrap_or(&[])
                 .iter()
-                .fold(0.0_f32, |peak, &bin| return peak.max(bin))
+                .fold(0.0_f32, |peak, &bin| return peak.max(bin));
         })
-        .fold(0.0_f64, |peak, window| return peak.max(f64::from(window)))
+        .fold(0.0_f64, |peak, window| return peak.max(f64::from(window)));
 }
 
 /// Evaluate the proportional probe over the corpus.
@@ -95,16 +102,19 @@ pub fn evaluate_proportional(
             safe: safe_paths.contains(&track.path),
         });
     }
-    return (decoded, under_reads)
+    return (decoded, under_reads);
 }
 
 /// The quantile value of a set of under-reads,
 ///  sorted ascending.
-pub fn under_read_quantile(under_reads: &[UnderRead], fraction: f64) -> f64 {
+pub fn under_read_quantile(
+    under_reads: &[UnderRead],
+    fraction: f64,
+) -> f64 {
     let mut values: Vec<f64> = under_reads.iter().map(|u| return u.under_read_db).collect();
     values.sort_by(f64::total_cmp);
     let index = ((values.len() as f64 - 1.0) * fraction).round() as usize;
-    return values.get(index).copied().unwrap_or(0.0)
+    return values.get(index).copied().unwrap_or(0.0);
 }
 
 /// One row of the margin/clamp tradeoff table.
@@ -133,7 +143,11 @@ pub struct MarginRow {
 ///  this is
 /// the decision surface,
 ///  worst-case too-quiet against the count of cold-start clamps.
-pub fn margin_clamp_table(under_reads: &[UnderRead], margins: &[f64], too_loud_db: f64) -> Vec<MarginRow> {
+pub fn margin_clamp_table(
+    under_reads: &[UnderRead],
+    margins: &[f64],
+    too_loud_db: f64,
+) -> Vec<MarginRow> {
     // For each margin, count the tracks whose under-read the fixed margin cannot cover.
     return margins
         .iter()
@@ -148,9 +162,9 @@ pub fn margin_clamp_table(under_reads: &[UnderRead], margins: &[f64], too_loud_d
                 clamped: clamped.len(),
                 clamped_safe: clamped.iter().filter(|u| return u.safe).count(),
                 total: under_reads.len(),
-            }
+            };
         })
-        .collect()
+        .collect();
 }
 
 /// What:

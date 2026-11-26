@@ -27,7 +27,10 @@
 /// ```ts
 /// // Duration ~ a millisecond count; Instant ~ performance.now().
 /// ```
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///      A grouped `use` of calloop's timer source,
@@ -42,8 +45,11 @@ use std::time::{Duration, Instant};
 /// // setInterval(pace, FRAME_INTERVAL_MS) on the one event loop.
 /// ```
 use smithay::reexports::calloop::{
-    timer::{TimeoutAction, Timer},
     LoopHandle,
+    timer::{
+        TimeoutAction,
+        Timer,
+    },
 };
 
 /// What:
@@ -66,7 +72,12 @@ use tracing::info;
 /// import { sendFrameCallbacks } from "./render";
 /// import { type Compositor } from "./state";
 /// ```
-use crate::{backend::OUTPUT_REFRESH_MHZ, backend_select::BackendKind, render, state::Compositor};
+use crate::{
+    backend::OUTPUT_REFRESH_MHZ,
+    backend_select::BackendKind,
+    render,
+    state::Compositor,
+};
 
 /// One frame at the nested output's advertised refresh rate.
 ///
@@ -87,7 +98,8 @@ use crate::{backend::OUTPUT_REFRESH_MHZ, backend_select::BackendKind, render, st
 /// ```ts
 /// const FRAME_INTERVAL_MS = 1000 / 60;
 /// ```
-pub const FRAME_INTERVAL: Duration = Duration::from_nanos(1_000_000_000_000 / OUTPUT_REFRESH_MHZ as u64);
+pub const FRAME_INTERVAL: Duration =
+    Duration::from_nanos(1_000_000_000_000 / OUTPUT_REFRESH_MHZ as u64);
 
 /// Parent silence at or beyond this span means the parent is not presenting this window.
 ///
@@ -131,7 +143,10 @@ pub const STALL_THRESHOLD: Duration = Duration::from_millis(50);
 /// parentStalled(false, 49); // => false
 /// parentStalled(true, 3_600_000); // => false
 /// ```
-pub fn parent_stalled(recording: bool, since_presented: Duration) -> bool {
+pub fn parent_stalled(
+    recording: bool,
+    since_presented: Duration,
+) -> bool {
     if recording {
         return false;
     }
@@ -170,7 +185,10 @@ pub fn parent_stalled(recording: bool, since_presented: Duration) -> bool {
 /// resizeNeedsEarlyCallbacks(true, false); // => false
 /// resizeNeedsEarlyCallbacks(false, true); // => false
 /// ```
-pub fn resize_needs_early_callbacks(recording: bool, geometry_changed: bool) -> bool {
+pub fn resize_needs_early_callbacks(
+    recording: bool,
+    geometry_changed: bool,
+) -> bool {
     return recording && geometry_changed;
 }
 
@@ -200,11 +218,15 @@ pub fn resize_needs_early_callbacks(recording: bool, geometry_changed: bool) -> 
 /// callbacksDue('headless', false, 0); // => true
 /// callbacksDue('nested-winit', false, 0); // => false
 /// ```
-pub fn callbacks_due(backend: BackendKind, recording: bool, since_presented: Duration) -> bool {
+pub fn callbacks_due(
+    backend: BackendKind,
+    recording: bool,
+    since_presented: Duration,
+) -> bool {
     return match backend {
         BackendKind::Headless => !recording,
         BackendKind::NestedWinit => parent_stalled(recording, since_presented),
-    }
+    };
 }
 
 /// When the parent last presented,
@@ -255,8 +277,15 @@ impl FramePacing {
     /// Why:
     ///       The headless backend never has a parent presentation,
     /// so its timer owns the cadence.
-    pub fn for_backend(backend: BackendKind, now: Instant) -> Self {
-        return Self { last_presented: now, fallback_active: false, backend };
+    pub fn for_backend(
+        backend: BackendKind,
+        now: Instant,
+    ) -> Self {
+        return Self {
+            last_presented: now,
+            fallback_active: false,
+            backend,
+        };
     }
 
     /// Record that a frame was just submitted to the parent compositor.
@@ -273,7 +302,10 @@ impl FramePacing {
     /// ```ts
     /// parentPresented(now: number): void { this.#lastPresented = now; this.#fallbackActive = false; }
     /// ```
-    pub fn parent_presented(&mut self, now: Instant) {
+    pub fn parent_presented(
+        &mut self,
+        now: Instant,
+    ) {
         self.last_presented = now;
         if self.fallback_active {
             self.fallback_active = false;
@@ -298,7 +330,11 @@ impl FramePacing {
     ///   return parentStalled(recording, Math.max(0, now - this.#lastPresented));
     /// }
     /// ```
-    pub fn fallback_due(&mut self, recording: bool, now: Instant) -> bool {
+    pub fn fallback_due(
+        &mut self,
+        recording: bool,
+        now: Instant,
+    ) -> bool {
         let since_presented = now.saturating_duration_since(self.last_presented);
         let due = callbacks_due(self.backend, recording, since_presented);
         if due && !self.fallback_active {
@@ -335,8 +371,15 @@ impl FramePacing {
 /// ```ts
 /// function onFallbackFrameTimer(_deadline, _metadata, state) { if (state.framePacing.fallbackDue(...)) sendFrameCallbacks(state); return reschedule(FRAME_INTERVAL); }
 /// ```
-fn on_fallback_frame_timer(_deadline: Instant, _metadata: &mut (), timer_state: &mut Compositor) -> TimeoutAction {
-    if timer_state.frame_pacing.fallback_due(timer_state.recorder.is_some(), Instant::now()) {
+fn on_fallback_frame_timer(
+    _deadline: Instant,
+    _metadata: &mut (),
+    timer_state: &mut Compositor,
+) -> TimeoutAction {
+    if timer_state
+        .frame_pacing
+        .fallback_due(timer_state.recorder.is_some(), Instant::now())
+    {
         render::send_frame_callbacks(timer_state);
     }
     return TimeoutAction::ToDuration(FRAME_INTERVAL);
@@ -367,10 +410,16 @@ fn on_fallback_frame_timer(_deadline: Instant, _metadata: &mut (), timer_state: 
 ///   }, FRAME_INTERVAL_MS);
 /// }
 /// ```
-pub fn register(loop_handle: &LoopHandle<Compositor>, state: &mut Compositor) {
+pub fn register(
+    loop_handle: &LoopHandle<Compositor>,
+    state: &mut Compositor,
+) {
     state.frame_pacing = FramePacing::for_backend(state.backend.kind(), Instant::now());
     loop_handle
-        .insert_source(Timer::from_duration(FRAME_INTERVAL), on_fallback_frame_timer)
+        .insert_source(
+            Timer::from_duration(FRAME_INTERVAL),
+            on_fallback_frame_timer,
+        )
         .expect("failed to register the fallback frame pacing timer");
 }
 

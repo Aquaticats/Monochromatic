@@ -20,7 +20,10 @@ use crate::template_model::TemplateError;
 /// Why:
 ///  A half-written formula records several follow-on mistakes,
 /// and grouping them needs each formula's span.
-use crate::template_parse::{TemplatePart, parse_template};
+use crate::template_parse::{
+    TemplatePart,
+    parse_template,
+};
 
 /// What:
 ///  `pub fn plain_lines(text: &str, errors: &[TemplateError]) -> Vec<String>` writes one plain sentence per problem,
@@ -39,7 +42,10 @@ use crate::template_parse::{TemplatePart, parse_template};
 /// ```ts
 /// const plainLines = (text: string, errors: TemplateError[]) => collapse(sortBy(errors, "at"), formulaSpans(text)).map(sentence);
 /// ```
-pub fn plain_lines(text: &str, errors: &[TemplateError]) -> Vec<String> {
+pub fn plain_lines(
+    text: &str,
+    errors: &[TemplateError],
+) -> Vec<String> {
     let mut ordered: Vec<&TemplateError> = errors.iter().collect();
     ordered.sort_by_key(crate::template_model::error_position);
     let parsed = parse_template(text);
@@ -102,28 +108,46 @@ fn plain_sentence(error: &TemplateError) -> String {
         return format!("{subject} has no mode called {mode}. Use low, up, cap or cut.");
     }
     if let Some(given) = message.strip_prefix("needs a number of seconds, not ") {
-        return format!("{subject} needs a number of seconds, not {given}. Use mi(len) for the duration.");
+        return format!(
+            "{subject} needs a number of seconds, not {given}. Use mi(len) for the duration."
+        );
     }
     if let Some(shape) = message.strip_prefix("takes ") {
         return format!("{subject} takes {shape}.");
     }
     if let Some(token) = message.strip_prefix("unexpected ") {
-        return format!("Unexpected {token} in a formula. Join values with + or put each one in its own pair of $ signs.");
+        return format!(
+            "Unexpected {token} in a formula. Join values with + or put each one in its own pair of $ signs."
+        );
     }
     if let Some(next) = message.strip_prefix("a value is missing before ") {
-        return format!("A value is missing before {next} in a formula. Put a field such as mi(title), or some text, there.");
+        return format!(
+            "A value is missing before {next} in a formula. Put a field such as mi(title), or some text, there."
+        );
     }
     if let Some(position) = message.strip_prefix("the $ at character ") {
         let number = position.split(' ').next().unwrap_or(position);
-        return format!("The $ at character {number} has no closing $. Add a $ where the formula ends.");
+        return format!(
+            "The $ at character {number} has no closing $. Add a $ where the formula ends."
+        );
     }
     return match message {
         "unknown function" => format!("{subject} is not a function. Use mi, tf or tc."),
-        "a closing bracket is missing" => format!("{subject} is missing its closing bracket. Add a ) after its last value."),
-        "calls are nested too deeply" => format!("{subject} sits inside too many calls. Take some of the calls out."),
-        "a value is missing" => String::from("A formula is missing a value. Put a field such as mi(title), or some text, in it."),
-        "a quotation mark is not closed" => String::from("A quotation mark is not closed. Add a closing quotation mark."),
-        "cut needs a length, as in tc(cut, text, 10)" => String::from("tc needs a length to cut to, as in tc(cut, text, 10)."),
+        "a closing bracket is missing" => {
+            format!("{subject} is missing its closing bracket. Add a ) after its last value.")
+        }
+        "calls are nested too deeply" => {
+            format!("{subject} sits inside too many calls. Take some of the calls out.")
+        }
+        "a value is missing" => String::from(
+            "A formula is missing a value. Put a field such as mi(title), or some text, in it.",
+        ),
+        "a quotation mark is not closed" => {
+            String::from("A quotation mark is not closed. Add a closing quotation mark.")
+        }
+        "cut needs a length, as in tc(cut, text, 10)" => {
+            String::from("tc needs a length to cut to, as in tc(cut, text, 10).")
+        }
         other => format!("{subject}: {other}."),
     };
 }

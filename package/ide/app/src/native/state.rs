@@ -4,7 +4,14 @@
 /// The source state that is constructed,
 ///  the toolkit list models of the gutter,
 ///  and the minimap beside the text.
-use super::{State, gpu_tile::GpuTile, minimap, rows, tile::TileBounds, wheel};
+use super::{
+    State,
+    gpu_tile::GpuTile,
+    minimap,
+    rows,
+    tile::TileBounds,
+    wheel,
+};
 /// Hint and diagnostic snapshots with their position index.
 use ide_app::annotation::Annotations;
 /// Visual rows of every line,
@@ -18,7 +25,10 @@ use ide_app::row_map::RowMap;
 /// Shared shaping replaces terminal-column assumptions in native hit testing.
 use ide_app::shaped_text::TextShaper;
 /// Source and display geometry use the same library interface tested headlessly.
-use ide_app::{document::Document, source_style::SourceStyles};
+use ide_app::{
+    document::Document,
+    source_style::SourceStyles,
+};
 /// The timer that polls the tile worker is created idle.
 use slint::Timer;
 /// The optional disk path of the displayed file.
@@ -27,7 +37,10 @@ use std::path::PathBuf;
 /// Construct the same reading state for the application and headless native event tests.
 impl State {
     /// Retain source ownership and initialize viewport resources without changing the filesystem.
-    pub(super) fn new(source: &str, file_path: Option<PathBuf>) -> Self {
+    pub(super) fn new(
+        source: &str,
+        file_path: Option<PathBuf>,
+    ) -> Self {
         let document = Document::new(source);
         // A new text has no virtual rows yet: every line starts at its number times one code row.
         let lines = document.text().len_lines();

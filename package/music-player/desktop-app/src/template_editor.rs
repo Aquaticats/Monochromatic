@@ -36,14 +36,24 @@ use crate::template_format::utf16_length;
 ///  and result types.
 /// Why:
 ///  The editor values and helpers are built from them.
-use crate::template_model::{PlayingTrackFields, TemplateKind, TemplateResult, TemplateTrack, TrackFields};
+use crate::template_model::{
+    PlayingTrackFields,
+    TemplateKind,
+    TemplateResult,
+    TemplateTrack,
+    TrackFields,
+};
 /// What:
 ///  imports the parts,
 ///  the formula span rule,
 ///  and the template splitter.
 /// Why:
 ///  `inside_formula` uses the same rule as help.
-use crate::template_parse::{TemplatePart, formula_holds_caret, parse_template};
+use crate::template_parse::{
+    TemplatePart,
+    formula_holds_caret,
+    parse_template,
+};
 
 /// What:
 ///  `pub const TEMPLATE_PREVIEW_ROW_COUNT: usize = 2;` is how many library tracks the preview draws.
@@ -103,7 +113,8 @@ pub const TEMPLATE_KEPT_NOTE: &str = "Rows keep the last valid template.";
 /// ```ts
 /// const TEMPLATE_KEPT_EMPTY_NOTE = "Rows keep the last valid template, which shows no second line.";
 /// ```
-pub const TEMPLATE_KEPT_EMPTY_NOTE: &str = "Rows keep the last valid template, which shows no second line.";
+pub const TEMPLATE_KEPT_EMPTY_NOTE: &str =
+    "Rows keep the last valid template, which shows no second line.";
 
 /// What:
 ///  `pub fn template_sample_tracks() -> Vec<PlayingTrackFields>` holds the two stand-in tracks.
@@ -140,7 +151,11 @@ pub fn template_sample_tracks() -> Vec<PlayingTrackFields> {
 /// ```ts
 /// const standIn = (title, peak, place) => ({ title, file: "File name", ext: "flac", len: 200, peak, place, total: 16 });
 /// ```
-fn stand_in(title: &str, peak: Option<&str>, place: usize) -> PlayingTrackFields {
+fn stand_in(
+    title: &str,
+    peak: Option<&str>,
+    place: usize,
+) -> PlayingTrackFields {
     return PlayingTrackFields {
         track: TrackFields {
             title: title.to_string(),
@@ -253,7 +268,10 @@ impl fmt::Display for TemplateEditorStateError {
     /// ```ts
     /// toString(): string { return this.message; }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}", self.message);
     }
 }
@@ -274,7 +292,10 @@ impl Error for TemplateEditorStateError {}
 /// ```ts
 /// const clampOffset = (offset: number, text: string) => Math.min(Math.max(offset, 0), text.length);
 /// ```
-pub fn clamp_offset(offset: usize, text: &str) -> usize {
+pub fn clamp_offset(
+    offset: usize,
+    text: &str,
+) -> usize {
     return offset.min(utf16_length(text));
 }
 
@@ -287,7 +308,10 @@ pub fn clamp_offset(offset: usize, text: &str) -> usize {
 /// ```ts
 /// const insideFormula = (text, caret) => parse(text).parts.some(p => isFormula(p) && inSpan(caret, p));
 /// ```
-pub fn inside_formula(text: &str, caret: usize) -> bool {
+pub fn inside_formula(
+    text: &str,
+    caret: usize,
+) -> bool {
     for part in &parse_template(text).parts {
         let holds: bool = match part {
             TemplatePart::Formula(formula) => formula_holds_caret(formula, caret),
@@ -310,7 +334,10 @@ pub fn inside_formula(text: &str, caret: usize) -> bool {
 /// ```ts
 /// function templateTrackFor(kind, track) { return kind === "playing" ? track : track.track; }
 /// ```
-pub fn track_source(kind: TemplateKind, track: &PlayingTrackFields) -> &dyn TemplateTrack {
+pub fn track_source(
+    kind: TemplateKind,
+    track: &PlayingTrackFields,
+) -> &dyn TemplateTrack {
     return match kind {
         TemplateKind::TrackRows => &track.track,
         TemplateKind::PlayingTrack => track,
@@ -330,7 +357,11 @@ pub fn track_source(kind: TemplateKind, track: &PlayingTrackFields) -> &dyn Temp
 /// ```ts
 /// const result = evaluateTemplate(text, templateTrackFor(kind, track), kind.fields);
 /// ```
-pub fn evaluate_for(kind: TemplateKind, text: &str, track: &PlayingTrackFields) -> TemplateResult {
+pub fn evaluate_for(
+    kind: TemplateKind,
+    text: &str,
+    track: &PlayingTrackFields,
+) -> TemplateResult {
     return evaluate_template(text, track_source(kind, track), &kind.fields());
 }
 
@@ -387,7 +418,10 @@ impl TemplateTexts {
     /// ```ts
     /// const text = texts[kind];
     /// ```
-    pub fn get(&self, kind: TemplateKind) -> &str {
+    pub fn get(
+        &self,
+        kind: TemplateKind,
+    ) -> &str {
         return match kind {
             TemplateKind::TrackRows => &self.track_rows,
             TemplateKind::PlayingTrack => &self.playing_track,
@@ -404,7 +438,11 @@ impl TemplateTexts {
     /// ```ts
     /// const next = { ...texts, [kind]: text };
     /// ```
-    pub fn with(&self, kind: TemplateKind, text: String) -> Self {
+    pub fn with(
+        &self,
+        kind: TemplateKind,
+        text: String,
+    ) -> Self {
         return match kind {
             TemplateKind::TrackRows => Self {
                 track_rows: text,
@@ -428,7 +466,12 @@ impl TemplateTexts {
 /// ```ts
 /// const next = text.slice(0, start) + inserted + text.slice(end);
 /// ```
-pub fn splice_text(text: &str, start: usize, end: usize, inserted: &str) -> String {
+pub fn splice_text(
+    text: &str,
+    start: usize,
+    end: usize,
+    inserted: &str,
+) -> String {
     let units: Vec<u16> = text.encode_utf16().collect();
     let mut joined: Vec<u16> = units[..start].to_vec();
     joined.extend(inserted.encode_utf16());

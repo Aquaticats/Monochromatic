@@ -3,7 +3,10 @@
 //!  grouped by source.
 
 /// Each stored set names the text and the server process it was accepted for.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// Server ranges become character offsets only through the shared converter.
 use super::position::from_lsp_range;
 /// What:
@@ -17,7 +20,10 @@ use super::position::from_lsp_range;
 /// ```
 use helix_core::Rope;
 /// The protocol's diagnostic record and the column unit of the server that sent it.
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 /// What:
 ///  `Duration` is a time span.
 /// Why:
@@ -257,7 +263,11 @@ fn convert(
 ///   group.items.push(item);
 /// }
 /// ```
-fn add_to_group(groups: &mut Vec<SourceGroup>, source: &str, item: Diagnostic) {
+fn add_to_group(
+    groups: &mut Vec<SourceGroup>,
+    source: &str,
+    item: Diagnostic,
+) {
     // `iter_mut` walks the list handing out modifiable borrows of each group.
     for group in groups.iter_mut() {
         if group.source == source {

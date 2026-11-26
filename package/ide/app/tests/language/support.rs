@@ -18,17 +18,33 @@ use ide_app::language::{
     diagnostics::DiagnosticsSnapshot,
     hints::HintsSnapshot,
     identity::DocumentStamp,
-    reply::{LanguageReply, PositionRequest, RequestKind},
-    status::{LanguageStatus, ServerState},
-    sync::{DocumentOpen, DocumentReload},
+    reply::{
+        LanguageReply,
+        PositionRequest,
+        RequestKind,
+    },
+    status::{
+        LanguageStatus,
+        ServerState,
+    },
+    sync::{
+        DocumentOpen,
+        DocumentReload,
+    },
 };
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Set in the child process to the project root the body works on.
@@ -142,7 +158,10 @@ fn test_directory() -> tempfile::TempDir {
 ///  and require it to pass.
 /// `test` is the full test name,
 ///  including its module.
-pub fn run_child(test: &str, layout: fn(&Path) -> Layout) {
+pub fn run_child(
+    test: &str,
+    layout: fn(&Path) -> Layout,
+) {
     let directory = test_directory();
     let base = directory
         .path()
@@ -193,7 +212,11 @@ pub fn report_path(root: &Path) -> PathBuf {
 }
 
 /// Language definitions for the scripted server with the given environment and request timeout.
-pub fn scripted(root: &Path, variables: &[(&str, &str)], timeout: u64) -> String {
+pub fn scripted(
+    root: &Path,
+    variables: &[(&str, &str)],
+    timeout: u64,
+) -> String {
     return scripted_with_roots(root, variables, timeout, "[]");
 }
 
@@ -259,7 +282,10 @@ pub struct Probe {
 
 impl Probe {
     /// Start a worker for `root` with application-supplied definitions.
-    pub fn new(root: &Path, definitions: String) -> Self {
+    pub fn new(
+        root: &Path,
+        definitions: String,
+    ) -> Self {
         let setup = LanguageSetup {
             extra_languages: Some(definitions),
             ..LanguageSetup::unconfined()
@@ -268,7 +294,10 @@ impl Probe {
     }
 
     /// Start a worker for `root` with an explicit setup.
-    pub fn with_setup(root: &Path, setup: LanguageSetup) -> Self {
+    pub fn with_setup(
+        root: &Path,
+        setup: LanguageSetup,
+    ) -> Self {
         install_log();
         let worker = LanguageWorker::with_setup(root, setup).expect("language worker");
         return Self {
@@ -295,13 +324,21 @@ impl Probe {
 
     /// Write `text` to `path` and display it,
     ///  as the application does after reading a file.
-    pub fn open(&mut self, path: &Path, text: &str) {
+    pub fn open(
+        &mut self,
+        path: &Path,
+        text: &str,
+    ) {
         fs::write(path, text).expect("source file");
         self.display(path, text);
     }
 
     /// Display `text` for an existing `path` without writing it.
-    pub fn display(&mut self, path: &Path, text: &str) {
+    pub fn display(
+        &mut self,
+        path: &Path,
+        text: &str,
+    ) {
         self.file += 1;
         self.document = Document::new(text);
         self.path = path.to_path_buf();
@@ -317,7 +354,10 @@ impl Probe {
     }
 
     /// Replace the file on disk and apply the reload exactly as the application's reload path does.
-    pub fn reload(&mut self, text: &str) {
+    pub fn reload(
+        &mut self,
+        text: &str,
+    ) {
         fs::write(&self.path, text).expect("changed source file");
         let reload = self.document.prepare_reload(text);
         let command = DocumentReload::from_reload(self.file, &reload);
@@ -326,7 +366,11 @@ impl Probe {
     }
 
     /// Send a position request and return its number.
-    pub fn request(&mut self, kind: RequestKind, position: usize) -> u64 {
+    pub fn request(
+        &mut self,
+        kind: RequestKind,
+        position: usize,
+    ) -> u64 {
         let request = PositionRequest {
             stamp: self.stamp(),
             kind,
@@ -362,7 +406,10 @@ impl Probe {
     /// Begin a wait for `what` and poll once,
     ///  so the first check of the caller's loop reads fresh state.
     /// The caller loops `while !condition { probe.step(); }`.
-    pub fn wait_for(&mut self, what: &str) {
+    pub fn wait_for(
+        &mut self,
+        what: &str,
+    ) {
         self.waiting_for = what.to_string();
         self.wait_started = Instant::now();
         self.poll();
@@ -386,7 +433,10 @@ impl Probe {
     }
 
     /// True when some reply answers request `number`.
-    pub fn has_reply(&self, number: u64) -> bool {
+    pub fn has_reply(
+        &self,
+        number: u64,
+    ) -> bool {
         for reply in &self.replies {
             if reply.request == number {
                 return true;
@@ -396,7 +446,10 @@ impl Probe {
     }
 
     /// True when the last reply of request `number` arrived.
-    pub fn is_answered(&self, number: u64) -> bool {
+    pub fn is_answered(
+        &self,
+        number: u64,
+    ) -> bool {
         for reply in &self.replies {
             if reply.request == number && reply.remaining == 0 {
                 return true;
@@ -406,7 +459,10 @@ impl Probe {
     }
 
     /// True when the held diagnostics carry `stamp`.
-    pub fn diagnostics_stamped(&self, stamp: DocumentStamp) -> bool {
+    pub fn diagnostics_stamped(
+        &self,
+        stamp: DocumentStamp,
+    ) -> bool {
         return match self.diagnostics.as_ref() {
             Some(found) => found.stamp == stamp,
             None => false,
@@ -414,7 +470,10 @@ impl Probe {
     }
 
     /// True when the held hints carry `stamp`.
-    pub fn hints_stamped(&self, stamp: DocumentStamp) -> bool {
+    pub fn hints_stamped(
+        &self,
+        stamp: DocumentStamp,
+    ) -> bool {
         return match self.hints.as_ref() {
             Some(held) => held.stamp == stamp,
             None => false,
@@ -422,7 +481,10 @@ impl Probe {
     }
 
     /// True when the notice entry exists and its text contains `part`.
-    pub fn notice_contains(&self, part: &str) -> bool {
+    pub fn notice_contains(
+        &self,
+        part: &str,
+    ) -> bool {
         return match self.notice() {
             Some(entry) => entry.contains(part),
             None => false,
@@ -430,7 +492,10 @@ impl Probe {
     }
 
     /// State of the named server in the latest status.
-    pub fn state(&self, name: &str) -> Option<&ServerState> {
+    pub fn state(
+        &self,
+        name: &str,
+    ) -> Option<&ServerState> {
         for row in &self.status.servers {
             if row.server.name == name {
                 return Some(&row.state);
@@ -448,7 +513,10 @@ impl Probe {
     }
 
     /// Wait for the last reply of request `number` and return every reply it produced.
-    pub fn answers(&mut self, number: u64) -> Vec<LanguageReply> {
+    pub fn answers(
+        &mut self,
+        number: u64,
+    ) -> Vec<LanguageReply> {
         self.wait_for("the request to be answered");
         while !self.is_answered(number) {
             self.step();
@@ -533,7 +601,10 @@ pub struct ReportWait {
 
 impl ReportWait {
     /// Begin a wait for `what` and read the report once.
-    pub fn new(root: &Path, what: &str) -> Self {
+    pub fn new(
+        root: &Path,
+        what: &str,
+    ) -> Self {
         return Self {
             root: root.to_path_buf(),
             what: what.to_string(),
@@ -582,7 +653,10 @@ pub fn first_received<'a>(
 
 /// Every reported line whose `received` method is `method`,
 ///  in order.
-pub fn all_received<'a>(lines: &'a (impl AsRef<[Value]> + ?Sized), method: &str) -> Vec<&'a Value> {
+pub fn all_received<'a>(
+    lines: &'a (impl AsRef<[Value]> + ?Sized),
+    method: &str,
+) -> Vec<&'a Value> {
     let mut found = Vec::new();
     for line in lines.as_ref() {
         if line["received"] == method {
@@ -603,7 +677,10 @@ pub fn first_started<'a>(lines: &'a (impl AsRef<[Value]> + ?Sized)) -> Option<&'
 }
 
 /// How many times the server received `method`.
-pub fn count_received(lines: &(impl AsRef<[Value]> + ?Sized), method: &str) -> usize {
+pub fn count_received(
+    lines: &(impl AsRef<[Value]> + ?Sized),
+    method: &str,
+) -> usize {
     let mut count = 0;
     for received_method in received(lines.as_ref()) {
         if received_method == method {
@@ -614,7 +691,10 @@ pub fn count_received(lines: &(impl AsRef<[Value]> + ?Sized), method: &str) -> u
 }
 
 /// The position of the first entry equal to `method`.
-pub fn index_of(methods: &[String], method: &str) -> Option<usize> {
+pub fn index_of(
+    methods: &[String],
+    method: &str,
+) -> Option<usize> {
     for (index, candidate) in methods.iter().enumerate() {
         if candidate == method {
             return Some(index);
@@ -659,7 +739,10 @@ pub fn server_text(lines: &[Value]) -> Option<(i64, String)> {
 }
 
 /// Wait until the server's copy of the text equals `expected`.
-pub fn server_text_until(root: &Path, expected: &str) -> Vec<Value> {
+pub fn server_text_until(
+    root: &Path,
+    expected: &str,
+) -> Vec<Value> {
     let mut wait = ReportWait::new(root, "the server text to equal the document text");
     while !text_equals(wait.lines(), expected) {
         wait.again();
@@ -668,7 +751,10 @@ pub fn server_text_until(root: &Path, expected: &str) -> Vec<Value> {
 }
 
 /// True when the server's latest copy of the text equals `expected`.
-fn text_equals(lines: &[Value], expected: &str) -> bool {
+fn text_equals(
+    lines: &[Value],
+    expected: &str,
+) -> bool {
     return match server_text(lines) {
         Some((_, text)) => text == expected,
         None => false,

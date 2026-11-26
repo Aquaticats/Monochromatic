@@ -12,11 +12,20 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    MAX_ARGUMENTS, arguments_from_bytes, check_config_loading, check_global_layout,
+    MAX_ARGUMENTS,
+    arguments_from_bytes,
+    check_config_loading,
+    check_global_layout,
     generated_arguments,
 };
-use git_policy_cli::config_loading::{ConfigLoading, classify_config_loading};
-use git_policy_cli::global_arguments::{GlobalOutcome, global_layout};
+use git_policy_cli::config_loading::{
+    ConfigLoading,
+    classify_config_loading,
+};
+use git_policy_cli::global_arguments::{
+    GlobalOutcome,
+    global_layout,
+};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 

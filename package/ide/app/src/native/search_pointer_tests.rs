@@ -4,14 +4,27 @@
 ///  so the platform is installed before the thread's first window.
 use super::gpu_snapshot::install_gpu_platform;
 /// Use the production overlay and its real generated row type.
-use super::{AppWindow, ui::SearchEntry};
+use super::{
+    AppWindow,
+    ui::SearchEntry,
+};
 /// Native pointer events exercise TouchArea ownership rather than invoking choose directly.
 use slint::{
-    ComponentHandle, LogicalPosition, LogicalSize, ModelRc, VecModel,
-    platform::{PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    LogicalSize,
+    ModelRc,
+    VecModel,
+    platform::{
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// A shared scalar observes the row chosen by the widget without opening any source file.
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::Cell,
+    rc::Rc,
+};
 
 /// Bounded fixture labels differ so replacement is not a no-op model update.
 fn model(label: &str) -> ModelRc<SearchEntry> {

@@ -17,7 +17,14 @@ use gtk4::prelude::*;
 ///  imports concrete GTK widgets used to build badges and overlay wrappers.
 /// Why:
 ///  debug annotations are real GTK children so they appear in screenshots.
-use gtk4::{Align, Box as GtkBox, Label, Orientation, Overlay, Widget};
+use gtk4::{
+    Align,
+    Box as GtkBox,
+    Label,
+    Orientation,
+    Overlay,
+    Widget,
+};
 
 /// What:
 ///  imports the debug-tint env-var name.
@@ -82,7 +89,7 @@ pub(crate) const B6P_PREVIEW_BODY: DebugRegion = DebugRegion {
 /// Why:
 ///  production runs should not allocate labels or alter widget wrappers.
 pub(crate) fn enabled() -> bool {
-    return std::env::var_os(DEBUG_TINT_ENV).is_some()
+    return std::env::var_os(DEBUG_TINT_ENV).is_some();
 }
 
 /// What:
@@ -90,7 +97,11 @@ pub(crate) fn enabled() -> bool {
 /// Why:
 ///  screenshots show visible badges,
 ///  while tooltips provide the same code on hover.
-pub(crate) fn tag(widget: &impl IsA<Widget>, region: DebugRegion, detail: Option<&str>) {
+pub(crate) fn tag(
+    widget: &impl IsA<Widget>,
+    region: DebugRegion,
+    detail: Option<&str>,
+) {
     if !enabled() {
         return;
     }
@@ -101,7 +112,11 @@ pub(crate) fn tag(widget: &impl IsA<Widget>, region: DebugRegion, detail: Option
 ///  wrap `child` in a `GtkOverlay` with a top-left badge when debug tinting is active.
 /// Why:
 ///  debug regions can carry labels without consuming layout space or changing child size.
-pub(crate) fn wrap(child: &impl IsA<Widget>, region: DebugRegion, detail: Option<&str>) -> Widget {
+pub(crate) fn wrap(
+    child: &impl IsA<Widget>,
+    region: DebugRegion,
+    detail: Option<&str>,
+) -> Widget {
     if !enabled() {
         return child.as_ref().clone();
     }
@@ -112,7 +127,7 @@ pub(crate) fn wrap(child: &impl IsA<Widget>, region: DebugRegion, detail: Option
     overlay.add_css_class("fm-debug-overlay");
     overlay.add_overlay(&badge(region, detail));
     tag(&overlay, region, detail);
-    return overlay.upcast::<Widget>()
+    return overlay.upcast::<Widget>();
 }
 
 /// What:
@@ -120,7 +135,12 @@ pub(crate) fn wrap(child: &impl IsA<Widget>, region: DebugRegion, detail: Option
 /// Why:
 ///  immediate-child lane rail is not a natural GTK widget,
 ///  so debug mode draws one explicitly.
-pub(crate) fn lane(region: DebugRegion, detail: Option<&str>, width: i32, height: i32) -> Widget {
+pub(crate) fn lane(
+    region: DebugRegion,
+    detail: Option<&str>,
+    width: i32,
+    height: i32,
+) -> Widget {
     let rail = GtkBox::new(Orientation::Vertical, BADGE_GAP);
     rail.set_size_request(width, height);
     rail.set_can_target(false);
@@ -128,7 +148,7 @@ pub(crate) fn lane(region: DebugRegion, detail: Option<&str>, width: i32, height
     rail.add_css_class("fm-debug-lane");
     rail.append(&inline_badge(region, detail));
     tag(&rail, region, detail);
-    return rail.upcast::<Widget>()
+    return rail.upcast::<Widget>();
 }
 
 /// What:
@@ -137,13 +157,16 @@ pub(crate) fn lane(region: DebugRegion, detail: Option<&str>, width: i32, height
 ///  every overlay label shares the same alignment,
 ///  margin,
 ///  and pointer transparency.
-fn badge(region: DebugRegion, detail: Option<&str>) -> Label {
+fn badge(
+    region: DebugRegion,
+    detail: Option<&str>,
+) -> Label {
     let label = base_badge(region, detail);
     label.set_halign(Align::Start);
     label.set_valign(Align::Start);
     label.set_margin_start(BADGE_MARGIN);
     label.set_margin_top(BADGE_MARGIN);
-    return label
+    return label;
 }
 
 /// What:
@@ -151,20 +174,26 @@ fn badge(region: DebugRegion, detail: Option<&str>) -> Label {
 /// Why:
 ///  inline badges should not request overlay alignment,
 ///  only text styling.
-fn inline_badge(region: DebugRegion, detail: Option<&str>) -> Label {
-    return base_badge(region, detail)
+fn inline_badge(
+    region: DebugRegion,
+    detail: Option<&str>,
+) -> Label {
+    return base_badge(region, detail);
 }
 
 /// What:
 ///  build the shared label widget for a region code and description.
 /// Why:
 ///  all debug text should use one CSS class and stay mouse-transparent.
-fn base_badge(region: DebugRegion, detail: Option<&str>) -> Label {
+fn base_badge(
+    region: DebugRegion,
+    detail: Option<&str>,
+) -> Label {
     let label = Label::new(Some(&label_text(region, detail)));
     label.set_can_target(false);
     label.set_can_focus(false);
     label.add_css_class("fm-debug-badge");
-    return label
+    return label;
 }
 
 /// What:
@@ -172,10 +201,13 @@ fn base_badge(region: DebugRegion, detail: Option<&str>) -> Label {
 /// Why:
 ///  the stable code identifies the region kind,
 ///  while details distinguish columns and panes.
-fn label_text(region: DebugRegion, detail: Option<&str>) -> String {
+fn label_text(
+    region: DebugRegion,
+    detail: Option<&str>,
+) -> String {
     let prefix = format!("{} {}", region.code, region.description);
     if let Some(detail_text) = detail {
         return format!("{prefix} {detail_text}");
     }
-    return prefix
+    return prefix;
 }

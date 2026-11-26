@@ -23,7 +23,10 @@
 //! and a size longer than the buffer is refused rather than read.
 
 /// The codec list and refusal types.
-use crate::nvlist::{NvError, NvList};
+use crate::nvlist::{
+    NvError,
+    NvList,
+};
 /// The formatting traits the diagnostics implement.
 use std::fmt;
 
@@ -113,7 +116,10 @@ pub enum ReplyRefusalReason {
 /// How the value prints to a person.
 impl fmt::Display for ReplyRefusal {
     /// Says why the reply could not be used.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self.reason {
             ReplyRefusalReason::PastTheCap => write!(
                 formatter,
@@ -143,7 +149,10 @@ pub struct ReplyBuffer {
 /// The methods of `ReplyBuffer`.
 impl ReplyBuffer {
     /// A zeroed buffer of the size this use starts from.
-    pub fn new(use_of_reply: ReplyUse, input_length: usize) -> ReplyBuffer {
+    pub fn new(
+        use_of_reply: ReplyUse,
+        input_length: usize,
+    ) -> ReplyBuffer {
         let size: usize = initial_size(use_of_reply, input_length);
         return ReplyBuffer {
             use_of_reply,
@@ -202,7 +211,10 @@ impl ReplyBuffer {
     /// [`ReplyRefusal`] when the request is past the cap,
     /// or when a write's
     /// reply would have to be read again.
-    pub fn grow_to_requested(&mut self, requested: u64) -> Result<usize, ReplyRefusal> {
+    pub fn grow_to_requested(
+        &mut self,
+        requested: u64,
+    ) -> Result<usize, ReplyRefusal> {
         if usize::try_from(requested).is_ok_and(|size| {
             return size <= self.bytes.len();
         }) {
@@ -249,7 +261,11 @@ impl ReplyBuffer {
     /// [`ReplyError::LargerThanBuffer`] when the reported size exceeds the
     /// buffer,
     /// and [`ReplyError::Decode`] when the bytes are not a native list.
-    pub fn decode(&self, filled: bool, reported: u64) -> Result<Option<NvList>, ReplyError> {
+    pub fn decode(
+        &self,
+        filled: bool,
+        reported: u64,
+    ) -> Result<Option<NvList>, ReplyError> {
         if !filled {
             return Ok(None);
         }
@@ -268,7 +284,9 @@ impl ReplyBuffer {
         return NvList::unpack(&self.bytes[..length])
             .map(Some)
             .map_err(|error| {
-                return ReplyError::Decode { value: error };
+                return ReplyError::Decode {
+                    value: error,
+                };
             });
     }
 }
@@ -293,13 +311,21 @@ pub enum ReplyError {
 /// How the value prints to a person.
 impl fmt::Display for ReplyError {
     /// Says why the reply could not be used.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
-            ReplyError::LargerThanBuffer { reported, capacity } => write!(
+            ReplyError::LargerThanBuffer {
+                reported,
+                capacity,
+            } => write!(
                 formatter,
                 "the kernel reported a {reported} byte reply, and the buffer holds {capacity} bytes"
             ),
-            ReplyError::Decode { value } => write!(formatter, "decoding the reply: {value}"),
+            ReplyError::Decode {
+                value,
+            } => write!(formatter, "decoding the reply: {value}"),
         };
     }
 }
@@ -310,8 +336,12 @@ impl std::error::Error for ReplyError {
     /// when the reply was bytes.
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         return match self {
-            ReplyError::Decode { value } => Some(value),
-            ReplyError::LargerThanBuffer { .. } => None,
+            ReplyError::Decode {
+                value,
+            } => Some(value),
+            ReplyError::LargerThanBuffer {
+                ..
+            } => None,
         };
     }
 }
@@ -322,7 +352,10 @@ impl std::error::Error for ReplyError {
 /// which is `libzfs_core`'s rule with this crate's floor
 /// (`MAX(size * 2, 128 * 1024)`,
 /// `lib/libzfs_core/libzfs_core.c:250`).
-pub fn initial_size(use_of_reply: ReplyUse, input_length: usize) -> usize {
+pub fn initial_size(
+    use_of_reply: ReplyUse,
+    input_length: usize,
+) -> usize {
     return match use_of_reply {
         ReplyUse::Read => INITIAL_REPLY_SIZE,
         ReplyUse::Mutation => INITIAL_REPLY_SIZE

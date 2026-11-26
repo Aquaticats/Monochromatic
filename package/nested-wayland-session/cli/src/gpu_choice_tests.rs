@@ -7,7 +7,10 @@ use super::*;
 /// The render nodes of the host this feature was built on,
 /// in the order EGL enumerates them (not path order).
 fn two_nodes() -> Vec<PathBuf> {
-    return vec![PathBuf::from("/dev/dri/renderD129"), PathBuf::from("/dev/dri/renderD128")]
+    return vec![
+        PathBuf::from("/dev/dri/renderD129"),
+        PathBuf::from("/dev/dri/renderD128"),
+    ];
 }
 
 /// `auto`,
@@ -52,7 +55,10 @@ fn auto_plan_is_default_then_nodes_in_path_order_then_software() {
             Attempt::Software,
         ],
     );
-    assert_eq!(plan(&GpuChoice::Auto, &[]), vec![Attempt::MesaDefault, Attempt::Software]);
+    assert_eq!(
+        plan(&GpuChoice::Auto, &[]),
+        vec![Attempt::MesaDefault, Attempt::Software]
+    );
 }
 
 /// An explicit choice is exactly one attempt,
@@ -60,8 +66,14 @@ fn auto_plan_is_default_then_nodes_in_path_order_then_software() {
 #[test]
 fn explicit_plans_are_a_single_attempt() {
     let node = PathBuf::from("/dev/dri/renderD128");
-    assert_eq!(plan(&GpuChoice::Software, &two_nodes()), vec![Attempt::Software]);
-    assert_eq!(plan(&GpuChoice::RenderNode(node.clone()), &two_nodes()), vec![Attempt::RenderNode(node)]);
+    assert_eq!(
+        plan(&GpuChoice::Software, &two_nodes()),
+        vec![Attempt::Software]
+    );
+    assert_eq!(
+        plan(&GpuChoice::RenderNode(node.clone()), &two_nodes()),
+        vec![Attempt::RenderNode(node)]
+    );
 }
 
 /// Opening outcomes by attempt,
@@ -78,8 +90,8 @@ fn outcomes(
             Attempt::RenderNode(_) => nodes[1],
             Attempt::Software => software,
         };
-        return outcome.map_err(str::to_string)
-    }
+        return outcome.map_err(str::to_string);
+    };
 }
 
 /// A working default ends the search and opens nothing else.
@@ -89,7 +101,7 @@ fn default_ok_stops_the_search() {
     let mut inner = outcomes(Ok("default"), [Ok("d128"), Ok("d129")], Ok("software"));
     let selected = select(&plan(&GpuChoice::Auto, &two_nodes()), |attempt| {
         opened.push(attempt.clone());
-        return inner(attempt)
+        return inner(attempt);
     })
     .expect("a working default device is selected");
     assert_eq!(selected.attempt, Attempt::MesaDefault);
@@ -104,15 +116,25 @@ fn default_ok_stops_the_search() {
 fn default_fails_and_another_node_works() {
     let selected = select(
         &plan(&GpuChoice::Auto, &two_nodes()),
-        outcomes(Err("permission denied"), [Err("no such device"), Ok("d129")], Ok("software")),
+        outcomes(
+            Err("permission denied"),
+            [Err("no such device"), Ok("d129")],
+            Ok("software"),
+        ),
     )
     .expect("the first render node that opens is selected after the default fails");
-    assert_eq!(selected.attempt, Attempt::RenderNode(PathBuf::from("/dev/dri/renderD129")));
+    assert_eq!(
+        selected.attempt,
+        Attempt::RenderNode(PathBuf::from("/dev/dri/renderD129"))
+    );
     assert_eq!(selected.value, "d129");
     assert_eq!(
         selected.failures,
         vec![
-            Failure { attempt: Attempt::MesaDefault, reason: "permission denied".to_string() },
+            Failure {
+                attempt: Attempt::MesaDefault,
+                reason: "permission denied".to_string()
+            },
             Failure {
                 attempt: Attempt::RenderNode(PathBuf::from("/dev/dri/renderD128")),
                 reason: "no such device".to_string(),
@@ -141,7 +163,11 @@ fn all_gpus_fail_then_software() {
 fn nothing_usable_lists_everything_tried() {
     let failures = select(
         &plan(&GpuChoice::Auto, &two_nodes()),
-        outcomes(Err("default broke"), [Err("d128 broke"), Err("d129 broke")], Err("no llvmpipe")),
+        outcomes(
+            Err("default broke"),
+            [Err("d128 broke"), Err("d129 broke")],
+            Err("no llvmpipe"),
+        ),
     )
     .unwrap_err();
     assert_eq!(failures.len(), 4);
@@ -164,28 +190,51 @@ fn nothing_usable_lists_everything_tried() {
 fn explicit_choice_never_falls_back() {
     let node = GpuChoice::RenderNode(PathBuf::from("/dev/dri/renderD128"));
     let mut opened = Vec::new();
-    let mut inner = outcomes(Ok("default"), [Err("cannot open the node"), Ok("d129")], Ok("software"));
+    let mut inner = outcomes(
+        Ok("default"),
+        [Err("cannot open the node"), Ok("d129")],
+        Ok("software"),
+    );
     let failures = select(&plan(&node, &two_nodes()), |attempt| {
         opened.push(attempt.clone());
-        return inner(attempt)
+        return inner(attempt);
     })
     .unwrap_err();
-    assert_eq!(opened, vec![Attempt::RenderNode(PathBuf::from("/dev/dri/renderD128"))]);
+    assert_eq!(
+        opened,
+        vec![Attempt::RenderNode(PathBuf::from("/dev/dri/renderD128"))]
+    );
     let message = failure_message(&node, &failures, "Render nodes: renderD128, renderD129.");
-    assert!(message.starts_with("--gpu /dev/dri/renderD128 cannot be used: cannot open the node"), "{message}");
-    assert!(message.contains("Render nodes: renderD128, renderD129."), "{message}");
+    assert!(
+        message.starts_with("--gpu /dev/dri/renderD128 cannot be used: cannot open the node"),
+        "{message}"
+    );
+    assert!(
+        message.contains("Render nodes: renderD128, renderD129."),
+        "{message}"
+    );
     assert!(!message.contains("software renderer"), "{message}");
 
-    let software = select(&plan(&GpuChoice::Software, &two_nodes()), outcomes(Ok("default"), [Ok("a"), Ok("b")], Err("no llvmpipe")))
-        .unwrap_err();
+    let software = select(
+        &plan(&GpuChoice::Software, &two_nodes()),
+        outcomes(Ok("default"), [Ok("a"), Ok("b")], Err("no llvmpipe")),
+    )
+    .unwrap_err();
     let software_message = failure_message(&GpuChoice::Software, &software, "");
-    assert!(software_message.starts_with("--gpu software cannot be used: no llvmpipe"), "{software_message}");
+    assert!(
+        software_message.starts_with("--gpu software cannot be used: no llvmpipe"),
+        "{software_message}"
+    );
 }
 
 /// A software device where a default GPU was expected is rejected.
 #[test]
 fn a_software_default_is_not_a_gpu() {
-    assert!(default_device_rejection(true).unwrap().contains("software rasterizer"));
+    assert!(
+        default_device_rejection(true)
+            .unwrap()
+            .contains("software rasterizer")
+    );
     assert_eq!(default_device_rejection(false), None);
 }
 
@@ -194,14 +243,23 @@ fn a_software_default_is_not_a_gpu() {
 /// plain `auto` leaves the environment alone.
 #[test]
 fn child_environment_follows_the_final_choice() {
-    assert_eq!(child_variables(child_environment(&GpuChoice::Auto, false, false)), vec![]);
+    assert_eq!(
+        child_variables(child_environment(&GpuChoice::Auto, false, false)),
+        vec![]
+    );
     assert_eq!(
         child_variables(child_environment(&GpuChoice::Software, true, false)),
         vec![("LIBGL_ALWAYS_SOFTWARE", Some("1")), ("DRI_PRIME", None)],
     );
     let node = GpuChoice::RenderNode(PathBuf::from("/dev/dri/renderD128"));
-    assert_eq!(child_variables(child_environment(&node, false, false)), vec![("DRI_PRIME", None)]);
-    assert_eq!(child_variables(child_environment(&GpuChoice::Auto, false, true)), vec![("DRI_PRIME", None)]);
+    assert_eq!(
+        child_variables(child_environment(&node, false, false)),
+        vec![("DRI_PRIME", None)]
+    );
+    assert_eq!(
+        child_variables(child_environment(&GpuChoice::Auto, false, true)),
+        vec![("DRI_PRIME", None)]
+    );
     assert_eq!(
         child_variables(child_environment(&GpuChoice::Auto, true, true)),
         vec![("LIBGL_ALWAYS_SOFTWARE", Some("1")), ("DRI_PRIME", None)],
@@ -217,5 +275,8 @@ fn report_answer_is_one_line_with_the_renderer_last() {
         renderer: "llvmpipe (LLVM 22.1.8, 256 bits)".to_string(),
         fell_back: true,
     };
-    assert_eq!(report.answer(), "device=software choice=auto fallback=yes renderer=llvmpipe (LLVM 22.1.8, 256 bits)");
+    assert_eq!(
+        report.answer(),
+        "device=software choice=auto fallback=yes renderer=llvmpipe (LLVM 22.1.8, 256 bits)"
+    );
 }

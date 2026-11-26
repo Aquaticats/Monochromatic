@@ -96,60 +96,110 @@ mod cache;
 mod service;
 
 /// Re-exports the meter type and its whole-buffer convenience function.
-pub use crate::meter::{TruePeakMeter, true_peak_interleaved};
+pub use crate::meter::{
+    TruePeakMeter,
+    true_peak_interleaved,
+};
 
 /// Re-exports the decoded-audio source contract and its stream descriptor.
-pub use crate::source::{AudioSpec, TruePeakSource};
+pub use crate::source::{
+    AudioSpec,
+    TruePeakSource,
+};
 
 /// Re-exports the fallible-source error type.
 pub use crate::error::TruePeakError;
 
 /// Re-exports the ceiling constant and the gain and dB functions.
-pub use crate::gain::{CEILING, normalization_gain, peak_dbtp, probe_estimated_peak};
+pub use crate::gain::{
+    CEILING,
+    normalization_gain,
+    peak_dbtp,
+    probe_estimated_peak,
+};
 
 /// Re-exports the window-placement helpers.
-pub use crate::window::{WindowPlacement, window_frame_starts};
+pub use crate::window::{
+    WindowPlacement,
+    window_frame_starts,
+};
 
 /// Re-exports the policy type,
 ///  its identity tuple,
 ///  the shipped default policy,
 ///  and the
 /// decoder-stack id derivation.
-pub use crate::policy::{CacheIdentity, Policy, default_policy, stack_id};
+pub use crate::policy::{
+    CacheIdentity,
+    Policy,
+    default_policy,
+    stack_id,
+};
 
 /// Re-exports the file-derived probe inputs (provenance and bones in one call).
-pub use crate::inputs::{probe_inputs_from_bytes, probe_inputs_from_file};
+pub use crate::inputs::{
+    probe_inputs_from_bytes,
+    probe_inputs_from_file,
+};
 
 /// Re-exports the per-provenance probe dials and the provenance signals.
-pub use crate::bucketpolicy::{BucketProbe, BucketTable, TrackProvenance};
+pub use crate::bucketpolicy::{
+    BucketProbe,
+    BucketTable,
+    TrackProvenance,
+};
 
 /// Re-exports the one owner of the probe's bin selection,
 ///  the measurement contract it asks,
 ///  and what one selection measured;
 ///  the bench sidecar replays its corpus through them.
-pub use crate::probe_selection::{ProbeBins, ProbeGrid, ProbeSelection, select_probe_bins};
+pub use crate::probe_selection::{
+    ProbeBins,
+    ProbeGrid,
+    ProbeSelection,
+    select_probe_bins,
+};
 
 /// Re-exports the lossless bones profiling helpers and their error.
-pub use crate::bones::{BonesError, bones_hot_bins, flac_bones_profile};
+pub use crate::bones::{
+    BonesError,
+    bones_hot_bins,
+    flac_bones_profile,
+};
 
 /// Re-exports the gain decision and its kind.
-pub use crate::decision::{Decision, DecisionKind, PeakKind};
+pub use crate::decision::{
+    Decision,
+    DecisionKind,
+    PeakKind,
+};
 
 /// Re-exports the policy resolver,
 ///  its provenance-aware form,
 ///  and the always-exact
 /// full-scan resolver (warming upgrade).
-pub use crate::resolve::{resolve_decision, resolve_decision_for, resolve_full_scan};
+pub use crate::resolve::{
+    resolve_decision,
+    resolve_decision_for,
+    resolve_full_scan,
+};
 
 /// Re-exports the track fingerprint function and its domain tag,
 ///  behind the `fingerprint` feature.
 #[cfg(feature = "fingerprint")]
-pub use crate::fingerprint::{FINGERPRINT_DOMAIN_TAG, track_fingerprint};
+pub use crate::fingerprint::{
+    FINGERPRINT_DOMAIN_TAG,
+    track_fingerprint,
+};
 
 /// Re-exports the decision cache and its error,
 ///  behind the `service` feature.
 #[cfg(feature = "service")]
-pub use crate::cache::{CacheError, DecisionCache, WRITE_BATCH_LIMIT};
+pub use crate::cache::{
+    CacheError,
+    DecisionCache,
+    WRITE_BATCH_LIMIT,
+};
 
 /// Re-exports the cache-aware resolve,
 ///  behind the `service` feature.

@@ -4,20 +4,44 @@
 /// Borrow the parent's state,
 ///  its single rendering boundary,
 ///  and the caret-following scroll.
-use super::{AppWindow, State, render, viewport::follow};
+use super::{
+    AppWindow,
+    State,
+    render,
+    viewport::follow,
+};
 /// Geometry-free caret movement over source characters.
-use ide_app::caret_motion::{Motion, moved};
+use ide_app::caret_motion::{
+    Motion,
+    moved,
+};
 /// Source offsets remain independent of rendered pixels,
 /// and the side of a soft-wrap offset is part of a click.
-use ide_app::document::{ReadingAffinity, ReadingPosition};
+use ide_app::document::{
+    ReadingAffinity,
+    ReadingPosition,
+};
 /// Home and End follow the visual rows of the caret's line.
-use ide_app::line_boundary::{Edge, moved_to_edge};
+use ide_app::line_boundary::{
+    Edge,
+    moved_to_edge,
+};
 /// Line-wise movement by shaped pixel position with a remembered column.
-use ide_app::vertical_motion::{PreferredColumn, vertical};
+use ide_app::vertical_motion::{
+    PreferredColumn,
+    vertical,
+};
 /// Toolkit key representations and weak window handles.
-use slint::{ComponentHandle, SharedString, platform::Key};
+use slint::{
+    ComponentHandle,
+    SharedString,
+    platform::Key,
+};
 /// Shared ownership of the window state on this thread.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// What:
 ///  `Option<Motion>` is a movement or nothing (TypeScript's `Motion | undefined`);
@@ -31,7 +55,10 @@ use std::{cell::RefCell, rc::Rc};
 /// ```ts
 /// function horizontal(key: string, control: boolean): Motion | undefined;
 /// ```
-fn horizontal(key: &SharedString, control: bool) -> Option<Motion> {
+fn horizontal(
+    key: &SharedString,
+    control: bool,
+) -> Option<Motion> {
     let mut plain = None;
     let mut modified = None;
     if *key == SharedString::from(Key::LeftArrow) {
@@ -63,7 +90,10 @@ fn horizontal(key: &SharedString, control: bool) -> Option<Motion> {
 /// ```ts
 /// function edge(key: string, control: boolean): Edge | undefined;
 /// ```
-fn edge(key: &SharedString, control: bool) -> Option<Edge> {
+fn edge(
+    key: &SharedString,
+    control: bool,
+) -> Option<Edge> {
     if control {
         return None;
     }
@@ -87,7 +117,10 @@ fn edge(key: &SharedString, control: bool) -> Option<Edge> {
 /// ```ts
 /// function vertical_rows(key: string, pages: [up: number, down: number]): [rows: number, paging: boolean] | undefined;
 /// ```
-fn vertical_rows(key: &SharedString, pages: (isize, isize)) -> Option<(isize, bool)> {
+fn vertical_rows(
+    key: &SharedString,
+    pages: (isize, isize),
+) -> Option<(isize, bool)> {
     let (up, down) = pages;
     if *key == SharedString::from(Key::UpArrow) {
         return Some((-1, false));
@@ -105,7 +138,10 @@ fn vertical_rows(key: &SharedString, pages: (isize, isize)) -> Option<(isize, bo
 }
 
 /// Bind native keyboard caret movement and select-all.
-pub(super) fn bind_keys(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
+pub(super) fn bind_keys(
+    owner: &AppWindow,
+    shared: &Rc<RefCell<State>>,
+) {
     let select_state = Rc::clone(shared);
     let select_window = owner.as_weak();
     owner.on_select_all_request(move || {

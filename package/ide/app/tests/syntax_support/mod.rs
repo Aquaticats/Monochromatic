@@ -17,7 +17,10 @@ use helix_core::Rope;
 ///  no Helix loader is constructed here.
 ///  The palette is the source declaration the engine registers,
 ///  so a reorder or rename there cannot leave this helper stale.
-use ide_app::syntax::{SCOPES, SyntaxEngine};
+use ide_app::syntax::{
+    SCOPES,
+    SyntaxEngine,
+};
 /// Paths drive filename recognition exactly as a project file would.
 use std::path::Path;
 
@@ -38,7 +41,13 @@ use std::path::Path;
 ///   path: string, source: string, language: string, role: string, fragment: string,
 /// ): void { /* throws when an expectation fails */ }
 /// ```
-pub fn assert_reads_as(path: &str, source: &str, language: &str, role: &str, fragment: &str) {
+pub fn assert_reads_as(
+    path: &str,
+    source: &str,
+    language: &str,
+    role: &str,
+    fragment: &str,
+) {
     // What: `SCOPES.iter().position(|name| ...)` scans the list with a closure (`|name| ...` is
     //       an arrow function) and returns `Option<usize>`: `Some(index)` or `None`.
     //       `*name` reads through the reference the iterator lends. `.expect("...")` extracts
@@ -120,7 +129,10 @@ pub fn assert_reads_as(path: &str, source: &str, language: &str, role: &str, fra
 /// ```ts
 /// export function painted(path: string, source: string): Array<[string, string]>
 /// ```
-pub fn painted(path: &str, source: &str) -> Vec<(&'static str, String)> {
+pub fn painted(
+    path: &str,
+    source: &str,
+) -> Vec<(&'static str, String)> {
     let engine = SyntaxEngine::new().expect("bundled language manifest");
     let text = Rope::from_str(source);
     let spans = engine

@@ -3,12 +3,27 @@
 //! one that refuses a write,
 //!  and one that accepts everything.
 
-use super::{Loss, background_with, report};
+use super::{
+    Loss,
+    background_with,
+    report,
+};
 use std::{
-    io::{self, Write},
-    sync::{Arc, Condvar, Mutex, atomic::Ordering},
+    io::{
+        self,
+        Write,
+    },
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+        atomic::Ordering,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tracing_subscriber::fmt::MakeWriter;
 
@@ -35,7 +50,10 @@ impl Gated {
     }
 
     /// Open the gate from another thread after `delay`.
-    fn open_after(&self, delay: Duration) {
+    fn open_after(
+        &self,
+        delay: Duration,
+    ) {
         let gate = self.clone();
         thread::spawn(move || {
             thread::sleep(delay);
@@ -49,7 +67,10 @@ impl Gated {
 }
 
 impl Write for Gated {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         let (flag, changed) = &*self.open;
         let mut open = flag.lock().expect("gate");
         while !*open {
@@ -74,7 +95,10 @@ struct RefusesFirst {
 }
 
 impl Write for RefusesFirst {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         if !self.refused {
             self.refused = true;
             return Err(io::Error::new(io::ErrorKind::BrokenPipe, "refused once"));
@@ -105,12 +129,18 @@ fn reported(text: &str) -> Vec<Loss> {
             .trim_start_matches('(')
             .parse()
             .expect("byte count");
-        found.push(Loss { records, bytes });
+        found.push(Loss {
+            records,
+            bytes,
+        });
     }
     return found;
 }
 
-fn write_record(writer: &impl for<'writer> MakeWriter<'writer>, text: &str) {
+fn write_record(
+    writer: &impl for<'writer> MakeWriter<'writer>,
+    text: &str,
+) {
     writer
         .make_writer()
         .write_all(text.as_bytes())

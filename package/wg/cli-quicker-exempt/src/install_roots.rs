@@ -28,13 +28,19 @@ use crate::report_cause::quote_name;
 /// duplicate-free names.
 use std::collections::BTreeSet;
 /// The opened directory handle.
-use std::fs::{File, OpenOptions};
+use std::fs::{
+    File,
+    OpenOptions,
+};
 /// The descriptor number of the handle.
 use std::os::fd::AsRawFd;
 /// Opening a directory without following a link at its last component.
 use std::os::unix::fs::OpenOptionsExt;
 /// Executable paths and install roots.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The data directory of the toolchain below a home.
 const DATA_DIRECTORY: &str = ".local/share/monochromatic-dev";
@@ -89,13 +95,20 @@ enum LinkCheck {
 /// inside it and not the home itself,
 /// and the home is not the filesystem root,
 /// below which every path lies.
-fn is_strictly_below(target: &Path, home: &Path) -> bool {
+fn is_strictly_below(
+    target: &Path,
+    home: &Path,
+) -> bool {
     return home.parent().is_some() && target != home && target.starts_with(home);
 }
 
 /// Whether a root with the same name was already refused for the same reason,
 /// which happens when both spellings of the home lead to the same link.
-fn already_refused(refused: &[RefusedRoot], root: &Path, why: &str) -> bool {
+fn already_refused(
+    refused: &[RefusedRoot],
+    root: &Path,
+    why: &str,
+) -> bool {
     for earlier in refused {
         if earlier.why == why && earlier.root.file_name() == root.file_name() {
             return true;
@@ -108,24 +121,39 @@ fn already_refused(refused: &[RefusedRoot], root: &Path, why: &str) -> bool {
 /// naming the link below the home and where it points.
 /// The words do not depend on how the home is spelled,
 /// so both spellings of one link give the same reason.
-fn link_reason(link: &Path, relative: &Path, is_root: bool) -> String {
+fn link_reason(
+    link: &Path,
+    relative: &Path,
+    is_root: bool,
+) -> String {
     let points_to = match std::fs::read_link(link) {
-        Ok(target) => format!(" (it points to {})", quote_name(&target.display().to_string())),
+        Ok(target) => format!(
+            " (it points to {})",
+            quote_name(&target.display().to_string())
+        ),
         Err(_error) => String::new(),
     };
     if is_root {
         return format!("it is a link; links are not followed{points_to}");
     }
-    return format!("{} on the way to it is a link; links are not followed{points_to}", quote_name(&relative.display().to_string()));
+    return format!(
+        "{} on the way to it is a link; links are not followed{points_to}",
+        quote_name(&relative.display().to_string())
+    );
 }
 
 /// Walks the directories below `base` on the way to `root`,
 /// and refuses at the first link.
 /// `base` itself may be reached through links,
 /// such as a home that is spelled `/home/user` where `/home` points to `/var/home`.
-fn check_below(base: &Path, root: &Path) -> LinkCheck {
+fn check_below(
+    base: &Path,
+    root: &Path,
+) -> LinkCheck {
     let Ok(relative) = root.strip_prefix(base) else {
-        return LinkCheck::Refused { why: "it is not below the home".to_string() };
+        return LinkCheck::Refused {
+            why: "it is not below the home".to_string(),
+        };
     };
     let mut walked = base.to_path_buf();
     let mut walked_relative = PathBuf::new();
@@ -134,11 +162,17 @@ fn check_below(base: &Path, root: &Path) -> LinkCheck {
         walked_relative.push(component);
         match std::fs::symlink_metadata(&walked) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                return LinkCheck::Refused { why: link_reason(&walked, &walked_relative, walked == root) };
+                return LinkCheck::Refused {
+                    why: link_reason(&walked, &walked_relative, walked == root),
+                };
             }
             Ok(_other) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return LinkCheck::Absent,
-            Err(error) => return LinkCheck::Refused { why: format!("it cannot be examined ({error})") },
+            Err(error) => {
+                return LinkCheck::Refused {
+                    why: format!("it cannot be examined ({error})"),
+                };
+            }
         }
     }
     return LinkCheck::Clean;
@@ -158,7 +192,10 @@ fn check_below(base: &Path, root: &Path) -> LinkCheck {
 /// and so is a root that cannot be examined for a reason other than not existing.
 /// Roots are examined once,
 /// when this runs.
-pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> InstallRoots {
+pub fn install_roots(
+    home: &Path,
+    canonical_home: Option<&Path>,
+) -> InstallRoots {
     let mut bases: Vec<&Path> = vec![home];
     if let Some(canonical) = canonical_home
         && canonical != home
@@ -172,15 +209,23 @@ pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> InstallRoots
             let root = base.join(DATA_DIRECTORY).join(directory);
             match check_below(base, &root) {
                 LinkCheck::Absent | LinkCheck::Clean => roots.push(root),
-                LinkCheck::Refused { why } => {
+                LinkCheck::Refused {
+                    why,
+                } => {
                     if !already_refused(&refused, &root, &why) {
-                        refused.push(RefusedRoot { root, why });
+                        refused.push(RefusedRoot {
+                            root,
+                            why,
+                        });
                     }
                 }
             }
         }
     }
-    return InstallRoots { roots, refused };
+    return InstallRoots {
+        roots,
+        refused,
+    };
 }
 
 /// Lists the real directories directly inside an opened directory,
@@ -191,7 +236,10 @@ pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> InstallRoots
 /// and the entries are read through the handle too,
 /// so a path swapped for a link after the caller checked it cannot make this list another place.
 /// Returns `None` when the handle is outside the home or cannot be read.
-pub fn directory_names_from_handle(directory: &File, canonical_home: &Path) -> Option<Vec<String>> {
+pub fn directory_names_from_handle(
+    directory: &File,
+    canonical_home: &Path,
+) -> Option<Vec<String>> {
     let through_handle = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
     let real = std::fs::read_link(&through_handle).ok()?;
     if !is_strictly_below(&real, canonical_home) {
@@ -224,7 +272,10 @@ fn open_directory(path: &Path) -> std::io::Result<File> {
 
 /// The home a root is spelled under,
 /// among the given spellings.
-fn base_of<'a>(root: &Path, bases: &[&'a Path]) -> Option<&'a Path> {
+fn base_of<'a>(
+    root: &Path,
+    bases: &[&'a Path],
+) -> Option<&'a Path> {
     for base in bases {
         if root.starts_with(base) {
             return Some(base);
@@ -246,7 +297,10 @@ fn base_of<'a>(root: &Path, bases: &[&'a Path]) -> Option<&'a Path> {
 /// after the handle itself is checked to lie inside the home,
 /// so replacing the root between the check and the read changes nothing outside the home.
 /// Names are escaped before they are printed.
-pub fn installed_tool_names(roots: &[PathBuf], home: &Path) -> Vec<String> {
+pub fn installed_tool_names(
+    roots: &[PathBuf],
+    home: &Path,
+) -> Vec<String> {
     let Ok(canonical_home) = std::fs::canonicalize(home) else {
         return Vec::new();
     };

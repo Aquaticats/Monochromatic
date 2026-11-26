@@ -11,7 +11,11 @@
 //! ```
 
 /// Imports the classifier and its phrases from this crate.
-use crate::walk_target::{WalkTarget, classify, phrase};
+use crate::walk_target::{
+    WalkTarget,
+    classify,
+    phrase,
+};
 
 /// Imports the file-system module (make fixture directories).
 use std::fs;
@@ -33,12 +37,21 @@ fn a_directory_that_contains_dot_git_is_a_repository_root() {
     let home = crate::test_scratch::scratch();
 
     // `assert_eq!(a, b)` stops the test with a message when `a != b` (a macro, hence `!`).
-    assert_eq!(classify(".", repository.path(), home.path()), WalkTarget::RepositoryRoot);
-    assert_eq!(classify("./", repository.path(), home.path()), WalkTarget::RepositoryRoot);
+    assert_eq!(
+        classify(".", repository.path(), home.path()),
+        WalkTarget::RepositoryRoot
+    );
+    assert_eq!(
+        classify("./", repository.path(), home.path()),
+        WalkTarget::RepositoryRoot
+    );
     // An absolute spelling, from another directory, names the same repository.
     let elsewhere = crate::test_scratch::scratch();
     let absolute = repository.path().to_string_lossy().to_string();
-    assert_eq!(classify(&absolute, elsewhere.path(), home.path()), WalkTarget::RepositoryRoot);
+    assert_eq!(
+        classify(&absolute, elsewhere.path(), home.path()),
+        WalkTarget::RepositoryRoot
+    );
 }
 
 /// A plain subdirectory of a repository is bounded:
@@ -50,7 +63,10 @@ fn a_subdirectory_of_a_repository_is_bounded() {
     fs::create_dir(repository.path().join("package")).expect("make a subdirectory");
     let home = crate::test_scratch::scratch();
 
-    assert_eq!(classify("package", repository.path(), home.path()), WalkTarget::Bounded);
+    assert_eq!(
+        classify("package", repository.path(), home.path()),
+        WalkTarget::Bounded
+    );
 }
 
 /// The home directory and the filesystem root are wide whatever they contain.
@@ -60,8 +76,14 @@ fn the_home_directory_and_the_filesystem_root_are_wide() {
     let work = crate::test_scratch::scratch();
     let home_text = home.path().to_string_lossy().to_string();
 
-    assert_eq!(classify(&home_text, work.path(), home.path()), WalkTarget::Home);
-    assert_eq!(classify("/", work.path(), home.path()), WalkTarget::FilesystemRoot);
+    assert_eq!(
+        classify(&home_text, work.path(), home.path()),
+        WalkTarget::Home
+    );
+    assert_eq!(
+        classify("/", work.path(), home.path()),
+        WalkTarget::FilesystemRoot
+    );
 }
 
 /// A path that does not exist walks nothing,
@@ -71,7 +93,10 @@ fn a_missing_path_is_bounded() {
     let work = crate::test_scratch::scratch();
     let home = crate::test_scratch::scratch();
 
-    assert_eq!(classify("no/such/directory", work.path(), home.path()), WalkTarget::Bounded);
+    assert_eq!(
+        classify("no/such/directory", work.path(), home.path()),
+        WalkTarget::Bounded
+    );
 }
 
 /// Each wide case has its own phrase for the refusal message.

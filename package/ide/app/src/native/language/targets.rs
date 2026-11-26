@@ -6,8 +6,12 @@
 ///  source state,
 ///  and scrolling.
 use crate::native::{
-    AppWindow, State,
-    navigation::{Navigation, request_jump},
+    AppWindow,
+    State,
+    navigation::{
+        Navigation,
+        request_jump,
+    },
     ui::ReferenceEntry,
     viewport,
 };
@@ -30,7 +34,10 @@ use slint::SharedString;
 /// ```
 use std::{
     cell::RefCell,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     rc::Rc,
 };
 
@@ -75,7 +82,11 @@ pub(in crate::native) struct Jump {
 /// ```ts
 /// function place(window: AppWindow, source: Shared<State>, jump: Jump): void
 /// ```
-pub(in crate::native) fn place(window: &AppWindow, source: &Rc<RefCell<State>>, jump: &Jump) {
+pub(in crate::native) fn place(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+    jump: &Jump,
+) {
     let mut current = source.borrow_mut();
     let text = current.document.text();
     let length = text.len_chars();
@@ -123,7 +134,10 @@ pub(super) fn open(
 ) -> Result<(), String> {
     let found = match target {
         Target::Open(found) => found,
-        Target::Unavailable { uri, refusal } => {
+        Target::Unavailable {
+            uri,
+            refusal,
+        } => {
             // `Err(...)` hands the sentence back for the caller to show.
             return Err(super::message::unavailable(uri, &refusal.to_string()));
         }
@@ -160,7 +174,10 @@ pub(super) fn open(
 /// ```ts
 /// function entries(targets: Target[], root: string): ReferenceEntry[]
 /// ```
-pub(super) fn entries(targets: &[Target], root: &Path) -> Vec<ReferenceEntry> {
+pub(super) fn entries(
+    targets: &[Target],
+    root: &Path,
+) -> Vec<ReferenceEntry> {
     let mut rows = Vec::new();
     for target in targets {
         let (label, detail) = match target {
@@ -174,7 +191,10 @@ pub(super) fn entries(targets: &[Target], root: &Path) -> Vec<ReferenceEntry> {
                 };
                 (format!("{}:{}", shown.display(), found.line + 1), detail)
             }
-            Target::Unavailable { uri, .. } => (uri.clone(), "Cannot open"),
+            Target::Unavailable {
+                uri,
+                ..
+            } => (uri.clone(), "Cannot open"),
         };
         rows.push(ReferenceEntry {
             label: SharedString::from(label),

@@ -32,15 +32,27 @@
 //! const table = { zfsCmd: { size: 13744, members: [...] }, requests: [...] };
 //! ```
 
-/// The command struct and the records it holds.
-use crate::layout::{
-    DrrBegin, DmuObjsetStats, MAXNAMELEN, MAX_VALUE_LEN, MAXPATHLEN, ZcDestroyControl,
-    ZcInjectOverlay, ZfsCmd, ZfsShare, ZfsStat, ZinjectRecord,
-};
 /// The container kind the declaration names.
 use super::declaration::ContainerKind;
+/// The command struct and the records it holds.
+use crate::layout::{
+    DmuObjsetStats,
+    DrrBegin,
+    MAX_VALUE_LEN,
+    MAXNAMELEN,
+    MAXPATHLEN,
+    ZcDestroyControl,
+    ZcInjectOverlay,
+    ZfsCmd,
+    ZfsShare,
+    ZfsStat,
+    ZinjectRecord,
+};
 /// The offsets the table is built from.
-use std::mem::{offset_of, size_of};
+use std::mem::{
+    offset_of,
+    size_of,
+};
 
 /// The bytes the struct's first field holds,
 /// kept as one number so the table below reads as one list.
@@ -113,7 +125,11 @@ pub struct ExpectedContainer {
 }
 
 /// One whole member at the offset `offset_of!` gives its field.
-const fn member(name: &'static str, bit_offset: usize, byte_size: usize) -> ExpectedMember {
+const fn member(
+    name: &'static str,
+    bit_offset: usize,
+    byte_size: usize,
+) -> ExpectedMember {
     return ExpectedMember {
         name: Some(name),
         container: None,
@@ -144,7 +160,11 @@ const fn array_member(
 
 /// One anonymous container,
 /// which the format writes no name for.
-const fn anonymous(bit_offset: usize, byte_size: usize, kind: ContainerKind) -> ExpectedMember {
+const fn anonymous(
+    bit_offset: usize,
+    byte_size: usize,
+    kind: ContainerKind,
+) -> ExpectedMember {
     return ExpectedMember {
         name: None,
         container: Some(kind),
@@ -179,14 +199,26 @@ const fn descended(
 /// every one of them,
 /// including the flag `zfs-2.4.4` added in the byte that was padding.
 static DMU_OBJSET_STATS_MEMBERS: [ExpectedMember; 9] = [
-    member("dds_num_clones", offset_of!(DmuObjsetStats, dds_num_clones) * 8, size_of::<u64>()),
+    member(
+        "dds_num_clones",
+        offset_of!(DmuObjsetStats, dds_num_clones) * 8,
+        size_of::<u64>(),
+    ),
     member(
         "dds_creation_txg",
         offset_of!(DmuObjsetStats, dds_creation_txg) * 8,
         size_of::<u64>(),
     ),
-    member("dds_guid", offset_of!(DmuObjsetStats, dds_guid) * 8, size_of::<u64>()),
-    member("dds_type", offset_of!(DmuObjsetStats, dds_type) * 8, size_of::<u32>()),
+    member(
+        "dds_guid",
+        offset_of!(DmuObjsetStats, dds_guid) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "dds_type",
+        offset_of!(DmuObjsetStats, dds_type) * 8,
+        size_of::<u32>(),
+    ),
     member(
         "dds_is_snapshot",
         offset_of!(DmuObjsetStats, dds_is_snapshot) * 8,
@@ -208,7 +240,11 @@ static DMU_OBJSET_STATS_MEMBERS: [ExpectedMember; 9] = [
         STRING_BYTES,
         size_of::<u8>(),
     ),
-    member("dds_flags", offset_of!(DmuObjsetStats, dds_flags) * 8, size_of::<u8>()),
+    member(
+        "dds_flags",
+        offset_of!(DmuObjsetStats, dds_flags) * 8,
+        size_of::<u8>(),
+    ),
 ];
 
 /// `dmu_objset_stats`,
@@ -224,28 +260,92 @@ static DMU_OBJSET_STATS: ExpectedContainer = ExpectedContainer {
 /// every one of them,
 /// including the two counters `zfs-2.4.4` added.
 static ZINJECT_MEMBERS: [ExpectedMember; 19] = [
-    member("zi_objset", offset_of!(ZinjectRecord, zi_objset) * 8, size_of::<u64>()),
-    member("zi_object", offset_of!(ZinjectRecord, zi_object) * 8, size_of::<u64>()),
-    member("zi_start", offset_of!(ZinjectRecord, zi_start) * 8, size_of::<u64>()),
-    member("zi_end", offset_of!(ZinjectRecord, zi_end) * 8, size_of::<u64>()),
-    member("zi_guid", offset_of!(ZinjectRecord, zi_guid) * 8, size_of::<u64>()),
-    member("zi_level", offset_of!(ZinjectRecord, zi_level) * 8, size_of::<u32>()),
-    member("zi_error", offset_of!(ZinjectRecord, zi_error) * 8, size_of::<u32>()),
-    member("zi_type", offset_of!(ZinjectRecord, zi_type) * 8, size_of::<u64>()),
-    member("zi_freq", offset_of!(ZinjectRecord, zi_freq) * 8, size_of::<u32>()),
-    member("zi_failfast", offset_of!(ZinjectRecord, zi_failfast) * 8, size_of::<u32>()),
+    member(
+        "zi_objset",
+        offset_of!(ZinjectRecord, zi_objset) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_object",
+        offset_of!(ZinjectRecord, zi_object) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_start",
+        offset_of!(ZinjectRecord, zi_start) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_end",
+        offset_of!(ZinjectRecord, zi_end) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_guid",
+        offset_of!(ZinjectRecord, zi_guid) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_level",
+        offset_of!(ZinjectRecord, zi_level) * 8,
+        size_of::<u32>(),
+    ),
+    member(
+        "zi_error",
+        offset_of!(ZinjectRecord, zi_error) * 8,
+        size_of::<u32>(),
+    ),
+    member(
+        "zi_type",
+        offset_of!(ZinjectRecord, zi_type) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_freq",
+        offset_of!(ZinjectRecord, zi_freq) * 8,
+        size_of::<u32>(),
+    ),
+    member(
+        "zi_failfast",
+        offset_of!(ZinjectRecord, zi_failfast) * 8,
+        size_of::<u32>(),
+    ),
     array_member(
         "zi_func",
         offset_of!(ZinjectRecord, zi_func) * 8,
         STRING_BYTES,
         size_of::<u8>(),
     ),
-    member("zi_iotype", offset_of!(ZinjectRecord, zi_iotype) * 8, size_of::<u32>()),
-    member("zi_duration", offset_of!(ZinjectRecord, zi_duration) * 8, size_of::<i32>()),
-    member("zi_timer", offset_of!(ZinjectRecord, zi_timer) * 8, size_of::<u64>()),
-    member("zi_nlanes", offset_of!(ZinjectRecord, zi_nlanes) * 8, size_of::<u64>()),
-    member("zi_cmd", offset_of!(ZinjectRecord, zi_cmd) * 8, size_of::<u32>()),
-    member("zi_dvas", offset_of!(ZinjectRecord, zi_dvas) * 8, size_of::<u32>()),
+    member(
+        "zi_iotype",
+        offset_of!(ZinjectRecord, zi_iotype) * 8,
+        size_of::<u32>(),
+    ),
+    member(
+        "zi_duration",
+        offset_of!(ZinjectRecord, zi_duration) * 8,
+        size_of::<i32>(),
+    ),
+    member(
+        "zi_timer",
+        offset_of!(ZinjectRecord, zi_timer) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_nlanes",
+        offset_of!(ZinjectRecord, zi_nlanes) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zi_cmd",
+        offset_of!(ZinjectRecord, zi_cmd) * 8,
+        size_of::<u32>(),
+    ),
+    member(
+        "zi_dvas",
+        offset_of!(ZinjectRecord, zi_dvas) * 8,
+        size_of::<u32>(),
+    ),
     member(
         "zi_match_count",
         offset_of!(ZinjectRecord, zi_match_count) * 8,
@@ -282,7 +382,11 @@ static DESTROY_CONTROL_MEMBERS: [ExpectedMember; 4] = [
         offset_of!(ZcDestroyControl, zc_defer_destroy) * 8,
         size_of::<u32>(),
     ),
-    member("zc_flags", offset_of!(ZcDestroyControl, zc_flags) * 8, size_of::<u32>()),
+    member(
+        "zc_flags",
+        offset_of!(ZcDestroyControl, zc_flags) * 8,
+        size_of::<u32>(),
+    ),
     member(
         "zc_action_handle",
         offset_of!(ZcDestroyControl, zc_action_handle) * 8,
@@ -325,14 +429,27 @@ static OVERLAY_UNION: ExpectedContainer = ExpectedContainer {
 /// The members of `zfs_cmd`,
 /// every field of this crate's mirror in declaration order.
 static ZFS_CMD_MEMBERS: [ExpectedMember; 32] = [
-    array_member("zc_name", offset_of!(ZfsCmd, zc_name) * 8, NAME_BYTES, size_of::<u8>()),
-    member("zc_nvlist_src", offset_of!(ZfsCmd, zc_nvlist_src) * 8, size_of::<u64>()),
+    array_member(
+        "zc_name",
+        offset_of!(ZfsCmd, zc_name) * 8,
+        NAME_BYTES,
+        size_of::<u8>(),
+    ),
+    member(
+        "zc_nvlist_src",
+        offset_of!(ZfsCmd, zc_nvlist_src) * 8,
+        size_of::<u64>(),
+    ),
     member(
         "zc_nvlist_src_size",
         offset_of!(ZfsCmd, zc_nvlist_src_size) * 8,
         size_of::<u64>(),
     ),
-    member("zc_nvlist_dst", offset_of!(ZfsCmd, zc_nvlist_dst) * 8, size_of::<u64>()),
+    member(
+        "zc_nvlist_dst",
+        offset_of!(ZfsCmd, zc_nvlist_dst) * 8,
+        size_of::<u64>(),
+    ),
     member(
         "zc_nvlist_dst_size",
         offset_of!(ZfsCmd, zc_nvlist_dst_size) * 8,
@@ -344,28 +461,70 @@ static ZFS_CMD_MEMBERS: [ExpectedMember; 32] = [
         size_of::<i32>(),
     ),
     member("zc_pad2", offset_of!(ZfsCmd, zc_pad2) * 8, size_of::<i32>()),
-    member("zc_history", offset_of!(ZfsCmd, zc_history) * 8, size_of::<u64>()),
-    array_member("zc_value", offset_of!(ZfsCmd, zc_value) * 8, VALUE_BYTES, size_of::<u8>()),
-    array_member("zc_string", offset_of!(ZfsCmd, zc_string) * 8, STRING_BYTES, size_of::<u8>()),
+    member(
+        "zc_history",
+        offset_of!(ZfsCmd, zc_history) * 8,
+        size_of::<u64>(),
+    ),
+    array_member(
+        "zc_value",
+        offset_of!(ZfsCmd, zc_value) * 8,
+        VALUE_BYTES,
+        size_of::<u8>(),
+    ),
+    array_member(
+        "zc_string",
+        offset_of!(ZfsCmd, zc_string) * 8,
+        STRING_BYTES,
+        size_of::<u8>(),
+    ),
     member("zc_guid", offset_of!(ZfsCmd, zc_guid) * 8, size_of::<u64>()),
-    member("zc_nvlist_conf", offset_of!(ZfsCmd, zc_nvlist_conf) * 8, size_of::<u64>()),
+    member(
+        "zc_nvlist_conf",
+        offset_of!(ZfsCmd, zc_nvlist_conf) * 8,
+        size_of::<u64>(),
+    ),
     member(
         "zc_nvlist_conf_size",
         offset_of!(ZfsCmd, zc_nvlist_conf_size) * 8,
         size_of::<u64>(),
     ),
-    member("zc_cookie", offset_of!(ZfsCmd, zc_cookie) * 8, size_of::<u64>()),
-    member("zc_objset_type", offset_of!(ZfsCmd, zc_objset_type) * 8, size_of::<u64>()),
-    member("zc_perm_action", offset_of!(ZfsCmd, zc_perm_action) * 8, size_of::<u64>()),
-    member("zc_history_len", offset_of!(ZfsCmd, zc_history_len) * 8, size_of::<u64>()),
+    member(
+        "zc_cookie",
+        offset_of!(ZfsCmd, zc_cookie) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_objset_type",
+        offset_of!(ZfsCmd, zc_objset_type) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_perm_action",
+        offset_of!(ZfsCmd, zc_perm_action) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_history_len",
+        offset_of!(ZfsCmd, zc_history_len) * 8,
+        size_of::<u64>(),
+    ),
     member(
         "zc_history_offset",
         offset_of!(ZfsCmd, zc_history_offset) * 8,
         size_of::<u64>(),
     ),
     member("zc_obj", offset_of!(ZfsCmd, zc_obj) * 8, size_of::<u64>()),
-    member("zc_iflags", offset_of!(ZfsCmd, zc_iflags) * 8, size_of::<u64>()),
-    member("zc_share", offset_of!(ZfsCmd, zc_share) * 8, size_of::<ZfsShare>()),
+    member(
+        "zc_iflags",
+        offset_of!(ZfsCmd, zc_iflags) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_share",
+        offset_of!(ZfsCmd, zc_share) * 8,
+        size_of::<ZfsShare>(),
+    ),
     descended(
         "zc_objset_stats",
         offset_of!(ZfsCmd, zc_objset_stats) * 8,
@@ -382,14 +541,47 @@ static ZFS_CMD_MEMBERS: [ExpectedMember; 32] = [
         size_of::<ZcInjectOverlay>(),
         ContainerKind::Union,
     ),
-    member("zc_cleanup_fd", offset_of!(ZfsCmd, zc_cleanup_fd) * 8, size_of::<i32>()),
-    member("zc_simple", offset_of!(ZfsCmd, zc_simple) * 8, size_of::<u8>()),
-    array_member("zc_pad", offset_of!(ZfsCmd, zc_pad) * 8, size_of::<[u8; 3]>(), size_of::<u8>()),
-    member("zc_sendobj", offset_of!(ZfsCmd, zc_sendobj) * 8, size_of::<u64>()),
-    member("zc_fromobj", offset_of!(ZfsCmd, zc_fromobj) * 8, size_of::<u64>()),
-    member("zc_createtxg", offset_of!(ZfsCmd, zc_createtxg) * 8, size_of::<u64>()),
-    member("zc_stat", offset_of!(ZfsCmd, zc_stat) * 8, size_of::<ZfsStat>()),
-    member("zc_zoneid", offset_of!(ZfsCmd, zc_zoneid) * 8, size_of::<u64>()),
+    member(
+        "zc_cleanup_fd",
+        offset_of!(ZfsCmd, zc_cleanup_fd) * 8,
+        size_of::<i32>(),
+    ),
+    member(
+        "zc_simple",
+        offset_of!(ZfsCmd, zc_simple) * 8,
+        size_of::<u8>(),
+    ),
+    array_member(
+        "zc_pad",
+        offset_of!(ZfsCmd, zc_pad) * 8,
+        size_of::<[u8; 3]>(),
+        size_of::<u8>(),
+    ),
+    member(
+        "zc_sendobj",
+        offset_of!(ZfsCmd, zc_sendobj) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_fromobj",
+        offset_of!(ZfsCmd, zc_fromobj) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_createtxg",
+        offset_of!(ZfsCmd, zc_createtxg) * 8,
+        size_of::<u64>(),
+    ),
+    member(
+        "zc_stat",
+        offset_of!(ZfsCmd, zc_stat) * 8,
+        size_of::<ZfsStat>(),
+    ),
+    member(
+        "zc_zoneid",
+        offset_of!(ZfsCmd, zc_zoneid) * 8,
+        size_of::<u64>(),
+    ),
 ];
 
 /// `zfs_cmd`,
@@ -406,5 +598,10 @@ pub static ZFS_CMD: ExpectedContainer = ExpectedContainer {
 /// compiled for the controls only.
 #[cfg(test)]
 pub(super) fn compared_structures() -> Vec<&'static ExpectedContainer> {
-    return vec![&ZFS_CMD, &DMU_OBJSET_STATS, &ZC_INJECT_RECORD, &DESTROY_CONTROL];
+    return vec![
+        &ZFS_CMD,
+        &DMU_OBJSET_STATS,
+        &ZC_INJECT_RECORD,
+        &DESTROY_CONTROL,
+    ];
 }

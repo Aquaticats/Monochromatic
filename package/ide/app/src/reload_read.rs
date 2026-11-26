@@ -3,8 +3,16 @@
 
 /// Existing source reads retain regular-file and UTF-8 validation before producing a prepared change.
 use crate::{
-    file_reload::{QuietRead, read_reload, read_reload_if_quiet},
-    reload_worker::{ReloadReply, ReloadRequest, SyntaxReply},
+    file_reload::{
+        QuietRead,
+        read_reload,
+        read_reload_if_quiet,
+    },
+    reload_worker::{
+        ReloadReply,
+        ReloadRequest,
+        SyntaxReply,
+    },
     source_style::SourceStyles,
     syntax::SyntaxEngine,
     workspace::Workspace,
@@ -17,7 +25,12 @@ use helix_core::Rope;
 use std::path::Path;
 
 /// Prepare syntax without making a classification failure discard otherwise readable source text.
-fn classify(engine: &Result<SyntaxEngine>, path: &Path, text: &Rope, revision: u64) -> SyntaxReply {
+fn classify(
+    engine: &Result<SyntaxEngine>,
+    path: &Path,
+    text: &Rope,
+    revision: u64,
+) -> SyntaxReply {
     // What: match extracts the initialized engine or wraps its original initialization diagnostic.
     // Why: Missing runtime assets must not masquerade as an unrecognized language.
     //
@@ -29,7 +42,10 @@ fn classify(engine: &Result<SyntaxEngine>, path: &Path, text: &Rope, revision: u
         Ok(active) => active.highlight(path, text),
         Err(error) => unstarted(error, path, text),
     };
-    return SyntaxReply { revision, result };
+    return SyntaxReply {
+        revision,
+        result,
+    };
 }
 
 /// What:
@@ -42,7 +58,10 @@ fn classify(engine: &Result<SyntaxEngine>, path: &Path, text: &Rope, revision: u
 /// ```ts
 /// const initializationFailure = (error: Error, path: string) => new Error(`Cannot initialize highlighting for ${path}: ${error}`);
 /// ```
-fn initialization_failure(error: &anyhow::Error, path: &Path) -> anyhow::Error {
+fn initialization_failure(
+    error: &anyhow::Error,
+    path: &Path,
+) -> anyhow::Error {
     return anyhow::anyhow!(
         "Cannot initialize highlighting for {}: {error:#}",
         path.display()
@@ -67,7 +86,11 @@ fn initialization_failure(error: &anyhow::Error, path: &Path) -> anyhow::Error {
 /// ```ts
 /// function unstarted(error: Error, path: string, text: Rope): Styles | undefined // throws for a language file
 /// ```
-fn unstarted(error: &anyhow::Error, path: &Path, text: &Rope) -> Result<Option<SourceStyles>> {
+fn unstarted(
+    error: &anyhow::Error,
+    path: &Path,
+    text: &Rope,
+) -> Result<Option<SourceStyles>> {
     // What: `match` on the recognition result: `Ok(false)` is "no language applies", `Ok(true)` is
     //       "a language applies", and `Err` is a recognition failure.
     // Why: Only the first is plain text; the other two keep the initialization failure visible.

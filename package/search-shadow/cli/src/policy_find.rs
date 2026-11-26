@@ -22,7 +22,11 @@ use std::path::Path;
 use crate::constants::ALLOW_WIDE_VARIABLE;
 
 /// Imports the walk-start classifier and the words the refusal message uses for each case.
-use crate::walk_target::{WalkTarget, classify, phrase};
+use crate::walk_target::{
+    WalkTarget,
+    classify,
+    phrase,
+};
 
 /// What:
 /// `const MAX_BOUNDED_DEPTH: u64 = 3;` is a constant unsigned 64-bit integer

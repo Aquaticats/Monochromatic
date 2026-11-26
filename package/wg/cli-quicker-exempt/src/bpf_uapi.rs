@@ -164,16 +164,13 @@ const _: () = assert!(std::mem::size_of::<ObjPinAttr>() == 24);
 /// # Safety
 ///
 /// Caller must initialize union arm selected by `command` and retain pointer inputs through call.
-pub unsafe fn bpf(command: i32, attr: *mut BpfAttr) -> io::Result<i64> {
+pub unsafe fn bpf(
+    command: i32,
+    attr: *mut BpfAttr,
+) -> io::Result<i64> {
     // SAFETY: caller proves command arm and referenced pointers are valid.
-    let result = unsafe {
-        libc::syscall(
-            libc::SYS_bpf,
-            command,
-            attr,
-            std::mem::size_of::<BpfAttr>(),
-        )
-    };
+    let result =
+        unsafe { libc::syscall(libc::SYS_bpf, command, attr, std::mem::size_of::<BpfAttr>()) };
     if result < 0 {
         return Err(io::Error::last_os_error());
     }

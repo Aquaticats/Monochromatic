@@ -25,19 +25,34 @@ use std::fs;
 use std::io;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the journal file names and the durability barrier for this file.
-use crate::journal::{ACKNOWLEDGED_FILE, ACKNOWLEDGED_HEADER, make_durable, sync_directory};
+use crate::journal::{
+    ACKNOWLEDGED_FILE,
+    ACKNOWLEDGED_HEADER,
+    make_durable,
+    sync_directory,
+};
 
 /// Imports `crate::journal_transaction::finish_journal` for this file.
 use crate::journal_transaction::finish_journal;
 
 /// Imports the assessment of one journal's records for this file.
-use crate::journal_unready_assessment::{Finding, assess};
+use crate::journal_unready_assessment::{
+    Finding,
+    assess,
+};
 
 /// The verdict on a journal that has no ready record (split out of the journal unready module).
-pub(crate) use crate::journal_unready_verdict::{is_allocatable_process_id, sync_opened, unready_verdict};
+pub(crate) use crate::journal_unready_verdict::{
+    is_allocatable_process_id,
+    sync_opened,
+    unready_verdict,
+};
 
 /// The test hook that runs between the queries of a check and its judgement of unsettled scopes (split out of the
 /// journal unready module).
@@ -56,21 +71,30 @@ pub(crate) use crate::journal_unready_assessment::after_query_for_test;
 /// ```ts
 /// function recoverUnready(root: string, directory: string, messages: string[]): void
 /// ```
-pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>, mandatory: &mut bool) {
+pub(crate) fn recover_unready(
+    root: &Path,
+    directory: &Path,
+    messages: &mut Vec<String>,
+    mandatory: &mut bool,
+) {
     let live_files: Vec<String> = match unready_verdict(root, directory) {
         Ok(found) => found,
         Err(reason) => {
-            messages.push(format!("{}: a journal without a ready record was kept: {reason}", directory.display()));
+            messages.push(format!(
+                "{}: a journal without a ready record was kept: {reason}",
+                directory.display()
+            ));
             return;
         }
     };
     for live in &live_files {
         #[cfg(test)]
-        let outcome: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::RecoverDurability) {
-            Err(io::Error::other("injected recovery durability failure"))
-        } else {
-            make_durable(Path::new(live))
-        };
+        let outcome: io::Result<()> =
+            if crate::failpoints::fires(crate::failpoints::Point::RecoverDurability) {
+                Err(io::Error::other("injected recovery durability failure"))
+            } else {
+                make_durable(Path::new(live))
+            };
         #[cfg(not(test))]
         let outcome: io::Result<()> = make_durable(Path::new(live));
         if let Err(error) = outcome {
@@ -118,22 +142,24 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
     // Each barrier is the real operation, and a test replaces its result, so a failure takes the path of a failure of the kernel
     // (sixth pass, group 13).
     #[cfg(test)]
-    let file_durable: bool = if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementFileSync) {
-        false
-    } else {
-        fs::File::open(&file).and_then(sync_opened).is_ok()
-    };
+    let file_durable: bool =
+        if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementFileSync) {
+            false
+        } else {
+            fs::File::open(&file).and_then(sync_opened).is_ok()
+        };
     #[cfg(not(test))]
     let file_durable: bool = fs::File::open(&file).and_then(sync_opened).is_ok();
     if !file_durable {
         return false;
     }
     #[cfg(test)]
-    let directory_durable: bool = if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDirectorySync) {
-        false
-    } else {
-        sync_directory(directory).is_ok()
-    };
+    let directory_durable: bool =
+        if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDirectorySync) {
+            false
+        } else {
+            sync_directory(directory).is_ok()
+        };
     #[cfg(not(test))]
     let directory_durable: bool = sync_directory(directory).is_ok();
     return directory_durable;

@@ -15,11 +15,15 @@
 /// import { FractionalScaleHandler, withFractionalScale, withStates, ... } from "smithay";
 /// ```
 use smithay::{
-    delegate_fractional_scale, delegate_viewporter,
+    delegate_fractional_scale,
+    delegate_viewporter,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     wayland::{
         compositor::with_states,
-        fractional_scale::{with_fractional_scale, FractionalScaleHandler},
+        fractional_scale::{
+            FractionalScaleHandler,
+            with_fractional_scale,
+        },
     },
 };
 
@@ -52,7 +56,10 @@ impl FractionalScaleHandler for Compositor {
     ///  cheap handle).
     /// Why:
     ///       Store and send the current scale for this surface.
-    fn new_fractional_scale(&mut self, surface: WlSurface) {
+    fn new_fractional_scale(
+        &mut self,
+        surface: WlSurface,
+    ) {
         // Read the factor first so the closures below borrow nothing from `self`.
         let factor = self.screen.geometry.scale.factor();
         // What:     `with_states(&surface, |states| { ... })` lends the surface's stored data

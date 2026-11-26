@@ -15,11 +15,18 @@
 use jni::errors::Result as JniResult;
 /// The two handle types a body reads through the lent `Env`:
 /// a Java string and a Java `float[]`.
-use jni::objects::{JFloatArray, JString};
+use jni::objects::{
+    JFloatArray,
+    JString,
+};
 /// The call's `Env` lent to the body,
 /// the per-call handle it arrives in,
 /// and the outcome of running the body under the panic guard.
-use jni::{Env, EnvUnowned, Outcome};
+use jni::{
+    Env,
+    EnvUnowned,
+    Outcome,
+};
 
 /// What:
 ///      `pub(crate) trait JniBody<'local, T> { fn run(self, env) -> JniResult<T>; }`.
@@ -49,7 +56,10 @@ pub(crate) trait JniBody<'local, T> {
     /// ```ts
     /// run(env: Env): T;
     /// ```
-    fn run(self, env: &mut Env<'local>) -> JniResult<T>;
+    fn run(
+        self,
+        env: &mut Env<'local>,
+    ) -> JniResult<T>;
 }
 
 /// What:
@@ -93,8 +103,11 @@ impl<'local> JniBody<'local, String> for ReadJavaString<'_, 'local> {
     /// ```ts
     /// run(env: Env): string { return env.getString(this.text); }
     /// ```
-    fn run(self, env: &mut Env<'local>) -> JniResult<String> {
-        return self.text.try_to_string(env)
+    fn run(
+        self,
+        env: &mut Env<'local>,
+    ) -> JniResult<String> {
+        return self.text.try_to_string(env);
     }
 }
 
@@ -134,8 +147,11 @@ impl<'local> JniBody<'local, usize> for ArrayLength<'_, 'local> {
     /// ```ts
     /// run(env: Env): number { return this.samples.length; }
     /// ```
-    fn run(self, env: &mut Env<'local>) -> JniResult<usize> {
-        return self.array.len(env)
+    fn run(
+        self,
+        env: &mut Env<'local>,
+    ) -> JniResult<usize> {
+        return self.array.len(env);
     }
 }
 
@@ -180,8 +196,14 @@ impl<'a, 'local> CopyArrayRegion<'a, 'local> {
     /// ```ts
     /// const copy = (array: Float32Array, buffer: Float32Array) => new CopyArrayRegion(array, buffer);
     /// ```
-    pub(crate) fn new(array: &'a JFloatArray<'local>, buffer: &'a mut [f32]) -> CopyArrayRegion<'a, 'local> {
-        return CopyArrayRegion { array, buffer }
+    pub(crate) fn new(
+        array: &'a JFloatArray<'local>,
+        buffer: &'a mut [f32],
+    ) -> CopyArrayRegion<'a, 'local> {
+        return CopyArrayRegion {
+            array,
+            buffer,
+        };
     }
 }
 
@@ -206,8 +228,11 @@ impl<'local> JniBody<'local, ()> for CopyArrayRegion<'_, 'local> {
     /// ```ts
     /// run(env: Env): void { this.buffer.set(this.array.subarray(0, this.buffer.length)); }
     /// ```
-    fn run(self, env: &mut Env<'local>) -> JniResult<()> {
-        return self.array.get_region(env, 0, self.buffer)
+    fn run(
+        self,
+        env: &mut Env<'local>,
+    ) -> JniResult<()> {
+        return self.array.get_region(env, 0, self.buffer);
     }
 }
 
@@ -253,7 +278,9 @@ pub(crate) fn run_with_env<'local, T>(
             reason = "jni's EnvUnowned::with_env takes a callable that must carry the body value; see doc/closure-lint-suppressions.md"
         )
     )]
-    let outcome = env.with_env(|jni_env| return body.run(jni_env)).into_outcome();
+    let outcome = env
+        .with_env(|jni_env| return body.run(jni_env))
+        .into_outcome();
     match outcome {
         Outcome::Ok(value) => return Some(value),
         Outcome::Err(error) => {
@@ -261,7 +288,10 @@ pub(crate) fn run_with_env<'local, T>(
             return None;
         }
         Outcome::Panic(_) => {
-            tracing::error!(operation, "JNI call panicked; the panic was caught at the boundary");
+            tracing::error!(
+                operation,
+                "JNI call panicked; the panic was caught at the boundary"
+            );
             return None;
         }
     }

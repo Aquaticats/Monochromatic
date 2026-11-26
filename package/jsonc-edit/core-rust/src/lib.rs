@@ -172,7 +172,13 @@ mod emit;
 /// ```ts
 /// export { JsoncParseError, JsoncPathNotFoundError, JsoncTypeError } from './errors';
 /// ```
-pub use error::{JsoncEditError, JsoncNumberError, JsoncParseError, JsoncPathNotFoundError, JsoncTypeError};
+pub use error::{
+    JsoncEditError,
+    JsoncNumberError,
+    JsoncParseError,
+    JsoncPathNotFoundError,
+    JsoncTypeError,
+};
 /// What:
 ///      Re-export the exact-number identity.
 /// Why:
@@ -194,7 +200,10 @@ pub use number::JsoncNumberIdentity;
 /// ```ts
 /// export { jsoncKeyPath, type JsoncPathSegment } from './path';
 /// ```
-pub use path::{jsonc_key_path, JsoncPathSegment};
+pub use path::{
+    JsoncPathSegment,
+    jsonc_key_path,
+};
 /// What:
 ///      Re-export the document model.
 /// Why:
@@ -205,7 +214,14 @@ pub use path::{jsonc_key_path, JsoncPathSegment};
 /// ```ts
 /// export type { JsoncValue, JsoncKind, JsoncEntry, JsoncKey, JsoncComment } from './value';
 /// ```
-pub use value::{JsoncComment, JsoncCommentKind, JsoncEntry, JsoncKey, JsoncKind, JsoncValue};
+pub use value::{
+    JsoncComment,
+    JsoncCommentKind,
+    JsoncEntry,
+    JsoncKey,
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///      Re-export comment merging and the parse and emit entry points.
@@ -249,7 +265,11 @@ pub use parse::parse_jsonc;
 /// ```ts
 /// export { decodeQuoted, encodeQuoted, unitsToString } from './textUnits';
 /// ```
-pub use text_units::{decode_quoted, encode_quoted, units_to_string};
+pub use text_units::{
+    decode_quoted,
+    encode_quoted,
+    units_to_string,
+};
 
 /// What:
 ///  Source positions (byte offset,
@@ -275,7 +295,14 @@ mod span;
 /// export { parseJsoncWithSpans, jsoncPositionAt } from './span';
 /// export type { JsoncPosition, JsoncSpan, JsoncSpans, JsoncSpanned } from './span';
 /// ```
-pub use span::{JsoncPosition, JsoncSpan, JsoncSpanned, JsoncSpans, jsonc_position_at, parse_jsonc_with_spans};
+pub use span::{
+    JsoncPosition,
+    JsoncSpan,
+    JsoncSpanned,
+    JsoncSpans,
+    jsonc_position_at,
+    parse_jsonc_with_spans,
+};
 
 /// What:
 ///      Parser and emitter conformance tests over the public crate interface.
@@ -406,7 +433,12 @@ mod edit_comment;
 /// ```ts
 /// export { parseJsoncEdit, jsoncStringify, type JsoncEditState } from './index';
 /// ```
-pub use edit_state::{jsonc_state_from_value, jsonc_stringify, parse_jsonc_edit, JsoncEditState};
+pub use edit_state::{
+    JsoncEditState,
+    jsonc_state_from_value,
+    jsonc_stringify,
+    parse_jsonc_edit,
+};
 
 /// What:
 ///      Re-export the read surface.
@@ -417,7 +449,11 @@ pub use edit_state::{jsonc_state_from_value, jsonc_stringify, parse_jsonc_edit, 
 /// ```ts
 /// export { jsoncGetValue, jsoncHas, jsoncKeys } from './index';
 /// ```
-pub use navigate::{jsonc_has, jsonc_keys, jsonc_lookup};
+pub use navigate::{
+    jsonc_has,
+    jsonc_keys,
+    jsonc_lookup,
+};
 
 /// What:
 ///      Re-export the structural edit surface.
@@ -428,7 +464,10 @@ pub use navigate::{jsonc_has, jsonc_keys, jsonc_lookup};
 /// ```ts
 /// export { jsoncSet, jsoncDelete } from './index';
 /// ```
-pub use edit_apply::{jsonc_delete, jsonc_set};
+pub use edit_apply::{
+    jsonc_delete,
+    jsonc_set,
+};
 
 /// What:
 ///      Re-export the comment surface.
@@ -440,7 +479,12 @@ pub use edit_apply::{jsonc_delete, jsonc_set};
 /// ```ts
 /// export { jsoncGetComment, jsoncSetComment, jsoncGetKeyComment, jsoncSetKeyComment } from './index';
 /// ```
-pub use edit_comment::{jsonc_comment, jsonc_key_comment, jsonc_set_comment, jsonc_set_key_comment};
+pub use edit_comment::{
+    jsonc_comment,
+    jsonc_key_comment,
+    jsonc_set_comment,
+    jsonc_set_key_comment,
+};
 
 /// What:
 ///      Read and structural edit tests.

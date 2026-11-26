@@ -19,13 +19,22 @@
 use crate::native::input::pointer_position;
 /// The state the press reads and changes,
 /// and the stamp of the text it was mapped on.
-use crate::native::{State, annotate::displayed, rows};
+use crate::native::{
+    State,
+    annotate::displayed,
+    rows,
+};
 /// Reading position sides.
 use ide_app::document::ReadingAffinity;
 /// The stamp naming the displayed text.
 use ide_app::language::identity::DocumentStamp;
 /// The geometry of the minimap and the map of a position across it to the text's width.
-use ide_app::minimap::{Geometry, Target, text_span, text_x};
+use ide_app::minimap::{
+    Geometry,
+    Target,
+    text_span,
+    text_x,
+};
 /// One code row,
 /// the unit of the vertical mapping.
 use ide_app::row_map::CODE_ROW;
@@ -153,7 +162,10 @@ pub(in crate::native) fn remember(
 /// ```ts
 /// function share(geometry: Geometry, offset: number): number;
 /// ```
-pub(in crate::native) fn share(geometry: &Geometry, offset: f32) -> f32 {
+pub(in crate::native) fn share(
+    geometry: &Geometry,
+    offset: f32,
+) -> f32 {
     let range = geometry.max_offset();
     if range <= 0.0 {
         return 0.0;
@@ -163,7 +175,11 @@ pub(in crate::native) fn share(geometry: &Geometry, offset: f32) -> f32 {
 
 /// What the state holds now,
 /// given the scroll `offset` and the sizes of the `view`.
-fn left_by(current: &State, offset: f32, view: (f32, f32)) -> Left {
+fn left_by(
+    current: &State,
+    offset: f32,
+    view: (f32, f32),
+) -> Left {
     let position = current.document.position();
     return Left {
         offset,
@@ -191,7 +207,10 @@ fn left_by(current: &State, offset: f32, view: (f32, f32)) -> Left {
 /// ```ts
 /// function forgetUnless(state: State, offset: number): void;
 /// ```
-pub(in crate::native) fn forget_unless(current: &mut State, offset: f32) {
+pub(in crate::native) fn forget_unless(
+    current: &mut State,
+    offset: f32,
+) {
     if let Some(aim) = current.minimap.aim
         && aim.left.offset != offset
     {

@@ -16,20 +16,41 @@
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Child,
+    Command,
+    Stdio,
+};
 use std::rc::Rc;
 use std::time::Duration;
 
-use crate::bounded_run::{Bound, RunError, on_start_for_test, output_within, take_trace_for_test, use_route_settings_for_test};
-use crate::cgroup_test_support::{start_in_scope, wait_until};
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    on_start_for_test,
+    output_within,
+    take_trace_for_test,
+    use_route_settings_for_test,
+};
+use crate::cgroup_test_support::{
+    start_in_scope,
+    wait_until,
+};
 use crate::contain_counterexample_tests::wait_for_file;
 use crate::control_group::RouteSettings;
 use crate::test_scratch::scratch;
 
 /// A bound for the commands of these tests.
 fn bound(limit: Duration) -> Bound {
-    return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
+    return Bound {
+        limit,
+        what: "the contained command".to_string(),
+        rerun: "contained-command".to_string(),
+    };
 }
 
 /// Runs `work` on a thread and requires its answer within `window` while the caller still holds whatever the work contends for.
@@ -38,9 +59,15 @@ fn bound(limit: Duration) -> Bound {
 /// answer (certification group 1,
 /// V6:
 /// a busy lock returns at once).
-pub(crate) fn answers_within<T: Send + 'static>(what: &str, window: Duration, work: impl FnOnce() -> T + Send + 'static) -> T {
+pub(crate) fn answers_within<T: Send + 'static>(
+    what: &str,
+    window: Duration,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> T {
     let (sender, receiver) = std::sync::mpsc::channel::<T>();
-    std::thread::spawn(move || { let _ = sender.send(work()); });
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
     return receiver.recv_timeout(window).unwrap_or_else(|_| { panic!("{what} did not answer within {window:?} while the lock was held: it waited for the holder"); });
 }
 
@@ -50,7 +77,12 @@ pub(crate) fn answers_within<T: Send + 'static>(what: &str, window: Duration, wo
 /// pass for equal groups (certification,
 /// second pass).
 pub(crate) fn group_of(pid: &str) -> String {
-    return fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_else(|error| { panic!("the group of {pid} cannot be read: {error}"); }).trim().to_string();
+    return fs::read_to_string(format!("/proc/{pid}/cgroup"))
+        .unwrap_or_else(|error| {
+            panic!("the group of {pid} cannot be read: {error}");
+        })
+        .trim()
+        .to_string();
 }
 
 /// The scope a bounded run planned and launched,
@@ -59,7 +91,12 @@ pub(crate) fn group_of(pid: &str) -> String {
 /// so
 /// it is taken on the thread that ran.
 pub(crate) fn launched_scope(trace: &[String]) -> String {
-    let launches: Vec<&String> = trace.iter().filter(|event| { return event.starts_with("launch scope "); }).collect();
+    let launches: Vec<&String> = trace
+        .iter()
+        .filter(|event| {
+            return event.starts_with("launch scope ");
+        })
+        .collect();
     assert_eq!(launches.len(), 1, "a run launches one scope: {trace:?}");
     return launches[0].trim_start_matches("launch scope ").to_string();
 }
@@ -67,7 +104,13 @@ pub(crate) fn launched_scope(trace: &[String]) -> String {
 /// The control group path a program reported from `cat /proc/self/cgroup`,
 /// without the `0::` prefix of the file's format.
 pub(crate) fn reported_path(report: &str) -> String {
-    return report.trim().strip_prefix("0::").unwrap_or_else(|| { panic!("not a cgroup v2 line: {report:?}"); }).to_string();
+    return report
+        .trim()
+        .strip_prefix("0::")
+        .unwrap_or_else(|| {
+            panic!("not a cgroup v2 line: {report:?}");
+        })
+        .to_string();
 }
 
 //region the launch boundary
@@ -142,33 +185,61 @@ struct Seen {
 /// regression the pass describes,
 /// which is not restored),
 /// so the launcher is born in the wrong group.
-fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen {
+fn at_the_launch_boundary(
+    directory: &Path,
+    move_into: Option<PathBuf>,
+) -> Seen {
     let original: String = group_of("self");
-    let settings: RouteSettings = RouteSettings { systemd_run: gated_systemd_run(directory).display().to_string(), ..RouteSettings::default() };
+    let settings: RouteSettings = RouteSettings {
+        systemd_run: gated_systemd_run(directory).display().to_string(),
+        ..RouteSettings::default()
+    };
     let first_settings: RouteSettings = settings.clone();
     let first = std::thread::spawn(move || {
         use_route_settings_for_test(Some(first_settings));
         if let Some(procs) = move_into {
-            on_start_for_test(Some(Rc::new(move || { fs::write(&procs, std::process::id().to_string()).expect("move the wrapper"); })));
+            on_start_for_test(Some(Rc::new(move || {
+                fs::write(&procs, std::process::id().to_string()).expect("move the wrapper");
+            })));
         }
         let _ = take_trace_for_test();
-        let output = output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(60)));
+        let output = output_within(
+            Command::new("sh").args(["-c", "cat /proc/self/cgroup"]),
+            None,
+            &bound(Duration::from_secs(60)),
+        );
         return (output, take_trace_for_test());
     });
     wait_for_file(&directory.join("pid-1"));
-    let first_launcher: String = fs::read_to_string(directory.join("pid-1")).expect("pid").trim().to_string();
+    let first_launcher: String = fs::read_to_string(directory.join("pid-1"))
+        .expect("pid")
+        .trim()
+        .to_string();
     let wrapper_first: String = group_of("self");
     let launcher_first: String = group_of(&first_launcher);
 
     let second = std::thread::spawn(move || {
         use_route_settings_for_test(Some(settings));
         let _ = take_trace_for_test();
-        let output = output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(60)));
+        let output = output_within(
+            Command::new("sh").args(["-c", "cat /proc/self/cgroup"]),
+            None,
+            &bound(Duration::from_secs(60)),
+        );
         return (output, take_trace_for_test());
     });
     wait_for_file(&directory.join("pid-2"));
-    let second_launcher: String = fs::read_to_string(directory.join("pid-2")).expect("pid").trim().to_string();
-    let mut unrelated: Child = Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("an unrelated child");
+    let second_launcher: String = fs::read_to_string(directory.join("pid-2"))
+        .expect("pid")
+        .trim()
+        .to_string();
+    let mut unrelated: Child = Command::new("sleep")
+        .arg("600")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("an unrelated child");
     let unrelated_group: String = group_of(&unrelated.id().to_string());
     let wrapper_second: String = group_of("self");
     let launcher_second: String = group_of(&second_launcher);
@@ -190,8 +261,12 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
         launcher_second,
         unrelated: unrelated_group,
         unrelated_alive,
-        first_scope: String::from_utf8_lossy(&first_output.stdout).trim().to_string(),
-        second_scope: String::from_utf8_lossy(&second_output.stdout).trim().to_string(),
+        first_scope: String::from_utf8_lossy(&first_output.stdout)
+            .trim()
+            .to_string(),
+        second_scope: String::from_utf8_lossy(&second_output.stdout)
+            .trim()
+            .to_string(),
         first_planned: launched_scope(&first_trace),
         second_planned: launched_scope(&second_trace),
         wrapper_after: group_of("self"),
@@ -219,20 +294,52 @@ fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wr
 
     let seen: Seen = at_the_launch_boundary(directory.path(), None);
 
-    assert_eq!(seen.wrapper_first, seen.original, "the wrapper changed its group at the first launch");
-    assert_eq!(seen.launcher_first, seen.original, "the first launcher was born in another group than the wrapper's");
-    assert_eq!(seen.unrelated, seen.original, "the unrelated child was born in another group than the wrapper's");
-    assert_eq!(seen.wrapper_second, seen.original, "the wrapper changed its group at the second launch");
-    assert_eq!(seen.launcher_second, seen.original, "the second launcher was born in another group than the wrapper's");
+    assert_eq!(
+        seen.wrapper_first, seen.original,
+        "the wrapper changed its group at the first launch"
+    );
+    assert_eq!(
+        seen.launcher_first, seen.original,
+        "the first launcher was born in another group than the wrapper's"
+    );
+    assert_eq!(
+        seen.unrelated, seen.original,
+        "the unrelated child was born in another group than the wrapper's"
+    );
+    assert_eq!(
+        seen.wrapper_second, seen.original,
+        "the wrapper changed its group at the second launch"
+    );
+    assert_eq!(
+        seen.launcher_second, seen.original,
+        "the second launcher was born in another group than the wrapper's"
+    );
     // Each program ran in the scope its own run planned and launched, and in neither the wrapper's group nor the other run's scope; all
     // are compared as control group paths (the file's `0::` prefix removed from every one).
     let own: String = reported_path(&seen.original);
-    let (first, second) = (reported_path(&seen.first_scope), reported_path(&seen.second_scope));
-    assert!(first.ends_with(&seen.first_planned) && second.ends_with(&seen.second_planned), "{first} / {second} against {} / {}", seen.first_planned, seen.second_planned);
-    assert_ne!(seen.first_planned, seen.second_planned, "the two runs planned one scope");
+    let (first, second) = (
+        reported_path(&seen.first_scope),
+        reported_path(&seen.second_scope),
+    );
+    assert!(
+        first.ends_with(&seen.first_planned) && second.ends_with(&seen.second_planned),
+        "{first} / {second} against {} / {}",
+        seen.first_planned,
+        seen.second_planned
+    );
+    assert_ne!(
+        seen.first_planned, seen.second_planned,
+        "the two runs planned one scope"
+    );
     assert_ne!(first, second, "the two runs shared a scope");
-    assert!(first != own && second != own, "a program ran in the wrapper's own group: {first} / {second} against {own}");
-    assert!(seen.unrelated_alive, "an unrelated child was stopped by a cleanup");
+    assert!(
+        first != own && second != own,
+        "a program ran in the wrapper's own group: {first} / {second} against {own}"
+    );
+    assert!(
+        seen.unrelated_alive,
+        "an unrelated child was stopped by a cleanup"
+    );
     assert_eq!(seen.wrapper_after, seen.original);
 }
 
@@ -247,10 +354,18 @@ fn moved_wrapper_fixture() {
     let Ok(gates) = std::env::var(FIXTURE_GATES) else {
         return;
     };
-    let procs: PathBuf = PathBuf::from(std::env::var(FIXTURE_MOVE_INTO).expect("a group to move into"));
+    let procs: PathBuf =
+        PathBuf::from(std::env::var(FIXTURE_MOVE_INTO).expect("a group to move into"));
     let directory: PathBuf = PathBuf::from(gates);
     let seen: Seen = at_the_launch_boundary(&directory, Some(procs));
-    fs::write(directory.join("seen"), format!("{}\n{}\n{}\n", seen.original, seen.launcher_first, seen.wrapper_first)).expect("write what was seen");
+    fs::write(
+        directory.join("seen"),
+        format!(
+            "{}\n{}\n{}\n",
+            seen.original, seen.launcher_first, seen.wrapper_first
+        ),
+    )
+    .expect("write what was seen");
 }
 
 /// Control of the test above (certification group 2):
@@ -264,23 +379,45 @@ fn moved_wrapper_fixture() {
 /// so the
 /// equality the test above asserts fails under that regression.
 #[test]
-fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees() {
+fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees()
+ {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let holder = start_in_scope(Command::new("sleep").arg("600"));
     let directory = scratch();
     let status = Command::new(std::env::current_exe().expect("this test executable"))
-        .args(["--ignored", "--exact", "round_sixteen_tests::moved_wrapper_fixture", "--nocapture"])
+        .args([
+            "--ignored",
+            "--exact",
+            "round_sixteen_tests::moved_wrapper_fixture",
+            "--nocapture",
+        ])
         .env(FIXTURE_GATES, directory.path())
-        .env(FIXTURE_MOVE_INTO, holder.group.directory().join("cgroup.procs"))
+        .env(
+            FIXTURE_MOVE_INTO,
+            holder.group.directory().join("cgroup.procs"),
+        )
         .status()
         .expect("the helper");
 
     assert!(status.success(), "the helper failed: {status:?}");
-    let seen: String = fs::read_to_string(directory.path().join("seen")).expect("what the helper saw");
+    let seen: String =
+        fs::read_to_string(directory.path().join("seen")).expect("what the helper saw");
     let lines: Vec<&str> = seen.lines().collect();
-    let holder_name: String = holder.group.directory().file_name().expect("a name").to_string_lossy().to_string();
-    assert!(lines[1].ends_with(&holder_name) && lines[1] != lines[0], "the launcher born after the move was not seen in the holder's group: {seen}");
-    assert!(lines[2].ends_with(&holder_name), "the wrapper was not seen in the holder's group at the boundary: {seen}");
+    let holder_name: String = holder
+        .group
+        .directory()
+        .file_name()
+        .expect("a name")
+        .to_string_lossy()
+        .to_string();
+    assert!(
+        lines[1].ends_with(&holder_name) && lines[1] != lines[0],
+        "the launcher born after the move was not seen in the holder's group: {seen}"
+    );
+    assert!(
+        lines[2].ends_with(&holder_name),
+        "the wrapper was not seen in the holder's group at the boundary: {seen}"
+    );
 }
 //endregion
 
@@ -307,36 +444,109 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
     for weaker in [false, true] {
         let plain = scratch();
         if weaker {
-            use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+            use_route_settings_for_test(Some(RouteSettings {
+                cgroup_root: plain.path().to_path_buf(),
+                ..RouteSettings::default()
+            }));
         } else {
             crate::cgroup_test_support::this_test_needs_a_delegated_scope();
         }
         let root = scratch();
         fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
         fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
-        let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+        let transaction = crate::journal::begin(
+            root.path(),
+            &[crate::crates::LockSnapshot {
+                crate_dir: "package/s/one".to_string(),
+                source: "lock".to_string(),
+            }],
+            false,
+        )
+        .expect("begin");
         let _ = take_trace_for_test();
 
-        output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30))).expect("runs");
+        output_within(
+            &mut Command::new("true"),
+            None,
+            &bound(Duration::from_secs(30)),
+        )
+        .expect("runs");
         use_route_settings_for_test(None);
         // The scope's name follows the launch event and the direct child's process id follows the spawned event (both vary per run), and a
         // weaker-path notice comes first and is observed by its own test; the order of the record, its sync, the launch and the spawn is what
         // is compared here.
-        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else if event.starts_with("spawned ") { "spawned".to_string() } else { event }; }).collect();
+        let trace: Vec<String> = take_trace_for_test()
+            .into_iter()
+            .filter(|event| {
+                return !event.starts_with("notice ");
+            })
+            .map(|event| {
+                return if event.starts_with("launch scope ") {
+                    "launch scope".to_string()
+                } else if event.starts_with("spawned ") {
+                    "spawned".to_string()
+                } else {
+                    event
+                };
+            })
+            .collect();
 
         let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
-        let launch: &str = if weaker { "launch pgroup" } else { "launch scope" };
+        let launch: &str = if weaker {
+            "launch pgroup"
+        } else {
+            "launch scope"
+        };
         // The spawn of the direct child is traced right after the launch (round 21), before the launcher line or the group record.
-        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string(), "spawned".to_string()];
-        assert_eq!(trace[..intended.len()], intended[..], "weaker={weaker}: the order is not record, sync, launch: {trace:?}");
+        let intended: Vec<String> = vec![
+            format!("attempt {kind}"),
+            format!("written {kind}"),
+            format!("sync {kind} whole=true"),
+            format!("synced {kind}"),
+            launch.to_string(),
+            "spawned".to_string(),
+        ];
+        assert_eq!(
+            trace[..intended.len()],
+            intended[..],
+            "weaker={weaker}: the order is not record, sync, launch: {trace:?}"
+        );
         let rest: Vec<&str> = trace[intended.len()..].iter().map(String::as_str).collect();
         if weaker {
-            assert_eq!(rest[..4], ["attempt pgroup", "written pgroup", "sync pgroup whole=true", "synced pgroup"], "weaker: the group record after the launch: {trace:?}");
+            assert_eq!(
+                rest[..4],
+                [
+                    "attempt pgroup",
+                    "written pgroup",
+                    "sync pgroup whole=true",
+                    "synced pgroup"
+                ],
+                "weaker: the group record after the launch: {trace:?}"
+            );
         } else {
-            assert_eq!(rest[..2], ["attempt launcher", "written launcher"], "the launcher line comes after the launch and is not synced: {trace:?}");
-            assert!(!rest.iter().any(|event| { return event.starts_with("sync launcher"); }), "the launcher line was synced: {trace:?}");
+            assert_eq!(
+                rest[..2],
+                ["attempt launcher", "written launcher"],
+                "the launcher line comes after the launch and is not synced: {trace:?}"
+            );
+            assert!(
+                !rest.iter().any(|event| {
+                    return event.starts_with("sync launcher");
+                }),
+                "the launcher line was synced: {trace:?}"
+            );
             // The end is recorded only after the authoritative emptiness proof of the stop (fourth certification pass).
-            assert_eq!(rest[2..], ["scope proved empty", "attempt settled", "written settled", "sync settled whole=true", "synced settled"], "the end is recorded and synced last, after the emptiness proof: {trace:?}");
+            assert_eq!(
+                rest[2..],
+                [
+                    "scope proved empty",
+                    "attempt settled",
+                    "written settled",
+                    "sync settled whole=true",
+                    "synced settled"
+                ],
+                "the end is recorded and synced last, after the emptiness proof: {trace:?}"
+            );
         }
         drop(transaction);
     }
@@ -352,19 +562,30 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
 #[test]
 fn the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty() {
     let root = scratch();
-    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "an absent journal directory is no journals");
+    assert!(
+        crate::journal_support::journal_dirs(root.path()).is_empty(),
+        "an absent journal directory is no journals"
+    );
     let journals: PathBuf = root.path().join(crate::journal::JOURNAL_DIR);
     fs::create_dir_all(journals.join("one")).expect("a journal");
     assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1);
-    fs::set_permissions(&journals, fs::Permissions::from_mode(0o000)).expect("make the journals unreadable");
+    fs::set_permissions(&journals, fs::Permissions::from_mode(0o000))
+        .expect("make the journals unreadable");
     if fs::read_dir(&journals).is_ok() {
         fs::set_permissions(&journals, fs::Permissions::from_mode(0o755)).expect("restore");
-        eprintln!("SKIPPED: this user reads a directory without permission, so the schedule cannot be made");
+        eprintln!(
+            "SKIPPED: this user reads a directory without permission, so the schedule cannot be made"
+        );
         return;
     }
-    let outcome = std::panic::catch_unwind(|| { return crate::journal_support::journal_dirs(root.path()); });
+    let outcome = std::panic::catch_unwind(|| {
+        return crate::journal_support::journal_dirs(root.path());
+    });
     fs::set_permissions(&journals, fs::Permissions::from_mode(0o755)).expect("restore");
-    assert!(outcome.is_err(), "an unreadable journal directory was read as an empty listing");
+    assert!(
+        outcome.is_err(),
+        "an unreadable journal directory was read as an empty listing"
+    );
 }
 //endregion
 
@@ -385,22 +606,58 @@ fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
         let root = scratch();
         fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
         fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
-        let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
-        let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+        let transaction = crate::journal::begin(
+            root.path(),
+            &[crate::crates::LockSnapshot {
+                crate_dir: "package/s/one".to_string(),
+                source: "lock".to_string(),
+            }],
+            false,
+        )
+        .expect("begin");
+        let journal: PathBuf = crate::journal_support::journal_dirs(root.path())
+            .into_iter()
+            .next()
+            .expect("a journal");
         let direct: PathBuf = root.path().join("direct");
-        let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; {finish}", file = direct.display(), finish = if at_the_bound { "exec sleep 600" } else { "echo done" });
+        let script: String = format!(
+            "echo $$ > {file}.part; mv {file}.part {file}; {finish}",
+            file = direct.display(),
+            finish = if at_the_bound {
+                "exec sleep 600"
+            } else {
+                "echo done"
+            }
+        );
 
         let _ = crate::bounded_run::take_trace_for_test();
-        let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(if at_the_bound { 3 } else { 30 })));
+        let result = output_within(
+            Command::new("sh").args(["-c", &script]),
+            None,
+            &bound(Duration::from_secs(if at_the_bound { 3 } else { 30 })),
+        );
         let events: Vec<String> = crate::bounded_run::take_trace_for_test();
 
-        crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
+        crate::cgroup_test_support::assert_scope_record(
+            &journal.join("groups").display().to_string(),
+        );
         if at_the_bound {
-            assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
+            assert!(
+                matches!(result, Err(RunError::TimedOut { .. })),
+                "{result:?}"
+            );
         } else {
             result.expect("runs");
         }
-        crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(crate::contain_counterexample_tests::read_pid(&direct), &events, if at_the_bound { "at the bound" } else { "after a normal return" });
+        crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(
+            crate::contain_counterexample_tests::read_pid(&direct),
+            &events,
+            if at_the_bound {
+                "at the bound"
+            } else {
+                "after a normal return"
+            },
+        );
         drop(transaction);
     }
 }
@@ -414,20 +671,30 @@ const CRATE_DIR: &str = "package/s/one";
 
 /// A snapshot of the lockfile of the case.
 fn snapshot(source: &str) -> crate::crates::LockSnapshot {
-    return crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: source.to_string() };
+    return crate::crates::LockSnapshot {
+        crate_dir: CRATE_DIR.to_string(),
+        source: source.to_string(),
+    };
 }
 
 /// A disposable repository whose crate root holds the output of a killed run.
 fn repository() -> tempfile::TempDir {
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
-    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "unchecked output of the killed run").expect("lock");
+    fs::write(
+        root.path().join(CRATE_DIR).join("Cargo.lock"),
+        "unchecked output of the killed run",
+    )
+    .expect("lock");
     return root;
 }
 
 /// A judge that refuses the live lockfile,
 /// so that a recovery that goes ahead restores the snapshot.
-fn refusing(_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]) -> Vec<String> {
+fn refusing(
+    _before: &[crate::crates::LockSnapshot],
+    _live: &[crate::crates::LockSnapshot],
+) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
 
@@ -454,23 +721,56 @@ fn a_journal_whose_only_record_is_malformed_is_kept_with_its_diagnostic_until_it
 
     let messages: Vec<String> = crate::journal::recover(root.path(), &refusing);
 
-    assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "a journal with a malformed record was recovered: {messages:?}");
-    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1, "the journal was not kept");
-    assert!(messages.iter().any(|message| { return message.contains("not understood") && message.contains("cargo-shadow acknowledge"); }), "the diagnostic of the malformed record is missing: {messages:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        "unchecked output of the killed run",
+        "a journal with a malformed record was recovered: {messages:?}"
+    );
+    assert_eq!(
+        crate::journal_support::journal_dirs(root.path()).len(),
+        1,
+        "the journal was not kept"
+    );
+    assert!(
+        messages.iter().any(|message| {
+            return message.contains("not understood")
+                && message.contains("cargo-shadow acknowledge");
+        }),
+        "the diagnostic of the malformed record is missing: {messages:?}"
+    );
     crate::acknowledge::acknowledge(&journal).expect("acknowledges");
     let after: Vec<String> = crate::journal::recover(root.path(), &refusing);
-    assert_eq!(live_lock(root.path()), "original", "the control: the acknowledged journal was not settled: {after:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        "original",
+        "the control: the acknowledged journal was not settled: {after:?}"
+    );
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
 }
 
 /// A scope with a live descendant and a journal that records it with a resolved lifecycle (the scope and its settled end),
 /// so the
 /// member is the only thing that can block.
-fn journal_with_a_scope_that_has_a_member(root: &Path) -> (crate::cgroup_test_support::TestScope, PathBuf) {
+fn journal_with_a_scope_that_has_a_member(
+    root: &Path
+) -> (crate::cgroup_test_support::TestScope, PathBuf) {
     let scope = start_in_scope(Command::new("sleep").arg("600"));
     let journal: PathBuf = crate::journal_support::plant(root, &[snapshot("first")], &[]);
-    fs::write(journal.join("groups"), format!("{}\nsettled {}\n", scope.group.record(), scope.group.directory().display())).expect("record the scope");
-    assert!(scope.group.members().is_ok_and(|found| { return !found.is_empty(); }), "the scope has no member, so the schedule is not made");
+    fs::write(
+        journal.join("groups"),
+        format!(
+            "{}\nsettled {}\n",
+            scope.group.record(),
+            scope.group.directory().display()
+        ),
+    )
+    .expect("record the scope");
+    assert!(
+        scope.group.members().is_ok_and(|found| {
+            return !found.is_empty();
+        }),
+        "the scope has no member, so the schedule is not made"
+    );
     return (scope, journal);
 }
 
@@ -478,7 +778,9 @@ fn journal_with_a_scope_that_has_a_member(root: &Path) -> (crate::cgroup_test_su
 fn end_scope(scope: &crate::cgroup_test_support::TestScope) {
     let _ = scope.group.stop(Duration::from_secs(10));
     let directory: PathBuf = scope.group.directory().to_path_buf();
-    wait_until("the scope to be collected", &|| { return !directory.exists(); });
+    wait_until("the scope to be collected", &|| {
+        return !directory.exists();
+    });
 }
 
 /// Acceptance row "V2,
@@ -507,11 +809,25 @@ fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_e
     end_scope(&scope);
     let after: Vec<String> = crate::journal::recover(root.path(), &refusing);
     assert_eq!(before_journals.len(), 2, "the case needs two journals");
-    assert_eq!(retained, before_journals, "the blocked recovery removed or changed a journal: {blocked:?}");
+    assert_eq!(
+        retained, before_journals,
+        "the blocked recovery removed or changed a journal: {blocked:?}"
+    );
 
-    assert_eq!(kept, "unchecked output of the killed run", "a live member did not stop the recovery: {blocked:?}");
-    assert!(blocked.iter().any(|message| { return message.contains("still running"); }), "the refusal does not name the member: {blocked:?}");
-    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the control: with the member gone the journals were not settled: {after:?}");
+    assert_eq!(
+        kept, "unchecked output of the killed run",
+        "a live member did not stop the recovery: {blocked:?}"
+    );
+    assert!(
+        blocked.iter().any(|message| {
+            return message.contains("still running");
+        }),
+        "the refusal does not name the member: {blocked:?}"
+    );
+    assert!(
+        crate::journal_support::journal_dirs(root.path()).is_empty(),
+        "the control: with the member gone the journals were not settled: {after:?}"
+    );
 }
 
 /// Acceptance row "V2,
@@ -538,12 +854,37 @@ fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends()
     end_scope(&scope);
     let started = crate::journal::begin(root.path(), &[snapshot("second")], false);
 
-    assert!(refused.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "a transaction started beside a live member, or the refusal does not name it: {:?}", refused.as_ref().err());
-    assert_eq!(retained, journals_before, "the refused admission removed or changed a journal");
-    assert_eq!(record_after, record_before, "the refused admission changed the blocking record");
-    assert_eq!(snapshot_after, snapshot_before, "the refused admission changed the blocking snapshot");
-    assert!(refused_again.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "the second admission beside the same live member was not refused: {:?}", refused_again.as_ref().err());
-    assert!(started.is_ok(), "the control: with the member gone the transaction was still refused: {:?}", started.err());
+    assert!(
+        refused.as_ref().is_err_and(|error| {
+            return error.to_string().contains("still running");
+        }),
+        "a transaction started beside a live member, or the refusal does not name it: {:?}",
+        refused.as_ref().err()
+    );
+    assert_eq!(
+        retained, journals_before,
+        "the refused admission removed or changed a journal"
+    );
+    assert_eq!(
+        record_after, record_before,
+        "the refused admission changed the blocking record"
+    );
+    assert_eq!(
+        snapshot_after, snapshot_before,
+        "the refused admission changed the blocking snapshot"
+    );
+    assert!(
+        refused_again.as_ref().is_err_and(|error| {
+            return error.to_string().contains("still running");
+        }),
+        "the second admission beside the same live member was not refused: {:?}",
+        refused_again.as_ref().err()
+    );
+    assert!(
+        started.is_ok(),
+        "the control: with the member gone the transaction was still refused: {:?}",
+        started.err()
+    );
 }
 //endregion
 
@@ -568,25 +909,66 @@ fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
     let root = scratch();
     fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
     fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
-    let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
-    let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
-    use_route_settings_for_test(Some(RouteSettings { systemd_run: gated_systemd_run(directory.path()).display().to_string(), ..RouteSettings::default() }));
+    let transaction = crate::journal::begin(
+        root.path(),
+        &[crate::crates::LockSnapshot {
+            crate_dir: "package/s/one".to_string(),
+            source: "lock".to_string(),
+        }],
+        false,
+    )
+    .expect("begin");
+    let journal: PathBuf = crate::journal_support::journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
+    use_route_settings_for_test(Some(RouteSettings {
+        systemd_run: gated_systemd_run(directory.path()).display().to_string(),
+        ..RouteSettings::default()
+    }));
     let marker: PathBuf = directory.path().join("payload-ran");
     let started = std::time::Instant::now();
 
     let _ = crate::bounded_run::take_trace_for_test();
-    let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound(Duration::from_secs(2)));
+    let result = output_within(
+        Command::new("sh").args(["-c", &format!(": > {}", marker.display())]),
+        None,
+        &bound(Duration::from_secs(2)),
+    );
     let events: Vec<String> = crate::bounded_run::take_trace_for_test();
     let elapsed: Duration = started.elapsed();
     use_route_settings_for_test(None);
 
-    assert!(directory.path().join("pid-1").exists(), "the launcher never started, so the startup was not held");
-    assert!(matches!(result, Err(RunError::TimedOut { .. })), "a stalled startup did not end as a timeout: {result:?}");
-    assert!(elapsed >= Duration::from_secs(2) && elapsed < Duration::from_secs(8), "the run returned after {elapsed:?}: not at its bound of two seconds");
-    assert!(!marker.exists(), "the payload ran although its startup was held");
-    let launcher: i32 = fs::read_to_string(directory.path().join("pid-1")).expect("pid").trim().parse::<i32>().expect("a pid");
-    crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(launcher, &events, "a stalled startup");
-    assert!(!transaction.writers_may_remain(), "nothing could have started, yet the scope reports writers that may remain");
+    assert!(
+        directory.path().join("pid-1").exists(),
+        "the launcher never started, so the startup was not held"
+    );
+    assert!(
+        matches!(result, Err(RunError::TimedOut { .. })),
+        "a stalled startup did not end as a timeout: {result:?}"
+    );
+    assert!(
+        elapsed >= Duration::from_secs(2) && elapsed < Duration::from_secs(8),
+        "the run returned after {elapsed:?}: not at its bound of two seconds"
+    );
+    assert!(
+        !marker.exists(),
+        "the payload ran although its startup was held"
+    );
+    let launcher: i32 = fs::read_to_string(directory.path().join("pid-1"))
+        .expect("pid")
+        .trim()
+        .parse::<i32>()
+        .expect("a pid");
+    crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(
+        launcher,
+        &events,
+        "a stalled startup",
+    );
+    assert!(
+        !transaction.writers_may_remain(),
+        "nothing could have started, yet the scope reports writers that may remain"
+    );
     crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
 }
 
@@ -606,27 +988,68 @@ fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
     let root = scratch();
     fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
     fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
-    let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
-    let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+    let transaction = crate::journal::begin(
+        root.path(),
+        &[crate::crates::LockSnapshot {
+            crate_dir: "package/s/one".to_string(),
+            source: "lock".to_string(),
+        }],
+        false,
+    )
+    .expect("begin");
+    let journal: PathBuf = crate::journal_support::journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
     let ready: PathBuf = root.path().join("writer-ready");
-    let script: String = format!("setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0", ready = ready.display());
+    let script: String = format!(
+        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        ready = ready.display()
+    );
     crate::failpoints::arm(crate::failpoints::Point::ContainmentSurvivor);
     let started = std::time::Instant::now();
 
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(60)));
+    let result = output_within(
+        Command::new("sh").args(["-c", &script]),
+        None,
+        &bound(Duration::from_secs(60)),
+    );
     let elapsed: Duration = started.elapsed();
 
     let groups: String = journal.join("groups").display().to_string();
     let scope: PathBuf = crate::cgroup_test_support::scope_directory_of(&groups);
     let _ = fs::write(scope.join("cgroup.kill"), "1");
-    assert!(!crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor), "the surviving member was never reached");
-    assert!(ready.exists(), "the writer was not ready before the shutdown");
-    assert!(matches!(result, Err(RunError::NotQuiescent { .. })), "{result:?}");
+    assert!(
+        !crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor),
+        "the surviving member was never reached"
+    );
+    assert!(
+        ready.exists(),
+        "the writer was not ready before the shutdown"
+    );
+    assert!(
+        matches!(result, Err(RunError::NotQuiescent { .. })),
+        "{result:?}"
+    );
     let bound_of_the_stop: Duration = crate::bounded_run::QUIESCE_BOUND;
-    assert!(elapsed >= bound_of_the_stop && elapsed < bound_of_the_stop + Duration::from_secs(6), "the shutdown returned after {elapsed:?}, not at its bound of {bound_of_the_stop:?}");
-    assert!(transaction.writers_may_remain(), "the scope was not told that writers may remain");
-    assert!(journal.exists() && !journal.to_string_lossy().ends_with(".done"), "the journal was not retained");
-    wait_until("the scope's end", &|| { return !scope.exists() || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| { return text.contains("populated 0"); }); });
+    assert!(
+        elapsed >= bound_of_the_stop && elapsed < bound_of_the_stop + Duration::from_secs(6),
+        "the shutdown returned after {elapsed:?}, not at its bound of {bound_of_the_stop:?}"
+    );
+    assert!(
+        transaction.writers_may_remain(),
+        "the scope was not told that writers may remain"
+    );
+    assert!(
+        journal.exists() && !journal.to_string_lossy().ends_with(".done"),
+        "the journal was not retained"
+    );
+    wait_until("the scope's end", &|| {
+        return !scope.exists()
+            || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| {
+                return text.contains("populated 0");
+            });
+    });
 }
 //endregion
 
@@ -636,7 +1059,12 @@ fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
 /// The journals of a workspace in the order they are named:
 /// whether each is a completed (`.done`) one.
 fn journal_states(root: &Path) -> Vec<bool> {
-    return crate::journal_support::journal_dirs(root).iter().map(|journal| { return journal.to_string_lossy().ends_with(".done"); }).collect();
+    return crate::journal_support::journal_dirs(root)
+        .iter()
+        .map(|journal| {
+            return journal.to_string_lossy().ends_with(".done");
+        })
+        .collect();
 }
 
 /// Acceptance row V5 (certification group 3):
@@ -658,29 +1086,72 @@ fn journal_states(root: &Path) -> Vec<bool> {
 /// journal and judges nothing again.
 #[test]
 fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart() {
-    use crate::failpoints::{Point, arm};
+    use crate::failpoints::{
+        Point,
+        arm,
+    };
     // (fault, journal is `.done` after the failed recovery)
     // (fault, journal is `.done` after the failed recovery, the failure is a mandatory phase that stops the caller)
-    for (fault, done_afterwards, mandatory) in [(Point::RecoverDurability, false, true), (Point::CompletionRename, false, true), (Point::CompletionSync, true, true), (Point::FinishCleanup, true, false)] {
+    for (fault, done_afterwards, mandatory) in [
+        (Point::RecoverDurability, false, true),
+        (Point::CompletionRename, false, true),
+        (Point::CompletionSync, true, true),
+        (Point::FinishCleanup, true, false),
+    ] {
         let root = repository();
         let _journal = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
         arm(fault);
 
         let report = crate::journal::recover_report(root.path(), &refusing);
-        assert_eq!(report.mandatory_failure, mandatory, "{fault:?}: the report does not tell a mandatory phase from the cleanup: {:?}", report.messages);
+        assert_eq!(
+            report.mandatory_failure, mandatory,
+            "{fault:?}: the report does not tell a mandatory phase from the cleanup: {:?}",
+            report.messages
+        );
         let failed: Vec<String> = report.messages;
 
-        assert!(!crate::failpoints::fires(fault), "{fault:?}: the fault was never reached");
-        assert_eq!(live_lock(root.path()), "original", "{fault:?}: the files were not restored before the finish: {failed:?}");
-        assert!(failed.iter().any(|message| { return message.contains("journal was kept") || message.contains("could not be removed") || message.contains("tried again"); }), "{fault:?}: the failure of the finish is not reported: {failed:?}");
-        assert_eq!(journal_states(root.path()), vec![done_afterwards], "{fault:?}: the journal is not in the state that this failure leaves: {failed:?}");
+        assert!(
+            !crate::failpoints::fires(fault),
+            "{fault:?}: the fault was never reached"
+        );
+        assert_eq!(
+            live_lock(root.path()),
+            "original",
+            "{fault:?}: the files were not restored before the finish: {failed:?}"
+        );
+        assert!(
+            failed.iter().any(|message| {
+                return message.contains("journal was kept")
+                    || message.contains("could not be removed")
+                    || message.contains("tried again");
+            }),
+            "{fault:?}: the failure of the finish is not reported: {failed:?}"
+        );
+        assert_eq!(
+            journal_states(root.path()),
+            vec![done_afterwards],
+            "{fault:?}: the journal is not in the state that this failure leaves: {failed:?}"
+        );
 
         let judged: std::cell::Cell<u32> = std::cell::Cell::new(0);
-        let later: Vec<String> = crate::journal::recover(root.path(), &|before: &[crate::crates::LockSnapshot], live: &[crate::crates::LockSnapshot]| { judged.set(judged.get() + 1); return refusing(before, live); });
-        assert!(journal_states(root.path()).is_empty(), "{fault:?}: the later recovery did not complete the journal: {later:?}");
+        let later: Vec<String> = crate::journal::recover(
+            root.path(),
+            &|before: &[crate::crates::LockSnapshot], live: &[crate::crates::LockSnapshot]| {
+                judged.set(judged.get() + 1);
+                return refusing(before, live);
+            },
+        );
+        assert!(
+            journal_states(root.path()).is_empty(),
+            "{fault:?}: the later recovery did not complete the journal: {later:?}"
+        );
         assert_eq!(live_lock(root.path()), "original");
         if done_afterwards {
-            assert_eq!(judged.get(), 0, "{fault:?}: a journal that was already marked done was judged again");
+            assert_eq!(
+                judged.get(),
+                0,
+                "{fault:?}: a journal that was already marked done was judged again"
+            );
         }
     }
 }
@@ -716,42 +1187,97 @@ fn refusing_systemd_run(directory: &Path) -> PathBuf {
 fn a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_runs_nothing() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     // No cgroup.kill: discovery names it.
-    let no_kill: RouteSettings = RouteSettings { systemctl: "sh".to_string(), question: Some(vec!["-c".to_string(), "echo /".to_string()]), ..RouteSettings::default() };
-    let refused = crate::control_group::detect_route(&no_kill).expect_err("the root group has no cgroup.kill");
+    let no_kill: RouteSettings = RouteSettings {
+        systemctl: "sh".to_string(),
+        question: Some(vec!["-c".to_string(), "echo /".to_string()]),
+        ..RouteSettings::default()
+    };
+    let refused = crate::control_group::detect_route(&no_kill)
+        .expect_err("the root group has no cgroup.kill");
     assert!(refused.to_string().contains("cgroup.kill"), "{refused}");
 
     let root = repository();
-    let transaction = crate::journal::begin(root.path(), &[snapshot("original")], false).expect("begin");
-    let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+    let transaction =
+        crate::journal::begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal: PathBuf = crate::journal_support::journal_dirs(root.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
     use_route_settings_for_test(Some(no_kill));
-    let weaker = output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30)));
+    let weaker = output_within(
+        &mut Command::new("true"),
+        None,
+        &bound(Duration::from_secs(30)),
+    );
     use_route_settings_for_test(None);
     weaker.expect("runs in a process group");
     let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
-    assert!(record.starts_with("pgroup starting\npgroup "), "the kernel without cgroup.kill did not take the weaker path: {record:?}");
+    assert!(
+        record.starts_with("pgroup starting\npgroup "),
+        "the kernel without cgroup.kill did not take the weaker path: {record:?}"
+    );
     drop(transaction);
 
     // A scope that the manager refuses.
     let other = repository();
     let directory = scratch();
-    let second = crate::journal::begin(other.path(), &[snapshot("original")], false).expect("begin");
-    let second_journal: PathBuf = crate::journal_support::journal_dirs(other.path()).into_iter().next().expect("a journal");
-    use_route_settings_for_test(Some(RouteSettings { systemd_run: refusing_systemd_run(directory.path()).display().to_string(), ..RouteSettings::default() }));
+    let second =
+        crate::journal::begin(other.path(), &[snapshot("original")], false).expect("begin");
+    let second_journal: PathBuf = crate::journal_support::journal_dirs(other.path())
+        .into_iter()
+        .next()
+        .expect("a journal");
+    use_route_settings_for_test(Some(RouteSettings {
+        systemd_run: refusing_systemd_run(directory.path()).display().to_string(),
+        ..RouteSettings::default()
+    }));
     let marker: PathBuf = directory.path().join("payload-ran");
     let _ = take_trace_for_test();
-    let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound(Duration::from_secs(30)));
+    let result = output_within(
+        Command::new("sh").args(["-c", &format!(": > {}", marker.display())]),
+        None,
+        &bound(Duration::from_secs(30)),
+    );
     use_route_settings_for_test(None);
     let trace: Vec<String> = take_trace_for_test();
     drop(second);
 
-    assert!(directory.path().join("refusal-ran").exists(), "the refusing stand-in never ran, so the failure was not the manager's refusal");
-    assert!(!marker.exists(), "the program ran although the manager refused its scope");
-    assert!(result.as_ref().is_ok_and(|output| { return !output.status.success(); }) || result.as_ref().is_err_and(|error| { return !matches!(error, RunError::NotQuiescent { .. } | RunError::TimedOut { .. }); }), "a refused scope was read as a successful run or as an uncertain one: {result:?}");
-    assert_eq!(trace[..2], ["attempt scope", "written scope"], "the run did not record a scope before the refusal: {trace:?}");
+    assert!(
+        directory.path().join("refusal-ran").exists(),
+        "the refusing stand-in never ran, so the failure was not the manager's refusal"
+    );
+    assert!(
+        !marker.exists(),
+        "the program ran although the manager refused its scope"
+    );
+    assert!(
+        result.as_ref().is_ok_and(|output| {
+            return !output.status.success();
+        }) || result.as_ref().is_err_and(|error| {
+            return !matches!(
+                error,
+                RunError::NotQuiescent { .. } | RunError::TimedOut { .. }
+            );
+        }),
+        "a refused scope was read as a successful run or as an uncertain one: {result:?}"
+    );
+    assert_eq!(
+        trace[..2],
+        ["attempt scope", "written scope"],
+        "the run did not record a scope before the refusal: {trace:?}"
+    );
     let groups: String = fs::read_to_string(second_journal.join("groups")).expect("the record");
-    assert!(groups.lines().any(|line| { return line.starts_with("settled "); }), "the run's end was not recorded: {groups:?}");
+    assert!(
+        groups.lines().any(|line| {
+            return line.starts_with("settled ");
+        }),
+        "the run's end was not recorded: {groups:?}"
+    );
     let messages: Vec<String> = crate::journal::recover(other.path(), &refusing);
-    assert!(crate::journal_support::journal_dirs(other.path()).is_empty(), "a refused scope needed an acknowledgement: {messages:?}");
+    assert!(
+        crate::journal_support::journal_dirs(other.path()).is_empty(),
+        "a refused scope needed an acknowledgement: {messages:?}"
+    );
 }
 
 /// Acceptance row "Weaker path" (certification group 3):
@@ -772,12 +1298,33 @@ fn recovery_with_one_of_two_weaker_path_journals_acknowledged_restores_nothing_u
 
     let blocked: Vec<String> = crate::journal::recover(root.path(), &refusing);
 
-    assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "a recovery restored files while an unacknowledged weaker-path journal stood: {blocked:?}");
-    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 2, "a journal was removed: {blocked:?}");
-    assert!(blocked.iter().any(|message| { return message.contains(&second.display().to_string()) && message.contains("cargo-shadow acknowledge"); }), "the refusal does not name the unacknowledged journal: {blocked:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        "unchecked output of the killed run",
+        "a recovery restored files while an unacknowledged weaker-path journal stood: {blocked:?}"
+    );
+    assert_eq!(
+        crate::journal_support::journal_dirs(root.path()).len(),
+        2,
+        "a journal was removed: {blocked:?}"
+    );
+    assert!(
+        blocked.iter().any(|message| {
+            return message.contains(&second.display().to_string())
+                && message.contains("cargo-shadow acknowledge");
+        }),
+        "the refusal does not name the unacknowledged journal: {blocked:?}"
+    );
     crate::acknowledge::acknowledge(&second).expect("acknowledges the second");
     let settled: Vec<String> = crate::journal::recover(root.path(), &refusing);
-    assert_eq!(live_lock(root.path()), "original", "the control: with both acknowledged the recovery did not restore: {settled:?}");
-    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "{settled:?}");
+    assert_eq!(
+        live_lock(root.path()),
+        "original",
+        "the control: with both acknowledged the recovery did not restore: {settled:?}"
+    );
+    assert!(
+        crate::journal_support::journal_dirs(root.path()).is_empty(),
+        "{settled:?}"
+    );
 }
 //endregion

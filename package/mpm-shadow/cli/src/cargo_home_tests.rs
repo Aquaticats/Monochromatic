@@ -30,7 +30,10 @@ fn prefers_cargo_home_over_home() {
 /// the default is `HOME/.cargo`.
 #[test]
 fn falls_back_to_home_dot_cargo() {
-    assert_eq!(cargo_home(None, Some("/home/me".to_string())), Some(PathBuf::from("/home/me/.cargo")));
+    assert_eq!(
+        cargo_home(None, Some("/home/me".to_string())),
+        Some(PathBuf::from("/home/me/.cargo"))
+    );
 }
 
 /// An empty `CARGO_HOME` counts as unset.

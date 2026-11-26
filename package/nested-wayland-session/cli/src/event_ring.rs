@@ -38,7 +38,9 @@ pub struct EventRing<T> {
 impl<T> Default for EventRing<T> {
     /// Creates an empty ring.
     fn default() -> Self {
-        return Self { events: VecDeque::new() };
+        return Self {
+            events: VecDeque::new(),
+        };
     }
 }
 
@@ -47,17 +49,27 @@ impl<T> Default for EventRing<T> {
 ///  and clearing.
 impl<T> EventRing<T> {
     /// Appends an event and evicts the oldest once the capacity is reached.
-    pub fn push(&mut self, at_ms: u64, event: T) {
+    pub fn push(
+        &mut self,
+        at_ms: u64,
+        event: T,
+    ) {
         if self.events.len() == EVENT_RING_CAPACITY {
             self.events.pop_front();
         }
-        self.events.push_back(Timed { at_ms, event });
+        self.events.push_back(Timed {
+            at_ms,
+            event,
+        });
     }
 
     /// Returns up to `count` of the newest events,
     ///  oldest first.
     #[must_use]
-    pub fn last_n(&self, count: usize) -> Vec<&Timed<T>> {
+    pub fn last_n(
+        &self,
+        count: usize,
+    ) -> Vec<&Timed<T>> {
         let skip = self.events.len().saturating_sub(count);
         return self.events.iter().skip(skip).collect();
     }

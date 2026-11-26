@@ -411,17 +411,21 @@ fn a_service_a_control_starts_is_never_handed_the_manager_of_its_parent() {
         let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"));
         let stand_in: PathBuf = home.join("temp/agent").join(format!("no-manager-bus-{}", std::process::id()));
         let _stale = std::fs::remove_file(stand_in.as_path());
-        let output: std::process::Output = Command::new(std::env::current_exe().expect("the test binary"))
-            .args(["--exact", "service::a_service_a_control_starts_is_never_handed_the_manager_of_its_parent", "--nocapture", "--test-threads=1"])
-            .env(NO_MANAGER_INHERITED_VARIABLE, "1")
-            .env(NO_MANAGER_STAND_IN_BUS_VARIABLE, stand_in.as_path())
-            .env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", stand_in.display()))
-            .env("XDG_RUNTIME_DIR", stand_in.with_extension("runtime"))
-            .stdin(Stdio::null())
-            .output()
-            .expect("the child control runs");
+        // The child's pass is this control's assertion, and the variables belong to that child alone.
+        let bus: String = format!("unix:path={}", stand_in.display());
+        let runtime: std::ffi::OsString = stand_in.with_extension("runtime").into_os_string();
+        let environment: [(&str, &std::ffi::OsStr); 4] = [
+            (NO_MANAGER_INHERITED_VARIABLE, std::ffi::OsStr::new("1")),
+            (NO_MANAGER_STAND_IN_BUS_VARIABLE, stand_in.as_os_str()),
+            ("DBUS_SESSION_BUS_ADDRESS", std::ffi::OsStr::new(bus.as_str())),
+            ("XDG_RUNTIME_DIR", runtime.as_os_str()),
+        ];
+        super::child_test_process::passed(super::child_test_process::ChildTest {
+            exact_test: "service::a_service_a_control_starts_is_never_handed_the_manager_of_its_parent",
+            environment: environment.as_slice(),
+            ..super::child_test_process::ChildTest::default()
+        });
         let _removed = std::fs::remove_file(stand_in.as_path());
-        assert!(output.status.success(), "the child control failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
         return;
     }
     // The child: the stand-in bus the child's own environment names, before the service is started.

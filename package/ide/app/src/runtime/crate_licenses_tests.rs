@@ -4,7 +4,12 @@
 //!  wrapped crate names,
 //!  and source paths.
 
-use super::{WIDTH, crate_relative, parse, wrap};
+use super::{
+    WIDTH,
+    crate_relative,
+    parse,
+    wrap,
+};
 
 /// A list with a crate file text shared by two crates and a standard text used by one.
 const LIST: &[u8] = br#"{"licenses": [

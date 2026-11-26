@@ -12,15 +12,19 @@
 /// import * as fs from 'node:fs';
 /// ```
 mod support;
-/// Import file operations,
-/// errors,
-/// and captured subprocess output.
-use std::{fs, io, process::Output};
 /// Import the operating-system string type that can hold bytes that are not UTF-8.
 use std::ffi::OsStr;
 /// Import `from_bytes`,
 /// which builds such a string from raw argument bytes.
 use std::os::unix::ffi::OsStrExt;
+/// Import file operations,
+/// errors,
+/// and captured subprocess output.
+use std::{
+    fs,
+    io,
+    process::Output,
+};
 
 /// What:
 /// `fn` declares a function;
@@ -67,8 +71,11 @@ fn rejects_invalid_invocation() -> io::Result<()> {
     // const cases: readonly (readonly string[])[] = [ ... ];
     // ```
     let cases: &[&[&str]] = &[
-        &[], &["--hook"], &["--hook", "relative"],
-        &["--unknown", "/"], &["--hook", "/", "extra"],
+        &[],
+        &["--hook"],
+        &["--hook", "relative"],
+        &["--unknown", "/"],
+        &["--hook", "/", "extra"],
         &["--initialize", "/nonexistent-codex-fixture/not-a-slice"],
     ];
     for arguments in cases {
@@ -76,7 +83,9 @@ fn rejects_invalid_invocation() -> io::Result<()> {
         denied(&support::invoke(arguments, "{}")?);
     }
     for input in [
-        "{", "{}", "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\"}",
+        "{",
+        "{}",
+        "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\"}",
         "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\"}",
         "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\"}",
         "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":5}}",
@@ -122,7 +131,10 @@ fn refuses_arguments_that_are_not_utf8() -> io::Result<()> {
         denied(&output);
         // Decode the diagnostic, replacing invalid bytes only in the test's own reading.
         let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
-        assert!(diagnostic.starts_with("Codex worker limits: "), "{diagnostic}");
+        assert!(
+            diagnostic.starts_with("Codex worker limits: "),
+            "{diagnostic}"
+        );
         assert!(diagnostic.contains("UTF-8"), "{diagnostic}");
     }
     return Ok(());
@@ -157,7 +169,9 @@ fn refuses_an_unreachable_slice_start() -> io::Result<()> {
     // Use the disposable parent; the absent `.slice` child is what makes the start arm run.
     let parent = support::fixture()?;
     let absent = parent.join("codex-fixture-missing.slice");
-    let path = absent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    let path = absent.to_str().ok_or_else(|| {
+        return io::Error::other("fixture path encoding");
+    })?;
     // Launch without the user-bus variables, so the start fails the way an unattended host fails.
     let output = support::invoke_os(
         &[OsStr::new("--initialize"), OsStr::new(path)],
@@ -168,7 +182,10 @@ fn refuses_an_unreachable_slice_start() -> io::Result<()> {
     denied(&output);
     // Assert the arm's own diagnostic, which the control-verification failure cannot produce.
     let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(diagnostic.contains("systemctl could not start the worker slice."), "{diagnostic}");
+    assert!(
+        diagnostic.contains("systemctl could not start the worker slice."),
+        "{diagnostic}"
+    );
     fs::remove_dir_all(parent)?;
     return Ok(());
 }
@@ -178,15 +195,23 @@ fn refuses_an_unreachable_slice_start() -> io::Result<()> {
 fn rejects_changed_controls_and_missing_membership() -> io::Result<()> {
     let input = support::event("printf 'must-not-run'")?;
     for (file, value) in [
-        ("memory.max", "max"), ("memory.max", "2147483648"),
-        ("memory.swap.max", "1"), ("pids.max", "max"),
-        ("cpu.max", "max 100000"), ("cpu.max", "0 100000"),
-        ("cpu.max", "200000 0"), ("cpu.max", ""), ("cpu.max", "200000"),
-        ("cpu.max", "200000 invalid"), ("cpu.max", "1 2 3"),
+        ("memory.max", "max"),
+        ("memory.max", "2147483648"),
+        ("memory.swap.max", "1"),
+        ("pids.max", "max"),
+        ("cpu.max", "max 100000"),
+        ("cpu.max", "0 100000"),
+        ("cpu.max", "200000 0"),
+        ("cpu.max", ""),
+        ("cpu.max", "200000"),
+        ("cpu.max", "200000 invalid"),
+        ("cpu.max", "1 2 3"),
     ] {
         let parent = support::fixture()?;
         // Convert the path without replacing invalid text; fixture failure should be explicit.
-        let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+        let path = parent.to_str().ok_or_else(|| {
+            return io::Error::other("fixture path encoding");
+        })?;
         fs::write(parent.join(file), value)?;
         // Borrow the event and output for the refusal checks.
         denied(&support::invoke(&["--hook", path], &input)?);
@@ -195,7 +220,9 @@ fn rejects_changed_controls_and_missing_membership() -> io::Result<()> {
     for file in ["memory.max", "cpu.max", "codex/cgroup.procs"] {
         let parent = support::fixture()?;
         // Borrow path text while this fixture remains alive.
-        let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+        let path = parent.to_str().ok_or_else(|| {
+            return io::Error::other("fixture path encoding");
+        })?;
         fs::remove_file(parent.join(file))?;
         // Deny the missing file before testing the non-file membership case.
         denied(&support::invoke(&["--hook", path], &input)?);
@@ -214,7 +241,9 @@ fn rejects_changed_controls_and_missing_membership() -> io::Result<()> {
 fn initialization_preserves_controls() -> io::Result<()> {
     let parent = support::fixture()?;
     // Borrow lossless fixture text for repeated native invocations.
-    let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    let path = parent.to_str().ok_or_else(|| {
+        return io::Error::other("fixture path encoding");
+    })?;
     fs::remove_dir_all(parent.join("codex"))?;
     fs::write(parent.join("cpu.max"), "400000 100000\n")?;
     for _iteration in [0, 1] {
@@ -224,7 +253,10 @@ fn initialization_preserves_controls() -> io::Result<()> {
         assert_eq!(output.stdout, b"{}");
         assert!(output.stderr.is_empty());
         assert!(parent.join("codex").is_dir());
-        assert_eq!(fs::read_to_string(parent.join("cpu.max"))?, "400000 100000\n");
+        assert_eq!(
+            fs::read_to_string(parent.join("cpu.max"))?,
+            "400000 100000\n"
+        );
     }
     fs::remove_dir_all(parent)?;
     return Ok(());

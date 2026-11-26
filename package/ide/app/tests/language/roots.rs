@@ -3,13 +3,26 @@
 //!  whatever the working
 //! directory and the surrounding tree look like.
 
-use crate::support::{self, Layout, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    Layout,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
-    reply::{RequestKind, RequestOutcome, Target},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+        Target,
+    },
     status::ServerState,
 };
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The `initialize` message the scripted server received.
 fn initialize(lines: &[Value]) -> Value {

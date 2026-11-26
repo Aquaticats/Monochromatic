@@ -25,14 +25,20 @@ fuzz_target!(|input: PatternAndContent| {
     // Why:   `to_bytes` only fails on an encoder error, which would itself be a bug.
     let bytes = match regex.to_bytes() {
         Ok(bytes) => bytes,
-        Err(error) => panic!("compiled pattern failed to serialize: {error:?}\npattern = {:?}", input.pattern.text),
+        Err(error) => panic!(
+            "compiled pattern failed to serialize: {error:?}\npattern = {:?}",
+            input.pattern.text
+        ),
     };
 
     // What:  our own bytes must reload (validation must accept what we emitted).
     // Why:   a self-rejecting roundtrip is a bug in encode or in validate.
     let reloaded = match forbidden_regex::Regex::from_bytes(&bytes) {
         Ok(reloaded) => reloaded,
-        Err(error) => panic!("self-serialized pattern failed to reload: {error:?}\npattern = {:?}", input.pattern.text),
+        Err(error) => panic!(
+            "self-serialized pattern failed to reload: {error:?}\npattern = {:?}",
+            input.pattern.text
+        ),
     };
 
     // What:  verdicts must match.

@@ -20,7 +20,10 @@
 
 /// The fixture that runs the programs,
 /// and the release every live test needs.
-use super::fixture::{Fixture, OPENZFS_RELEASE};
+use super::fixture::{
+    Fixture,
+    OPENZFS_RELEASE,
+};
 /// The path type the image and key need.
 use std::path::PathBuf;
 
@@ -65,7 +68,10 @@ impl<'a> FixturePool<'a> {
     /// When the guest's userspace cannot create the pool or a dataset,
     /// with the
     /// program's standard error in the message.
-    pub(crate) fn create(fixture: &'a Fixture, name: &str) -> FixturePool<'a> {
+    pub(crate) fn create(
+        fixture: &'a Fixture,
+        name: &str,
+    ) -> FixturePool<'a> {
         assert!(
             name.starts_with(FIXTURE_POOL_PREFIX),
             "a fixture pool is named '{FIXTURE_POOL_PREFIX}...', and the name is '{name}'"
@@ -146,7 +152,10 @@ impl<'a> FixturePool<'a> {
     /// Take a handle on a pool another process created,
     /// which the delegated-account
     /// arms need and which nothing destroys on drop.
-    pub(crate) fn adopt(fixture: &'a Fixture, name: &str) -> FixturePool<'a> {
+    pub(crate) fn adopt(
+        fixture: &'a Fixture,
+        name: &str,
+    ) -> FixturePool<'a> {
         let home: String = format!("{name}/home");
         return FixturePool {
             fixture,
@@ -221,7 +230,11 @@ impl<'a> FixturePool<'a> {
     /// one filesystem in one command,
     /// which is its own rule,
     /// not the kernel's.
-    pub(crate) fn snapshot(&self, dataset: &str, names: &[&str]) {
+    pub(crate) fn snapshot(
+        &self,
+        dataset: &str,
+        names: &[&str],
+    ) {
         for name in names {
             let full: String = format!("{dataset}@{name}");
             self.fixture.zfs(&["snapshot", &full]);
@@ -229,7 +242,11 @@ impl<'a> FixturePool<'a> {
     }
 
     /// Clone `origin` as `<clones>/<name>` and return the new dataset's name.
-    pub(crate) fn clone_of(&self, origin: &str, name: &str) -> String {
+    pub(crate) fn clone_of(
+        &self,
+        origin: &str,
+        name: &str,
+    ) -> String {
         let target: String = format!("{}/{name}", self.clones);
         self.fixture.zfs(&["clone", origin, &target]);
         return target;
@@ -238,7 +255,12 @@ impl<'a> FixturePool<'a> {
     /// Set `count` user properties of `length` bytes each on `dataset`,
     /// so a read's
     /// reply grows past the initial buffer.
-    pub(crate) fn pad_user_properties(&self, dataset: &str, count: usize, length: usize) {
+    pub(crate) fn pad_user_properties(
+        &self,
+        dataset: &str,
+        count: usize,
+        length: usize,
+    ) {
         let value: String = "p".repeat(length);
         for index in 0..count {
             let assignment: String = format!("monochromatic:pad{index}={value}");
@@ -248,7 +270,10 @@ impl<'a> FixturePool<'a> {
 
     /// Whether `dataset` exists,
     /// asked of the pool itself.
-    pub(crate) fn dataset_exists(&self, dataset: &str) -> bool {
+    pub(crate) fn dataset_exists(
+        &self,
+        dataset: &str,
+    ) -> bool {
         return self
             .fixture
             .zfs_succeeds(&["list", "-H", "-o", "name", dataset]);
@@ -256,7 +281,11 @@ impl<'a> FixturePool<'a> {
 
     /// The GUID and creation transaction group of every object `selection`
     /// names under `dataset`.
-    pub(crate) fn identity_rows(&self, selection: &str, dataset: &str) -> Vec<(String, u64, u64)> {
+    pub(crate) fn identity_rows(
+        &self,
+        selection: &str,
+        dataset: &str,
+    ) -> Vec<(String, u64, u64)> {
         return self.fixture.identity_rows(selection, dataset);
     }
 

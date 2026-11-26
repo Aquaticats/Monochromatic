@@ -10,7 +10,10 @@
 
 /// Imports `event_ring::EventRing`,
 ///  `value_summary::ValueSummary` from `crate`.
-use crate::{event_ring::EventRing, value_summary::ValueSummary};
+use crate::{
+    event_ring::EventRing,
+    value_summary::ValueSummary,
+};
 
 /// The `NotificationClosed` reason for a notification closed by a `CloseNotification` call.
 pub const REASON_CLOSED_BY_CALL: u32 = 3;
@@ -146,8 +149,16 @@ impl NotificationStore {
     /// Why:
     ///       Plasma's server never validates `replaces_id`,
     ///  and a recorder that did would hide app bugs.
-    pub fn notify(&mut self, at_ms: u64, call: NotifyCall) -> u32 {
-        let id = if call.replaces_id == 0 { self.allocate_id() } else { call.replaces_id };
+    pub fn notify(
+        &mut self,
+        at_ms: u64,
+        call: NotifyCall,
+    ) -> u32 {
+        let id = if call.replaces_id == 0 {
+            self.allocate_id()
+        } else {
+            call.replaces_id
+        };
         match self.index_of(id) {
             Some(index) => {
                 if let Some(shown) = self.visible.get_mut(index) {
@@ -163,7 +174,13 @@ impl NotificationStore {
                 updated_ms: at_ms,
             }),
         }
-        self.events.push(at_ms, NotificationEvent::Notify { id, call });
+        self.events.push(
+            at_ms,
+            NotificationEvent::Notify {
+                id,
+                call,
+            },
+        );
         return id;
     }
 
@@ -174,14 +191,27 @@ impl NotificationStore {
     ///  Returns whether the id was visible.
     ///  The caller emits `NotificationClosed` either way,
     ///  as Plasma does.
-    pub fn close_call(&mut self, at_ms: u64, id: u32) -> bool {
+    pub fn close_call(
+        &mut self,
+        at_ms: u64,
+        id: u32,
+    ) -> bool {
         let known = self.remove(id).is_some();
-        self.events.push(at_ms, NotificationEvent::CloseCall { id, known });
+        self.events.push(
+            at_ms,
+            NotificationEvent::CloseCall {
+                id,
+                known,
+            },
+        );
         return known;
     }
 
     /// Finds the position of a visible notification by id.
-    fn index_of(&self, id: u32) -> Option<usize> {
+    fn index_of(
+        &self,
+        id: u32,
+    ) -> Option<usize> {
         for (index, shown) in self.visible.iter().enumerate() {
             if shown.id == id {
                 return Some(index);
@@ -191,7 +221,10 @@ impl NotificationStore {
     }
 
     /// Removes a visible notification without logging.
-    fn remove(&mut self, id: u32) -> Option<VisibleNotification> {
+    fn remove(
+        &mut self,
+        id: u32,
+    ) -> Option<VisibleNotification> {
         let index = self.index_of(id)?;
         return Some(self.visible.remove(index));
     }
@@ -201,27 +234,63 @@ impl NotificationStore {
     /// What:
     ///      `pub fn close_visible(&mut self, at_ms: u64, id: u32, reason: u32) -> bool`.
     ///  Returns `false` and logs nothing when the id is not visible.
-    pub fn close_visible(&mut self, at_ms: u64, id: u32, reason: u32) -> bool {
+    pub fn close_visible(
+        &mut self,
+        at_ms: u64,
+        id: u32,
+        reason: u32,
+    ) -> bool {
         if self.remove(id).is_none() {
             return false;
         }
-        self.events.push(at_ms, NotificationEvent::Closed { id, reason });
+        self.events.push(
+            at_ms,
+            NotificationEvent::Closed {
+                id,
+                reason,
+            },
+        );
         return true;
     }
 
     /// Logs a `NotificationClosed` signal that answers a `CloseNotification` call.
-    pub fn log_closed(&mut self, at_ms: u64, id: u32, reason: u32) {
-        self.events.push(at_ms, NotificationEvent::Closed { id, reason });
+    pub fn log_closed(
+        &mut self,
+        at_ms: u64,
+        id: u32,
+        reason: u32,
+    ) {
+        self.events.push(
+            at_ms,
+            NotificationEvent::Closed {
+                id,
+                reason,
+            },
+        );
     }
 
     /// Logs an `ActionInvoked` signal about to be emitted.
-    pub fn log_action(&mut self, at_ms: u64, id: u32, key: &str) {
-        self.events.push(at_ms, NotificationEvent::ActionInvoked { id, key: key.to_string() });
+    pub fn log_action(
+        &mut self,
+        at_ms: u64,
+        id: u32,
+        key: &str,
+    ) {
+        self.events.push(
+            at_ms,
+            NotificationEvent::ActionInvoked {
+                id,
+                key: key.to_string(),
+            },
+        );
     }
 
     /// Returns a visible notification by id.
     #[must_use]
-    pub fn find(&self, id: u32) -> Option<&VisibleNotification> {
+    pub fn find(
+        &self,
+        id: u32,
+    ) -> Option<&VisibleNotification> {
         let index = self.index_of(id)?;
         return self.visible.get(index);
     }
@@ -236,7 +305,10 @@ impl NotificationStore {
     /// Returns up to `count` of the newest log entries,
     ///  oldest first.
     #[must_use]
-    pub fn last_events(&self, count: usize) -> Vec<&crate::event_ring::Timed<NotificationEvent>> {
+    pub fn last_events(
+        &self,
+        count: usize,
+    ) -> Vec<&crate::event_ring::Timed<NotificationEvent>> {
         return self.events.last_n(count);
     }
 
@@ -257,7 +329,10 @@ impl NotificationStore {
     /// Sets the id counter,
     ///  so tests can reach the wrap point without four billion calls.
     #[cfg(test)]
-    pub fn set_last_id(&mut self, last_id: u32) {
+    pub fn set_last_id(
+        &mut self,
+        last_id: u32,
+    ) {
         self.last_id = last_id;
     }
 }

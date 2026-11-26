@@ -16,11 +16,16 @@
 //! whether a caller waits for its own line,
 //! which stream they go to when no control gave one,
 //! what a gap in them says,
-//! and whether the thread ends when the stream does.
+//! whether the thread ends when the stream does,
+//! and what the process says where the limit on its processes refuses that thread.
 //!  Those differences are the `QueuePolicy` a queue is made with;
 //! everything else is written here once,
 //!  which is what keeps one queue's fix from leaving the other behind
 //! (debt ledger of 2026-11-25, item 13).
+//!  A refused thread is one of those differences only in what it says it was for:
+//! both queues start their thread the same way,
+//! so both meet the same refusal,
+//!  and both answer it the same way here (issue 6476).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -98,10 +103,13 @@ pub(crate) struct QueuePolicy {
     pub(crate) retries_on_a_tick: bool,
     /// Whether the thread ends when the stream takes nothing ever again.
     pub(crate) ends_when_the_stream_is_gone: bool,
-    /// What says the thread could not be started,
-    /// as the diagnostic tag and the sentence,
-    /// or nothing when that is left unsaid.
-    pub(crate) thread_refused: Option<(&'static str, &'static str)>,
+    /// What the thread this queue starts is for,
+    /// said in the sentence a refused thread leaves,
+    /// or nothing when the refusal is left unsaid.
+    /// Why the refusal is written rather than held:
+    ///  a process limit that refused the thread once refuses every later start too,
+    ///  so a line kept for a thread of its own would never reach the person (issue 6476).
+    pub(crate) refused_thread_purpose: Option<&'static str>,
     /// The tag of this queue's own diagnostic lines.
     pub(crate) tag: &'static str,
 }
@@ -140,6 +148,18 @@ pub(crate) struct Queue {
     /// a write that failed for any reason other than a momentary lack of room
     /// leaves a stream that no wait can bring back.
     stream_is_gone: bool,
+    /// Whether the system refused the thread that writes these lines,
+    /// so every line is written on the thread that says it.
+    /// Why the refusal is kept and not retried:
+    ///  a process limit that refused the thread once refuses every later start too,
+    ///  so a line waiting for a new one would never reach the person (issue 6476).
+    thread_refused: bool,
+    /// The line that says which limit refused that thread,
+    /// or nothing once it is said.
+    /// Why it waits here:
+    ///  the queue is made before a control's stream is given to it,
+    ///  so the sentence is said with the first line the process says.
+    thread_refusal: Option<String>,
     /// Where a control's lines go,
     /// or nothing when they go to the stream this queue defaults to.
     writer: Option<Box<dyn Write + Send>>,
@@ -172,9 +192,9 @@ pub(crate) const THE_END_ASKS_AGAIN_EVERY: std::time::Duration = std::time::Dura
 ///   The thread waits on the same queue for as long as the process runs,
 /// so the value has to outlive the call that made it;
 ///  a process that says no line starts no thread and pays nothing.
-///  A thread the system refuses leaves every line of this process unwritten,
-/// which the policy either says once or leaves unsaid
-///  (the stream it cannot reach is where it would be said).
+///  A thread the system refuses leaves every line of this process unwritten if nothing answers it,
+/// which is how the refusal of a commit at its process limit was lost on 2026-11-25 (issue 6476),
+///  so the refusal is kept here and every line is written where it is said from then on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -200,6 +220,8 @@ pub(crate) fn start_the_queue(policy: &'static QueuePolicy) -> SharedQueue {
             writing: false,
             reader_stopped: false,
             stream_is_gone: false,
+            thread_refused: false,
+            thread_refusal: None,
             writer: None,
             policy,
         }),
@@ -217,18 +239,36 @@ pub(crate) fn start_the_queue(policy: &'static QueuePolicy) -> SharedQueue {
         .spawn(move || {
             write_every_line(started);
         });
-    // What:     `if let Some((tag, sentence)) = policy.thread_refused` says once that the lines will never be written,
-    //           where the queue's own policy says it at all.
-    // Why:      A caller that hands a line would otherwise believe it was shown.
+    // What:     `if let Err(refusal) = spawned` keeps the refusal of the one thread that writes this queue,
+    //           and builds the sentence that says which limit refused it,
+    //           where the queue's own policy says the refusal at all.
+    // Why:      A caller that hands a line would otherwise believe it was shown,
+    //           and a refusal is the whole of what a command at its process limit has to say (issue 6476).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // if (spawned.kind === 'error' && policy.threadRefused) warn(...policy.threadRefused);
+    // if (spawned.kind === 'error' && policy.refusedThreadPurpose) { queue.threadRefused = true; queue.threadRefusal = `monochromatic-git-policy-cli: ${refusedThreadSentence(policy.refusedThreadPurpose, spawned.error)}. Every line is written on the thread that says it from now on, so nothing this process says is lost while this limit stands.\n`; }
     // ```
-    if spawned.is_err()
-        && let Some((tag, sentence)) = policy.thread_refused
+    if let Err(refusal) = spawned
+        && let Some(purpose) = policy.refused_thread_purpose
     {
-        crate::diagnostic_log::warn(tag, sentence);
+        // What:     `said` is the one sentence this process says about the refused thread,
+        //           built from the purpose the policy names and the system's own error.
+        // Why:      The person reads which limit refused the thread and what to change,
+        //           not the queue's own vocabulary.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const said = `monochromatic-git-policy-cli: ${refusedThreadSentence(purpose, refusal)}. Every line is written on the thread that says it from now on, so nothing this process says is lost while this limit stands.\n`;
+        // ```
+        let said: String = format!(
+            "monochromatic-git-policy-cli: {}. Every line is written on the thread that says it from now on, so nothing this \
+             process says is lost while this limit stands.\n",
+            crate::scoped_start::refused_thread_sentence(purpose, &refusal)
+        );
+        let mut held = started.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        held.thread_refused = true;
+        held.thread_refusal = Some(said);
     }
     // What:     `started` is the queue every later call reads and the thread waits on.
     // Why:      One value for both ends of the queue, which is what makes them one queue.
@@ -531,21 +571,160 @@ fn wait_to_be_asked_again(queue: &'static Mutex<Queue>, ready: &'static Condvar)
 }
 
 /// What:
+///  Writes one line on the thread that says it,
+///  where the system refused the thread that would have written it,
+///  and answers the number of the line where the stream took the write.
+/// Why:
+///   A process whose process limit refuses a queue's thread still has to say why it failed:
+/// the refusal of a commit at its process limit reached nobody on 2026-11-25 (issue 6476),
+///  because every line waited in a queue that nothing would ever write.
+///  The line is written without waiting for a reader:
+/// one write is made only where the stream has room now,
+/// so a stream nobody drains costs the line and never the caller,
+///  which is the same promise the queue keeps when its room runs out.
+///  A control's own stream is written as it stands,
+/// because a control's stream is the control's memory and never a reader.
+///  One write is all a line gets here,
+/// so the number moves at once and a caller that waits for its line waits for nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeWhereItIsSaid = (line) => { const [writer, fromAControl] = takeTheStream(); if (!fromAControl && !roomNow()) { dropped++; return undefined } writer.write(line); writer.flush(); giveBack(writer); const ticket = next++; written = ticket; return ticket }
+/// ```
+fn write_where_it_is_said(queue: SharedQueue, line: &[u8]) -> Option<u64> {
+    let (held_queue, _ready) = queue;
+    // What:     `from_a_control` says the stream came from a control rather than from this queue's policy,
+    //           and a control's stream is memory that takes every byte at once.
+    // Why:      The room a write waits for is a reader's, and only a stream of this process has a reader.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [writer, fromAControl] = held.writer ? [held.writer, true] : [(held.policy.defaultStream)(), false];
+    // ```
+    let (mut writer, from_a_control): (Box<dyn Write + Send>, bool) = {
+        let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        match held.writer.take() {
+            Some(control) => (control, true),
+            None => ((held.policy.default_stream)(), false),
+        }
+    };
+    // What:     `if !from_a_control && !the_stream_has_room_now()` drops a line this process's stream has no room for now.
+    // Why:      A write to a stream with no room now waits for the reader, which is the wait a caller must never pay,
+    //           and a line so dropped is counted like one the queue's bound dropped.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (!fromAControl && !roomNow()) { lock(); dropped++; return undefined }
+    // ```
+    if !from_a_control && !the_stream_has_room_now() {
+        let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        held.dropped = held.dropped.saturating_add(1);
+        return None;
+    }
+    // What:     `writer.write(line)` makes the one write this line gets, and `writer.flush()` pushes what the stream buffers.
+    // Why:      A refusal or a short take is dropped here, so this line is the whole of the promise the process can keep
+    //           at its limit.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writer.write(line); writer.flush();
+    // ```
+    let _took: std::io::Result<usize> = writer.write(line);
+    let _flushed: std::io::Result<()> = writer.flush();
+    let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if held.writer.is_none() {
+        held.writer = Some(writer);
+    }
+    // What:     `ticket` is the number this line takes, and `held.written = ticket` says the stream has reached it.
+    // Why:      A caller that waits for its own line asks for this number, and one write here is the whole of the answer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const ticket = held.nextTicket++; held.written = ticket; return ticket;
+    // ```
+    let ticket: u64 = held.next_ticket;
+    held.next_ticket = held.next_ticket.saturating_add(1);
+    held.written = ticket;
+    return Some(ticket);
+}
+
+/// What:
+///  Whether this process's standard error takes a write now,
+///  asked without waiting for the reader.
+/// Why:
+///   A line written where it is said must still keep the promise that no caller waits for a reader,
+/// and a stream with no room now is one a write would wait on;
+///  a regular file, a terminal and a pipe being drained all answer that they have room,
+///  so the ordinary case is written and the stopped reader costs the line.
+///  Both queues' policies write this process's standard error when no control gave a stream,
+/// which is descriptor 2, so the room that was asked of here is the room the line goes to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const roomNow = () => poll([{ fd: 2, events: POLLOUT }], 0) > 0
+/// ```
+#[cfg(unix)]
+fn the_stream_has_room_now() -> bool {
+    // What: one descriptor watched for room to write in it, and for no time at all.
+    let mut watched: libc::pollfd = libc::pollfd { fd: libc::STDERR_FILENO, events: libc::POLLOUT, revents: 0 };
+    // SAFETY: `poll` reads and writes only the one structure given to it here, and waits for no time.
+    let answered: libc::c_int = unsafe { libc::poll(&mut watched, 1, 0) };
+    // What: whether the stream reported room, and not an error or a hang-up instead.
+    return answered > 0 && watched.revents & libc::POLLOUT != 0;
+}
+
+/// What:
+///  Whether this process's standard error takes a write now,
+///  on a platform whose descriptors carry no such question: it is written and waited for.
+/// Why:
+///   Every platform this program is released on has the question above;
+/// this answer keeps the build of the other platforms and is measured by no control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const roomNow = () => true
+/// ```
+#[cfg(not(unix))]
+fn the_stream_has_room_now() -> bool {
+    return true;
+}
+
+/// What:
 ///  Hands one line's bytes to the thread that writes it,
-///  and answers the number of the line when the queue had room.
+///  answers the number of the line when the queue had room,
+///  and writes the line where it is said when the system refused that thread.
 /// Why:
 ///   A queue that is full counts the line instead of waiting for room,
 /// so the caller never waits for the reader;
 ///  the number is what a caller that waits for its own line waits for,
 ///  and a queue whose callers do not wait never reads it.
+///  A refused thread leaves no one to take the line,
+/// so the line is written on the thread that says it instead of waiting for ever (issue 6476).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const hand = (line) => { lock(); if (queue.length >= bound) { dropped++; return undefined } queue.push({ ticket: next++, line }); unlock(); notify(); return ticket }
+/// const hand = (line) => { lock(); if (refused) { const said = refusal.shift(); unlock(); if (said) writeWhereItIsSaid(said); return writeWhereItIsSaid(line) } if (queue.length >= bound) { dropped++; return undefined } queue.push({ ticket: next++, line }); unlock(); notify(); return ticket }
 /// ```
 pub(crate) fn hand(queue: SharedQueue, line: Vec<u8>, bound: usize) -> Option<u64> {
     let (held_queue, ready) = queue;
     let mut held = held_queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    // What:     `if held.thread_refused` is the queue of a process whose limit refused the thread that writes it,
+    //           where `held.thread_refusal.take()` takes the one sentence about that refusal.
+    // Why:      Nothing will ever take a line from this queue, so the line is written where it is said,
+    //           and the sentence is said with the first line the process says, once (issue 6476).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (held.threadRefused) { const said = held.threadRefusal; held.threadRefusal = undefined; drop(held); if (said) writeWhereItIsSaid(queue, said); return writeWhereItIsSaid(queue, line); }
+    // ```
+    if held.thread_refused {
+        let sentence: Option<String> = held.thread_refusal.take();
+        drop(held);
+        if let Some(said) = sentence {
+            let _said_where_it_stands: Option<u64> = write_where_it_is_said(queue, said.as_bytes());
+        }
+        return write_where_it_is_said(queue, line.as_slice());
+    }
     // What:     `held.lines.len() >= bound` is the moment the queue says a line was dropped.
     // Why:      A bound is the whole of the promise a caller is given: it costs no wait, a line beyond it costs that line.
     //

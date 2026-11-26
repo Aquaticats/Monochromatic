@@ -5,12 +5,18 @@
 
 /// A clip is two distances below the first line's block,
 /// and a viewport carries the one a frame is prepared for.
-use super::frame::{Clip, Viewport};
+use super::frame::{
+    Clip,
+    Viewport,
+};
 /// A code row is the unit the clip edges are rounded to.
 use crate::row_map::CODE_ROW;
 /// The device's texture size limit is one process-wide number,
 /// read by the window thread and the tile worker.
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{
+    AtomicU32,
+    Ordering,
+};
 
 /// What:
 ///  Most bytes one texture of a source tile may hold:
@@ -114,7 +120,10 @@ pub fn raster_width(wrap: Option<f32>) -> f32 {
 /// ```ts
 /// function rasterFits(columns: number, rows: number): boolean;
 /// ```
-pub fn raster_fits(columns: u64, rows: u64) -> bool {
+pub fn raster_fits(
+    columns: u64,
+    rows: u64,
+) -> bool {
     return columns.saturating_mul(rows).saturating_mul(4) <= MAX_RASTER_BYTES;
 }
 
@@ -215,7 +224,10 @@ pub fn tile_texture_rows(columns: u64) -> u64 {
 /// ```ts
 /// function textureFits(columns: number, rows: number): boolean;
 /// ```
-pub fn texture_fits(columns: u64, rows: u64) -> bool {
+pub fn texture_fits(
+    columns: u64,
+    rows: u64,
+) -> bool {
     return rows <= tile_texture_rows(columns);
 }
 
@@ -255,7 +267,10 @@ pub fn stack_rows(columns: u64) -> u64 {
 /// ```ts
 /// function stackFits(columns: number, rows: number): boolean;
 /// ```
-pub fn stack_fits(columns: u64, rows: u64) -> bool {
+pub fn stack_fits(
+    columns: u64,
+    rows: u64,
+) -> bool {
     return rows <= stack_rows(columns);
 }
 
@@ -274,7 +289,10 @@ pub fn stack_fits(columns: u64, rows: u64) -> bool {
 /// ```ts
 /// function textureHeights(columns: number, rows: number): number[];
 /// ```
-pub fn texture_heights(columns: u64, rows: u64) -> Vec<u32> {
+pub fn texture_heights(
+    columns: u64,
+    rows: u64,
+) -> Vec<u32> {
     let most = tile_texture_rows(columns);
     let mut heights = Vec::new();
     if most == 0 {
@@ -317,7 +335,10 @@ pub const CAP_SLACK: f32 = 6.0 * CODE_ROW;
 /// ```ts
 /// function stackCap(columns: number, scale: number): number;
 /// ```
-pub fn stack_cap(columns: u64, scale: f32) -> f32 {
+pub fn stack_cap(
+    columns: u64,
+    scale: f32,
+) -> f32 {
     let rows = stack_rows(columns.max(1));
     return ((rows as f32 / scale).floor() - CODE_ROW).max(CODE_ROW);
 }
@@ -342,7 +363,11 @@ pub fn stack_cap(columns: u64, scale: f32) -> f32 {
 /// ```ts
 /// function tileCap(columns: number, scale: number, wanted: number): number;
 /// ```
-pub fn tile_cap(columns: u64, scale: f32, wanted: f32) -> f32 {
+pub fn tile_cap(
+    columns: u64,
+    scale: f32,
+    wanted: f32,
+) -> f32 {
     let single =
         ((tile_texture_rows(columns.max(1)) as f32 / scale).floor() - CODE_ROW).max(CODE_ROW);
     return stack_cap(columns, scale).min(single.max(wanted + CAP_SLACK));
@@ -371,7 +396,12 @@ pub fn tile_cap(columns: u64, scale: f32, wanted: f32) -> f32 {
 /// ```ts
 /// function bandClip(firstTop: number, bottom: number, band: [number, number], cap: number): Clip | undefined;
 /// ```
-pub fn band_clip(first_top: f32, bottom: f32, band: (f32, f32), cap: f32) -> Option<Clip> {
+pub fn band_clip(
+    first_top: f32,
+    bottom: f32,
+    band: (f32, f32),
+    cap: f32,
+) -> Option<Clip> {
     if bottom - first_top <= cap {
         return None;
     }
@@ -411,7 +441,10 @@ pub fn band_clip(first_top: f32, bottom: f32, band: (f32, f32), cap: f32) -> Opt
             cut = top + allowed;
         }
     }
-    return Some(Clip { top, bottom: cut });
+    return Some(Clip {
+        top,
+        bottom: cut,
+    });
 }
 
 /// What:
@@ -462,7 +495,12 @@ pub fn fit_clip(
 /// ```ts
 /// function fitViewport(viewport: Viewport, firstTop: number, bottom: number, columns: number): Viewport;
 /// ```
-pub fn fit_viewport(viewport: Viewport, first_top: f32, bottom: f32, columns: u64) -> Viewport {
+pub fn fit_viewport(
+    viewport: Viewport,
+    first_top: f32,
+    bottom: f32,
+    columns: u64,
+) -> Viewport {
     let fitted = fit_clip(first_top, bottom, viewport.clip, columns, viewport.scale);
     if fitted == viewport.clip {
         return viewport;

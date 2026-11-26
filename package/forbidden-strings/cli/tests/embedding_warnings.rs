@@ -9,8 +9,14 @@
 //! ```
 
 /// Import the actual published boundary and native fixture/process APIs.
-use forbidden_strings::{Scanner, ScanFinding};
-use std::path::{Path, PathBuf};
+use forbidden_strings::{
+    ScanFinding,
+    Scanner,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
 
 /// What:
@@ -36,8 +42,11 @@ fn artifact(root: &Path) -> PathBuf {
         for outcome in std::fs::read_dir(directory).expect("fixture cache directory") {
             let entry = outcome.expect("fixture cache entry");
             let path: PathBuf = entry.path();
-            if path.is_dir() { pending.push(path); }
-            else if path.file_name() == Some(std::ffi::OsStr::new("rules.bin")) { return path; }
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.file_name() == Some(std::ffi::OsStr::new("rules.bin")) {
+                return path;
+            }
         }
     }
     panic!("fixture artifact was not published");
@@ -46,36 +55,68 @@ fn artifact(root: &Path) -> PathBuf {
 /// The exported loader returns structured recovery evidence while remaining silent itself.
 #[test]
 fn warning_consumer_probe() {
-    let Ok(mode) = std::env::var("EMBEDDING_WARNING_MODE") else { return; };
-    let root: PathBuf = PathBuf::from(std::env::var_os("EMBEDDING_WARNING_ROOT").expect("fixture root"));
+    let Ok(mode) = std::env::var("EMBEDDING_WARNING_MODE") else {
+        return;
+    };
+    let root: PathBuf =
+        PathBuf::from(std::env::var_os("EMBEDDING_WARNING_ROOT").expect("fixture root"));
     let rules: PathBuf = root.join("rules");
     if mode == "relative" {
         let error = match Scanner::load(rules.as_path(), false, true) {
             Ok(_) => panic!("relative cache configuration must be rejected"),
             Err(failure) => failure,
         };
-        assert!(error.to_string().contains("FORBIDDEN_STRINGS_CACHE_DIR must be an absolute path"));
+        assert!(
+            error
+                .to_string()
+                .contains("FORBIDDEN_STRINGS_CACHE_DIR must be an absolute path")
+        );
         return;
     }
     if mode == "corrupt" {
-        let _first: Scanner = Scanner::load(rules.as_path(), false, true).expect("warm fixture cache");
-        std::fs::write(artifact(root.join("cache").as_path()), b"invalid").expect("corrupt fixture artifact");
+        let _first: Scanner =
+            Scanner::load(rules.as_path(), false, true).expect("warm fixture cache");
+        std::fs::write(artifact(root.join("cache").as_path()), b"invalid")
+            .expect("corrupt fixture artifact");
     }
-    let scanner: Scanner = Scanner::load(rules.as_path(), false, true).expect("public cache recovery");
+    let scanner: Scanner =
+        Scanner::load(rules.as_path(), false, true).expect("public cache recovery");
     // A root blocked by a regular file reads as `unreadable` on Unix and `missing` on Windows; every other reason is shared.
-    let expected_reason = if mode == "blocked" { blocked_root::blocked_root_reason() }
-        else if mode == "unavailable" { "cache-root-unavailable" } else { "invalid" };
+    let expected_reason = if mode == "blocked" {
+        blocked_root::blocked_root_reason()
+    } else if mode == "unavailable" {
+        "cache-root-unavailable"
+    } else {
+        "invalid"
+    };
     assert_eq!(scanner.cache_warnings()[0].reason(), expected_reason);
     assert_eq!(scanner.cache_warnings()[0].recovery(), "compile-from-text");
     if mode == "blocked" {
         assert_eq!(scanner.cache_warnings().len(), 2);
         assert_eq!(scanner.cache_warnings()[1].reason(), "write-failed");
-        assert_eq!(scanner.cache_warnings()[1].recovery(), "continue-with-compiled-rules");
-    } else { assert_eq!(scanner.cache_warnings().len(), 1); }
-    assert_eq!(scanner.scan(9, Path::new("safe"), b"WARNING_FIXTURE_LONG").findings,
-        vec![ScanFinding::Content { line: 1, rule: String::from("0") }]);
+        assert_eq!(
+            scanner.cache_warnings()[1].recovery(),
+            "continue-with-compiled-rules"
+        );
+    } else {
+        assert_eq!(scanner.cache_warnings().len(), 1);
+    }
+    assert_eq!(
+        scanner
+            .scan(9, Path::new("safe"), b"WARNING_FIXTURE_LONG")
+            .findings,
+        vec![ScanFinding::Content {
+            line: 1,
+            rule: String::from("0")
+        }]
+    );
     if mode == "corrupt" {
-        assert!(Scanner::load(rules.as_path(), false, true).expect("repaired public cache").cache_warnings().is_empty());
+        assert!(
+            Scanner::load(rules.as_path(), false, true)
+                .expect("repaired public cache")
+                .cache_warnings()
+                .is_empty()
+        );
     }
 }
 
@@ -84,24 +125,44 @@ fn warning_consumer_probe() {
 #[test]
 fn public_warning_paths_preserve_scan_results_without_emitting_terminal_json() {
     for mode in ["blocked", "unavailable", "relative", "corrupt"] {
-        let root: PathBuf = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("scanner-warning-{}-{mode}", std::process::id()));
+        let root: PathBuf = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("scanner-warning-{}-{mode}", std::process::id()));
         std::fs::create_dir(&root).expect("fresh fixture");
         std::fs::write(root.join("rules"), "WARNING_FIXTURE_LONG\n").expect("fixture rules");
-        if mode == "blocked" { std::fs::write(root.join("cache"), "blocked").expect("cache blocker"); }
+        if mode == "blocked" {
+            std::fs::write(root.join("cache"), "blocked").expect("cache blocker");
+        }
         let mut command = Command::new(std::env::current_exe().expect("consumer executable"));
-        command.args(["--exact", "warning_consumer_probe", "--nocapture"])
-            .env("EMBEDDING_WARNING_MODE", mode).env("EMBEDDING_WARNING_ROOT", &root)
-            .env("HOME", &root).env("FORBIDDEN_STRINGS_CACHE_DIR", root.join("cache"));
-        if mode == "relative" { command.env("FORBIDDEN_STRINGS_CACHE_DIR", "relative-cache"); }
+        command
+            .args(["--exact", "warning_consumer_probe", "--nocapture"])
+            .env("EMBEDDING_WARNING_MODE", mode)
+            .env("EMBEDDING_WARNING_ROOT", &root)
+            .env("HOME", &root)
+            .env("FORBIDDEN_STRINGS_CACHE_DIR", root.join("cache"));
+        if mode == "relative" {
+            command.env("FORBIDDEN_STRINGS_CACHE_DIR", "relative-cache");
+        }
         if mode == "unavailable" {
-            for variable in ["HOME", "XDG_CACHE_HOME", "FORBIDDEN_STRINGS_CACHE_DIR", "LOCALAPPDATA", "USERPROFILE"] {
+            for variable in [
+                "HOME",
+                "XDG_CACHE_HOME",
+                "FORBIDDEN_STRINGS_CACHE_DIR",
+                "LOCALAPPDATA",
+                "USERPROFILE",
+            ] {
                 command.env_remove(variable);
             }
         }
         let output = command.output().expect("isolated warning consumer");
         std::fs::remove_dir_all(&root).expect("remove only disposable fixture");
-        assert!(output.status.success(), "{mode}: {}", String::from_utf8_lossy(&output.stderr));
+        assert!(
+            output.status.success(),
+            "{mode}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
-        assert!(!String::from_utf8_lossy(&output.stderr).contains("forbidden-strings/cache-warning"));
+        assert!(
+            !String::from_utf8_lossy(&output.stderr).contains("forbidden-strings/cache-warning")
+        );
     }
 }

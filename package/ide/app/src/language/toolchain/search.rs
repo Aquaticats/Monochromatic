@@ -9,7 +9,10 @@
 //!  which fails inside the sandbox with "No version is set for shim".
 
 /// A program must be a regular file with an execute bit.
-use crate::language::launch::{is_executable, resolve_executable};
+use crate::language::launch::{
+    is_executable,
+    resolve_executable,
+};
 /// What:
 ///  `OsString` is text that may not be valid Unicode (sibling:
 ///  `String`);
@@ -24,7 +27,10 @@ use crate::language::launch::{is_executable, resolve_executable};
 /// ```
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -155,7 +161,10 @@ pub fn find_program_in(
 /// ```ts
 /// function searchPath(directories: string[], inherited?: string): string
 /// ```
-pub fn search_path(directories: &[PathBuf], inherited: Option<OsString>) -> Option<String> {
+pub fn search_path(
+    directories: &[PathBuf],
+    inherited: Option<OsString>,
+) -> Option<String> {
     let mut entries: Vec<PathBuf> = Vec::new();
     for directory in directories {
         let usable = match directory.to_str() {

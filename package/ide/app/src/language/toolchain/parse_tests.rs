@@ -2,12 +2,19 @@
 //!  messages,
 //!  and the noise removal on captured and hostile text.
 
-use super::{MESSAGE_LIMIT, bin_paths, message};
+use super::{
+    MESSAGE_LIMIT,
+    bin_paths,
+    message,
+};
 use std::fs;
 
 /// The pinned answer of `doc/planning/mpm-toolchain-migration.md`,
 ///  with the directories of a disposable machine.
-fn answer(dirs: &[&str], bins: &[(&str, &str)]) -> String {
+fn answer(
+    dirs: &[&str],
+    bins: &[(&str, &str)],
+) -> String {
     let listed: Vec<String> = dirs.iter().map(|dir| format!("{dir:?}")).collect();
     let links: Vec<String> = bins
         .iter()
@@ -112,7 +119,8 @@ fn an_answer_of_another_shape_fails_instead_of_guessing() {
 
 /// The standard error of node for an entry point that throws,
 ///  captured from a disposable run.
-const UNREADABLE: &str = "file:///work/project/package/file-enforcer/core/src/toolchain/bin-paths.ts:12
+const UNREADABLE: &str =
+    "file:///work/project/package/file-enforcer/core/src/toolchain/bin-paths.ts:12
   throw new Error('toolchain.lock.json is unreadable');
         ^
 Error: toolchain.lock.json is unreadable

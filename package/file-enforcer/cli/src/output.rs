@@ -15,7 +15,10 @@
 use clap::error::ErrorKind;
 /// Imports `Event`,
 /// `EventSink` from `monochromatic_file_enforcer::event`.
-use monochromatic_file_enforcer::event::{Event, EventSink};
+use monochromatic_file_enforcer::event::{
+    Event,
+    EventSink,
+};
 /// Imports `Write` from `std::io`.
 use std::io::Write;
 
@@ -63,7 +66,10 @@ impl EventSink for LinePrinter {
     /// ```ts
     /// emit(event: Event): void
     /// ```
-    fn emit(&mut self, event: Event) {
+    fn emit(
+        &mut self,
+        event: Event,
+    ) {
         let line = event.to_line(self.sequence);
         self.sequence += 1;
         let mut stdout = std::io::stdout().lock();
@@ -91,13 +97,18 @@ pub fn event_for_clap_error(error: &clap::Error) -> (Event, i32) {
     let trimmed = text.trim_end().to_string();
     match error.kind() {
         ErrorKind::DisplayHelp | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => {
-            let code = if error.kind() == ErrorKind::DisplayHelp { 0 } else { 2 };
+            let code = if error.kind() == ErrorKind::DisplayHelp {
+                0
+            } else {
+                2
+            };
             return (Event::new("help", "help", &trimmed), code);
         }
         ErrorKind::DisplayVersion => return (Event::new("version", "version", &trimmed), 0),
         _ => {
             let mut event = Event::new("error", "usage-error", &trimmed);
-            event.hint = Some("run `file-enforcer --help` for the commands and options".to_string());
+            event.hint =
+                Some("run `file-enforcer --help` for the commands and options".to_string());
             return (event, 2);
         }
     }

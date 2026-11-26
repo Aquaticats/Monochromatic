@@ -23,7 +23,10 @@ use super::error::Error;
 /// The typed request numbers.
 use super::operation::Operation;
 /// The request value and the name check.
-use super::request::{Request, checked_name};
+use super::request::{
+    Request,
+    checked_name,
+};
 /// The field a request name is bound for.
 use crate::names::NameField;
 /// The codec list type.
@@ -37,7 +40,10 @@ use crate::nvlist::NvList;
 /// [`Error::Name`] when the target does not fit `zc_name`,
 /// and
 /// [`Error::Encode`] when the property list cannot be packed.
-pub fn set_prop(target: &str, properties: &NvList) -> Result<Request, Error> {
+pub fn set_prop(
+    target: &str,
+    properties: &NvList,
+) -> Result<Request, Error> {
     let name = checked_name(Operation::SetProp, target, NameField::CommandName, target)?;
     let mut request: Request = Request::new(Operation::SetProp, name);
     request.attach_input(properties)?;
@@ -51,7 +57,10 @@ pub fn set_prop(target: &str, properties: &NvList) -> Result<Request, Error> {
 /// # Throws
 ///
 /// [`Error::Name`] when the name does not fit `zc_name`.
-pub fn destroy(name: &str, defer: bool) -> Result<Request, Error> {
+pub fn destroy(
+    name: &str,
+    defer: bool,
+) -> Result<Request, Error> {
     let checked = checked_name(Operation::Destroy, name, NameField::CommandName, name)?;
     let mut request: Request = Request::new(Operation::Destroy, checked);
     request.command_mut().set_defer_destroy(defer);
@@ -79,7 +88,11 @@ pub fn promote(name: &str) -> Result<Request, Error> {
 /// [`Error::Name`] when the target does not fit `zc_name`,
 /// and
 /// [`Error::Encode`] when the origin or the property list cannot be packed.
-pub fn clone(target: &str, origin: &str, properties: Option<&NvList>) -> Result<Request, Error> {
+pub fn clone(
+    target: &str,
+    origin: &str,
+    properties: Option<&NvList>,
+) -> Result<Request, Error> {
     let name = checked_name(Operation::Clone, target, NameField::CommandName, target)?;
     let mut input: NvList = NvList::new();
     input.add_str("origin", origin);

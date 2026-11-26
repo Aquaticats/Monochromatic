@@ -20,7 +20,10 @@
 /// The generator cursor shared with the owner and index-lock records.
 use super::owners::Cursor;
 /// The decoder under test and the record it returns.
-use git_policy_cli::single_owner_claim::{ClaimRecord, decode};
+use git_policy_cli::single_owner_claim::{
+    ClaimRecord,
+    decode,
+};
 /// The folder names a claim file's first line is spelled with,
 /// the current release's first.
 use git_policy_cli::wrapper_names_old_and_new::DATA_FOLDER;
@@ -70,7 +73,10 @@ fn header_of(folder: &str) -> String {
 /// ```ts
 /// const fieldText = (cursor: Cursor, nonempty: boolean) => cursor.text(nonempty).replaceAll('\n', ' ');
 /// ```
-fn field_text(cursor: &mut Cursor<'_>, nonempty: bool) -> String {
+fn field_text(
+    cursor: &mut Cursor<'_>,
+    nonempty: bool,
+) -> String {
     return cursor.text(nonempty).replace('\n', " ");
 }
 
@@ -102,7 +108,11 @@ fn owned_record(cursor: &mut Cursor<'_>) -> ClaimRecord {
             if text == "-" { None } else { Some(text) }
         }
     };
-    return ClaimRecord::Owned { pid, birth, namespace };
+    return ClaimRecord::Owned {
+        pid,
+        birth,
+        namespace,
+    };
 }
 
 /// What:
@@ -130,10 +140,17 @@ fn namespace_text(namespace: Option<&str>) -> &str {
 /// ```ts
 /// function claimText(header: string, record: ClaimRecord): string;
 /// ```
-fn claim_text(header: &str, record: &ClaimRecord) -> String {
+fn claim_text(
+    header: &str,
+    record: &ClaimRecord,
+) -> String {
     return match record {
         ClaimRecord::Released => format!("{header}\n{RELEASED_LINE}\n"),
-        ClaimRecord::Owned { pid, birth, namespace } => format!(
+        ClaimRecord::Owned {
+            pid,
+            birth,
+            namespace,
+        } => format!(
             "{header}\npid={pid}\nbirth={birth}\nnamespace={}\n",
             namespace_text(namespace.as_deref())
         ),
@@ -178,7 +195,11 @@ pub fn generated_claim_text(data: &[u8]) -> (String, Option<ClaimRecord>) {
         return (broken_owned_claim(header.as_str(), &mut cursor), None);
     }
     let released: bool = shape < 2;
-    let record: ClaimRecord = if released { ClaimRecord::Released } else { owned_record(&mut cursor) };
+    let record: ClaimRecord = if released {
+        ClaimRecord::Released
+    } else {
+        owned_record(&mut cursor)
+    };
     let mut text: String = claim_text(header.as_str(), &record);
     if shape == 1 || shape == 3 {
         text.push_str(TRAILING_LINES[usize::from(cursor.byte()) % TRAILING_LINES.len()]);
@@ -198,15 +219,24 @@ pub fn generated_claim_text(data: &[u8]) -> (String, Option<ClaimRecord>) {
 /// ```ts
 /// function brokenOwnedClaim(header: string, cursor: Cursor): string;
 /// ```
-fn broken_owned_claim(header: &str, cursor: &mut Cursor<'_>) -> String {
+fn broken_owned_claim(
+    header: &str,
+    cursor: &mut Cursor<'_>,
+) -> String {
     let owner: ClaimRecord = owned_record(cursor);
-    let ClaimRecord::Owned { pid, birth, namespace } = &owner else {
+    let ClaimRecord::Owned {
+        pid,
+        birth,
+        namespace,
+    } = &owner
+    else {
         panic!("a generated owner is an owned claim: {owner:?}");
     };
     let namespace_line: &str = namespace_text(namespace.as_deref());
     return match cursor.byte() % 3 {
         0 => {
-            let no_process: &str = NO_PROCESS_PIDS[usize::from(cursor.byte()) % NO_PROCESS_PIDS.len()];
+            let no_process: &str =
+                NO_PROCESS_PIDS[usize::from(cursor.byte()) % NO_PROCESS_PIDS.len()];
             format!("{header}\npid={no_process}\nbirth={birth}\nnamespace={namespace_line}\n")
         }
         1 => format!("{header}\npid={pid}\nbirth=\nnamespace={namespace_line}\n"),
@@ -227,8 +257,15 @@ fn broken_owned_claim(header: &str, cursor: &mut Cursor<'_>) -> String {
 fn holds_carriage_return(record: &ClaimRecord) -> bool {
     return match record {
         ClaimRecord::Released => false,
-        ClaimRecord::Owned { birth, namespace, .. } => {
-            birth.contains('\r') || namespace.as_deref().is_some_and(|text| return text.contains('\r'))
+        ClaimRecord::Owned {
+            birth,
+            namespace,
+            ..
+        } => {
+            birth.contains('\r')
+                || namespace
+                    .as_deref()
+                    .is_some_and(|text| return text.contains('\r'))
         }
     };
 }
@@ -255,7 +292,11 @@ pub fn check_claim_text(text: &str) {
     );
     match &record {
         ClaimRecord::Released => {}
-        ClaimRecord::Owned { pid, birth, namespace } => {
+        ClaimRecord::Owned {
+            pid,
+            birth,
+            namespace,
+        } => {
             assert!(*pid >= 1, "{record:?}");
             assert!(!birth.is_empty(), "{record:?}");
             assert_ne!(namespace.as_deref(), Some("-"), "{record:?}");

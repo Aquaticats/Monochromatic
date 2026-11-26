@@ -11,15 +11,34 @@ use super::navigation_tests::row;
 ///  source state,
 ///  and the bindings the shipped application installs.
 use super::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, navigation, reload,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    navigation,
+    reload,
     render,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// Reading positions and the canonical project boundary.
-use ide_app::{document::ReadingPosition, workspace::Workspace};
+use ide_app::{
+    document::ReadingPosition,
+    workspace::Workspace,
+};
 /// Real headless timers drive the same refresh timers as the shipped event loop.
-use slint::{ComponentHandle, Model, SharedString, Timer, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    Model,
+    SharedString,
+    Timer,
+    platform::update_timers_and_animations,
+};
 /// What:
 ///  `Rc<RefCell<State>>` is the window's shared source state;
 ///  `Path` borrows a fixture path.
@@ -36,12 +55,19 @@ use std::{
     fs,
     path::Path,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Atomically replace the displayed file with `text`,
 ///  staging the new content in `folder` first.
-fn replace(folder: &Path, displayed: &Path, text: &str) {
+fn replace(
+    folder: &Path,
+    displayed: &Path,
+    text: &str,
+) {
     let staged = folder.join(".view.txt.tmp");
     fs::write(&staged, text).expect("staged replacement");
     fs::rename(&staged, displayed).expect("atomic replace");
@@ -50,7 +76,10 @@ fn replace(folder: &Path, displayed: &Path, text: &str) {
 /// A shipped window over `root`,
 ///  displaying `file`,
 ///  with refresh and navigation timers kept alive.
-pub(super) fn open(root: &Path, file: &Path) -> (AppWindow, Rc<RefCell<State>>, [Timer; 2]) {
+pub(super) fn open(
+    root: &Path,
+    file: &Path,
+) -> (AppWindow, Rc<RefCell<State>>, [Timer; 2]) {
     let text = fs::read_to_string(file).expect("displayed source");
     let workspace = Workspace::new(root).expect("workspace");
     install_gpu_platform();
@@ -78,7 +107,10 @@ pub(super) fn open(root: &Path, file: &Path) -> (AppWindow, Rc<RefCell<State>>, 
 }
 
 /// Depth of the visible row labelled `label`.
-fn depth(window: &AppWindow, label: &str) -> Option<i32> {
+fn depth(
+    window: &AppWindow,
+    label: &str,
+) -> Option<i32> {
     let index = row(window, label)?;
     let entry = window.get_tree_entries().row_data(index as usize)?;
     return Some(entry.depth);

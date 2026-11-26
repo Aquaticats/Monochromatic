@@ -5,21 +5,32 @@
 
 /// What a change of the key calls for,
 ///  and when.
-use crate::native::minimap::pace::{Plan, plan};
+use crate::native::minimap::pace::{
+    Plan,
+    plan,
+};
 /// A request that is awaited is answered by polling the worker.
 use crate::native::minimap::picture::start_poll;
 /// The worker,
 ///  its request type,
 ///  and the key a picture is valid for.
-use crate::native::minimap_worker::{Job, Key, MinimapWorker};
+use crate::native::minimap_worker::{
+    Job,
+    Key,
+    MinimapWorker,
+};
 /// The window,
 ///  its state,
 ///  the displayed text's stamp,
 ///  the palette,
 ///  and what the window draws over the text.
 use crate::native::{
-    AppWindow, State,
-    annotate::{colors as annotation_colors, displayed},
+    AppWindow,
+    State,
+    annotate::{
+        colors as annotation_colors,
+        displayed,
+    },
     find::present::present,
     render::code_colors,
 };
@@ -30,21 +41,38 @@ use ide_app::find_navigation::paint_ranges;
 /// The inks of the selection and match fills,
 /// the geometry that names the bands the track shows,
 /// and the size of a band.
-use ide_app::minimap::{BAND, Fills, Geometry, Heading};
+use ide_app::minimap::{
+    BAND,
+    Fills,
+    Geometry,
+    Heading,
+};
 /// A wrap width must be a positive number of pixels.
 use ide_app::wrap::has_wrap_width;
 /// The list of the picture's textures,
 ///  weak handles,
 ///  and the timers.
-use slint::{ComponentHandle, ModelRc, TimerMode};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    TimerMode,
+};
 /// Shared state and its cell,
 ///  the syntax snapshot a job shares,
 ///  and the clock of the newest request.
-use std::{cell::RefCell, rc::Rc, sync::Arc, time::Instant};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 /// What the window draws over the text that the picture shows with it:
 /// the inks of the selection and match fills.
-fn fills_of(window: &AppWindow, active: bool) -> Fills {
+fn fills_of(
+    window: &AppWindow,
+    active: bool,
+) -> Fills {
     let selection = window.get_selection_fill().color();
     let foreground = code_colors(window).foreground;
     return Fills {
@@ -72,7 +100,10 @@ fn fills_of(window: &AppWindow, active: bool) -> Fills {
 /// ```ts
 /// function keyOf(window: AppWindow, current: State): Key | undefined;
 /// ```
-pub(super) fn key_of(window: &AppWindow, current: &State) -> Option<Key> {
+pub(super) fn key_of(
+    window: &AppWindow,
+    current: &State,
+) -> Option<Key> {
     let (width, height) = current.minimap.size;
     if width < 1.0 || height < 1.0 {
         return None;
@@ -148,7 +179,10 @@ fn range_pair(range: FindRange) -> (usize, usize) {
 /// ```ts
 /// function follow(window: AppWindow, current: State): void;
 /// ```
-fn follow(window: &AppWindow, current: &mut State) {
+fn follow(
+    window: &AppWindow,
+    current: &mut State,
+) {
     let Some(top) = track_top(window, current) else {
         return;
     };
@@ -158,7 +192,10 @@ fn follow(window: &AppWindow, current: &mut State) {
 /// The top of the part of the picture the track shows,
 /// in logical pixels of the text,
 /// or nothing while the minimap has no size.
-fn track_top(window: &AppWindow, current: &State) -> Option<f32> {
+fn track_top(
+    window: &AppWindow,
+    current: &State,
+) -> Option<f32> {
     let (width, height) = current.minimap.size;
     if width < 1.0 || height < 1.0 {
         return None;
@@ -169,7 +206,12 @@ fn track_top(window: &AppWindow, current: &State) -> Option<f32> {
 
 /// Post a request for the picture `key` describes,
 /// starting the worker on first use.
-pub(super) fn post(window: &AppWindow, state: &Rc<RefCell<State>>, current: &mut State, key: Key) {
+pub(super) fn post(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    current: &mut State,
+    key: Key,
+) {
     if current.minimap.worker.is_none() {
         match MinimapWorker::new(current.shaper.fork()) {
             Ok(worker) => current.minimap.worker = Some(worker),
@@ -233,7 +275,10 @@ pub(super) fn post(window: &AppWindow, state: &Rc<RefCell<State>>, current: &mut
 
 /// Post the request that is due now,
 /// if what the picture is valid for changed since the last one.
-fn flush(window: &AppWindow, state: &Rc<RefCell<State>>) {
+fn flush(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let mut current = state.borrow_mut();
     let Some(key) = key_of(window, &current) else {
         return;
@@ -264,7 +309,10 @@ fn flush(window: &AppWindow, state: &Rc<RefCell<State>>) {
 /// ```ts
 /// function note(window: AppWindow, state: Shared<State>): void;
 /// ```
-pub(in crate::native) fn note(window: &AppWindow, state: &Rc<RefCell<State>>) {
+pub(in crate::native) fn note(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+) {
     let mut current = state.borrow_mut();
     follow(window, &mut current);
     let Some(key) = key_of(window, &current) else {
@@ -282,7 +330,9 @@ pub(in crate::native) fn note(window: &AppWindow, state: &Rc<RefCell<State>>) {
     if other_file {
         // Another file: the picture on screen is wrong, not just old, and the heading was the other text's.
         if let Some(top) = track_top(window, &current) {
-            current.minimap.heading = Heading::Still { at: top };
+            current.minimap.heading = Heading::Still {
+                at: top,
+            };
         }
         let Some(at_rest) = key_of(window, &current) else {
             return;

@@ -7,8 +7,18 @@
 
 /// The format under test.
 use crate::dbus_wire::{
-    Argument, METHOD_CALL, METHOD_RETURN, MethodCall, Property, PropertyValue, aligned, body_signature, decode_message,
-    encode_call, encode_reply, message_length,
+    Argument,
+    METHOD_CALL,
+    METHOD_RETURN,
+    MethodCall,
+    Property,
+    PropertyValue,
+    aligned,
+    body_signature,
+    decode_message,
+    encode_call,
+    encode_reply,
+    message_length,
 };
 
 /// The signature of a body follows its arguments.
@@ -20,7 +30,10 @@ fn a_body_declares_the_signature_its_arguments_have() {
         arguments: vec![
             Argument::Text("x.scope".to_string()),
             Argument::Text("fail".to_string()),
-            Argument::Properties(vec![Property { name: "Slice".to_string(), value: PropertyValue::Text("a.slice".to_string()) }]),
+            Argument::Properties(vec![Property {
+                name: "Slice".to_string(),
+                value: PropertyValue::Text("a.slice".to_string()),
+            }]),
             Argument::NoAuxUnits,
         ],
     };
@@ -34,8 +47,18 @@ fn a_body_declares_the_signature_its_arguments_have() {
 /// and its length covers the whole message.
 #[test]
 fn a_call_carries_its_member_and_signature_and_says_how_long_it_is() {
-    let arguments = vec![Argument::Text("wg-quicker-update-x.scope".to_string()), Argument::Text("replace".to_string())];
-    let bytes = encode_call(7, "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", "StopUnit", None, &arguments);
+    let arguments = vec![
+        Argument::Text("wg-quicker-update-x.scope".to_string()),
+        Argument::Text("replace".to_string()),
+    ];
+    let bytes = encode_call(
+        7,
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "StopUnit",
+        None,
+        &arguments,
+    );
     assert_eq!(bytes[0], b'l');
     assert_eq!(bytes[1], METHOD_CALL);
     assert_eq!(bytes[3], 1);
@@ -43,7 +66,10 @@ fn a_call_carries_its_member_and_signature_and_says_how_long_it_is() {
     let message = decode_message(&bytes).expect("the writer's own bytes are readable");
     assert_eq!(message.member.as_deref(), Some("StopUnit"));
     assert_eq!(message.signature, "ss");
-    assert_eq!(message.first_text().as_deref(), Some("wg-quicker-update-x.scope"));
+    assert_eq!(
+        message.first_text().as_deref(),
+        Some("wg-quicker-update-x.scope")
+    );
 }
 
 /// A body value is aligned to its own type:
@@ -57,7 +83,14 @@ fn every_value_starts_on_its_own_boundary() {
         "org.freedesktop.systemd1.Manager",
         "SetUnitProperties",
         None,
-        &[Argument::Text("x.scope".to_string()), Argument::Flag(true), Argument::Properties(vec![Property { name: "MemoryMax".to_string(), value: PropertyValue::Number(1_073_741_824) }])],
+        &[
+            Argument::Text("x.scope".to_string()),
+            Argument::Flag(true),
+            Argument::Properties(vec![Property {
+                name: "MemoryMax".to_string(),
+                value: PropertyValue::Number(1_073_741_824),
+            }]),
+        ],
     );
     assert_eq!(message_length(&bytes), Some(bytes.len()));
     let message = decode_message(&bytes).expect("readable");
@@ -72,9 +105,26 @@ fn every_value_starts_on_its_own_boundary() {
 /// nobody there needs to be told who the manager is.
 #[test]
 fn a_destination_is_written_only_for_a_bus() {
-    let arguments = vec![Argument::Text("x.scope".to_string()), Argument::Text("replace".to_string())];
-    let direct = encode_call(1, "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", "StopUnit", None, &arguments);
-    let over_bus = encode_call(1, "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", "StopUnit", Some("org.freedesktop.systemd1"), &arguments);
+    let arguments = vec![
+        Argument::Text("x.scope".to_string()),
+        Argument::Text("replace".to_string()),
+    ];
+    let direct = encode_call(
+        1,
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "StopUnit",
+        None,
+        &arguments,
+    );
+    let over_bus = encode_call(
+        1,
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "StopUnit",
+        Some("org.freedesktop.systemd1"),
+        &arguments,
+    );
     assert!(over_bus.len() > direct.len());
     assert!(!String::from_utf8_lossy(&direct).contains("destination"));
 }
@@ -87,9 +137,16 @@ fn a_reply_names_the_call_it_answers_and_an_error_keeps_its_name_and_text() {
     assert_eq!(answered.kind, METHOD_RETURN);
     assert_eq!(answered.reply_serial, Some(9));
     assert_eq!(answered.error_name, None);
-    let error = decode_message(&encode_reply(9, Some(("org.freedesktop.systemd1.NoSuchUnit", "Unit not loaded.")))).expect("an error");
+    let error = decode_message(&encode_reply(
+        9,
+        Some(("org.freedesktop.systemd1.NoSuchUnit", "Unit not loaded.")),
+    ))
+    .expect("an error");
     assert_eq!(error.reply_serial, Some(9));
-    assert_eq!(error.error_name.as_deref(), Some("org.freedesktop.systemd1.NoSuchUnit"));
+    assert_eq!(
+        error.error_name.as_deref(),
+        Some("org.freedesktop.systemd1.NoSuchUnit")
+    );
     assert_eq!(error.first_text().as_deref(), Some("Unit not loaded."));
 }
 
@@ -97,7 +154,17 @@ fn a_reply_names_the_call_it_answers_and_an_error_keeps_its_name_and_text() {
 /// for both widths the manager uses.
 #[test]
 fn a_property_variant_answers_its_number() {
-    let bytes = encode_call(1, "/org/freedesktop/systemd1/unit/x", "org.freedesktop.DBus.Properties", "Get", None, &[Argument::Text("org.freedesktop.systemd1.Unit".to_string()), Argument::Text("MainPID".to_string())]);
+    let bytes = encode_call(
+        1,
+        "/org/freedesktop/systemd1/unit/x",
+        "org.freedesktop.DBus.Properties",
+        "Get",
+        None,
+        &[
+            Argument::Text("org.freedesktop.systemd1.Unit".to_string()),
+            Argument::Text("MainPID".to_string()),
+        ],
+    );
     assert_eq!(message_length(&bytes), Some(bytes.len()));
     let message = decode_message(&bytes).expect("readable");
     assert_eq!(message.signature, "ss");
@@ -116,18 +183,37 @@ fn a_short_or_foreign_message_is_refused() {
 /// so a reply is matched by the serial alone.
 #[test]
 fn the_serial_tells_calls_apart() {
-    let arguments = vec![Argument::Text("x.scope".to_string()), Argument::Text("replace".to_string())];
+    let arguments = vec![
+        Argument::Text("x.scope".to_string()),
+        Argument::Text("replace".to_string()),
+    ];
     let first = encode_call(1, "/p", "i", "StopUnit", None, &arguments);
     let second = encode_call(2, "/p", "i", "StopUnit", None, &arguments);
     assert_ne!(first, second);
-    assert_eq!(decode_message(&second).ok().and_then(|message| return message.member), Some("StopUnit".to_string()));
+    assert_eq!(
+        decode_message(&second)
+            .ok()
+            .and_then(|message| return message.member),
+        Some("StopUnit".to_string())
+    );
 }
 
 /// A member is read from the header of the call,
 /// which is how a server knows what to do.
 #[test]
 fn the_header_names_the_member() {
-    let bytes = encode_call(1, "/p", "i", "AttachProcessesToUnit", None, &[Argument::Text("u".to_string()), Argument::Text(String::new()), Argument::Numbers(vec![1])]);
+    let bytes = encode_call(
+        1,
+        "/p",
+        "i",
+        "AttachProcessesToUnit",
+        None,
+        &[
+            Argument::Text("u".to_string()),
+            Argument::Text(String::new()),
+            Argument::Numbers(vec![1]),
+        ],
+    );
     let message = decode_message(&bytes).expect("readable");
     assert_eq!(message.member.as_deref(), Some("AttachProcessesToUnit"));
 }
@@ -147,12 +233,18 @@ struct SpecReader<'a> {
 impl<'a> SpecReader<'a> {
     /// Starts at the first byte of a body.
     fn new(bytes: &'a [u8]) -> SpecReader<'a> {
-        return SpecReader { bytes, at: 0 };
+        return SpecReader {
+            bytes,
+            at: 0,
+        };
     }
 
     /// Skips the padding that puts the next value on `boundary`,
     /// and answers the padding's length.
-    fn align(&mut self, boundary: usize) -> usize {
+    fn align(
+        &mut self,
+        boundary: usize,
+    ) -> usize {
         let padding = (boundary - (self.at % boundary)) % boundary;
         self.at += padding;
         return padding;
@@ -162,7 +254,11 @@ impl<'a> SpecReader<'a> {
     /// aligned to four.
     fn u32(&mut self) -> u32 {
         let _padding = self.align(4);
-        let value = u32::from_le_bytes(self.bytes[self.at..self.at + 4].try_into().expect("four bytes"));
+        let value = u32::from_le_bytes(
+            self.bytes[self.at..self.at + 4]
+                .try_into()
+                .expect("four bytes"),
+        );
         self.at += 4;
         return value;
     }
@@ -202,7 +298,11 @@ impl<'a> SpecReader<'a> {
     /// aligned to eight.
     fn u64(&mut self) -> u64 {
         let _padding = self.align(8);
-        let value = u64::from_le_bytes(self.bytes[self.at..self.at + 8].try_into().expect("eight bytes"));
+        let value = u64::from_le_bytes(
+            self.bytes[self.at..self.at + 8]
+                .try_into()
+                .expect("eight bytes"),
+        );
         self.at += 8;
         return value;
     }
@@ -214,7 +314,10 @@ impl<'a> SpecReader<'a> {
     /// then the padding that aligns the first element,
     /// then the content,
     /// and the length counts the content only.
-    fn array(&mut self, element_alignment: usize) -> (u32, usize) {
+    fn array(
+        &mut self,
+        element_alignment: usize,
+    ) -> (u32, usize) {
         let length = self.u32();
         let _padding = self.align(element_alignment);
         let content_start = self.at;
@@ -238,38 +341,56 @@ impl<'a> SpecReader<'a> {
 #[test]
 fn an_array_of_aligned_elements_declares_its_content_length() {
     for leaf_length in 2..=13 {
-    let bytes = encode_call(
-        7,
-        "/org/freedesktop/systemd1",
-        "org.freedesktop.systemd1.Manager",
-        "SetUnitProperties",
-        None,
-        &[
-            Argument::Text(format!("wg-quicker-update-app.slice-{}.scope", "x".repeat(leaf_length - 2))),
-            Argument::Flag(true),
-            Argument::Properties(vec![
-                Property { name: "IOReadBandwidthMax".to_string(), value: PropertyValue::Devices(vec![("/dev/block/8:0".to_string(), 1_000)]) },
-            ]),
-        ],
-    );
-    let message = decode_message(&bytes).expect("readable");
-    assert_eq!(message.signature, "sba(sv)");
-    let mut reader = SpecReader::new(message.body());
-    let _name = reader.string();
-    assert!(reader.flag());
-    let (_properties_length, properties_end) = reader.array(8);
-    // One `(sv)` element, on its own eight-byte boundary.
-    let _padding = reader.align(8);
-    assert_eq!(reader.string(), "IOReadBandwidthMax");
-    assert_eq!(reader.signature(), "a(st)");
-    let (devices_length, devices_end) = reader.array(8);
-    let devices_start = reader.at;
-    assert_eq!(usize::try_from(devices_length).expect("length fits"), devices_end - devices_start, "the device array length is its content's length");
-    let _element_padding = reader.align(8);
-    assert_eq!(reader.string(), "/dev/block/8:0");
-    assert_eq!(reader.u64(), 1_000);
-    assert_eq!(reader.at, devices_end, "the device array ends where its length says");
-    assert_eq!(reader.at, properties_end, "the property array ends where its length says");
-    assert_eq!(reader.at, message.body().len(), "the body ends after its last value, for leaf length {leaf_length}");
+        let bytes = encode_call(
+            7,
+            "/org/freedesktop/systemd1",
+            "org.freedesktop.systemd1.Manager",
+            "SetUnitProperties",
+            None,
+            &[
+                Argument::Text(format!(
+                    "wg-quicker-update-app.slice-{}.scope",
+                    "x".repeat(leaf_length - 2)
+                )),
+                Argument::Flag(true),
+                Argument::Properties(vec![Property {
+                    name: "IOReadBandwidthMax".to_string(),
+                    value: PropertyValue::Devices(vec![("/dev/block/8:0".to_string(), 1_000)]),
+                }]),
+            ],
+        );
+        let message = decode_message(&bytes).expect("readable");
+        assert_eq!(message.signature, "sba(sv)");
+        let mut reader = SpecReader::new(message.body());
+        let _name = reader.string();
+        assert!(reader.flag());
+        let (_properties_length, properties_end) = reader.array(8);
+        // One `(sv)` element, on its own eight-byte boundary.
+        let _padding = reader.align(8);
+        assert_eq!(reader.string(), "IOReadBandwidthMax");
+        assert_eq!(reader.signature(), "a(st)");
+        let (devices_length, devices_end) = reader.array(8);
+        let devices_start = reader.at;
+        assert_eq!(
+            usize::try_from(devices_length).expect("length fits"),
+            devices_end - devices_start,
+            "the device array length is its content's length"
+        );
+        let _element_padding = reader.align(8);
+        assert_eq!(reader.string(), "/dev/block/8:0");
+        assert_eq!(reader.u64(), 1_000);
+        assert_eq!(
+            reader.at, devices_end,
+            "the device array ends where its length says"
+        );
+        assert_eq!(
+            reader.at, properties_end,
+            "the property array ends where its length says"
+        );
+        assert_eq!(
+            reader.at,
+            message.body().len(),
+            "the body ends after its last value, for leaf length {leaf_length}"
+        );
     }
 }

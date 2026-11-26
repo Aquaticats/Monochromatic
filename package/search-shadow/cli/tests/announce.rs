@@ -32,10 +32,17 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 /// Imports the shell exit codes the announcements pass through.
-use search_shadow::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
+use search_shadow::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+};
 /// Imports `Command` (start a program),
 /// `Output` (its result) and `Stdio` (what its standard streams attach to).
-use std::process::{Command, Output, Stdio};
+use std::process::{
+    Command,
+    Output,
+    Stdio,
+};
 
 /// The path of the freshly built binary,
 /// pasted in at compile time by Cargo for integration tests.
@@ -77,9 +84,14 @@ const TOOLS: &[(&str, &[&str], &[&str])] = &[
 /// ```ts
 /// function writeScript(directory: string, name: string, body: string): void { ... }
 /// ```
-fn write_script(directory: &Path, name: &str, body: &str) {
+fn write_script(
+    directory: &Path,
+    name: &str,
+    body: &str,
+) {
     fs::write(directory.join(name), format!("#!/bin/sh\n{body}\n")).expect("write the script");
-    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).expect("make the script executable");
+    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755))
+        .expect("make the script executable");
 }
 
 /// What:
@@ -99,7 +111,9 @@ fn write_script(directory: &Path, name: &str, body: &str) {
 /// const realBody = (name: string) => `...`;
 /// ```
 fn real_body(name: &str) -> String {
-    return format!("printf 'REAL {name} args=[%s]\\nsecond line\\n' \"$*\"\nprintf 'fixture stderr\\n' >&2\nexit 3");
+    return format!(
+        "printf 'REAL {name} args=[%s]\\nsecond line\\n' \"$*\"\nprintf 'fixture stderr\\n' >&2\nexit 3"
+    );
 }
 
 /// What:
@@ -120,7 +134,8 @@ fn make_world() -> tempfile::TempDir {
     fs::create_dir(&shadow_directory).expect("make the shadow directory");
     fs::create_dir(&real_directory).expect("make the real directory");
     for (name, _version, _help) in TOOLS {
-        std::os::unix::fs::symlink(SHADOW_EXECUTABLE, shadow_directory.join(name)).expect("make the shadow link");
+        std::os::unix::fs::symlink(SHADOW_EXECUTABLE, shadow_directory.join(name))
+            .expect("make the shadow link");
         write_script(&real_directory, name, &real_body(name));
     }
     return root;
@@ -138,7 +153,11 @@ fn make_world() -> tempfile::TempDir {
 /// const pathVariable = (root: string) => `${root}/shadow:${root}/real:/usr/bin:/bin`;
 /// ```
 fn path_variable(root: &Path) -> String {
-    return format!("{}:{}:/usr/bin:/bin", root.join("shadow").display(), root.join("real").display());
+    return format!(
+        "{}:{}:/usr/bin:/bin",
+        root.join("shadow").display(),
+        root.join("real").display()
+    );
 }
 
 /// What:
@@ -153,7 +172,13 @@ fn path_variable(root: &Path) -> String {
 /// ```ts
 /// function runTool(root, name, args, cwd, env?): SpawnSyncReturns<Buffer> { ... }
 /// ```
-fn run_tool(root: &Path, name: &str, arguments: &[&str], working_directory: &Path, path_text: &str) -> Output {
+fn run_tool(
+    root: &Path,
+    name: &str,
+    arguments: &[&str],
+    working_directory: &Path,
+    path_text: &str,
+) -> Output {
     let mut command = Command::new(root.join("shadow").join(name));
     for argument in arguments {
         command.arg(OsString::from(*argument));
@@ -177,14 +202,23 @@ fn run_tool(root: &Path, name: &str, arguments: &[&str], working_directory: &Pat
 /// ```ts
 /// const realStdout = (name: string, args: string[]) => `REAL ${name} args=[${args.join(' ')}]\nsecond line\n`;
 /// ```
-fn real_stdout(name: &str, arguments: &[&str]) -> String {
+fn real_stdout(
+    name: &str,
+    arguments: &[&str],
+) -> String {
     return format!("REAL {name} args=[{}]\nsecond line\n", arguments.join(" "));
 }
 
 /// The header line the shadow adds:
 /// the version line without its newline.
-fn header(root: &Path, name: &str) -> String {
-    return format!("search-shadow {SHADOW_VERSION}, shadowing {name} at {}", root.join("real").join(name).display());
+fn header(
+    root: &Path,
+    name: &str,
+) -> String {
+    return format!(
+        "search-shadow {SHADOW_VERSION}, shadowing {name} at {}",
+        root.join("real").join(name).display()
+    );
 }
 
 /// What:
@@ -203,10 +237,26 @@ fn every_tool_prints_the_real_version_output_then_exactly_one_line() {
     for (name, version_flags, _help) in TOOLS {
         for flag in *version_flags {
             let output = run_tool(root.path(), name, &[flag], root.path(), &path_text);
-            let expected = format!("{}{}\n", real_stdout(name, &[flag]), header(root.path(), name));
-            assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "{name} {flag}");
-            assert_eq!(output.status.code(), Some(3), "{name} {flag} must keep the real tool's exit code");
-            assert_eq!(String::from_utf8_lossy(&output.stderr), "fixture stderr\n", "{name} {flag} stderr must be untouched");
+            let expected = format!(
+                "{}{}\n",
+                real_stdout(name, &[flag]),
+                header(root.path(), name)
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&output.stdout),
+                expected,
+                "{name} {flag}"
+            );
+            assert_eq!(
+                output.status.code(),
+                Some(3),
+                "{name} {flag} must keep the real tool's exit code"
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&output.stderr),
+                "fixture stderr\n",
+                "{name} {flag} stderr must be untouched"
+            );
         }
     }
 }
@@ -229,7 +279,11 @@ fn rg_help_is_the_real_help_then_the_full_section() {
             real = real_stdout("rg", &[flag]),
             header = header(root.path(), "rg"),
         );
-        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "rg {flag}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            expected,
+            "rg {flag}"
+        );
         assert_eq!(output.status.code(), Some(3));
     }
 }
@@ -243,13 +297,31 @@ fn every_tool_prints_the_real_help_output_then_one_section_naming_the_shadow() {
         for flag in *help_flags {
             let output = run_tool(root.path(), name, &[flag], root.path(), &path_text);
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let prefix = format!("{}\n{}\n", real_stdout(name, &[flag]), header(root.path(), name));
+            let prefix = format!(
+                "{}\n{}\n",
+                real_stdout(name, &[flag]),
+                header(root.path(), name)
+            );
             assert!(stdout.starts_with(&prefix), "{name} {flag}: {stdout}");
             let rest = &stdout[prefix.len()..];
-            assert!(rest.starts_with(&format!("The help above is the real {name}'s own.")), "{name} {flag}: {rest}");
-            assert!(rest.ends_with("Run `search-shadow --help` for the shadow itself.\n"), "{name} {flag}: {rest}");
-            assert_eq!(output.status.code(), Some(3), "{name} {flag} must keep the real tool's exit code");
-            assert_eq!(String::from_utf8_lossy(&output.stderr), "fixture stderr\n", "{name} {flag}");
+            assert!(
+                rest.starts_with(&format!("The help above is the real {name}'s own.")),
+                "{name} {flag}: {rest}"
+            );
+            assert!(
+                rest.ends_with("Run `search-shadow --help` for the shadow itself.\n"),
+                "{name} {flag}: {rest}"
+            );
+            assert_eq!(
+                output.status.code(),
+                Some(3),
+                "{name} {flag} must keep the real tool's exit code"
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&output.stderr),
+                "fixture stderr\n",
+                "{name} {flag}"
+            );
         }
     }
 }
@@ -281,7 +353,11 @@ fn other_argument_lists_run_untouched() {
     ];
     for (name, arguments) in cases {
         let output = run_tool(root.path(), name, arguments, root.path(), &path_text);
-        assert_eq!(String::from_utf8_lossy(&output.stdout), real_stdout(name, arguments), "{name} {arguments:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            real_stdout(name, arguments),
+            "{name} {arguments:?}"
+        );
         assert_eq!(output.status.code(), Some(3));
     }
 }
@@ -294,7 +370,11 @@ fn a_refused_run_is_refused_before_any_announcement() {
     let path_text = path_variable(root.path());
     let output = run_tool(root.path(), "rg", &["-rV"], root.path(), &path_text);
     assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty(), "the real tool must not have run: {}", String::from_utf8_lossy(&output.stdout));
+    assert!(
+        output.stdout.is_empty(),
+        "the real tool must not have run: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(String::from_utf8_lossy(&output.stderr).contains("--replace"));
 }
 
@@ -313,7 +393,11 @@ fn a_missing_real_tool_still_exits_127_without_an_announcement() {
 fn a_real_tool_that_cannot_start_exits_126_without_an_announcement() {
     let root = make_world();
     let path_text = path_variable(root.path());
-    fs::write(root.path().join("real").join("rg"), "#!/nonexistent/interpreter\n").expect("write a script with a bad interpreter");
+    fs::write(
+        root.path().join("real").join("rg"),
+        "#!/nonexistent/interpreter\n",
+    )
+    .expect("write a script with a bad interpreter");
     let output = run_tool(root.path(), "rg", &["--version"], root.path(), &path_text);
     assert_eq!(output.status.code(), Some(EXEC_FAILED_EXIT_CODE));
     assert!(output.stdout.is_empty());
@@ -326,10 +410,17 @@ fn a_real_tool_that_cannot_start_exits_126_without_an_announcement() {
 fn a_signal_exit_is_reported_as_128_plus_the_signal() {
     let root = make_world();
     let path_text = path_variable(root.path());
-    write_script(&root.path().join("real"), "rg", "printf 'before\\n'\nkill -TERM $$");
+    write_script(
+        &root.path().join("real"),
+        "rg",
+        "printf 'before\\n'\nkill -TERM $$",
+    );
     let output = run_tool(root.path(), "rg", &["--version"], root.path(), &path_text);
     assert_eq!(output.status.code(), Some(143));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("before\n{}\n", header(root.path(), "rg")));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("before\n{}\n", header(root.path(), "rg"))
+    );
 }
 
 /// A standard output that cannot be written to (`/dev/full`) must not turn the run into a panic or a different status.
@@ -337,7 +428,10 @@ fn a_signal_exit_is_reported_as_128_plus_the_signal() {
 fn an_unwritable_standard_output_keeps_the_real_exit_code() {
     let root = make_world();
     let path_text = path_variable(root.path());
-    let full = fs::OpenOptions::new().write(true).open("/dev/full").expect("open /dev/full");
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .expect("open /dev/full");
     let status = Command::new(root.path().join("shadow").join("rg"))
         .arg("--version")
         .current_dir(root.path())
@@ -355,19 +449,41 @@ fn an_unwritable_standard_output_keeps_the_real_exit_code() {
 /// and of which tools.
 #[test]
 fn the_search_shadow_command_says_it_is_a_shadow_of_the_listed_tools() {
-    let version = Command::new(SHADOW_EXECUTABLE).arg("--version").env_clear().output().expect("run --version");
+    let version = Command::new(SHADOW_EXECUTABLE)
+        .arg("--version")
+        .env_clear()
+        .output()
+        .expect("run --version");
     let version_text = String::from_utf8_lossy(&version.stdout).to_string();
     assert!(version.status.success());
-    assert!(version_text.starts_with(&format!("search-shadow {SHADOW_VERSION}, a shadow of rg, grep, ")), "{version_text}");
+    assert!(
+        version_text.starts_with(&format!(
+            "search-shadow {SHADOW_VERSION}, a shadow of rg, grep, "
+        )),
+        "{version_text}"
+    );
     for (name, _version, _help) in TOOLS {
-        assert!(version_text.contains(name), "--version must name {name}: {version_text}");
+        assert!(
+            version_text.contains(name),
+            "--version must name {name}: {version_text}"
+        );
     }
 
-    let help = Command::new(SHADOW_EXECUTABLE).arg("--help").env_clear().output().expect("run --help");
+    let help = Command::new(SHADOW_EXECUTABLE)
+        .arg("--help")
+        .env_clear()
+        .output()
+        .expect("run --help");
     let help_text = String::from_utf8_lossy(&help.stdout).to_string();
     assert!(help.status.success());
-    assert!(help_text.contains("search-shadow is a shadow"), "{help_text}");
+    assert!(
+        help_text.contains("search-shadow is a shadow"),
+        "{help_text}"
+    );
     for (name, _version, _help) in TOOLS {
-        assert!(help_text.contains(name), "--help must name {name}: {help_text}");
+        assert!(
+            help_text.contains(name),
+            "--help must name {name}: {help_text}"
+        );
     }
 }

@@ -27,7 +27,7 @@ fn findings_of(root: &Path) -> Vec<String> {
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), root);
+    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), root, None);
     let prefix: String = format!("{}/", root.display());
     return found
         .iter()

@@ -65,7 +65,10 @@ use std::fs::File;
 /// type RawFd = number;             // a bare OS file-descriptor integer
 /// type BorrowedFd = number;        // same number, but "do not close" by convention
 /// ```
-use std::os::fd::{BorrowedFd, RawFd};
+use std::os::fd::{
+    BorrowedFd,
+    RawFd,
+};
 
 /// What:
 ///      `use std::path::Path;` imports the borrowed filesystem-path type.
@@ -127,7 +130,10 @@ use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;
 /// ```ts
 /// import { AudioDecoder, AudioDecoderOptions } from "symphonia/codecs/audio";
 /// ```
-use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
+use symphonia::core::codecs::audio::{
+    AudioDecoder,
+    AudioDecoderOptions,
+};
 
 /// What:
 ///      `use symphonia::core::codecs::audio::AudioCodecParameters;` imports the audio variant's
@@ -221,7 +227,14 @@ use symphonia::core::formats::probe::Hint;
 /// ```ts
 /// import { FormatOptions, FormatReader, SeekMode, SeekTo, Track, TrackType } from "symphonia/formats";
 /// ```
-use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, Track, TrackType};
+use symphonia::core::formats::{
+    FormatOptions,
+    FormatReader,
+    SeekMode,
+    SeekTo,
+    Track,
+    TrackType,
+};
 
 /// What:
 ///      `use symphonia::core::io::{MediaSource, MediaSourceStream};` imports two io
@@ -240,7 +253,10 @@ use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, Tr
 /// ```ts
 /// import { MediaSource, MediaSourceStream } from "symphonia/io";
 /// ```
-use symphonia::core::io::{MediaSource, MediaSourceStream};
+use symphonia::core::io::{
+    MediaSource,
+    MediaSourceStream,
+};
 
 /// What:
 ///      `use symphonia::core::meta::MetadataOptions;` imports the tag/meta reader knobs
@@ -286,7 +302,10 @@ use symphonia::core::meta::MetadataOptions;
 /// ```ts
 /// import { Duration, Timestamp } from "symphonia/units";
 /// ```
-use symphonia::core::units::{Duration, Timestamp};
+use symphonia::core::units::{
+    Duration,
+    Timestamp,
+};
 
 /// What:
 ///      `use crate::error::PlayerError;` imports our one app-wide error type.
@@ -481,7 +500,10 @@ pub trait Source: Send {
     /// ```ts
     /// seek(secs: number): void;
     /// ```
-    fn seek(&mut self, secs: f64) -> Result<(), PlayerError>;
+    fn seek(
+        &mut self,
+        secs: f64,
+    ) -> Result<(), PlayerError>;
 }
 
 /// What:
@@ -564,7 +586,7 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
     // ```ts
     // return openMediaSource(file, hint);
     // ```
-    return open_media_source(Box::new(file), hint)
+    return open_media_source(Box::new(file), hint);
 }
 
 /// What:
@@ -736,7 +758,7 @@ pub fn open_media_source(
         // ```ts
         // return opusSource;
         // ```
-        return Ok(Box::new(opus_source))
+        return Ok(Box::new(opus_source));
     } else {
         // What:     `SymphoniaSource::new(format, track, track_id)?`. Builds the
         //           symphonia-decoder source, moving `format`/`track` in.
@@ -757,7 +779,7 @@ pub fn open_media_source(
         // ```ts
         // return symphoniaSource;
         // ```
-        return Ok(Box::new(symphonia_source))
+        return Ok(Box::new(symphonia_source));
     }
 }
 
@@ -865,7 +887,7 @@ pub fn open_borrowed_fd(fd: RawFd) -> Result<Box<dyn Source>, PlayerError> {
     // ```ts
     // return openMediaSource(file, new Hint());
     // ```
-    return open_media_source(Box::new(file), Hint::new())
+    return open_media_source(Box::new(file), Hint::new());
 }
 
 /// What:
@@ -884,13 +906,16 @@ pub fn open_borrowed_fd(fd: RawFd) -> Result<Box<dyn Source>, PlayerError> {
 ///   return tracks.find((t) => t.id === trackId) ?? null;
 /// }
 /// ```
-fn track_by_id(tracks: &[Track], track_id: u32) -> Option<&Track> {
+fn track_by_id(
+    tracks: &[Track],
+    track_id: u32,
+) -> Option<&Track> {
     for track in tracks {
         if track.id == track_id {
-            return Some(track)
+            return Some(track);
         }
     }
-    return None
+    return None;
 }
 
 /// What:
@@ -906,7 +931,7 @@ fn track_by_id(tracks: &[Track], track_id: u32) -> Option<&Track> {
 /// const sampleRateOf = (params: AudioCodecParameters): number | null => params.sampleRate ?? null;
 /// ```
 fn sample_rate_of(params: &AudioCodecParameters) -> Option<u32> {
-    return params.sample_rate
+    return params.sample_rate;
 }
 
 /// What:
@@ -969,7 +994,8 @@ pub(crate) fn seek_format(
     // const track = format.tracks().find((t) => t.id === trackId);
     // if (!track) throw new Error("seek: track not found");
     // ```
-    let track = track_by_id(format.tracks(), track_id).ok_or_else(PlayerError::seek_track_not_found)?;
+    let track =
+        track_by_id(format.tracks(), track_id).ok_or_else(PlayerError::seek_track_not_found)?;
 
     // What:     `let start_ts: Timestamp = track.start_ts;`. Copy the track's first-frame
     //           timestamp out of the borrowed track. In 0.6 timing lives directly on `Track`
@@ -1118,7 +1144,7 @@ pub(crate) fn seek_format(
     // ```ts
     // return;
     // ```
-    return Ok(())
+    return Ok(());
 }
 
 /// What:
@@ -1450,7 +1476,7 @@ impl SymphoniaSource {
         // ```ts
         // return source;
         // ```
-        return Ok(source)
+        return Ok(source);
     }
 
     /// What:
@@ -1707,7 +1733,7 @@ impl Source for SymphoniaSource {
         // ```ts
         // return this.spec;
         // ```
-        return self.spec
+        return self.spec;
     }
 
     /// What:
@@ -1753,7 +1779,7 @@ impl Source for SymphoniaSource {
         // ```ts
         // return this.decodeNextRaw();
         // ```
-        return self.decode_next_raw()
+        return self.decode_next_raw();
     }
 
     /// What:
@@ -1768,7 +1794,10 @@ impl Source for SymphoniaSource {
     /// ```ts
     /// seek(secs: number): void { ... }
     /// ```
-    fn seek(&mut self, secs: f64) -> Result<(), PlayerError> {
+    fn seek(
+        &mut self,
+        secs: f64,
+    ) -> Result<(), PlayerError> {
         // What:     `seek_format(self.format.as_mut(), self.track_id, secs)?`. Call the shared
         //           helper (defined above this struct). `self.format` is a `Box<dyn
         //           FormatReader>` (an owned, heap demuxer); `.as_mut()` reborrows it as a
@@ -1813,6 +1842,6 @@ impl Source for SymphoniaSource {
         // ```ts
         // return;
         // ```
-        return Ok(())
+        return Ok(());
     }
 }

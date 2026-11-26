@@ -26,7 +26,10 @@
 /// ```ts
 /// posix.normalize(posix.join(base, relative))
 /// ```
-pub fn join_normalized(base: &str, relative: &str) -> String {
+pub fn join_normalized(
+    base: &str,
+    relative: &str,
+) -> String {
     let combined: String = format!("{base}/{relative}");
     let absolute: bool = combined.starts_with('/');
     let mut kept: Vec<&str> = Vec::new();

@@ -37,7 +37,12 @@
 //! ```
 
 /// The fixed field sizes and the struct size the design pins.
-use super::abi_limits::{COMMAND_STRUCT_SIZE, MAX_VALUE_LEN, MAXNAMELEN, MAXPATHLEN};
+use super::abi_limits::{
+    COMMAND_STRUCT_SIZE,
+    MAX_VALUE_LEN,
+    MAXNAMELEN,
+    MAXPATHLEN,
+};
 /// The C string reader the fixed fields need.
 use std::ffi::CStr;
 /// The offset macro of the pinning assertions.
@@ -339,7 +344,10 @@ impl ZfsCmd {
     }
 
     /// Set `zc_defer_destroy` in the union's control member.
-    pub fn set_defer_destroy(&mut self, defer: bool) {
+    pub fn set_defer_destroy(
+        &mut self,
+        defer: bool,
+    ) {
         // Writing a union field is safe; only reading one needs `unsafe`.
         self.zc_inject_overlay.control.zc_defer_destroy = u32::from(defer);
     }

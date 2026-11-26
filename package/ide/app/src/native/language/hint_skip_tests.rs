@@ -11,26 +11,42 @@
 /// Fixtures,
 ///  the scripted server's definitions,
 ///  and the readiness wait.
-use super::test_support::{LanguageReader, definitions, idle, project, reader, ready};
+use super::test_support::{
+    LanguageReader,
+    definitions,
+    idle,
+    project,
+    reader,
+    ready,
+};
 /// The stamp of the displayed text.
 use crate::native::annotate::displayed;
 /// A scroll the toolkit reports to the change handler,
 ///  and the wait for the tile worker.
-use crate::native::overscan_tile_tests::{scroll_to, settle_tile};
+use crate::native::overscan_tile_tests::{
+    scroll_to,
+    settle_tile,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// The slices the window draws the tile with,
 ///  and one frame that draws the waiting scenes.
 use crate::native::{
     tile_reads::draw_minimap,
-    tile_slice_frame_tests::{slice_heights, texture_heights},
+    tile_slice_frame_tests::{
+        slice_heights,
+        texture_heights,
+    },
 };
 /// One code row is the least a line takes.
 use ide_app::row_map::CODE_ROW;
 /// The report is JSON lines.
 use serde_json::Value;
 /// External writes and the report path.
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 /// Lines of the fixture text.
 const LINES: usize = 600;
@@ -146,7 +162,10 @@ fn asked(scene: &Scene) -> Vec<usize> {
 }
 
 /// Wait until the server received `count` hint requests.
-fn wait_requests(scene: &Scene, count: usize) {
+fn wait_requests(
+    scene: &Scene,
+    count: usize,
+) {
     let mut waiting = Waiting::language();
     while !(asked(scene).len() >= count) {
         waiting.step("the scripted server did not receive the expected hint request");
@@ -154,7 +173,11 @@ fn wait_requests(scene: &Scene, count: usize) {
 }
 
 /// Wait until the store holds an answer that asked the lines `first` up to `last`.
-fn wait_answer(scene: &Scene, first: usize, last: usize) {
+fn wait_answer(
+    scene: &Scene,
+    first: usize,
+    last: usize,
+) {
     let mut waiting = Waiting::language();
     loop {
         {
@@ -171,7 +194,10 @@ fn wait_answer(scene: &Scene, first: usize, last: usize) {
 }
 
 /// Scroll so that `line` is the first visible line.
-fn show(scene: &Scene, line: usize) {
+fn show(
+    scene: &Scene,
+    line: usize,
+) {
     let offset = scene.reader.source.borrow().row_map.block_top(line);
     scroll_to(&scene.reader.window, offset);
 }
@@ -188,7 +214,11 @@ fn show(scene: &Scene, line: usize) {
 /// ```ts
 /// async function visit(scene: Scene, line: number, before: number): Promise<void>
 /// ```
-fn visit(scene: &Scene, line: usize, before: usize) {
+fn visit(
+    scene: &Scene,
+    line: usize,
+    before: usize,
+) {
     show(scene, line);
     wait_requests(scene, before + 1);
     wait_answer(scene, line - scene.view, line + 2 * scene.view);
@@ -206,7 +236,10 @@ fn visit(scene: &Scene, line: usize, before: usize) {
 /// ```ts
 /// function skipped(scene: Scene, line: number): void
 /// ```
-fn skipped(scene: &Scene, line: usize) {
+fn skipped(
+    scene: &Scene,
+    line: usize,
+) {
     let before = asked(scene);
     show(scene, line);
     idle(SETTLED_MS);

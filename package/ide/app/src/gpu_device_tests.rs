@@ -4,16 +4,33 @@
 
 /// The choice and the errors under test,
 ///  and the description of the device that is opened.
-use super::{AdapterSummary, GpuDeviceError, Variables, choose_adapters, device_description};
+use super::{
+    AdapterSummary,
+    GpuDeviceError,
+    Variables,
+    choose_adapters,
+    device_description,
+};
 /// The power order the choice parses and the order it returns.
-use super::{adapter::PowerOrder, choice::AdapterOrder};
+use super::{
+    adapter::PowerOrder,
+    choice::AdapterOrder,
+};
 /// The adapter kinds,
 ///  the limits,
 ///  and the allocator's memory hint.
-use slint::wgpu_30::wgpu::{DeviceType, Limits, MemoryHints};
+use slint::wgpu_30::wgpu::{
+    DeviceType,
+    Limits,
+    MemoryHints,
+};
 
 /// An adapter description of the given kind.
-fn adapter(name: &str, device_type: DeviceType, driver: &str) -> AdapterSummary {
+fn adapter(
+    name: &str,
+    device_type: DeviceType,
+    driver: &str,
+) -> AdapterSummary {
     return AdapterSummary {
         name: name.to_string(),
         device_type,
@@ -22,7 +39,10 @@ fn adapter(name: &str, device_type: DeviceType, driver: &str) -> AdapterSummary 
 }
 
 /// The variables as a shell would have set them.
-fn variables(adapter_name: Option<&str>, power_preference: Option<&str>) -> Variables {
+fn variables(
+    adapter_name: Option<&str>,
+    power_preference: Option<&str>,
+) -> Variables {
     return Variables {
         adapter_name: adapter_name.map(str::to_string),
         power_preference: power_preference.map(str::to_string),
@@ -61,14 +81,20 @@ fn discrete_listed_first() -> [AdapterSummary; 3] {
 }
 
 /// The indexes of a successful choice.
-fn indexes(listed: &[AdapterSummary], set: &Variables) -> Vec<usize> {
+fn indexes(
+    listed: &[AdapterSummary],
+    set: &Variables,
+) -> Vec<usize> {
     return choose_adapters(listed, set)
         .unwrap_or_else(|error| panic!("the choice failed: {error}"))
         .indexes;
 }
 
 /// The error of a failed choice.
-fn failure(listed: &[AdapterSummary], set: &Variables) -> GpuDeviceError {
+fn failure(
+    listed: &[AdapterSummary],
+    set: &Variables,
+) -> GpuDeviceError {
     return match choose_adapters(listed, set) {
         Ok(order) => panic!("the choice must fail, but gave {order:?}"),
         Err(error) => error,

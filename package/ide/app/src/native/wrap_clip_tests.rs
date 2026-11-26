@@ -10,7 +10,12 @@
 //! every wait advances timers and lets the workers answer.
 
 /// Counters and scrolling helpers of the overscan tests.
-use super::overscan_tile_tests::{counts, reset, scroll_to, worker_counts};
+use super::overscan_tile_tests::{
+    counts,
+    reset,
+    scroll_to,
+    worker_counts,
+};
 /// The raster limit and the size rule of a tile that is derived from it.
 use super::render::tile_cap;
 /// The clip rule,
@@ -21,14 +26,25 @@ use super::viewport::band_clip;
 /// and the pixels of the shown image.
 use super::{
     tile_reads::shown,
-    wrap_tests::{long_text, open, settled},
+    wrap_tests::{
+        long_text,
+        open,
+        settled,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
 /// Library types that give the expected values.
-use ide_app::{row_map::CODE_ROW, shaped_text::stack_fits};
+use ide_app::{
+    row_map::CODE_ROW,
+    shaped_text::stack_fits,
+};
 /// Toolkit models and events.
-use slint::{ComponentHandle, Model, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    Model,
+    platform::update_timers_and_animations,
+};
 
 /// Words of the shape `word12 ` until the text holds `length` characters.
 fn words(length: usize) -> String {

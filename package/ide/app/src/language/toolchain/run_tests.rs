@@ -5,7 +5,10 @@
 use super::run_bounded;
 use std::{
     process::Command,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[test]

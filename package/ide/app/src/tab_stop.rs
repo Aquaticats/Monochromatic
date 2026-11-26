@@ -41,7 +41,10 @@ pub const TAB_SPACES: f32 = 2.0;
 ///   return distance;
 /// }
 /// ```
-pub fn tab_advance(position: f32, space: f32) -> f32 {
+pub fn tab_advance(
+    position: f32,
+    space: f32,
+) -> f32 {
     // A not-a-number space fails `space > 0.0`, so it is rejected together with zero and negative advances.
     let usable = space > 0.0 && space.is_finite() && position.is_finite();
     if !usable {
@@ -75,7 +78,10 @@ pub fn tab_advance(position: f32, space: f32) -> f32 {
 ///   });
 /// }
 /// ```
-pub fn tab_spacings(naturals: &[f32], space: f32) -> Vec<f32> {
+pub fn tab_spacings(
+    naturals: &[f32],
+    space: f32,
+) -> Vec<f32> {
     // What: `Vec::new()` creates an empty growable list (siblings: fixed `[f32; N]`, borrowed `&[f32]`).
     // Why: The number of tabs differs per line, and the caller keeps the result after this call.
     //

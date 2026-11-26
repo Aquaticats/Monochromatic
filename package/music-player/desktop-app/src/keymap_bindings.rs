@@ -18,7 +18,12 @@
 
 /// Imports the platform,
 /// action and request types and the scope test that the table rows use.
-use crate::keymap::{KeyboardPlatform, ShortcutAction, ShortcutRequest, scope_allows};
+use crate::keymap::{
+    KeyboardPlatform,
+    ShortcutAction,
+    ShortcutRequest,
+    scope_allows,
+};
 
 /// What:
 ///      `pub enum Modifier` names a modifier a chord requires.
@@ -159,8 +164,21 @@ const AS: &[Modifier] = &[Modifier::Alt, Modifier::Shift];
 /// ```ts
 /// const row = (action, modifiers, keys, scope): Binding => ({ action, platform: null, modifiers, keys, scope, repeats: false, menu: false });
 /// ```
-const fn row(action: ShortcutAction, modifiers: &'static [Modifier], keys: &'static [&'static str], scope: Scope) -> Binding {
-    return Binding { action, platform: None, modifiers, keys, scope, repeats: false, menu: false };
+const fn row(
+    action: ShortcutAction,
+    modifiers: &'static [Modifier],
+    keys: &'static [&'static str],
+    scope: Scope,
+) -> Binding {
+    return Binding {
+        action,
+        platform: None,
+        modifiers,
+        keys,
+        scope,
+        repeats: false,
+        menu: false,
+    };
 }
 
 /// Builder methods of `Binding` for the table's exceptions.
@@ -170,8 +188,14 @@ impl Binding {
     /// Why:
     ///      D102 gives different chords for Settings,
     ///  reveal and track change on macOS.
-    const fn on(self, platform: KeyboardPlatform) -> Self {
-        return Binding { platform: Some(platform), ..self };
+    const fn on(
+        self,
+        platform: KeyboardPlatform,
+    ) -> Self {
+        return Binding {
+            platform: Some(platform),
+            ..self
+        };
     }
 
     /// What:
@@ -179,7 +203,10 @@ impl Binding {
     /// Why:
     ///      Seeking and moving a list ring should keep going while the key is held.
     const fn repeating(self) -> Self {
-        return Binding { repeats: true, ..self };
+        return Binding {
+            repeats: true,
+            ..self
+        };
     }
 
     /// What:
@@ -187,14 +214,20 @@ impl Binding {
     /// Why:
     ///      D106 lets the row chords act on the row the menu is open on.
     const fn in_menu(self) -> Self {
-        return Binding { menu: true, ..self };
+        return Binding {
+            menu: true,
+            ..self
+        };
     }
 
     /// What:
     ///      `applies_on` tells whether the row exists on this map.
     /// Why:
     ///      A row restricted to one map is invisible on the other.
-    pub fn applies_on(&self, platform: KeyboardPlatform) -> bool {
+    pub fn applies_on(
+        &self,
+        platform: KeyboardPlatform,
+    ) -> bool {
         return match self.platform {
             Some(only) => only == platform,
             None => true,
@@ -214,11 +247,21 @@ impl Binding {
     /// ```ts
     /// function required(b: Binding, platform: KeyboardPlatform): [boolean, boolean, boolean, boolean];
     /// ```
-    pub fn required(&self, platform: KeyboardPlatform) -> HeldModifiers {
-        let mut held = HeldModifiers { ctrl: false, meta: false, alt: false, shift: false };
+    pub fn required(
+        &self,
+        platform: KeyboardPlatform,
+    ) -> HeldModifiers {
+        let mut held = HeldModifiers {
+            ctrl: false,
+            meta: false,
+            alt: false,
+            shift: false,
+        };
         for modifier in self.modifiers {
             match (modifier, platform) {
-                (Modifier::Primary, KeyboardPlatform::WindowsLinux) | (Modifier::Ctrl, _) => held.ctrl = true,
+                (Modifier::Primary, KeyboardPlatform::WindowsLinux) | (Modifier::Ctrl, _) => {
+                    held.ctrl = true
+                }
                 (Modifier::Primary, KeyboardPlatform::Mac) => held.meta = true,
                 (Modifier::Alt, _) => held.alt = true,
                 (Modifier::Shift, _) => held.shift = true,
@@ -232,9 +275,16 @@ impl Binding {
     /// Why:
     ///      Letters and digits arrive in either case (Shift changes them),
     ///  while named keys match exactly.
-    pub fn matches_key(&self, key: &str) -> bool {
+    pub fn matches_key(
+        &self,
+        key: &str,
+    ) -> bool {
         for name in self.keys.iter() {
-            let same = if name.chars().count() == 1 { name.eq_ignore_ascii_case(key) } else { *name == key };
+            let same = if name.chars().count() == 1 {
+                name.eq_ignore_ascii_case(key)
+            } else {
+                *name == key
+            };
             if same {
                 return true;
             }
@@ -287,23 +337,69 @@ impl HeldModifiers {
 /// ```
 pub static BINDINGS: &[Binding] = &[
     // Popup rows come first: with the track menu open these decide before any other row.
-    row(ShortcutAction::MenuUp, NONE, &["ArrowUp"], Scope::Popup).repeating().in_menu(),
-    row(ShortcutAction::MenuDown, NONE, &["ArrowDown"], Scope::Popup).repeating().in_menu(),
+    row(ShortcutAction::MenuUp, NONE, &["ArrowUp"], Scope::Popup)
+        .repeating()
+        .in_menu(),
+    row(ShortcutAction::MenuDown, NONE, &["ArrowDown"], Scope::Popup)
+        .repeating()
+        .in_menu(),
     row(ShortcutAction::MenuChoose, NONE, &["Enter"], Scope::Popup).in_menu(),
     // Escape, from the innermost thing outward: the picker overlay, the editor line, the Settings list, Search, Licenses.
-    row(ShortcutAction::ClosePicker, NONE, &["Escape"], Scope::PickerOverlay),
-    row(ShortcutAction::SettingsFocusList, NONE, &["Escape"], Scope::SettingsField),
+    row(
+        ShortcutAction::ClosePicker,
+        NONE,
+        &["Escape"],
+        Scope::PickerOverlay,
+    ),
+    row(
+        ShortcutAction::SettingsFocusList,
+        NONE,
+        &["Escape"],
+        Scope::SettingsField,
+    ),
     row(ShortcutAction::Back, NONE, &["Escape"], Scope::SettingsIdle),
-    row(ShortcutAction::EditorLeave, NONE, &["Escape"], Scope::EditorPage),
+    row(
+        ShortcutAction::EditorLeave,
+        NONE,
+        &["Escape"],
+        Scope::EditorPage,
+    ),
     row(ShortcutAction::Back, NONE, &["Escape"], Scope::SearchPage),
     row(ShortcutAction::Back, NONE, &["Escape"], Scope::LicensesPage),
     // Editor pages: Control+Enter applies and leaves, Control+Shift+Backspace resets the template.
-    row(ShortcutAction::EditorApply, P, &["Enter"], Scope::EditorOrSettings),
-    row(ShortcutAction::EditorReset, PS, &["Backspace"], Scope::EditorOrSettings),
+    row(
+        ShortcutAction::EditorApply,
+        P,
+        &["Enter"],
+        Scope::EditorOrSettings,
+    ),
+    row(
+        ShortcutAction::EditorReset,
+        PS,
+        &["Backspace"],
+        Scope::EditorOrSettings,
+    ),
     // Search: Up and Down move through the results even while the query field has focus; Enter opens the result.
-    row(ShortcutAction::SearchUp, NONE, &["ArrowUp"], Scope::SearchPage).repeating(),
-    row(ShortcutAction::SearchDown, NONE, &["ArrowDown"], Scope::SearchPage).repeating(),
-    row(ShortcutAction::SearchOpen, NONE, &["Enter"], Scope::SearchField),
+    row(
+        ShortcutAction::SearchUp,
+        NONE,
+        &["ArrowUp"],
+        Scope::SearchPage,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::SearchDown,
+        NONE,
+        &["ArrowDown"],
+        Scope::SearchPage,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::SearchOpen,
+        NONE,
+        &["Enter"],
+        Scope::SearchField,
+    ),
     // Kept from D102.
     row(ShortcutAction::Search, P, &["f"], Scope::PlayerPage),
     row(ShortcutAction::Picker, P, &["o"], Scope::PlayerPage),
@@ -313,42 +409,165 @@ pub static BINDINGS: &[Binding] = &[
     row(ShortcutAction::Reveal, P, &["l"], Scope::PlayerPage).on(KeyboardPlatform::Mac),
     row(ShortcutAction::Toggle, NONE, &[" "], Scope::SpaceZones),
     row(ShortcutAction::Mode, C, &["m"], Scope::PlaybackArea),
-    row(ShortcutAction::Previous, C, &["ArrowLeft"], Scope::PlaybackArea).on(KeyboardPlatform::WindowsLinux),
-    row(ShortcutAction::Next, C, &["ArrowRight"], Scope::PlaybackArea).on(KeyboardPlatform::WindowsLinux),
-    row(ShortcutAction::Previous, PS, &["[", "{"], Scope::PlaybackArea).on(KeyboardPlatform::Mac),
+    row(
+        ShortcutAction::Previous,
+        C,
+        &["ArrowLeft"],
+        Scope::PlaybackArea,
+    )
+    .on(KeyboardPlatform::WindowsLinux),
+    row(
+        ShortcutAction::Next,
+        C,
+        &["ArrowRight"],
+        Scope::PlaybackArea,
+    )
+    .on(KeyboardPlatform::WindowsLinux),
+    row(
+        ShortcutAction::Previous,
+        PS,
+        &["[", "{"],
+        Scope::PlaybackArea,
+    )
+    .on(KeyboardPlatform::Mac),
     row(ShortcutAction::Next, PS, &["]", "}"], Scope::PlaybackArea).on(KeyboardPlatform::Mac),
     // Playback (D106): seek 10 s and 60 s, pick a mode, restart the track.
-    row(ShortcutAction::SeekBack, A, &["ArrowLeft"], Scope::PlayerPage).repeating(),
-    row(ShortcutAction::SeekForward, A, &["ArrowRight"], Scope::PlayerPage).repeating(),
-    row(ShortcutAction::SeekBackLong, AS, &["ArrowLeft"], Scope::PlayerPage).repeating(),
-    row(ShortcutAction::SeekForwardLong, AS, &["ArrowRight"], Scope::PlayerPage).repeating(),
-    row(ShortcutAction::ModeRepeat, PS, &["1", "!"], Scope::PlayerPage),
-    row(ShortcutAction::ModeInOrder, PS, &["2", "@"], Scope::PlayerPage),
-    row(ShortcutAction::ModeShuffleFolder, PS, &["3", "#"], Scope::PlayerPage),
-    row(ShortcutAction::ModeShuffleAll, PS, &["4", "$"], Scope::PlayerPage),
+    row(
+        ShortcutAction::SeekBack,
+        A,
+        &["ArrowLeft"],
+        Scope::PlayerPage,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::SeekForward,
+        A,
+        &["ArrowRight"],
+        Scope::PlayerPage,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::SeekBackLong,
+        AS,
+        &["ArrowLeft"],
+        Scope::PlayerPage,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::SeekForwardLong,
+        AS,
+        &["ArrowRight"],
+        Scope::PlayerPage,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::ModeRepeat,
+        PS,
+        &["1", "!"],
+        Scope::PlayerPage,
+    ),
+    row(
+        ShortcutAction::ModeInOrder,
+        PS,
+        &["2", "@"],
+        Scope::PlayerPage,
+    ),
+    row(
+        ShortcutAction::ModeShuffleFolder,
+        PS,
+        &["3", "#"],
+        Scope::PlayerPage,
+    ),
+    row(
+        ShortcutAction::ModeShuffleAll,
+        PS,
+        &["4", "$"],
+        Scope::PlayerPage,
+    ),
     row(ShortcutAction::Restart, P, &["Home"], Scope::PlaybackArea),
     // Browsing (D106).
-    row(ShortcutAction::PreviousFolder, A, &["ArrowUp"], Scope::PlayerPage),
-    row(ShortcutAction::NextFolder, A, &["ArrowDown"], Scope::PlayerPage),
+    row(
+        ShortcutAction::PreviousFolder,
+        A,
+        &["ArrowUp"],
+        Scope::PlayerPage,
+    ),
+    row(
+        ShortcutAction::NextFolder,
+        A,
+        &["ArrowDown"],
+        Scope::PlayerPage,
+    ),
     row(ShortcutAction::RevealFolder, PS, &["g"], Scope::PlayerPage),
     row(ShortcutAction::FocusFolders, A, &["1"], Scope::PlayerPage),
     row(ShortcutAction::FocusTracks, A, &["2"], Scope::PlayerPage),
-    row(ShortcutAction::OpenFolderDialog, PS, &["o"], Scope::PlayerPage),
+    row(
+        ShortcutAction::OpenFolderDialog,
+        PS,
+        &["o"],
+        Scope::PlayerPage,
+    ),
     row(ShortcutAction::Quit, P, &["q"], Scope::Anywhere),
     // Inside a focused list: the arrows, Home, End, the page keys, Enter. A letter has its own rule in the classifier.
     row(ShortcutAction::ListUp, NONE, &["ArrowUp"], Scope::ListZone).repeating(),
-    row(ShortcutAction::ListDown, NONE, &["ArrowDown"], Scope::ListZone).repeating(),
-    row(ShortcutAction::ListUp, NONE, &["ArrowLeft"], Scope::FolderList).repeating(),
-    row(ShortcutAction::ListDown, NONE, &["ArrowRight"], Scope::FolderList).repeating(),
+    row(
+        ShortcutAction::ListDown,
+        NONE,
+        &["ArrowDown"],
+        Scope::ListZone,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::ListUp,
+        NONE,
+        &["ArrowLeft"],
+        Scope::FolderList,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::ListDown,
+        NONE,
+        &["ArrowRight"],
+        Scope::FolderList,
+    )
+    .repeating(),
     row(ShortcutAction::ListHome, NONE, &["Home"], Scope::ListZone),
     row(ShortcutAction::ListEnd, NONE, &["End"], Scope::ListZone),
-    row(ShortcutAction::ListPageUp, NONE, &["PageUp"], Scope::ListZone).repeating(),
-    row(ShortcutAction::ListPageDown, NONE, &["PageDown"], Scope::ListZone).repeating(),
-    row(ShortcutAction::ListActivate, NONE, &["Enter"], Scope::ListZone),
+    row(
+        ShortcutAction::ListPageUp,
+        NONE,
+        &["PageUp"],
+        Scope::ListZone,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::ListPageDown,
+        NONE,
+        &["PageDown"],
+        Scope::ListZone,
+    )
+    .repeating(),
+    row(
+        ShortcutAction::ListActivate,
+        NONE,
+        &["Enter"],
+        Scope::ListZone,
+    ),
     // The focused track row: its menu (Menu key or Alt+Enter), trash, copy and show.
-    row(ShortcutAction::RowMenu, NONE, &["ContextMenu"], Scope::TrackList),
+    row(
+        ShortcutAction::RowMenu,
+        NONE,
+        &["ContextMenu"],
+        Scope::TrackList,
+    ),
     row(ShortcutAction::RowMenu, A, &["Enter"], Scope::TrackList),
-    row(ShortcutAction::RowTrash, NONE, &["Delete"], Scope::TrackList).in_menu(),
+    row(
+        ShortcutAction::RowTrash,
+        NONE,
+        &["Delete"],
+        Scope::TrackList,
+    )
+    .in_menu(),
     row(ShortcutAction::RowCopy, PS, &["c"], Scope::TrackList).in_menu(),
     row(ShortcutAction::RowShow, PS, &["e"], Scope::TrackList).in_menu(),
 ];
@@ -359,7 +578,12 @@ pub static BINDINGS: &[Binding] = &[
 ///      A row matches only when the held flags equal the flags it requires,
 ///  so Control+Shift+F is not Control+F.
 fn request_held(request: &ShortcutRequest) -> HeldModifiers {
-    return HeldModifiers { ctrl: request.ctrl, meta: request.meta, alt: request.alt, shift: request.shift };
+    return HeldModifiers {
+        ctrl: request.ctrl,
+        meta: request.meta,
+        alt: request.alt,
+        shift: request.shift,
+    };
 }
 
 /// What:
@@ -377,7 +601,10 @@ fn request_held(request: &ShortcutRequest) -> HeldModifiers {
 /// ```
 pub fn binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
     for binding in BINDINGS.iter() {
-        if binding.scope != Scope::Popup && row_hits(binding, request) && scope_allows(binding.scope, request) {
+        if binding.scope != Scope::Popup
+            && row_hits(binding, request)
+            && scope_allows(binding.scope, request)
+        {
             return Some(binding);
         }
     }
@@ -396,7 +623,10 @@ pub fn binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
 /// ```
 pub fn popup_binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
     for binding in BINDINGS.iter() {
-        if binding.menu && row_hits(binding, request) && request.route == crate::keymap::KeyRoute::Player {
+        if binding.menu
+            && row_hits(binding, request)
+            && request.route == crate::keymap::KeyRoute::Player
+        {
             return Some(binding);
         }
     }
@@ -408,7 +638,10 @@ pub fn popup_binding_matching(request: &ShortcutRequest) -> Option<&'static Bind
 ///  modifiers and key match the key press.
 /// Why:
 ///      Both lookups share the same three tests and differ only in the scope test.
-fn row_hits(binding: &Binding, request: &ShortcutRequest) -> bool {
+fn row_hits(
+    binding: &Binding,
+    request: &ShortcutRequest,
+) -> bool {
     return binding.applies_on(request.platform)
         && binding.required(request.platform) == request_held(request)
         && binding.matches_key(&request.key);
@@ -425,7 +658,10 @@ fn row_hits(binding: &Binding, request: &ShortcutRequest) -> bool {
 /// ```ts
 /// const bindingFor = (a: ShortcutAction, p: KeyboardPlatform) => BINDINGS.find(b => b.action === a && appliesOn(b, p));
 /// ```
-pub fn binding_for(action: ShortcutAction, platform: KeyboardPlatform) -> Option<&'static Binding> {
+pub fn binding_for(
+    action: ShortcutAction,
+    platform: KeyboardPlatform,
+) -> Option<&'static Binding> {
     for binding in BINDINGS.iter() {
         if binding.action == action && binding.applies_on(platform) {
             return Some(binding);
@@ -467,9 +703,13 @@ pub fn key_label(key: &str) -> String {
 ///  and macOS shows the Command,
 ///  Option,
 ///  Shift and Control glyphs.
-fn modifier_label(modifier: Modifier, platform: KeyboardPlatform) -> &'static str {
+fn modifier_label(
+    modifier: Modifier,
+    platform: KeyboardPlatform,
+) -> &'static str {
     return match (modifier, platform) {
-        (Modifier::Primary, KeyboardPlatform::WindowsLinux) | (Modifier::Ctrl, KeyboardPlatform::WindowsLinux) => "Ctrl",
+        (Modifier::Primary, KeyboardPlatform::WindowsLinux)
+        | (Modifier::Ctrl, KeyboardPlatform::WindowsLinux) => "Ctrl",
         (Modifier::Primary, KeyboardPlatform::Mac) => "\u{2318}",
         (Modifier::Ctrl, KeyboardPlatform::Mac) => "\u{2303}",
         (Modifier::Alt, KeyboardPlatform::WindowsLinux) => "Alt",
@@ -489,7 +729,10 @@ fn modifier_label(modifier: Modifier, platform: KeyboardPlatform) -> &'static st
 /// ```ts
 /// const chordText = (b: Binding, p: KeyboardPlatform) => [...b.modifiers.map(label), keyLabel(b.keys[0])].join(p === "mac" ? "" : "+");
 /// ```
-pub fn chord_text(binding: &Binding, platform: KeyboardPlatform) -> String {
+pub fn chord_text(
+    binding: &Binding,
+    platform: KeyboardPlatform,
+) -> String {
     let key = match binding.keys.first() {
         Some(name) => key_label(name),
         None => String::new(),
@@ -516,7 +759,10 @@ pub fn chord_text(binding: &Binding, platform: KeyboardPlatform) -> String {
 /// ```ts
 /// const shortcutText = (a: ShortcutAction, p: KeyboardPlatform) => { const b = bindingFor(a, p); return b ? chordText(b, p) : ""; };
 /// ```
-pub fn shortcut_text(action: ShortcutAction, platform: KeyboardPlatform) -> String {
+pub fn shortcut_text(
+    action: ShortcutAction,
+    platform: KeyboardPlatform,
+) -> String {
     return match binding_for(action, platform) {
         Some(binding) => chord_text(binding, platform),
         None => String::new(),

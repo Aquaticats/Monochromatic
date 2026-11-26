@@ -4,17 +4,31 @@
 ///  the production matcher,
 ///  and the production geometry path.
 use ide_app::{
-    document::{Document, ReadingPosition},
-    find::{FindRange, MAX_FIND_MATCHES, find_matches},
+    document::{
+        Document,
+        ReadingPosition,
+    },
+    find::{
+        FindRange,
+        MAX_FIND_MATCHES,
+        find_matches,
+    },
     find_paint::rectangles,
     row_map::CODE_ROW,
-    shaped_text::{ShapedView, TextShaper, Viewport},
+    shaped_text::{
+        ShapedView,
+        TextShaper,
+        Viewport,
+    },
 };
 /// Actual shaped glyph runs prove that marking matches does not reshape a ligature.
 use parley::PositionedLayoutItem;
 
 /// One logical row at scale one unless a test materializes more.
-fn viewport(first: usize, count: usize) -> Viewport {
+fn viewport(
+    first: usize,
+    count: usize,
+) -> Viewport {
     return Viewport {
         first,
         count,
@@ -59,7 +73,10 @@ fn glyphs(view: &ShapedView) -> Vec<u32> {
 
 /// Production matches of `query` in the document,
 ///  as a plain list.
-fn ranges(document: &Document, query: &str) -> Vec<FindRange> {
+fn ranges(
+    document: &Document,
+    query: &str,
+) -> Vec<FindRange> {
     // What: `to_string` copies the rope into one owned string; `expect` fails the test on a matcher error.
     // Why: The matcher takes contiguous text, exactly as the worker supplies it.
     //
@@ -178,8 +195,14 @@ fn rectangles_follow_tabs_wide_glyphs_and_combining_marks() {
     assert_eq!(
         cats,
         [
-            FindRange { start: 1, end: 2 },
-            FindRange { start: 9, end: 10 }
+            FindRange {
+                start: 1,
+                end: 2
+            },
+            FindRange {
+                start: 9,
+                end: 10
+            }
         ]
     );
     let marks = rectangles(&view, &cats, None);
@@ -191,7 +214,13 @@ fn rectangles_follow_tabs_wide_glyphs_and_combining_marks() {
     );
     assert!(marks[0].width > 1.0 && (marks[0].width - marks[1].width).abs() < 0.01);
     let accent = ranges(&document, "e\u{301}");
-    assert_eq!(accent, [FindRange { start: 6, end: 8 }]);
+    assert_eq!(
+        accent,
+        [FindRange {
+            start: 6,
+            end: 8
+        }]
+    );
     let accented = rectangles(&view, &accent, None);
     let before = view.range(5, 6)[0];
     assert_eq!(accented.len(), 1);

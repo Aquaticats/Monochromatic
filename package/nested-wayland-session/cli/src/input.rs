@@ -39,16 +39,31 @@
 /// import { ButtonState, KeyState, Keycode, MotionEvent, ButtonEvent, ... } from "smithay";
 /// ```
 use smithay::{
-    backend::input::{ButtonState, KeyState},
+    backend::input::{
+        ButtonState,
+        KeyState,
+    },
     input::{
-        keyboard::{FilterResult, Keycode, KeysymHandle, ModifiersState},
-        pointer::{ButtonEvent, MotionEvent},
+        keyboard::{
+            FilterResult,
+            Keycode,
+            KeysymHandle,
+            ModifiersState,
+        },
+        pointer::{
+            ButtonEvent,
+            MotionEvent,
+        },
     },
     reexports::wayland_server::{
-        protocol::wl_surface::WlSurface,
         Resource,
+        protocol::wl_surface::WlSurface,
     },
-    utils::{Logical, Point, SERIAL_COUNTER},
+    utils::{
+        Logical,
+        Point,
+        SERIAL_COUNTER,
+    },
 };
 
 /// What:
@@ -61,7 +76,10 @@ use smithay::{
 /// import { PointerButton } from "./protocol";
 /// import { Compositor } from "./state";
 /// ```
-use crate::{protocol::PointerButton, state::Compositor};
+use crate::{
+    protocol::PointerButton,
+    state::Compositor,
+};
 
 /// Milliseconds since program start,
 ///  used as the event timestamp.
@@ -81,7 +99,7 @@ fn event_time(state: &Compositor) -> u32 {
     // What:     `state.start_time.elapsed().as_millis() as u32`. Elapsed time, in ms,
     //           narrowed to `u32`. Tail expression.
     // Why:      Provide the event timestamp.
-    return state.start_time.elapsed().as_millis() as u32
+    return state.start_time.elapsed().as_millis() as u32;
 }
 
 /// Click a button at a logical point:
@@ -107,7 +125,12 @@ fn event_time(state: &Compositor) -> u32 {
 /// ```ts
 /// click(state, 100, 40, PointerButton.Left);
 /// ```
-pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
+pub fn click(
+    state: &mut Compositor,
+    x: f64,
+    y: f64,
+    button: PointerButton,
+) {
     // What:     `let pointer = state.seat.get_pointer().unwrap();`. Fetch the pointer
     //           handle. This is a cheap reference-counted clone, NOT a borrow of the seat,
     //           so `state` can still be passed mutably below.
@@ -251,7 +274,11 @@ fn protocol_id_of(surface: &WlSurface) -> u32 {
 /// Why:
 ///       Both `key` and `type_text` funnel through one place that does the 8-offset
 ///           and the seat call.
-pub fn send_key(state: &mut Compositor, evdev: u32, key_state: KeyState) {
+pub fn send_key(
+    state: &mut Compositor,
+    evdev: u32,
+    key_state: KeyState,
+) {
     // What:     `let keyboard = state.seat.get_keyboard().unwrap();`. The keyboard handle
     //           (a reference-counted clone, not a borrow of the seat).
     // Why:      Need it to inject the key.
@@ -298,6 +325,10 @@ pub fn send_key(state: &mut Compositor, evdev: u32, key_state: KeyState) {
 /// ```ts
 /// const forwardEveryKey = (_state, _modifiers, _handle): FilterResult => "forward";
 /// ```
-fn forward_every_key(_state: &mut Compositor, _modifiers: &ModifiersState, _handle: KeysymHandle<'_>) -> FilterResult<()> {
-    return FilterResult::Forward
+fn forward_every_key(
+    _state: &mut Compositor,
+    _modifiers: &ModifiersState,
+    _handle: KeysymHandle<'_>,
+) -> FilterResult<()> {
+    return FilterResult::Forward;
 }

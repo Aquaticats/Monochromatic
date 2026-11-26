@@ -45,5 +45,8 @@ fn containers_show_counts_and_text_is_encoded() {
 #[test]
 fn empty_maps_and_nested_variants() {
     assert_eq!(format_summaries(&summarize_map(&HashMap::new())), "");
-    assert_eq!(describe_value(&Variant::Variant(Box::new(Variant::U32(7)))), "7");
+    assert_eq!(
+        describe_value(&Variant::Variant(Box::new(Variant::U32(7)))),
+        "7"
+    );
 }

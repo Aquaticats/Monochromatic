@@ -13,7 +13,13 @@
 /// ```ts
 /// import { Rope, compareRopes, Assoc, type ChangeSet } from 'helix-core';
 /// ```
-use helix_core::{Assoc, ChangeSet, Rope, Transaction, diff::compare_ropes};
+use helix_core::{
+    Assoc,
+    ChangeSet,
+    Rope,
+    Transaction,
+    diff::compare_ropes,
+};
 
 /// What:
 ///  A copyable reading-position record.
@@ -197,7 +203,10 @@ impl Document {
 
     /// Set a reading position,
     ///  clamping external UI coordinates to valid text.
-    pub fn select(&mut self, position: ReadingPosition) {
+    pub fn select(
+        &mut self,
+        position: ReadingPosition,
+    ) {
         // What: A typed local records the rope's valid character endpoint.
         // Why: UI hit tests can land beyond the final glyph.
         //
@@ -231,7 +240,10 @@ impl Document {
     }
 
     /// Compute a reload without capturing the current selection.
-    pub fn prepare_reload(&self, source: &str) -> Reload {
+    pub fn prepare_reload(
+        &self,
+        source: &str,
+    ) -> Reload {
         // Convert new borrowed source into independent owned storage.
         let text = Rope::from_str(source);
         // What: & lends each rope to the comparison without moving it.
@@ -255,7 +267,10 @@ impl Document {
     ///
     /// Returns whether the revision was accepted,
     ///  not whether text differed.
-    pub fn apply_reload(&mut self, reload: Reload) -> bool {
+    pub fn apply_reload(
+        &mut self,
+        reload: Reload,
+    ) -> bool {
         if reload.base != self.revision {
             tracing::debug!(
                 base = reload.base,

@@ -108,28 +108,44 @@ pub enum NvError {
 /// How the value prints to a person.
 impl fmt::Display for NvError {
     /// Explains the bytes the codec refused.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
-            NvError::Truncated { at, need, have } => write!(
+            NvError::Truncated {
+                at,
+                need,
+                have,
+            } => write!(
                 formatter,
                 "buffer truncated: need {need} bytes at offset {at}, have {have}"
             ),
-            NvError::UnsupportedEncoding { encoding } => {
+            NvError::UnsupportedEncoding {
+                encoding,
+            } => {
                 write!(
                     formatter,
                     "unsupported nvlist encoding {encoding} (only native is read)"
                 )
             }
-            NvError::UnsupportedEndian { byte_order: endian } => {
+            NvError::UnsupportedEndian {
+                byte_order: endian,
+            } => {
                 write!(formatter, "unsupported native nvlist byte order {endian}")
             }
-            NvError::UnsupportedVersion { version } => {
+            NvError::UnsupportedVersion {
+                version,
+            } => {
                 write!(
                     formatter,
                     "unsupported nvlist version {version} (only version 0 is read)"
                 )
             }
-            NvError::BadPairSize { at, size } => {
+            NvError::BadPairSize {
+                at,
+                size,
+            } => {
                 write!(formatter, "invalid nvpair size {size} at offset {at}")
             }
             NvError::BadName {
@@ -137,22 +153,32 @@ impl fmt::Display for NvError {
             } => {
                 write!(formatter, "invalid nvpair name (name length {name_size})")
             }
-            NvError::BadArrayCount { elements: count } => {
+            NvError::BadArrayCount {
+                elements: count,
+            } => {
                 write!(formatter, "nvpair array element count {count} is negative")
             }
-            NvError::Overflow { elements: count } => {
+            NvError::Overflow {
+                elements: count,
+            } => {
                 write!(
                     formatter,
                     "nvpair size arithmetic overflowed (element count {count})"
                 )
             }
-            NvError::BadString { pair: name } => {
+            NvError::BadString {
+                pair: name,
+            } => {
                 write!(
                     formatter,
                     "string value not NUL-terminated in pair '{name}'"
                 )
             }
-            NvError::ValueOverflow { name, need, have } => write!(
+            NvError::ValueOverflow {
+                name,
+                need,
+                have,
+            } => write!(
                 formatter,
                 "value for '{name}' ({need} bytes) exceeds nvpair bounds ({have} bytes)"
             ),
@@ -162,11 +188,15 @@ impl fmt::Display for NvError {
                     "nvlist nesting is deeper than this crate follows"
                 )
             }
-            NvError::TooBigToPack { pair: name } => write!(
+            NvError::TooBigToPack {
+                pair: name,
+            } => write!(
                 formatter,
                 "cannot encode '{name}': name/value size exceeds the wire format's field width"
             ),
-            NvError::EmbeddedNul { name } => {
+            NvError::EmbeddedNul {
+                name,
+            } => {
                 write!(
                     formatter,
                     "cannot encode '{name}': embedded NUL in name or string value"

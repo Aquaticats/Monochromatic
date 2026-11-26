@@ -24,7 +24,13 @@ use super::ZfsDevice;
 use super::fixture::Fixture;
 use super::fixture::properties;
 use super::fixture_pool::FixturePool;
-use super::fixture_reply::{cli_value, listing_names, property_source, property_str, property_u64};
+use super::fixture_reply::{
+    cli_value,
+    listing_names,
+    property_source,
+    property_str,
+    property_u64,
+};
 use crate::nvlist::NvList;
 
 /// `ZFS_KEYSTATUS_UNAVAILABLE` (`include/sys/fs/zfs.h` at `zfs-2.4.4`).

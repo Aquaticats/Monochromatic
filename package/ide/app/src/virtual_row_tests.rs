@@ -1,7 +1,11 @@
 //! One cap cuts a message to its row limit and counts the rows it left out.
 
 /// The cap under test and the row type it keeps.
-use super::{MESSAGE_ROWS, MessageRow, cap_message_rows};
+use super::{
+    MESSAGE_ROWS,
+    MessageRow,
+    cap_message_rows,
+};
 /// Every row of a message carries the severity that selects its ink.
 use crate::language::diagnostics::Severity;
 

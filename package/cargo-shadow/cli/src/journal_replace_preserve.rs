@@ -13,7 +13,16 @@
 /// The seams,
 /// the keep rule,
 /// and the helpers of the replacement that the keeping uses.
-use crate::journal_replace::{KeepAs, MAX_NAME_ATTEMPTS, Ops, create_directories_with, file_name_text, forget_unsynced, is_unsynced, parent_of};
+use crate::journal_replace::{
+    KeepAs,
+    MAX_NAME_ATTEMPTS,
+    Ops,
+    create_directories_with,
+    file_name_text,
+    forget_unsynced,
+    is_unsynced,
+    parent_of,
+};
 /// What:
 /// `use std::fs::{self, File, OpenOptions};` imports the file-system module,
 /// the open-file type and the builder that opens a file with chosen flags.
@@ -26,7 +35,9 @@ use crate::journal_replace::{KeepAs, MAX_NAME_ATTEMPTS, Ops, create_directories_
 /// ```ts
 /// import { openSync, writeSync, fsyncSync, linkSync, unlinkSync } from 'node:fs';
 /// ```
-use std::fs::{self};
+use std::fs::{
+    self,
+};
 /// What:
 /// `use std::io::{self, Write};` imports the error module and the trait that adds `write_all` to an open file.
 /// Why:
@@ -36,7 +47,9 @@ use std::fs::{self};
 /// ```ts
 /// // errors are thrown in Node; writeSync is a free function
 /// ```
-use std::io::{self};
+use std::io::{
+    self,
+};
 /// What:
 /// `use std::path::{Path, PathBuf};` imports the borrowed and owned path types.
 /// Why:
@@ -46,8 +59,10 @@ use std::io::{self};
 /// ```ts
 /// // TS has one type for this: string
 /// ```
-use std::path::{Path, PathBuf};
-
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Which stage of preserving a file failed,
 /// because the stages mean different things for the data.
@@ -95,7 +110,12 @@ pub(crate) enum PreserveFailure {
 /// ```ts
 /// function preserve(displaced: string, target: string, keep: KeepAs): string  // throws a typed failure
 /// ```
-pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result<PathBuf, PreserveFailure> {
+pub(crate) fn preserve(
+    displaced: &Path,
+    target: &Path,
+    keep: &KeepAs,
+    ops: &Ops,
+) -> Result<PathBuf, PreserveFailure> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
     // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
@@ -108,7 +128,9 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
     // (sixth pass, group 8).
     #[cfg(test)]
     if crate::failpoints::keep_link_of(target) {
-        return Err(PreserveFailure::Data(io::Error::other("injected preservation failure after the exchange")));
+        return Err(PreserveFailure::Data(io::Error::other(
+            "injected preservation failure after the exchange",
+        )));
     }
     (ops.sync_file)(displaced).map_err(PreserveFailure::Data)?;
     let base: String = file_name_text(target);
@@ -141,7 +163,11 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
     let mut last_error: io::Error = io::Error::other("no directory to keep the displaced file in");
     for directory in directories {
         for number in 0..MAX_NAME_ATTEMPTS {
-            let name: String = if number == 0 { format!("{base}{}", keep.suffix) } else { format!("{base}{}.{number}", keep.suffix) };
+            let name: String = if number == 0 {
+                format!("{base}{}", keep.suffix)
+            } else {
+                format!("{base}{}.{number}", keep.suffix)
+            };
             let candidate: PathBuf = directory.join(name);
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&candidate`: lends the value without copying or giving it away.
@@ -167,7 +193,10 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
                     // The path is resolved first, so a link or a relative path names the directories that really hold the entries.
                     // The walk fails, and preservation is not reported, when any barrier fails.
                     if let Err(error) = durable_up_to_the_anchor(&directory, &created, ops) {
-                        return Err(PreserveFailure::Durability { kept: candidate.clone(), error });
+                        return Err(PreserveFailure::Durability {
+                            kept: candidate.clone(),
+                            error,
+                        });
                     }
                     return Ok(candidate);
                 }
@@ -194,7 +223,11 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
 /// ```ts
 /// export function keepName(displaced: string, target: string, keep: KeepAs): string
 /// ```
-pub fn keep_name(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<PathBuf> {
+pub fn keep_name(
+    displaced: &Path,
+    target: &Path,
+    keep: &KeepAs,
+) -> io::Result<PathBuf> {
     // Closure `|failure|`: an anonymous function, like a TS arrow function.
     // Borrow `&Ops`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -208,7 +241,13 @@ pub fn keep_name(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<P
 pub(crate) fn preserve_failure_error(failure: PreserveFailure) -> io::Error {
     return match failure {
         PreserveFailure::Data(error) | PreserveFailure::Link(error) => error,
-        PreserveFailure::Durability { kept, error } => io::Error::other(format!("kept as {} but not made durable: {error}", kept.display())),
+        PreserveFailure::Durability {
+            kept,
+            error,
+        } => io::Error::other(format!(
+            "kept as {} but not made durable: {error}",
+            kept.display()
+        )),
     };
 }
 
@@ -225,7 +264,11 @@ pub(crate) fn preserve_failure_error(failure: PreserveFailure) -> io::Error {
 /// The walk fails,
 /// and preservation is not reported,
 /// when any barrier fails.
-pub(crate) fn durable_up_to_the_anchor(directory: &Path, created: &[PathBuf], ops: &Ops) -> io::Result<()> {
+pub(crate) fn durable_up_to_the_anchor(
+    directory: &Path,
+    created: &[PathBuf],
+    ops: &Ops,
+) -> io::Result<()> {
     let resolved: PathBuf = fs::canonicalize(directory)?;
     let mut created_here: Vec<PathBuf> = Vec::new();
     for made in created {
@@ -255,7 +298,10 @@ pub(crate) fn durable_up_to_the_anchor(directory: &Path, created: &[PathBuf], op
 /// `fn sync_directory_and_parent(sync_dir: &dyn Fn(&Path) -> io::Result<()>, directory: &Path) -> io::Result<()>` syncs a directory and then the directory that holds it.
 /// Why:
 /// A function replaces the closure that `and_then` ran after the first sync.
-pub(crate) fn sync_directory_and_parent(sync_dir: &dyn Fn(&Path) -> io::Result<()>, directory: &Path) -> io::Result<()> {
+pub(crate) fn sync_directory_and_parent(
+    sync_dir: &dyn Fn(&Path) -> io::Result<()>,
+    directory: &Path,
+) -> io::Result<()> {
     sync_dir(directory)?;
     return sync_dir(&parent_of(directory));
 }
@@ -277,7 +323,12 @@ pub(crate) fn sync_directory_and_parent(sync_dir: &dyn Fn(&Path) -> io::Result<(
 /// ```ts
 /// function keepAndUnlink(name: string, target: string, keep: KeepAs): { kept: string } | { left: string }  // throws with the paths in the message
 /// ```
-pub(crate) fn keep_and_unlink(name: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> io::Result<Result<PathBuf, PathBuf>> {
+pub(crate) fn keep_and_unlink(
+    name: &Path,
+    target: &Path,
+    keep: &KeepAs,
+    ops: &Ops,
+) -> io::Result<Result<PathBuf, PathBuf>> {
     let parent: PathBuf = parent_of(target);
     // `match`: picks the arm whose pattern fits the value.
     return match preserve(name, target, keep, ops) {
@@ -287,7 +338,12 @@ pub(crate) fn keep_and_unlink(name: &Path, target: &Path, keep: &KeepAs, ops: &O
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
             if let Err(error) = fs::remove_file(name) {
-                return Err(io::Error::other(format!("{} is kept as {} but its temporary name {} could not be removed: {error}", target.display(), kept.display(), name.display())));
+                return Err(io::Error::other(format!(
+                    "{} is kept as {} but its temporary name {} could not be removed: {error}",
+                    target.display(),
+                    kept.display(),
+                    name.display()
+                )));
             }
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
@@ -295,7 +351,12 @@ pub(crate) fn keep_and_unlink(name: &Path, target: &Path, keep: &KeepAs, ops: &O
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
             if let Err(error) = (ops.sync_dir)(&parent) {
-                return Err(io::Error::other(format!("{} is kept as {} but {} could not be synced: {error}", target.display(), kept.display(), parent.display())));
+                return Err(io::Error::other(format!(
+                    "{} is kept as {} but {} could not be synced: {error}",
+                    target.display(),
+                    kept.display(),
+                    parent.display()
+                )));
             }
             Ok(Ok(kept))
         }
@@ -307,15 +368,29 @@ pub(crate) fn keep_and_unlink(name: &Path, target: &Path, keep: &KeepAs, ops: &O
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
             if let Err(error) = (ops.sync_dir)(&parent) {
-                return Err(io::Error::other(format!("the displaced file stays as {} but {} could not be synced: {error}", name.display(), parent.display())));
+                return Err(io::Error::other(format!(
+                    "the displaced file stays as {} but {} could not be synced: {error}",
+                    name.display(),
+                    parent.display()
+                )));
             }
             Ok(Err(name.to_path_buf()))
         }
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        Err(PreserveFailure::Data(error)) => Err(io::Error::other(format!("the data of the displaced file could not be made durable, so nothing is settled; it stays as {}: {error}", name.display()))),
+        Err(PreserveFailure::Data(error)) => Err(io::Error::other(format!(
+            "the data of the displaced file could not be made durable, so nothing is settled; it stays as {}: {error}",
+            name.display()
+        ))),
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        Err(PreserveFailure::Durability { kept, error }) => Err(io::Error::other(format!("the displaced file is kept as {} (and still as {}) but a directory could not be made durable: {error}", kept.display(), name.display()))),
+        Err(PreserveFailure::Durability {
+            kept,
+            error,
+        }) => Err(io::Error::other(format!(
+            "the displaced file is kept as {} (and still as {}) but a directory could not be made durable: {error}",
+            kept.display(),
+            name.display()
+        ))),
     };
 }

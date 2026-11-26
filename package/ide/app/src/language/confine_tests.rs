@@ -3,13 +3,32 @@
 //!  state naming,
 //!  and refusals.
 
-use super::recipe::{NO_PID_NAMESPACE, confined_settings, recipe};
-use super::{confine_with, private_state, state_directory};
-use crate::language::launch::{LaunchRequest, scratch_name};
+use super::recipe::{
+    NO_PID_NAMESPACE,
+    confined_settings,
+    recipe,
+};
+use super::{
+    confine_with,
+    private_state,
+    state_directory,
+};
+use crate::language::launch::{
+    LaunchRequest,
+    scratch_name,
+};
 use serde_json::json;
-use std::{collections::HashMap, ffi::OsStr, path::Path, path::PathBuf};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    path::Path,
+    path::PathBuf,
+};
 
-fn request(server: &str, environment: &[(&str, &str)]) -> LaunchRequest {
+fn request(
+    server: &str,
+    environment: &[(&str, &str)],
+) -> LaunchRequest {
     let mut variables = HashMap::new();
     for (name, value) in environment {
         variables.insert(name.to_string(), value.to_string());

@@ -432,7 +432,7 @@ async function buildInGuest(chosen: Options): Promise<void> {
     // because mvm's template sets the agent's OOMPolicy=continue, so the agent survives and still reports it
     // (doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md).
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIB} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
-    'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked > /root/adoption-build.log 2>&1',
+    'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked --features test-only-switches > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n');
   guestStart({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
@@ -454,7 +454,7 @@ async function run(chosen: Options): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_adoption_guest)" > /root/adoption-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=40 /root/adoption-arm.log',
     'test "$status" = 0',
@@ -507,7 +507,7 @@ function holderScanArms({ chosen, }: { readonly chosen: Options; }): void {
     `export CLI_GIT_ZFS_SCAN_POOL=${SCAN_POOL}`,
     'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SCAN_CHECKOUT=${SCAN_CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_holder_scan_guest)" > /root/holder-scan-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=80 /root/holder-scan-arm.log',
     'test "$status" = 0',
@@ -647,7 +647,7 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_sweep_guest)" > /root/sweep-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=60 /root/sweep-arm.log',
     'test "$status" = 0',
@@ -893,7 +893,7 @@ function unmountArms({ chosen, }: { readonly chosen: Options; }): void {
     `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
-    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_unmount_guest)" > /root/unmount-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=60 /root/unmount-arm.log',
     'test "$status" = 0',

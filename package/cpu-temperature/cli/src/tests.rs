@@ -3,18 +3,36 @@
 /// Parsing the real command arguments exercises Clap's generated grammar.
 use clap::Parser;
 /// Standard fixture filesystem operations.
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 /// A fixture owns its directory and removes it when the test ends.
 use tempfile::TempDir;
 
-/// Parse the same command the user runs.
-use crate::{Cli, run};
 /// Exercise the actual post-stop cleanup entry point's policy code.
 use crate::policy::release_all;
-/// Parse explicit sensor identities and construct the same watcher as the service.
-use crate::{sensor::parse_sensor, service::{Paths, Watcher}};
 /// Publish and read real runtime requests.
-use crate::target::{Target, read_target};
+use crate::target::{
+    Target,
+    read_target,
+};
+/// Parse the same command the user runs.
+use crate::{
+    Cli,
+    run,
+};
+/// Parse explicit sensor identities and construct the same watcher as the service.
+use crate::{
+    sensor::parse_sensor,
+    service::{
+        Paths,
+        Watcher,
+    },
+};
 
 /// Fixture values in the units exposed by Linux.
 const FLOOR: u64 = 2_000_000;
@@ -52,7 +70,10 @@ impl Fixture {
         fs::write(chip.join("temp1_label"), "Package id 0\n").expect("write package label");
         fs::write(chip.join("temp2_label"), "Chiplet 1\n").expect("write chiplet label");
         // Store both paths after taking an owned copy of the chip's path.
-        let result = Self { directory, chip };
+        let result = Self {
+            directory,
+            chip,
+        };
         // Use an explicitly lower sample for the package, so selection of the hotter chiplet matters.
         result.sample(TARGET);
         result.policy("policy0");
@@ -66,29 +87,43 @@ impl Fixture {
     }
 
     /// Stage a fresh CPUFreq policy with its own attributes.
-    fn policy(&self, name: &str) -> PathBuf {
+    fn policy(
+        &self,
+        name: &str,
+    ) -> PathBuf {
         // Add a CPUFreq policy without changing any existing one.
         let path = self.runtime().join("cpufreq").join(name);
         // Create the directory tree for the named policy.
         fs::create_dir_all(&path).expect("create CPUFreq policy");
         // Populate the fixture's Linux frequency attributes.
-        fs::write(path.join("cpuinfo_max_freq"), MAXIMUM.to_string()).expect("write hardware maximum");
+        fs::write(path.join("cpuinfo_max_freq"), MAXIMUM.to_string())
+            .expect("write hardware maximum");
         fs::write(path.join("scaling_min_freq"), FLOOR.to_string()).expect("write frequency floor");
-        fs::write(path.join("scaling_max_freq"), MAXIMUM.to_string()).expect("write initial ceiling");
+        fs::write(path.join("scaling_max_freq"), MAXIMUM.to_string())
+            .expect("write initial ceiling");
         return path;
     }
 
     /// Set the hotter chiplet reading in millidegrees.
-    fn sample(&self, value: i32) {
+    fn sample(
+        &self,
+        value: i32,
+    ) {
         // Give the package a valid lower reading, making the source of the cap observable.
-        fs::write(self.chip.join("temp1_input"), (value - i32::from(MARGIN) * 1_000).to_string())
-            .expect("write package sample");
+        fs::write(
+            self.chip.join("temp1_input"),
+            (value - i32::from(MARGIN) * 1_000).to_string(),
+        )
+        .expect("write package sample");
         // Write the value the control loop should use.
         fs::write(self.chip.join("temp2_input"), value.to_string()).expect("write chiplet sample");
     }
 
     /// Submit a request through the command-line parser and dispatcher.
-    fn request(&self, value: &str) {
+    fn request(
+        &self,
+        value: &str,
+    ) {
         // Format the existing disposable runtime directory as an argument.
         let runtime = self.runtime().to_str().expect("UTF-8 fixture path");
         // Use the same syntax as the user's command.
@@ -99,9 +134,16 @@ impl Fixture {
     }
 
     /// Read a policy's currently requested ceiling.
-    fn ceiling(&self, name: &str) -> u64 {
+    fn ceiling(
+        &self,
+        name: &str,
+    ) -> u64 {
         // Use the fixture path exclusively and parse the written value.
-        let path = self.runtime().join("cpufreq").join(name).join("scaling_max_freq");
+        let path = self
+            .runtime()
+            .join("cpufreq")
+            .join(name)
+            .join("scaling_max_freq");
         let text = fs::read_to_string(path).expect("read test frequency ceiling");
         return text.trim().parse().expect("numeric test frequency ceiling");
     }
@@ -160,7 +202,9 @@ fn caps_a_policy_that_comes_online() {
     // Put the sample between the heat and recovery thresholds.
     fixture.sample(TARGET - i32::from(MARGIN) * 1_500);
     fixture.policy("policy1");
-    watcher.step().expect("apply existing ceiling to the new policy");
+    watcher
+        .step()
+        .expect("apply existing ceiling to the new policy");
     assert_eq!(fixture.ceiling("policy1"), fixture.ceiling("policy0"));
 }
 
@@ -213,10 +257,26 @@ fn validates_command_line_and_service_configuration() {
     }
     assert!(Cli::try_parse_from(["setMaxCpuTemp"]).is_err());
     assert!(Cli::try_parse_from(["setMaxCpuTemp", "watch", "--sensors", "missing-label"]).is_err());
-    assert!(Cli::try_parse_from(["setMaxCpuTemp", "watch", "--sensors", "chip:Sensor", "--poll-ms", "0"]).is_err());
-    assert!(Cli::try_parse_from([
-        "setMaxCpuTemp", "watch", "--sensors", "chip:Package id 0,chip:temp2_input",
-    ]).is_ok());
+    assert!(
+        Cli::try_parse_from([
+            "setMaxCpuTemp",
+            "watch",
+            "--sensors",
+            "chip:Sensor",
+            "--poll-ms",
+            "0"
+        ])
+        .is_err()
+    );
+    assert!(
+        Cli::try_parse_from([
+            "setMaxCpuTemp",
+            "watch",
+            "--sensors",
+            "chip:Package id 0,chip:temp2_input",
+        ])
+        .is_ok()
+    );
     assert!(Cli::try_parse_from(["setMaxCpuTemp", "release"]).is_ok());
     let fixture = Fixture::new();
     // The global runtime directory can precede the service action.
@@ -224,5 +284,8 @@ fn validates_command_line_and_service_configuration() {
     let release = Cli::try_parse_from(["setMaxCpuTemp", "--runtime-dir", runtime, "release"])
         .expect("parse release with explicit runtime directory");
     run(release).expect("release from the fixture's empty journal");
-    assert_eq!(read_target(fixture.runtime()).expect("default target"), Target::Off);
+    assert_eq!(
+        read_target(fixture.runtime()).expect("default target"),
+        Target::Off
+    );
 }

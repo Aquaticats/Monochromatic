@@ -23,7 +23,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `Engine` from `base64::Engine`.
 /// Why:
@@ -53,7 +56,10 @@ use base64::engine::general_purpose::STANDARD;
 /// ```ts
 /// import { Digest, Sha512 } from 'sha2';
 /// ```
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 
 /// The only algorithm prefix the crate accepts.
 const PREFIX: &str = "sha512-";
@@ -67,11 +73,16 @@ fn hex_byte(byte: &u8) -> String {
 }
 
 /// Build the error for a malformed integrity string.
-fn malformed(integrity: &str, why: &str) -> BrowserslistError {
+fn malformed(
+    integrity: &str,
+    why: &str,
+) -> BrowserslistError {
     return BrowserslistError::Data {
         file: "integrity value".to_string(),
         offset: None,
-        message: format!("{integrity:?} is not a single sha512-<base64> npm integrity string: {why}"),
+        message: format!(
+            "{integrity:?} is not a single sha512-<base64> npm integrity string: {why}"
+        ),
     };
 }
 
@@ -124,7 +135,11 @@ pub fn integrity_of(bytes: &[u8]) -> String {
 /// ```ts
 /// function verify(subject: string, integrity: string, bytes: Uint8Array): void; // throws on mismatch
 /// ```
-pub fn verify(subject: &str, integrity: &str, bytes: &[u8]) -> Outcome<()> {
+pub fn verify(
+    subject: &str,
+    integrity: &str,
+    bytes: &[u8],
+) -> Outcome<()> {
     let expected = parse_sha512(integrity)?;
     let actual = Sha512::digest(bytes);
     if actual.as_slice() == expected.as_slice() {

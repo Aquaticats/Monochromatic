@@ -12,7 +12,10 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    check_linux_stat, check_pid_file_text, generated_linux_stat, generated_pid_text,
+    check_linux_stat,
+    check_pid_file_text,
+    generated_linux_stat,
+    generated_pid_text,
 };
 /// The generated inputs the owner-record controls already share.
 use crate::owners::tests::inputs;
@@ -54,7 +57,15 @@ fn stat_lines_reach_accepted_and_refused_outcomes() {
 /// Known spellings from the incumbent's controls hold the invariants.
 #[test]
 fn known_pid_and_stat_spellings_hold_the_invariants() {
-    for text in ["pid 42\n", "pid 007", "pid 0\n", "pid 9007199254740992", "PID 42", "pid 4x", ""] {
+    for text in [
+        "pid 42\n",
+        "pid 007",
+        "pid 0\n",
+        "pid 9007199254740992",
+        "PID 42",
+        "pid 4x",
+        "",
+    ] {
         check_pid_file_text(text.as_bytes());
     }
     for line in [

@@ -28,9 +28,15 @@ use std::env;
 /// The one-argument type the environment lookup returns.
 use std::ffi::OsString;
 /// The path types the fixture root and the program paths are.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// The process the fixture runs its userspace through.
-use std::process::{Command, Output};
+use std::process::{
+    Command,
+    Output,
+};
 
 /// The variable naming the guest a live test may run in.
 pub(crate) const GUEST_VARIABLE: &str = "MONOCHROMATIC_ZFS_FIXTURE_GUEST";
@@ -88,7 +94,10 @@ impl Fixture {
     /// When the variable is unset inside the named guest,
     /// because the request-number
     /// assertions would then be silently absent.
-    pub(crate) fn source_tree(&self, test: &str) -> PathBuf {
+    pub(crate) fn source_tree(
+        &self,
+        test: &str,
+    ) -> PathBuf {
         return env::var_os(SOURCE_VARIABLE).map_or_else(
             || panic!("{test}: {SOURCE_VARIABLE} is unset, so the release headers are absent."),
             PathBuf::from,
@@ -103,12 +112,18 @@ impl Fixture {
     /// with its standard error in the message,
     /// because a
     /// fixture step that did not happen makes the assertions meaningless.
-    pub(crate) fn zfs(&self, arguments: &[&str]) -> String {
+    pub(crate) fn zfs(
+        &self,
+        arguments: &[&str],
+    ) -> String {
         return self.program("zfs", arguments);
     }
 
     /// Run the fixture's `zpool` program and return its standard output.
-    pub(crate) fn zpool(&self, arguments: &[&str]) -> String {
+    pub(crate) fn zpool(
+        &self,
+        arguments: &[&str],
+    ) -> String {
         return self.program("zpool", arguments);
     }
 
@@ -116,7 +131,10 @@ impl Fixture {
     /// asked without
     /// panicking,
     /// which a test needs when the interesting answer is "no such dataset".
-    pub(crate) fn zfs_succeeds(&self, arguments: &[&str]) -> bool {
+    pub(crate) fn zfs_succeeds(
+        &self,
+        arguments: &[&str],
+    ) -> bool {
         return Command::new(self.sbin.join("zfs"))
             .args(arguments)
             .output()
@@ -126,7 +144,11 @@ impl Fixture {
     }
 
     /// Run one of the fixture's OpenZFS programs.
-    fn program(&self, program: &str, arguments: &[&str]) -> String {
+    fn program(
+        &self,
+        program: &str,
+        arguments: &[&str],
+    ) -> String {
         let path: PathBuf = self.sbin.join(program);
         let output: Output = Command::new(&path)
             .args(arguments)
@@ -175,7 +197,11 @@ impl Fixture {
     /// The GUID and creation transaction group of every object `selection`
     /// names,
     /// as `zfs list` prints them.
-    pub(crate) fn identity_rows(&self, selection: &str, dataset: &str) -> Vec<(String, u64, u64)> {
+    pub(crate) fn identity_rows(
+        &self,
+        selection: &str,
+        dataset: &str,
+    ) -> Vec<(String, u64, u64)> {
         let printed: String = self.zfs(&[
             "list",
             "-H",
@@ -323,6 +349,9 @@ pub(crate) fn properties(pairs: &[(&str, &str)]) -> NvList {
 /// The directory a pool's image and key live in,
 /// which is the pool's own folder under
 /// the fixture root.
-pub(crate) fn pool_folder(root: &Path, pool: &str) -> PathBuf {
+pub(crate) fn pool_folder(
+    root: &Path,
+    pool: &str,
+) -> PathBuf {
     return root.join(pool);
 }

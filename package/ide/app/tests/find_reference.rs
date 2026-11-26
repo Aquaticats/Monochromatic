@@ -2,7 +2,10 @@
 
 /// The production matching function,
 ///  not a parallel reimplementation of its pattern construction.
-use ide_app::find::{MAX_FIND_MATCHES, find_matches};
+use ide_app::find::{
+    MAX_FIND_MATCHES,
+    find_matches,
+};
 /// Typed fixture decoding keeps source strings and expected offsets separate from executable patterns.
 use serde::Deserialize;
 
@@ -80,7 +83,10 @@ const DELIBERATE_DIFFERENCES: [&str; 13] = [
 ];
 
 /// Convert a source character position to the UTF-16 unit offset the browser reported.
-fn utf16_offset(text: &str, position: usize) -> usize {
+fn utf16_offset(
+    text: &str,
+    position: usize,
+) -> usize {
     let mut units = 0;
     // What: `chars()` walks Unicode scalar values and `take` stops after `position` of them.
     // Why: Astral characters occupy two UTF-16 units but one source character position.

@@ -4,10 +4,21 @@
 //!  on-demand start,
 //!  and the three failed starts.
 
-use crate::support::{self, PRODUCT_TIMEOUT, Probe, SERVER};
+use crate::support::{
+    self,
+    PRODUCT_TIMEOUT,
+    Probe,
+    SERVER,
+};
 use ide_app::language::{
-    reply::{RequestKind, RequestOutcome},
-    status::{DocumentState, ServerState},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
+    status::{
+        DocumentState,
+        ServerState,
+    },
 };
 
 /// A file without a recognized language,

@@ -62,7 +62,10 @@ fn a_ring_that_is_not_on_a_valid_entry_starts_at_the_first_or_last_entry() {
 
 #[test]
 fn a_list_without_selectable_entries_has_no_ring() {
-    assert_eq!(move_focus(&[false, false], Some(0), ListMove::Down, 3), None);
+    assert_eq!(
+        move_focus(&[false, false], Some(0), ListMove::Down, 3),
+        None
+    );
     assert_eq!(move_focus(&[], None, ListMove::Home, 3), None);
 }
 
@@ -77,7 +80,14 @@ fn the_start_position_is_the_preferred_entry_or_the_first_selectable_one() {
 
 #[test]
 fn a_letter_finds_the_first_label_that_starts_with_it_ignoring_case() {
-    let labels = [None, Some("Abba"), Some("beck"), None, Some("Bowie"), Some("Cher")];
+    let labels = [
+        None,
+        Some("Abba"),
+        Some("beck"),
+        None,
+        Some("Bowie"),
+        Some("Cher"),
+    ];
     assert_eq!(first_starting_with(&labels, 'b'), Some(2));
     assert_eq!(first_starting_with(&labels, 'B'), Some(2));
     assert_eq!(first_starting_with(&labels, 'c'), Some(5));

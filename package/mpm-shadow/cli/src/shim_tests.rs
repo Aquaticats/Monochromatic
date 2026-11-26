@@ -17,7 +17,10 @@
 
 /// Imports the exit-code offset and the function under test from this crate.
 use crate::constants::SIGNAL_EXIT_CODE_OFFSET;
-use crate::shim::{invoked_as_name, run_program};
+use crate::shim::{
+    invoked_as_name,
+    run_program,
+};
 
 /// Imports the owned operating-system text type the arguments use.
 use std::ffi::OsString;
@@ -43,7 +46,10 @@ fn shell(script: &str) -> Vec<OsString> {
 #[test]
 fn returns_the_exit_code_of_the_program() {
     // `.expect("...")` unwraps the `Ok` value or fails the test with that message.
-    assert_eq!(run_program(Path::new("/bin/sh"), &shell("exit 7")).expect("the shell starts"), 7);
+    assert_eq!(
+        run_program(Path::new("/bin/sh"), &shell("exit 7")).expect("the shell starts"),
+        7
+    );
 }
 
 /// A child killed by SIGTERM (signal 15) is reported as 128 + 15,
@@ -76,6 +82,12 @@ fn an_empty_argument_list_yields_an_empty_invoked_name_instead_of_panicking() {
 /// The invoked name is argv[0]'s last path segment.
 #[test]
 fn the_invoked_name_is_the_last_segment_of_argument_zero() {
-    assert_eq!(invoked_as_name(&[OsString::from("/x/y/mpm")]), "mpm".to_string());
-    assert_eq!(invoked_as_name(&[OsString::from("mpm-shadow"), OsString::from("prune")]), "mpm-shadow".to_string());
+    assert_eq!(
+        invoked_as_name(&[OsString::from("/x/y/mpm")]),
+        "mpm".to_string()
+    );
+    assert_eq!(
+        invoked_as_name(&[OsString::from("mpm-shadow"), OsString::from("prune")]),
+        "mpm-shadow".to_string()
+    );
 }

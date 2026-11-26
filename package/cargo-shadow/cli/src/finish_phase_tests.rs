@@ -13,9 +13,15 @@
 use std::fs;
 
 use crate::crates::LockSnapshot;
-use crate::failpoints::{Point, arm};
+use crate::failpoints::{
+    Point,
+    arm,
+};
 use crate::journal::begin;
-use crate::journal_finish::{FinishError, settle_finish};
+use crate::journal_finish::{
+    FinishError,
+    settle_finish,
+};
 use crate::journal_support::journal_dirs;
 use crate::test_scratch::scratch;
 use crate::update::UpdateError;
@@ -25,7 +31,10 @@ const CRATE_DIR: &str = "package/f/one";
 
 /// A snapshot of the lockfile of the case.
 fn snapshot() -> LockSnapshot {
-    return LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() };
+    return LockSnapshot {
+        crate_dir: CRATE_DIR.to_string(),
+        source: "original".to_string(),
+    };
 }
 
 /// A disposable repository whose crate root holds a lockfile.
@@ -51,7 +60,10 @@ fn a_completion_failure_is_not_cleanup_and_leaves_the_journal_active() {
     assert!(!error.cleanup_only(), "{error}");
     let journals = journal_dirs(root.path());
     assert_eq!(journals.len(), 1);
-    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the marker failed");
+    assert!(
+        !journals[0].to_string_lossy().ends_with(".done"),
+        "the journal was marked done although the marker failed"
+    );
 }
 
 /// Round 7 (6b2 5):
@@ -72,12 +84,22 @@ fn a_removal_failure_after_the_marker_is_cleanup_only() {
 /// an update that failed and whose mandatory finishing failed too reports both.
 #[test]
 fn an_update_error_with_a_failed_mandatory_phase_reports_both() {
-    let original = UpdateError::Other { message: "cargo could not resolve".to_string() };
+    let original = UpdateError::Other {
+        message: "cargo could not resolve".to_string(),
+    };
 
-    let joined = settle_finish(Err(original), Err(FinishError::outputs(std::io::Error::other("disk said no"))), Vec::new(), Vec::new());
+    let joined = settle_finish(
+        Err(original),
+        Err(FinishError::outputs(std::io::Error::other("disk said no"))),
+        Vec::new(),
+        Vec::new(),
+    );
 
     let text: String = joined.expect_err("an error").to_string();
-    assert!(text.contains("cargo could not resolve") && text.contains("disk said no"), "{text}");
+    assert!(
+        text.contains("cargo could not resolve") && text.contains("disk said no"),
+        "{text}"
+    );
 }
 
 /// A failed removal of a disposable journal does not change an update error.
@@ -92,24 +114,46 @@ fn an_update_error_with_a_failed_mandatory_phase_reports_both() {
 /// An error that stayed `Cargo` would keep the classification that lets a caller treat it as an ordinary failure.
 #[test]
 fn an_operational_error_joined_with_a_failed_mandatory_phase_becomes_the_mandatory_failure_kind() {
-    for phase in [FinishError::outputs(std::io::Error::other("disk said no")), FinishError::completion(std::io::Error::other("rename said no"))] {
+    for phase in [
+        FinishError::outputs(std::io::Error::other("disk said no")),
+        FinishError::completion(std::io::Error::other("rename said no")),
+    ] {
         let phase_text: String = phase.to_string();
-        let original = UpdateError::Cargo { crate_dir: CRATE_DIR.to_string(), command: "cargo update".to_string(), output: "cargo broke".to_string() };
+        let original = UpdateError::Cargo {
+            crate_dir: CRATE_DIR.to_string(),
+            command: "cargo update".to_string(),
+            output: "cargo broke".to_string(),
+        };
 
         let joined = settle_finish(Err(original), Err(phase), Vec::new(), Vec::new());
 
         let error: UpdateError = joined.expect_err("an error");
-        assert!(matches!(error, UpdateError::Other { .. }), "{phase_text}: the joined error kept the operational classification: {error:?}");
+        assert!(
+            matches!(error, UpdateError::Other { .. }),
+            "{phase_text}: the joined error kept the operational classification: {error:?}"
+        );
         let text: String = error.to_string();
-        assert!(text.contains("cargo broke") && text.contains(&phase_text) && text.contains("run the command again"), "{text}");
+        assert!(
+            text.contains("cargo broke")
+                && text.contains(&phase_text)
+                && text.contains("run the command again"),
+            "{text}"
+        );
     }
 }
 
 #[test]
 fn an_update_error_stands_alone_when_only_the_cleanup_failed() {
-    let original = UpdateError::Other { message: "cargo could not resolve".to_string() };
+    let original = UpdateError::Other {
+        message: "cargo could not resolve".to_string(),
+    };
 
-    let joined = settle_finish(Err(original), Err(FinishError::cleanup(std::io::Error::other("busy"))), Vec::new(), Vec::new());
+    let joined = settle_finish(
+        Err(original),
+        Err(FinishError::cleanup(std::io::Error::other("busy"))),
+        Vec::new(),
+        Vec::new(),
+    );
 
     let text: String = joined.expect_err("an error").to_string();
     assert_eq!(text, "cargo could not resolve");

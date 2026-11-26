@@ -15,11 +15,22 @@
 
 /// The mirrored structs and the field bounds.
 use crate::layout::{
-    DmuObjsetStats, DrrBegin, MAX_VALUE_LEN, MAXNAMELEN, MAXPATHLEN, ZcDestroyControl, ZfsCmd,
-    ZfsShare, ZfsStat, ZinjectRecord,
+    DmuObjsetStats,
+    DrrBegin,
+    MAX_VALUE_LEN,
+    MAXNAMELEN,
+    MAXPATHLEN,
+    ZcDestroyControl,
+    ZfsCmd,
+    ZfsShare,
+    ZfsStat,
+    ZinjectRecord,
 };
 /// The offset and size operators the table is built from.
-use std::mem::{offset_of, size_of};
+use std::mem::{
+    offset_of,
+    size_of,
+};
 
 /// The size of the command struct the module's type information must report.
 pub(crate) const COMMAND_STRUCT_BYTES: usize = 13_744;

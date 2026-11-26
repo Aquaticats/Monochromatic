@@ -1,5 +1,9 @@
 //! Parses the CLI target and publishes it atomically to the running service.
 
+/// Provides the method for sending a string to the temporary file.
+use std::io::Write;
+/// Borrows paths while clients and the daemon keep ownership of their runtime directory.
+use std::path::Path;
 /// What
 /// Imports Rust's filesystem and input/output modules.
 /// Why
@@ -8,11 +12,10 @@
 /// ```ts
 /// import * as fs from "node:fs";
 /// ```
-use std::{fs, io};
-/// Borrows paths while clients and the daemon keep ownership of their runtime directory.
-use std::path::Path;
-/// Provides the method for sending a string to the temporary file.
-use std::io::Write;
+use std::{
+    fs,
+    io,
+};
 /// Creates a private temporary file in the destination directory so a rename is atomic.
 use tempfile::NamedTempFile;
 
@@ -81,7 +84,10 @@ pub fn parse_target(value: &str) -> Result<Target, String> {
 }
 
 /// Store a validated target in one rename in the service's existing directory.
-pub fn save_target(runtime: &Path, target: Target) -> io::Result<()> {
+pub fn save_target(
+    runtime: &Path,
+    target: Target,
+) -> io::Result<()> {
     // What
     // `?` returns the current function's error early when an operation fails.
     // Why
@@ -108,10 +114,12 @@ pub fn save_target(runtime: &Path, target: Target) -> io::Result<()> {
     // Readers see either a complete previous target or a complete new one.
     // TypeScript pseudocode
     // renameOrThrowIoError(temporary, join(runtime, TARGET_FILE));
-    temporary.persist(runtime.join(TARGET_FILE)).map_err(|error| {
-        // Return the original rename failure.
-        return error.error;
-    })?;
+    temporary
+        .persist(runtime.join(TARGET_FILE))
+        .map_err(|error| {
+            // Return the original rename failure.
+            return error.error;
+        })?;
     // The rename made the target visible.
     return Ok(());
 }

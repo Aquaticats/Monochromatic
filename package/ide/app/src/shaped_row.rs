@@ -22,7 +22,12 @@ use crate::text_projection::Projection;
 /// ```ts
 /// import { Affinity, Cursor, Layout, Selection } from 'parley';
 /// ```
-use parley::{Affinity, Cursor, Layout, Selection};
+use parley::{
+    Affinity,
+    Cursor,
+    Layout,
+    Selection,
+};
 /// Half-open ranges of visual rows and source characters.
 use std::ops::Range;
 
@@ -158,7 +163,11 @@ impl ShapedRow {
     /// ```ts
     /// visualRowOffset(index: number, scale: number): number;
     /// ```
-    pub fn visual_row_offset(&self, index: usize, scale: f32) -> f32 {
+    pub fn visual_row_offset(
+        &self,
+        index: usize,
+        scale: f32,
+    ) -> f32 {
         let height = match self.layout.lines().next() {
             Some(line) => line.metrics().line_height,
             None => CODE_ROW * scale,
@@ -179,7 +188,11 @@ impl ShapedRow {
     /// ```ts
     /// visualRowHolding(top: number, scale: number): number | undefined;
     /// ```
-    pub fn visual_row_holding(&self, top: f32, scale: f32) -> Option<usize> {
+    pub fn visual_row_holding(
+        &self,
+        top: f32,
+        scale: f32,
+    ) -> Option<usize> {
         let step = self.visual_row_offset(1, scale);
         if step <= 0.0 {
             return None;
@@ -200,7 +213,10 @@ impl ShapedRow {
     /// ```ts
     /// visualRowBytes(index: number): [number, number] | undefined;
     /// ```
-    pub fn visual_row_bytes(&self, index: usize) -> Option<Range<usize>> {
+    pub fn visual_row_bytes(
+        &self,
+        index: usize,
+    ) -> Option<Range<usize>> {
         // What: The end is clamped to the display text, because an empty line reports one byte past it.
         // Why: The rows must tile the display text exactly, so no range may name a byte the text lacks.
         //
@@ -225,7 +241,10 @@ impl ShapedRow {
     /// ```ts
     /// visualRowSources(index: number): [number, number] | undefined;
     /// ```
-    pub fn visual_row_sources(&self, index: usize) -> Option<Range<usize>> {
+    pub fn visual_row_sources(
+        &self,
+        index: usize,
+    ) -> Option<Range<usize>> {
         let bytes = self.visual_row_bytes(index)?;
         return Some(
             self.projection.byte_to_source[bytes.start]..self.projection.byte_to_source[bytes.end],
@@ -254,7 +273,11 @@ impl ShapedRow {
     }
 
     /// Physical x of the caret at display byte `byte` on the side `affinity` names.
-    fn cursor_x(&self, byte: usize, affinity: Affinity) -> f32 {
+    fn cursor_x(
+        &self,
+        byte: usize,
+        affinity: Affinity,
+    ) -> f32 {
         let cursor = Cursor::from_byte_index(&self.layout, byte, affinity);
         // What: `as f32` narrows the engine's 64-bit coordinate to the 32-bit float advances use.
         // Why: Parley's geometry uses `f64`; glyph advances and Slint coordinates use `f32`.
@@ -269,7 +292,11 @@ impl ShapedRow {
     /// Visual row that holds display byte `byte` on the side `affinity` names.
     /// A byte on a soft-wrap offset is on the lower row,
     /// unless `affinity` is `Upstream`.
-    fn visual_row_of(&self, byte: usize, affinity: Affinity) -> usize {
+    fn visual_row_of(
+        &self,
+        byte: usize,
+        affinity: Affinity,
+    ) -> usize {
         let mut row = 0;
         for (index, line) in self.layout.lines().enumerate() {
             if line.text_range().start <= byte {
@@ -298,7 +325,11 @@ impl ShapedRow {
     /// with the affinity of a plain row.
     /// A position with no soft wrap has one row,
     /// so its caret is the same on either side.
-    fn physical_x_on_row(&self, local: usize, row: usize) -> f32 {
+    fn physical_x_on_row(
+        &self,
+        local: usize,
+        row: usize,
+    ) -> f32 {
         let byte = self.projection.source_to_byte[local.min(self.source_len())];
         for affinity in [Affinity::Downstream, Affinity::Upstream] {
             if self.visual_row_of(byte, affinity) == row {
@@ -310,7 +341,10 @@ impl ShapedRow {
 
     /// Visual row whose vertical extent contains physical `y`,
     /// or the last row when `y` is below all of them.
-    fn row_at_physical(&self, y: f32) -> usize {
+    fn row_at_physical(
+        &self,
+        y: f32,
+    ) -> usize {
         let mut row = 0;
         for (index, line) in self.layout.lines().enumerate().take(self.visual_rows()) {
             row = index;
@@ -330,7 +364,12 @@ impl ShapedRow {
     /// so the proposal moves to whichever neighboring boundary is nearer to the pointer.
     /// The distances are measured on visual row `row`,
     /// where the pointer is.
-    fn snapped(&self, local: usize, x: f32, row: usize) -> usize {
+    fn snapped(
+        &self,
+        local: usize,
+        x: f32,
+        row: usize,
+    ) -> usize {
         let mut before = 0;
         let mut after = self.source_len();
         // The stops ascend, so the last one at or before `local` and the first at or after it enclose it.
@@ -356,7 +395,11 @@ impl ShapedRow {
 
     /// Source character boundary nearest to physical `(x, y)`,
     /// with `y` measured from the top of this line's first row.
-    fn hit_physical(&self, x: f32, y: f32) -> usize {
+    fn hit_physical(
+        &self,
+        x: f32,
+        y: f32,
+    ) -> usize {
         // What: `Cursor::from_point` names the glyph under a physical point, in the engine's own units.
         // Why: The point is the pointer in physical pixels, and the row is the one whose extent holds `y`.
         //
@@ -382,7 +425,11 @@ impl ShapedRow {
     /// ```ts
     /// hit(x: number, scale: number): number;
     /// ```
-    pub fn hit(&self, x: f32, scale: f32) -> usize {
+    pub fn hit(
+        &self,
+        x: f32,
+        scale: f32,
+    ) -> usize {
         // A single row keeps the probe it always had, the middle of the whole layout.
         // A wrapped line has no single middle, so its probe is the middle of its first row.
         // In TS you'd write (pseudocode):
@@ -406,7 +453,12 @@ impl ShapedRow {
     /// ```ts
     /// hitAt(x: number, y: number, scale: number): number;
     /// ```
-    pub fn hit_at(&self, x: f32, y: f32, scale: f32) -> usize {
+    pub fn hit_at(
+        &self,
+        x: f32,
+        y: f32,
+        scale: f32,
+    ) -> usize {
         return self.hit_physical(x * scale, y * scale);
     }
 
@@ -423,7 +475,12 @@ impl ShapedRow {
     /// ```ts
     /// clickAffinity(position: number, y: number, scale: number): 'upstream' | 'downstream';
     /// ```
-    pub fn click_affinity(&self, position: usize, y: f32, scale: f32) -> ReadingAffinity {
+    pub fn click_affinity(
+        &self,
+        position: usize,
+        y: f32,
+        scale: f32,
+    ) -> ReadingAffinity {
         let row = self.row_at_physical(y * scale);
         let local = position
             .saturating_sub(self.source_start)
@@ -449,7 +506,12 @@ impl ShapedRow {
     /// ```ts
     /// xOnRow(position: number, row: number, scale: number): number;
     /// ```
-    pub fn x_on_row(&self, position: usize, row: usize, scale: f32) -> f32 {
+    pub fn x_on_row(
+        &self,
+        position: usize,
+        row: usize,
+        scale: f32,
+    ) -> f32 {
         let local = position
             .saturating_sub(self.source_start)
             .min(self.source_len());
@@ -473,7 +535,11 @@ impl ShapedRow {
     /// ```ts
     /// caretX(position: number, scale: number): number;
     /// ```
-    pub fn caret_x(&self, position: usize, scale: f32) -> f32 {
+    pub fn caret_x(
+        &self,
+        position: usize,
+        scale: f32,
+    ) -> f32 {
         return self
             .caret_at(position, ReadingAffinity::Downstream, scale)
             .x;
@@ -488,7 +554,12 @@ impl ShapedRow {
     /// ```ts
     /// caretAt(position: number, affinity: 'upstream' | 'downstream', scale: number): { x: number; row: number };
     /// ```
-    pub fn caret_at(&self, position: usize, affinity: ReadingAffinity, scale: f32) -> VisualCaret {
+    pub fn caret_at(
+        &self,
+        position: usize,
+        affinity: ReadingAffinity,
+        scale: f32,
+    ) -> VisualCaret {
         let local = position
             .saturating_sub(self.source_start)
             .min(self.source_len());
@@ -509,7 +580,12 @@ impl ShapedRow {
     /// ```ts
     /// range(start: number, end: number, scale: number): ReadingRect[];
     /// ```
-    pub fn range(&self, start: usize, end: usize, scale: f32) -> Vec<ReadingRect> {
+    pub fn range(
+        &self,
+        start: usize,
+        end: usize,
+        scale: f32,
+    ) -> Vec<ReadingRect> {
         // What: `Vec::new()` creates an empty growable list (siblings: fixed `[T; N]`, borrowed `&[T]`).
         // Why: A bidirectional selection can produce several rectangles on one row.
         //

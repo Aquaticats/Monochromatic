@@ -204,8 +204,8 @@ async function build(chosen: Options): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --locked --bins > /root/probe-build.log 2>&1',
-    'cargo build --release --locked --bin monochromatic-git-policy-cli --features start-probe-raised-deadline --target-dir target/raised-deadline > /root/probe-build-raised.log 2>&1',
+    'cargo build --release --locked --features test-only-switches --bins > /root/probe-build.log 2>&1',
+    'cargo build --release --locked --bin monochromatic-git-policy-cli --features test-only-switches,start-probe-raised-deadline --target-dir target/raised-deadline > /root/probe-build-raised.log 2>&1',
     'tail --lines=3 /root/probe-build.log',
     'tail --lines=3 /root/probe-build-raised.log',
   ].join('\n');

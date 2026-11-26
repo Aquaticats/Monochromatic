@@ -22,10 +22,17 @@ use monochromatic_xml_edit::parse_xml;
 /// Import the generated document type and the consistency check.
 /// Why:
 /// One definition of "consistent".
-use xml_edit_fuzz::{GeneratedDocument, invariants::assert_self_consistent};
+use xml_edit_fuzz::{
+    GeneratedDocument,
+    invariants::assert_self_consistent,
+};
 
 fuzz_target!(|input: GeneratedDocument| {
     let document = parse_xml(&input.source).expect("a generated document is well-formed");
     assert_self_consistent(&document);
-    assert_eq!(document.source(), input.source, "parsing must keep the source byte-for-byte");
+    assert_eq!(
+        document.source(),
+        input.source,
+        "parsing must keep the source byte-for-byte"
+    );
 });

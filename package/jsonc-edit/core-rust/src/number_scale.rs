@@ -51,7 +51,10 @@ pub(crate) fn is_digit(byte: u8) -> bool {
 /// ```ts
 /// function addDigits(a: string, b: string): string { /* column addition */ }
 /// ```
-pub(crate) fn add_digits(left: &str, right: &str) -> String {
+pub(crate) fn add_digits(
+    left: &str,
+    right: &str,
+) -> String {
     // What:     `as_bytes` borrows each string's UTF-8 bytes without copying or transferring
     //           ownership.
     // Why:      Validated decimal digits are one byte each, so byte indexing is character indexing.
@@ -110,7 +113,10 @@ pub(crate) fn add_digits(left: &str, right: &str) -> String {
 /// ```ts
 /// function subtractDigits(a: string, b: string): string { /* requires a >= b */ }
 /// ```
-pub(crate) fn subtract_digits(left: &str, right: &str) -> String {
+pub(crate) fn subtract_digits(
+    left: &str,
+    right: &str,
+) -> String {
     let left_bytes = left.as_bytes();
     let right_bytes = right.as_bytes();
     let mut reversed: Vec<u8> = Vec::new();
@@ -165,8 +171,16 @@ pub(crate) fn signed_sum(
     // ```
     let left_trimmed = left.trim_start_matches('0');
     let right_trimmed = right.trim_start_matches('0');
-    let left_digits = if left_trimmed.is_empty() { "0" } else { left_trimmed };
-    let right_digits = if right_trimmed.is_empty() { "0" } else { right_trimmed };
+    let left_digits = if left_trimmed.is_empty() {
+        "0"
+    } else {
+        left_trimmed
+    };
+    let right_digits = if right_trimmed.is_empty() {
+        "0"
+    } else {
+        right_trimmed
+    };
     let result_negative;
     let magnitude;
     if left_negative == right_negative {

@@ -47,7 +47,7 @@ pub fn port(inner: &str) -> (String, String) {
         let normalized = normalize(operand);
         ours_ops.push(wrap_operand(&normalized));
     }
-    return (ours_ops.join("&"), bare)
+    return (ours_ops.join("&"), bare);
 }
 
 /// Strips the leading and trailing context that surrounds a secret.
@@ -102,7 +102,7 @@ fn strip_leading(s: &str) -> String {
     {
         return format!("(?:{after}");
     }
-    return s.to_string()
+    return s.to_string();
 }
 
 /// Strips a leading nullable class-repeat such as `[\w.-]{0,50}`.
@@ -123,7 +123,7 @@ fn strip_leading_class_repeat(s: &str) -> Option<&str> {
         let brace = rest.find('}')?;
         return Some(&rest[brace + 1..]);
     }
-    return None
+    return None;
 }
 
 /// Returns the index just past a class starting at index 0.
@@ -145,7 +145,11 @@ fn class_span_end(b: &[u8]) -> Option<usize> {
     while i < b.len() && b[i] != b']' {
         i += if b[i] == b'\\' { 2 } else { 1 };
     }
-    if i < b.len() { return Some(i + 1) } else { return None }
+    if i < b.len() {
+        return Some(i + 1);
+    } else {
+        return None;
+    }
 }
 
 /// Strips one trailing context element.
@@ -213,7 +217,7 @@ fn trailing_context_group(s: &str) -> Option<usize> {
         }
         i += 1;
     }
-    return None
+    return None;
 }
 
 /// Wraps one `&` operand so it is a single atom.
@@ -226,9 +230,9 @@ fn trailing_context_group(s: &str) -> Option<usize> {
 ///  the grammar requires single-atom operands.
 fn wrap_operand(operand: &str) -> String {
     if operand.trim_start().starts_with('~') {
-        return wrap_branches(operand)
+        return wrap_branches(operand);
     } else {
-        return format!("(?:{})", wrap_branches(operand))
+        return format!("(?:{})", wrap_branches(operand));
     }
 }
 
@@ -249,7 +253,7 @@ fn wrap_branches(s: &str) -> String {
         .iter()
         .map(|branch| format!("(?:{})", process_seq(branch)))
         .collect::<Vec<_>>()
-        .join("|")
+        .join("|");
 }
 
 /// Re-emits a branch,
@@ -296,7 +300,7 @@ fn process_seq(s: &str) -> String {
             i += 1;
         }
     }
-    return out
+    return out;
 }
 
 /// Returns the index just past a class that starts at `open`.
@@ -309,12 +313,15 @@ fn process_seq(s: &str) -> String {
 /// copied verbatim so their `(`/`|`/`*` are not misread as operators;
 ///  shared with
 /// the normalizer.
-pub(crate) fn class_end(b: &[u8], open: usize) -> usize {
+pub(crate) fn class_end(
+    b: &[u8],
+    open: usize,
+) -> usize {
     let mut i = open + 1;
     while i < b.len() && b[i] != b']' {
         i += if b[i] == b'\\' { 2 } else { 1 };
     }
-    return (i + 1).min(b.len())
+    return (i + 1).min(b.len());
 }
 
 /// Returns the index of the `)` matching the `(` at `open`.
@@ -325,7 +332,10 @@ pub(crate) fn class_end(b: &[u8], open: usize) -> usize {
 ///  recursion into
 /// a group needs its exact extent;
 ///  shared with the case-expansion module.
-pub(crate) fn matching_close(b: &[u8], open: usize) -> usize {
+pub(crate) fn matching_close(
+    b: &[u8],
+    open: usize,
+) -> usize {
     let mut depth = 0i32;
     let mut i = open;
     let mut in_class = false;
@@ -355,7 +365,7 @@ pub(crate) fn matching_close(b: &[u8], open: usize) -> usize {
         }
         i += 1;
     }
-    return b.len().saturating_sub(1)
+    return b.len().saturating_sub(1);
 }
 
 /// Returns the index where a group's inner content starts after its prefix.
@@ -367,11 +377,14 @@ pub(crate) fn matching_close(b: &[u8], open: usize) -> usize {
 ///  only the content is
 /// rewrapped;
 ///  the prefix is copied as-is.
-fn group_inner_start(b: &[u8], open: usize) -> usize {
+fn group_inner_start(
+    b: &[u8],
+    open: usize,
+) -> usize {
     if open + 2 < b.len() && b[open + 1] == b'?' && b[open + 2] == b':' {
-        return open + 3
+        return open + 3;
     } else {
-        return open + 1
+        return open + 1;
     }
 }
 
@@ -385,7 +398,10 @@ fn group_inner_start(b: &[u8], open: usize) -> usize {
 ///  Why:
 ///  `&` operands and `|`
 /// branches must be separated only at the current level.
-fn split_top_level(s: &str, delim: u8) -> Vec<String> {
+fn split_top_level(
+    s: &str,
+    delim: u8,
+) -> Vec<String> {
     let b = s.as_bytes();
     let mut parts = Vec::new();
     let mut start = 0;
@@ -418,5 +434,5 @@ fn split_top_level(s: &str, delim: u8) -> Vec<String> {
         i += 1;
     }
     parts.push(s[start..].to_string());
-    return parts
+    return parts;
 }

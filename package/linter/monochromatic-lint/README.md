@@ -881,9 +881,11 @@ and that a group whose marker is missing is not a group,
 so the shelf-only restriction is again a convention that nothing enforces.
 The structural form changes one earlier decision:
 a parent folder with code of its own beside child folders used to be "a folder like any other".
-One package of this repository selects the layout rules today:
-`package/zfs/request-to-openzfs-kernel-device` and its fuzz sidecar,
-in `monochromatic-lint.config.jsonc`'s `layout-zfs-request-to-openzfs-kernel-device` block.
+Two packages of this repository select the layout rules today:
+`package/zfs/request-to-openzfs-kernel-device` with its fuzz sidecar,
+in `monochromatic-lint.config.jsonc`'s `layout-zfs-request-to-openzfs-kernel-device` block,
+and `package/git-policy/cli` in the `layout-git-policy-cli` block,
+which also needs the allow list described below.
 Neither rule is on repo-wide,
 so no other package's layout is checked by them;
 a repo-wide rollout would surface the existing packages and stays a separate decision.
@@ -1098,6 +1100,82 @@ the same items are allowed and the same message is used.
 A `main.rs` that is the index of its own folder under `src/bin/<name>/` is an entry point already.
 A root named by a `[[bin]]` path anywhere else is not read for code.
 
+### The allow list a rule may take
+
+A crate that switches a layout rule on does not become correct at once.
+Its findings go into a list,
+one entry per finding,
+and the rule then tolerates exactly the entries of that list:
+
+```jsonc
+// monochromatic-lint.config.jsonc
+{
+  "files": ["package/git-policy/cli/**/*.rs"],
+  "rules": {
+    "rust/folder-uses-links": {
+      "severity": "error",
+      "allow": "package/git-policy/cli/layout-allow-list/folder-rule.txt",
+    },
+  },
+}
+```
+
+The path is relative to the configuration file's directory,
+the same way the closure check's `library` is.
+A run whose list cannot be read fails with a `core/processing-failure` finding naming the list,
+because a rule checked without its list would report every finding it tolerates.
+A list is read only when it is a regular file of at most one mebibyte,
+so a mistyped path cannot block on a pipe or read a device.
+
+A line of a list is one of three shapes,
+and a line that reads as none of them fails the run:
+
+- `uses <folder> -> <folder>` tolerates one use between two folders of the package.
+  A loop is made of uses,
+  so a loop is tolerated only while every use inside it is listed,
+  and a round writes one line for each use it leaves alone.
+- `file-uses <folder> <file> -> <file>` does the same for one use between two files of one folder.
+- every other line is the exact key of one finding of the rule.
+
+A path in an entry is relative to the package folder,
+the way findings show it,
+never absolute and never climbing out with `..`,
+and no line may repeat another.
+
+A rule reports the key of each finding it makes in `--debug`,
+as a note that reads `allow-list key: <key>`,
+so a reader copies a key instead of guessing its shape.
+A key is built from the file and the names involved and never from a line number,
+so an entry survives an edit above the finding it names.
+
+The list only shrinks:
+
+- A finding is tolerated exactly when its key or the use it reports is on the list.
+- An entry that tolerates nothing any more is a finding on its own line.
+  That is how a round that fixes a finding is made to delete the entry:
+  an entry whose use is gone,
+  whose two ends are no longer in one loop,
+  or whose key no finding reports,
+  fails the run until it is gone.
+- A use added between two folders or two files that the list already tolerates in one loop is a finding.
+  It carries no key,
+  so no round can record a new loop edge:
+  the use is removed,
+  or that loop is untangled first.
+- A loop finding carries no key,
+  and neither does the use added inside a tolerated loop,
+  so no entry can tolerate a loop.
+
+Two things the list cannot do:
+it cannot hide a loop the list did not already tolerate,
+and no round can grow it,
+because the rule offers no key for either.
+Writing a line by hand for a new finding is a review blocker:
+every line is one of today's findings,
+and the decision to keep one belongs to the round that fixes it.
+Which package a list belongs to is the rule's file,
+so the two rules of a crate take two lists.
+
 ### Known limits
 
 - A group is recognised by its child folders,
@@ -1147,6 +1225,19 @@ never the files behind them.
 
 `mise run //package/linter/monochromatic-lint:test:layout` runs the layout tests alone;
 `test:layout:container` runs them in the bounded container.
+
+### Where the rules run for `package/git-policy/cli`
+
+The package's own `lint:monochromatic-lint` task runs the repository linter over `package/git-policy/cli`
+with the root `monochromatic-lint.config.jsonc`,
+so the crate's layout rules run in `mise run //package/git-policy/cli:lint`
+and in the repository's `mise run lint`.
+The package's container gate (`native:test:container`) runs neither rule,
+because it runs Clippy and the test suite and never the repository linter,
+so a round that only runs the gate does not meet the layout rules;
+`mise run //package/git-policy/cli:lint:monochromatic-lint` is the command that does.
+That task runs the installed `cargo:monochromatic-lint`,
+which must be a release that carries the allow-list option.
 
 ## Explicit Rust types
 

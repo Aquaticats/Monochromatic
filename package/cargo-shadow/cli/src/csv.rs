@@ -27,7 +27,10 @@
 /// ```ts
 /// import { self, Read } from 'std/io';
 /// ```
-use std::io::{self, Read};
+use std::io::{
+    self,
+    Read,
+};
 
 /// The error for a dump whose shape is not what this reader expects.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,7 +60,10 @@ impl std::fmt::Display for DumpFormatError {
     /// ```ts
     /// toString(): string { return this.message; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(formatter, "{}", self.message);
     }
 }
@@ -245,7 +251,9 @@ impl State {
             // console.error(text);   // eprintln!
             // [a, b]            // vec![a, b]
             // ```
-            return Err(malformed(format!("a row has more than {MAX_ROW_FIELDS} fields")));
+            return Err(malformed(format!(
+                "a row has more than {MAX_ROW_FIELDS} fields"
+            )));
         }
         // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
         // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
@@ -275,7 +283,9 @@ impl State {
         if self.row_bytes > MAX_ROW_BYTES {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(malformed(format!("a row is larger than {MAX_ROW_BYTES} bytes")));
+            return Err(malformed(format!(
+                "a row is larger than {MAX_ROW_BYTES} bytes"
+            )));
         }
         self.row.push(text);
         self.field.clear();
@@ -285,7 +295,10 @@ impl State {
 
     /// Hands the finished row to the callback;
     /// `false` from the callback stops the read.
-    fn end_row(&mut self, on_row: &mut dyn RowHandler) -> io::Result<bool> {
+    fn end_row(
+        &mut self,
+        on_row: &mut dyn RowHandler,
+    ) -> io::Result<bool> {
         // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
         // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
         // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
@@ -315,18 +328,25 @@ impl State {
     /// ```ts
     /// pushByte(byte: number): void { this.field.push(byte); this.rowStarted = true; }
     /// ```
-    fn push_byte(&mut self, byte: u8) -> io::Result<()> {
+    fn push_byte(
+        &mut self,
+        byte: u8,
+    ) -> io::Result<()> {
         // A field longer than the bound is refused instead of grown, so a quote that never closes cannot exhaust memory.
         if self.field.len() >= MAX_FIELD_BYTES {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(malformed(format!("a field is longer than {MAX_FIELD_BYTES} bytes")));
+            return Err(malformed(format!(
+                "a field is longer than {MAX_FIELD_BYTES} bytes"
+            )));
         }
         // The field being built counts against the row budget too, so the row is refused before it is held in memory.
         if self.row_bytes + self.field.len() >= MAX_ROW_BYTES {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(malformed(format!("a row is larger than {MAX_ROW_BYTES} bytes")));
+            return Err(malformed(format!(
+                "a row is larger than {MAX_ROW_BYTES} bytes"
+            )));
         }
         self.field.push(byte);
         self.row_started = true;
@@ -347,7 +367,10 @@ impl State {
 /// ```
 fn malformed(message: String) -> io::Error {
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return io::Error::new(io::ErrorKind::InvalidData, format!("malformed CSV: {message}"));
+    return io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("malformed CSV: {message}"),
+    );
 }
 
 /// What:
@@ -368,7 +391,10 @@ pub trait RowHandler {
     /// `on_row(&mut self, row)` takes one finished row.
     /// Why:
     /// `false` stops the read.
-    fn on_row(&mut self, row: &[String]) -> bool;
+    fn on_row(
+        &mut self,
+        row: &[String],
+    ) -> bool;
 }
 
 /// What:
@@ -380,7 +406,10 @@ impl<F: FnMut(&[String]) -> bool> RowHandler for F {
     /// Calls the function.
     /// Why:
     /// The function is the handler.
-    fn on_row(&mut self, row: &[String]) -> bool {
+    fn on_row(
+        &mut self,
+        row: &[String],
+    ) -> bool {
         return self(row);
     }
 }
@@ -404,7 +433,10 @@ impl<F: FnMut(&[String]) -> bool> RowHandler for F {
 /// ```ts
 /// export function readCsv(stream, onRow: (row: string[]) => boolean): void
 /// ```
-pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn RowHandler) -> io::Result<()> {
+pub fn read_csv(
+    reader: &mut dyn Read,
+    on_row: &mut dyn RowHandler,
+) -> io::Result<()> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
     //
@@ -420,7 +452,14 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn RowHandler) -> io::Resul
     // ```ts
     // const list: string[] = [];   // or new Set() / new Map()
     // ```
-    let mut state: State = State { field: Vec::new(), row: Vec::new(), in_quotes: false, quote_seen: false, row_started: false, row_bytes: 0 };
+    let mut state: State = State {
+        field: Vec::new(),
+        row: Vec::new(),
+        in_quotes: false,
+        quote_seen: false,
+        row_started: false,
+        row_bytes: 0,
+    };
     let mut chunk: Vec<u8> = vec![0; CHUNK_BYTES];
     loop {
         let count: usize = reader.read(&mut chunk)?;
@@ -488,7 +527,9 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn RowHandler) -> io::Resul
     if state.in_quotes {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err(malformed("the stream ends inside a quoted field".to_string()));
+        return Err(malformed(
+            "the stream ends inside a quoted field".to_string(),
+        ));
     }
     if state.row_started || !state.field.is_empty() || !state.row.is_empty() {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -499,7 +540,10 @@ pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn RowHandler) -> io::Resul
 
 /// The column positions of the wanted names in a header row,
 /// or an error naming the missing column.
-pub fn column_indexes(header: &[String], columns: &[&str]) -> Result<Vec<usize>, DumpFormatError> {
+pub fn column_indexes(
+    header: &[String],
+    columns: &[&str],
+) -> Result<Vec<usize>, DumpFormatError> {
     let mut indexes: Vec<usize> = Vec::new();
     for column in columns {
         match crate::adapt::position_of_text(header, column) {

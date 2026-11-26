@@ -9,7 +9,10 @@ use super::find_tests::Reader;
 /// The table of measured rows the background pass fills.
 use super::rows::absorb;
 /// A new width and the held measurement.
-use super::wrap_resize_tests::{change_width, hold_the_pass};
+use super::wrap_resize_tests::{
+    change_width,
+    hold_the_pass,
+};
 /// The open reader.
 use super::wrap_tests::open;
 /// Bounded waiting that advances native timers until a state the test checks holds.
@@ -30,7 +33,10 @@ fn short_text(count: usize) -> String {
 }
 
 /// Lines of the displayed tile whose rows in the map differ from a fresh measurement at the wrap width.
-fn stale_in_tile(reader: &Reader, scale: f32) -> Vec<(usize, usize, usize)> {
+fn stale_in_tile(
+    reader: &Reader,
+    scale: f32,
+) -> Vec<(usize, usize, usize)> {
     let current = reader.source.borrow();
     let first = current.shown.first;
     let end = first + current.shown.count;

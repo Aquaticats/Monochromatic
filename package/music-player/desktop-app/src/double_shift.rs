@@ -96,9 +96,15 @@ impl DoubleShift {
     /// ```ts
     /// function step(state: DoubleShift, input: ShiftInput, nowMs: number): [DoubleShift, boolean];
     /// ```
-    pub fn step(self, input: ShiftInput, now_ms: u64) -> (Self, bool) {
+    pub fn step(
+        self,
+        input: ShiftInput,
+        now_ms: u64,
+    ) -> (Self, bool) {
         return match input {
-            ShiftInput::ShiftDown { repeat } => (self.press(repeat, now_ms), false),
+            ShiftInput::ShiftDown {
+                repeat,
+            } => (self.press(repeat, now_ms), false),
             ShiftInput::OtherKey => (self.interrupt(), false),
             ShiftInput::ShiftUp => self.release(now_ms),
         };
@@ -111,11 +117,18 @@ impl DoubleShift {
     /// which must not count as taps;
     /// a second Shift key pressed while one is held is
     ///      the same press.
-    fn press(self, repeat: bool, now_ms: u64) -> Self {
+    fn press(
+        self,
+        repeat: bool,
+        now_ms: u64,
+    ) -> Self {
         if repeat || self.held.is_some() {
             return self;
         }
-        return Self { held: Some((now_ms, true)), first_tap_at: self.first_tap_at };
+        return Self {
+            held: Some((now_ms, true)),
+            first_tap_at: self.first_tap_at,
+        };
     }
 
     /// What:
@@ -124,7 +137,10 @@ impl DoubleShift {
     ///      A key between the taps cancels the double tap,
     /// and a key during a press makes it a chord such as Shift+A.
     fn interrupt(self) -> Self {
-        return Self { held: self.held.map(unclean), first_tap_at: None };
+        return Self {
+            held: self.held.map(unclean),
+            first_tap_at: None,
+        };
     }
 
     /// What:
@@ -134,7 +150,10 @@ impl DoubleShift {
     /// the first tap is remembered by its press time,
     /// and a second clean tap whose release
     ///      is within the window of the first press completes the double tap.
-    fn release(self, now_ms: u64) -> (Self, bool) {
+    fn release(
+        self,
+        now_ms: u64,
+    ) -> (Self, bool) {
         let Some((pressed_at, clean)) = self.held else {
             return (self, false);
         };
@@ -142,8 +161,16 @@ impl DoubleShift {
             return (Self::default(), false);
         }
         return match self.first_tap_at {
-            Some(first_at) if now_ms.saturating_sub(first_at) <= DOUBLE_SHIFT_WINDOW_MS => (Self::default(), true),
-            _ => (Self { held: None, first_tap_at: Some(pressed_at) }, false),
+            Some(first_at) if now_ms.saturating_sub(first_at) <= DOUBLE_SHIFT_WINDOW_MS => {
+                (Self::default(), true)
+            }
+            _ => (
+                Self {
+                    held: None,
+                    first_tap_at: Some(pressed_at),
+                },
+                false,
+            ),
         };
     }
 }

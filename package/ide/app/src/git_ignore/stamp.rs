@@ -3,7 +3,12 @@
 
 /// Rule files are only inspected,
 ///  never opened for writing.
-use std::{fs, io::ErrorKind, os::unix::fs::MetadataExt, path::Path};
+use std::{
+    fs,
+    io::ErrorKind,
+    os::unix::fs::MetadataExt,
+    path::Path,
+};
 
 /// What:
 ///  Inode,

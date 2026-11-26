@@ -13,12 +13,22 @@ mod target;
 mod tests;
 
 /// Imports Slint's window operations and model types for the list of labels.
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    SharedString,
+    VecModel,
+};
 
 /// Slint emits implicit returns and shadowing in generated Rust. Keep the exemptions inside
 /// this module so the maintained source follows the crate lints.
 /// See `doc/troubleshooting/slint-generated-rust-implicit-return.md` for the include boundary.
-#[allow(clippy::implicit_return, clippy::shadow_reuse, clippy::shadow_same, clippy::shadow_unrelated)]
+#[allow(
+    clippy::implicit_return,
+    clippy::shadow_reuse,
+    clippy::shadow_same,
+    clippy::shadow_unrelated
+)]
 mod slint_generated {
     slint::include_modules!();
 }
@@ -73,11 +83,16 @@ fn run() -> anyhow::Result<()> {
     // Hold a weak window handle so the callback cannot keep the window alive on its own.
     let window = picker.as_weak();
     picker.on_open_choice(move |index| {
-        let Ok(row) = usize::try_from(index) else { return; };
-        let Some(choice) = choices.get(row) else { return; };
+        let Ok(row) = usize::try_from(index) else {
+            return;
+        };
+        let Some(choice) = choices.get(row) else {
+            return;
+        };
         if let Err(error) = choice.open(&uri) {
             if let Some(picker_window) = window.upgrade() {
-                picker_window.set_message(format!("Could not open {}. {error}", choice.label).into());
+                picker_window
+                    .set_message(format!("Could not open {}. {error}", choice.label).into());
             }
             return;
         }

@@ -2,7 +2,10 @@
 //!  what is asked again,
 //!  and when asking stops.
 
-use super::{MAX_CATCH_UPS, Owed};
+use super::{
+    MAX_CATCH_UPS,
+    Owed,
+};
 
 #[test]
 fn nothing_owed_asks_nothing() {

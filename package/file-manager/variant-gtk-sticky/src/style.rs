@@ -14,7 +14,9 @@ use gtk4::gdk::Display;
 /// Why:
 ///  a provider at application priority overrides the theme's background across the app.
 use gtk4::{
-    CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION, style_context_add_provider_for_display,
+    CssProvider,
+    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    style_context_add_provider_for_display,
 };
 
 /// What:
@@ -62,7 +64,11 @@ pub(crate) fn install() {
     };
     let provider = CssProvider::new();
     provider.load_from_string(APP_CSS);
-    style_context_add_provider_for_display(&display, &provider, STYLE_PROVIDER_PRIORITY_APPLICATION);
+    style_context_add_provider_for_display(
+        &display,
+        &provider,
+        STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
     if std::env::var_os(DEBUG_TINT_ENV).is_some() {
         let debug = CssProvider::new();
         debug.load_from_string(DEBUG_CSS);

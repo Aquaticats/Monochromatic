@@ -13,7 +13,10 @@
 //!  the encoder is where the request the kernel receives is decided.
 
 use super::*;
-use crate::nvlist::{NvData, NvList};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
 use crate::requests::Operation;
 
 #[test]

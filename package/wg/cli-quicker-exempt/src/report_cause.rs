@@ -51,7 +51,10 @@ pub fn held_suffix(held: u32) -> String {
 /// between backticks,
 /// with a backtick inside the name written as an escape so it cannot end the name early.
 pub fn quote_name(name: &str) -> String {
-    return format!("{NAME_QUOTE}{}{NAME_QUOTE}", name.replace(NAME_QUOTE, "\\u{0060}"));
+    return format!(
+        "{NAME_QUOTE}{}{NAME_QUOTE}",
+        name.replace(NAME_QUOTE, "\\u{0060}")
+    );
 }
 
 /// Whether a character is an ASCII digit.
@@ -91,7 +94,10 @@ fn is_user_chosen_name(core: &str) -> bool {
 }
 
 /// Appends a word with every run of digits made alike.
-fn push_with_alike_numbers(cause: &mut String, word: &str) {
+fn push_with_alike_numbers(
+    cause: &mut String,
+    word: &str,
+) {
     let mut in_digits = false;
     for character in word.chars() {
         if character.is_ascii_digit() {
@@ -109,7 +115,10 @@ fn push_with_alike_numbers(cause: &mut String, word: &str) {
 /// Appends one word of a line:
 /// a name a user chose becomes a placeholder and keeps its surrounding punctuation,
 /// anything else keeps its text with the numbers made alike.
-fn push_word(cause: &mut String, word: &str) {
+fn push_word(
+    cause: &mut String,
+    word: &str,
+) {
     let without_lead = word.trim_start_matches(WORD_EDGE);
     let lead = &word[..word.len() - without_lead.len()];
     let core = without_lead.trim_end_matches(WORD_EDGE);
@@ -125,7 +134,10 @@ fn push_word(cause: &mut String, word: &str) {
 
 /// Appends text that holds no quoted name,
 /// word by word.
-fn push_words(cause: &mut String, text: &str) {
+fn push_words(
+    cause: &mut String,
+    text: &str,
+) {
     for (index, word) in text.split(' ').enumerate() {
         if cause.chars().count() >= MAX_CAUSE_CHARS {
             return;

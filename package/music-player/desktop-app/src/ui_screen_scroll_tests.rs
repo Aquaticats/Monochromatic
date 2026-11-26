@@ -15,7 +15,11 @@ fn no_supporting_line(_track: &TrackFields) -> Option<String> {
 /// Why:
 /// only the kind,
 /// the second line and the current flag decide a row's height and the playing position.
-fn list_row(kind: i32, supporting: &str, current: bool) -> ListRow {
+fn list_row(
+    kind: i32,
+    supporting: &str,
+    current: bool,
+) -> ListRow {
     return ListRow {
         kind,
         title: String::new(),
@@ -31,7 +35,10 @@ fn list_row(kind: i32, supporting: &str, current: bool) -> ListRow {
 /// Why:
 /// the scroll cases need only the queue,
 /// the playing index and the request fields.
-fn state_with_queue(names: &[&str], current: Option<usize>) -> ScreenState {
+fn state_with_queue(
+    names: &[&str],
+    current: Option<usize>,
+) -> ScreenState {
     return ScreenState {
         names: std::sync::Arc::new(names.iter().map(|name| return name.to_string()).collect()),
         current_index: current,
@@ -93,7 +100,10 @@ fn row_offset_px_gives_a_header_its_height_even_without_a_count() {
 
 #[test]
 fn scroll_offset_for_top_is_the_start_of_the_list() {
-    assert_eq!(scroll_offset_for(ScrollRequest::Top, &live_folder_rows()), 0.0);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::Top, &live_folder_rows()),
+        0.0
+    );
 }
 
 #[test]
@@ -106,12 +116,19 @@ fn scroll_offset_for_playing_row_is_the_offset_of_the_playing_row() {
 
 #[test]
 fn scroll_offset_for_playing_folder_is_the_offset_of_the_header_above_the_playing_row() {
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &live_folder_rows()), ROW_MIN_HEIGHT_PX);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingFolder, &live_folder_rows()),
+        ROW_MIN_HEIGHT_PX
+    );
 }
 
 #[test]
 fn scroll_offset_for_playing_folder_is_the_start_when_the_track_sits_directly_in_the_folder() {
-    let rows = [list_row(0, "", true), list_row(1, "1 track", false), list_row(0, "", false)];
+    let rows = [
+        list_row(0, "", true),
+        list_row(1, "1 track", false),
+        list_row(0, "", false),
+    ];
     assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &rows), 0.0);
 }
 
@@ -147,13 +164,20 @@ fn scroll_offset_for_playing_folder_ignores_headers_below_the_playing_row() {
 #[test]
 fn scroll_offset_for_playing_row_counts_a_two_line_header_above_it() {
     let rows = [list_row(1, "1 track", false), list_row(0, "3:00", true)];
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &rows), HEADER_HEIGHT_PX);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingRow, &rows),
+        HEADER_HEIGHT_PX
+    );
     assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &rows), 0.0);
 }
 
 #[test]
 fn scroll_offset_for_playing_requests_is_the_start_when_nothing_plays() {
-    let rows = [list_row(0, "", false), list_row(1, "1 track", false), list_row(0, "", false)];
+    let rows = [
+        list_row(0, "", false),
+        list_row(1, "1 track", false),
+        list_row(0, "", false),
+    ];
     assert_eq!(scroll_offset_for(ScrollRequest::PlayingRow, &rows), 0.0);
     assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &rows), 0.0);
     assert_eq!(scroll_offset_for(ScrollRequest::Top, &rows), 0.0);
@@ -161,7 +185,10 @@ fn scroll_offset_for_playing_requests_is_the_start_when_nothing_plays() {
 
 #[test]
 fn scroll_offset_for_a_playing_track_in_a_subfolder_of_the_real_view() {
-    let mut state = state_with_queue(&["Camellia/Live/Ghost.flac", "Camellia/Ghost.flac"], Some(0));
+    let mut state = state_with_queue(
+        &["Camellia/Live/Ghost.flac", "Camellia/Ghost.flac"],
+        Some(0),
+    );
     state.track_name = "Camellia/Live/Ghost.flac".to_string();
     let screen = view(&state, &no_supporting_line);
     assert_eq!(screen.rows[1].kind, 1);
@@ -169,7 +196,10 @@ fn scroll_offset_for_a_playing_track_in_a_subfolder_of_the_real_view() {
         scroll_offset_for(ScrollRequest::PlayingRow, &screen.rows),
         ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX
     );
-    assert_eq!(scroll_offset_for(ScrollRequest::PlayingFolder, &screen.rows), ROW_MIN_HEIGHT_PX);
+    assert_eq!(
+        scroll_offset_for(ScrollRequest::PlayingFolder, &screen.rows),
+        ROW_MIN_HEIGHT_PX
+    );
 }
 
 #[test]
@@ -296,7 +326,11 @@ fn changing_the_playing_track_alone_requests_nothing() {
 fn changing_the_selected_page_scrolls_to_the_top() {
     let mut state = state_with_queue(&["Abba/one.mp3", "Beta/two.mp3"], None);
     assert_eq!(project_once(&mut state), Some(ScrollRequest::PlayingRow));
-    let beta_key = state.current_pages().page(1).map(|page| return page.identity.clone()).unwrap_or_default();
+    let beta_key = state
+        .current_pages()
+        .page(1)
+        .map(|page| return page.identity.clone())
+        .unwrap_or_default();
     state.selected_key = beta_key;
     assert_eq!(project_once(&mut state), Some(ScrollRequest::Top));
     assert_eq!(project_once(&mut state), None);
@@ -315,7 +349,11 @@ fn empty_projections_leave_the_first_reveal_for_the_first_rows() {
 fn explicit_request_wins_over_a_page_change_and_is_cleared() {
     let mut state = state_with_queue(&["Abba/one.mp3", "Beta/two.mp3"], None);
     assert_eq!(project_once(&mut state), Some(ScrollRequest::PlayingRow));
-    let beta_key = state.current_pages().page(1).map(|page| return page.identity.clone()).unwrap_or_default();
+    let beta_key = state
+        .current_pages()
+        .page(1)
+        .map(|page| return page.identity.clone())
+        .unwrap_or_default();
     state.selected_key = beta_key;
     state.scroll_request = Some(ScrollRequest::PlayingFolder);
     assert_eq!(project_once(&mut state), Some(ScrollRequest::PlayingFolder));
@@ -366,7 +404,10 @@ fn row_tops_px_lists_where_every_row_starts_and_ends_with_the_content_height() {
     let after_header = after_first + HEADER_HEIGHT_PX;
     let after_two_line = after_header + ROW_TWO_LINE_HEIGHT_PX;
     let after_last = after_two_line + ROW_MIN_HEIGHT_PX;
-    assert_eq!(row_tops_px(&rows), vec![0.0, after_first, after_header, after_two_line, after_last]);
+    assert_eq!(
+        row_tops_px(&rows),
+        vec![0.0, after_first, after_header, after_two_line, after_last]
+    );
 }
 
 #[test]
@@ -385,7 +426,11 @@ fn row_at_px_finds_the_row_that_contains_an_offset() {
     ];
     assert_eq!(row_at_px(&tops, tops[0]), 0);
     assert_eq!(row_at_px(&tops, tops[1] - 0.1), 0);
-    assert_eq!(row_at_px(&tops, tops[1]), 1, "a row starts exactly at its top");
+    assert_eq!(
+        row_at_px(&tops, tops[1]),
+        1,
+        "a row starts exactly at its top"
+    );
     assert_eq!(row_at_px(&tops, tops[2] - 0.1), 1);
     assert_eq!(row_at_px(&tops, tops[2]), 2);
     assert_eq!(row_at_px(&tops, tops[4] - 0.1), 3);
@@ -394,8 +439,16 @@ fn row_at_px_finds_the_row_that_contains_an_offset() {
 #[test]
 fn row_at_px_clamps_a_bounce_above_the_list_and_a_scroll_past_the_end() {
     let tops = [0.0, ROW_MIN_HEIGHT_PX, ROW_MIN_HEIGHT_PX + HEADER_HEIGHT_PX];
-    assert_eq!(row_at_px(&tops, -30.0), 0, "above the list is the first row");
-    assert_eq!(row_at_px(&tops, tops[2]), 1, "the end of the content is the last row");
+    assert_eq!(
+        row_at_px(&tops, -30.0),
+        0,
+        "above the list is the first row"
+    );
+    assert_eq!(
+        row_at_px(&tops, tops[2]),
+        1,
+        "the end of the content is the last row"
+    );
     assert_eq!(row_at_px(&tops, 5000.0), 1);
 }
 
@@ -432,7 +485,15 @@ fn row_at_px_and_top_of_px_agree_with_row_offset_px_on_a_hundred_thousand_rows()
     let tops = row_tops_px(&rows);
     assert_eq!(tops.len(), rows.len() + 1);
     for index in [0_usize, 1, 49, 50, 51, 777, 50_000, 99_999] {
-        assert_eq!(top_of_px(&tops, index), row_offset_px(&rows, index), "the top of row {index}");
-        assert_eq!(row_at_px(&tops, top_of_px(&tops, index) + 0.5), index, "the row at the top of row {index}");
+        assert_eq!(
+            top_of_px(&tops, index),
+            row_offset_px(&rows, index),
+            "the top of row {index}"
+        );
+        assert_eq!(
+            row_at_px(&tops, top_of_px(&tops, index) + 0.5),
+            index,
+            "the row at the top of row {index}"
+        );
     }
 }

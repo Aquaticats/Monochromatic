@@ -44,7 +44,10 @@ use std::collections::BTreeSet;
 /// ```ts
 /// import { Settings, TrustPolicy } from 'monochromatic_dependency_catalog';
 /// ```
-use monochromatic_dependency_catalog::{Settings, TrustPolicy};
+use monochromatic_dependency_catalog::{
+    Settings,
+    TrustPolicy,
+};
 
 /// What:
 /// `use crate::selectors::is_excluded;` imports `is_excluded` from another module of this crate so this file can name it unqualified.
@@ -72,7 +75,11 @@ use crate::selectors::is_excluded;
 /// ```ts
 /// import { MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis } from 'crate/time_text';
 /// ```
-use crate::time_text::{MS_PER_MINUTE, format_iso_millis, parse_rfc3339_millis};
+use crate::time_text::{
+    MS_PER_MINUTE,
+    format_iso_millis,
+    parse_rfc3339_millis,
+};
 
 /// One published release of a crate,
 /// as crates.io lists it.
@@ -115,7 +122,13 @@ const FIRST_TIME_PUBLISHER_LEVEL: u8 = 1;
 /// ```ts
 /// export function releaseAgeProblems({ name, version, pubtime, settings, now }): string[]
 /// ```
-pub fn release_age_problems(name: &str, version: &str, pubtime: &str, settings: &Settings, now: i64) -> Vec<String> {
+pub fn release_age_problems(
+    name: &str,
+    version: &str,
+    pubtime: &str,
+    settings: &Settings,
+    now: i64,
+) -> Vec<String> {
     if is_excluded(&settings.minimum_release_age_exclude, name, version) {
         return Vec::new();
     }
@@ -203,7 +216,10 @@ fn ordering_millis(record: &VersionRecord) -> i64 {
 /// const earlierReleases = (history: VersionRecord[], recordMillis: number) =>
 ///   history.filter((entry) => (createdMillis(entry) ?? Infinity) < recordMillis).sort(byMillis);
 /// ```
-fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<VersionRecord> {
+fn earlier_releases(
+    history: &[VersionRecord],
+    record_millis: i64,
+) -> Vec<VersionRecord> {
     let mut earlier: Vec<VersionRecord> = Vec::new();
     for entry in history {
         // `Some`: the present or the absent value of an `Option`.
@@ -233,7 +249,13 @@ fn earlier_releases(history: &[VersionRecord], record_millis: i64) -> Vec<Versio
 /// ```ts
 /// export function ownersCanChangeVerdict(name, versions, history, settings, now): boolean
 /// ```
-pub fn owners_can_change_verdict(name: &str, versions: &[String], history: &[VersionRecord], settings: &Settings, now: i64) -> bool {
+pub fn owners_can_change_verdict(
+    name: &str,
+    versions: &[String],
+    history: &[VersionRecord],
+    settings: &Settings,
+    now: i64,
+) -> bool {
     if settings.trust_policy == TrustPolicy::Off {
         return false;
     }
@@ -347,7 +369,11 @@ fn publisher_text(record: &VersionRecord) -> String {
 /// ```ts
 /// export function trustLevel({ record, earlier, ownerIds }): number
 /// ```
-pub fn trust_level(record: &VersionRecord, earlier: &[VersionRecord], owner_ids: &BTreeSet<String>) -> u8 {
+pub fn trust_level(
+    record: &VersionRecord,
+    earlier: &[VersionRecord],
+    owner_ids: &BTreeSet<String>,
+) -> u8 {
     if !record.trustpub_repository.is_empty() {
         return TRUSTED_PUBLISHING_LEVEL;
     }
@@ -389,7 +415,10 @@ fn trusted_repository_of(entry: &VersionRecord) -> Option<String> {
 /// ```ts
 /// const versionRecordOf = (history: VersionRecord[], version: string) => history.find((e) => e.num === version);
 /// ```
-fn version_record_of<'a>(history: &'a [VersionRecord], version: &str) -> Option<&'a VersionRecord> {
+fn version_record_of<'a>(
+    history: &'a [VersionRecord],
+    version: &str,
+) -> Option<&'a VersionRecord> {
     for entry in history {
         if entry.num == version {
             return Some(entry);
@@ -421,7 +450,9 @@ pub fn trust_problems(
     now: i64,
     owner_ids: &BTreeSet<String>,
 ) -> Vec<String> {
-    if settings.trust_policy == TrustPolicy::Off || is_excluded(&settings.trust_policy_exclude, name, version) {
+    if settings.trust_policy == TrustPolicy::Off
+        || is_excluded(&settings.trust_policy_exclude, name, version)
+    {
         return Vec::new();
     }
     let record: &VersionRecord = match version_record_of(history, version) {
@@ -493,10 +524,8 @@ pub fn trust_problems(
             publisher_text(record)
         ));
     }
-    let trusted_repositories: BTreeSet<String> = earlier
-        .iter()
-        .filter_map(trusted_repository_of)
-        .collect();
+    let trusted_repositories: BTreeSet<String> =
+        earlier.iter().filter_map(trusted_repository_of).collect();
     if !record.trustpub_repository.is_empty()
         && !trusted_repositories.is_empty()
         && !trusted_repositories.contains(&record.trustpub_repository)
@@ -504,7 +533,11 @@ pub fn trust_problems(
         problems.push(format!(
             "{name}@{version} was trusted-published from {}, not {}",
             record.trustpub_repository,
-            trusted_repositories.iter().cloned().collect::<Vec<String>>().join(", ")
+            trusted_repositories
+                .iter()
+                .cloned()
+                .collect::<Vec<String>>()
+                .join(", ")
         ));
     }
     if let Some(previous) = earlier.last()

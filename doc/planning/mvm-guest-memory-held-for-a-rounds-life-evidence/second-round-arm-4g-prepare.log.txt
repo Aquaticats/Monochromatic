@@ -1,0 +1,10 @@
+/root/zfs-2.4.4.tar.gz: OK
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+
+ 60 32.9M   60 20.0M    0     0  30.1M      0  0:00:01 --:--:--  0:00:01 30.1M
+100 32.9M  100 32.9M    0     0  37.8M      0 --:--:-- --:--:-- --:--:-- 62.6M

@@ -64,14 +64,21 @@ pub struct DoubleShift {
 ///  or input-field behavior.
 impl DoubleShift {
     /// Classify the key at the toolkit boundary and retain only the gesture-relevant fact.
-    pub fn press(&mut self, is_shift: bool) {
+    pub fn press(
+        &mut self,
+        is_shift: bool,
+    ) {
         if !is_shift {
             self.intervening_key = true;
         }
     }
 
     /// Return true only for a second uninterrupted Shift release strictly within 400 milliseconds.
-    pub fn release(&mut self, is_shift: bool, elapsed: Duration) -> bool {
+    pub fn release(
+        &mut self,
+        is_shift: bool,
+        elapsed: Duration,
+    ) -> bool {
         if !is_shift {
             return false;
         }

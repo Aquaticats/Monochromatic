@@ -26,7 +26,10 @@ deeper than the bound both sides share.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use monochromatic_zfs_request_to_openzfs_kernel_device::{NvData, NvList};
+use monochromatic_zfs_request_to_openzfs_kernel_device::{
+    NvData,
+    NvList,
+};
 
 /// Assert the fixed point for `list`,
 /// then for every list nested inside it.
@@ -37,8 +40,12 @@ fn check_round_trip(list: &NvList) {
     assert!(packed == repacked, "pack is not a fixed point");
     for pair in list.iter() {
         match &pair.data {
-            NvData::List { value } => check_round_trip(value),
-            NvData::ListArray { value: lists } => {
+            NvData::List {
+                value,
+            } => check_round_trip(value),
+            NvData::ListArray {
+                value: lists,
+            } => {
                 for inner in lists {
                     check_round_trip(inner);
                 }

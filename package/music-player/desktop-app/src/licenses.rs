@@ -24,7 +24,10 @@
 /// ```ts
 /// import type { Writable } from "node:stream";
 /// ```
-use std::io::{ErrorKind, Write};
+use std::io::{
+    ErrorKind,
+    Write,
+};
 
 /// What:
 ///      `pub static NOTICES: &str = include_str!(...)`.

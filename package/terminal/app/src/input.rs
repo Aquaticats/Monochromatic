@@ -524,7 +524,11 @@ const KEY_F12: &str = "F12";
 ///  `Vec<u8>` is a growable byte array.
 /// Why:
 ///       The UI should not know terminal escape sequences or control-byte math.
-pub fn encode_terminal_key(key_text: &str, control: bool, alt: bool) -> Option<Vec<u8>> {
+pub fn encode_terminal_key(
+    key_text: &str,
+    control: bool,
+    alt: bool,
+) -> Option<Vec<u8>> {
     // What:     `let encoded = ...?` tries control, named, and printable encoders.
     //           The `?` returns `None` if all encoders reject the key.
     // Why:      Modifier-only or unknown special keys should not write text to the shell.
@@ -545,11 +549,11 @@ pub fn encode_terminal_key(key_text: &str, control: bool, alt: bool) -> Option<V
         prefixed.extend(encoded);
         // What:     `Some(prefixed)` returns the present prefixed byte vector.
         // Why:      The caller should write these bytes to the PTY.
-        return Some(prefixed)
+        return Some(prefixed);
     } else {
         // What:     `Some(encoded)` returns the present unmodified byte vector.
         // Why:      No Alt prefix is needed.
-        return Some(encoded)
+        return Some(encoded);
     }
 }
 
@@ -561,7 +565,10 @@ pub fn encode_terminal_key(key_text: &str, control: bool, alt: bool) -> Option<V
 /// Why:
 ///  A chain of `Option::or_else` closures would capture `key_text` only to call each encoder;
 ///  early returns say the same order without closures.
-fn encode_unprefixed_key(key_text: &str, control: bool) -> Option<Vec<u8>> {
+fn encode_unprefixed_key(
+    key_text: &str,
+    control: bool,
+) -> Option<Vec<u8>> {
     if control && let Some(encoded) = encode_control_key(key_text) {
         return Some(encoded);
     }
@@ -599,7 +606,7 @@ fn encode_control_key(key_text: &str) -> Option<Vec<u8>> {
     let control_byte = first.to_ascii_uppercase() as u8 - b'A' + 1;
     // What:     `Some(vec![control_byte])` returns a one-byte vector.
     // Why:      The caller writes this control byte to the PTY.
-    return Some(vec![control_byte])
+    return Some(vec![control_byte]);
 }
 
 /// What:
@@ -670,7 +677,7 @@ fn encode_named_key(key_text: &str) -> Option<Vec<u8>> {
     };
     // What:     `Some(bytes.to_vec())` copies the borrowed byte slice into an owned vector.
     // Why:      The caller owns the returned bytes independently of this static mapping.
-    return Some(bytes.to_vec())
+    return Some(bytes.to_vec());
 }
 
 /// What:
@@ -686,7 +693,7 @@ fn encode_printable_text(key_text: &str) -> Option<Vec<u8>> {
     }
     // What:     `Some(key_text.as_bytes().to_vec())` copies UTF-8 bytes from the string.
     // Why:      PTYs transport bytes, and terminals interpret UTF-8 text bytes.
-    return Some(key_text.as_bytes().to_vec())
+    return Some(key_text.as_bytes().to_vec());
 }
 
 /// What:

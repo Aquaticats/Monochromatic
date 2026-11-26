@@ -3,10 +3,18 @@
 /// Tests exercise the same model entries supplied by the production workspace reader.
 use ide_app::{
     file_tree::FileTree,
-    workspace::{DirectoryEntry, Workspace},
+    workspace::{
+        DirectoryEntry,
+        Workspace,
+    },
 };
 /// Native filenames include byte sequences that cannot be represented by a Rust UTF-8 String.
-use std::{ffi::OsString, fs, os::unix::ffi::OsStringExt, path::Path};
+use std::{
+    ffi::OsString,
+    fs,
+    os::unix::ffi::OsStringExt,
+    path::Path,
+};
 
 /// Create an owned root child without interpreting its display text as a filesystem path.
 fn child(name: &str) -> DirectoryEntry {

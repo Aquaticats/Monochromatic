@@ -24,7 +24,10 @@
 //!  not when this crate's decoder agrees with this crate's encoder.
 
 use super::*;
-use crate::nvlist::{NvData, NvError};
+use crate::nvlist::{
+    NvData,
+    NvError,
+};
 
 /// Decode the hex a golden vector is written in,
 /// split at eight-byte boundaries for reading.
@@ -121,7 +124,12 @@ fn an_embedded_list_pair_has_the_bytes_the_c_rules_give_it() {
     inner.add_bool_flag("pool/ds@s1");
     inner.add_bool_flag("pool/ds@s2");
     let mut list: NvList = NvList::new();
-    list.push("snaps", NvData::List { value: inner });
+    list.push(
+        "snaps",
+        NvData::List {
+            value: inner,
+        },
+    );
     let packed: Vec<u8> = list.pack().expect("an embedded list packs");
     assert_eq!(
         packed,
@@ -226,38 +234,138 @@ fn every_value_variant_round_trips() {
     inner.add_u64("guid", 9);
     let mut list: NvList = NvList::new();
     list.push("flag", NvData::BooleanFlag);
-    list.push("boolean", NvData::Boolean { value: true });
-    list.push("byte", NvData::Byte { value: 1 });
-    list.push("int8", NvData::Int8 { value: -1 });
-    list.push("uint8", NvData::Uint8 { value: 255 });
-    list.push("int16", NvData::Int16 { value: -2 });
-    list.push("uint16", NvData::Uint16 { value: 65535 });
-    list.push("int32", NvData::Int32 { value: -3 });
+    list.push(
+        "boolean",
+        NvData::Boolean {
+            value: true,
+        },
+    );
+    list.push(
+        "byte",
+        NvData::Byte {
+            value: 1,
+        },
+    );
+    list.push(
+        "int8",
+        NvData::Int8 {
+            value: -1,
+        },
+    );
+    list.push(
+        "uint8",
+        NvData::Uint8 {
+            value: 255,
+        },
+    );
+    list.push(
+        "int16",
+        NvData::Int16 {
+            value: -2,
+        },
+    );
+    list.push(
+        "uint16",
+        NvData::Uint16 {
+            value: 65535,
+        },
+    );
+    list.push(
+        "int32",
+        NvData::Int32 {
+            value: -3,
+        },
+    );
     list.push(
         "uint32",
         NvData::Uint32 {
             value: 4_000_000_000,
         },
     );
-    list.push("int64", NvData::Int64 { value: -4 });
-    list.push("uint64", NvData::Uint64 { value: u64::MAX });
-    list.push("hrtime", NvData::HrTime { value: 123 });
-    list.push("double", NvData::Double { value: 0.5 });
+    list.push(
+        "int64",
+        NvData::Int64 {
+            value: -4,
+        },
+    );
+    list.push(
+        "uint64",
+        NvData::Uint64 {
+            value: u64::MAX,
+        },
+    );
+    list.push(
+        "hrtime",
+        NvData::HrTime {
+            value: 123,
+        },
+    );
+    list.push(
+        "double",
+        NvData::Double {
+            value: 0.5,
+        },
+    );
     list.push(
         "string",
         NvData::Str {
             value: "text".to_string(),
         },
     );
-    list.push("bytes", NvData::ByteArray { value: vec![1, 2] });
-    list.push("int8s", NvData::Int8Array { value: vec![-1, 2] });
-    list.push("uint8s", NvData::Uint8Array { value: vec![1, 2] });
-    list.push("int16s", NvData::Int16Array { value: vec![-1, 2] });
-    list.push("uint16s", NvData::Uint16Array { value: vec![1, 2] });
-    list.push("int32s", NvData::Int32Array { value: vec![-1, 2] });
-    list.push("uint32s", NvData::Uint32Array { value: vec![1, 2] });
-    list.push("int64s", NvData::Int64Array { value: vec![-1, 2] });
-    list.push("uint64s", NvData::Uint64Array { value: vec![1, 2] });
+    list.push(
+        "bytes",
+        NvData::ByteArray {
+            value: vec![1, 2],
+        },
+    );
+    list.push(
+        "int8s",
+        NvData::Int8Array {
+            value: vec![-1, 2],
+        },
+    );
+    list.push(
+        "uint8s",
+        NvData::Uint8Array {
+            value: vec![1, 2],
+        },
+    );
+    list.push(
+        "int16s",
+        NvData::Int16Array {
+            value: vec![-1, 2],
+        },
+    );
+    list.push(
+        "uint16s",
+        NvData::Uint16Array {
+            value: vec![1, 2],
+        },
+    );
+    list.push(
+        "int32s",
+        NvData::Int32Array {
+            value: vec![-1, 2],
+        },
+    );
+    list.push(
+        "uint32s",
+        NvData::Uint32Array {
+            value: vec![1, 2],
+        },
+    );
+    list.push(
+        "int64s",
+        NvData::Int64Array {
+            value: vec![-1, 2],
+        },
+    );
+    list.push(
+        "uint64s",
+        NvData::Uint64Array {
+            value: vec![1, 2],
+        },
+    );
     list.push(
         "booleans",
         NvData::BooleanArray {
@@ -270,7 +378,12 @@ fn every_value_variant_round_trips() {
             value: vec!["a".to_string(), "b".to_string()],
         },
     );
-    list.push("list", NvData::List { value: inner });
+    list.push(
+        "list",
+        NvData::List {
+            value: inner,
+        },
+    );
     list.push(
         "listarray",
         NvData::ListArray {
@@ -304,9 +417,19 @@ fn packing_is_a_fixed_point() {
 #[test]
 fn a_nul_in_a_name_is_refused() {
     let mut list: NvList = NvList::new();
-    list.push("a\0b", NvData::Uint64 { value: 1 });
+    list.push(
+        "a\0b",
+        NvData::Uint64 {
+            value: 1,
+        },
+    );
     let error = list.pack().expect_err("a NUL would shorten the name");
-    assert!(matches!(error, NvError::EmbeddedNul { name: _ }));
+    assert!(matches!(
+        error,
+        NvError::EmbeddedNul {
+            name: _
+        }
+    ));
 }
 
 #[test]
@@ -343,7 +466,12 @@ fn an_unsupported_version_is_refused() {
         pairs: Vec::new(),
     };
     let error = list.pack().expect_err("only version 0 is written");
-    assert_eq!(error, NvError::UnsupportedVersion { version: 3 });
+    assert_eq!(
+        error,
+        NvError::UnsupportedVersion {
+            version: 3
+        }
+    );
 }
 
 #[test]
@@ -351,7 +479,12 @@ fn a_name_past_the_field_width_is_refused() {
     let mut list: NvList = NvList::new();
     list.push("n".repeat(i16::MAX as usize), NvData::BooleanFlag);
     let error = list.pack().expect_err("the name length field is an i16");
-    assert!(matches!(error, NvError::TooBigToPack { pair: _ }));
+    assert!(matches!(
+        error,
+        NvError::TooBigToPack {
+            pair: _
+        }
+    ));
 }
 
 #[test]
@@ -373,7 +506,12 @@ fn a_child_list_with_an_unknown_version_is_refused() {
     let mut list: NvList = NvList::new();
     list.add_nvlist("child", child);
     let error = list.pack().expect_err("the child version is checked first");
-    assert_eq!(error, NvError::UnsupportedVersion { version: 2 });
+    assert_eq!(
+        error,
+        NvError::UnsupportedVersion {
+            version: 2
+        }
+    );
 }
 
 #[test]

@@ -4,18 +4,37 @@
 //!  and where each kind of answer goes.
 
 /// Conversion of each answer against the ticket's text.
-use super::convert::{definition_outcome, hover_outcome, references_outcome};
+use super::convert::{
+    definition_outcome,
+    hover_outcome,
+    references_outcome,
+};
 /// The request types this module completes,
 ///  asking again for what a server still owes,
 ///  and
 /// the hint lines wanted now.
-use super::{Answer, Ask, Payload, Ticket, catch_up, hint_ask};
+use super::{
+    Answer,
+    Ask,
+    Payload,
+    Ticket,
+    catch_up,
+    hint_ask,
+};
 /// Hint shaping.
 use crate::language::hints;
 /// Replies and their outcomes.
-use crate::language::reply::{LanguageReply, RequestFailure, RequestKind, RequestOutcome};
+use crate::language::reply::{
+    LanguageReply,
+    RequestFailure,
+    RequestKind,
+    RequestOutcome,
+};
 /// The worker whose state these steps change.
-use crate::language::worker::{Internal, Worker};
+use crate::language::worker::{
+    Internal,
+    Worker,
+};
 /// The protocol's data types.
 use helix_lsp::lsp;
 /// What:
@@ -29,7 +48,10 @@ use helix_lsp::lsp;
 /// ```
 use std::time::Duration;
 /// Failures kept per request kind.
-use trouble::{Channel, keep_trouble};
+use trouble::{
+    Channel,
+    keep_trouble,
+};
 
 /// How often one request is sent again:
 ///  a superseded one before it is reported as superseded,
@@ -167,14 +189,20 @@ fn replied(
 ///   if (owed && ticket.ask.kind === 'pull') owed.pull = owes;
 /// }
 /// ```
-fn record(worker: &mut Worker, ticket: &Ticket, owes: bool) {
+fn record(
+    worker: &mut Worker,
+    ticket: &Ticket,
+    owes: bool,
+) {
     let Some(index) = worker.session.index_of_identity(&ticket.server) else {
         return;
     };
     // `&mut` borrows the record's field so the assignment changes the stored value.
     let owed = &mut worker.session.servers[index].owed;
     match ticket.ask {
-        Ask::Hints { .. } => owed.hints = owes,
+        Ask::Hints {
+            ..
+        } => owed.hints = owes,
         Ask::Pull => owed.pull = owes,
         Ask::Position(_) => {}
     }
@@ -213,7 +241,13 @@ fn unanswered(
 ) {
     let Some(delay) = wait else {
         tracing::debug!(server = %ticket.server.name, ask = ?ticket.ask, %error, "request failed; asking again would not change that");
-        if let (Ask::Hints { .. }, Failure::Failed(failure)) = (ticket.ask, classify_error(error)) {
+        if let (
+            Ask::Hints {
+                ..
+            },
+            Failure::Failed(failure),
+        ) = (ticket.ask, classify_error(error))
+        {
             keep_trouble(worker, &ticket, Channel::Hints, Some(failure));
         }
         return;
@@ -226,7 +260,13 @@ fn unanswered(
         return;
     }
     tracing::debug!(server = %ticket.server.name, ask = ?ticket.ask, %error, "request was superseded or timed out through all its retries; it is asked again when the server next sends anything");
-    if let (Ask::Hints { .. }, Failure::Failed(failure)) = (ticket.ask, classify_error(error)) {
+    if let (
+        Ask::Hints {
+            ..
+        },
+        Failure::Failed(failure),
+    ) = (ticket.ask, classify_error(error))
+    {
         keep_trouble(worker, &ticket, Channel::Hints, Some(failure));
     }
     record(worker, &ticket, true);
@@ -457,8 +497,14 @@ fn answered(error: Option<&helix_lsp::Error>) -> bool {
 /// ```ts
 /// function finish(worker: Worker, answer: Answer): void
 /// ```
-pub(in crate::language) fn finish(worker: &mut Worker, answer: Answer) {
-    let Answer { ticket, payload } = answer;
+pub(in crate::language) fn finish(
+    worker: &mut Worker,
+    answer: Answer,
+) {
+    let Answer {
+        ticket,
+        payload,
+    } = answer;
     let answered = is_server_answer(&payload);
     if answered
         && worker

@@ -109,7 +109,11 @@ pub fn parse_recorded_installs(text: &str) -> Vec<RecordedInstall> {
             Some((before, _)) => (before, true),
             None => (list, false),
         };
-        let install: RecordedInstall = RecordedInstall { crate_name, version, bins: quoted_texts(names) };
+        let install: RecordedInstall = RecordedInstall {
+            crate_name,
+            version,
+            bins: quoted_texts(names),
+        };
         if closed {
             installs.push(install);
         } else {
@@ -139,7 +143,10 @@ pub fn read_recorded_installs(cargo_home: &Path) -> Vec<RecordedInstall> {
 
 /// The install that placed the binary `bin`,
 /// or `None` when no install names it.
-pub fn install_naming_bin<'a>(installs: &'a [RecordedInstall], bin: &str) -> Option<&'a RecordedInstall> {
+pub fn install_naming_bin<'a>(
+    installs: &'a [RecordedInstall],
+    bin: &str,
+) -> Option<&'a RecordedInstall> {
     for install in installs {
         for name in &install.bins {
             if name == bin {

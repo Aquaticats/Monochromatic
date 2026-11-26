@@ -14,17 +14,36 @@
 //! describe('parseQuery', () => { /* the seven forms, then representative refusals */ });
 //! ```
 
-use crate::query::{Browser, Query, parse_query};
+use crate::query::{
+    Browser,
+    Query,
+    parse_query,
+};
 
 /// Each of the seven lines maps to its query.
 #[test]
 fn accepts_the_seven_lines() {
-    assert_eq!(parse_query(1, "last 1 Chrome versions").expect("q"), Query::LastVersions(Browser::Chrome));
-    assert_eq!(parse_query(2, "last 1 ChromeAndroid versions").expect("q"), Query::LastVersions(Browser::ChromeAndroid));
-    assert_eq!(parse_query(3, "last 1 Android versions").expect("q"), Query::LastVersions(Browser::Android));
+    assert_eq!(
+        parse_query(1, "last 1 Chrome versions").expect("q"),
+        Query::LastVersions(Browser::Chrome)
+    );
+    assert_eq!(
+        parse_query(2, "last 1 ChromeAndroid versions").expect("q"),
+        Query::LastVersions(Browser::ChromeAndroid)
+    );
+    assert_eq!(
+        parse_query(3, "last 1 Android versions").expect("q"),
+        Query::LastVersions(Browser::Android)
+    );
     assert_eq!(parse_query(4, "Firefox ESR").expect("q"), Query::FirefoxEsr);
-    assert_eq!(parse_query(5, "last 1 FirefoxAndroid versions").expect("q"), Query::LastVersions(Browser::FirefoxAndroid));
-    assert_eq!(parse_query(6, "last 1 node major versions").expect("q"), Query::LastNodeMajorVersions);
+    assert_eq!(
+        parse_query(5, "last 1 FirefoxAndroid versions").expect("q"),
+        Query::LastVersions(Browser::FirefoxAndroid)
+    );
+    assert_eq!(
+        parse_query(6, "last 1 node major versions").expect("q"),
+        Query::LastNodeMajorVersions
+    );
     assert_eq!(parse_query(7, "not dead").expect("q"), Query::NotDead);
 }
 
@@ -78,8 +97,14 @@ fn refuses_other_spellings_and_forms() {
         " ",
     ] {
         let message = parse_query(9, text).expect_err("refused").to_string();
-        assert!(message.starts_with("not implemented: "), "{text:?}: {message}");
-        assert!(message.contains(&format!("{text:?}")), "{text:?}: {message}");
+        assert!(
+            message.starts_with("not implemented: "),
+            "{text:?}: {message}"
+        );
+        assert!(
+            message.contains(&format!("{text:?}")),
+            "{text:?}: {message}"
+        );
         assert!(message.contains("line 9"), "{text:?}: {message}");
     }
 }

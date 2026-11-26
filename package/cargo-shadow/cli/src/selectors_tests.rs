@@ -1,17 +1,34 @@
 //! The unit tests of the selector syntax,
 //! ported from the TypeScript tool's `selectors.unit.test.ts`.
 
-use crate::selectors::{ParsedSelector, is_excluded, matches_pattern, parse_selector, prune_selectors};
+use crate::selectors::{
+    ParsedSelector,
+    is_excluded,
+    matches_pattern,
+    parse_selector,
+    prune_selectors,
+};
 
 use std::collections::BTreeSet;
 
 fn texts(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| { return item.to_string(); }).collect();
+    return items
+        .iter()
+        .map(|item| {
+            return item.to_string();
+        })
+        .collect();
 }
 
 #[test]
 fn a_bare_name_names_every_version() {
-    assert_eq!(parse_selector("ring"), ParsedSelector { pattern: "ring".to_string(), versions: Vec::new() });
+    assert_eq!(
+        parse_selector("ring"),
+        ParsedSelector {
+            pattern: "ring".to_string(),
+            versions: Vec::new()
+        }
+    );
 }
 
 #[test]
@@ -50,13 +67,28 @@ fn a_selector_with_versions_exempts_only_those_versions() {
 #[test]
 fn a_bare_selector_exempts_every_version_of_the_matching_names() {
     assert!(is_excluded(&texts(&["ring"]), "ring", "0.17.8"));
-    assert!(is_excluded(&texts(&["wayland-*"]), "wayland-server", "0.31.14"));
+    assert!(is_excluded(
+        &texts(&["wayland-*"]),
+        "wayland-server",
+        "0.31.14"
+    ));
 }
 
 #[test]
 fn pruning_keeps_wildcards_locked_names_and_only_the_locked_versions() {
-    let locked: BTreeSet<String> = ["ring@0.17.8", "zbus@5.19.0"].iter().map(|item| { return item.to_string(); }).collect();
-    let selectors: Vec<String> = texts(&["wayland-*", "ring", "gone", "zbus@5.19.0 || 5.18.0", "old@1.0.0"]);
+    let locked: BTreeSet<String> = ["ring@0.17.8", "zbus@5.19.0"]
+        .iter()
+        .map(|item| {
+            return item.to_string();
+        })
+        .collect();
+    let selectors: Vec<String> = texts(&[
+        "wayland-*",
+        "ring",
+        "gone",
+        "zbus@5.19.0 || 5.18.0",
+        "old@1.0.0",
+    ]);
 
     let kept: Vec<String> = prune_selectors(&selectors, &locked);
 

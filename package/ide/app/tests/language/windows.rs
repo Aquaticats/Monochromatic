@@ -9,10 +9,16 @@
 //! worker reads them,
 //!  and a hover round trip afterwards proves the worker has handled both.
 
-use crate::support::{self, Probe};
+use crate::support::{
+    self,
+    Probe,
+};
 use ide_app::language::{
     hints::HintWindow,
-    reply::{RequestKind, RequestOutcome},
+    reply::{
+        RequestKind,
+        RequestOutcome,
+    },
 };
 use serde_json::Value;
 

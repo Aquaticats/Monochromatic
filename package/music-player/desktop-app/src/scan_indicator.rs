@@ -82,7 +82,11 @@ impl ScanIndicatorModel {
 /// ```ts
 /// function scanIndicatorFor(loading: boolean, measured: number, total: number): ScanIndicatorModel;
 /// ```
-pub fn scan_indicator_for(loading: bool, measured: i32, total: i32) -> ScanIndicatorModel {
+pub fn scan_indicator_for(
+    loading: bool,
+    measured: i32,
+    total: i32,
+) -> ScanIndicatorModel {
     if loading {
         return ScanIndicatorModel {
             phase: ScanIndicatorPhase::ScanningLibrary,

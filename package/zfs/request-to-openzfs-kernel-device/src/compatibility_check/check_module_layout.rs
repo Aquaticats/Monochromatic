@@ -31,13 +31,24 @@
 //! ```
 
 /// The bounded read of each file and its bounds.
-use super::bounded_read::{BASE_BTF_BOUND, MODULE_BTF_BOUND, ReadRequest, read_bounded};
+use super::bounded_read::{
+    BASE_BTF_BOUND,
+    MODULE_BTF_BOUND,
+    ReadRequest,
+    read_bounded,
+};
 /// The section cut of each file.
-use super::btf_header::{Sections, read_sections};
+use super::btf_header::{
+    Sections,
+    read_sections,
+};
 /// The one adapter that compares the two files through the declaration.
 use super::btf_rs_declaration::compare_declared_layout;
 /// The one refusal value a caller renders.
-use super::refusal::{Refusal, Step};
+use super::refusal::{
+    Refusal,
+    Step,
+};
 /// The borrowed path type of one call.
 use std::path::Path;
 
@@ -107,7 +118,12 @@ pub fn check_module_layout(request: &LayoutRequest<'_>) -> Result<Compatible, Re
         step: Step::ModuleBtf,
     })?;
     let module: Sections = read_sections(&module_bytes, request.module_btf)?;
-    compare_declared_layout(&base_bytes, &module_bytes, request.base_btf, request.module_btf)?;
+    compare_declared_layout(
+        &base_bytes,
+        &module_bytes,
+        request.base_btf,
+        request.module_btf,
+    )?;
     return Ok(Compatible {
         base_bytes: base_bytes.len(),
         module_bytes: module_bytes.len(),

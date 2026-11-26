@@ -3,13 +3,24 @@
 
 /// Sending one request to one server,
 ///  and the hint request for the window reported last.
-use super::{Ask, Sent, Ticket, dispatch, hint_ask};
+use super::{
+    Ask,
+    Sent,
+    Ticket,
+    dispatch,
+    hint_ask,
+};
 /// Exited servers are started again by an explicit position request.
 use crate::language::attach;
 /// Replies name the server process that answered.
 use crate::language::identity::ServerIdentity;
 /// Replies and their outcomes.
-use crate::language::reply::{LanguageReply, PositionRequest, RequestFailure, RequestOutcome};
+use crate::language::reply::{
+    LanguageReply,
+    PositionRequest,
+    RequestFailure,
+    RequestOutcome,
+};
 /// The worker whose state these steps change.
 use crate::language::worker::Worker;
 
@@ -115,7 +126,10 @@ pub(in crate::language) async fn position(
 /// ```ts
 /// function retry(worker: Worker, ticket: Ticket): void
 /// ```
-pub(in crate::language) fn retry(worker: &mut Worker, ticket: Ticket) {
+pub(in crate::language) fn retry(
+    worker: &mut Worker,
+    ticket: Ticket,
+) {
     let current = worker.session.stamp() == Some(ticket.stamp);
     let record = worker.session.index_of_identity(&ticket.server);
     // What: A hint request is asked again for the window reported last, which `hint_ask` reads;
@@ -129,7 +143,9 @@ pub(in crate::language) fn retry(worker: &mut Worker, ticket: Ticket) {
     // const ask = ticket.ask.kind === 'hints' ? hintAsk(worker.session) : ticket.ask;
     // ```
     let ask = match ticket.ask {
-        Ask::Hints { .. } => hint_ask(&worker.session),
+        Ask::Hints {
+            ..
+        } => hint_ask(&worker.session),
         other => Some(other),
     };
     let sent = match (current, record, ask) {

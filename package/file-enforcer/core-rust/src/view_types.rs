@@ -11,7 +11,10 @@
 
 /// Imports `RealState`,
 /// `sha256_hex` from `crate::real_fs`.
-use crate::real_fs::{RealState, sha256_hex};
+use crate::real_fs::{
+    RealState,
+    sha256_hex,
+};
 
 /// What:
 ///  A planned state of one path,
@@ -80,7 +83,15 @@ pub enum Observed {
 pub fn observed_of(state: &RealState) -> Observed {
     match state {
         RealState::Absent => return Observed::Absent,
-        RealState::File { content, mode } => return Observed::File { digest: sha256_hex(content), mode: *mode },
+        RealState::File {
+            content,
+            mode,
+        } => {
+            return Observed::File {
+                digest: sha256_hex(content),
+                mode: *mode,
+            };
+        }
         RealState::Directory => return Observed::NotAFile("directory".to_string()),
         RealState::Symlink => return Observed::NotAFile("symlink".to_string()),
         RealState::Other => return Observed::NotAFile("other".to_string()),

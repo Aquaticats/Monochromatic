@@ -46,10 +46,15 @@ use std::path::Path;
 ///   fs.chmodSync(path.join(directory, name), mode);
 /// }
 /// ```
-fn write_tool(directory: &Path, name: &str, mode: u32) {
+fn write_tool(
+    directory: &Path,
+    name: &str,
+    mode: u32,
+) {
     // `.expect("...")` unwraps a `Result` and, on error, stops the test with that message (tests may panic on purpose).
     fs::write(directory.join(name), "#!/bin/sh\n").expect("write the fixture tool");
-    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(mode)).expect("set the fixture mode");
+    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(mode))
+        .expect("set the fixture mode");
 }
 
 /// What:
@@ -101,8 +106,13 @@ fn skips_a_link_that_resolves_to_the_shadow() {
     write_tool(shadow_directory.path(), "search-shadow", 0o755);
     write_tool(real_directory.path(), "rg", 0o755);
     let shadow_executable = shadow_directory.path().join("search-shadow");
-    std::os::unix::fs::symlink(&shadow_executable, shadow_directory.path().join("rg")).expect("make the shadow link");
-    let path_variable = format!("{}:{}", shadow_directory.path().display(), real_directory.path().display());
+    std::os::unix::fs::symlink(&shadow_executable, shadow_directory.path().join("rg"))
+        .expect("make the shadow link");
+    let path_variable = format!(
+        "{}:{}",
+        shadow_directory.path().display(),
+        real_directory.path().display()
+    );
 
     // The skip value is the resolved path of the shadow executable, as the shim computes it.
     let skip = fs::canonicalize(&shadow_executable).expect("resolve the shadow");
@@ -119,7 +129,11 @@ fn ignores_empty_entries_missing_directories_and_directories_named_like_the_tool
     let real = crate::test_scratch::scratch();
     fs::create_dir(trap.path().join("rg")).expect("make a directory named like the tool");
     write_tool(real.path(), "rg", 0o755);
-    let path_variable = format!("::/does/not/exist:{}:{}", trap.path().display(), real.path().display());
+    let path_variable = format!(
+        "::/does/not/exist:{}:{}",
+        trap.path().display(),
+        real.path().display()
+    );
 
     let found = find_in_path("rg", &path_variable, Path::new(""));
 

@@ -2,14 +2,26 @@
 //!  row actions retain original native path identities.
 
 /// Tree binding state is UI-local and remains separate from source reading state.
-use super::{AppWindow, Navigation, State, watch};
+use super::{
+    AppWindow,
+    Navigation,
+    State,
+    watch,
+};
 /// Generated row values feed the toolkit's virtualized ListView.
 use crate::native::ui::TreeEntry;
 /// Owned row models survive beyond the presentation call without borrowing native state.
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{
+    ModelRc,
+    SharedString,
+    VecModel,
+};
 /// Native path ownership survives UI-label conversion;
 ///  Rc/RefCell remain on the event-loop thread.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Expand only known ancestors;
 ///  later directory replies expose the next missing level.
@@ -53,7 +65,11 @@ fn expand_reveal(navigation: &mut Navigation) {
 
 /// Publish rows after releasing the source borrow;
 ///  reveal only after the complete target row is present.
-pub(super) fn update(window: &AppWindow, source: &Rc<RefCell<State>>, navigation: &mut Navigation) {
+pub(super) fn update(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+    navigation: &mut Navigation,
+) {
     expand_reveal(navigation);
     navigation.rows = navigation.tree.rows();
     // Expansion, collapse, and file switches all pass here, so the watch set follows what is shown.

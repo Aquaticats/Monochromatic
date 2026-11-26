@@ -13,10 +13,23 @@
 //! it('the committed schema equals the derived schema', () => { ... });
 //! ```
 
-use crate::config_decode::{ConfigScope, decode_config};
-use crate::config_load::{ConfigDocument, parse_config_text};
-use crate::config_locations::{ConfigLocations, Location, LocationNode};
-use crate::schema::{config_schema, config_schema_text};
+use crate::config_decode::{
+    ConfigScope,
+    decode_config,
+};
+use crate::config_load::{
+    ConfigDocument,
+    parse_config_text,
+};
+use crate::config_locations::{
+    ConfigLocations,
+    Location,
+    LocationNode,
+};
+use crate::schema::{
+    config_schema,
+    config_schema_text,
+};
 use serde_json::Value;
 use std::path::Path;
 
@@ -32,7 +45,8 @@ use std::path::Path;
 /// ```
 fn read_package_file(relative: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
-    return std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+    return std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
 }
 
 #[test]
@@ -47,7 +61,10 @@ fn the_committed_schema_equals_the_derived_schema() {
 #[test]
 fn the_schema_declares_the_draft_the_validator_is_told_to_use() {
     let schema = config_schema();
-    assert_eq!(schema["$schema"], "https://json-schema.org/draft/2020-12/schema");
+    assert_eq!(
+        schema["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
 }
 
 /// What:
@@ -59,7 +76,10 @@ fn the_schema_declares_the_draft_the_validator_is_told_to_use() {
 /// ```ts
 /// function schemaAccepts(validator: Validator, sample: unknown): boolean
 /// ```
-fn schema_accepts(validator: &jsonschema::Validator, sample: &Value) -> bool {
+fn schema_accepts(
+    validator: &jsonschema::Validator,
+    sample: &Value,
+) -> bool {
     return validator.is_valid(sample);
 }
 
@@ -94,8 +114,21 @@ fn document_of(sample: &Value) -> ConfigDocument {
     if let Ok(document) = parse_config_text(&sample.to_string(), "corpus") {
         return document;
     }
-    let only = LocationNode { value: Location { line: 1, column: 1 }, key: None, items: Vec::new(), by_key: None };
-    return ConfigDocument { value: sample.clone(), locations: ConfigLocations { root: only } };
+    let only = LocationNode {
+        value: Location {
+            line: 1,
+            column: 1,
+        },
+        key: None,
+        items: Vec::new(),
+        by_key: None,
+    };
+    return ConfigDocument {
+        value: sample.clone(),
+        locations: ConfigLocations {
+            root: only,
+        },
+    };
 }
 
 /// What:
@@ -109,16 +142,24 @@ fn document_of(sample: &Value) -> ConfigDocument {
 /// ```ts
 /// function section(corpus: unknown, name: string): [string, unknown][]
 /// ```
-fn section<'a>(corpus: &'a Value, name: &str) -> Vec<(&'a String, &'a Value)> {
-    let object = corpus[name].as_object().unwrap_or_else(|| panic!("the corpus has no section {name}"));
+fn section<'a>(
+    corpus: &'a Value,
+    name: &str,
+) -> Vec<(&'a String, &'a Value)> {
+    let object = corpus[name]
+        .as_object()
+        .unwrap_or_else(|| panic!("the corpus has no section {name}"));
     return object.iter().collect();
 }
 
 #[test]
 fn the_decoder_and_the_schema_agree_over_the_corpus() {
-    let corpus = parse_config_text(&read_package_file("fixtures/config-corpus.jsonc"), "config-corpus.jsonc")
-        .expect("the corpus is valid JSONC")
-        .value;
+    let corpus = parse_config_text(
+        &read_package_file("fixtures/config-corpus.jsonc"),
+        "config-corpus.jsonc",
+    )
+    .expect("the corpus is valid JSONC")
+    .value;
     let schema = config_schema();
     let validator = jsonschema::validator_for(&schema).expect("the derived schema compiles");
     let mut mismatches: Vec<String> = Vec::new();
@@ -147,10 +188,16 @@ fn the_decoder_and_the_schema_agree_over_the_corpus() {
             mismatches.push(format!("decoderStricter/{name}: the decoder accepts it"));
         }
         if !schema_accepts(&validator, sample) {
-            mismatches.push(format!("decoderStricter/{name}: the schema now rejects it; move it to reject"));
+            mismatches.push(format!(
+                "decoderStricter/{name}: the schema now rejects it; move it to reject"
+            ));
         }
     }
-    assert!(mismatches.is_empty(), "decoder and schema disagree:\n{}", mismatches.join("\n"));
+    assert!(
+        mismatches.is_empty(),
+        "decoder and schema disagree:\n{}",
+        mismatches.join("\n")
+    );
 }
 
 #[test]
@@ -161,7 +208,8 @@ fn the_per_user_kind_is_accepted_by_both_in_the_user_scope() {
         "scopedServers": [{"id": "s", "name": "S", "fileNames": ["AGENTS.md"], "languageId": "markdown", "disabledLinters": []}]
     }]}"#;
     let document = parse_config_text(text, "corpus").expect("the sample is valid JSONC");
-    let validator = jsonschema::validator_for(&config_schema()).expect("the derived schema compiles");
+    let validator =
+        jsonschema::validator_for(&config_schema()).expect("the derived schema compiles");
     assert!(schema_accepts(&validator, &document.value));
     assert!(decode_config(&document, ConfigScope::User, "corpus").is_ok());
     assert!(decode_config(&document, ConfigScope::Repository, "corpus").is_err());
@@ -178,7 +226,10 @@ fn the_per_user_kind_is_accepted_by_both_in_the_user_scope() {
 /// ```ts
 /// function descriptions(node: unknown): string[]
 /// ```
-fn descriptions_of(node: &Value, found: &mut Vec<String>) {
+fn descriptions_of(
+    node: &Value,
+    found: &mut Vec<String>,
+) {
     match node {
         Value::Array(items) => {
             for item in items {
@@ -201,15 +252,25 @@ fn descriptions_of(node: &Value, found: &mut Vec<String>) {
 fn every_schema_description_is_one_line_of_prose() {
     let mut found: Vec<String> = Vec::new();
     descriptions_of(&config_schema(), &mut found);
-    assert!(found.len() > 20, "the schema should describe its fields: {}", found.len());
+    assert!(
+        found.len() > 20,
+        "the schema should describe its fields: {}",
+        found.len()
+    );
     for text in &found {
         assert!(!text.contains('\n') && !text.contains('\r'), "{text:?}");
         assert!(!text.contains("  ") && text == text.trim(), "{text:?}");
     }
     // Positive control: schemars really copies the rustdoc line breaks, so the check above has something to catch.
     let mut raw: Vec<String> = Vec::new();
-    descriptions_of(&schemars::schema_for!(crate::config_types::Config).to_value(), &mut raw);
-    assert!(raw.iter().any(|text| return text.contains('\n')), "the unflattened schema has no line breaks to flatten");
+    descriptions_of(
+        &schemars::schema_for!(crate::config_types::Config).to_value(),
+        &mut raw,
+    );
+    assert!(
+        raw.iter().any(|text| return text.contains('\n')),
+        "the unflattened schema has no line breaks to flatten"
+    );
 }
 
 #[test]

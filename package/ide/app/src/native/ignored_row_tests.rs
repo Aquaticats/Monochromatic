@@ -10,31 +10,65 @@ use super::find_tests::reader;
 use super::navigation_tests::row;
 /// Rendered frames and single pixels,
 ///  shared with the sidebar paint tests.
-use super::sidebar_paint_tests::{frame, pixel};
+use super::sidebar_paint_tests::{
+    frame,
+    pixel,
+};
 /// The shared window fixture with a visible tree,
 ///  and pointer movement.
-use super::sidebar_tests::{fixture, motion, settle};
+use super::sidebar_tests::{
+    fixture,
+    motion,
+    settle,
+};
 /// The scheme switch the desktop-settings watcher makes,
 ///  and color bytes.
-use super::theme_tests::{rgba, switch};
+use super::theme_tests::{
+    rgba,
+    switch,
+};
 /// Generated window and row types from the shipped markup.
-use super::{AppWindow, ui::TreeEntry};
+use super::{
+    AppWindow,
+    ui::TreeEntry,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// The row elements an assistive tool is given.
-use i_slint_backend_testing::{AccessibleRole, ElementQuery};
+use i_slint_backend_testing::{
+    AccessibleRole,
+    ElementQuery,
+};
 /// The WCAG 2 arithmetic of the selected-ink rule,
 ///  and its choice of ink.
-use ide_app::selection_ink::{contrast, legible_ink, luminance};
+use ide_app::selection_ink::{
+    contrast,
+    legible_ink,
+    luminance,
+};
 /// The toolkit's scheme enum,
 ///  reached through its unstable re-export module.
 use slint::private_unstable_api::re_exports::ColorScheme;
 /// Window ownership,
 ///  toolkit models,
 ///  and pixel types.
-use slint::{ComponentHandle, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
+use slint::{
+    ComponentHandle,
+    Model,
+    ModelRc,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    VecModel,
+};
 /// The window accepts row models only behind a shared pointer.
-use std::{fs, path::Path, rc::Rc};
+use std::{
+    fs,
+    path::Path,
+    rc::Rc,
+};
 
 /// The opacity the user asked for.
 const OPACITY: f32 = 0.8;
@@ -61,7 +95,10 @@ const fn top(index: usize) -> usize {
 /// ```ts
 /// function extremes(frame: Frame, bounds: [number, number, number, number]): [Color, Color];
 /// ```
-fn extremes(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4]) -> ([u8; 4], [u8; 4]) {
+fn extremes(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    bounds: [usize; 4],
+) -> ([u8; 4], [u8; 4]) {
     let first = pixel(frame, bounds[0], bounds[2]);
     let mut lightest = [first.r, first.g, first.b, first.a];
     let mut darkest = lightest;
@@ -82,7 +119,11 @@ fn extremes(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4]) -> ([u8; 
 
 /// The drawn ink of a part:
 ///  the extreme that lies farther from the fill in luminance.
-fn strongest(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4], fill: [u8; 4]) -> [u8; 4] {
+fn strongest(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    bounds: [usize; 4],
+    fill: [u8; 4],
+) -> [u8; 4] {
     let (lightest, darkest) = extremes(frame, bounds);
     return if contrast(lightest, fill) >= contrast(darkest, fill) {
         lightest
@@ -92,7 +133,10 @@ fn strongest(frame: &SharedPixelBuffer<Rgba8Pixel>, bounds: [usize; 4], fill: [u
 }
 
 /// The fill of a row away from its text.
-fn fill(frame: &SharedPixelBuffer<Rgba8Pixel>, index: usize) -> [u8; 4] {
+fn fill(
+    frame: &SharedPixelBuffer<Rgba8Pixel>,
+    index: usize,
+) -> [u8; 4] {
     let found = pixel(frame, 230, top(index) + 24);
     return [found.r, found.g, found.b, found.a];
 }
@@ -145,7 +189,10 @@ fn tree_entry(
 }
 
 /// Largest per-channel difference between two colors.
-fn spread(left: [u8; 4], right: [u8; 4]) -> u8 {
+fn spread(
+    left: [u8; 4],
+    right: [u8; 4],
+) -> u8 {
     let mut widest = 0;
     for channel in 0..3 {
         widest = widest.max(left[channel].abs_diff(right[channel]));
@@ -155,7 +202,10 @@ fn spread(left: [u8; 4], right: [u8; 4]) -> u8 {
 
 /// Where each of the plain and ignored rows is expected to differ:
 ///  `ink * 0.8 + fill * 0.2` per channel.
-fn blended(ink: [u8; 4], fill: [u8; 4]) -> [u8; 4] {
+fn blended(
+    ink: [u8; 4],
+    fill: [u8; 4],
+) -> [u8; 4] {
     let mut result = [255; 4];
     for channel in 0..3 {
         let value = f32::from(ink[channel]) * OPACITY + f32::from(fill[channel]) * (1.0 - OPACITY);
@@ -220,7 +270,10 @@ fn name_pair(
 /// Everything of the row except its name looks the same ignored and plain:
 ///  the directory arrow,
 ///  and the slot badge.
-fn marks_unchanged(window: &AppWindow, scheme: &str) {
+fn marks_unchanged(
+    window: &AppWindow,
+    scheme: &str,
+) {
     let shown = frame(window);
     for (plain, dimmed, what) in [(4, 5, "directory arrow"), (6, 7, "slot badge")] {
         let plain_ink = strongest(&shown, mark(plain), fill(&shown, plain));
@@ -328,7 +381,10 @@ fn project(root: &Path) {
 }
 
 /// Whether the model row with this label is marked ignored.
-fn flagged(window: &AppWindow, label: &str) -> Option<bool> {
+fn flagged(
+    window: &AppWindow,
+    label: &str,
+) -> Option<bool> {
     let index = row(window, label)?;
     return match window.get_tree_entries().row_data(index as usize) {
         Some(entry) => Some(entry.ignored),
@@ -337,7 +393,10 @@ fn flagged(window: &AppWindow, label: &str) -> Option<bool> {
 }
 
 /// How many accessible list items carry exactly this label.
-fn labelled(window: &AppWindow, label: &str) -> usize {
+fn labelled(
+    window: &AppWindow,
+    label: &str,
+) -> usize {
     let wanted = label.to_string();
     let mut count = 0;
     for candidate in ElementQuery::from_root(window)

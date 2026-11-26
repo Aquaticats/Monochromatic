@@ -84,7 +84,10 @@ use forbidden_strings::compile_from_text;
 use std::process::ExitCode;
 
 /// Imports the whole-source porting pass and the per-rule classification record.
-use crate::portpass::{port_source, Ported};
+use crate::portpass::{
+    Ported,
+    port_source,
+};
 
 /// Strict-compiles every ported rule individually,
 ///  attributing failures to source lines.
@@ -135,7 +138,9 @@ fn verify(rules: &[&Ported]) -> Vec<(usize, String)> {
             });
         }
     });
-    let mut out = failures.into_inner().expect("failures mutex is not poisoned");
+    let mut out = failures
+        .into_inner()
+        .expect("failures mutex is not poisoned");
     out.sort_by_key(|(line, _)| return *line);
     return out;
 }
@@ -150,7 +155,10 @@ fn verify(rules: &[&Ported]) -> Vec<(usize, String)> {
 ///  Why:
 ///  the review
 /// doc must list every semantically changed rule with before and after.
-fn report(name: &str, rules: &[Ported]) {
+fn report(
+    name: &str,
+    rules: &[Ported],
+) {
     let rewritten = rules.iter().filter(|r| return r.ported != r.source).count();
     let semantic = rules
         .iter()

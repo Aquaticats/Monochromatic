@@ -3,7 +3,15 @@
 //! and what it says.
 
 /// Imports the functions and constants under test.
-use crate::shadow_notice::{HELP_WORDS, TopLevelRequest, VERSION_WORDS, help_section, notice_text, top_level_request, version_line};
+use crate::shadow_notice::{
+    HELP_WORDS,
+    TopLevelRequest,
+    VERSION_WORDS,
+    help_section,
+    notice_text,
+    top_level_request,
+    version_line,
+};
 
 /// Imports the owned operating-system text type.
 use std::ffi::OsString;
@@ -21,14 +29,22 @@ fn arguments(words: &[&str]) -> Vec<OsString> {
 #[test]
 fn every_version_word_alone_is_a_version_request() {
     for word in VERSION_WORDS {
-        assert_eq!(top_level_request(&arguments(&[word])), TopLevelRequest::Version, "word {word}");
+        assert_eq!(
+            top_level_request(&arguments(&[word])),
+            TopLevelRequest::Version,
+            "word {word}"
+        );
     }
 }
 
 #[test]
 fn every_help_word_alone_is_a_help_request() {
     for word in HELP_WORDS {
-        assert_eq!(top_level_request(&arguments(&[word])), TopLevelRequest::Help, "word {word}");
+        assert_eq!(
+            top_level_request(&arguments(&[word])),
+            TopLevelRequest::Help,
+            "word {word}"
+        );
     }
 }
 
@@ -42,13 +58,20 @@ fn a_command_line_with_more_than_one_word_or_none_is_never_a_top_level_request()
         &["--version", "--json"],
     ];
     for command_line in command_lines {
-        assert_eq!(top_level_request(&arguments(command_line)), TopLevelRequest::Other, "{command_line:?}");
+        assert_eq!(
+            top_level_request(&arguments(command_line)),
+            TopLevelRequest::Other,
+            "{command_line:?}"
+        );
     }
 }
 
 #[test]
 fn an_ordinary_command_is_not_a_top_level_request() {
-    assert_eq!(top_level_request(&arguments(&["install"])), TopLevelRequest::Other);
+    assert_eq!(
+        top_level_request(&arguments(&["install"])),
+        TopLevelRequest::Other
+    );
 }
 
 #[test]
@@ -76,7 +99,13 @@ fn the_help_section_starts_after_a_blank_line_and_repeats_the_version_line() {
 fn only_a_version_or_help_request_gets_a_notice() {
     let real = Path::new("/real/bin/pnpm");
 
-    assert_eq!(notice_text(TopLevelRequest::Version, real), Some(version_line(real)));
-    assert_eq!(notice_text(TopLevelRequest::Help, real), Some(help_section(real)));
+    assert_eq!(
+        notice_text(TopLevelRequest::Version, real),
+        Some(version_line(real))
+    );
+    assert_eq!(
+        notice_text(TopLevelRequest::Help, real),
+        Some(help_section(real))
+    );
     assert_eq!(notice_text(TopLevelRequest::Other, real), None);
 }

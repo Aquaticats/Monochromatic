@@ -7,21 +7,38 @@
 /// the key,
 /// the reply,
 /// and the thread name.
-use super::{Job, Reply};
+use super::{
+    Job,
+    Reply,
+};
 /// Typography comparison shared with the tile worker.
 use crate::native::tile_build::same_typography;
 /// The picture build,
 /// its row cache,
 /// and its inputs.
-use ide_app::minimap::{Built, Cancel, Input, LineCache, Source, build};
+use ide_app::minimap::{
+    Built,
+    Cancel,
+    Input,
+    LineCache,
+    Source,
+    build,
+};
 /// Shaping finds where wrapped lines break.
 use ide_app::shaped_text::TextShaper;
 /// The newest-request flag and the channels.
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
-        mpsc::{Receiver, Sender, TryRecvError},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
+        mpsc::{
+            Receiver,
+            Sender,
+            TryRecvError,
+        },
     },
     time::Instant,
 };
@@ -69,7 +86,10 @@ impl Cancel for Superseded<'_> {
 trait ReplySink {
     /// Take one finished picture;
     ///  false once nobody receives pictures any more.
-    fn deliver(&mut self, reply: Reply) -> bool;
+    fn deliver(
+        &mut self,
+        reply: Reply,
+    ) -> bool;
 }
 
 /// Pictures go to the window thread through the reply channel.
@@ -82,7 +102,10 @@ struct ChannelSink<'a> {
 impl ReplySink for ChannelSink<'_> {
     /// Send the picture;
     ///  false when the receiving side is gone.
-    fn deliver(&mut self, reply: Reply) -> bool {
+    fn deliver(
+        &mut self,
+        reply: Reply,
+    ) -> bool {
         return self.replies.send(reply).is_ok();
     }
 }
@@ -110,7 +133,10 @@ struct Builder {
 /// Build the replies of one job.
 impl Builder {
     /// Make the shaper match the job's typography and the text it shapes.
-    fn adopt(&mut self, job: &Job) -> anyhow::Result<()> {
+    fn adopt(
+        &mut self,
+        job: &Job,
+    ) -> anyhow::Result<()> {
         if !same_typography(self.shaper.typography(), &job.typography) {
             self.shaper = TextShaper::with_typography(job.typography.clone())?;
             self.cache.clear();
@@ -120,7 +146,13 @@ impl Builder {
 
     /// Hand one finished picture to `send`;
     ///  false when nobody receives it any more.
-    fn reply(&self, job: &Job, built: Built, started: Instant, send: &mut dyn ReplySink) -> bool {
+    fn reply(
+        &self,
+        job: &Job,
+        built: Built,
+        started: Instant,
+        send: &mut dyn ReplySink,
+    ) -> bool {
         let reply = Reply {
             id: job.id,
             key: job.key,
@@ -147,7 +179,12 @@ impl Builder {
     ///  which renders only the bands the cache does not hold.
     ///  `send` takes the finished picture.
     ///  A newer request stops the build between bands.
-    fn run(&mut self, job: &Job, newest: &AtomicU64, send: &mut dyn ReplySink) {
+    fn run(
+        &mut self,
+        job: &Job,
+        newest: &AtomicU64,
+        send: &mut dyn ReplySink,
+    ) {
         let started = Instant::now();
         #[cfg(debug_assertions)]
         if std::thread::current().name() != Some(super::THREAD_NAME) {
@@ -157,7 +194,10 @@ impl Builder {
             tracing::error!(%error, "minimap worker could not adopt its typography");
             return;
         }
-        let cancelled = Superseded { newest, id: job.id };
+        let cancelled = Superseded {
+            newest,
+            id: job.id,
+        };
         let source = Source {
             document: &job.document,
             styles: &job.styles,
@@ -215,7 +255,9 @@ pub(super) fn serve(
             );
             continue;
         }
-        let mut send = ChannelSink { replies };
+        let mut send = ChannelSink {
+            replies,
+        };
         builder.run(&job, newest, &mut send);
     }
     tracing::debug!("minimap request channel closed");

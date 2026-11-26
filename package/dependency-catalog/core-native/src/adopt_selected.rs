@@ -20,13 +20,30 @@ use crate::requirement::split_requirement;
 /// Imports `crate::site::UseSite`.
 use crate::site::UseSite;
 /// Imports `crate::types::{CatalogDocument, Entry, EntryMap}`.
-use crate::types::{CatalogDocument, Entry, EntryMap};
+use crate::types::{
+    CatalogDocument,
+    Entry,
+    EntryMap,
+};
 /// Imports `crate::version::format_version`.
 use crate::version::format_version;
 
 /// Whether the named entry can replace the literal.
-fn compatible(entry: &Entry, literal: &Entry) -> bool {
-    if let (Entry::Registry { version: named, .. }, Entry::Registry { version: wanted, .. }) = (entry, literal) {
+fn compatible(
+    entry: &Entry,
+    literal: &Entry,
+) -> bool {
+    if let (
+        Entry::Registry {
+            version: named,
+            ..
+        },
+        Entry::Registry {
+            version: wanted,
+            ..
+        },
+    ) = (entry, literal)
+    {
         let Ok(split) = split_requirement(named) else {
             return false;
         };
@@ -47,7 +64,11 @@ fn compatible(entry: &Entry, literal: &Entry) -> bool {
 /// ```ts
 /// export function checkSelectedLiterals(args: { document; sites; selections; issues }): void
 /// ```
-pub fn check_selected_literals(document: &CatalogDocument, selected: &[(&UseSite, &str)], issues: &mut Vec<SyncIssue>) {
+pub fn check_selected_literals(
+    document: &CatalogDocument,
+    selected: &[(&UseSite, &str)],
+    issues: &mut Vec<SyncIssue>,
+) {
     for (site, catalog_name) in selected {
         let named: Option<&EntryMap> = document.named(catalog_name);
         let entry: Option<&Entry> = match named {

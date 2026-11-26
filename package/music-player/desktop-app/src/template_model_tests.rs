@@ -4,7 +4,12 @@
 // and the track value sources.
 
 use super::*;
-use crate::template_fixtures::{analysed, bare, playing, waiting};
+use crate::template_fixtures::{
+    analysed,
+    bare,
+    playing,
+    waiting,
+};
 
 // What: `fn modes(fields: &[TemplateField]) -> Vec<&str>` lists the mode words in order.
 // Why: The field-list tests compare the order of modes, which is the contract the editor relies on.
@@ -26,7 +31,10 @@ fn modes(fields: &[TemplateField]) -> Vec<&str> {
 // ```
 #[test]
 fn track_rows_list_seven_fields_in_order() {
-    assert_eq!(modes(&track_template_fields()), vec!["title", "file", "ext", "folder", "path", "len", "peak"]);
+    assert_eq!(
+        modes(&track_template_fields()),
+        vec!["title", "file", "ext", "folder", "path", "len", "peak"]
+    );
     assert_eq!(track_template_fields()[6].label, "True peak");
     assert_eq!(
         track_template_fields()[6].description,
@@ -45,10 +53,15 @@ fn track_rows_list_seven_fields_in_order() {
 fn playing_list_adds_place_and_total() {
     assert_eq!(
         modes(&playing_template_fields()),
-        vec!["title", "file", "ext", "folder", "path", "len", "peak", "track", "total"]
+        vec![
+            "title", "file", "ext", "folder", "path", "len", "peak", "track", "total"
+        ]
     );
     assert_eq!(playing_template_fields()[7].label, "Place in folder");
-    assert_eq!(playing_template_fields()[8].description, "How many tracks the folder holds.");
+    assert_eq!(
+        playing_template_fields()[8].description,
+        "How many tracks the folder holds."
+    );
 }
 
 // What: `fn kinds_keep_their_own_defaults_labels_and_fields(...)` checks the two templates' order, defaults, and fields.
@@ -60,13 +73,25 @@ fn playing_list_adds_place_and_total() {
 // ```
 #[test]
 fn kinds_keep_their_own_defaults_labels_and_fields() {
-    assert_eq!(TemplateKind::all(), [TemplateKind::TrackRows, TemplateKind::PlayingTrack]);
+    assert_eq!(
+        TemplateKind::all(),
+        [TemplateKind::TrackRows, TemplateKind::PlayingTrack]
+    );
     assert_eq!(TemplateKind::TrackRows.label(), "Track rows");
     assert_eq!(TemplateKind::PlayingTrack.label(), "Playing track");
-    assert_eq!(TemplateKind::TrackRows.default_template(), DEFAULT_TRACK_TEMPLATE);
+    assert_eq!(
+        TemplateKind::TrackRows.default_template(),
+        DEFAULT_TRACK_TEMPLATE
+    );
     assert_eq!(TemplateKind::TrackRows.fields(), track_template_fields());
-    assert_eq!(TemplateKind::PlayingTrack.fields(), playing_template_fields());
-    assert_eq!(TemplateKind::PlayingTrack.default_template(), DEFAULT_PLAYING_TEMPLATE);
+    assert_eq!(
+        TemplateKind::PlayingTrack.fields(),
+        playing_template_fields()
+    );
+    assert_eq!(
+        TemplateKind::PlayingTrack.default_template(),
+        DEFAULT_PLAYING_TEMPLATE
+    );
 }
 
 // What: `fn default_track_template_is_the_reference_text(...)` checks the default line byte for byte.
@@ -92,14 +117,28 @@ fn default_track_template_is_the_reference_text() {
 fn function_table_describes_the_three_functions() {
     let mi = template_function("mi").map_or(0, |definition| return definition.maximum);
     assert_eq!(mi, 1);
-    let tf = template_function("tf").map_or((0, 0), |definition| return (definition.minimum, definition.maximum));
+    let tf = template_function("tf").map_or((0, 0), |definition| {
+        return (definition.minimum, definition.maximum);
+    });
     assert_eq!(tf, (1, 2));
     let tc = template_function("tc").map_or(0, |definition| return definition.parameters.len());
     assert_eq!(tc, 3);
-    assert_eq!(template_function("tc").map(|definition| return definition.signature), Some("tc(mode, text, [length])"));
-    assert_eq!(template_function("mi").map(|definition| return definition.name), Some(FunctionName::Mi));
-    assert_eq!(template_function("tf").map(|definition| return definition.name), Some(FunctionName::Tf));
-    assert_eq!(template_function("tc").map(|definition| return definition.name), Some(FunctionName::Tc));
+    assert_eq!(
+        template_function("tc").map(|definition| return definition.signature),
+        Some("tc(mode, text, [length])")
+    );
+    assert_eq!(
+        template_function("mi").map(|definition| return definition.name),
+        Some(FunctionName::Mi)
+    );
+    assert_eq!(
+        template_function("tf").map(|definition| return definition.name),
+        Some(FunctionName::Tf)
+    );
+    assert_eq!(
+        template_function("tc").map(|definition| return definition.name),
+        Some(FunctionName::Tc)
+    );
 }
 
 // What: `fn function_table_refuses_names_it_does_not_hold(...)` checks names that a plain object would wrongly accept.
@@ -126,9 +165,18 @@ fn function_table_refuses_names_it_does_not_hold() {
 // ```
 #[test]
 fn mi_help_lists_the_default_fields() {
-    let mi_description = template_function("mi").map(|definition| return definition.parameters[0].description.clone());
-    assert_eq!(mi_description, Some(String::from("Field: one of title, file, ext, folder, path, len, peak.")));
-    assert_eq!(field_modes(&playing_template_fields()), "title, file, ext, folder, path, len, peak, track, total");
+    let mi_description = template_function("mi")
+        .map(|definition| return definition.parameters[0].description.clone());
+    assert_eq!(
+        mi_description,
+        Some(String::from(
+            "Field: one of title, file, ext, folder, path, len, peak."
+        ))
+    );
+    assert_eq!(
+        field_modes(&playing_template_fields()),
+        "title, file, ext, folder, path, len, peak, track, total"
+    );
 }
 
 // What: `fn track_fields_read_each_mode(...)` checks every track mode, its number text, and the missing values.
@@ -141,13 +189,27 @@ fn mi_help_lists_the_default_fields() {
 #[test]
 fn track_fields_read_each_mode() {
     let track = analysed();
-    assert_eq!(track.field_text("title"), Some(String::from("Another Xronixle")));
-    assert_eq!(track.field_text("file"), Some(String::from("かめりあ(Camellia) - Another Xronixle")));
+    assert_eq!(
+        track.field_text("title"),
+        Some(String::from("Another Xronixle"))
+    );
+    assert_eq!(
+        track.field_text("file"),
+        Some(String::from("かめりあ(Camellia) - Another Xronixle"))
+    );
     assert_eq!(track.field_text("ext"), Some(String::from("flac")));
     assert_eq!(track.field_text("folder"), Some(String::from("Camellia")));
-    assert_eq!(track.field_text("path"), Some(String::from("Camellia/かめりあ(Camellia) - Another Xronixle.flac")));
+    assert_eq!(
+        track.field_text("path"),
+        Some(String::from(
+            "Camellia/かめりあ(Camellia) - Another Xronixle.flac"
+        ))
+    );
     assert_eq!(track.field_text("len"), Some(String::from("275")));
-    assert_eq!(track.field_text("peak"), Some(String::from("\u{2212}0.3 dBTP")));
+    assert_eq!(
+        track.field_text("peak"),
+        Some(String::from("\u{2212}0.3 dBTP"))
+    );
     assert_eq!(waiting().field_text("peak"), None);
     assert_eq!(bare().field_text("len"), None);
     assert_eq!(bare().field_text("folder"), Some(String::new()));
@@ -187,7 +249,10 @@ fn playing_fields_answer_place_and_total() {
     let track = playing();
     assert_eq!(track.field_text("track"), Some(String::from("1")));
     assert_eq!(track.field_text("total"), Some(String::from("16")));
-    assert_eq!(track.field_text("title"), Some(String::from("Another Xronixle")));
+    assert_eq!(
+        track.field_text("title"),
+        Some(String::from("Another Xronixle"))
+    );
     let mut unknown_place = playing();
     unknown_place.place_in_folder = None;
     unknown_place.tracks_in_folder = None;
@@ -204,8 +269,16 @@ fn playing_fields_answer_place_and_total() {
 // ```
 #[test]
 fn error_lines_keep_template_order() {
-    let found_later = TemplateError { subject: "mi".to_string(), message: "unknown field seek".to_string(), at: 12 };
-    let found_first = TemplateError { subject: "mi".to_string(), message: "unknown field peek".to_string(), at: 1 };
+    let found_later = TemplateError {
+        subject: "mi".to_string(),
+        message: "unknown field seek".to_string(),
+        at: 12,
+    };
+    let found_first = TemplateError {
+        subject: "mi".to_string(),
+        message: "unknown field peek".to_string(),
+        at: 1,
+    };
     assert_eq!(
         error_lines(&[found_later, found_first]),
         vec!["mi: unknown field peek", "mi: unknown field seek"]

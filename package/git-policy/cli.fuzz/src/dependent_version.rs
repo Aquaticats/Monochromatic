@@ -26,7 +26,10 @@ use git_policy_cli::dependent_version_manifest::read_manifest_facts;
 use git_policy_cli::dependent_version_release::json_quote_units;
 use git_policy_cli::dependent_version_text::replace_manifest_version;
 /// The JSONC parser reads raw key and value spellings for the completeness invariant.
-use monochromatic_jsonc_edit::{JsoncKind, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    parse_jsonc,
+};
 
 /// The path the rewrite names in its messages.
 const PATH: &[u8] = b"package/module/a/package.json";
@@ -180,7 +183,11 @@ pub fn version_edit_view(data: &[u8]) -> (String, String, String) {
 /// ```ts
 /// function checkVersionEdit(text: string, from: string, to: string): void;
 /// ```
-pub fn check_version_edit(text: &str, from: &str, to: &str) -> Option<bool> {
+pub fn check_version_edit(
+    text: &str,
+    from: &str,
+    to: &str,
+) -> Option<bool> {
     let quote = |value: &str| return json_quote_units(&value.encode_utf16().collect::<Vec<u16>>());
     let (quoted_from, quoted_to): (String, String) = (quote(from), quote(to));
     let outcome: Result<String, PolicyIncomplete> = replace_manifest_version(PATH, text, from, to);
@@ -261,7 +268,11 @@ pub fn check_version_edit(text: &str, from: &str, to: &str) -> Option<bool> {
 /// ```ts
 /// function keywordBefore(text: Uint8Array, end: number, keywords: string[]): boolean;
 /// ```
-fn keyword_before(text: &[u8], end: usize, keywords: &[&str]) -> bool {
+fn keyword_before(
+    text: &[u8],
+    end: usize,
+    keywords: &[&str],
+) -> bool {
     let mut stop: usize = end;
     while stop > 0 && matches!(text[stop - 1], b' ' | b'\t' | b'\r' | b'\n') {
         stop -= 1;
@@ -291,7 +302,10 @@ fn keyword_before(text: &[u8], end: usize, keywords: &[&str]) -> bool {
 /// ```ts
 /// function referenceImports(source: string, name: string): boolean;
 /// ```
-pub fn reference_imports(source: &str, name: &str) -> bool {
+pub fn reference_imports(
+    source: &str,
+    name: &str,
+) -> bool {
     let text: &[u8] = source.as_bytes();
     let needle: &[u8] = name.as_bytes();
     let mut start: usize = 0;
@@ -346,7 +360,10 @@ pub fn import_view(data: &[u8]) -> (String, String) {
 /// ```ts
 /// expect(importsPackage({ sourceText, packageName })).toBe(referenceImports(sourceText, packageName));
 /// ```
-pub fn check_imports(source: &str, name: &str) -> bool {
+pub fn check_imports(
+    source: &str,
+    name: &str,
+) -> bool {
     let found: bool = imports_package(source, name);
     assert_eq!(
         found,

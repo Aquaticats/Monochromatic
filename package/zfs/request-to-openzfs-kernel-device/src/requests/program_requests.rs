@@ -22,11 +22,17 @@ use super::error::Error;
 /// The typed request numbers.
 use super::operation::Operation;
 /// The request value and the name check.
-use super::request::{Request, checked_name};
+use super::request::{
+    Request,
+    checked_name,
+};
 /// The field a request name is bound for.
 use crate::names::NameField;
 /// The codec list and value types.
-use crate::nvlist::{NvData, NvList};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
 
 /// One `ZFS_IOC_CHANNEL_PROGRAM` request's inputs.
 pub struct ChannelProgramRequest<'a> {
@@ -65,7 +71,7 @@ pub fn channel_program(
         synchronous,
         instruction_limit,
         memory_limit,
-    }: ChannelProgramRequest<'_>,
+    }: ChannelProgramRequest<'_>
 ) -> Result<Request, Error> {
     let name = checked_name(
         Operation::ChannelProgram,

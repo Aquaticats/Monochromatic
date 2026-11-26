@@ -2,18 +2,34 @@
 //! which dependencies it names,
 //! and that a clean manifest says nothing.
 
-use crate::catalog_warning::{Literal, literal_dependencies, warn_about_manifest};
+use crate::catalog_warning::{
+    Literal,
+    literal_dependencies,
+    warn_about_manifest,
+};
 use crate::test_scratch::scratch;
 
-fn literal(table: &str, name: &str) -> Literal {
-    return Literal { table: table.to_string(), name: name.to_string() };
+fn literal(
+    table: &str,
+    name: &str,
+) -> Literal {
+    return Literal {
+        table: table.to_string(),
+        name: name.to_string(),
+    };
 }
 
 #[test]
 fn a_literal_version_and_a_table_without_workspace_are_named() {
     let text: &str = "[package]\nname = \"x\"\n\n[dependencies]\nserde = \"1\"\nclap = { version = \"4\", features = [\"derive\"] }\nok = { workspace = true }\n";
 
-    assert_eq!(literal_dependencies(text), vec![literal("dependencies", "serde"), literal("dependencies", "clap")]);
+    assert_eq!(
+        literal_dependencies(text),
+        vec![
+            literal("dependencies", "serde"),
+            literal("dependencies", "clap")
+        ]
+    );
 }
 
 #[test]
@@ -29,7 +45,11 @@ fn dev_build_and_target_tables_are_read_and_the_workspace_table_is_skipped() {
 
     assert_eq!(
         literal_dependencies(text),
-        vec![literal("dev-dependencies", "a"), literal("build-dependencies", "b"), literal("target.'cfg(unix)'.dependencies", "c")]
+        vec![
+            literal("dev-dependencies", "a"),
+            literal("build-dependencies", "b"),
+            literal("target.'cfg(unix)'.dependencies", "c")
+        ]
     );
 }
 

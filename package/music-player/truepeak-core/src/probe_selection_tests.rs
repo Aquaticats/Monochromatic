@@ -27,7 +27,7 @@ fn bins_with(overrides: &[(usize, f32)]) -> Vec<f32> {
     for &(index, peak) in overrides {
         bins[index] = peak;
     }
-    return bins
+    return bins;
 }
 
 /// A bin-peak lookup that records every bin the selection asks for,
@@ -44,9 +44,12 @@ impl ProbeBins for Lookup<'_> {
     type Failure = Infallible;
 
     /// Records the asked-for bin and answers its precomputed peak.
-    fn bin_peak(&mut self, index: usize) -> Result<f32, Infallible> {
+    fn bin_peak(
+        &mut self,
+        index: usize,
+    ) -> Result<f32, Infallible> {
         self.visited.push(index);
-        return Ok(self.bin_peaks[index])
+        return Ok(self.bin_peaks[index]);
     }
 }
 
@@ -60,12 +63,15 @@ impl Lookup<'_> {
     ///  Why:
     ///  a lookup cannot fail,
     ///  so the impossible error is matched away rather than unwrapped.
-    fn select(&mut self, grid: ProbeGrid<'_>) -> ProbeSelection {
+    fn select(
+        &mut self,
+        grid: ProbeGrid<'_>,
+    ) -> ProbeSelection {
         let selection = match select_probe_bins(grid, self) {
             Ok(selection) => selection,
             Err(never) => match never {},
         };
-        return selection
+        return selection;
     }
 }
 
@@ -87,9 +93,16 @@ fn the_even_pass_samples_evenly_with_both_endpoints() {
     assert_eq!(indices.len(), count, "the pass count is its share");
     assert_eq!(indices[0], 0, "the pass starts at the first bin");
     assert_eq!(indices[count - 1], span, "the pass ends at the last bin");
-    assert!(indices.windows(2).all(|pair| return pair[0] < pair[1]), "indices ascend: {indices:?}");
+    assert!(
+        indices.windows(2).all(|pair| return pair[0] < pair[1]),
+        "indices ascend: {indices:?}"
+    );
 
-    assert_eq!(even_bin_at(0, 1, span), span / 2, "a single sample sits mid-track");
+    assert_eq!(
+        even_bin_at(0, 1, span),
+        span / 2,
+        "a single sample sits mid-track"
+    );
     assert_eq!(even_bin_at(0, 1, 0), 0, "one bin has one place to be");
 }
 
@@ -103,15 +116,25 @@ fn the_even_pass_samples_evenly_with_both_endpoints() {
 fn a_coverage_above_one_measures_each_bin_once() {
     let bin_count = 8;
     let bin_peaks = vec![QUIET; bin_count];
-    let mut lookup = Lookup { bin_peaks: &bin_peaks, visited: Vec::new() };
+    let mut lookup = Lookup {
+        bin_peaks: &bin_peaks,
+        visited: Vec::new(),
+    };
     let selection = lookup.select(ProbeGrid {
         bin_count,
         coverage_fraction: 5.0,
         even_coverage_fraction: 1.0,
         bones_hot_bins: None,
     });
-    assert_eq!(selection.used_bins, bin_count, "the budget stops at the bins there are");
-    assert_eq!(lookup.visited, (0..bin_count).collect::<Vec<usize>>(), "every bin once, in order");
+    assert_eq!(
+        selection.used_bins, bin_count,
+        "the budget stops at the bins there are"
+    );
+    assert_eq!(
+        lookup.visited,
+        (0..bin_count).collect::<Vec<usize>>(),
+        "every bin once, in order"
+    );
     assert_eq!(selection.peak, QUIET);
 }
 
@@ -126,15 +149,25 @@ fn the_climb_reads_the_hilltop_beside_the_even_pass() {
     let shoulder = 44usize;
     let hilltop = shoulder - 1;
     let bin_peaks = bins_with(&[(shoulder, SHOULDER), (hilltop, LOUD)]);
-    let mut lookup = Lookup { bin_peaks: &bin_peaks, visited: Vec::new() };
+    let mut lookup = Lookup {
+        bin_peaks: &bin_peaks,
+        visited: Vec::new(),
+    };
     let selection = lookup.select(ProbeGrid {
         bin_count: BINS,
         coverage_fraction: 0.2,
         even_coverage_fraction: 0.1,
         bones_hot_bins: None,
     });
-    assert!(lookup.visited.contains(&hilltop), "the climb reaches bin {hilltop}, visited {:?}", lookup.visited);
-    assert_eq!(selection.peak, LOUD, "the loudest measured bin is the hilltop");
+    assert!(
+        lookup.visited.contains(&hilltop),
+        "the climb reaches bin {hilltop}, visited {:?}",
+        lookup.visited
+    );
+    assert_eq!(
+        selection.peak, LOUD,
+        "the loudest measured bin is the hilltop"
+    );
     assert_eq!(selection.used_bins, 20, "a fifth of the bins");
 }
 
@@ -149,14 +182,21 @@ fn a_bones_slot_past_the_last_bin_seeds_the_last_two_bins() {
     let hot_slot = BINS;
     let bin_peaks = bins_with(&[(BINS - 2, LOUD)]);
     let hot_bins = [hot_slot];
-    let mut lookup = Lookup { bin_peaks: &bin_peaks, visited: Vec::new() };
+    let mut lookup = Lookup {
+        bin_peaks: &bin_peaks,
+        visited: Vec::new(),
+    };
     let selection = lookup.select(ProbeGrid {
         bin_count: BINS,
         coverage_fraction: 0.02,
         even_coverage_fraction: 0.0,
         bones_hot_bins: Some(&hot_bins),
     });
-    assert_eq!(lookup.visited, vec![BINS - 2, BINS - 1], "the seed measures the last two bins");
+    assert_eq!(
+        lookup.visited,
+        vec![BINS - 2, BINS - 1],
+        "the seed measures the last two bins"
+    );
     assert_eq!(selection.peak, LOUD, "the seeded neighbour holds the crest");
     assert_eq!(selection.used_bins, 2, "the seed spends the whole budget");
 }
@@ -169,7 +209,10 @@ fn a_bones_slot_past_the_last_bin_seeds_the_last_two_bins() {
 #[test]
 fn a_grid_with_no_bins_still_measures_the_first_bin() {
     let bin_peaks = [QUIET];
-    let mut lookup = Lookup { bin_peaks: &bin_peaks, visited: Vec::new() };
+    let mut lookup = Lookup {
+        bin_peaks: &bin_peaks,
+        visited: Vec::new(),
+    };
     let selection = lookup.select(ProbeGrid {
         bin_count: 0,
         coverage_fraction: 0.1,
@@ -196,12 +239,15 @@ impl ProbeBins for FailingLookup<'_, '_> {
     type Failure = &'static str;
 
     /// Records the asked-for bin and fails on the one chosen bin.
-    fn bin_peak(&mut self, index: usize) -> Result<f32, &'static str> {
+    fn bin_peak(
+        &mut self,
+        index: usize,
+    ) -> Result<f32, &'static str> {
         self.visited.push(index);
         if index == self.failing_bin {
-            return Err("decode failed")
+            return Err("decode failed");
         }
-        return Ok(self.bin_peaks[index])
+        return Ok(self.bin_peaks[index]);
     }
 }
 
@@ -223,10 +269,18 @@ fn a_measurement_failure_comes_back_untouched() {
             even_coverage_fraction: 0.1,
             bones_hot_bins: None,
         },
-        &mut FailingLookup { bin_peaks: &bin_peaks, visited: &mut visited, failing_bin },
+        &mut FailingLookup {
+            bin_peaks: &bin_peaks,
+            visited: &mut visited,
+            failing_bin,
+        },
     );
     assert_eq!(result.err(), Some("decode failed"));
-    assert_eq!(visited.last(), Some(&failing_bin), "nothing is measured after the failure");
+    assert_eq!(
+        visited.last(),
+        Some(&failing_bin),
+        "nothing is measured after the failure"
+    );
 }
 
 /// What:
@@ -237,13 +291,19 @@ fn a_measurement_failure_comes_back_untouched() {
 #[test]
 fn a_zero_coverage_still_measures_one_bin() {
     let bin_peaks = bins_with(&[]);
-    let mut lookup = Lookup { bin_peaks: &bin_peaks, visited: Vec::new() };
+    let mut lookup = Lookup {
+        bin_peaks: &bin_peaks,
+        visited: Vec::new(),
+    };
     let selection = lookup.select(ProbeGrid {
         bin_count: BINS,
         coverage_fraction: 0.0,
         even_coverage_fraction: 0.0,
         bones_hot_bins: None,
     });
-    assert_eq!(selection.used_bins, 1, "a zero share still measures one bin");
+    assert_eq!(
+        selection.used_bins, 1,
+        "a zero share still measures one bin"
+    );
     assert_eq!(selection.peak, QUIET);
 }

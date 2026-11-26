@@ -25,7 +25,10 @@ use serde_json::Value;
 /// ```ts
 /// const limit = seconds * 1000;
 /// ```
-use std::{path::Path, time::Duration};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 /// Folder watching steps.
 impl Session {
@@ -56,7 +59,11 @@ impl Session {
 
     /// Write a file of the project as another program would;
     ///  the displayed document is not touched.
-    pub(super) fn write(&mut self, file: &Path, text: &str) -> Result<Value> {
+    pub(super) fn write(
+        &mut self,
+        file: &Path,
+        text: &str,
+    ) -> Result<Value> {
         let path = self.project.join(file);
         if let Err(error) = std::fs::write(&path, text) {
             return Err(
@@ -68,7 +75,11 @@ impl Session {
 
     /// Wait until at least `minimum` folders are watched for the servers;
     ///  report whether that happened.
-    pub(super) fn folders(&mut self, minimum: usize, seconds: u64) -> Result<Value> {
+    pub(super) fn folders(
+        &mut self,
+        minimum: usize,
+        seconds: u64,
+    ) -> Result<Value> {
         // What: a condition that reads the watcher's folder count, or is false without a watcher.
         // Why: `until` polls with any such test.
         //
@@ -76,7 +87,9 @@ impl Session {
         // ```ts
         // const watched = (session) => (session.watcher?.serverFolders() ?? 0) >= minimum;
         // ```
-        let watched = FoldersWatched { minimum };
+        let watched = FoldersWatched {
+            minimum,
+        };
         let within = self.until(Duration::from_secs(seconds), &watched)?;
         let mut folders = 0;
         if let Some(watcher) = self.watcher.as_ref() {

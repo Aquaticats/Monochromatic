@@ -46,15 +46,27 @@ pub(crate) fn parse(input: &OsStr) -> anyhow::Result<Target> {
         anyhow::ensure!(has_host, "The URL needs a hostname.");
 
         // Return the success value with owned copies, preserving the URL as supplied.
-        return Ok(Target { uri: text.to_owned(), display: text.to_owned() });
+        return Ok(Target {
+            uri: text.to_owned(),
+            display: text.to_owned(),
+        });
     }
 
     // GIO handles both desktop file URIs and paths supplied directly to the CLI.
     let file = gio::File::for_commandline_arg(input);
     // A missing path means GIO recognised a non-local URI. Stop before launching it.
-    let path = file.path().ok_or_else(|| anyhow::anyhow!("Open an HTTP or HTTPS link, or a local file."))?;
-    anyhow::ensure!(path.is_file(), "The file {} could not be opened.", path.display());
+    let path = file
+        .path()
+        .ok_or_else(|| anyhow::anyhow!("Open an HTTP or HTTPS link, or a local file."))?;
+    anyhow::ensure!(
+        path.is_file(),
+        "The file {} could not be opened.",
+        path.display()
+    );
 
     // Return the escaped URI and preserve the familiar path for the interface.
-    return Ok(Target { uri: file.uri().to_string(), display: path.display().to_string() });
+    return Ok(Target {
+        uri: file.uri().to_string(),
+        display: path.display().to_string(),
+    });
 }

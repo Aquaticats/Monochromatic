@@ -3,10 +3,20 @@
 //!  and private-directory containment.
 
 use super::{
-    LaunchRequest, ServerLaunch, check_state_directory, launch_directly, prepare,
+    LaunchRequest,
+    ServerLaunch,
+    check_state_directory,
+    launch_directly,
+    prepare,
     resolve_executable,
 };
-use std::{collections::HashMap, fs, os::unix::fs::PermissionsExt, path::Path, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    os::unix::fs::PermissionsExt,
+    path::Path,
+    path::PathBuf,
+};
 
 fn canonical(directory: &tempfile::TempDir) -> PathBuf {
     return directory
@@ -15,12 +25,18 @@ fn canonical(directory: &tempfile::TempDir) -> PathBuf {
         .expect("canonical directory");
 }
 
-fn write_mode(path: &Path, mode: u32) {
+fn write_mode(
+    path: &Path,
+    mode: u32,
+) {
     fs::write(path, "#!/bin/sh\n").expect("fixture file");
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("fixture mode");
 }
 
-fn launch(directories: Vec<PathBuf>, scratch: Vec<PathBuf>) -> ServerLaunch {
+fn launch(
+    directories: Vec<PathBuf>,
+    scratch: Vec<PathBuf>,
+) -> ServerLaunch {
     return ServerLaunch {
         command: "/bin/true".to_string(),
         args: Vec::new(),

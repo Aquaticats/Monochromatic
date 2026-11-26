@@ -23,7 +23,10 @@
 use crate::diagnostic::Diagnostic;
 /// Imports `Drift`,
 /// `DriftReason` from `crate::drift`.
-use crate::drift::{Drift, DriftReason};
+use crate::drift::{
+    Drift,
+    DriftReason,
+};
 /// Imports `parent_directory` from `crate::path_text`.
 use crate::path_text::parent_directory;
 /// Imports `PlanReport` from `crate::plan`.
@@ -32,7 +35,12 @@ use crate::plan::PlanReport;
 /// `absolute`,
 /// `ancestors_are_real_directories`,
 /// `kind_of` from `crate::real_fs`.
-use crate::real_fs::{EntryKind, absolute, ancestors_are_real_directories, kind_of};
+use crate::real_fs::{
+    EntryKind,
+    absolute,
+    ancestors_are_real_directories,
+    kind_of,
+};
 /// Imports `Planned` from `crate::view_types`.
 use crate::view_types::Planned;
 /// Imports `Ordering` from `std::cmp`.
@@ -43,7 +51,10 @@ use std::fs;
 use std::io::Write;
 /// Imports `OpenOptionsExt`,
 /// `PermissionsExt` from `std::os::unix::fs`.
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{
+    OpenOptionsExt,
+    PermissionsExt,
+};
 /// Imports `Path` from `std::path`.
 use std::path::Path;
 
@@ -90,7 +101,11 @@ pub struct PublishOutcome {
 /// ```ts
 /// function ioFailure(action: string, path: string, error: Error): Diagnostic
 /// ```
-fn io_failure(action: &str, path: &str, error: &std::io::Error) -> Diagnostic {
+fn io_failure(
+    action: &str,
+    path: &str,
+    error: &std::io::Error,
+) -> Diagnostic {
     let message = format!("cannot {action} {path}: {error}");
     return Diagnostic::new("io-failure", &message).with_path(path);
 }
@@ -105,7 +120,10 @@ fn io_failure(action: &str, path: &str, error: &std::io::Error) -> Diagnostic {
 /// ```ts
 /// function ensureParents(root: string, rel: string): void
 /// ```
-fn ensure_parents(root: &Path, rel: &str) -> Result<(), Diagnostic> {
+fn ensure_parents(
+    root: &Path,
+    rel: &str,
+) -> Result<(), Diagnostic> {
     let segments: Vec<&str> = rel.split('/').collect();
     let mut current = root.to_path_buf();
     for segment in segments.iter().take(segments.len().saturating_sub(1)) {
@@ -113,13 +131,20 @@ fn ensure_parents(root: &Path, rel: &str) -> Result<(), Diagnostic> {
         match fs::symlink_metadata(&current) {
             Ok(metadata) => {
                 if kind_of(&metadata) != EntryKind::Directory {
-                    let message = format!("{} is not a directory; refusing to write {rel} through it", current.display());
+                    let message = format!(
+                        "{} is not a directory; refusing to write {rel} through it",
+                        current.display()
+                    );
                     return Err(Diagnostic::new("symlink-rejected", &message).with_path(rel));
                 }
             }
             Err(_) => {
                 if let Err(error) = fs::create_dir(&current) {
-                    return Err(io_failure("create the directory", &current.display().to_string(), &error));
+                    return Err(io_failure(
+                        "create the directory",
+                        &current.display().to_string(),
+                        &error,
+                    ));
                 }
             }
         }
@@ -138,12 +163,19 @@ fn ensure_parents(root: &Path, rel: &str) -> Result<(), Diagnostic> {
 /// ```ts
 /// function replaceFile(root: string, rel: string, content: Uint8Array, mode?: number): void
 /// ```
-fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32>) -> Result<(), Diagnostic> {
+fn replace_file(
+    root: &Path,
+    rel: &str,
+    content: &[u8],
+    planned_mode: Option<u32>,
+) -> Result<(), Diagnostic> {
     ancestors_are_real_directories(root, rel)?;
     ensure_parents(root, rel)?;
     let target = absolute(root, rel);
     let existing_mode = match fs::symlink_metadata(&target) {
-        Ok(metadata) if kind_of(&metadata) == EntryKind::File => Some(metadata.permissions().mode() & 0o7777),
+        Ok(metadata) if kind_of(&metadata) == EntryKind::File => {
+            Some(metadata.permissions().mode() & 0o7777)
+        }
         _ => None,
     };
     let final_mode = planned_mode.or(existing_mode).unwrap_or(0o644);
@@ -153,7 +185,12 @@ fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32
     }
     let staging = target.with_file_name(format!(".{name}{STAGING_MARKER}{}", std::process::id()));
     let _ = fs::remove_file(&staging);
-    let mut file = match fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&staging) {
+    let mut file = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&staging)
+    {
         Ok(file) => file,
         Err(error) => return Err(io_failure("create the staging file for", rel, &error)),
     };
@@ -192,7 +229,10 @@ fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32
 /// ```ts
 /// function longestPathFirst(left: Drift, right: Drift): number { return right.path.length - left.path.length; }
 /// ```
-fn longest_path_first(left: &&Drift, right: &&Drift) -> Ordering {
+fn longest_path_first(
+    left: &&Drift,
+    right: &&Drift,
+) -> Ordering {
     return right.path.len().cmp(&left.path.len());
 }
 
@@ -206,7 +246,10 @@ fn longest_path_first(left: &&Drift, right: &&Drift) -> Ordering {
 /// ```ts
 /// function cleanStaging(root: string, drifts: Drift[]): void
 /// ```
-fn clean_staging(root: &Path, drifts: &[Drift]) {
+fn clean_staging(
+    root: &Path,
+    drifts: &[Drift],
+) {
     let mut directories: Vec<String> = Vec::new();
     for drift in drifts {
         let parent = parent_directory(&drift.path).to_string();
@@ -215,8 +258,14 @@ fn clean_staging(root: &Path, drifts: &[Drift]) {
         }
     }
     for directory in directories {
-        let full = if directory.is_empty() { root.to_path_buf() } else { absolute(root, &directory) };
-        let Ok(reader) = fs::read_dir(&full) else { continue };
+        let full = if directory.is_empty() {
+            root.to_path_buf()
+        } else {
+            absolute(root, &directory)
+        };
+        let Ok(reader) = fs::read_dir(&full) else {
+            continue;
+        };
         for entry in reader.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if name.starts_with('.') && name.contains(STAGING_MARKER) {
@@ -239,12 +288,19 @@ fn clean_staging(root: &Path, drifts: &[Drift]) {
 /// ```ts
 /// function publish(root: string, report: PlanReport, drifts: Drift[]): PublishOutcome
 /// ```
-pub fn publish(root: &Path, report: &PlanReport, drifts: &[Drift]) -> Result<PublishOutcome, Diagnostic> {
+pub fn publish(
+    root: &Path,
+    report: &PlanReport,
+    drifts: &[Drift],
+) -> Result<PublishOutcome, Diagnostic> {
     clean_staging(root, drifts);
     let mut outcome = PublishOutcome::default();
     for drift in drifts {
         let planned_mode = match report.view.overlay().get(&drift.path) {
-            Some(Planned::File { mode, .. }) => *mode,
+            Some(Planned::File {
+                mode,
+                ..
+            }) => *mode,
             _ => None,
         };
         match drift.reason {
@@ -256,7 +312,10 @@ pub fn publish(root: &Path, report: &PlanReport, drifts: &[Drift]) -> Result<Pub
             DriftReason::Mode => {
                 ancestors_are_real_directories(root, &drift.path)?;
                 let mode = planned_mode.unwrap_or(0o644);
-                if let Err(error) = fs::set_permissions(absolute(root, &drift.path), fs::Permissions::from_mode(mode)) {
+                if let Err(error) = fs::set_permissions(
+                    absolute(root, &drift.path),
+                    fs::Permissions::from_mode(mode),
+                ) {
                     return Err(io_failure("change the mode of", &drift.path, &error));
                 }
                 outcome.modes.push(drift.path.clone());

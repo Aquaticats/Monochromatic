@@ -35,7 +35,7 @@ use crate::parse::parse;
 fn oracle(pattern: &str) -> impl Fn(&[u8]) -> bool {
     let node = parse(pattern).expect("oracle pattern parses");
     let dfa = build_dfa_within(concat(vec![Node::Top, node]), 200_000).expect("oracle dfa builds");
-    return move |line: &[u8]| return dfa.is_match(line)
+    return move |line: &[u8]| return dfa.is_match(line);
 }
 
 // What:    Builds the counting NFA for a pattern, asserting it takes the counting back-end.
@@ -50,7 +50,7 @@ fn oracle(pattern: &str) -> impl Fn(&[u8]) -> bool {
 // ```
 fn linear(pattern: &str) -> CountingNfa {
     let node = parse(pattern).expect("pattern parses");
-    return build_nfa(&node).expect("pattern builds an nfa")
+    return build_nfa(&node).expect("pattern builds an nfa");
 }
 
 // What:    Every counting-NFA pattern must agree with the eager DFA on every probe input.
@@ -194,6 +194,12 @@ fn counted_bound_is_exact() {
 #[test]
 fn a_count_past_one_word_is_sized_correctly() {
     let prog = linear("[a-z]{64}");
-    assert!(prog.is_match(&[b'a'; 64]), "exactly 64 letters must satisfy {{64}}");
-    assert!(!prog.is_match(&[b'a'; 63]), "63 letters fall one short of {{64}}");
+    assert!(
+        prog.is_match(&[b'a'; 64]),
+        "exactly 64 letters must satisfy {{64}}"
+    );
+    assert!(
+        !prog.is_match(&[b'a'; 63]),
+        "63 letters fall one short of {{64}}"
+    );
 }

@@ -8,7 +8,8 @@
 /// Why:
 ///      Development builds must not need cargo-about;
 /// the text says how to get the real notices.
-const NOTICES_PLACEHOLDER: &str = "This build of Music Player carries no third-party license notices.
+const NOTICES_PLACEHOLDER: &str =
+    "This build of Music Player carries no third-party license notices.
 Release builds embed them: the release workflow writes them with
 `mise run //package/music-player/desktop-app:notices` and builds with
 MUSIC_PLAYER_THIRD_PARTY_LICENSES set to that file (target/THIRD-PARTY-LICENSES.txt).
@@ -34,9 +35,12 @@ Every release also ships them as a separate file next to the programs.
 fn write_license_notices() {
     println!("cargo:rerun-if-env-changed=MUSIC_PLAYER_THIRD_PARTY_LICENSES");
     println!("cargo:rerun-if-env-changed=MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES");
-    let out_dir = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR for build scripts"));
+    let out_dir = std::path::PathBuf::from(
+        std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR for build scripts"),
+    );
     let destination = out_dir.join("third_party_licenses.txt");
-    let required = std::env::var("MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES").as_deref() == Ok("true");
+    let required =
+        std::env::var("MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES").as_deref() == Ok("true");
     let source = std::env::var_os("MUSIC_PLAYER_THIRD_PARTY_LICENSES").unwrap_or_default();
     if source.is_empty() {
         assert!(
@@ -46,7 +50,8 @@ fn write_license_notices() {
              MUSIC_PLAYER_THIRD_PARTY_LICENSES to the absolute path of target/THIRD-PARTY-LICENSES.txt, or unset \
              MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES for a development build without notices."
         );
-        std::fs::write(&destination, NOTICES_PLACEHOLDER).expect("writing the placeholder notices into OUT_DIR");
+        std::fs::write(&destination, NOTICES_PLACEHOLDER)
+            .expect("writing the placeholder notices into OUT_DIR");
         return;
     }
     let source_path = std::path::PathBuf::from(source);

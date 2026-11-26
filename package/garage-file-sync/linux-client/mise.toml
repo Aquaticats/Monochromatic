@@ -1,0 +1,21 @@
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.install]
+description = "Copy systemd/ and config/garage-plain.yml into ~/.config as regular files; -- --home=<folder> installs elsewhere"
+run = "node src/install.ts"
+
+[tasks."check:installed"]
+description = "Fail, naming the file, when an installed copy of a unit or the watcher config is missing, is a link, or differs"
+run = "node src/install.ts --check"

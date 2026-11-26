@@ -57,7 +57,10 @@ impl Queue {
     ///     : pages[p].entries.map(e => e.index);
     /// }
     /// ```
-    pub(super) fn scope_indices(&self, anchor: usize) -> Vec<usize> {
+    pub(super) fn scope_indices(
+        &self,
+        anchor: usize,
+    ) -> Vec<usize> {
         // What:     `if self.mode == PlaybackMode::ShuffleAll { ... }`. `==` compares the `Copy`
         //           enum (it derives `PartialEq`).
         // Why:      `All` ignores pages: the scope is every track.
@@ -85,7 +88,11 @@ impl Queue {
         //           keys track by track instead of grouping every display name into pages.
         // Why:      the playback scope and the visible page still agree (same grouping rules, tested against
         //           `paginate`), without the allocation per name that cost over a second at one million tracks.
-        match crate::relpath::page_scope_for_anchor_in(&self.tracks, anchor, self.display_root.as_deref()) {
+        match crate::relpath::page_scope_for_anchor_in(
+            &self.tracks,
+            anchor,
+            self.display_root.as_deref(),
+        ) {
             Some(indices) => return indices,
             None => return (0..self.tracks.len()).collect(),
         }
@@ -119,7 +126,10 @@ impl Queue {
     ///   return remaining[Number(this.nextRand() % BigInt(remaining.length))];
     /// }
     /// ```
-    pub(super) fn pick_next_shuffle(&mut self, current: usize) -> usize {
+    pub(super) fn pick_next_shuffle(
+        &mut self,
+        current: usize,
+    ) -> usize {
         // What:     `let scope = self.scope_indices(current);`. The scope's load-order indices
         //           (the page for `WithinPage`, the whole queue for `All`).
         // Why:      The pool to pick from.
@@ -213,7 +223,7 @@ impl Queue {
         // ```ts
         // return remaining[j];
         // ```
-        return remaining[j]
+        return remaining[j];
     }
 
     /// What:
@@ -240,7 +250,10 @@ impl Queue {
     ///   this.pos = p < 0 ? 0 : p;
     /// }
     /// ```
-    pub(super) fn rebuild_scope_order(&mut self, anchor: Option<usize>) {
+    pub(super) fn rebuild_scope_order(
+        &mut self,
+        anchor: Option<usize>,
+    ) {
         // What:     `if self.tracks.is_empty() { self.order = Vec::new(); self.pos = None; return; }`.
         //           Empty queue: no order, no cursor.
         // Why:      Nothing to play; guard the index math below.
@@ -373,5 +386,4 @@ impl Queue {
             self.sequential_start = 0;
         }
     }
-
 }

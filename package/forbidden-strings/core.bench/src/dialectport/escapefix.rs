@@ -28,7 +28,10 @@ use crate::port::class_end;
 ///  so an unnecessary escape of a literal
 /// (`\"`) must have its backslash dropped,
 ///  `\z`/`\n`/`\r` handled specially by the caller.
-fn is_allowed_escape(x: u8, in_class: bool) -> bool {
+fn is_allowed_escape(
+    x: u8,
+    in_class: bool,
+) -> bool {
     match x {
         b'd' | b'D' | b'w' | b'W' | b's' | b'S' | b't' => return true,
         b'b' => return !in_class,

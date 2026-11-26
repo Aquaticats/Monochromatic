@@ -2,7 +2,12 @@
 //!  independent of thread timing.
 
 /// Private fields build a worker handle around channels the test controls.
-use super::{FindIdentity, FindReply, FindRequest, FindWorker};
+use super::{
+    FindIdentity,
+    FindReply,
+    FindRequest,
+    FindWorker,
+};
 /// Empty successful results make identity,
 ///  not match content,
 ///  the variable under test.
@@ -17,7 +22,11 @@ use crate::find::find_matches;
 /// ```ts
 /// const replies = boundedChannel<FindReply>(1);
 /// ```
-use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
+use std::sync::mpsc::{
+    Receiver,
+    SyncSender,
+    sync_channel,
+};
 
 /// The identity every test wants;
 ///  each stale reply differs from it in exactly one component.
@@ -32,7 +41,7 @@ fn wanted() -> FindIdentity {
 /// A busy handle without a thread;
 ///  the returned ends let the test act as the worker.
 fn handle(
-    identity: Option<FindIdentity>,
+    identity: Option<FindIdentity>
 ) -> (FindWorker, SyncSender<FindReply>, Receiver<FindRequest>) {
     let (request_sender, request_receiver) = sync_channel(1);
     let (reply_sender, reply_receiver) = sync_channel(1);
@@ -64,7 +73,10 @@ fn reply(identity: FindIdentity) -> FindReply {
 
 /// Publish one stale reply,
 ///  then the exact wanted reply as the positive control.
-fn rejects(stale: FindIdentity, message: &str) {
+fn rejects(
+    stale: FindIdentity,
+    message: &str,
+) {
     let (mut worker, publisher, _requests) = handle(Some(wanted()));
     publisher.send(reply(stale)).expect("stale reply slot");
     // What: `expect` extracts the successful poll or fails the test; `is_none` checks nothing was returned.

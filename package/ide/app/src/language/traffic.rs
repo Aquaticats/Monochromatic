@@ -13,7 +13,11 @@
 /// Server lifecycle steps triggered by synthetic notifications.
 use super::attach;
 /// The reply policy for server requests.
-use super::incoming::{ClientView, Effect, decide};
+use super::incoming::{
+    ClientView,
+    Effect,
+    decide,
+};
 /// Diagnostics are pulled again when a server asks for a refresh.
 use super::request;
 /// Configured feature exclusions apply to pushed diagnostics too.
@@ -21,7 +25,10 @@ use super::session::allowed;
 /// Servers that could not follow a reload are not listened to.
 use super::status::ServerState;
 /// The target validator resolves the address a server names.
-use super::target::{Classified, classify};
+use super::target::{
+    Classified,
+    classify,
+};
 /// The worker whose state these steps change.
 use super::worker::Worker;
 /// The feature name pushed diagnostics are filed under in Helix's configuration.
@@ -40,7 +47,14 @@ use helix_core::syntax::config::LanguageServerFeature;
 /// ```ts
 /// import { type Call, Notification, jsonrpc, lsp } from 'helix-lsp';
 /// ```
-use helix_lsp::{Call, Client, LanguageServerId, Notification, jsonrpc, lsp};
+use helix_lsp::{
+    Call,
+    Client,
+    LanguageServerId,
+    Notification,
+    jsonrpc,
+    lsp,
+};
 /// What:
 ///  `Arc` is a thread-safe shared pointer (siblings:
 ///  `Rc`,
@@ -209,7 +223,11 @@ fn on_published(
 /// ```ts
 /// function onProgress(worker: Worker, server: ServerId, progress: ProgressParams): void
 /// ```
-fn on_progress(worker: &mut Worker, server: LanguageServerId, progress: lsp::ProgressParams) {
+fn on_progress(
+    worker: &mut Worker,
+    server: LanguageServerId,
+    progress: lsp::ProgressParams,
+) {
     let Some(index) = worker.session.index_of(server) else {
         return;
     };
@@ -285,7 +303,11 @@ fn on_notification(
 /// ```ts
 /// async function onCall(worker: Worker, server: ServerId, call: Call): Promise<void>
 /// ```
-pub(super) async fn on_call(worker: &mut Worker, server: LanguageServerId, call: Call) {
+pub(super) async fn on_call(
+    worker: &mut Worker,
+    server: LanguageServerId,
+    call: Call,
+) {
     // What: `get_by_id` returns `Option<&Arc<Client>>`; `cloned()` copies the shared pointer.
     // Why: An owned pointer does not keep the registry borrowed while the session is changed.
     //
@@ -304,7 +326,9 @@ pub(super) async fn on_call(worker: &mut Worker, server: LanguageServerId, call:
         Call::MethodCall(request) => {
             on_request(worker, &client, server, request).await;
         }
-        Call::Invalid { id } => {
+        Call::Invalid {
+            id,
+        } => {
             tracing::warn!(
                 server = client.name(),
                 ?id,

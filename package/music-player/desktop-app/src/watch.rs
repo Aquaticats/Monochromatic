@@ -20,7 +20,10 @@
 //! and the rescan's own walk reads every directory.
 
 /// Path types for the watched root.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use crate::change_set::Change;`.
@@ -30,12 +33,20 @@ use std::path::{Path, PathBuf};
 use crate::change_set::Change;
 
 /// Time spans and clocks for the debounce window.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Channels,
 /// a shared counter with its wake-up,
 /// and the two threads.
-use std::sync::{Arc, Condvar, Mutex, mpsc};
+use std::sync::{
+    Arc,
+    Condvar,
+    Mutex,
+    mpsc,
+};
 /// Imports the thread module that runs the watcher.
 use std::thread;
 
@@ -47,7 +58,13 @@ use std::thread;
 /// Why:
 ///       Events are filtered by kind before they count as a change,
 /// which the debouncer's own events do not allow.
-use notify_debouncer_mini::notify::{Event, RecommendedWatcher, RecursiveMode, Watcher, recommended_watcher};
+use notify_debouncer_mini::notify::{
+    Event,
+    RecommendedWatcher,
+    RecursiveMode,
+    Watcher,
+    recommended_watcher,
+};
 
 /// What:
 ///      `const DEBOUNCE_MS: u64 = 500;`.
@@ -140,17 +157,20 @@ impl SourceWatcher {
     {
         let (changes, quiet_for) = mpsc::channel::<Change>();
         let catch_up: mpsc::Sender<Change> = changes.clone();
-        let watcher: RecommendedWatcher = recommended_watcher(move |result: notify_debouncer_mini::notify::Result<Event>| {
-            if let Some(change) = Change::of_event(&result) {
-                let _sent = changes.send(change);
-            }
-        })
+        let watcher: RecommendedWatcher = recommended_watcher(
+            move |result: notify_debouncer_mini::notify::Result<Event>| {
+                if let Some(change) = Change::of_event(&result) {
+                    let _sent = changes.send(change);
+                }
+            },
+        )
         .ok()?;
         let (requests, inbox) = mpsc::channel::<WatchRequest>();
         let registered: Arc<(Mutex<u64>, Condvar)> = Arc::new((Mutex::new(0), Condvar::new()));
         let thread_registered: Arc<(Mutex<u64>, Condvar)> = Arc::clone(&registered);
         let _debounce = thread::spawn(move || debounce_loop(quiet_for, on_change));
-        let _registration = thread::spawn(move || watch_loop(watcher, inbox, thread_registered, catch_up));
+        let _registration =
+            thread::spawn(move || watch_loop(watcher, inbox, thread_registered, catch_up));
         return Some(SourceWatcher {
             requests,
             #[cfg(test)]
@@ -171,7 +191,10 @@ impl SourceWatcher {
     /// ```ts
     /// watch(root: string): void { this.requests.send({ kind: "watch", root }); }
     /// ```
-    pub(crate) fn watch(&mut self, root: &Path) {
+    pub(crate) fn watch(
+        &mut self,
+        root: &Path,
+    ) {
         tracing::info!(root = %root.display(), "watch requested; the registration thread registers it");
         let _sent = self.requests.send(WatchRequest::Watch(root.to_path_buf()));
     }
@@ -183,9 +206,15 @@ impl SourceWatcher {
     ///       A change made before the registration finishes is not seen,
     /// so tests that change files wait for it first.
     #[cfg(test)]
-    pub(crate) fn wait_until_registered(&self, count: u64, patience: Duration) -> bool {
+    pub(crate) fn wait_until_registered(
+        &self,
+        count: u64,
+        patience: Duration,
+    ) -> bool {
         let (finished, wake) = &*self.registered;
-        let before = finished.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let before = finished
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (after, _timeout) = wake
             .wait_timeout_while(before, patience, |done| return *done < count)
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -216,13 +245,17 @@ impl Drop for SourceWatcher {
 /// Why:
 ///       A burst of events becomes one refresh,
 /// and a continuous one still produces a refresh every few seconds.
-fn debounce_loop<F: Fn(Change)>(quiet_for: mpsc::Receiver<Change>, on_change: F) {
+fn debounce_loop<F: Fn(Change)>(
+    quiet_for: mpsc::Receiver<Change>,
+    on_change: F,
+) {
     while let Ok(first_change) = quiet_for.recv() {
         let mut gathered: Change = first_change;
         let first: Instant = Instant::now();
         loop {
             let waited: Duration = first.elapsed();
-            let patience: Duration = Duration::from_millis(DEBOUNCE_MS).min(Duration::from_millis(MAX_DEBOUNCE_MS).saturating_sub(waited));
+            let patience: Duration = Duration::from_millis(DEBOUNCE_MS)
+                .min(Duration::from_millis(MAX_DEBOUNCE_MS).saturating_sub(waited));
             if patience.is_zero() {
                 break;
             }
@@ -232,7 +265,10 @@ fn debounce_loop<F: Fn(Change)>(quiet_for: mpsc::Receiver<Change>, on_change: F)
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
         }
-        tracing::debug!(waited_ms = first.elapsed().as_millis(), "source change settled; a refresh is requested");
+        tracing::debug!(
+            waited_ms = first.elapsed().as_millis(),
+            "source change settled; a refresh is requested"
+        );
         on_change(gathered);
     }
 }
@@ -277,7 +313,9 @@ fn watch_loop(
             Err(error) => tracing::warn!(root = %root.display(), error = %error, "watch failed"),
         }
         let (finished, wake) = &*registered;
-        *finished.lock().unwrap_or_else(std::sync::PoisonError::into_inner) += 1;
+        *finished
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) += 1;
         wake.notify_all();
     }
 }

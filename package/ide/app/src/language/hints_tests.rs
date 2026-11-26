@@ -1,10 +1,18 @@
 //! Inlay request ranges and label shaping,
 //!  without a server.
 
-use super::{HintKind, HintWindow, request_lines, shape};
+use super::{
+    HintKind,
+    HintWindow,
+    request_lines,
+    shape,
+};
 use crate::language::identity::ServerIdentity;
 use helix_core::Rope;
-use helix_lsp::{OffsetEncoding, lsp};
+use helix_lsp::{
+    OffsetEncoding,
+    lsp,
+};
 
 fn server() -> ServerIdentity {
     return ServerIdentity {
@@ -13,7 +21,11 @@ fn server() -> ServerIdentity {
     };
 }
 
-fn hint(line: u32, character: u32, label: lsp::InlayHintLabel) -> lsp::InlayHint {
+fn hint(
+    line: u32,
+    character: u32,
+    label: lsp::InlayHintLabel,
+) -> lsp::InlayHint {
     return lsp::InlayHint {
         position: lsp::Position::new(line, character),
         label,

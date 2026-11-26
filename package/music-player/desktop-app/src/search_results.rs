@@ -175,7 +175,11 @@ pub enum SearchState {
 /// ```ts
 /// function searchLibrary(query: string, tracks: Track[], available: boolean): SearchState { /* index + search */ }
 /// ```
-pub fn search_library(query: &str, tracks: &[Track], available: bool) -> SearchState {
+pub fn search_library(
+    query: &str,
+    tracks: &[Track],
+    available: bool,
+) -> SearchState {
     if !available {
         return SearchState::Unavailable;
     }
