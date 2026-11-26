@@ -443,3 +443,106 @@ so the recipe is linked through the AUR's GitHub mirror (`archlinux/aur`,
 same commit),
 which `agent-browser` opened on 2026-11-26 and which shows the quoted lines;
 so do the two links in the comment draft.
+
+
+## Reaching the maintainer without an AUR account (2026-11-26)
+
+The owner reported that AUR registration is closed.
+Arch's news item of 2026-06-12,
+[Active AUR malicious packages incident](https://archlinux.org/news/active-aur-malicious-packages-incident/#:~:text=Creating%20new%20accounts%20on%20the%20AUR),
+lists creating new accounts among the affected features,
+and no later news item announces reopening,
+so an AUR comment has no date it could go out.
+
+The AUR maintainer `stenya` is Alexandr Stelnykovych:
+the recipe's `# Maintainer:` line gives an `ivpn.net` address,
+and GitHub `stenya` is the top contributor to `ivpn/desktop-app` (2469 commits;
+latest commit 2026-11-16,
+release v3.16.1 on 2026-10-06,
+while the AUR package is still 3.15.15).
+That repository's tracker already carries AUR packaging bugs that he fixed in the AUR:
+#335 and #242 (filed by IVPN staff,
+fixed within days),
+and #120 (filed by an outsider on 2022-01-27,
+fixed the next day as v3.5.1-3).
+#585,
+an outsider's build report of 2026-07-23,
+has no reply yet.
+`.github/CONTRIBUTING.md` asks for issues through the "Bug report" or "Feature request" template and has no rule on AI-assisted reports.
+The recipe is not in that repository (it lives in the AUR's own Git),
+so the channel is an issue,
+not a pull request.
+No issue there mentions `.npmrc` or the nvm prefix check.
+
+Channels,
+best first:
+an issue on `ivpn/desktop-app` under the owner's GitHub account;
+e-mail to the maintainer's `ivpn.net` address,
+which is private and leaves nothing for other users to find;
+waiting for AUR registration,
+which has no announced end.
+The draft below follows their bug-report template without its `# Bug report` line,
+keeps each paragraph on one line because GitHub renders newlines as line breaks,
+and renders with every link resolving.
+Issue title:
+`(Linux) AUR ivpn-ui build fails when ~/.npmrc has a prefix line`.
+Posting is the owner's decision;
+the post would carry the owner's GitHub account.
+
+~~~md
+## Describe your environment
+
+* Device: x86_64 desktop
+* OS name and version: CachyOS (Arch-based), building the AUR package `ivpn-ui` 3.15.15-1 with the Shelly AUR helper
+* IVPN app version: 3.15.15
+
+## Describe the problem
+
+### Steps to reproduce:
+
+1. Have a `prefix=` line in `~/.npmrc`. npm's docs suggest [`npm config set prefix`][npmprefix] for installing global packages without root, and `npm config set` [writes to the user configuration file][npmset], [`~/.npmrc` by default][userconfig].
+2. Build the AUR package `ivpn-ui` 3.15.15-1.
+
+### Observed Results:
+
+`prepare()` fails after `nvm install 22.12.0`:
+
+```text
+Your user’s .npmrc file (${HOME}/.npmrc)
+has a `globalconfig` and/or a `prefix` setting, which are incompatible with nvm.
+Run `nvm use --delete-prefix v22.12.0` to unset it.
+```
+
+nvm 0.40.8 [checks `${HOME}/.npmrc` and returns 10][nvm] when such a line is there. [`_ensure_local_nvm`][recipe] moves `NVM_DIR` into `$srcdir` but keeps the builder's `HOME`, so whether the package builds depends on the builder's dotfiles.
+
+### Expected Results:
+
+The package builds whatever the builder's npm configuration is.
+
+### Relevant Code:
+
+Setting `HOME` inside `_ensure_local_nvm` fixes it; with this change the package built with the same `~/.npmrc`:
+
+```diff
+     export NVM_DIR="${srcdir}/.nvm"
++    export HOME="${srcdir}/.home"
++    mkdir -p "${HOME}"
+```
+
+npm's cache [defaults to `~/.npm`][npmcache], so it moves into `$srcdir/.home` and a clean build downloads packages again.
+
+Until the package changes, two workarounds built it here: pointing `HOME` at an empty folder for the build, or removing the line from `~/.npmrc`. The error's own `nvm use --delete-prefix` is the second one: it [deletes `prefix` and `globalconfig` from your real `~/.npmrc`][deleteprefix].
+
+I'm reporting here instead of on the AUR page because AUR account registration is closed; Arch's [incident notice][incident] lists account creation among the affected features.
+
+This report was prepared with an AI assistant; the build results above were run on the reporter's machine.
+
+[npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
+[npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
+[userconfig]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Default%3A%20%22~%2F.npmrc%22
+[nvm]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3194-L3206
+[recipe]: https://github.com/archlinux/aur/blob/d18e66dec2b72b366a3718a7085de7f2f4d6e6e7/PKGBUILD#L26-L43
+[npmcache]: https://docs.npmjs.com/cli/v11/using-npm/config#:~:text=Posix%3A%20~%2F.npm
+[deleteprefix]: https://github.com/nvm-sh/nvm/blob/a885b885fef16fac4bc544188fb25e9e37ae83e8/nvm.sh#L3196-L3199
+[incident]: https://archlinux.org/news/active-aur-malicious-packages-incident/#:~:text=Creating%20new%20accounts%20on%20the%20AUR
+~~~
