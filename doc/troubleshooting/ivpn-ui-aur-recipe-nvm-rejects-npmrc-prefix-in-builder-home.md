@@ -535,7 +535,7 @@ Until the package changes, two workarounds built it here: pointing `HOME` at an 
 
 I'm reporting here instead of on the AUR page because AUR account registration is closed; Arch's [incident notice][incident] lists account creation among the affected features.
 
-This report was prepared with an AI assistant; the build results above were run on the reporter's machine.
+Assisted by AI.
 
 [npmprefix]: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally#:~:text=npm%20config%20set%20prefix
 [npmset]: https://docs.npmjs.com/cli/v11/commands/npm-config#:~:text=Modifies%20the%20user%20configuration%20file
