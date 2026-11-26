@@ -429,6 +429,24 @@ Fix: one file included by `#[path]` in both targets; `binary/binary_tests.rs:33`
 `../testing/real_git_lfs_the_run_requires.rs` this way.
 Size: 8 helpers.
 
+Landed 2026-11-25, in `07fe505696` on `refactor/git-policy-cli-fixture-support-one-copy-for-both-test-targets`,
+and merged into item 10's branch by `5e30b7665a`.
+`testing/fixture_support_shared_by_both_test_targets.rs` holds the fixture folders,
+the names they are made under and the removal,
+and both targets include it by `#[path]`;
+the report of that round is
+`fixture-support-one-copy-for-both-test-targets-2026-11-25/keep/report-pi-fixture-support-one-copy-for-both-test-targets.md`.
+The merge kept one definition of the helper ownership,
+in `testing/test_process_owner.rs`,
+because that file is the one the candidate consumer's crate takes,
+and that crate keeps no fixture folders to run
+(item 10's file, whose three includers are unchanged):
+`OwnedGroups`, `group_of`, `own_group` and `spawn_owned` are there,
+with this item's read-back in `own` and item 10's `end_owned_groups`,
+and the shared fixture file no longer defines or names any of them.
+Status: incomplete, unapproved and not final.
+The merge's checks ran on the host only, no container gate was run, and the guest arms were skipped.
+
 ### Item 12. One-line byte tests are copied into 101 definitions
 
 Category 4, release.
