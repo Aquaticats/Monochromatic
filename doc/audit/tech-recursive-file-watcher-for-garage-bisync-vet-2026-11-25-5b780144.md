@@ -12,8 +12,12 @@
   targeted evidence, finalist validation and scoring not started.
   Broad discovery ran as the Pi subagent run the owner chose on 2026-11-25T17:19:41-05:00.
   The owner added a mid-run requirement at 2026-11-25T17:38:21-05:00,
-  so "Fingerprint input" no longer lists every hard requirement;
-  the coordinator re-keys this report after the run.
+  and the coordinator re-keyed the report for it at 2026-11-25T17:51:19-05:00
+  and again at 2026-11-25T17:59:11-05:00 for the owner's round 4 requirements
+  (see "Prior compatible report" and "Screening against the round 4 requirements").
+  Five candidates went on to targeted evidence;
+  watchexec then left on the owner's decision,
+  and the results for the other four are under "Targeted evidence results".
 - Subject:
   recursive file watcher for garage bisync.
 - Scope:
@@ -23,19 +27,30 @@
 - Started:
   2026-11-25T17:19:41-05:00.
 - Last updated:
-  2026-11-25T17:41:36-05:00.
+  2026-11-25T17:59:11-05:00.
 - Governing skill:
   `.claude/skills/choosing-technology/SKILL.md` at commit `45d42d9b23d2f2752f9c512683b45905e13afe99`,
   SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
 - Compatibility fingerprint:
-  `928b2333d4d7cc480b13a355821cf6f6cd7377ecaf5eb58238cf1b9ce3c2b32a`.
+  `5b7801441f5b6ae0540e6245aaa384f31f14cc934100ef4ec6c004e4e576d601`.
   The canonical input is the RFC 8785 serialization of the object in "Fingerprint input".
 - Active audit owner:
   the Claude Code session that runs the grilling in `doc/planning/garage-bisync-run-on-file-change.md`;
   the discovery phase is written by the Pi run it starts.
 - Prior compatible report:
-  none;
-  no report under `doc/audit/` covers a file watcher.
+  none.
+  This file is the same report re-keyed:
+  it was `doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25.md`
+  with fingerprint `928b2333d4d7cc480b13a355821cf6f6cd7377ecaf5eb58238cf1b9ce3c2b32a`
+  until 2026-11-25T17:51:19-05:00,
+  when the owner's round 3 requirement joined the hard constraints,
+  which made the old fingerprint incompatible;
+  the file was moved here with `git mv` and its content carried over unchanged apart from the metadata,
+  "Fingerprint input" and "Hard constraints".
+  It was re-keyed a second time at 2026-11-25T17:59:11-05:00,
+  from `doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-43409b23.md` (fingerprint `43409b2337bcac1b82e6ab195c96f8254f834ebc9560380d5b2ef839990078c2`),
+  when the owner's round 4 answers added two hard constraints,
+  the same way.
 
 ## Fingerprint input
 
@@ -50,7 +65,10 @@
     "now": "CachyOS Linux x86-64, systemd 262 user manager, home on ZFS"
   },
   "hardConstraints": [
+    "after a change that lands while a sync runs, one more sync starts after that run ends, by the watcher or by a small wrapper around its command",
+    "never interrupts a running command; each run finishes",
     "open source with inspectable source",
+    "queues one more run of its command natively when events arrive while the command runs",
     "runs an arbitrary command, here systemctl --user start rclone-bisync-garage.service",
     "runs on Linux x86-64, macOS arm64 and Windows x64",
     "watches every folder under the root recursively, including folders created after it starts"
@@ -93,6 +111,12 @@ The owner's answers that bind this vet:
   macOS arm64 and Windows x64.
 - Watches every folder under the root recursively,
   including folders created after it starts.
+- After a change that lands while a sync runs,
+  one more sync starts after that run ends,
+  by the watcher or by a small wrapper around its command.
+- Never interrupts a running command;
+  each run finishes.
+- Queues one more run of its command natively when events arrive while the command runs.
 
 ### Requirement added during discovery
 
@@ -107,8 +131,8 @@ and it does not exit any candidate at screening,
 because a wrapper around the command can supply it.
 Every ledger entry records whether the candidate meets it natively (with the primary source that says so)
 or only through a wrapper.
-"Fingerprint input" was frozen before this answer,
-so its `hardConstraints` list is incomplete for the current request.
+"Fingerprint input" now lists it,
+and the report was re-keyed at 2026-11-25T17:51:19-05:00.
 
 ## Base components and overlays
 
@@ -133,7 +157,6 @@ so they are recorded per candidate and are not gates:
 
 - runs the command to completion and never kills a run in progress;
 - merges a burst of events into one run (a quiet period);
-- queues one more run when events land while a run is going;
 - excludes paths by pattern (for example rclone's `*.partial` download names);
 - what it does when the inotify watch limit or the macOS and Windows equivalents run out;
 - whether it reports hidden files;
@@ -345,68 +368,75 @@ Executed commands and their exit status are in "Evidence records" section "Provi
 - New candidates: `hwatch`, `viddy`, `sasqwatch`, `dwatch`.
 - New screening survivors: none (all are periodic output watchers, category mismatch).
 
-#### Q9. crates.io, `file watcher`, pages 1 to 3
+#### Q9. crates.io, `file watcher`, pages 1 to 4
 
 - Literal query: `https://crates.io/api/v1/crates?q=file+watcher&per_page=50&page=N&sort=relevance`.
 - Provider or registry: crates.io API, User-Agent `watcher-vet-discovery`.
-- Include filters: relevance query; page 2 and 3 filtered on `watch|notify|inotify|fsevent|change|entr|lsync`
+- Include filters: relevance query; pages 2 to 4 filtered on `watch|notify|inotify|fsevent|change|entr|lsync`
   for reading, with the unfiltered counts recorded here.
 - Exclude filters: none applied to the request.
 - Sort order: relevance.
-- Page or cursor: pages 1, 2, 3 of 50; provider total 1677 crates.
-- Result count: 150 rows read of 1677.
-- New candidates: `funzzy`, `watcher` (crates), `file-watcher`, `filesentry`, plus many per-project watcher crates.
+- Page or cursor: pages 1 to 4 of 50; provider total 1677 crates.
+- Result count: 200 rows read of 1677.
+- New candidates: `funzzy`, `watcher` (crates), `file-watcher`, `filesentry`, plus many per-project watcher crates;
+  page 4 added only project-specific crates (`keel-server`, `scankit`, `hadome`).
 - New screening survivors: `funzzy`; the rest are libraries, project scaffolding, or single-purpose crates.
+- Saturation: pages 3 and 4 added no screening survivor, so the page rule is met.
 
-#### Q10. crates.io, `watch command`, pages 1 to 3
+#### Q10. crates.io, `watch command`, pages 1 to 4
 
 - Literal query: `https://crates.io/api/v1/crates?q=watch+command&per_page=50&page=N&sort=relevance`.
 - Provider or registry: crates.io API.
 - Include filters: as Q9.
 - Exclude filters: none.
 - Sort order: relevance.
-- Page or cursor: pages 1, 2, 3; provider total 6166.
-- Result count: 150 rows read of 6166.
-- New candidates: `viddy`, `cargo-watch`, `watchexec-cli`, `watchexec` (library), `xtask-watch`.
-- New screening survivors: `watchexec`, via `watchexec-cli` 2.8.0 on page 2.
+- Page or cursor: pages 1 to 4; provider total 6166.
+- Result count: 200 rows read of 6166.
+- New candidates: `viddy`, `cargo-watch`, `watchexec-cli`, `watchexec` (library), `xtask-watch`;
+  page 4 added only `hot-lib-reloader`, a library for Rust library reloading.
+- New screening survivors: `watchexec`, via `watchexec-cli` 2.8.0 on page 2; pages 3 and 4 added none.
 
-#### Q11. crates.io, `run command on change`, pages 1 to 3
+#### Q11. crates.io, `run command on change`, pages 1 to 4
 
 - Literal query: `https://crates.io/api/v1/crates?q=run+command+on+change&per_page=50&page=N&sort=relevance`.
 - Provider or registry: crates.io API.
 - Include filters: as Q9.
 - Exclude filters: none.
 - Sort order: relevance.
-- Page or cursor: pages 1, 2, 3; provider total 28395.
-- Result count: 150 rows read of 28395.
+- Page or cursor: pages 1 to 4; provider total 28395.
+- Result count: 200 rows read of 28395.
 - New candidates: none beyond Q10.
-- New screening survivors: none new.
+- New screening survivors: none; pages 3 and 4 added none.
 
-#### Q12. npm, `file watcher cli`, pages 1 to 3
+#### Q12. npm, `file watcher cli`, pages 1 to 4
 
 - Literal query: `https://registry.npmjs.org/-/v1/search?text=file%20watcher%20cli&size=50&from=N`.
 - Provider or registry: npm registry search.
 - Include filters: none on the request; rows filtered on `watch|notify|inotify|change` when reading.
 - Exclude filters: none.
 - Sort order: provider relevance.
-- Page or cursor: `from` 0, 50, 100; provider total 880251.
-- Result count: 150 rows read.
+- Page or cursor: `from` 0, 50, 100, 150; provider total 880251.
+- Result count: 200 rows read.
 - New candidates: `chokidar`, `chokidar-cli`, `sane`, `watchpack`, `@parcel/watcher`, `nsfw`, `watcher`, `filewatcher`,
-  `node-watch`, `glob-watcher`, `simple-watcher`, `cheap-watch`, `watch`, `wt`.
-- New screening survivors: `chokidar-cli`; `chokidar` and the other libraries are recorded separately.
+  `node-watch`, `glob-watcher`, `simple-watcher`, `cheap-watch`, `watch`, `wt`;
+  page 4 added only libraries (`metawatch`, `ignoring-watcher`).
+- New screening survivors: `chokidar-cli`; `chokidar` and the other libraries are recorded separately;
+  pages 3 and 4 added no survivor.
 
-#### Q13. npm, `watch run command`, pages 1 to 3
+#### Q13. npm, `watch run command`, pages 1 to 4
 
 - Literal query: `https://registry.npmjs.org/-/v1/search?text=watch%20run%20command&size=50&from=N`.
 - Provider or registry: npm registry search.
 - Include filters: as Q12.
 - Exclude filters: none.
 - Sort order: provider relevance.
-- Page or cursor: `from` 0, 50, 100; provider total 892540.
-- Result count: 150 rows read.
+- Page or cursor: `from` 0, 50, 100, 150; provider total 892540.
+- Result count: 200 rows read.
 - New candidates: `onchange`, `watch-run`, `watchlist`, `run-when-changed`, `@lerna-lite/watch`, `watch-cli`,
-  `npm-watch`, `node-dev`, `nodemon`, `@bazel/ibazel`, `hash-runner`, `light-server`.
-- New screening survivors: `onchange`, `watch-run`, `watchlist`, `run-when-changed`.
+  `npm-watch`, `node-dev`, `nodemon`, `@bazel/ibazel`, `hash-runner`, `light-server`;
+  page 4 added only task-specific watchers (`flow-watch`, `tape-watch`).
+- New screening survivors: `onchange`, `watch-run`, `watchlist`, `run-when-changed`;
+  pages 3 and 4 added no survivor.
 
 #### Q14. Homebrew formulae, `file watcher`
 
@@ -1177,7 +1207,8 @@ Recorded for completeness, each passing the gates as a library and each needing 
 `watchpack` 2.6.4, `sane` 5.0.1, `nsfw` 3.1.0, `fb-watchman` 2.0.4, `wt` 1.2.0, `watcher` 2.3.1,
 `filewatcher` 3.0.1, `node-watch` 0.7.4, `glob-watcher` 6.0.0, `simple-watcher` 6.0.1, `cheap-watch` 1.0.4,
 `radovskyb/watcher` (Go), `rjeczalik/notify` (Go), `filesentry` 0.2.2 (Rust), `jetbrains-fswatcher` 1.2.0 (Rust),
-`watcher` 0.0.1 (crates), `fsevents` 2.3.3 (macOS only, which exits gate 3 on its own).
+`watcher` 0.0.1 (crates), and `fsevents` 2.3.3, which is macOS only and therefore exits gate 3 while
+the rest pass as libraries.
 
 ### Candidates that exit screening
 
@@ -1354,6 +1385,193 @@ unestablishable security boundary, no inspectable validation path, unsupported r
 It is not a watcher and is not screened;
 it is recorded because the owner asked what a candidate does when the inotify watch limit runs out,
 and this is the tool that answers the same question for the session as a whole.
+
+## Screening against the round 4 requirements
+
+The owner made two more requirements hard at 2026-11-25T17:59:11-05:00
+(`doc/planning/garage-bisync-run-on-file-change.md`, section "Owner answers, round 4"):
+the watcher never interrupts a running command,
+and it queues one more run of its command natively when events arrive while the command runs,
+because the chosen follow-up shape is a queuing watcher calling a trigger unit ordered after the sync unit.
+
+Each outcome below rests on the discovery run's reading of the candidate's primary docs,
+quoted from its ledger entry;
+none is a source-level or measured result yet.
+A candidate whose source shows a native queue the docs do not mention returns to the pool.
+
+- watchexec 2.8.0:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively, '--on-busy-update=queue' ("run the command once again when the current run has finished if any events occur while it's running"). No wrapper needed.).
+- Watchman 2026.11.23.00:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. The trigger page states Watchman runs a single instance of the trigger process at a time and, after it terminates, respawns for changes that landed in the meantime.).
+- chokidar-cli (3.0.0 published on npm, 4.0.0 at repository HEAD):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper. The source's own comment says "commands might be still run concurrently" ('index.js:163'), so nothing queues a second run.
+- onchange 7.1.0:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. The source keeps a FIFO job queue with '--jobs' concurrency (default 1) and starts the next job when the running one finishes ('src/index.ts:151-224'). No wrapper needed.).
+- watchfiles 1.3.0:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper, and it also conflicts with "never kills a run in progress". A change during a run interrupts that run.
+- modd 0.8:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. The runner handles one batch at a time from a buffered channel ('modd.go:202-225'), so a change during a run is handled as a further run after the current block returns.).
+- iwatcher 0.1.1:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper. It has "Skip-if-running": "if the previous command is still executing, the new trigger is silently dropped".
+- directory-watcher 3.2.1:
+  goes on to targeted evidence;
+  the discovery run read its docs as queueing natively (met natively. "Collecting goes on while a hook runs. Each wait that ends puts its runs in the target's queue", with 'option.queue.size' defaulting to 2048.).
+- wgo 0.7.2:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper; a change restarts the command.
+- arelo 1.15.4:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper; a change restarts the command.
+- run-when-changed 2.1.0:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper until validation shows otherwise.
+- watch-run 1.2.5 (queckezz, the npm package):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- watchlist 0.3.1:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- funzzy 2.0.1:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- watchexec-simple (0.2.0 on crates.io, repository last pushed 2023-10-24):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: needs a wrapper.
+- godemon:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- watchngo:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- quay 0.2.0:
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; the per-command timeout suggests a single worker; assume a wrapper.
+- Rushabh5000/watch-run (a different project from the npm package):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+- prem-the-dev/watch-run (a third project with this name):
+  exits on "queues one more run of its command natively";
+  the discovery run's ledger entry reads: not documented; assume a wrapper.
+
+The libraries stay barred by the existing-tools rule while ready-to-use tools pass.
+`watch-restart`'s exit (it restarts a long-running child) now matches the treatment of the restart-style tools above.
+
+## Repository precedent missed by discovery (2026-11-25T18:16:16-05:00)
+
+The owner pointed out,
+after screening,
+that this repository had already judged `watchexec` and built its own replacement.
+Source class 4 recorded both facts as neutral context;
+it missed the verdicts:
+
+- `package-paused/desktop-daemon/editord/HANDOVER.custom-dev-server-watcher.md:502-507`
+  (commit `eb40277d13`, 2026-05-11T17:38:01-04:00) rates `watchexec` for the editord dev loop
+  "Fit: rejected",
+  citing the `-j` SIGINT hang and process-tree signal loss
+  (`doc/troubleshooting/mise-watch.md`, "Bug 5" and "Bug 4", measured on watchexec 2.5.0 and 2.5.1).
+- The same handover, `:718-723`, states the constraint
+  "We cannot adopt a tool whose async runtime we cannot inspect."
+- The same handover, `:143-160` and "Can we just use watchman?",
+  rates Watchman "would work, but not justified for this case":
+  a long-lived daemon meant to serve many tools and folders,
+  where one tool watches one folder.
+- `doc/audit/pitchfork-jdx.md` (2026-06-21) ranks watch-restart over watchexec for one watched long-running child,
+  and keeps watchexec for "portable, stateless command running with rich event/filter modes".
+- `package/watch-restart/cli` is the repository's own owner of "watch files and run a command"
+  (Chokidar, a content-hash filter that skips byte-identical writes by default,
+  process-group signalling);
+  it exited screening here because it restarts its child,
+  but `AGENTS.md` rule `RCI` asks to extend an owner that already exists
+  before adopting a new one,
+  so extending it with a run-to-completion queue mode is a candidate this report did not consider.
+
+The owner decided at 2026-11-25T18:18:47-05:00
+(design record, "Owner answers, round 5"):
+"Vet 3p, no watchexec.
+Only going back to watch-restart if nothing works,
+because watch-restart has its own critical problems we'd need to fix if we use it."
+So `watchexec` exits on the owner's decision and the recorded rejection;
+Watchman stays,
+with its "not justified" verdict recorded as counterevidence;
+extending `watch-restart` is the fallback only if every remaining candidate fails.
+
+Whether these verdicts transfer to this job
+(no `-j` filter, queue mode, a one-level `systemctl` child on Linux)
+is unverified;
+the owner decides how to proceed (design record, "Owner answers").
+
+## Targeted evidence results (2026-11-25T18:49:25-05:00)
+
+One Pi run per candidate read its released source and wrote one record;
+none installed, built or ran the candidate,
+so every result is a source or document reading, not a measurement.
+The coordinating session spot-checked one deciding citation in each record it acted on.
+
+### directory-watcher 3.2.1: hard-gate confirmed
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/directory-watcher.md` (commits `cdfb72dcce`, `56945b23f8`):
+all seven hard constraints pass from source
+(queue with `run.concurrency: 1` and `run.interrupt: none`,
+the command as a shell string with changed paths only in `DW_*` environment variables,
+inotify, kqueue and ReadDirectoryChangesW backends,
+new folders watched through `addDirTree`).
+Open items:
+kqueue needs about 11786 descriptors for `~/Plain` on macOS and the tool never raises the limit;
+nothing is signed;
+a watch-limit failure exits without running the notification hook
+(`internal/app/service/runner.go` calls `CallOnError` only for `fsnotify.ErrEventOverflow`; spot-checked);
+one maintainer, no issue or pull-request history.
+
+### onchange 7.1.0: passes the letter, flagged on intent
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/onchange.md` (commit `2f92db4435`):
+the hard constraints pass from source,
+but it queues one job per event,
+unbounded and never merged,
+and has no quiet period,
+so a burst of file events becomes a burst of back-to-back syncs;
+`ENOSPC` is dropped silently unless `--verbose`.
+Whether that meets "queues one more run" is put to the owner.
+
+### modd 0.8: fails provenance as published
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/modd.md` (commits `b17e70447a`, `ee0ff3c792`):
+no release workflow, checksum or signature ties the 2019 release archives to tag `v0.8`,
+which the skill treats as a hard failure for prebuilt artifacts;
+the only macOS archive is `darwin`/`amd64`,
+and a source build needs cgo,
+so macOS arm64 is open.
+It queues one run per lull-closed batch,
+never signals a `prep:` command,
+and signals a `daemon:` command.
+Building it from source ourselves is the only route left; put to the owner.
+
+### Watchman 2026.11.23.00: exits
+
+`doc/audit/tech-recursive-file-watcher-for-garage-bisync-vet-2026-11-25-5b780144.targeted-evidence/watchman.md` (commit `e734aa2805`):
+fails three hard constraints.
+`watchman/TriggerCommand.cpp` kills and waits for the running trigger command before spawning the next one
+(spot-checked at tag `v2026.11.23.00`),
+so it neither queues nor leaves a running sync alone;
+open issue 703 reports the same since 2019,
+and its own trigger documentation says the opposite.
+
+### Owner decisions on the results (2026-11-25T18:51:49-05:00)
+
+onchange exits on the intent of the round 3 requirement;
+modd exits on the provenance gate, building it from source declined;
+Watchman exits on three hard constraints.
+directory-watcher 3.2.1 is the only hard-gate-confirmed candidate and the only finalist.
+The skill's alternatives rule allows one survivor after saturated discovery;
+every exhausted source is in "Query log",
+and every exit is recorded with its evidence.
 
 ## Evidence records
 
@@ -1589,7 +1807,8 @@ All read on 2026-11-25; all statuses are fail for the named gate.
 
 ## Terminal result
 
-Saturated, with 20 ready-to-use screening survivors and 14 recorded library candidates.
+Saturated, with 20 ready-to-use screening survivors and 23 recorded library candidates
+(22 pass as libraries; `fsevents` exits on platform).
 
 Every required source class is saturated under the skill's page rule:
 

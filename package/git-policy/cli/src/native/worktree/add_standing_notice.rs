@@ -299,22 +299,6 @@ fn write_to_standard_error(line: String) {
 }
 
 /// What:
-///  Start the notice with a sink of its own and the shipped wait,
-/// for the add's entry point and for a control that reads the line.
-/// Why:
-///   The line is advisory output on a stream the caller owns,
-/// and the thread that prints it must not hold the add's own stream,
-/// which the add writes its reports to.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const notice = beginWith(sink, ADD_STANDING_NOTICE_AFTER);
-/// ```
-pub fn begin_with(announce: Box<dyn FnMut(String) + Send>) -> StandingNotice {
-    return begin_after(announce, add_standing_notice_after());
-}
-
-/// What:
 ///  Start the notice with a sink and a wait of the caller's choosing.
 /// Why:
 ///   A control waits one tick instead of five seconds,

@@ -30,7 +30,7 @@
 //! ```
 
 use super::slot_walk_calls::{DatasetGuids, SlotWalk};
-use super::staging_calls::{StagingCall, StagingCallRefusal, StagingCalls};
+use super::staging_calls::{StagingCallRefusal, StagingCalls};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 use std::os::unix::fs::MetadataExt;
@@ -215,8 +215,3 @@ pub const RECORD_STEP: &str = "staged-record";
 
 /// The step a placement failure names.
 pub const PLACEMENT_STEP: &str = "post-move-check";
-
-/// The step an unmount failure names.
-pub fn unmount_step() -> &'static str {
-    return StagingCall::Unmount.word();
-}

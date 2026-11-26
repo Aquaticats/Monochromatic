@@ -13,7 +13,7 @@
 //! const paths = { device: '/dev/zfs', moduleVersion: '/sys/module/zfs/version', ... };
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The one device file OpenZFS serves requests on,
 /// which the binding owns the name of.
@@ -68,23 +68,5 @@ impl GatePaths {
             base_btf: PathBuf::from(BASE_BTF_PATH),
             module_btf: PathBuf::from(MODULE_BTF_PATH),
         };
-    }
-
-    /// The device path,
-    /// borrowed.
-    pub fn device_path(&self) -> &Path {
-        return self.device.as_path();
-    }
-
-    /// The base type information's path,
-    /// borrowed.
-    pub fn base_btf_path(&self) -> &Path {
-        return self.base_btf.as_path();
-    }
-
-    /// The module's type information path,
-    /// borrowed.
-    pub fn module_btf_path(&self) -> &Path {
-        return self.module_btf.as_path();
     }
 }

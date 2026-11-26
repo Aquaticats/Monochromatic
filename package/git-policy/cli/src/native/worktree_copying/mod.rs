@@ -163,7 +163,8 @@ pub mod worktree_copy_unfilled_record;
 
 /// The target a copied symbolic link must hold at its new place,
 /// and the rule that tells two links naming one place.
-/// It is path arithmetic only, so every system that copies links compiles it.
+/// It is path arithmetic only,
+/// so every system that copies links compiles it.
 pub mod worktree_copy_symlink_target;
 
 /// The append-only install log of one stage:
@@ -215,6 +216,25 @@ pub mod worktree_copy_ceiling;
 /// finished by a command in the worktree Git registered for it.
 #[cfg(unix)]
 pub mod worktree_copy_interrupted_checkout;
+
+/// Every line the pass that finishes an owed worktree copy prints:
+/// the one that names a copy owed into another worktree,
+/// and the three that say what this command's own copy is doing.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_notices;
+
+/// The marker one command takes in the journal root before it stages an owed copy,
+/// the removal of the markers whose owners no longer run,
+/// and the name order the markers are judged in.
+#[cfg(unix)]
+pub mod worktree_copy_owed_taking;
+
+/// What must still hold before the pass that finishes an owed copy touches the disk:
+/// the destination is still the registration the add made,
+/// the source is still a worktree of this repository,
+/// and anything at the stage's name is provably this copy's own.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_proofs;
 
 /// The ignored-state copy an interrupted `git worktree add` still owes,
 /// made by a command in the worktree it fills.

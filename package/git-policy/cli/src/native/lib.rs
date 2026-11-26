@@ -383,6 +383,18 @@ pub mod worktree_clone_removal_proof_and_plan;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_removal_proof_and_plan::*;
 
+/// Plan step 17's piece,
+/// built ahead of the plan's order:
+/// no command reaches it until the round that switches the removal's command path on wires it in.
+/// It is Linux only,
+/// like the mount table and the claim it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_removal_cancel;
+
+/// The same re-export for `worktree_clone_removal_cancel`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_removal_cancel::*;
+
 /// The record that carries an origin snapshot's cleanup past the clone and the registration:
 /// its folder,
 /// its name grammar,

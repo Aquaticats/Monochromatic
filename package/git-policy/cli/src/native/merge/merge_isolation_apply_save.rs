@@ -2,7 +2,8 @@
 //!  The merge a command saves for a later one:
 //!  its commit kept on a side ref,
 //!  the record that names that ref and the person's captured bytes,
-//!  and the line the person reads instead of a refusal.
+//!  and the line the person reads instead of a refusal,
+//!  and the refusal a merge takes when the branch moved before it could be saved.
 //! Why:
 //!  A merge that cannot reach the checkout now is never a failed merge
 //!  (`SPEC.md`,
@@ -16,6 +17,9 @@
 //!  a lock the merge found when it looked,
 //!  a lock another program took after that look,
 //!  and a lock that stopped both Git's own update and the putting back of the person's own bytes.
+//!  A save is a promise that a later command finishes this very merge, and only a branch still standing where the merge
+//!  was made can keep it: a branch that moved first is refused, never saved, because no later command could land it
+//!  (`SPEC.md`, "Merging"; issue 6473).
 //!  The writing half that calls this is `merge_isolation_apply.rs`,
 //!  and the step ending that also reaches it is `merge_isolation_apply_stops.rs`;
 //!  both are at their code-line limit,
@@ -28,18 +32,24 @@
 
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
+/// The failure rendering for a state that cannot be read.
+use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The words a saved merge prints,
 /// and the lines for a save that could not be made or recorded,
-/// built from the bytes the settle left where they are.
+/// built from the bytes the settle left where they are,
+/// and the lines for a merge the branch moved under before it could be saved.
 use crate::merge_isolation_apply_findings::{
     BytesAfterAFailedMerge, WhyTheMergeIsSaved, a_deferred_save_finding, a_merge_that_could_not_be_kept,
+    a_merge_the_branch_moved_before_its_save, a_merge_the_branch_moved_before_its_save_behind_the_lock,
     a_merge_whose_save_could_not_be_recorded,
 };
 /// The intent record,
-/// written once per saved merge.
+/// written once per saved merge,
+/// and the settling of this command's own record before a refusal.
 use crate::merge_isolation_journal::{MergeIntent, write_merge_intent};
+use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
 /// The command's own ending.
-use crate::merge_isolation_run_types::{Bail, IsolatedMerge, Plan, TAG};
+use crate::merge_isolation_run_types::{BRANCH_MOVED_EXIT_CODE, Bail, IsolatedMerge, Plan, TAG, refused};
 /// Real Git,
 /// which keeps the commit on the side ref.
 use crate::merge_isolation_git_reads::Session;
@@ -121,11 +131,110 @@ fn keep_on_a_side_ref(session: &Session, merge_oid: &str) -> Option<String> {
 /// A merge whose commit cannot be kept that way is not saved,
 /// and the line says so and what the next command does with the person's own bytes,
 /// rather than refusing a checkout the clear already changed.
+///  A merge whose branch moved before this point is refused instead of saved,
+/// with its record settled first,
+///  because a save promises a later command that finishes this very merge and no command can finish one the branch
+///  has moved past (`SPEC.md`, "Merging"; issue 6473).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function saveForALaterFinish({ session, plan, intent, record, reference, why, thePathsWereCleared }): Promise<IsolatedMerge>;
 /// ```
+/// What:
+///  The short name a line gives the branch the merge was computed for.
+/// Why:
+///   The record keeps the whole reference,
+/// and a person reads `main`,
+/// not `refs/heads/main`;
+/// a merge
+///  made from a detached HEAD has no branch at all,
+/// so the line names the thing that moved instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const branchWord = (intent) => intent.targetRef?.replace(/^refs\/heads\//, '') ?? "the checkout's HEAD";
+/// ```
+fn branch_word(intent: &MergeIntent) -> String {
+    let Some(reference) = intent.target_ref.as_deref() else {
+        return String::from("the checkout's HEAD");
+    };
+    return String::from(reference.strip_prefix("refs/heads/").unwrap_or(reference));
+}
+
+/// What:
+///  Whether the branch the merge was computed for now names a commit other than the one the merge started from.
+/// Why:
+///   A merge commit's first parent is the head it was made on,
+/// and Git's fast-forward moves the branch only from there,
+/// so a branch
+///  that names another commit cannot take this merge as it was made;
+///  a read that did not happen proves nothing about the branch and leaves the save as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const moved = git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim() !== intent.oldOid;
+/// ```
+fn the_branch_moved(session: &Session, intent: &MergeIntent) -> bool {
+    let spec: String = match intent.target_ref.as_deref() {
+        Some(reference) => format!("{reference}^{{commit}}"),
+        None => String::from("HEAD^{commit}"),
+    };
+    let read: GitOutput = match session.run(&["rev-parse", "--verify", "--quiet", spec.as_str()]) {
+        Ok(found) => found,
+        // A Git that could not start leaves the branch unread, which is no evidence that it moved.
+        Err(_unread) => return false,
+    };
+    if !read.succeeded() {
+        // The branch cannot be resolved now, which says nothing about where it stands.
+        return false;
+    }
+    return String::from_utf8_lossy(read.stdout.as_slice()).trim() != intent.old_oid.as_str();
+}
+
+/// What:
+///  Answer a merge whose branch moved before it could be saved: settle the record this command wrote, and refuse.
+/// Why:
+///   Nothing of the merge is in the checkout,
+/// so nothing is lost by running it again,
+/// and the record must not stay:
+///  a kept record is what a later command would settle as a merge nothing can land.
+///  A lock that stops the settle keeps the record and the line says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = settleFailedMerge(place, record, intent, stderr); return refused(BRANCH_MOVED_EXIT_CODE, theLine);
+/// ```
+fn refuse_the_moved_branch(
+    session: &Session,
+    plan: &Plan<'_>,
+    intent: &MergeIntent,
+    record: &Path,
+    reference: &str,
+    bytes: &BytesAfterAFailedMerge<'_>,
+) -> Result<IsolatedMerge, Bail> {
+    let place: RecoveryPlace = RecoveryPlace::settling(&session.context, plan.git_dir, plan.root);
+    let branch: String = branch_word(intent);
+    return match settle_failed_merge(&place, record, intent, &mut std::io::stderr()) {
+        // Nothing of the merge was installed, so the record and the capture are gone and the person's bytes are where they were.
+        Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Err(refused(
+            BRANCH_MOVED_EXIT_CODE,
+            a_merge_the_branch_moved_before_its_save(reference, branch.as_str()),
+        )),
+        // Another command landed this very merge in the instant this one read the branch, so there is nothing to report but that.
+        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => Ok(IsolatedMerge::Finished {
+            code: 0,
+            stdout: String::new(),
+            stderr: format!("monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"),
+        }),
+        // The lock that stopped the merge stopped the settle too, so the record stays and a later command puts the bytes back.
+        Ok(_) => Err(refused(
+            BRANCH_MOVED_EXIT_CODE,
+            a_merge_the_branch_moved_before_its_save_behind_the_lock(reference, branch.as_str(), bytes),
+        )),
+        Err(error) => Err(refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None))),
+    };
+}
+
 pub(crate) fn save_for_a_later_finish(
     session: &Session,
     plan: &Plan<'_>,
@@ -143,6 +252,11 @@ pub(crate) fn save_for_a_later_finish(
         kept = capture.reference.as_deref();
     }
     let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared, kept_on: kept };
+    // The branch is read before anything of the save is written: a merge built on a head the branch no longer names can never be
+    //  finished by a later command, so saving it would report a merge that never lands (issue 6473).
+    if the_branch_moved(session, intent) {
+        return refuse_the_moved_branch(session, plan, intent, record, reference, &bytes);
+    }
     let mut later: MergeIntent = intent.clone();
     // The record's own identifier is made before anything is written, so a source that cannot answer leaves nothing behind.
     later.owner.transaction_id = match random_uuid() {

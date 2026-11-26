@@ -229,7 +229,16 @@ await describe({
              */
             const component = renderer(
               pokeMessage({ details: detailsWith({ exitCode: 0, }, ), content: 'done', }, ),
-              { expanded: false, outputPad: 0, },
+              {
+                expanded: false,
+                outputPad: 0,
+                keyText(): string {
+                  return '';
+                },
+                keyHint(): string {
+                  return '';
+                },
+              },
               plainTheme(),
             );
             if (component === undefined)
@@ -249,7 +258,7 @@ await describe({
       name: deliverPoke.name,
       children: [
         it({
-          name: 'sends a custom message that triggers a follow-up turn',
+          name: 'sends a custom message that triggers a turn and steers into a busy agent',
           fn: async () => {
             const fake = createFakePi();
             const delivery = deliverPoke({
@@ -269,7 +278,7 @@ await describe({
             expect(sent.message.customType, ).toBe(constants.POKE_CUSTOM_TYPE);
             expect(sent.message.display, ).toBe(true);
             expect(sent.message.content, ).toBe('[bash finished] $ true (exit 0)');
-            expect(sent.options, ).toEqual({ triggerTurn: true, deliverAs: 'followUp', });
+            expect(sent.options, ).toEqual({ triggerTurn: true, deliverAs: 'steer', });
           },
         }, ),
         it({

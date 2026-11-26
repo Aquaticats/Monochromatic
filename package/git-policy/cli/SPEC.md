@@ -3633,23 +3633,17 @@ with the same force:
   `if (force < 2) reason = worktree_lock_reason(wt)` is what lets `-f -f` remove a locked worktree,
   and the wrapper
   reads one force only.
-- No subvolume and no mount point stands below the worktree's root
-  (`src/native/worktree/worktree_removal_refuses_a_nested_volume.rs`).
-  The kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
-  so such a worktree can never go
-  this way:
-  the refusal comes before anything is renamed,
-  and it names the volume it found:
-  for a worktree this repository registers,
-  the branch that worktree has checked out or that it is on a detached `HEAD`,
-  and the one command that removes it while keeping what its `HEAD` names
-  (`git worktree remove <inner>`),
-  which refuses while anything there is uncommitted.
-  A volume that is no registration of this repository is named with what it is,
-  with the move or the unmount that keep every file of it first,
-  and with a delete last and for what it destroys,
-  because a subvolume there may be another repository's worktree,
-  whose commits only its own removal keeps.
+- A subvolume or a mount point below the worktree's root is removed around,
+  never destroyed and never handed to Git
+  (`src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs`,
+  and the section "A volume the removal did not make: removing around it" for the decision of 2026-11-12).
+  The destroy cannot take such a tree:
+  the kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
+  so nothing of the worktree is renamed for the commit service,
+  and the removal empties every other entry and keeps each volume with the directories that lead to it.
+  An unforced removal whose proof of cleanliness refuses refuses here too,
+  with one report that names each volume and gives the reason,
+  and no volume is moved, unmounted or deleted.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -3678,7 +3672,7 @@ with the same force:
   with a record of its own
   (`src/native/worktree/worktree_removal_takes_its_pending_deletions.rs`),
   because a name is no proof of what stands at it:
-  an entry of that shape that is no subvolume is somebody else's and is refused with every other
+  an entry of that shape that is no subvolume is somebody else's and is treated with every other
   volume below the root.
   The proof is made again after a destroy the kernel refused,
   because a worktree can be added below this one
@@ -4907,6 +4901,12 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
+  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  source check,
+  so a declined add reaches the ladder with the words Git's own `worktree add`
+  takes by itself,
+  and only an add the route serves reads the sentence about the managed lock it
+  takes.
 - The slot's claim is the wrapper's own claim file,
   `<slot>.claim.<n>`,
   in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
@@ -8817,7 +8817,8 @@ and the next command that finds the lock gone moves the branch
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types,
 and for a `git commit`:
-nothing the machine or other processes do ends them with a nonzero status.
+nothing the machine or other processes do ends them with a nonzero status,
+with the one exception below of a merge the branch moved under before it could land.
 That covers a held `index.lock`,
 a branch that moved underneath the command (the auto-push's own reconcile merge included),
 a slow disk,
@@ -8855,8 +8856,13 @@ it exits 0,
 says that the merge is not saved,
 where the person's own bytes are kept,
 and that the next git command puts them back and leaves the merge to them.
-A merge whose branch moved while it was prepared ends the same way,
-with the line saying that the branch moved and that the merge does not land.
+A branch that moved while the merge was prepared is the one ending of this path that refuses:
+no command can finish a merge built on a head the branch no longer names,
+so the merge is neither applied nor saved,
+and the command exits nonzero saying the branch moved and that running the merge again is safe
+(owner,
+issue 6473,
+2026-11-25).
 The line each of these prints states the state the settle read:
 the branch it found,
 what of the merge is in the index and the worktree,
@@ -10513,7 +10519,7 @@ Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the
 number can be reused by another process of this account,
 and the cargo-shadow review called that shape a P1.
 Every member and the root of a step are therefore held by a pidfd where the kernel gives one
-(`src/native/process/pinned_member_signalled_through_a_pidfd.rs`),
+(`src/native/process/member_signalled_through_its_pidfd.rs`),
 the start time is read before and after the descriptor is opened to show the number named one process
 throughout,
 and the signal goes through the descriptor with `pidfd_send_signal`.
@@ -10963,7 +10969,19 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   and it is the wait a command already grants a service's own start (`START_WAIT`).
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
-  1.04 s).
+  1.04 s),
+  and the whole of a commit's wait for a greeting,
+  which nothing shorter may end:
+  a unit the manager reports `active` that has greeted nothing for the whole ceiling is asked to restart,
+  once,
+  and the wait goes on with the whole ceiling again.
+  A service greets a connection before it restores anything
+  (`service_server_greets_before_the_journal_is_restored_tests.rs`),
+  so a running unit that greets nothing is one whose program stopped inside its own process,
+  and a start of a unit the manager believes runs brings nothing back.
+  The three-second silence this list once gave that wait was read as that state on 2026-11-12,
+  and the restart and the manager-wide reload that followed ended a desktop session
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 - `RUNTIME_BUILD_PATIENCE` 60 seconds:
   the longest a service waits for the build of its own multi-thread runtime once that build has outlasted
   `BUILD_DEADLINE` (one second),
@@ -10978,16 +10996,6 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   A build of the runtime takes 0.3 to 0.5 ms when it works,
   and the slowest of 52 measured cold starts greeted in 1,041 ms,
   so one minute is far from any ordinary slow start.
-- `SERVICE_GREETING_SILENCE` 3 seconds:
-  how long a commit lets a unit the service manager reports `active` stay silent before it asks the manager to
-  restart it.
-  A service greets a connection before it restores anything
-  (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-  so a running unit that greets nothing is one whose program stopped inside its own process,
-  and a start of a unit the manager believes runs brings nothing back.
-  Nearly three times the slowest of the 52 measured cold starts (1.04 s),
-  and under the owner's bound on what a commit may add to native Git,
-  which since 2026-11-12 is the larger of 5,000 ms and twice that commit's own native time.
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
   the longest a command waits for the greeting of a service it only has to tell about work whose record it has
   already written (a snapshot's trash,
@@ -11725,10 +11733,6 @@ on the commit path:
   a greeting three seconds late was read as that state on 2026-11-12,
   and the restart and the manager-wide reload that followed ended the desktop session
   (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
-  The service survives being ended by design
-  (its journal,
-  its held commits and its work records are durable),
-  so the commit gets its answer instead of failing
   The service survives being ended by design
   (its journal,
   its held commits and its work records are durable),
@@ -13505,7 +13509,7 @@ in-process reader can) gives every value of the multi-valued keys.
   when the round that wrote the
   record kept none,
   it is not trying the push again by itself and the person pushes by hand
-  (`src/native/push/push_failure_notice_wording.rs`).
+  (`src/native/push/push_failure_notice_words.rs`).
   A round says so as it writes the record,
   because it is the round that plans the next try or forgets the
   branch's plan,
@@ -15917,7 +15921,7 @@ The step:
   the request carries the name and never the value,
   so a push whose `PATH` no line could hold still finds its programs,
   and its refusal names the service's list as the list it searched
-  (`src/native/service/service_work_push_environment.rs`).
+  (`src/native/landing/service_work_push_environment.rs`).
   A name the command left unset keeps none of the manager's,
   which is the state the removal exists for.
   A push whose command chose `GIT_SSH`,
