@@ -234,7 +234,8 @@ or says which step must pick it.
 - A release path that can carry a second executable.
   Not picked by the design,
   and no longer needed:
-  the owner answered "One program only, ever" on 2026-11-23
+  the owner answered "One program only,
+  ever" on 2026-11-23
   (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
   Kept as the record of what step 5 weighed.
   The design decided the second binary ("Binding crate and compatibility";
@@ -934,9 +935,12 @@ its host half needs no other step.
 
 #### What it builds
 
-The owner answered "One program only, ever" on 2026-11-23, so this step no
+The owner answered "One program only,
+ever" on 2026-11-23,
+so this step no
 longer adds a second executable:
-the root modes are modes of `monochromatic-git-policy-cli`, and the release
+the root modes are modes of `monochromatic-git-policy-cli`,
+and the release
 holds one `[[bin]]`
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`;
 how the modes are reached is
@@ -968,7 +972,8 @@ the source guard's one-executable test,
 the binstall table in [cli-cargo][],
 the wrapper's `checkBins` row in
 `package/crate-release/cli/releasable-crates.json`,
-the lock's `bins` row in `toolchain.lock.json` (through the tool, never by
+the lock's `bins` row in `toolchain.lock.json` (through the tool,
+never by
 hand),
 the install task and the README's install text.
 
@@ -3031,6 +3036,23 @@ and it is the owner's act on the owner's authorisation,
 never a step's.
 No shipped limit rests on either half until its measurement exists.
 
+#### Guest half, measured 2026-11-25
+
+[The step 22 guest measurement record](cli-git-zfs-step-22-guest-half-measurements.md)
+holds the guest half's numbers,
+each beside its control and its spread,
+on the step 19 dataset layout made inside one throwaway guest on a file-backed pool.
+It reports the add against ordinary Git stage by stage with an interleaved control,
+the mount request's wait and the unmount's with the holder scan,
+the sweep's cost at 16 and 64 clones,
+the lost-event behaviour,
+what expiration and removal freed,
+the forced arm's three waits,
+and the snapshot-destroy request budget,
+and it proposes each value with its citation without setting one.
+No shipped constant changed in that round,
+and the storage half remains the owner's act.
+
 #### Open items
 
 Proceeds without "Which triggers a lost last event waits for" and measures before any rate rule ships.
@@ -3511,7 +3533,8 @@ the fourth is an accepted cost that `doctor` reports.
   So this is writer work in step 5,
  not an owner question.
   (Amended 2026-11-25T03:00:00-05:00:
-  the owner answered "One program only, ever" on 2026-11-23
+  the owner answered "One program only,
+  ever" on 2026-11-23
   (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
   so the release holds one executable again and the two executables this entry
   describes are gone;
