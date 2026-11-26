@@ -484,3 +484,81 @@ In-tree convention;
  sinon itself is upstream-correct.
  No
 upstream report.
+
+---
+
+## Bug 6: A control that passes alone fails in the parallel suite
+
+### Symptom
+
+`mise run //package/pi-shared/subagent-driver:test:unit` fails on a control that starts a real child,
+or on one that measures the clock,
+while the same file alone passes:
+
+```text
+[workOutlivingTheTurnIn] [names a real child a shell started ...] [FAIL] (609ms)
+  Error: ENOENT: no such file or directory, open '/proc/3894226/comm'
+[drive-pi-subagent] [ends a run at its wall clock while the build it left still runs ...] [FAIL] (18.8s)
+  AssertionError: expected +0 to equal 1
+```
+
+Two causes,
+measured on 2026-11-26 while resolving issue 6504.
+
+### Cause 1: a `/proc` read of a process that ended between the listing and the read
+
+A shell started as `sh -lc 'sleep 60; :'` runs this machine's profile scripts first,
+and each of those scripts forks a child that ends before the work starts.
+A control that takes the first number out of `/proc/<pid>/task/<pid>/children` can take one of those,
+and its `comm` is gone by the time the control reads it:
+
+```text
+$ bash -lc 'sleep 6; :' &   # then sample the children file every 5 ms
+      1 3915398 comm=bash
+      1 3915408 comm=bash
+      3 3915418 comm=bash
+      1 3915439 comm=GONE
+    230 3915442 comm=sleep
+```
+
+Linux answers `ENOENT` for a record already removed,
+and `ESRCH` for one whose task it released;
+the driver counts both as a process that is gone
+(`package/pi-shared/subagent-driver/src/process-ended-codes.ts`).
+The read's own mechanism is in
+`package/pi-shared/subagent-driver/doc/troubleshooting/a-process-that-ends-while-its-record-is-read.md`.
+The control does the same:
+it waits for the child that runs the program it started,
+treats a child whose program cannot be read as one of the profile scripts,
+and owns that child before it reads any record of it,
+because that child outlives the test.
+
+### Cause 2: a wall clock sized below the start-up the suite makes
+
+`--wall-seconds` bounds Pi's start-up as well as the watch,
+as `package/pi-shared/subagent-driver/README.md` says under that option.
+So a run whose subject is its own clock has to reach that state before the clock ends.
+How long the start-up takes is what the other test files leave the machine:
+the driver took its first prompt at 473 ms on an idle host,
+and the moment each control measures took about 25 s inside the full suite,
+so a fixed 8 s ended a run before its prompt was ever sent.
+A control sizes its clock from a run it makes first,
+of the same driver and stand-in,
+which reaches the same feed line and ends of its own accord,
+and leaves that figure room to take half again.
+The work such a run leaves behind lives longer than the clock,
+so the run still ends on its clock rather than after its work.
+
+### Verification
+
+Both controls fail in a full run of the package's unit suite,
+and pass in it after the change:
+
+```text
+$ mise run //package/pi-shared/subagent-driver:test:unit
+$ mise run //package/pi-shared/subagent-driver:test:unit -- \
+    src/drive-pi-subagent.unit.test.ts src/work-the-run-left-running.unit.test.ts
+```
+
+The second run needs both files named:
+the harness runs a whole file and has no filter that would run one test alone.
