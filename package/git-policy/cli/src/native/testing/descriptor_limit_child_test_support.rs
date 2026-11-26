@@ -69,9 +69,10 @@ const CHILD_DIRECTORY_VARIABLE: &str = "CLI_GIT_DESCRIPTOR_LIMIT_CHILD_DIRECTORY
 ///  Whether this process is a child this file started,
 ///  which is the only process a control may lower a descriptor limit in.
 /// Why:
-///  `set_soft_limit` asks this before it lowers anything,
-///  so a control that forgot the child fails at its own first line
-///  instead of making the rest of a threaded run fail now and then.
+///  The refusal and the control's own body ask this one question,
+///  so a process is the child,
+///  or is not,
+///  by one variable read in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
