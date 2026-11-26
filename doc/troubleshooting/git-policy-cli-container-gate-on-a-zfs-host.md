@@ -643,6 +643,12 @@ and the failures with the commit that fixed them.
   `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`, in 931 s.
   It failed nothing.
   The leaky test is issue 6501's relay control again.
+- `a6c155bea4`,
+  unit `whole-gate-on-main-a6c155bea4`,
+  started about 2026-11-26T09:47-05:00,
+  holding issues 6493, 6505, 6507 and 6508, the crate split's round 1 and the linter locked to `alpha.15`:
+  `11996 tests run: 11996 passed (5 slow, 1 leaky), 49 skipped`, in 843 s.
+  It failed nothing; the leaky test is issue 6501's relay control.
 
 A gate's window denies what the work meets,
 never a failure by itself:

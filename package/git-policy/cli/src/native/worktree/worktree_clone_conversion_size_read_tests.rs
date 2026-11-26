@@ -10,7 +10,7 @@ use crate::add_timing::{
     begin as begin_timing,
     finish as finish_timing,
 };
-use crate::process_wide_state_child_test_support::started_within_a_child_of_its_own;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::test_support::{
     git,
     git_context,
@@ -143,9 +143,10 @@ fn the_fence(
 ///  and the record states the read's own cost.
 #[test]
 fn a_settled_head_uses_the_read_beside_the_check() {
-    // What:     `started_within_a_child_of_its_own` starts this same test in a child process of this test binary, which
-    //  holds that one test and no other, and answers `true` in the parent, which has then asserted the child's one
-    //  passing test; `module_path!()` is this module's path and the second argument this test's name in it.
+    // What:     `run_the_body_in_a_child_of_its_own` starts this same test in a child process of this test binary, which
+    //  holds that one test and no other, and runs the body given to it there; the parent never runs it, and the child's
+    //  one passing test is the whole assertion. `module_path!()` is this module's path and the second argument this
+    //  test's name in it.
     //  Its sibling is a body run here, beside every other test of the module, which is what it replaces.
     // Why:      the add-timing record of a process belongs to the one add that process runs, so the reading this
     //  control states is the record's own work only where no other test of the run is recording; beside them it lost
@@ -153,46 +154,49 @@ fn a_settled_head_uses_the_read_beside_the_check() {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // if (ranAloneInAChildOfItsOwn(import.meta.url, 'a_settled_head_uses_the_read_beside_the_check')) return;
+    // if (runTheBodyInAChildOfItsOwn(import.meta.url, 'a_settled_head_uses_the_read_beside_the_check', () => {
     // ```
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_settled_head_uses_the_read_beside_the_check",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("settled");
-    let repo: PathBuf = a_clean_source(root.as_path(), "settled");
-    let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
-    begin_timing(repo.join(".git"), true);
-    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = the_fence(repo.as_path(), &context, &mut held).expect("the fence decides");
-    finish_timing(0);
-    assert!(held.is_none(), "the fence took the read the check proved");
-    let record: String = the_record(repo.as_path());
-    assert!(
-        !the_record_states(record.as_str(), "git ls-tree"),
-        "the fence paid no second read: {record}"
+        || {
+            let root: PathBuf = fixture("settled");
+            let repo: PathBuf = a_clean_source(root.as_path(), "settled");
+            let context: GitContext = git_context();
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&context, &main_identity(repo.as_path()))
+                    .expect("a read starts");
+            begin_timing(repo.join(".git"), true);
+            let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+            let fence: Fence =
+                the_fence(repo.as_path(), &context, &mut held).expect("the fence decides");
+            finish_timing(0);
+            assert!(held.is_none(), "the fence took the read the check proved");
+            let record: String = the_record(repo.as_path());
+            assert!(
+                !the_record_states(record.as_str(), "git ls-tree"),
+                "the fence paid no second read: {record}"
+            );
+            assert!(
+                the_record_states(record.as_str(), "fenceSizesBesideTheCheck"),
+                "the read's own cost is the record's work: {record}"
+            );
+            assert!(
+                the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+                "the join's wait is a step: {record}"
+            );
+            let source: SnapshotSource = source_refusal(&context, &main_identity(repo.as_path()))
+                .expect("the source is clean");
+            let serial: Fence =
+                fence_the_clone(&source, &context).expect("the serial fence decides");
+            assert_eq!(
+                (fence.git_writes, fence.carried),
+                (serial.git_writes, serial.carried),
+                "the same map decides the same paths"
+            );
+            remove(root.as_path());
+        },
     );
-    assert!(
-        the_record_states(record.as_str(), "fenceSizesBesideTheCheck"),
-        "the read's own cost is the record's work: {record}"
-    );
-    assert!(
-        the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
-        "the join's wait is a step: {record}"
-    );
-    let source: SnapshotSource =
-        source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
-    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!(
-        (fence.git_writes, fence.carried),
-        (serial.git_writes, serial.carried),
-        "the same map decides the same paths"
-    );
-    remove(root.as_path());
 }
 
 /// What:
@@ -306,16 +310,16 @@ fn the_stale_read_is_dropped(
 fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_moved_symbolic_ref_drops_the_read_beside_the_check",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("moved-symbolic");
-    let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), None, the_symbolic_ref_moves);
-    remove(root.as_path());
+        || {
+            let root: PathBuf = fixture("moved-symbolic");
+            let repo: PathBuf = a_clean_source(root.as_path(), "moved");
+            the_stale_read_is_dropped(repo.as_path(), None, the_symbolic_ref_moves);
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A loose ref appearing over the branch `packed-refs` held drops the read.
@@ -323,20 +327,20 @@ fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
 fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("moved-packed");
-    let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(
-        repo.as_path(),
-        Some(the_branch_lives_only_in_packed_refs),
-        commit_of_the_same_tree,
+        || {
+            let root: PathBuf = fixture("moved-packed");
+            let repo: PathBuf = a_clean_source(root.as_path(), "moved");
+            the_stale_read_is_dropped(
+                repo.as_path(),
+                Some(the_branch_lives_only_in_packed_refs),
+                commit_of_the_same_tree,
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// A moving detached `HEAD` drops the read.
@@ -344,20 +348,20 @@ fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
 fn a_detached_head_moving_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_detached_head_moving_drops_the_read_beside_the_check",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("moved-detached");
-    let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(
-        repo.as_path(),
-        Some(the_head_is_detached),
-        commit_of_the_same_tree,
+        || {
+            let root: PathBuf = fixture("moved-detached");
+            let repo: PathBuf = a_clean_source(root.as_path(), "moved");
+            the_stale_read_is_dropped(
+                repo.as_path(),
+                Some(the_head_is_detached),
+                commit_of_the_same_tree,
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// `HEAD` moving to a commit of another tree drops the read,
@@ -366,16 +370,16 @@ fn a_detached_head_moving_drops_the_read_beside_the_check() {
 fn a_head_moved_to_another_tree_drops_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_head_moved_to_another_tree_drops_the_read_beside_the_check",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("moved-tree");
-    let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), None, the_head_moves_to_another_tree);
-    remove(root.as_path());
+        || {
+            let root: PathBuf = fixture("moved-tree");
+            let repo: PathBuf = a_clean_source(root.as_path(), "moved");
+            the_stale_read_is_dropped(repo.as_path(), None, the_head_moves_to_another_tree);
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A linked worktree's own `HEAD` moving drops the read.
@@ -432,66 +436,68 @@ fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
 fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_linked_worktrees_settled_head_uses_the_read_beside_the_check",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("linked-settled");
-    let repo: PathBuf = a_clean_source(root.as_path(), "linked-main");
-    let first: String = the_head_commit(repo.as_path());
-    // The main checkout moves on, so its `HEAD` names a commit the linked worktree's does not.
-    commit_of_another_tree(repo.as_path());
-    let made: PathBuf = root.join("linked");
-    git(
-        repo.as_path(),
-        &[
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "side",
-            made.to_str().expect("utf8"),
-            first.as_str(),
-        ],
+        || {
+            let root: PathBuf = fixture("linked-settled");
+            let repo: PathBuf = a_clean_source(root.as_path(), "linked-main");
+            let first: String = the_head_commit(repo.as_path());
+            // The main checkout moves on, so its `HEAD` names a commit the linked worktree's does not.
+            commit_of_another_tree(repo.as_path());
+            let made: PathBuf = root.join("linked");
+            git(
+                repo.as_path(),
+                &[
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "-b",
+                    "side",
+                    made.to_str().expect("utf8"),
+                    first.as_str(),
+                ],
+            );
+            let linked: PathBuf = std::fs::canonicalize(made).expect("canonical");
+            age_every_file(linked.as_path());
+            // The checkout's index records the times the files had when it was written; refreshing them records the aged ones,
+            // so every entry is older than the index that holds it.
+            git(linked.as_path(), &["update-index", "--really-refresh"]);
+            let common: PathBuf = repo.join(".git");
+            let identity = WorktreeIdentity::LinkedWorktree {
+                worktree_root: linked.clone(),
+                git_dir: common.join("worktrees").join("linked"),
+                common_dir: common,
+            };
+            let context: GitContext = git_context();
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&context, &identity).expect("a read starts");
+            let source: SnapshotSource =
+                source_refusal(&context, &identity).expect("the linked source is clean");
+            begin_timing(repo.join(".git"), true);
+            let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+            let fence: Fence =
+                fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
+                    .expect("the fence decides");
+            finish_timing(0);
+            assert!(
+                held.is_none(),
+                "the read listed the linked worktree's own HEAD, which is the commit the check proved"
+            );
+            let record: String = the_record(repo.as_path());
+            assert!(
+                !the_record_states(record.as_str(), "git ls-tree"),
+                "a read of the main checkout's HEAD would have been dropped and read here: {record}"
+            );
+            let serial: Fence =
+                fence_the_clone(&source, &context).expect("the serial fence decides");
+            assert_eq!(
+                (fence.git_writes, fence.carried),
+                (serial.git_writes, serial.carried)
+            );
+            remove(root.as_path());
+        },
     );
-    let linked: PathBuf = std::fs::canonicalize(made).expect("canonical");
-    age_every_file(linked.as_path());
-    // The checkout's index records the times the files had when it was written; refreshing them records the aged ones,
-    // so every entry is older than the index that holds it.
-    git(linked.as_path(), &["update-index", "--really-refresh"]);
-    let common: PathBuf = repo.join(".git");
-    let identity = WorktreeIdentity::LinkedWorktree {
-        worktree_root: linked.clone(),
-        git_dir: common.join("worktrees").join("linked"),
-        common_dir: common,
-    };
-    let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&context, &identity).expect("a read starts");
-    let source: SnapshotSource =
-        source_refusal(&context, &identity).expect("the linked source is clean");
-    begin_timing(repo.join(".git"), true);
-    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
-        .expect("the fence decides");
-    finish_timing(0);
-    assert!(
-        held.is_none(),
-        "the read listed the linked worktree's own HEAD, which is the commit the check proved"
-    );
-    let record: String = the_record(repo.as_path());
-    assert!(
-        !the_record_states(record.as_str(), "git ls-tree"),
-        "a read of the main checkout's HEAD would have been dropped and read here: {record}"
-    );
-    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!(
-        (fence.git_writes, fence.carried),
-        (serial.git_writes, serial.carried)
-    );
-    remove(root.as_path());
 }
 
 /// A read that outlives its deadline refuses the rung in the sentence a failed read gives.
@@ -499,32 +505,33 @@ fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
 fn a_read_that_outlives_its_deadline_refuses_the_rung() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold that makes this control's read
     //  outlive its deadline is a seam every read of the process waits at.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_read_that_outlives_its_deadline_refuses_the_rung",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("deadline");
-    let repo: PathBuf = a_clean_source(root.as_path(), "deadline");
-    let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
-    let hold = a_control_holds_the_read();
-    let shortened = a_control_shortens_the_deadline_to(Duration::from_millis(50));
-    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
-    let Err(reason) = outcome else {
-        panic!("the rung is refused rather than held")
-    };
-    assert!(
-        reason.starts_with("a Git run of the fence could not start ("),
-        "{reason}"
+        || {
+            let root: PathBuf = fixture("deadline");
+            let repo: PathBuf = a_clean_source(root.as_path(), "deadline");
+            let context: GitContext = git_context();
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&context, &main_identity(repo.as_path()))
+                    .expect("a read starts");
+            let hold = a_control_holds_the_read();
+            let shortened = a_control_shortens_the_deadline_to(Duration::from_millis(50));
+            let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+            let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
+            let Err(reason) = outcome else {
+                panic!("the rung is refused rather than held")
+            };
+            assert!(
+                reason.starts_with("a Git run of the fence could not start ("),
+                "{reason}"
+            );
+            assert!(reason.contains("did not answer within 50ms"), "{reason}");
+            drop(hold);
+            drop(shortened);
+            remove(root.as_path());
+        },
     );
-    assert!(reason.contains("did not answer within 50ms"), "{reason}");
-    drop(hold);
-    drop(shortened);
-    remove(root.as_path());
 }
 
 /// A read whose task dies refuses the rung in the sentence a failed read gives.
@@ -532,27 +539,30 @@ fn a_read_that_outlives_its_deadline_refuses_the_rung() {
 fn a_read_whose_task_dies_refuses_the_rung() {
     // What: the body runs in a child of its own (see the import's file). Why: the stand-in that makes this control's
     //  read die reaches every read of the process.
-    if started_within_a_child_of_its_own(module_path!(), "a_read_whose_task_dies_refuses_the_rung")
-    {
-        return;
-    }
-    let root: PathBuf = fixture("dies");
-    let repo: PathBuf = a_clean_source(root.as_path(), "dies");
-    let dies = a_control_makes_the_read_die();
-    let context: GitContext = git_context();
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
-    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
-    let Err(reason) = outcome else {
-        panic!("the rung is refused rather than held")
-    };
-    assert!(
-        reason.starts_with("a Git run of the fence could not start ("),
-        "{reason}"
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_read_whose_task_dies_refuses_the_rung",
+        || {
+            let root: PathBuf = fixture("dies");
+            let repo: PathBuf = a_clean_source(root.as_path(), "dies");
+            let dies = a_control_makes_the_read_die();
+            let context: GitContext = git_context();
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&context, &main_identity(repo.as_path()))
+                    .expect("a read starts");
+            let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+            let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
+            let Err(reason) = outcome else {
+                panic!("the rung is refused rather than held")
+            };
+            assert!(
+                reason.starts_with("a Git run of the fence could not start ("),
+                "{reason}"
+            );
+            drop(dies);
+            remove(root.as_path());
+        },
     );
-    drop(dies);
-    remove(root.as_path());
 }
 
 /// A read that cannot start gives exactly the sentence the serial read gives.
@@ -617,29 +627,30 @@ fn the_head_commit(repo: &Path) -> String {
 fn the_read_beside_the_check_leaves_another_steps_note_alone() {
     // What: the body runs in a child of its own (see the import's file). Why: the note of the last failed Git step
     //  belongs to the whole process, so a test beside this one took it or wrote over it.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_read_beside_the_check_leaves_another_steps_note_alone",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("note");
-    let repo: PathBuf = a_clean_source(root.as_path(), "note");
-    crate::git_step_failure::note_failed_step("git add", Some(1));
-    let sizes: BlobSizes = start_beside_the_check(&git_context(), &main_identity(repo.as_path()))
-        .expect("a read starts")
-        .join()
-        .expect("the sizes");
-    assert_eq!(sizes.len(), 2, "both tracked paths have a size");
-    assert_eq!(
-        crate::git_step_failure::drain_failed_step(),
-        Some(crate::git_step_failure::FailedStep {
-            name: String::from("git add"),
-            status: Some(1)
-        }),
-        "the read took no note of its own"
+        || {
+            let root: PathBuf = fixture("note");
+            let repo: PathBuf = a_clean_source(root.as_path(), "note");
+            crate::git_step_failure::note_failed_step("git add", Some(1));
+            let sizes: BlobSizes =
+                start_beside_the_check(&git_context(), &main_identity(repo.as_path()))
+                    .expect("a read starts")
+                    .join()
+                    .expect("the sizes");
+            assert_eq!(sizes.len(), 2, "both tracked paths have a size");
+            assert_eq!(
+                crate::git_step_failure::drain_failed_step(),
+                Some(crate::git_step_failure::FailedStep {
+                    name: String::from("git add"),
+                    status: Some(1)
+                }),
+                "the read took no note of its own"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// The early read's request is the only thing that differs from the serial one,
@@ -776,24 +787,25 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
 fn a_read_that_already_answered_is_stated_as_work() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process, and beside other tests it lost its work entry.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_read_that_already_answered_is_stated_as_work",
-    ) {
-        return;
-    }
-    let record: String = settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
-    assert!(
-        the_record_states(record.as_str(), WORK),
-        "the read's own cost is the record's work: {record}"
-    );
-    assert!(
-        record.contains("\"calls\":1"),
-        "the work is one entry: {record}"
-    );
-    assert!(
-        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
-        "the settle entered no wait: {record}"
+        || {
+            let record: String =
+                settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
+            assert!(
+                the_record_states(record.as_str(), WORK),
+                "the read's own cost is the record's work: {record}"
+            );
+            assert!(
+                record.contains("\"calls\":1"),
+                "the work is one entry: {record}"
+            );
+            assert!(
+                !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+                "the settle entered no wait: {record}"
+            );
+        },
     );
 }
 
@@ -803,30 +815,30 @@ fn a_read_that_already_answered_is_stated_as_work() {
 fn a_read_that_has_not_answered_is_started_and_not_joined() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process, and beside other tests it took their work entries for its own.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_read_that_has_not_answered_is_started_and_not_joined",
-    ) {
-        return;
-    }
-    let began = std::time::Instant::now();
-    let record: String = settle_with(None);
-    let elapsed: Duration = began.elapsed();
-    assert!(
-        elapsed < Duration::from_secs(2),
-        "the settle never waits for the read: {elapsed:?}"
-    );
-    assert!(
-        record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""),
-        "the record states the read was started and not joined: {record}"
-    );
-    assert!(
-        !the_record_states(record.as_str(), WORK),
-        "a read still running has no cost to state: {record}"
-    );
-    assert!(
-        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
-        "the settle entered no wait: {record}"
+        || {
+            let began = std::time::Instant::now();
+            let record: String = settle_with(None);
+            let elapsed: Duration = began.elapsed();
+            assert!(
+                elapsed < Duration::from_secs(2),
+                "the settle never waits for the read: {elapsed:?}"
+            );
+            assert!(
+                record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""),
+                "the record states the read was started and not joined: {record}"
+            );
+            assert!(
+                !the_record_states(record.as_str(), WORK),
+                "a read still running has no cost to state: {record}"
+            );
+            assert!(
+                !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+                "the settle entered no wait: {record}"
+            );
+        },
     );
 }
 
@@ -836,64 +848,64 @@ fn a_read_that_has_not_answered_is_started_and_not_joined() {
 fn an_add_that_never_reaches_the_fence_does_not_wait_for_the_read() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold on the read and the record this
     //  control writes both belong to the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "an_add_that_never_reaches_the_fence_does_not_wait_for_the_read",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("settled-only");
-    let repo: PathBuf = a_clean_source(root.as_path(), "settled-only");
-    let destination: PathBuf = root.join("topic");
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&git_context(), &main_identity(repo.as_path()))
-            .expect("a read starts");
-    let hold = a_control_holds_the_read();
-    begin_timing(repo.join(".git"), true);
-    let ladder: Ladder = Ladder {
-        plan: None,
-        rung: Rung::Git(None),
-        slow: None,
-        sizes_beside: Some(started),
-    };
-    let mut runner = no_runner();
-    let began = std::time::Instant::now();
-    let result = ladder.finish(
-        GitStatus {
-            code: Some(0),
+        || {
+            let root: PathBuf = fixture("settled-only");
+            let repo: PathBuf = a_clean_source(root.as_path(), "settled-only");
+            let destination: PathBuf = root.join("topic");
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&git_context(), &main_identity(repo.as_path()))
+                    .expect("a read starts");
+            let hold = a_control_holds_the_read();
+            begin_timing(repo.join(".git"), true);
+            let ladder: Ladder = Ladder {
+                plan: None,
+                rung: Rung::Git(None),
+                slow: None,
+                sizes_beside: Some(started),
+            };
+            let mut runner = no_runner();
+            let began = std::time::Instant::now();
+            let result = ladder.finish(
+                GitStatus {
+                    code: Some(0),
+                },
+                &mut runner,
+                &git_context(),
+                &mut std::io::sink(),
+                &mut std::io::sink(),
+            );
+            let elapsed: Duration = began.elapsed();
+            finish_timing(0);
+            drop(hold);
+            assert_eq!(
+                result.git,
+                GitStatus {
+                    code: Some(0)
+                }
+            );
+            assert!(
+                elapsed < Duration::from_secs(2),
+                "a held read does not hold the add: {elapsed:?}"
+            );
+            let record: String = the_record(repo.as_path());
+            assert!(
+                record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""),
+                "the add states the read it did not join: {record}"
+            );
+            assert!(
+                !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+                "the add entered no wait: {record}"
+            );
+            assert!(
+                !destination.exists(),
+                "the read writes nothing where the worktree goes"
+            );
+            remove(root.as_path());
         },
-        &mut runner,
-        &git_context(),
-        &mut std::io::sink(),
-        &mut std::io::sink(),
     );
-    let elapsed: Duration = began.elapsed();
-    finish_timing(0);
-    drop(hold);
-    assert_eq!(
-        result.git,
-        GitStatus {
-            code: Some(0)
-        }
-    );
-    assert!(
-        elapsed < Duration::from_secs(2),
-        "a held read does not hold the add: {elapsed:?}"
-    );
-    let record: String = the_record(repo.as_path());
-    assert!(
-        record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""),
-        "the add states the read it did not join: {record}"
-    );
-    assert!(
-        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
-        "the add entered no wait: {record}"
-    );
-    assert!(
-        !destination.exists(),
-        "the read writes nothing where the worktree goes"
-    );
-    remove(root.as_path());
 }
 
 /// A sparse partial clone of `origin` with the cone on `dir0`,
@@ -1163,55 +1175,56 @@ fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
     // What: the body runs in a child of its own (see the import's file). Why: the variables that name the promisor
     //  remote are the environment of the whole process, which every other test's Git child inherits, and this control
     //  removed them only where its read returned.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_read_with_the_promisor_remote_from_the_environment_fetches_nothing",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("promisor-environment");
-    let origin: PathBuf = a_partial_clone_origin(root.as_path());
-    let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "environment");
-    let _unset_promisor: std::process::Output = git_output(
-        clone.as_path(),
-        &["config", "--unset", "remote.origin.promisor"],
+        || {
+            let root: PathBuf = fixture("promisor-environment");
+            let origin: PathBuf = a_partial_clone_origin(root.as_path());
+            let clone: PathBuf =
+                a_sparse_partial_clone(origin.as_path(), root.as_path(), "environment");
+            let _unset_promisor: std::process::Output = git_output(
+                clone.as_path(),
+                &["config", "--unset", "remote.origin.promisor"],
+            );
+            let _unset_filter: std::process::Output = git_output(
+                clone.as_path(),
+                &["config", "--unset", "remote.origin.partialclonefilter"],
+            );
+            let _unset_default: std::process::Output = git_output(
+                clone.as_path(),
+                &["config", "--unset", "extensions.partialclone"],
+            );
+            remove_every_promisor_marker(clone.as_path());
+            // SAFETY: nextest gives this control its own process, and no thread reads the environment before these are set.
+            unsafe {
+                std::env::set_var("GIT_CONFIG_COUNT", "2");
+                std::env::set_var("GIT_CONFIG_KEY_0", "remote.origin.promisor");
+                std::env::set_var("GIT_CONFIG_VALUE_0", "true");
+                std::env::set_var("GIT_CONFIG_KEY_1", "remote.origin.partialclonefilter");
+                std::env::set_var("GIT_CONFIG_VALUE_1", "blob:none");
+            }
+            let (before, after) =
+                an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
+            // SAFETY: this control's own process, and the read has ended.
+            unsafe {
+                std::env::remove_var("GIT_CONFIG_COUNT");
+                std::env::remove_var("GIT_CONFIG_KEY_0");
+                std::env::remove_var("GIT_CONFIG_VALUE_0");
+                std::env::remove_var("GIT_CONFIG_KEY_1");
+                std::env::remove_var("GIT_CONFIG_VALUE_1");
+            }
+            assert!(
+                before.0 > 0,
+                "the clone is missing the blobs the cone leaves out: {before:?}"
+            );
+            assert_eq!(
+                after, before,
+                "a remote from the environment fetches nothing"
+            );
+            remove(root.as_path());
+        },
     );
-    let _unset_filter: std::process::Output = git_output(
-        clone.as_path(),
-        &["config", "--unset", "remote.origin.partialclonefilter"],
-    );
-    let _unset_default: std::process::Output = git_output(
-        clone.as_path(),
-        &["config", "--unset", "extensions.partialclone"],
-    );
-    remove_every_promisor_marker(clone.as_path());
-    // SAFETY: nextest gives this control its own process, and no thread reads the environment before these are set.
-    unsafe {
-        std::env::set_var("GIT_CONFIG_COUNT", "2");
-        std::env::set_var("GIT_CONFIG_KEY_0", "remote.origin.promisor");
-        std::env::set_var("GIT_CONFIG_VALUE_0", "true");
-        std::env::set_var("GIT_CONFIG_KEY_1", "remote.origin.partialclonefilter");
-        std::env::set_var("GIT_CONFIG_VALUE_1", "blob:none");
-    }
-    let (before, after) =
-        an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
-    // SAFETY: this control's own process, and the read has ended.
-    unsafe {
-        std::env::remove_var("GIT_CONFIG_COUNT");
-        std::env::remove_var("GIT_CONFIG_KEY_0");
-        std::env::remove_var("GIT_CONFIG_VALUE_0");
-        std::env::remove_var("GIT_CONFIG_KEY_1");
-        std::env::remove_var("GIT_CONFIG_VALUE_1");
-    }
-    assert!(
-        before.0 > 0,
-        "the clone is missing the blobs the cone leaves out: {before:?}"
-    );
-    assert_eq!(
-        after, before,
-        "a remote from the environment fetches nothing"
-    );
-    remove(root.as_path());
 }
 
 /// A `--reference` clone of a partial clone,
@@ -1364,63 +1377,63 @@ fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
     // What: the body runs in a child of its own (see the import's file). Why: the repository whose record every Git
     //  start is noted in, and the record file of the process, belong to the whole process, so a test beside this one
     //  noted its own children into this control's folder and kept it from being swept.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "an_abandoned_read_ends_its_child_and_its_record_is_swept",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("abandon");
-    let repo: PathBuf = a_clean_source(root.as_path(), "abandon");
-    // The repository's per-process record names every Git this process starts, so arm it before the read.
-    crate::lock_holder_records::remember_repository(repo.join(".git").as_path());
-    let fake: PathBuf = root.join("git-that-holds-the-size-read");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
-        .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    // The positive control: this test starts the fake itself, and the probe finds it alive.
-    let mut held = std::process::Command::new(fake.as_path())
-        .args(["ls-tree", "HEAD"])
-        .spawn()
-        .expect("the fake starts");
-    let positive: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(
-        alive(positive),
-        "the probe finds a running fake Git, so the search can see one"
+        || {
+            let root: PathBuf = fixture("abandon");
+            let repo: PathBuf = a_clean_source(root.as_path(), "abandon");
+            // The repository's per-process record names every Git this process starts, so arm it before the read.
+            crate::lock_holder_records::remember_repository(repo.join(".git").as_path());
+            let fake: PathBuf = root.join("git-that-holds-the-size-read");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+                .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            // The positive control: this test starts the fake itself, and the probe finds it alive.
+            let mut held = std::process::Command::new(fake.as_path())
+                .args(["ls-tree", "HEAD"])
+                .spawn()
+                .expect("the fake starts");
+            let positive: i32 = a_process_id_written_within(wrote.as_path());
+            assert!(
+                alive(positive),
+                "the probe finds a running fake Git, so the search can see one"
+            );
+            let _killed = held.kill();
+            let _reaped = held.wait();
+            std::fs::remove_file(wrote.as_path()).expect("the positive control's marker is gone");
+            let started: SizeReadBesideTheCheck = start_beside_the_check(
+                &a_context_whose_git_holds_the_read(fake.as_path()),
+                &main_identity(repo.as_path()),
+            )
+            .expect("a read starts");
+            let child: i32 = a_process_id_written_within(wrote.as_path());
+            assert!(alive(child), "the read's child runs before the abandon");
+            started.abandon();
+            assert!(
+                gone_within(child, Duration::from_secs(5)),
+                "the abandon ended the read's child while the adding process still lives"
+            );
+            let common: PathBuf = repo.join(".git");
+            let record: String = the_records(&common);
+            assert!(
+                record.contains(format!("child {child} ").as_str()),
+                "the child start is named in the repository's record: {record}"
+            );
+            // The sweep is the pass every command that may meet a lock runs; a record it can no longer explain goes.
+            crate::lock_holder_record_reads::sweep(common.as_path(), &[]);
+            assert!(
+                !the_record_folder_exists(&common),
+                "the line a killed read's child left is swept once every holder it names is gone"
+            );
+            remove(root.as_path());
+        },
     );
-    let _killed = held.kill();
-    let _reaped = held.wait();
-    std::fs::remove_file(wrote.as_path()).expect("the positive control's marker is gone");
-    let started: SizeReadBesideTheCheck = start_beside_the_check(
-        &a_context_whose_git_holds_the_read(fake.as_path()),
-        &main_identity(repo.as_path()),
-    )
-    .expect("a read starts");
-    let child: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(alive(child), "the read's child runs before the abandon");
-    started.abandon();
-    assert!(
-        gone_within(child, Duration::from_secs(5)),
-        "the abandon ended the read's child while the adding process still lives"
-    );
-    let common: PathBuf = repo.join(".git");
-    let record: String = the_records(&common);
-    assert!(
-        record.contains(format!("child {child} ").as_str()),
-        "the child start is named in the repository's record: {record}"
-    );
-    // The sweep is the pass every command that may meet a lock runs; a record it can no longer explain goes.
-    crate::lock_holder_record_reads::sweep(common.as_path(), &[]);
-    assert!(
-        !the_record_folder_exists(&common),
-        "the line a killed read's child left is swept once every holder it names is gone"
-    );
-    remove(root.as_path());
 }
 
 /// What:
@@ -1558,41 +1571,44 @@ fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {
     // What: the body runs in a child of its own (see the import's file). Why: this control forks the test process, and
     //  a fork of a process whose runtime threads run loses the runtime's wake-up in the child, so the child of the
     //  fork could not start the read at all.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_process_that_ends_with_a_running_read_leaves_no_child_behind",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("process-exit");
-    let repo: PathBuf = a_clean_source(root.as_path(), "process-exit");
-    let fake: PathBuf = root.join("git-that-holds-the-size-read");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
-        .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    let began = std::time::Instant::now();
-    let status =
-        fork_a_process_that_ends_with_the_read(fake.as_path(), repo.as_path(), wrote.as_path());
-    let elapsed: Duration = began.elapsed();
-    assert!(
-        status.success(),
-        "the add's own process ended after its read started"
+        || {
+            let root: PathBuf = fixture("process-exit");
+            let repo: PathBuf = a_clean_source(root.as_path(), "process-exit");
+            let fake: PathBuf = root.join("git-that-holds-the-size-read");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+                .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            let began = std::time::Instant::now();
+            let status = fork_a_process_that_ends_with_the_read(
+                fake.as_path(),
+                repo.as_path(),
+                wrote.as_path(),
+            );
+            let elapsed: Duration = began.elapsed();
+            assert!(
+                status.success(),
+                "the add's own process ended after its read started"
+            );
+            assert!(
+                elapsed < Duration::from_secs(20),
+                "the process does not wait for a read that sleeps for 30 s: {elapsed:?}"
+            );
+            let child: i32 = a_process_id_written_within(wrote.as_path());
+            assert!(
+                gone_within(child, Duration::from_secs(5)),
+                "the read's child ended with the process that started it, not after its 30 s sleep"
+            );
+            remove(root.as_path());
+        },
     );
-    assert!(
-        elapsed < Duration::from_secs(20),
-        "the process does not wait for a read that sleeps for 30 s: {elapsed:?}"
-    );
-    let child: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(
-        gone_within(child, Duration::from_secs(5)),
-        "the read's child ended with the process that started it, not after its 30 s sleep"
-    );
-    remove(root.as_path());
 }
 
 /// The fake Git program of the no-reused-id control:
@@ -1615,58 +1631,58 @@ fn a_git_whose_size_read_ends_at_once(wrote: &Path) -> String {
 fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold on the read is a seam every read
     //  of the process waits at.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "an_abandon_before_the_child_is_published_leaves_no_child_running",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("abandon-before-child");
-    let repo: PathBuf = a_clean_source(root.as_path(), "abandon-before-child");
-    let fake: PathBuf = root.join("git-that-holds-the-size-read");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
-        .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    let hold = a_control_holds_the_read();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(
-        &a_context_whose_git_holds_the_read(fake.as_path()),
-        &main_identity(repo.as_path()),
-    )
-    .expect("a read starts");
-    // The read is held before its Git run, so no child exists yet: this is exactly the abandon a check that refuses at once makes.
-    started.abandon();
-    drop(hold);
-    // The read may start its child after the abandon; that child must be ended the moment it is published.
-    // The marker is waited for, bounded, because the read's thread starts the fake after this thread released it:
-    //  a check that looked once could miss a child that the old code then left for its whole 30 s sleep.
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    let mut child: Option<i32> = None;
-    while child.is_none() && std::time::Instant::now() < deadline {
-        child = a_process_id_in(wrote.as_path());
-        if child.is_none() {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-    }
-    if let Some(published) = child {
-        assert!(
-            gone_within(published, Duration::from_secs(5)),
-            "the child the abandon came before is ended at publication, not left for its 30 s sleep"
-        );
-    }
-    // Nothing of the fake may still run, whether its marker was seen or the kill landed before it wrote one.
-    let remaining = a_process_id_in(wrote.as_path());
-    if let Some(remaining_id) = remaining {
-        assert!(
-            gone_within(remaining_id, Duration::from_secs(1)),
-            "nothing of the abandoned read is alive afterwards"
-        );
-    }
-    remove(root.as_path());
+        || {
+            let root: PathBuf = fixture("abandon-before-child");
+            let repo: PathBuf = a_clean_source(root.as_path(), "abandon-before-child");
+            let fake: PathBuf = root.join("git-that-holds-the-size-read");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+                .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            let hold = a_control_holds_the_read();
+            let started: SizeReadBesideTheCheck = start_beside_the_check(
+                &a_context_whose_git_holds_the_read(fake.as_path()),
+                &main_identity(repo.as_path()),
+            )
+            .expect("a read starts");
+            // The read is held before its Git run, so no child exists yet: this is exactly the abandon a check that refuses at once makes.
+            started.abandon();
+            drop(hold);
+            // The read may start its child after the abandon; that child must be ended the moment it is published.
+            // The marker is waited for, bounded, because the read's thread starts the fake after this thread released it:
+            //  a check that looked once could miss a child that the old code then left for its whole 30 s sleep.
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            let mut child: Option<i32> = None;
+            while child.is_none() && std::time::Instant::now() < deadline {
+                child = a_process_id_in(wrote.as_path());
+                if child.is_none() {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
+            if let Some(published) = child {
+                assert!(
+                    gone_within(published, Duration::from_secs(5)),
+                    "the child the abandon came before is ended at publication, not left for its 30 s sleep"
+                );
+            }
+            // Nothing of the fake may still run, whether its marker was seen or the kill landed before it wrote one.
+            let remaining = a_process_id_in(wrote.as_path());
+            if let Some(remaining_id) = remaining {
+                assert!(
+                    gone_within(remaining_id, Duration::from_secs(1)),
+                    "nothing of the abandoned read is alive afterwards"
+                );
+            }
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A child reaped before an abandon is not named by the read's cell,
@@ -1675,53 +1691,53 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
 fn an_abandon_after_the_child_ended_names_no_child() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold after the wait, and the note
     //  that a read reached it, belong to every read of the process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "an_abandon_after_the_child_ended_names_no_child",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("no-reused-id");
-    let repo: PathBuf = a_clean_source(root.as_path(), "no-reused-id");
-    let fake: PathBuf = root.join("git-whose-size-read-ends");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(
-        fake.as_path(),
-        a_git_whose_size_read_ends_at_once(wrote.as_path()),
-    )
-    .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    let hold = a_control_holds_the_sizes_after_the_wait();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(
-        &a_context_whose_git_holds_the_read(fake.as_path()),
-        &main_identity(repo.as_path()),
-    )
-    .expect("a read starts");
-    let child: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(
-        gone_within(child, Duration::from_secs(5)),
-        "the fake Git ends by itself"
+        || {
+            let root: PathBuf = fixture("no-reused-id");
+            let repo: PathBuf = a_clean_source(root.as_path(), "no-reused-id");
+            let fake: PathBuf = root.join("git-whose-size-read-ends");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(
+                fake.as_path(),
+                a_git_whose_size_read_ends_at_once(wrote.as_path()),
+            )
+            .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            let hold = a_control_holds_the_sizes_after_the_wait();
+            let started: SizeReadBesideTheCheck = start_beside_the_check(
+                &a_context_whose_git_holds_the_read(fake.as_path()),
+                &main_identity(repo.as_path()),
+            )
+            .expect("a read starts");
+            let child: i32 = a_process_id_written_within(wrote.as_path());
+            assert!(
+                gone_within(child, Duration::from_secs(5)),
+                "the fake Git ends by itself"
+            );
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while !the_sizes_hold_was_reached() && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(
+                the_sizes_hold_was_reached(),
+                "the read reached the seam after its wait"
+            );
+            assert_eq!(
+                started.published_child_for_a_control(),
+                0,
+                "the cell names no reaped child, so an abandon here signals nothing"
+            );
+            drop(hold);
+            drop(started);
+            remove(root.as_path());
+        },
     );
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !the_sizes_hold_was_reached() && std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert!(
-        the_sizes_hold_was_reached(),
-        "the read reached the seam after its wait"
-    );
-    assert_eq!(
-        started.published_child_for_a_control(),
-        0,
-        "the cell names no reaped child, so an abandon here signals nothing"
-    );
-    drop(hold);
-    drop(started);
-    remove(root.as_path());
 }
 
 /// An abandon of a read that already answered frees its map off the adding thread,
@@ -1731,59 +1747,59 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
     // What: the body runs in a child of its own (see the import's file). Why: the note that a read answered and the
     //  counters of freed maps belong to the whole process, so beside other tests this control abandoned before its own
     //  read answered and counted their frees.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_abandon_frees_the_answered_map_off_the_adding_thread",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("freed-beside-the-add");
-    let repo: PathBuf = a_clean_source(root.as_path(), "freed-beside-the-add");
-    let fake: PathBuf = root.join("git-whose-size-read-ends");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(
-        fake.as_path(),
-        a_git_whose_size_read_ends_at_once(wrote.as_path()),
-    )
-    .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    let started: SizeReadBesideTheCheck = start_beside_the_check(
-        &a_context_whose_git_holds_the_read(fake.as_path()),
-        &main_identity(repo.as_path()),
-    )
-    .expect("a read starts");
-    // The control abandons a read that has answered, so the abandon takes the map rather than stating a read still running.
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !the_answer_was_sent_for_a_control() && std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert!(
-        the_answer_was_sent_for_a_control(),
-        "the read answered before the abandon"
+        || {
+            let root: PathBuf = fixture("freed-beside-the-add");
+            let repo: PathBuf = a_clean_source(root.as_path(), "freed-beside-the-add");
+            let fake: PathBuf = root.join("git-whose-size-read-ends");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(
+                fake.as_path(),
+                a_git_whose_size_read_ends_at_once(wrote.as_path()),
+            )
+            .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            let started: SizeReadBesideTheCheck = start_beside_the_check(
+                &a_context_whose_git_holds_the_read(fake.as_path()),
+                &main_identity(repo.as_path()),
+            )
+            .expect("a read starts");
+            // The control abandons a read that has answered, so the abandon takes the map rather than stating a read still running.
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while !the_answer_was_sent_for_a_control() && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(
+                the_answer_was_sent_for_a_control(),
+                "the read answered before the abandon"
+            );
+            let before: (usize, usize) = answered_maps_freed_for_a_control();
+            started.abandon();
+            // The free runs on a thread of its own, so the control waits for it rather than reading the counters at once.
+            let freed_by = std::time::Instant::now() + Duration::from_secs(5);
+            let mut after: (usize, usize) = answered_maps_freed_for_a_control();
+            while after.0 == before.0 && std::time::Instant::now() < freed_by {
+                std::thread::sleep(Duration::from_millis(5));
+                after = answered_maps_freed_for_a_control();
+            }
+            assert_eq!(
+                after.0,
+                before.0 + 1,
+                "the abandoned answer was freed, not leaked"
+            );
+            assert_eq!(
+                after.1, before.1,
+                "the adding thread freed no answered map of its own"
+            );
+            remove(root.as_path());
+        },
     );
-    let before: (usize, usize) = answered_maps_freed_for_a_control();
-    started.abandon();
-    // The free runs on a thread of its own, so the control waits for it rather than reading the counters at once.
-    let freed_by = std::time::Instant::now() + Duration::from_secs(5);
-    let mut after: (usize, usize) = answered_maps_freed_for_a_control();
-    while after.0 == before.0 && std::time::Instant::now() < freed_by {
-        std::thread::sleep(Duration::from_millis(5));
-        after = answered_maps_freed_for_a_control();
-    }
-    assert_eq!(
-        after.0,
-        before.0 + 1,
-        "the abandoned answer was freed, not leaked"
-    );
-    assert_eq!(
-        after.1, before.1,
-        "the adding thread freed no answered map of its own"
-    );
-    remove(root.as_path());
 }
 
 /// An abandon that comes between the child's end and the runner's clear is not erased by that clear.
@@ -1791,63 +1807,64 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
 fn the_clear_keeps_an_abandon_that_comes_before_it() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold before the runner's clear is a
     //  seam every watched Git run of the process waits at.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "the_clear_keeps_an_abandon_that_comes_before_it",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("clear-keeps-the-abandon");
-    let repo: PathBuf = a_clean_source(root.as_path(), "clear-keeps-the-abandon");
-    let fake: PathBuf = root.join("git-whose-size-read-ends");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(
-        fake.as_path(),
-        a_git_whose_size_read_ends_at_once(wrote.as_path()),
-    )
-    .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    let hold = crate::child_watch_one_shot_run::a_control_holds_the_clear();
-    let started: SizeReadBesideTheCheck = start_beside_the_check(
-        &a_context_whose_git_holds_the_read(fake.as_path()),
-        &main_identity(repo.as_path()),
-    )
-    .expect("a read starts");
-    let cell: std::sync::Arc<std::sync::atomic::AtomicI32> = started.child_cell_for_a_control();
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !crate::child_watch_one_shot_run::the_clear_hold_was_reached()
-        && std::time::Instant::now() < deadline
-    {
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert!(
-        crate::child_watch_one_shot_run::the_clear_hold_was_reached(),
-        "the runner reached the seam before its clear"
+        || {
+            let root: PathBuf = fixture("clear-keeps-the-abandon");
+            let repo: PathBuf = a_clean_source(root.as_path(), "clear-keeps-the-abandon");
+            let fake: PathBuf = root.join("git-whose-size-read-ends");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(
+                fake.as_path(),
+                a_git_whose_size_read_ends_at_once(wrote.as_path()),
+            )
+            .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            let hold = crate::child_watch_one_shot_run::a_control_holds_the_clear();
+            let started: SizeReadBesideTheCheck = start_beside_the_check(
+                &a_context_whose_git_holds_the_read(fake.as_path()),
+                &main_identity(repo.as_path()),
+            )
+            .expect("a read starts");
+            let cell: std::sync::Arc<std::sync::atomic::AtomicI32> =
+                started.child_cell_for_a_control();
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while !crate::child_watch_one_shot_run::the_clear_hold_was_reached()
+                && std::time::Instant::now() < deadline
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(
+                crate::child_watch_one_shot_run::the_clear_hold_was_reached(),
+                "the runner reached the seam before its clear"
+            );
+            let published: i32 = cell.load(std::sync::atomic::Ordering::SeqCst);
+            assert!(
+                published > 0,
+                "the cell names the child the runner published: {published}"
+            );
+            // The abandon comes in the window the clear leaves, and must survive that clear.
+            started.abandon();
+            assert_eq!(
+                cell.load(std::sync::atomic::Ordering::SeqCst),
+                crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
+                "the abandon wrote its marker while the runner was held"
+            );
+            drop(hold);
+            std::thread::sleep(Duration::from_millis(200));
+            assert_eq!(
+                cell.load(std::sync::atomic::Ordering::SeqCst),
+                crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
+                "the runner's clear left the abandon marker alone"
+            );
+            remove(root.as_path());
+        },
     );
-    let published: i32 = cell.load(std::sync::atomic::Ordering::SeqCst);
-    assert!(
-        published > 0,
-        "the cell names the child the runner published: {published}"
-    );
-    // The abandon comes in the window the clear leaves, and must survive that clear.
-    started.abandon();
-    assert_eq!(
-        cell.load(std::sync::atomic::Ordering::SeqCst),
-        crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
-        "the abandon wrote its marker while the runner was held"
-    );
-    drop(hold);
-    std::thread::sleep(Duration::from_millis(200));
-    assert_eq!(
-        cell.load(std::sync::atomic::Ordering::SeqCst),
-        crate::transaction_git_request_and_reply_types::ABANDONED_CHILD,
-        "the runner's clear left the abandon marker alone"
-    );
-    remove(root.as_path());
 }
 
 /// A fence with no path to size ends the read it started rather than leaving it to run to the process's end.
@@ -1855,48 +1872,52 @@ fn the_clear_keeps_an_abandon_that_comes_before_it() {
 fn the_fence_ends_a_read_no_path_needs() {
     // What: the body runs in a child of its own (see the import's file). Why: the record this control writes belongs to
     //  the whole process.
-    if started_within_a_child_of_its_own(module_path!(), "the_fence_ends_a_read_no_path_needs") {
-        return;
-    }
-    let root: PathBuf = fixture("no-sizes");
-    let repo: PathBuf = a_clean_source(root.as_path(), "no-sizes");
-    // Every tracked path converts to CRLF on checkout, so no path needs a blob size at all.
-    git(repo.as_path(), &["config", "core.autocrlf", "true"]);
-    let fake: PathBuf = root.join("git-that-holds-the-size-read");
-    let wrote: PathBuf = root.join("size-read-started");
-    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
-        .expect("the fake Git");
-    std::fs::set_permissions(
-        fake.as_path(),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("an executable");
-    let context: GitContext = a_context_whose_git_holds_the_read(fake.as_path());
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
-    let child: i32 = a_process_id_written_within(wrote.as_path());
-    assert!(alive(child), "the read's child runs before the fence");
-    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    begin_timing(repo.join(".git"), true);
-    let fence: Fence =
-        the_fence(repo.as_path(), &context, &mut held).expect("the fence decides without sizes");
-    finish_timing(0);
-    assert!(held.is_none(), "the fence ended the read no path needs");
-    assert!(
-        gone_within(child, Duration::from_secs(5)),
-        "the child is ended where the fence decides it has no use for it"
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_fence_ends_a_read_no_path_needs",
+        || {
+            let root: PathBuf = fixture("no-sizes");
+            let repo: PathBuf = a_clean_source(root.as_path(), "no-sizes");
+            // Every tracked path converts to CRLF on checkout, so no path needs a blob size at all.
+            git(repo.as_path(), &["config", "core.autocrlf", "true"]);
+            let fake: PathBuf = root.join("git-that-holds-the-size-read");
+            let wrote: PathBuf = root.join("size-read-started");
+            std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path()))
+                .expect("the fake Git");
+            std::fs::set_permissions(
+                fake.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o755),
+            )
+            .expect("an executable");
+            let context: GitContext = a_context_whose_git_holds_the_read(fake.as_path());
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&context, &main_identity(repo.as_path()))
+                    .expect("a read starts");
+            let child: i32 = a_process_id_written_within(wrote.as_path());
+            assert!(alive(child), "the read's child runs before the fence");
+            let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+            begin_timing(repo.join(".git"), true);
+            let fence: Fence = the_fence(repo.as_path(), &context, &mut held)
+                .expect("the fence decides without sizes");
+            finish_timing(0);
+            assert!(held.is_none(), "the fence ended the read no path needs");
+            assert!(
+                gone_within(child, Duration::from_secs(5)),
+                "the child is ended where the fence decides it has no use for it"
+            );
+            let record: String = the_record(repo.as_path());
+            assert!(
+                !the_record_states(record.as_str(), "git ls-tree"),
+                "the fence read no sizes: {record}"
+            );
+            // Nothing needed a size: every path converts to CRLF, so the fence hands each one to Git's writing.
+            assert!(
+                !fence.git_writes.is_empty(),
+                "a path that converts to CRLF is written by Git"
+            );
+            remove(root.as_path());
+        },
     );
-    let record: String = the_record(repo.as_path());
-    assert!(
-        !the_record_states(record.as_str(), "git ls-tree"),
-        "the fence read no sizes: {record}"
-    );
-    // Nothing needed a size: every path converts to CRLF, so the fence hands each one to Git's writing.
-    assert!(
-        !fence.git_writes.is_empty(),
-        "a path that converts to CRLF is written by Git"
-    );
-    remove(root.as_path());
 }
 
 /// A refused thread start loses only the overlap:
@@ -1905,47 +1926,49 @@ fn the_fence_ends_a_read_no_path_needs() {
 fn a_refused_thread_start_reads_where_it_stands() {
     // What: the body runs in a child of its own (see the import's file). Why: the refusal of thread starts is a seam of
     //  the whole process, and the record this control writes belongs to it too.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_refused_thread_start_reads_where_it_stands",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("refused-start");
-    let repo: PathBuf = a_clean_source(root.as_path(), "refused-start");
-    let context: GitContext = git_context();
-    let identity: WorktreeIdentity = main_identity(repo.as_path());
-    let refused = crate::scoped_start::RefusedStarts::here();
-    let started: Option<SizeReadBesideTheCheck> = start_beside_the_check(&context, &identity);
-    assert!(
-        started.is_none(),
-        "a start the system refuses answers no read"
+        || {
+            let root: PathBuf = fixture("refused-start");
+            let repo: PathBuf = a_clean_source(root.as_path(), "refused-start");
+            let context: GitContext = git_context();
+            let identity: WorktreeIdentity = main_identity(repo.as_path());
+            let refused = crate::scoped_start::RefusedStarts::here();
+            let started: Option<SizeReadBesideTheCheck> =
+                start_beside_the_check(&context, &identity);
+            assert!(
+                started.is_none(),
+                "a start the system refuses answers no read"
+            );
+            let mut held: Option<SizeReadBesideTheCheck> = started;
+            begin_timing(repo.join(".git"), true);
+            let fence: Fence = the_fence(repo.as_path(), &context, &mut held)
+                .expect("the fence reads where it stands");
+            finish_timing(0);
+            drop(refused);
+            assert!(held.is_none(), "no read is left for the add to settle");
+            let record: String = the_record(repo.as_path());
+            assert!(
+                the_record_states(record.as_str(), "git ls-tree"),
+                "the fence read the sizes itself: {record}"
+            );
+            assert!(
+                !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
+                "no join was entered: {record}"
+            );
+            let source: SnapshotSource = source_refusal(&context, &main_identity(repo.as_path()))
+                .expect("the source is clean");
+            let serial: Fence =
+                fence_the_clone(&source, &context).expect("the serial fence decides");
+            assert_eq!(
+                (fence.git_writes, fence.carried),
+                (serial.git_writes, serial.carried),
+                "the refused start decides the same paths"
+            );
+            remove(root.as_path());
+        },
     );
-    let mut held: Option<SizeReadBesideTheCheck> = started;
-    begin_timing(repo.join(".git"), true);
-    let fence: Fence =
-        the_fence(repo.as_path(), &context, &mut held).expect("the fence reads where it stands");
-    finish_timing(0);
-    drop(refused);
-    assert!(held.is_none(), "no read is left for the add to settle");
-    let record: String = the_record(repo.as_path());
-    assert!(
-        the_record_states(record.as_str(), "git ls-tree"),
-        "the fence read the sizes itself: {record}"
-    );
-    assert!(
-        !the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"),
-        "no join was entered: {record}"
-    );
-    let source: SnapshotSource =
-        source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
-    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!(
-        (fence.git_writes, fence.carried),
-        (serial.git_writes, serial.carried),
-        "the refused start decides the same paths"
-    );
-    remove(root.as_path());
 }
 
 /// What:
@@ -1965,43 +1988,46 @@ const THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL: &str = "CLI_GIT_TEST_ONLY_RUNTIME_B
 fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     // What: the body runs in a child of its own (see the import's file). Why: the runtime the process builds, and the
     //  variable that makes its build miss the deadline, belong to the whole process.
-    if started_within_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_read_and_the_fence_complete_on_the_current_thread_stand_in",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("stand-in");
-    let repo: PathBuf = a_clean_source(root.as_path(), "stand-in");
-    // SAFETY: nextest gives this control its own process, and this runs before the runtime is built or any
-    // thread of the control starts, so no other reader of the environment exists yet.
-    unsafe { std::env::set_var(THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL, "1500") };
-    let context: GitContext = git_context();
-    let identity: WorktreeIdentity = main_identity(repo.as_path());
-    let started: SizeReadBesideTheCheck =
-        start_beside_the_check(&context, &identity).expect("a read starts");
-    let source: SnapshotSource = source_refusal(&context, &identity).expect("the source is clean");
-    // The read is handed to the fence, which joins it here: the read's Git run and the fence's own run are then
-    //  concurrent on the stand-in, which is the shape the earlier control never reached by joining first.
-    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
-        .expect("the fence decides under the stand-in");
-    assert!(
-        held.is_none(),
-        "the fence took the read and joined it under the stand-in"
+        || {
+            let root: PathBuf = fixture("stand-in");
+            let repo: PathBuf = a_clean_source(root.as_path(), "stand-in");
+            // SAFETY: nextest gives this control its own process, and this runs before the runtime is built or any
+            // thread of the control starts, so no other reader of the environment exists yet.
+            unsafe { std::env::set_var(THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL, "1500") };
+            let context: GitContext = git_context();
+            let identity: WorktreeIdentity = main_identity(repo.as_path());
+            let started: SizeReadBesideTheCheck =
+                start_beside_the_check(&context, &identity).expect("a read starts");
+            let source: SnapshotSource =
+                source_refusal(&context, &identity).expect("the source is clean");
+            // The read is handed to the fence, which joins it here: the read's Git run and the fence's own run are then
+            //  concurrent on the stand-in, which is the shape the earlier control never reached by joining first.
+            let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+            let fence: Fence =
+                fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held)
+                    .expect("the fence decides under the stand-in");
+            assert!(
+                held.is_none(),
+                "the fence took the read and joined it under the stand-in"
+            );
+            let serial: Fence =
+                fence_the_clone(&source, &context).expect("the serial fence decides");
+            assert_eq!(
+                (fence.git_writes, fence.carried),
+                (serial.git_writes, serial.carried),
+                "the stand-in decides the same paths"
+            );
+            assert_eq!(
+                crate::lazy_runtime::built_flavor(),
+                Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline),
+                "the process ran on the stand-in"
+            );
+            remove(root.as_path());
+        },
     );
-    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
-    assert_eq!(
-        (fence.git_writes, fence.carried),
-        (serial.git_writes, serial.carried),
-        "the stand-in decides the same paths"
-    );
-    assert_eq!(
-        crate::lazy_runtime::built_flavor(),
-        Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline),
-        "the process ran on the stand-in"
-    );
-    remove(root.as_path());
 }
 
 // ===== The integration recheck's six promisor shapes, taken into the branch =====

@@ -29,28 +29,14 @@
 //!  "Building later pieces ahead of the plan's order").
 //!
 //! Files in this folder,
-//! each using only the files listed before it:
+//! each using only files listed before it:
 //!
-//! - `pass_refusal_lines.rs`:
-//!   every sentence for a plan the pass left standing,
-//!   and for entry it did not read.
 //! - `pass_done_lines.rs`:
 //!   the sentences for a plan and a removal the pass finished,
 //!   and what a settle's answer says.
-//! - `the_pass_seams.rs`:
-//!   the folder look,
-//!   the gate,
-//!   the pool reader and the settle the pass runs through.
-//! - `the_plans_folder.rs`:
-//!   the one look at the plan folder,
-//!   and the empty folder's removal.
-//! - `the_slots_claim.rs`:
-//!   the per-slot claim,
-//!   taken under the slot the plan's `targetHex` names,
-//!   and given back last.
-//! - `the_plans_registration.rs`:
-//!   which registration the plan's own name holds,
-//!   and the settle of it under the destruction proof.
+//! - `pass_refusal_lines.rs`:
+//!   every sentence for a plan the pass left standing,
+//!   and for entry it did not read.
 //! - `the_plans_binding.rs`:
 //!   the binding read and compared,
 //!   its two inventories first and the binding last,
@@ -58,6 +44,20 @@
 //! - `the_plans_file.rs`:
 //!   the plan's own file,
 //!   unlinked and proved gone.
+//! - `the_plans_folder.rs`:
+//!   the one look at the plan folder,
+//!   and the empty folder's removal.
+//! - `the_pass_seams.rs`:
+//!   the folder look,
+//!   the gate,
+//!   the pool reader and the settle the pass runs through.
+//! - `the_plans_registration.rs`:
+//!   which registration the plan's own name holds,
+//!   and the settle of it under the destruction proof.
+//! - `the_slots_claim.rs`:
+//!   the per-slot claim,
+//!   taken under the slot the plan's `targetHex` names,
+//!   and given back last.
 //! - `pass_on_one_plan.rs`:
 //!   one plan through the pass,
 //!   in the design's order.

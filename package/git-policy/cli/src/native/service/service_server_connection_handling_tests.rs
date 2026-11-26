@@ -892,22 +892,19 @@ async fn hold_every_place(places: usize) -> Arc<std::sync::Barrier> {
 /// ```
 #[test]
 fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held",
-    ) {
-        return;
-    }
-    let places: usize = CONTROL_PLACES;
-    let _room: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(places);
-    let (shared, mut jobs) =
-        shared_serving("connection-held-pool", PathBuf::from("/srv/repo/gitdir"));
-    let mut request_line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(
-        Path::new("/srv/repo/gitdir"),
-        "held-pool",
-    ))));
-    request_line.push('\n');
-    let outcome = crate::lazy_runtime::run_on_runtime(async move {
+        || {
+            let places: usize = CONTROL_PLACES;
+            let _room: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(places);
+            let (shared, mut jobs) =
+                shared_serving("connection-held-pool", PathBuf::from("/srv/repo/gitdir"));
+            let mut request_line: String = encode_client(&ClientMessage::Commit(Box::new(
+                a_request_at(Path::new("/srv/repo/gitdir"), "held-pool"),
+            )));
+            request_line.push('\n');
+            let outcome = crate::lazy_runtime::run_on_runtime(async move {
         let gate: Arc<std::sync::Barrier> = hold_every_place(places).await;
         // The client connects and sends a commit that names this worktree's own Git directory, which is the shape every
         //  commit of a service that knows its worktree has: the check of whose the request is asks no thread.
@@ -944,15 +941,17 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
         return answered;
     })
     .expect("the process runtime runs this control");
-    assert_eq!(
-        outcome,
-        ServiceMessage::Landed {
-            id: String::from("held-pool"),
-            commit: String::from("c"),
-            already: false,
-            landing: None
+            assert_eq!(
+                outcome,
+                ServiceMessage::Landed {
+                    id: String::from("held-pool"),
+                    commit: String::from("c"),
+                    already: false,
+                    landing: None
+                },
+                "the answer is written while every place is held"
+            );
         },
-        "the answer is written while every place is held"
     );
 }
 

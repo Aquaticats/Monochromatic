@@ -497,48 +497,49 @@ fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCount
 /// issue 6496).
 #[test]
 fn a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice",
-    ) {
-        return;
-    }
-    let directory: PathBuf = fixture("claim-kept-in-memory");
-    let counts = syncs_of(|| {
-        let _kept = crate::subvolume_file_write_steps::WritesKeptInMemory::for_this_thread();
-        let mut claim: OwnerClaim = held(take_claim(directory.as_path(), prefix()));
-        claim.release().expect("released");
-    });
-    assert_eq!(counts.made, 0, "no flush reached the kernel: {counts:?}");
-    assert!(
-        counts.skipped >= 4,
-        "the record and the directory of the take and of the release each asked the step: {counts:?}"
+        || {
+            let directory: PathBuf = fixture("claim-kept-in-memory");
+            let counts = syncs_of(|| {
+                let _kept =
+                    crate::subvolume_file_write_steps::WritesKeptInMemory::for_this_thread();
+                let mut claim: OwnerClaim = held(take_claim(directory.as_path(), prefix()));
+                claim.release().expect("released");
+            });
+            assert_eq!(counts.made, 0, "no flush reached the kernel: {counts:?}");
+            assert!(
+                counts.skipped >= 4,
+                "the record and the directory of the take and of the release each asked the step: {counts:?}"
+            );
+            remove(directory.as_path());
+        },
     );
-    remove(directory.as_path());
 }
 
 /// The same claim on a thread that flushes makes both commits,
 /// so the count above is a measurement and not a constant.
 #[test]
 fn a_claim_on_a_flushing_thread_flushes_its_record_and_its_directory() {
-    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_claim_on_a_flushing_thread_flushes_its_record_and_its_directory",
-    ) {
-        return;
-    }
-    let directory: PathBuf = fixture("claim-flushing");
-    let counts = syncs_of(|| {
-        let mut claim: OwnerClaim = held(take_claim(directory.as_path(), prefix()));
-        claim.release().expect("released");
-    });
-    assert!(
-        counts.made >= 4,
-        "the record and the directory of the take and of the release each reached the disk: {counts:?}"
+        || {
+            let directory: PathBuf = fixture("claim-flushing");
+            let counts = syncs_of(|| {
+                let mut claim: OwnerClaim = held(take_claim(directory.as_path(), prefix()));
+                claim.release().expect("released");
+            });
+            assert!(
+                counts.made >= 4,
+                "the record and the directory of the take and of the release each reached the disk: {counts:?}"
+            );
+            assert_eq!(
+                counts.skipped, 0,
+                "nothing was skipped where the thread flushes: {counts:?}"
+            );
+            remove(directory.as_path());
+        },
     );
-    assert_eq!(
-        counts.skipped, 0,
-        "nothing was skipped where the thread flushes: {counts:?}"
-    );
-    remove(directory.as_path());
 }
