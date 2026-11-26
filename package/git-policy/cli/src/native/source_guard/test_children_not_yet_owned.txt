@@ -119,10 +119,6 @@ landing/service_land_reference_lock_tests.rs | the landing folder is not moved y
 landing/service_land_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
 landing/service_land_witness_tests.rs | the landing folder is not moved yet; a later round takes it folder by folder
-lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
-lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
-lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
-lock/abandoned_lock_proving_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/index_holder_wait_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/index_holder_wait_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
 lock/lock_holder_records_tests.rs | the lock folder is not moved yet; a later round takes it folder by folder
