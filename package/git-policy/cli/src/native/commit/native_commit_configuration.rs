@@ -73,7 +73,7 @@ pub const NATIVE_COMMIT_CONFIGURATION_NAME: &str = "native-commit.config";
 /// ```ts
 /// const NATIVE_COMMIT_KEYS = ['commit.gpgsign', 'user.signingkey', ...]; // plus 'gpg.*' and 'trailer.*'
 /// ```
-const NATIVE_COMMIT_KEYS: [&str; 9] = [
+const NATIVE_COMMIT_KEYS: &[&str] = &[
     "commit.gpgsign",
     "commit.signoff",
     "commit.template",

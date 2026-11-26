@@ -63,7 +63,7 @@ const TAG: &str = "cloneSlotWalk";
 
 /// The folder below the checkout that holds the wrapper's own records,
 /// and the folder below it whose identity the setup run records.
-pub const WORKTREES_PARENT_NAMES: [&str; 2] = [".claude", "worktrees"];
+pub const WORKTREES_PARENT_NAMES: &[&str] = &[".claude", "worktrees"];
 
 /// The names `WORKTREES_PARENT_NAMES` as the walk takes them.
 fn worktrees_parent_names() -> Vec<OsString> {
@@ -312,10 +312,7 @@ fn walk_to_the_parent(
     let names: Vec<OsString> = worktrees_parent_names();
     let mut chain: Vec<std::fs::File> =
         open_chain_beneath(&root, names.as_slice()).map_err(|refusal| {
-            return CloneSlotRefusal::Walk(chain_walk_refusal(
-                WORKTREES_PARENT_NAMES.as_slice(),
-                &refusal,
-            ));
+            return CloneSlotRefusal::Walk(chain_walk_refusal(WORKTREES_PARENT_NAMES, &refusal));
         })?;
     let parent: std::fs::File = match chain.pop() {
         Some(held) => held,

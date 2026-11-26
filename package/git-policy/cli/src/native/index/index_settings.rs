@@ -61,7 +61,7 @@ pub struct IndexSettings {
 }
 
 /// The keys whose mere presence makes the update decline.
-const DECLINED: [&str; 7] = [
+const DECLINED: &[&str] = &[
     "core.splitindex",
     "index.sparse",
     "index.recordendofindexentries",
@@ -72,7 +72,7 @@ const DECLINED: [&str; 7] = [
 ];
 
 /// The keys that decline when their value is true (or not a recognised boolean).
-const DECLINED_WHEN_TRUE: [&str; 2] = ["core.sparsecheckout", "core.ignorecase"];
+const DECLINED_WHEN_TRUE: &[&str] = &["core.sparsecheckout", "core.ignorecase"];
 
 /// The mode bits `core.sharedRepository = group` adds.
 const SHARED_GROUP: i32 = 0o660;

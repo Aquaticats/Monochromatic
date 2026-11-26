@@ -42,7 +42,7 @@ use std::process::Output;
 
 /// The tracked files every state changes;
 /// three of them are named like options.
-pub(super) const TRACKED: [&str; 4] = ["a.txt", "-dash.txt", "--quiet", "-o"];
+pub(super) const TRACKED: &[&str] = &["a.txt", "-dash.txt", "--quiet", "-o"];
 
 /// A raw real-Git run that may fail,
 /// in the fixture's hermetic environment.

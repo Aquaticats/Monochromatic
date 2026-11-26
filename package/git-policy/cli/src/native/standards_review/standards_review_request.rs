@@ -51,7 +51,7 @@ const INSTRUCTIONS: &str = "The input is the candidate diff of one landed commit
 
 /// The answer choices,
 /// in the order sent.
-const CHOICES: [(&str, &str); 3] = [
+const CHOICES: &[(&str, &str)] = &[
     (
         "yes",
         "The review names superlinear cost of this code (nested scan over unbounded data, repeated work per item, accumulator growth) at any severity.",

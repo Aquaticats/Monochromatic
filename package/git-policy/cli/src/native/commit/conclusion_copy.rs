@@ -302,7 +302,7 @@ fn write_store_record(
 /// in the order the preparation reads them:
 /// a merge,
 /// a cherry-pick and a revert.
-pub const CONCLUSION_HEAD_NAMES: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
+pub const CONCLUSION_HEAD_NAMES: &[&str] = &["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
 
 /// What:
 ///  What the merge,

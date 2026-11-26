@@ -76,7 +76,7 @@ fn stderr_text(observed: &Observed) -> String {
 
 /// Every management command that is safe in a plain repository,
 ///  with its options.
-const COMMANDS: [&[&str]; 6] = [
+const COMMANDS: &[&[&str]] = &[
     &["--help"],
     &["doctor"],
     &["check", "--all"],
@@ -91,7 +91,7 @@ const COMMANDS: [&[&str]; 6] = [
 fn the_earlier_word_does_the_same_with_one_notice_for_every_command() {
     let fixture: Fixture = fixture("rename-word");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    for command in COMMANDS {
+    for &command in COMMANDS {
         let mut current: Vec<&str> = vec![COMMAND_WORD.current];
         current.extend(command);
         let mut earlier: Vec<&str> = vec![COMMAND_WORD.earlier];
@@ -283,7 +283,7 @@ fn read_current(
 }
 
 /// The folders and files the wrapper keeps in the Git directory of a plain repository.
-const KEPT: [(RenamedName, bool); 7] = [
+const KEPT: &[(RenamedName, bool)] = &[
     (DATA_FOLDER, true),
     (MERGE_INTENT_FOLDER, true),
     (WORKTREE_COPY_RECORD_FOLDER, true),
@@ -301,13 +301,13 @@ fn every_kept_kind_is_renamed_in_place_by_an_ordinary_command() {
     let fixture: Fixture = fixture("rename-kept");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let git_dir: PathBuf = repo.join(".git");
-    for (kind, folder) in KEPT {
+    for &(kind, folder) in KEPT {
         plant_earlier(git_dir.as_path(), kind, folder);
     }
     let status: Observed = run(&fixture, repo.as_path(), &["status"]);
     assert_eq!(status.code, Some(0), "{}", stderr_text(&status));
     assert_eq!(stderr_text(&status), "", "a move in place is silent");
-    for (kind, folder) in KEPT {
+    for &(kind, folder) in KEPT {
         assert_eq!(
             read_current(git_dir.as_path(), kind, folder),
             kind.earlier,

@@ -214,7 +214,7 @@ impl GuardedCommand {
     /// ```ts
     /// const ALL_GUARDED_COMMANDS: readonly GuardedCommand[] = ['stash', 'clean', /* ... */ 'abort-am'];
     /// ```
-    pub const ALL: [GuardedCommand; 24] = [
+    pub const ALL: &[GuardedCommand] = &[
         GuardedCommand::Stash,
         GuardedCommand::StashDrop,
         GuardedCommand::Clean,

@@ -57,3 +57,23 @@ takes `qwen` by default from 2026-11-26T02:50-05:00,
 and a launcher names `WRITER_POOL=opencode-go` or `WRITER_POOL=neuralwatt-flex` for the next pool,
 so a refused round is restarted on the next pool by hand,
 as three were on the night this was decided.
+
+## The virtual writer is ready
+
+Merged as `7c82b27ad0` (2026-11-26T07:09:30-05:00):
+the virtual writer's members are the owner's order with standard Neuralwatt removed
+(`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`, guarded by `src/writer-order.unit.test.ts`);
+the README's open check runs as the task `verify:quota-deadline`,
+whose record is `package/pi-plugin/rate-limit-fallback/doc/quota-read-latency-records/`;
+and the driver counts a run on the virtual writer in every pool its router may take
+(`package/pi-shared/subagent-driver/src/pool-limits.ts`, `VIRTUAL_POOLS`),
+because the router has no single pool to report and moves a request on by itself.
+So a virtual writer run takes a slot in each member at once,
+and the smallest member's room (Qwen's 5) bounds how many run together.
+The plugin's built `dist/` in the main checkout,
+which Pi loads,
+was rebuilt after the merge.
+From 2026-11-26T07:10-05:00 the round launcher takes `virtual`
+(`--provider=rate-limit-fallback --model=writer`) by default,
+and `WRITER_POOL=qwen`,
+`opencode-go` or `neuralwatt-flex` pins one member.

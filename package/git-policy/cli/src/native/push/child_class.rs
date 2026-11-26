@@ -104,7 +104,7 @@ pub const OBJECT_NOTICE_GRACE: Duration = Duration::from_secs(10);
 /// `show` and `ls-remote` refresh the index,
 /// compare it with the
 ///  worktree or talk to a remote.
-pub const PLUMBING_SUBCOMMANDS: [&str; 13] = [
+pub const PLUMBING_SUBCOMMANDS: &[&str] = &[
     "rev-parse",
     "rev-list",
     "symbolic-ref",

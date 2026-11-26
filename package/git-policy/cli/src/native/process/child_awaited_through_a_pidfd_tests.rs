@@ -41,7 +41,7 @@ fn exists(pid: u32) -> bool {
 
 /// Every way the helper can fail after the start,
 /// plus none.
-const ALL_FAILURES: [InjectedFailure; 3] = [
+const ALL_FAILURES: &[InjectedFailure] = &[
     InjectedFailure::None,
     InjectedFailure::PidfdOpen,
     InjectedFailure::Registration,
@@ -51,7 +51,7 @@ const ALL_FAILURES: [InjectedFailure; 3] = [
 /// whatever failed after its start.
 #[test]
 fn a_child_that_exits_gives_its_status_after_every_failure_after_the_start() {
-    for failure in ALL_FAILURES {
+    for &failure in ALL_FAILURES {
         let status = run_on_runtime(async {
             let mut owned: OwnedChild = adopt_with(sleeper("0.05", 3), failure);
             return owned.wait().await;

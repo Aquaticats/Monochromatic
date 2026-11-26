@@ -52,7 +52,7 @@ pub const READINESS_DIRECTORY_MODE: u32 = 0o755;
 pub const READINESS_MODE: u32 = 0o644;
 
 /// The record's keys in the order the file holds them.
-pub const READINESS_KEYS: [&str; 7] = ["v1", "kind", "boot", "pool", "checkout", "sweep", "time"];
+pub const READINESS_KEYS: &[&str] = &["v1", "kind", "boot", "pool", "checkout", "sweep", "time"];
 
 /// The bound one pool name may use.
 pub const MAXIMUM_POOL_NAME_BYTES: usize = 255;

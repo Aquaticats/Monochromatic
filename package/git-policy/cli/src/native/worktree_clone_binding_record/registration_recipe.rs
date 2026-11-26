@@ -62,7 +62,7 @@ pub enum RemovalStep {
 
 /// The recipe's order,
 /// which is the design's and never the caller's.
-pub const REMOVAL_STEPS: [RemovalStep; 8] = [
+pub const REMOVAL_STEPS: &[RemovalStep] = &[
     RemovalStep::SlotPointer,
     RemovalStep::Gitdir,
     RemovalStep::Commondir,

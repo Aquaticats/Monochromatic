@@ -54,7 +54,7 @@ pub const HOLD_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
 /// Why:
 ///  A closed list refuses a typo instead of running a kill arm that silently
 ///  killed nothing, which the plan's guest arms would report as a pass.
-pub const STOP_STEPS: [&str; 19] = [
+pub const STOP_STEPS: &[&str] = &[
     "claim",
     "binding",
     "slot",

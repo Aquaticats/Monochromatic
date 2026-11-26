@@ -112,7 +112,7 @@ const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 /// ```ts
 /// const UNNAMED_UNSUPPORTED_CODES = new Set(['EOPNOTSUPP', 'ENOSYS', 'EINVAL']);
 /// ```
-const UNNAMED_UNSUPPORTED_CODES: [i32; 3] = [libc::EOPNOTSUPP, libc::ENOSYS, libc::EINVAL];
+const UNNAMED_UNSUPPORTED_CODES: &[i32] = &[libc::EOPNOTSUPP, libc::ENOSYS, libc::EINVAL];
 
 /// What:
 ///  The operating-system errors that mean the filesystem cannot publish a temporary
@@ -126,7 +126,7 @@ const UNNAMED_UNSUPPORTED_CODES: [i32; 3] = [libc::EOPNOTSUPP, libc::ENOSYS, lib
 /// ```ts
 /// const RENAME_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOSYS', 'EOPNOTSUPP']);
 /// ```
-const RENAME_UNSUPPORTED_CODES: [i32; 3] = [libc::EINVAL, libc::ENOSYS, libc::EOPNOTSUPP];
+const RENAME_UNSUPPORTED_CODES: &[i32] = &[libc::EINVAL, libc::ENOSYS, libc::EOPNOTSUPP];
 
 /// What:
 ///  Whether a failure means the filesystem has no such operation.
@@ -388,7 +388,7 @@ fn move_temporary_into_place(
         return Ok(());
     }
     let refusal: std::io::Error = std::io::Error::last_os_error();
-    if is_unsupported(&refusal, &RENAME_UNSUPPORTED_CODES) {
+    if is_unsupported(&refusal, RENAME_UNSUPPORTED_CODES) {
         // SAFETY: both strings are NUL-terminated and outlive the call, and `directory` is an open descriptor.
         let linked: libc::c_int = unsafe {
             libc::linkat(
@@ -535,7 +535,7 @@ pub fn publish_copy_of_file_with(
     // `match` on the unnamed file: where the filesystem has none, the entry is filled under this copy's own name.
     let (mut file, named): (std::fs::File, bool) = match unnamed(&directory, mode) {
         Ok(held) => (held, false),
-        Err(error) if is_unsupported(&error, &UNNAMED_UNSUPPORTED_CODES) => {
+        Err(error) if is_unsupported(&error, UNNAMED_UNSUPPORTED_CODES) => {
             remove_present(&directory, temporary).map_err(raw_failure_of)?;
             (
                 create_named(&directory, temporary, mode).map_err(raw_failure_of)?,

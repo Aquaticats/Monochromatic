@@ -94,7 +94,7 @@ pub const ZEDLET_EVENT_PATH: &str =
 ///  and the words that reach every mode are checked by the dispatch's own
 ///  controls,
 ///  so this list is the four the owner's answer of 2026-11-23 names.
-pub const REQUIRED_ROOT_MODES: [&str; 5] = [
+pub const REQUIRED_ROOT_MODES: &[&str] = &[
     "",
     "adopt-worktree-parent",
     "boot-reconcile",
@@ -300,7 +300,7 @@ pub fn check_handler_installation(facts: &HandlerInstallationFacts) -> CheckOutc
 /// const outcome = check_root_modes(); // pass | finding('mode')
 /// ```
 pub fn check_root_modes() -> CheckOutcome {
-    return check_modes(&REQUIRED_ROOT_MODES);
+    return check_modes(REQUIRED_ROOT_MODES);
 }
 
 /// What:

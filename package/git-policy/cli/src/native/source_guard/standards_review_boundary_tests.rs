@@ -29,7 +29,7 @@ const CLIENT_FILE: &str = "standards_review/standards_review_client.rs";
 /// only the client file may name one (`hyper_rustls` and `http_body_util`
 ///  come with `hyper`,
 /// and `rustls` is not listed because the wrapper's other code may read certificates).
-const HTTP_LIBRARY_PATHS: [&str; 4] = [
+const HTTP_LIBRARY_PATHS: &[&str] = &[
     "hyper::",
     "hyper_util::",
     "hyper_rustls::",
@@ -46,7 +46,7 @@ fn names_http_library(text: &str) -> bool {
 /// The module names that carry the network client,
 /// the run that calls it,
 /// and the service handler that calls the run.
-const SERVICE_ONLY_MODULES: [&str; 4] = [
+const SERVICE_ONLY_MODULES: &[&str] = &[
     "standards_review_client",
     "standards_review_client_name_lookup_on_the_blocking_pool",
     "standards_review_run",
@@ -55,7 +55,7 @@ const SERVICE_ONLY_MODULES: [&str; 4] = [
 
 /// The path prefixes of the files of those modules and their tests,
 ///  relative to the source root.
-const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] = [
+const SERVICE_ONLY_FILE_PREFIXES: &[&str] = &[
     "standards_review/standards_review_client",
     "standards_review/standards_review_run",
     "service/service_review",

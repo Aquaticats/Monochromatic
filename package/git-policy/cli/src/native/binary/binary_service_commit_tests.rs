@@ -1102,7 +1102,7 @@ fn an_amend_of_a_replaced_commit_lands_with_gits_parents() {
 ///  replacement is read by Git for `cat-file` and not for the branch;
 ///  a reftable store that holds no reference at all is the shape the service fails on,
 /// which is what Git does under it.
-const SETTINGS_ONLY_A_SERVICE_SEES: [(&str, &str); 4] = [
+const SETTINGS_ONLY_A_SERVICE_SEES: &[(&str, &str)] = &[
     ("GIT_REFERENCE_BACKEND", "reftable"),
     ("GIT_REPLACE_REF_BASE", "refs/probe/"),
     ("GIT_OBJECT_DIRECTORY", "emptystore"),

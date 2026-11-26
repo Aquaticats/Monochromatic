@@ -466,7 +466,7 @@ fn no_claim_can_be_placed_leaves_the_lock_and_says_so() {
 /// instead of telling the person to remove the lock by hand.
 #[test]
 fn a_claim_placement_that_is_interrupted_or_short_of_memory_is_a_back_off() {
-    for errno in TRANSIENT_ERRNOS {
+    for &errno in TRANSIENT_ERRNOS {
         let (root, _index, lock) = index_in("claim-transient");
         let failing = move |_: &Path, _: &Path| -> std::io::Result<()> {
             return Err(std::io::Error::from_raw_os_error(errno));
@@ -486,7 +486,7 @@ fn a_claim_placement_that_is_interrupted_or_short_of_memory_is_a_back_off() {
 }
 
 /// The errors of a placement that say "not now" and not "never".
-const TRANSIENT_ERRNOS: [i32; 2] = [libc::EINTR, libc::ENOMEM];
+const TRANSIENT_ERRNOS: &[i32] = &[libc::EINTR, libc::ENOMEM];
 
 /// Allowed:
 /// a placement whose answer is an error although it took effect (a network file system can lose the answer of a link

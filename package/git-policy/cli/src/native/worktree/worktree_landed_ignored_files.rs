@@ -61,7 +61,7 @@ use std::path::{
 /// ```ts
 /// const IGNORED_WORDS = ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z'];
 /// ```
-const IGNORED_WORDS: [&str; 7] = [
+const IGNORED_WORDS: &[&str] = &[
     "ls-files",
     "--others",
     "--ignored",

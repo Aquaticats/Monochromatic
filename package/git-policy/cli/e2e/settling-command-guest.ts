@@ -69,6 +69,13 @@ interface Options {
   readonly step: string;
   readonly name: string;
   readonly logDir: string;
+  /**
+   The `mvm` custom template the guest is made from,
+   or `undefined` for the Ubuntu 24.04 image the recipe prepares,
+   and the kernel release that template must boot.
+   */
+  readonly image: string | undefined;
+  readonly kernelRelease: string | undefined;
 }
 
 /** The step and the values the command line gave it. */
@@ -82,6 +89,8 @@ function options(): Options {
     step,
     name: value('--name') ?? 'settling-command-arm',
     logDir: value('--log-dir') ?? resolve(import.meta.dirname, '..', 'target', 'settling-command-guest-logs'),
+    image: value('--image'),
+    kernelRelease: value('--kernel-release'),
   };
 }
 
@@ -196,7 +205,16 @@ function guestFinish({ chosen, log, timeout, }: { readonly chosen: Options; read
  */
 function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: string; }): void {
   const script = resolve(import.meta.dirname, '..', '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
-  const result = spawnSync('node', [script, step, '--name', chosen.name, '--log-dir', chosen.logDir,], {
+  const result = spawnSync('node', [
+    script,
+    step,
+    '--name',
+    chosen.name,
+    '--log-dir',
+    chosen.logDir,
+    ...(chosen.image === undefined ? [] : ['--image', chosen.image,]),
+    ...(chosen.kernelRelease === undefined ? [] : ['--kernel-release', chosen.kernelRelease,]),
+  ], {
     stdio: 'inherit',
     timeout: HOST_COMMAND_TIMEOUT_MS * 60,
   });

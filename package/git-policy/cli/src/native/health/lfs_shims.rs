@@ -37,7 +37,7 @@ use std::path::{
 };
 
 /// The four hooks `git lfs install` writes.
-const LFS_SHIM_NAMES: [&str; 4] = ["pre-push", "post-checkout", "post-commit", "post-merge"];
+const LFS_SHIM_NAMES: &[&str] = &["pre-push", "post-checkout", "post-commit", "post-merge"];
 
 /// The longest shim file the comparison reads,
 /// in bytes;

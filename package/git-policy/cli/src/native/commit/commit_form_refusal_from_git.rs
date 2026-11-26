@@ -78,7 +78,7 @@ const DRY_RUN: &str = "--dry-run";
 const COMMIT: &str = "commit";
 
 /// The query that names the index the person's own command would use.
-const INDEX_QUERY: [&str; 4] = ["rev-parse", "--path-format=absolute", "--git-path", "index"];
+const INDEX_QUERY: &[&str] = &["rev-parse", "--path-format=absolute", "--git-path", "index"];
 
 /// The prefix of the question's own index file in the repository scratch directory.
 const QUESTION_INDEX_PREFIX: &str = "cli-git-question-";
@@ -286,7 +286,7 @@ fn a_private_index(
     context: &GitContext,
     cwd: &Path,
 ) -> Option<PathBuf> {
-    let query: GitRequest = GitRequest::new(cwd, &INDEX_QUERY);
+    let query: GitRequest = GitRequest::new(cwd, INDEX_QUERY);
     let answered: GitOutput = run_git(context, &query).ok()?;
     if answered.code != Some(0) {
         return None;

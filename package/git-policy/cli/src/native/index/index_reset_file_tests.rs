@@ -77,7 +77,7 @@ fn trailer_is_zero(bytes: &[u8]) -> bool {
 }
 
 /// Sources of the first commit used by most cases.
-const BASE: [(&str, &[u8], bool); 6] = [
+const BASE: &[(&str, &[u8], bool)] = &[
     ("a", b"a one\n", false),
     ("b", b"b one\n", false),
     ("c", b"c one\n", false),
@@ -176,7 +176,7 @@ fn added_changed_removed_and_renamed_paths_equal_git() {
     let scene: Scene = scene(
         "index-reset-basic",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -209,7 +209,7 @@ fn a_directory_pathspec_selects_what_is_below_it() {
     let scene: Scene = scene(
         "index-reset-directory",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -242,7 +242,7 @@ fn mode_changes_equal_git() {
     let scene: Scene = scene(
         "index-reset-modes",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -279,7 +279,7 @@ fn symbolic_links_equal_git() {
         },
     ];
     let plan: Plan<'_> = Plan {
-        files: &BASE,
+        files: BASE,
         links: &[("old-link", "a"), ("retargeted", "z")],
         edits: edits.as_slice(),
         ..Plan::default()
@@ -323,7 +323,7 @@ fn submodule_entries_equal_git() {
         },
     ];
     let plan: Plan<'_> = Plan {
-        files: &BASE,
+        files: BASE,
         gitlinks: &[
             ("moved-sub", first.as_str()),
             ("gone-sub", first.as_str()),
@@ -359,7 +359,7 @@ fn an_unmerged_path_outside_the_pathspec_is_left_alone() {
     let scene: Scene = scene(
         "index-reset-unmerged-outside",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -383,7 +383,7 @@ fn unmerged_paths_inside_the_pathspec_equal_git() {
     let scene: Scene = scene(
         "index-reset-unmerged-inside",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -458,7 +458,7 @@ fn every_index_version_equals_git() {
         let scene: Scene = scene(
             format!("index-reset-version-{version}").as_str(),
             &Plan {
-                files: &BASE,
+                files: BASE,
                 edits: edits.as_slice(),
                 ..Plan::default()
             },
@@ -505,7 +505,7 @@ fn extended_and_assume_unchanged_flags_equal_git() {
     let scene: Scene = scene(
         "index-reset-flags",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -560,7 +560,7 @@ fn kept_extensions_equal_git() {
     let scene: Scene = scene(
         "index-reset-extensions",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -651,7 +651,7 @@ fn a_configuration_that_removes_the_untracked_cache_equals_git() {
     let scene: Scene = scene(
         "index-reset-untracked-off",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -688,7 +688,7 @@ fn a_sha256_repository_equals_git() {
     let scene: Scene = scene(
         "index-reset-sha256",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             sha256: true,
             ..Plan::default()
@@ -720,7 +720,7 @@ fn paths_derived_from_two_commits_equal_git() {
     let scene: Scene = scene(
         "index-reset-derived",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -772,7 +772,7 @@ fn a_root_commit_resets_every_path_it_holds() {
     let scene: Scene = scene(
         "index-reset-root",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             ..Plan::default()
         },
@@ -972,7 +972,7 @@ fn check_shared_modes(
         let scene: Scene = scene(
             format!("index-reset-mode-{label}-{value}").as_str(),
             &Plan {
-                files: &BASE,
+                files: BASE,
                 edits: edits.as_slice(),
                 ..Plan::default()
             },
@@ -1230,7 +1230,7 @@ fn the_file_mode_under_a_default_acl_equals_git() {
             let scene: Scene = scene(
                 "index-reset-acl",
                 &Plan {
-                    files: &BASE,
+                    files: BASE,
                     edits: edits.as_slice(),
                     ..Plan::default()
                 },
@@ -1300,7 +1300,7 @@ fn a_repository_with_feature_manyfiles_equals_git() {
     let scene: Scene = scene(
         "index-reset-manyfiles",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             config: config.as_slice(),
             untracked_cache: true,
@@ -1347,7 +1347,7 @@ fn a_repository_with_manyfiles_and_a_kept_untracked_cache_equals_git() {
     let scene: Scene = scene(
         "index-reset-manyfiles-keep",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             config: config.as_slice(),
             untracked_cache: true,
@@ -1393,7 +1393,7 @@ fn a_repository_with_a_skipped_hash_equals_git() {
     let scene: Scene = scene(
         "index-reset-skiphash",
         &Plan {
-            files: &BASE,
+            files: BASE,
             edits: edits.as_slice(),
             config: config.as_slice(),
             ..Plan::default()

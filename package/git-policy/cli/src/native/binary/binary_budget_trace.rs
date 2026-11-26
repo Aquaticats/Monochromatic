@@ -131,7 +131,7 @@ fn takes_value(token: &str) -> bool {
 
 /// The subcommands whose first operand names what they do,
 /// so a start reads `hook run` rather than `hook`.
-const COMPOUND: [&str; 3] = ["hook", "maintenance", "multi-pack-index"];
+const COMPOUND: &[&str] = &["hook", "maintenance", "multi-pack-index"];
 
 /// The name a Git start counts under:
 /// its subcommand,

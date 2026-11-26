@@ -43,22 +43,26 @@ const REVIEWER = [
 ] as const;
 
 /**
- Writer membership in preference order, decided 2026-11-19
- (`main:.agents/skills/pi-as-subagent/SKILL.md`, section "Who writes and who reviews"):
- DeepSeek V4.1 Flash on NeuralWatt's standard lane, then its flex lane, then OpenCode Go.
+ Writer membership, in the owner's order of 2026-11-26
+ (`main:doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order"):
+ the qwen individual token plan's DeepSeek V4.1 Flash, then OpenCode Go, then NeuralWatt's flex lane.
+
+ The owner answered "Qwen, opencode-go, flex (Recommended)", so NeuralWatt's standard DeepSeek lane leaves this
+ pool: it was the head until 2026-11-26, and the owner closed it to writers on 2026-11-11. The provider named
+ `deepseek` is never a member for any run (the same record, "The writers' order").
  */
 const WRITER = [
   {
-    provider: 'neuralwatt',
+    provider: 'qwen-token-plan-individual',
+    id: 'deepseek-v4.1-flash-1017',
+  },
+  {
+    provider: 'opencode-go',
     id: 'deepseek-v4.1-flash',
   },
   {
     provider: 'neuralwatt',
     id: 'deepseek-v4.1-flash-flex',
-  },
-  {
-    provider: 'opencode-go',
-    id: 'deepseek-v4.1-flash',
   },
 ] as const;
 

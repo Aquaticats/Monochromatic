@@ -144,61 +144,72 @@ export async function registerWriterProvider({
    Members this arm registers, which its streams answer for.
    */
   const members = writerMembers({ limits, },);
-  /**
-   Provider object registered with the host.
-   */
-  const provider: Provider = {
-    id: refusingMember.provider,
-    name: refusingMember.provider,
-    getModels() {
-      return [
-        members.refusing,
-        members.answering,
-      ];
-    },
-    auth: {
-      apiKey: {
-        name: 'Stand-in credential',
-        resolve({ credential, }: { readonly credential?: { readonly key?: string; }; }) {
-          return Promise.resolve(credential?.key === undefined
-            ? undefined
-            : {
-              auth: { apiKey: credential.key, },
-              source: 'test',
-            },);
+  // A Pi provider holds only the models that carry its own id, so each provider the writer order
+  // asks is registered on its own.
+  for (const providerId of new Set([
+    refusingMember.provider,
+    answeringMember.provider,
+  ],)) {
+    /**
+     The members of this provider the pool asks, in its order.
+     */
+    const ofThisProvider = [
+      members.refusing,
+      members.answering,
+    ].filter(function isOfThisProvider(member: ModelIdentity,) {
+      return member.provider === providerId;
+    },);
+    /**
+     Provider object registered with the host.
+     */
+    const provider: Provider = {
+      id: providerId,
+      name: providerId,
+      getModels() {
+        return ofThisProvider;
+      },
+      auth: {
+        apiKey: {
+          name: 'Stand-in credential',
+          resolve({ credential, }: { readonly credential?: { readonly key?: string; }; }) {
+            return Promise.resolve(credential?.key === undefined
+              ? undefined
+              : {
+                auth: { apiKey: credential.key, },
+                source: 'test',
+              },);
+          },
         },
       },
-    },
-    stream: streamUnsupported,
-    streamSimple(
-      physical: ModelIdentity,
-      _context: unknown,
-      options,
-    ) {
-      if (options?.apiKey !== MEMBER_KEY)
-        throw new Error('Pi registry did not resolve the stand-in credential',);
-      calls.push(labelOfMember(physical,),);
-      /**
-       Whether Pi dispatched the member that has to refuse before the handoff.
-       */
-      /**
-       Head member this arm registers, which refuses once per handoff.
-       */
-      const { refusing, } = members;
-      /**
-       Whether Pi dispatched the refusing head.
-       */
-      const refuses = physical.id === refusing.id;
-      return immediate({
-        model: physical,
-        ...(refuses ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
-      },);
-    },
-  };
-  modelRuntime.registerNativeProvider(provider,);
-  await modelRuntime.setRuntimeApiKey(
-    provider.id,
-    MEMBER_KEY,
-  );
+      stream: streamUnsupported,
+      streamSimple(
+        physical: ModelIdentity,
+        _context: unknown,
+        options,
+      ) {
+        if (options?.apiKey !== MEMBER_KEY)
+          throw new Error('Pi registry did not resolve the stand-in credential',);
+        calls.push(labelOfMember(physical,),);
+        /**
+         Head member this arm registers, which refuses once per handoff.
+         */
+        const { refusing, } = members;
+        /**
+         Whether Pi dispatched the refusing head.
+         */
+        const refuses = physical.id === refusing.id;
+        return immediate({
+          model: physical,
+          ...(refuses ? { errorMessage: rateLimitRefusal({ model: physical, },), } : {}),
+        },);
+      },
+    };
+    modelRuntime.registerNativeProvider(provider,);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one provider after another, each with its own key set before the pool asks it; see doc/lint/sequential-awaits.md
+    await modelRuntime.setRuntimeApiKey(
+      provider.id,
+      MEMBER_KEY,
+    );
+  }
   return members;
 }

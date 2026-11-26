@@ -52,11 +52,11 @@ pub(crate) const STAT: usize = 40;
 
 /// The extension signatures that are dropped:
 /// derived state that Git rebuilds.
-const DROPPED: [&[u8; 4]; 4] = [b"UNTR", b"FSMN", b"EOIE", b"IEOT"];
+const DROPPED: &[&[u8; 4]] = &[b"UNTR", b"FSMN", b"EOIE", b"IEOT"];
 
 /// The extension signatures that make the rewrite decline:
 /// they change what the entries mean.
-const DECLINED: [&[u8; 4]; 2] = [b"link", b"sdir"];
+const DECLINED: &[&[u8; 4]] = &[b"link", b"sdir"];
 
 /// What:
 ///  What a file on disk reports now,
@@ -580,13 +580,13 @@ pub fn rewrite_index_stat_with(
                 "an extension runs past the end of the file",
             ));
         }
-        if is_listed(&DECLINED, signature) {
+        if is_listed(DECLINED, signature) {
             return IndexOutcome::Skipped(format!(
                 "the index uses the {} extension (split or sparse index)",
                 String::from_utf8_lossy(signature)
             ));
         }
-        if !is_listed(&DROPPED, signature) {
+        if !is_listed(DROPPED, signature) {
             kept.extend_from_slice(&bytes[at..end]);
         }
         at = end;

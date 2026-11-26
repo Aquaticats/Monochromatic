@@ -114,7 +114,7 @@ use std::time::Duration;
 
 /// The words that start the service mode after the program name,
 /// and the option that names the worktree's instance.
-const SERVICE_MODE_WORDS: [&str; 2] = ["service", "run"];
+const SERVICE_MODE_WORDS: &[&str] = &["service", "run"];
 
 /// The option that names the instance a service is for.
 const INSTANCE_OPTION: &str = "--instance";

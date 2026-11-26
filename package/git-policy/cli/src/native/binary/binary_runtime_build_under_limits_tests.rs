@@ -223,7 +223,7 @@ fn where_no_thread_can_start_the_runtime_is_current_thread_and_the_blocking_job_
 /// sampled from this list.
 /// The smallest sampled size is not the smallest this control judges:
 /// see `smallest_address_space_that_runs_the_job`.
-const ADDRESS_SPACE_SIZES_MEBIBYTES: [u64; 18] = [
+const ADDRESS_SPACE_SIZES_MEBIBYTES: &[u64] = &[
     48, 52, 56, 60, 64, 80, 100, 200, 400, 600, 800, 900, 950, 1020, 1030, 1100, 1150, 1500,
 ];
 

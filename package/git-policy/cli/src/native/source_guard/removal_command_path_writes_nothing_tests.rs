@@ -81,7 +81,7 @@ struct WritingName {
 /// The snapshot batch's request is the one the batch's own module re-exports,
 /// and a re-export is no call,
 /// so that module is named beside its declaration.
-const THE_WRITING_NAMES: [WritingName; 6] = [
+const THE_WRITING_NAMES: &[WritingName] = &[
     WritingName {
         banned: "enter_the_removal",
         declaring_file: "worktree_clone_removal_proof_and_plan/removal_entry.rs",

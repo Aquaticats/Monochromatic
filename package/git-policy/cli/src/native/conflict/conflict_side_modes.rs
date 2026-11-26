@@ -20,7 +20,7 @@ use std::ffi::OsString;
 
 /// The global options that set a pathspec mode,
 /// the ones `git.c` accepts before the subcommand.
-pub const MODE_OPTIONS: [&str; 5] = [
+pub const MODE_OPTIONS: &[&str] = &[
     "--icase-pathspecs",
     "--glob-pathspecs",
     "--noglob-pathspecs",
@@ -29,7 +29,7 @@ pub const MODE_OPTIONS: [&str; 5] = [
 ];
 
 /// The variables that set a pathspec mode.
-pub const MODE_VARIABLES: [&str; 4] = [
+pub const MODE_VARIABLES: &[&str] = &[
     "GIT_ICASE_PATHSPECS",
     "GIT_GLOB_PATHSPECS",
     "GIT_NOGLOB_PATHSPECS",
@@ -54,7 +54,7 @@ pub fn modes_in_effect(
     overlay: &[(OsString, OsString)],
 ) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
-    for option in MODE_OPTIONS {
+    for &option in MODE_OPTIONS {
         for each in global_prefix {
             if each.as_encoded_bytes() == option.as_bytes() {
                 found.push(String::from(option));
@@ -62,7 +62,7 @@ pub fn modes_in_effect(
             }
         }
     }
-    for variable in MODE_VARIABLES {
+    for &variable in MODE_VARIABLES {
         let mut set: bool = std::env::var_os(variable).is_some();
         for (name, _) in overlay {
             set |= name.as_encoded_bytes() == variable.as_bytes();
@@ -92,7 +92,7 @@ pub fn a_mode_reaches_the_start(
     overlay: &[(OsString, OsString)],
     remove: &[&str],
 ) -> bool {
-    for variable in MODE_VARIABLES {
+    for &variable in MODE_VARIABLES {
         if remove.contains(&variable) {
             continue;
         }

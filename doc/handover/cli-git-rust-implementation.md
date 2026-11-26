@@ -114,20 +114,22 @@ then OpenCode Go,
 then Neuralwatt flex,
 by `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`;
 the round launcher (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`)
-takes `qwen` unless `WRITER_POOL` names another,
-until the virtual writer round merges and rounds start on `--provider=rate-limit-fallback --model=writer`.
-Rounds started before that decision run on flex.
+takes `virtual` (`--provider=rate-limit-fallback --model=writer`) from 2026-11-26T07:10-05:00,
+once the virtual writer merged as `7c82b27ad0`;
+`WRITER_POOL` pins one member.
+Rounds started earlier run on the pool they named.
 
 - The crate split's round 1 (the rest of move-order step 2),
   briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
   starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
-  at 04:58 issues 6489, 6494, 6497 and 6498 did.
+  at 04:58 issues 6489, 6494, 6497 and 6498 did; of those only 6494 is still open (06:58),
+  and the setgroups round touches `invocation/` too.
   The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- Plan step 23, the host-kernel qualification guest,
-  window `zfs-step-23-host-kernel-qualification`, run 2 on flex.
+- Issue 6502 (step 23's one failing arm pins the BTF header to the Ubuntu guest's 24 bytes; the CachyOS module declares 32),
+  window `issue-6502-live-gate-arm-reads-the-header-the-module-declares`, on Qwen, in `mvm` guests.
 - Issue 6494, the no-threads child helper read the wrong way,
   window `no-threads-child-helper-read-the-right-way`, run 2 on flex.
-- Issues 6489, 6493 and 6495 (flex),
+- Issues 6493 and 6495 (flex),
   one window each, `issue-<number>-<words>`.
 - Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
   briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
@@ -135,18 +137,16 @@ Rounds started before that decision run on flex.
 - Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
   briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
   starts when the split's round 1 merges, because both edit `invocation/`.
-- Debt ledger item 19, window `fixed-length-lists-become-slices`, run 2 on Qwen
-  (run 1 on flex ended when the writer did not begin a response in time; its work is committed).
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`, run 2 on Qwen
   (run 1 on flex ended the same way, its edits committed as `45de70f8fd`; it touches `invocation/`, one of the split round 1 folders).
 - The linter's `alpha.14` fixes for the `alpha.13` release pass
   (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
   a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
-  window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
-  then the `alpha.14` release, its Sonnet release pass and the lock bump.
-- The virtual writer with Qwen first,
-  window `virtual-writer-qwen-first`, run 2 on Qwen
-  (run 1 on flex ended the same way at turn 151, its work committed as `f5bca9e28f`).
+  merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`;
+  its Sonnet release pass runs on the detached worktree `monochromatic-lint-alpha-14-release-review`.
+  The fix round's claim of 244 `rust/folder-uses-links` findings on `main` did not reproduce:
+  clean `git archive` exports of `44996d08eb` and `1efb8a1163` give 0 and 0
+  (`~/temp/agent/layout-findings-on-a-clean-export-of-main-2026-11-26/keep/`).
 
 Flex timed out three runs between 05:55 and 06:10 ("The model did not begin responding in time"),
 so a flex run that ends with `model-error` has its work committed and restarts on Qwen with a note to continue.
@@ -164,13 +164,29 @@ so a flex run that ends with `model-error` has its work committed and restarts o
   6487 as `f9096f7531`,
   6498 as `ed9766ffad`,
   6496 as `03212a32ff`,
-  6497 as `ad67562f20` and
-  6499 as `2f5b9c87bd`.
+  6497 as `ad67562f20`,
+  6499 as `2f5b9c87bd` and
+  6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
+- ZFS plan step 23, the host-kernel qualification run, as `0c4064831d`:
+  record `doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`;
+  every arm passed on `7.3.5-1-cachyos` with OpenZFS `2.4.4-1` except the gate arm issue 6502 fixes.
+  The template is `~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4.qcow2`,
+  its four pinned packages (gone from the mirrors) are copied with signatures and `SHA256SUMS` to
+  `~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4-packages/`,
+  and its build driver is in `~/temp/agent/zfs-step-23-host-kernel-qualification-2026-11-26/keep/template-build/`.
+  Left: the owner declares the release qualified or not;
+  the template carries `cargo-nextest` `0.9.151` against the recipe's `0.9.152`;
+  a guest of it needs a hostname rename (no cloud-init) before a driver's guard lets arms run.
 - The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
 - The linter's `alpha.13` fixes as `88e77f3553`,
   the release commit `e58ba6f078`,
   its lock as `07c8785fa9`
   (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
+- The linter's `alpha.14` fixes as `d127a911a0`, the release commit `73f1091ce0`, its lock as `925cec1406`.
+- Pi's virtual writer with the owner's order, and the driver counting its runs in every member pool, as `7c82b27ad0`
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The virtual writer is ready").
+- Debt ledger item 19 (lists of names held as slices, with a source guard) as `df7e6467c5`;
+  whether the 297 local lists join it is in `doc/handover/questions-for-the-owner.md`.
 
 - 6462 as `d169557d37`:
   a clone inherits `mountpoint=legacy` from its container,
@@ -198,7 +214,7 @@ so a flex run that ends with `model-error` has its work committed and restarts o
 One gate runs on `main` per batch of merges,
 and its tip is the batch's.
 The last gate was at `b6d160365e` (2026-11-26T05:40:41-05:00),
-and it failed only issue 6489's lane-read control, whose round is open;
+and it failed only issue 6489's lane-read control, since merged as `6b67efe5ef`;
 its one leaky test is issue 6501's relay control.
 Every gate run,
 with its counts and what it failed,
@@ -239,11 +255,11 @@ Of those filed tonight,
 6487,
 6498,
 6496,
-6497 and
-6499 are merged (`### Merged tonight`),
-and 6489,
-6493,
-6494,
+6497,
+6499 and
+6489 are merged (`### Merged tonight`),
+and 6493,
+6494 and
 6495 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
 They are debt ledger item 3's.
 
