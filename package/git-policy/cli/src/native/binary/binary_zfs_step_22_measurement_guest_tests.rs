@@ -967,7 +967,7 @@ fn request_budget_arm(fixture: &Fixture) {
             remaining.lines().filter(|line| return !line.trim().is_empty()).count()
         );
     }
-    let _destroyed: (bool, String, String) = fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
+    let _cleaned: (bool, String, String) = fixture.zfs(&["destroy", "-r", "-f", dataset.as_str()]);
 }
 
 /// The arm's whole run, in the order a reader reads the record.

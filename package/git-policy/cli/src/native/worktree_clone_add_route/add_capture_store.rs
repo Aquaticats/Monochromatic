@@ -214,10 +214,10 @@ fn read_prefix(home: &Path, name: &str) -> Result<Option<Vec<u8>>, String> {
         Err(crate::private_storage::ReadRefusal::Missing) => return Ok(None),
         Err(refusal) => return Err(format!("the capture {} cannot be read ({refusal:?})", path.display())),
     };
-    // The prefix is the first bytes of a record whose whole length is not yet
-    // known, so it is taken from the open file rather than read as a whole:
-    // `read_regular_file` refuses anything longer than its limit, and a capture
-    // of a few hundred tracked paths is longer than the prefix.
+    // The prefix is the first bytes of a record whose whole length is not yet known.
+    // It is taken from the open file rather than read as a whole.
+    // `read_regular_file` refuses anything longer than its limit.
+    // A capture of a few hundred tracked paths is longer than the prefix.
     let mut bytes: Vec<u8> = Vec::new();
     file.take(CAPTURE_PREFIX_BYTES)
         .read_to_end(&mut bytes)
