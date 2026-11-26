@@ -1834,8 +1834,8 @@ The store's root is the run's shared fixture root, the parent of every `process-
 (`run_fixture_root` in `testing/fixture_support_shared_by_both_test_targets.rs`).
 `fixture_in(directory, store_root, name)` takes that root, and the per-process folders stay for everything else a test
 writes.
-Every process of one run now links the one stored copy, so a run needs one copy of the build on that file system
-however many test processes it has.
+Every process of one run now links the one stored copy.
+What the first callers of a run cost is unchanged, and it is measured in "The wave of first callers" below.
 The publish, the wait for another caller's copy and the pruning of another build's idle copies are the ones
 `76c6e79dae` added and are unchanged:
 there is still no lock, the final name is still only ever a complete file, and a copy is still removed only when no
@@ -1859,3 +1859,21 @@ cannot pass it.
 
 Shown red against the code before the fix, at the count:
 two files named after the build's content, one under each process's `wrapper-store/`.
+
+### The wave of first callers
+
+Measured 2026-11-25T23:39:55-05:00 on this host, one run of the whole `native_binary` target through `cargo test`
+(its threads default to the processor count, 10 here) with `CLI_GIT_TEST_ROOT` on a 768 MiB tmpfs mounted inside a
+user and mount namespace: the run filled the tmpfs after 22 partial copies were attempted in its one process, 31 tests
+had failed with `No space left on device`, and it was stopped there.
+A caller that finds no stored copy waits for another caller's partial file (`wait_for_publisher`), and callers that
+start at one moment all find none before the first of them has created its partial, so each writes a whole copy:
+ten copies of the 160 MB debug build are 1.6 GB in a 768 MiB root.
+Nothing in the gate has that shape.
+It runs nextest, one process per test, on 4 CPUs, so at most four processes start together, and before `07fe505696`
+the gate ran this suite on the same 768 MiB root with the store at the run's shared root (11663 tests, 7 failures at
+`2005f92347`).
+The gate's own verdict is therefore expected to hold, and a host run that points `CLI_GIT_TEST_ROOT` at a small tmpfs
+and runs the whole target threaded still cannot.
+Bounding that wave needs a claim per build that the first caller creates and the others wait on, which changes the
+store's protocol, so it is not in this change.
