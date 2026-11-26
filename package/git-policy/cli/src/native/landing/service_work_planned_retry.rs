@@ -83,7 +83,6 @@ pub(crate) struct PlannedRetry {
 /// ```ts
 /// const said = await plannedRetry(gitDir, replanning, first, item, attempt, text);
 /// ```
-
 pub(crate) async fn planned_retry(
     git_dir: &Path,
     replanning: &mut Replanning,
