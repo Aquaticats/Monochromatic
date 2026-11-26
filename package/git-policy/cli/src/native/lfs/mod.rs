@@ -23,6 +23,10 @@ pub mod lfs_pre_push;
 /// and the refusal that names both when `git-lfs` is not in it.
 pub mod lfs_program_search;
 
+/// What the arguments of a push and the configuration decide about an upload,
+/// before either face of the plan asks Git anything.
+pub mod lfs_upload_plan_arguments;
+
 /// What the Git LFS upload sends:
 /// the remote and the refs,
 /// read from the push and the configuration Git would read.
