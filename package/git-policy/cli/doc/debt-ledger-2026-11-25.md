@@ -544,6 +544,50 @@ Status:
 incomplete,
 unapproved and not final.
 
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6509-commit-ledger-controls-own-their-process`:
+issue 6509 is fixed,
+and the four ledgers the run above left open read the figures they were meant to.
+Each control that counts the index builds,
+the preparation's stretches,
+the build's stretches or the step ledger runs its body in a child of its own
+(`testing/process_wide_state_child_test_support.rs`),
+as the room,
+the bound,
+the durability switch and the preparation's steps do,
+and `source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
+refuses a control that names one of them without a child.
+The two causes of the same run that are no ledger are fixed beside them:
+the two `commit::commit_preparation::tests` controls that assert this process has no descendant left own a
+process too,
+and every control that steps a notice takes the two control windows before it starts
+(`source_guard/notice_controls_take_their_window_tests.rs`).
+All three guards share one scan,
+`source_guard/process_wide_fact_readers_tests.rs`,
+which issue 6507's guard now uses as well.
+Measured on this host:
+two threaded runs of `commit::` answered
+`test result: FAILED. 464 passed; 10 failed` both times before the change
+and `ok. 474 passed; 0 failed` in each of two runs after it;
+the modules answered
+`commit::commit_index_builds::tests` `ok. 11 passed` (from `4 passed; 7 failed`),
+`commit::commit_prepare_part_durations::tests` `ok. 5 passed` (from `3 passed; 2 failed`),
+`commit::commit_build_part_durations::tests` `ok. 5 passed` (from `ok. 5 passed`, red only beside other modules),
+`commit::commit_preparation::tests` `ok. 23 passed` (from `21 passed; 2 failed`),
+`commit::native_commit_waiting_notice::tests` `ok. 19 passed` (the `19 passed` of `main` plus the window),
+`transaction::transaction_step_durations::tests` `ok. 6 passed`,
+`repo_read::git_metadata::tests` `ok. 11 passed`,
+`shadow::shadow_pool::tests` `ok. 29 passed` and
+`source_guard::` `ok. 147 passed`.
+The step ledger's own two modules were not measured red before the change,
+because nothing else notes a step in a threaded run of their own module;
+their controls own a child because they read the same ledger the two parts controls did.
+The causes and both guards' failing proofs are in
+`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`.
+Status:
+incomplete,
+unapproved and not final.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;
