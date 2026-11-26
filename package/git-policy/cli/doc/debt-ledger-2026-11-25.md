@@ -749,6 +749,26 @@ and named `commit/commit_index_tests.rs:977 (interactive_selection_succeeds_with
 the starter was restored.
 `commit::commit_index::` answered `test result: ok. 52 passed; 0 failed`,
 and `source_guard::` `ok. 144 passed; 0 failed`.
+After `main` renamed the helper to `run_the_body_in_a_child_of_its_own`
+(which takes the body as a closure),
+the controls and both guards follow the new name and the runs were made again:
+the issue's `index::` filter with a terminal on the run's standard input answered
+`test result: ok. 230 passed; 0 failed` in 17.94 s,
+`commit::commit_index::` `ok. 52 passed; 0 failed`,
+`source_guard::` `ok. 148 passed; 0 failed`
+and `testing::process_wide_state_child_test_support` `ok. 2 passed; 0 failed`;
+the guarded control without its child answered `FAILED. 2 passed; 1 failed`
+naming `commit/commit_index_tests.rs:981`,
+and the starter was restored.
+The other controls that start a Git were audited for the same input:
+every step of `run_git` gives its Git the null device unless the request carries input,
+so the property control that asks Git about `--interactive` and `--patch` lines read no terminal
+(`ok. 1 passed; 0 failed` in 1.63 s with a terminal on the run's standard input,
+1.72 s with the null device),
+the fixture helpers and the binary harness give their Git an input of their own,
+and the wrapper's plain commit keeps the terminal for an editor or a signing program on purpose,
+as `SPEC.md` says,
+while every control that calls it passes a message.
 Status:
 incomplete,
 unapproved and not final.

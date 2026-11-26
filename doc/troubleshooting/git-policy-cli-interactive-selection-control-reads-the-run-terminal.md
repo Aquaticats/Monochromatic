@@ -86,7 +86,7 @@ so the Git reads an end of file and ends:
 `source_guard/no_control_starts_an_interactive_git_on_the_run_s_input_tests.rs` keeps the cause from coming
 back:
 a control of a test-only source that names `prepare_interactive_selection(` in code
-and does not start a child of its own is a finding.
+and does not name `run_the_body_in_a_child_of_its_own(` is a finding.
 It reads a test source through `source_guard/controls_naming_a_call_tests.rs`,
 the scan the guard over the preparation's ledger uses,
 so a control's code places and controls are read once and not twice.
@@ -114,18 +114,60 @@ With a terminal on the run's standard input, on this host:
   and the control alone `ok. 1 passed; 0 failed` in 0.04 s;
 - after, both selection controls together answered `ok. 2 passed; 0 failed`.
 
+After `main` renamed the child helper (`run_the_body_in_a_child_of_its_own`, which takes the body as a
+closure) and this branch merged it again, the same runs answered
+`test result: ok. 230 passed; 0 failed` in 17.94 s with a terminal on the run's standard input,
+`ok. 52 passed; 0 failed` for `commit::commit_index::`,
+`ok. 148 passed; 0 failed` for `source_guard::`
+and `ok. 2 passed; 0 failed` for `testing::process_wide_state_child_test_support`;
+the run left no Git process behind, and its capped scope ended with it.
+
 With the control's child starter taken out, the guard answered
 `test result: FAILED. 2 passed; 1 failed` and named
 `commit/commit_index_tests.rs:977 (interactive_selection_succeeds_without_changes)`.
+The same removal was measured again after the merge, against the closure form of the helper,
+and the guard answered `FAILED. 2 passed; 1 failed` naming
+`commit/commit_index_tests.rs:981 (interactive_selection_succeeds_without_changes)`.
+
+The reproduction itself was shown to work for that second measurement:
+with the child marker `CLI_GIT_PROCESS_WIDE_STATE_CHILD` armed by hand,
+so the control's body ran in the run's own process, its Git printed `What now>` and the watchdog aborted the
+run at 120.1 s; the same control under the child the fix starts answered `ok. 1 passed; 0 failed` in 0.04 s.
+
+## The other controls that could read the same terminal
+
+`prepare_interactive_selection` is this crate's only shipped start of a Git that reads the process's standard
+input, and after the fix no control reaches it in the run's own process.
+Every other Git start a control makes gives its Git an input that is not the run's:
+
+- every step of `run_git` puts `Stdio::null()` in place of the standard input unless the request carries input
+  (`transaction/transaction_git_step_about_to_start.rs`),
+  so the property control that asks real Git about every generated `--interactive` and `--patch` line of
+  `git commit` (`commit/commit_form_refusal_properties_tests.rs`) reads no terminal:
+  measured with a terminal on the run's standard input it answered `ok. 1 passed; 0 failed` in 1.63 s,
+  against `ok. 1 passed; 0 failed` in 1.72 s with the null device;
+- the fixture helpers run real Git through `.output()`, which gives it the null device
+  (`testing/fixture_git_commands.rs`, `command/command_test_support.rs`),
+  or through `real_git_within`, which gives it the null device when the caller passes no input;
+- the binary controls pipe the case's own bytes into the wrapper and close the pipe
+  (`binary/binary_support_observation.rs`),
+  so a `commit -p` or `commit --patch` there reads the answers its case names, and an end of file otherwise,
+  never the terminal;
+- the `git add --patch` stand-in of `lock/index_writer_forward_tests.rs` ends itself at the `add` word
+  before it runs the real Git.
+
+The wrapper's own plain commit also runs with the terminal attached
+(`commit/commit_preparation.rs`'s `run_native_commit_within`),
+because an editor or a signing program may ask the person something:
+`package/git-policy/cli/SPEC.md` decides it, "When real Git builds the commit,
+it runs in the scratch repository after policy evaluation settles, with inherited stdio".
+Every control that calls it passes a message (`--message=` or `-m`), so no editor opens,
+and the binary harness pins `GIT_EDITOR=true` (`binary/binary_service_landing_support.rs`, `pinned`).
+An editor-opening commit line would need the child as well, and no guard reads a commit's arguments for it:
+`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md` states the rule instead.
 
 ## What this page does not cover
 
-- The other controls of this crate that start a program with the run's standard input are not audited here
-  beyond the interactive selection:
-  the binary controls give the wrapper's own binary the answers they mean it to type
-  (`binary/binary_service_landing_selection_tests.rs`'s `Case::input`),
-  and the forwarding controls' stand-ins end before they read anything
-  (`lock/index_writer_forward_tests.rs`).
 - Debt ledger item 3's other mechanisms are unchanged
   (`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`).
 - The container gate was not run for this change,
