@@ -836,7 +836,9 @@ fn unmount_arm(fixture: &Fixture) {
 fn stop_wait_arm() {
     let mut stops: Vec<u128> = Vec::new();
     for round in 0..ROUNDS {
-        let unit: String = format!("step22-holder-{round}");
+        // The test process's own number keeps a second run in the same guest
+        // from meeting a transient unit the first run left behind.
+        let unit: String = format!("step22-holder-{}-{round}", std::process::id());
         let started: Output = Command::new("/usr/bin/systemd-run")
             .args(["--unit", unit.as_str(), "--property", "Type=exec", "/bin/sleep", "600"])
             .output()
