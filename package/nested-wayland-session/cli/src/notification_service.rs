@@ -8,14 +8,24 @@ use std::collections::HashMap;
 
 /// Imports `debug`,
 ///  `info` from `tracing`.
-use tracing::{debug, info};
+use tracing::{
+    debug,
+    info,
+};
 /// Imports `object_server::SignalEmitter`,
 ///  `OwnedVariant` from `zbus`.
-use zbus::{object_server::SignalEmitter, OwnedVariant};
+use zbus::{
+    OwnedVariant,
+    object_server::SignalEmitter,
+};
 
 /// Imports the items this module uses from `crate`.
 use crate::{
-    notification_store::{NotificationStore, NotifyCall, REASON_CLOSED_BY_CALL},
+    notification_store::{
+        NotificationStore,
+        NotifyCall,
+        REASON_CLOSED_BY_CALL,
+    },
     service_state::Shared,
     value_summary::summarize_map,
 };
@@ -67,7 +77,9 @@ impl Notifications {
     /// Creates the service over a shared store.
     #[must_use]
     pub fn new(store: Shared<NotificationStore>) -> Self {
-        return Self { store };
+        return Self {
+            store,
+        };
     }
 }
 
@@ -125,7 +137,9 @@ const _: () = {
             let known = self.store.lock().close_call(self.store.now_ms(), id);
             debug!(id, known, "recorded a CloseNotification call");
             Self::notification_closed(&emitter, id, REASON_CLOSED_BY_CALL).await?;
-            self.store.lock().log_closed(self.store.now_ms(), id, REASON_CLOSED_BY_CALL);
+            self.store
+                .lock()
+                .log_closed(self.store.now_ms(), id, REASON_CLOSED_BY_CALL);
             return Ok(());
         }
 
@@ -148,10 +162,18 @@ const _: () = {
         /// Announces that a notification was closed,
         ///  with the specification's reason code.
         #[zbus(signal)]
-        pub async fn notification_closed(emitter: &SignalEmitter<'_>, id: u32, reason: u32) -> zbus::Result<()>;
+        pub async fn notification_closed(
+            emitter: &SignalEmitter<'_>,
+            id: u32,
+            reason: u32,
+        ) -> zbus::Result<()>;
 
         /// Announces that the user invoked an action of a notification.
         #[zbus(signal)]
-        pub async fn action_invoked(emitter: &SignalEmitter<'_>, id: u32, action_key: &str) -> zbus::Result<()>;
+        pub async fn action_invoked(
+            emitter: &SignalEmitter<'_>,
+            id: u32,
+            action_key: &str,
+        ) -> zbus::Result<()>;
     }
 };

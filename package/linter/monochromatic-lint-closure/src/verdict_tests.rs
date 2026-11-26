@@ -149,7 +149,10 @@ fn header_kind(line: &str) -> Option<Kind> {
 /// ```ts
 /// function observedReports(stderr: string, fixtureName: string): Tally;
 /// ```
-fn parse_stderr(stderr: &str, fixture_name: &str) -> Tally {
+fn parse_stderr(
+    stderr: &str,
+    fixture_name: &str,
+) -> Tally {
     let mut tally: Tally = BTreeMap::new();
     let mut pending: Option<Kind> = None;
     let location_prefix: String = format!("--> $DIR/{fixture_name}:");
@@ -186,7 +189,10 @@ fn parse_stderr(stderr: &str, fixture_name: &str) -> Tally {
 /// ```ts
 /// function differences(marked: Tally, observed: Tally): string[];
 /// ```
-fn differences(marked: &Tally, observed: &Tally) -> Vec<String> {
+fn differences(
+    marked: &Tally,
+    observed: &Tally,
+) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for (key, count) in observed {
         let wanted: usize = marked.get(key).copied().unwrap_or(0);

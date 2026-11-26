@@ -17,16 +17,29 @@
 //! scheme change needs no Rust round trip.
 
 /// Imports the accent environment variable and its parser.
-use music_player::accent_override::{ACCENT_ENV, accent_override};
+use music_player::accent_override::{
+    ACCENT_ENV,
+    accent_override,
+};
 /// Imports the sRGB color type of the accent.
 use music_player::oklch::Srgb8;
 /// Imports the theme role derivation and the palette it returns.
-use music_player::theme_roles::{self, ThemePalette};
+use music_player::theme_roles::{
+    self,
+    ThemePalette,
+};
 /// Imports the color type and the component handle that fill the window's roles.
-use slint::{Color, ComponentHandle};
+use slint::{
+    Color,
+    ComponentHandle,
+};
 
 /// Imports the window and the generated role set and theme global.
-use crate::{AppWindow, RoleSet, Theme};
+use crate::{
+    AppWindow,
+    RoleSet,
+    Theme,
+};
 
 /// What:
 ///      `fn slint_color(color: Srgb8) -> Color`:
@@ -96,7 +109,11 @@ pub(crate) fn root_of(accent: Color) -> Option<Srgb8> {
     if accent.alpha() == 0 {
         return None;
     }
-    return Some(Srgb8 { red: accent.red(), green: accent.green(), blue: accent.blue() });
+    return Some(Srgb8 {
+        red: accent.red(),
+        green: accent.green(),
+        blue: accent.blue(),
+    });
 }
 
 /// What:
@@ -113,7 +130,10 @@ pub(crate) fn root_of(accent: Color) -> Option<Srgb8> {
 /// app.theme.darkRoles = slintRoles(palette.dark);
 /// app.theme.lightRoles = slintRoles(palette.light);
 /// ```
-pub(crate) fn apply_palette(app: &AppWindow, accent: Color) {
+pub(crate) fn apply_palette(
+    app: &AppWindow,
+    accent: Color,
+) {
     tracing::info!(
         red = accent.red(),
         green = accent.green(),
@@ -147,8 +167,14 @@ pub(crate) fn apply_accent_override_from_env(app: &AppWindow) {
     let value: Option<String> = std::env::var(ACCENT_ENV).ok();
     match accent_override(value.as_deref()) {
         Ok(Some(accent)) => {
-            tracing::info!(red = accent.red, green = accent.green, blue = accent.blue, "using the accent override");
-            app.global::<Theme>().set_accent_override(slint_color(accent));
+            tracing::info!(
+                red = accent.red,
+                green = accent.green,
+                blue = accent.blue,
+                "using the accent override"
+            );
+            app.global::<Theme>()
+                .set_accent_override(slint_color(accent));
         }
         Ok(None) => {
             tracing::debug!("no accent override, following the system accent");

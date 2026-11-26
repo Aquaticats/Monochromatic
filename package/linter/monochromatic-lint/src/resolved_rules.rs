@@ -10,11 +10,19 @@
 //! ```
 
 /// Import schema readers and typed setup failures.
-use crate::config_data::{key_text, text};
+use crate::config_data::{
+    key_text,
+    text,
+};
 /// Import the configuration error type returned when completed rules fail validation.
 use crate::config_error::ConfigError;
 /// Import the same exact JSONC representation used by parsing and merging.
-use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncKind, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncEntry,
+    JsoncKey,
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///  Fill defaults only for rules already present in the merged record.
@@ -33,12 +41,18 @@ pub(crate) fn complete_rules(mut rules: JsoncValue) -> Result<JsoncValue, Config
     // ```ts
     // for (const [id, setting] of entries(mergedRules)) { fillDefaults(setting); }
     // ```
-    let JsoncKind::Record { entries } = &mut rules.kind else {
+    let JsoncKind::Record {
+        entries,
+    } = &mut rules.kind
+    else {
         return Err(ConfigError::new("Merged rule settings must be an object."));
     };
     for entry in entries {
         let id = key_text(&entry.key.units)?;
-        let JsoncKind::Record { entries: options } = &mut entry.value.kind else {
+        let JsoncKind::Record {
+            entries: options,
+        } = &mut entry.value.kind
+        else {
             return Err(ConfigError::new(
                 format!("Merged rule {id} settings must be an object.").as_str(),
             ));

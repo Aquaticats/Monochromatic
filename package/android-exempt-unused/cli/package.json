@@ -23,8 +23,9 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/android-exempt-unused/cli"
   },
-  "sideEffects": true
+  "sideEffects": true,
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/android-exempt-unused/cli"
 }

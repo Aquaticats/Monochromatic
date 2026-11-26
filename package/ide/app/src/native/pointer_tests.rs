@@ -11,7 +11,10 @@ use super::AppWindow;
 ///  shared with the keyboard tests.
 use super::caret_tests::position;
 /// The complete reader fixture shared with the find tests.
-use super::find_tests::{Reader, reader};
+use super::find_tests::{
+    Reader,
+    reader,
+};
 /// The mark drawn for a selected line terminator.
 use ide_app::shaped_text::TERMINATOR_MARK;
 /// What:
@@ -27,8 +30,14 @@ use ide_app::shaped_text::TERMINATOR_MARK;
 /// import { LogicalPosition, Model, PointerEventButton, WindowEvent, Key } from 'slint';
 /// ```
 use slint::{
-    ComponentHandle, LogicalPosition, Model,
-    platform::{Key, PointerEventButton, WindowEvent},
+    ComponentHandle,
+    LogicalPosition,
+    Model,
+    platform::{
+        Key,
+        PointerEventButton,
+        WindowEvent,
+    },
 };
 /// What:
 ///  Disposable project files,
@@ -40,7 +49,11 @@ use slint::{
 /// ```ts
 /// import { writeFileSync } from 'node:fs'; import { setTimeout } from 'node:timers/promises';
 /// ```
-use std::{fs, thread::sleep, time::Duration};
+use std::{
+    fs,
+    thread::sleep,
+    time::Duration,
+};
 
 /// Where source text starts in the window,
 ///  derived in `sidebar_tests` from the tree,
@@ -55,7 +68,11 @@ const TEXT_TOP: f32 = 32.0;
 /// Window point over source row `row`,
 ///  `x` logical pixels into the text,
 ///  in the middle of the line.
-fn point(window: &AppWindow, row: usize, x: f32) -> LogicalPosition {
+fn point(
+    window: &AppWindow,
+    row: usize,
+    x: f32,
+) -> LogicalPosition {
     return LogicalPosition::new(
         TEXT_LEFT + x,
         TEXT_TOP + row as f32 * 24.0 + 12.0 + window.get_scroll_y(),
@@ -63,7 +80,10 @@ fn point(window: &AppWindow, row: usize, x: f32) -> LogicalPosition {
 }
 
 /// Press the left button at a window point.
-fn press(window: &AppWindow, position: LogicalPosition) {
+fn press(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window.window().dispatch_event(WindowEvent::PointerPressed {
         position,
         button: PointerEventButton::Left,
@@ -71,7 +91,10 @@ fn press(window: &AppWindow, position: LogicalPosition) {
 }
 
 /// Release the left button at a window point.
-fn release(window: &AppWindow, position: LogicalPosition) {
+fn release(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     window
         .window()
         .dispatch_event(WindowEvent::PointerReleased {
@@ -81,13 +104,19 @@ fn release(window: &AppWindow, position: LogicalPosition) {
 }
 
 /// One complete click at a window point.
-fn click(window: &AppWindow, position: LogicalPosition) {
+fn click(
+    window: &AppWindow,
+    position: LogicalPosition,
+) {
     press(window, position);
     release(window, position);
 }
 
 /// Logical x of the caret before source character `head` on its materialized row.
-fn caret_x(reader: &Reader, head: usize) -> f32 {
+fn caret_x(
+    reader: &Reader,
+    head: usize,
+) -> f32 {
     let reading = reader.source.borrow();
     let row = reading.document.text().char_to_line(head);
     let view = reading.shaped.as_ref().expect("shaped source");
@@ -231,9 +260,9 @@ fn drag_selects_text_by_characters_and_by_words_without_panning() {
     let target = point(window, 5, caret_x(&reader, 17 + 12) + 1.0);
     press(window, start);
     assert_eq!(position(&reader), (19, 19), "coordinate control");
-    window
-        .window()
-        .dispatch_event(WindowEvent::PointerMoved { position: target });
+    window.window().dispatch_event(WindowEvent::PointerMoved {
+        position: target,
+    });
     assert_eq!(
         position(&reader),
         (19, 5 * 17 + 12),
@@ -252,18 +281,18 @@ fn drag_selects_text_by_characters_and_by_words_without_panning() {
     press(window, beta);
     assert_eq!(position(&reader), (6, 10));
     let gamma = point(window, 0, caret_x(&reader, 13) + 1.0);
-    window
-        .window()
-        .dispatch_event(WindowEvent::PointerMoved { position: gamma });
+    window.window().dispatch_event(WindowEvent::PointerMoved {
+        position: gamma,
+    });
     assert_eq!(
         position(&reader),
         (6, 16),
         "a word drag takes the whole word"
     );
     let alpha = point(window, 0, caret_x(&reader, 2) + 1.0);
-    window
-        .window()
-        .dispatch_event(WindowEvent::PointerMoved { position: alpha });
+    window.window().dispatch_event(WindowEvent::PointerMoved {
+        position: alpha,
+    });
     assert_eq!(
         position(&reader),
         (10, 0),
@@ -276,9 +305,9 @@ fn drag_selects_text_by_characters_and_by_words_without_panning() {
         position: start,
         button: PointerEventButton::Middle,
     });
-    window
-        .window()
-        .dispatch_event(WindowEvent::PointerMoved { position: target });
+    window.window().dispatch_event(WindowEvent::PointerMoved {
+        position: target,
+    });
     window
         .window()
         .dispatch_event(WindowEvent::PointerReleased {

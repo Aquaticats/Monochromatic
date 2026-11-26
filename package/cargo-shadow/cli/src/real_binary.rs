@@ -36,7 +36,10 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `const EXECUTE_BITS: u32 = 0o111;` is an unsigned 32-bit integer (siblings:
@@ -100,7 +103,11 @@ fn is_executable_file(path: &Path) -> bool {
 /// ```ts
 /// export function findInPath(name: string, pathVariable: string, skip: string[]): string | undefined
 /// ```
-pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf> {
+pub fn find_in_path(
+    name: &str,
+    path_variable: &str,
+    skip: &[PathBuf],
+) -> Option<PathBuf> {
     return find_in_path_with_image(name, path_variable, skip, running_image_identity());
 }
 
@@ -120,7 +127,12 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
 /// ```ts
 /// export function findInPathWithImage(name: string, pathVariable: string, skip: string[], image: [bigint, bigint] | undefined): string | undefined
 /// ```
-pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf], image: Option<(u64, u64)>) -> Option<PathBuf> {
+pub fn find_in_path_with_image(
+    name: &str,
+    path_variable: &str,
+    skip: &[PathBuf],
+    image: Option<(u64, u64)>,
+) -> Option<PathBuf> {
     // The skipped executables by file identity: a hard link to the shadow resolves to another pathname than the shadow's own and is
     // still the same file, so the pathname alone cannot tell it (certification, third pass); the running image is one of them.
     let mut skipped: Vec<(u64, u64)> = Vec::new();
@@ -206,7 +218,10 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
     };
     let named_us: bool = identity_of(program) == Some(image) || leads_back_through(program, image);
     if named_us {
-        return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+        return Err(format!(
+            "{} names this program itself at the moment of the start, so it was not started",
+            program.display()
+        ));
     }
     return Ok(());
 }
@@ -254,7 +269,9 @@ thread_local! {
 /// ```
 #[cfg(test)]
 pub fn after_check_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
-    AFTER_CHECK.with(|slot| { *slot.borrow_mut() = hook; });
+    AFTER_CHECK.with(|slot| {
+        *slot.borrow_mut() = hook;
+    });
 }
 
 /// What:
@@ -293,33 +310,60 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
             /// The raw open flag `O_PATH`,
             /// which opens a file only as an identity when its content cannot be read.
             use std::os::unix::fs::OpenOptionsExt;
-            let by_path: fs::File = match fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program) {
+            let by_path: fs::File = match fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(OPEN_BY_PATH_ONLY)
+                .open(program)
+            {
                 Ok(opened) => opened,
-                Err(second) => return Err(format!("{} cannot be opened ({error}; by path only: {second})", program.display())),
+                Err(second) => {
+                    return Err(format!(
+                        "{} cannot be opened ({error}; by path only: {second})",
+                        program.display()
+                    ));
+                }
             };
             (by_path, false)
         }
         Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
     };
-    let metadata: fs::Metadata = file.metadata().explained(format_args!("{} cannot be examined", program.display()))?;
+    let metadata: fs::Metadata = file
+        .metadata()
+        .explained(format_args!("{} cannot be examined", program.display()))?;
     let image: Option<(u64, u64)> = running_image_identity();
     let named_us: bool = image == Some((metadata.dev(), metadata.ino()))
         || match image {
-            Some(found) => leads_back_through(Path::new(&format!("/proc/self/fd/{}", file.as_raw_fd())), found),
+            Some(found) => leads_back_through(
+                Path::new(&format!("/proc/self/fd/{}", file.as_raw_fd())),
+                found,
+            ),
             None => false,
         };
     if named_us {
-        return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+        return Err(format!(
+            "{} names this program itself at the moment of the start, so it was not started",
+            program.display()
+        ));
     }
     // Any other shadow, of any version, or a launcher that leads to one (`shadow_identity.rs`): judged on the open file when no launcher
     // record stands beside it, and by where the record leads when one does (a launcher is a copy of mpm-shadow, which carries the identity).
-    if let Some(identity) = crate::shadow_identity::identity_of_open_file_unless_launcher(&file, program) {
-        return Err(format!("{} is {identity}, a shadow, so it was not started", program.display()));
+    if let Some(identity) =
+        crate::shadow_identity::identity_of_open_file_unless_launcher(&file, program)
+    {
+        return Err(format!(
+            "{} is {identity}, a shadow, so it was not started",
+            program.display()
+        ));
     }
     let mut magic: [u8; 4] = [0; 4];
-    let looks_compiled: bool = readable && (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF";
+    let looks_compiled: bool =
+        readable && (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF";
     let compiled: bool = looks_compiled && Path::new("/proc/self/fd").is_dir();
-    return Ok(Vetted { file, spelled: program.to_path_buf(), compiled });
+    return Ok(Vetted {
+        file,
+        spelled: program.to_path_buf(),
+        compiled,
+    });
 }
 
 /// The methods of the type above.
@@ -351,11 +395,14 @@ impl Vetted {
         /// The exec call that replaces the current process image with the vetted program.
         use std::os::unix::process::CommandExt;
         #[cfg(test)]
-        if let Some(hook) = AFTER_CHECK.with(|slot| { return slot.borrow().clone(); }) {
+        if let Some(hook) = AFTER_CHECK.with(|slot| {
+            return slot.borrow().clone();
+        }) {
             hook();
         }
         if self.compiled {
-            let mut command: std::process::Command = std::process::Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
+            let mut command: std::process::Command =
+                std::process::Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
             command.arg0(&self.spelled);
             return Ok(command);
         }
@@ -429,7 +476,10 @@ fn identity_of(path: &Path) -> Option<(u64, u64)> {
 /// `fn has_skipped_identity(path: &Path, skipped: &[(u64, u64)]) -> bool` says whether the file a path names is one of the skipped files.
 /// Why:
 /// A function replaces the closure that compared the identity with the skipped list.
-fn has_skipped_identity(path: &Path, skipped: &[(u64, u64)]) -> bool {
+fn has_skipped_identity(
+    path: &Path,
+    skipped: &[(u64, u64)],
+) -> bool {
     return match identity_of(path) {
         Some(found) => skipped.contains(&found),
         None => false,
@@ -442,7 +492,10 @@ fn has_skipped_identity(path: &Path, skipped: &[(u64, u64)]) -> bool {
 /// is a launcher whose record leads back to the running image.
 /// Why:
 /// A function replaces the closure that `is_ok_and` ran after the resolution.
-fn leads_back_through(path: &Path, image: (u64, u64)) -> bool {
+fn leads_back_through(
+    path: &Path,
+    image: (u64, u64),
+) -> bool {
     return match fs::canonicalize(path) {
         Ok(resolved) => leads_back_to(&resolved, &[], &[image]),
         Err(_) => false,
@@ -480,7 +533,11 @@ fn real_path_of_record(text: &str) -> Option<PathBuf> {
 /// ```ts
 /// function leadsBackTo(resolved: string, skip: string[]): boolean
 /// ```
-fn leads_back_to(resolved: &Path, skip: &[PathBuf], skipped: &[(u64, u64)]) -> bool {
+fn leads_back_to(
+    resolved: &Path,
+    skip: &[PathBuf],
+    skipped: &[(u64, u64)],
+) -> bool {
     let mut current: PathBuf = resolved.to_path_buf();
     for _hop in 0..MAX_LAUNCHER_HOPS {
         let mut record_name: std::ffi::OsString = current.as_os_str().to_os_string();
@@ -541,5 +598,9 @@ pub fn own_real_path() -> PathBuf {
 /// ```
 pub fn find_real_cargo() -> Option<PathBuf> {
     let path_variable: String = std::env::var("PATH").unwrap_or_default();
-    return find_in_path(crate::constants::SHADOWED_NAME, &path_variable, &[own_real_path()]);
+    return find_in_path(
+        crate::constants::SHADOWED_NAME,
+        &path_variable,
+        &[own_real_path()],
+    );
 }

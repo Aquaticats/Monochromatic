@@ -9,9 +9,17 @@
 
 /// The seam's input and output types,
 ///  and the state-path checks shared with `prepare`.
-use super::launch::{LaunchRequest, ServerLaunch, check_state_directory, resolve_existing};
+use super::launch::{
+    LaunchRequest,
+    ServerLaunch,
+    check_state_directory,
+    resolve_existing,
+};
 /// The shared private cache directory rule and the fixed FNV-1a digest that names per-project state.
-use crate::{app_cache::application_cache, content_digest::fnv1a};
+use crate::{
+    app_cache::application_cache,
+    content_digest::fnv1a,
+};
 /// What:
 ///  `Command` starts a child process and waits for it;
 ///  `OnceLock` holds a value computed once.
@@ -24,7 +32,10 @@ use crate::{app_cache::application_cache, content_digest::fnv1a};
 /// ```
 use std::{
     os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::OnceLock,
 };
@@ -101,7 +112,11 @@ fn component(text: &str) -> String {
 /// ```ts
 /// function stateDirectory(stateRoot: string, project: string, server: string): string
 /// ```
-pub fn state_directory(state_root: &Path, project_root: &Path, server: &str) -> PathBuf {
+pub fn state_directory(
+    state_root: &Path,
+    project_root: &Path,
+    server: &str,
+) -> PathBuf {
     // `file_name` is the last path component; `to_string_lossy` renders it as text.
     let name = match project_root.file_name() {
         Some(found) => found.to_string_lossy().into_owned(),
@@ -150,7 +165,11 @@ pub fn default_state_root() -> Option<PathBuf> {
 /// ```ts
 /// function checkOutsideProc(path: string, what: string, remedy: string): void // throws to refuse
 /// ```
-fn check_outside_proc(path: &Path, what: &str, remedy: &str) -> Result<(), String> {
+fn check_outside_proc(
+    path: &Path,
+    what: &str,
+    remedy: &str,
+) -> Result<(), String> {
     if path.starts_with(project::PROCESS_FILE_SYSTEM) {
         return Err(format!(
             "{what} {} is below /proc, where no directory a user creates can exist and the language-server sandbox mounts a fresh process file system. {remedy}",
@@ -203,7 +222,10 @@ pub fn private_state(request: &LaunchRequest) -> Result<PathBuf, String> {
 /// ```ts
 /// function probe(bubblewrap: string, pidNamespace: boolean): void // throws with the cause
 /// ```
-fn probe(bubblewrap: &str, pid_namespace: bool) -> Result<(), String> {
+fn probe(
+    bubblewrap: &str,
+    pid_namespace: bool,
+) -> Result<(), String> {
     let mut arguments = recipe::isolation(pid_namespace);
     arguments.push("--".to_string());
     arguments.push(PROBE_PROGRAM.to_string());
@@ -235,7 +257,10 @@ fn probe(bubblewrap: &str, pid_namespace: bool) -> Result<(), String> {
 /// ```ts
 /// function confineWith(request: LaunchRequest, bubblewrap: string): ServerLaunch // throws to refuse
 /// ```
-pub fn confine_with(request: &LaunchRequest, bubblewrap: &str) -> Result<ServerLaunch, String> {
+pub fn confine_with(
+    request: &LaunchRequest,
+    bubblewrap: &str,
+) -> Result<ServerLaunch, String> {
     let reopen = format!(
         "{} is not started. Open the project from a directory outside /proc",
         request.server

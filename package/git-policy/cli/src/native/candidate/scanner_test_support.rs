@@ -15,8 +15,8 @@
 
 /// Shared disposable-directory fixtures and native path and process types.
 use crate::test_support::{fixture, remove};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 
 /// Set only in the child:
 ///  names the fixture directory the control may use.
@@ -49,25 +49,16 @@ pub(crate) fn run_isolated(test_path: &str, name: &str, body: fn(&Path)) {
     std::fs::create_dir(&home).expect("disposable home");
     let work: PathBuf = root.join("work");
     std::fs::create_dir(&work).expect("control directory");
-    let output: Output = Command::new(crate::test_support::this_test_binary().expect("test executable"))
-        .args(["--exact", test_path, "--nocapture", "--test-threads=1"])
-        .env(ISOLATED_FIXTURE_VARIABLE, &work)
-        .env("HOME", &home)
-        .env("FORBIDDEN_STRINGS_CACHE_DIR", root.join("cache"))
-        .env_remove("XDG_CACHE_HOME")
-        .env_remove("FORBIDDEN_STRINGS_RULES")
-        .output()
-        .expect("start the isolated control");
-    let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
-    assert!(
-        output.status.success(),
-        "isolated control {test_path} failed:\n{stdout}\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        stdout.contains("test result: ok. 1 passed; 0 failed"),
-        "isolated control {test_path} did not run exactly one test:\n{stdout}"
-    );
+    let cache: PathBuf = root.join("cache");
+    let environment: [(&str, &OsStr); 3] =
+        [(ISOLATED_FIXTURE_VARIABLE, work.as_os_str()), ("HOME", home.as_os_str()), ("FORBIDDEN_STRINGS_CACHE_DIR", cache.as_os_str())];
+    // The child's pass is this control's assertion, and its two cache variables must not come in from this process.
+    crate::child_test_process::passed(crate::child_test_process::ChildTest {
+        exact_test: test_path,
+        environment: environment.as_slice(),
+        cleared_environment: &["XDG_CACHE_HOME", "FORBIDDEN_STRINGS_RULES"],
+        ..crate::child_test_process::ChildTest::default()
+    });
     remove(root.as_path());
 }
 

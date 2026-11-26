@@ -23,11 +23,18 @@ use crate::rust_semantic_session::RustSemanticSession;
 /// Import the parsed Rust source model that each check reads.
 use crate::rust_source::RustSource;
 /// Import the workspace discovery and loading steps that prepare the semantic session.
-use crate::rust_workspace::{WorkspacePreparation, discover_manifest, load_cargo_workspace};
+use crate::rust_workspace::{
+    WorkspacePreparation,
+    discover_manifest,
+    load_cargo_workspace,
+};
 /// Import native path keys and a deterministic owned workspace map.
 use std::collections::BTreeMap;
 /// Import the path types used to name each Rust file and its manifest.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Invocation-owned workspace cache,
@@ -59,7 +66,10 @@ impl RustFileEngine {
     /// Construct an empty invocation cache;
     ///  no compiler,
     ///  manifest or workspace is opened here.
-    pub fn new(preparation: WorkspacePreparation, progress: fn(String)) -> RustFileEngine {
+    pub fn new(
+        preparation: WorkspacePreparation,
+        progress: fn(String),
+    ) -> RustFileEngine {
         return RustFileEngine {
             workspaces: BTreeMap::<PathBuf, RustSemanticSession>::new(),
             preparation,

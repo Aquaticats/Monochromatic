@@ -21,12 +21,22 @@
 /// Import the common node-anchored finding builder and the parsed document.
 /// Import the shared ECMAScript trim predicate for whitespace after a destination marker.
 use crate::{
-    diagnostic::{Diagnostic, Severity},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+    },
     edits::Edit,
     markdown_finding::finding,
-    markdown_lfs_context::{LfsImageContext, LfsImageTarget},
+    markdown_lfs_context::{
+        LfsImageContext,
+        LfsImageTarget,
+    },
     markdown_lfs_target::{
-        ObjectUrlParts, apply_segments, object_url_parts, relative_link, relative_target_path,
+        ObjectUrlParts,
+        apply_segments,
+        object_url_parts,
+        relative_link,
+        relative_target_path,
     },
     markdown_source::MarkdownSource,
     markdown_trim_space::trim_space,
@@ -34,12 +44,19 @@ use crate::{
 /// Import typed payload decoders;
 ///  identifiers are already normalized by the parser.
 use satteri_ast::mdast::{
-    DefinitionData, MdastNodeType, decode_definition_data, decode_image_data, decode_reference_data,
+    DefinitionData,
+    MdastNodeType,
+    decode_definition_data,
+    decode_image_data,
+    decode_reference_data,
 };
 /// Import an ordered set of owned identifiers.
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -70,7 +87,12 @@ const ID: &str = "markdown/lfs-image-url";
 /// ```ts
 /// function urlSpanOf({ node, source }): { start: number; end: number } | undefined;
 /// ```
-fn url_span(context: &MarkdownSource, id: u32, image: bool, url: &str) -> Option<(usize, usize)> {
+fn url_span(
+    context: &MarkdownSource,
+    id: u32,
+    image: bool,
+    url: &str,
+) -> Option<(usize, usize)> {
     let (start, _): (usize, usize) = context.offsets(id);
     let written: &str = context.slice(id);
     let marker_at: usize = if image {
@@ -186,7 +208,9 @@ fn check_object_url(
                 relative_link(directory, &target),
             ));
         }
-        LfsImageTarget::Lfs { oid } => {
+        LfsImageTarget::Lfs {
+            oid,
+        } => {
             if oid == parts.oid {
                 return None;
             }
@@ -222,7 +246,10 @@ fn check_relative_url(
     lfs: &LfsImageContext,
 ) -> Option<Diagnostic> {
     let path: String = relative_target_path(url, &lfs.file_path, &lfs.repo_root)?;
-    let LfsImageTarget::Lfs { oid } = lfs.resolve_target(path.as_str()) else {
+    let LfsImageTarget::Lfs {
+        oid,
+    } = lfs.resolve_target(path.as_str())
+    else {
         return None;
     };
     return Some(rewrite_finding(

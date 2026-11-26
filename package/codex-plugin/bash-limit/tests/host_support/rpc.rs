@@ -1,5 +1,7 @@
 //! Line-oriented client for the installed Codex app-server protocol.
 
+/// Import a dynamically shaped JSON value without panic-generating construction macros.
+use serde_json::Value;
 /// What:
 /// `use` imports standard I/O and JSON types;
 /// `::` separates their modules.
@@ -10,9 +12,18 @@
 /// ```ts
 /// import { readLine, writeLine } from './stdio';
 /// ```
-use std::{io::{self, BufRead, BufReader, Write}, process::{ChildStdin, ChildStdout}};
-/// Import a dynamically shaped JSON value without panic-generating construction macros.
-use serde_json::Value;
+use std::{
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Write,
+    },
+    process::{
+        ChildStdin,
+        ChildStdout,
+    },
+};
 
 /// Decode a fixed JSON fixture,
 /// preserving parse failures as test errors.
@@ -31,7 +42,10 @@ pub fn parse(input: &str) -> io::Result<Value> {
 /// ```ts
 /// export function send(stdin: Pipe, value: JsonValue): void { ... }
 /// ```
-pub fn send(pipe: &mut ChildStdin, value: Value) -> io::Result<()> {
+pub fn send(
+    pipe: &mut ChildStdin,
+    value: Value,
+) -> io::Result<()> {
     // What: `to_string` creates owned JSON text; `?` propagates errors to the test.
     // Why: Only serde_json may encode protocol boundaries.
     //
@@ -64,7 +78,9 @@ pub fn receive(reader: &mut BufReader<ChildStdout>) -> io::Result<Value> {
         // ```ts
         // throw new Error('Codex app-server closed stdout');
         // ```
-        return Err(io::Error::other("Codex app-server closed stdout; inspect host-stderr.log in the fixture"));
+        return Err(io::Error::other(
+            "Codex app-server closed stdout; inspect host-stderr.log in the fixture",
+        ));
     }
     // Borrow the line for parsing and convert parse failures to test I/O errors.
     return serde_json::from_str(&line).map_err(io::Error::other);
@@ -72,7 +88,13 @@ pub fn receive(reader: &mut BufReader<ChildStdout>) -> io::Result<Value> {
 
 /// Send a request and wait for its matching response,
 /// allowing intervening notifications.
-pub fn call(pipe: &mut ChildStdin, reader: &mut BufReader<ChildStdout>, id: u64, method: &str, params: Value) -> io::Result<Value> {
+pub fn call(
+    pipe: &mut ChildStdin,
+    reader: &mut BufReader<ChildStdout>,
+    id: u64,
+    method: &str,
+    params: Value,
+) -> io::Result<Value> {
     // Parse fixed syntax, then assign values without interpolating them into JSON source.
     let mut request = parse("{\"id\":0,\"method\":\"\",\"params\":null}")?;
     // Value::from owns each JSON scalar; params already owns its JSON representation.

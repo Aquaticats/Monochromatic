@@ -12,16 +12,26 @@
 //! ```
 
 /// Imports `toml_edit::{Item, TableLike}`.
-use toml_edit::{Item, TableLike};
+use toml_edit::{
+    Item,
+    TableLike,
+};
 
 /// Imports `crate::error::CatalogIssue`.
 use crate::error::CatalogIssue;
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::syntax::{is_bounded_requirement, is_crate_name, is_floor_requirement}`.
-use crate::syntax::{is_bounded_requirement, is_crate_name, is_floor_requirement};
+use crate::syntax::{
+    is_bounded_requirement,
+    is_crate_name,
+    is_floor_requirement,
+};
 /// Imports `crate::types::{Entry, EntryMap}`.
-use crate::types::{Entry, EntryMap};
+use crate::types::{
+    Entry,
+    EntryMap,
+};
 
 /// Entry keys that belong at a crate's use site,
 /// each with the fix to tell the contributor.
@@ -30,7 +40,10 @@ const USE_SITE_KEYS: [(&str, &str); 7] = [
         "features",
         "move `features` to each crate that needs them; Cargo adds use-site features on top of the inherited entry",
     ),
-    ("optional", "move `optional = true` to the crate that makes the dependency optional"),
+    (
+        "optional",
+        "move `optional = true` to the crate that makes the dependency optional",
+    ),
     (
         "default-features",
         "move `default-features = false` to the crate that disables default features",
@@ -39,16 +52,26 @@ const USE_SITE_KEYS: [(&str, &str); 7] = [
         "path",
         "depend on internal crates by `path` in the crate manifest; internal crates stay out of the catalog",
     ),
-    ("branch", "pin git entries with `rev = \"<commit>\"` instead of `branch`"),
-    ("tag", "pin git entries with `rev = \"<commit>\"` instead of `tag`"),
-    ("workspace", "remove `workspace`; catalog entries are the source the crates inherit from"),
+    (
+        "branch",
+        "pin git entries with `rev = \"<commit>\"` instead of `branch`",
+    ),
+    (
+        "tag",
+        "pin git entries with `rev = \"<commit>\"` instead of `tag`",
+    ),
+    (
+        "workspace",
+        "remove `workspace`; catalog entries are the source the crates inherit from",
+    ),
 ];
 
 /// The only keys a table-form entry may declare besides the use-site keys above.
 const ENTRY_KEYS: [&str; 4] = ["git", "package", "rev", "version"];
 
 /// Fix text for a `>=` floor rule violation in the default catalog.
-const FLOOR_REMEDY: &str = "write a `>=` floor such as `\">=1.0.104\"`; bounded versions belong in a named catalog";
+const FLOOR_REMEDY: &str =
+    "write a `>=` floor such as `\">=1.0.104\"`; bounded versions belong in a named catalog";
 
 /// Fix text for a bounded rule violation in a named catalog.
 const BOUNDED_REMEDY: &str = "named catalogs hold bounded requirements such as `\"0.58\"`, `\"^0.58\"`, `\"~0.58.1\"`, or `\"=0.58.0\"`; a `>=` floor would be pulled to the newest release";
@@ -77,7 +100,10 @@ pub fn describe_item(item: Option<&Item>) -> String {
 }
 
 /// Whether `requirement` passes the floor rule (default catalog) or the bounded rule (named catalog).
-fn accepts(requirement: &str, bounded: bool) -> bool {
+fn accepts(
+    requirement: &str,
+    bounded: bool,
+) -> bool {
     if bounded {
         return is_bounded_requirement(requirement);
     }
@@ -112,7 +138,11 @@ fn use_site_remedy(key: &str) -> Option<&'static str> {
 }
 
 /// Reports table keys that are unknown or belong at the use site.
-fn report_foreign_keys(location: &str, table: &dyn TableLike, issues: &mut Vec<CatalogIssue>) {
+fn report_foreign_keys(
+    location: &str,
+    table: &dyn TableLike,
+    issues: &mut Vec<CatalogIssue>,
+) {
     for (key, _) in table.iter() {
         let use_site: Option<&str> = use_site_remedy(key);
         if let Some(remedy) = use_site {
@@ -133,7 +163,12 @@ fn report_foreign_keys(location: &str, table: &dyn TableLike, issues: &mut Vec<C
 
 /// Validates a table-form entry;
 /// `None` when the table has problems (already pushed to `issues`).
-fn parse_table_entry(location: &str, table: &dyn TableLike, bounded: bool, issues: &mut Vec<CatalogIssue>) -> Option<Entry> {
+fn parse_table_entry(
+    location: &str,
+    table: &dyn TableLike,
+    bounded: bool,
+    issues: &mut Vec<CatalogIssue>,
+) -> Option<Entry> {
     let issues_before: usize = issues.len();
     report_foreign_keys(location, table, issues);
     let package_item: Option<&Item> = table.get("package");
@@ -144,7 +179,8 @@ fn parse_table_entry(location: &str, table: &dyn TableLike, bounded: bool, issue
             _ => issues.push(CatalogIssue {
                 location: location.to_string(),
                 problem: "`package` is not a valid crate name".to_string(),
-                remedy: "set `package` to the crate name on crates.io that this dependency renames".to_string(),
+                remedy: "set `package` to the crate name on crates.io that this dependency renames"
+                    .to_string(),
             }),
         }
     }
@@ -202,7 +238,10 @@ fn parse_table_entry(location: &str, table: &dyn TableLike, bounded: bool, issue
     if !accepted {
         issues.push(CatalogIssue {
             location: location.to_string(),
-            problem: format!("version requirement {} is not accepted here", describe_item(version)),
+            problem: format!(
+                "version requirement {} is not accepted here",
+                describe_item(version)
+            ),
             remedy: rule_remedy(bounded).to_string(),
         });
     }
@@ -219,13 +258,20 @@ fn parse_table_entry(location: &str, table: &dyn TableLike, bounded: bool, issue
 /// Validates one entry,
 /// pushing problems instead of failing;
 /// `None` when rejected.
-fn parse_entry(location: &str, name: &str, item: &Item, bounded: bool, issues: &mut Vec<CatalogIssue>) -> Option<Entry> {
+fn parse_entry(
+    location: &str,
+    name: &str,
+    item: &Item,
+    bounded: bool,
+    issues: &mut Vec<CatalogIssue>,
+) -> Option<Entry> {
     let valid_name: bool = is_crate_name(name);
     if !valid_name {
         issues.push(CatalogIssue {
             location: location.to_string(),
             problem: format!("{} is not a valid Cargo dependency name", quote(name)),
-            remedy: "use 1 to 64 ASCII letters, digits, `-`, or `_`, starting with a letter".to_string(),
+            remedy: "use 1 to 64 ASCII letters, digits, `-`, or `_`, starting with a letter"
+                .to_string(),
         });
     }
     if let Some(text) = item.as_str() {
@@ -272,7 +318,12 @@ fn parse_entry(location: &str, name: &str, item: &Item, bounded: bool, issues: &
 /// ```ts
 /// export function parseCatalogTable(args: { location: string; value: unknown; bounded: boolean; issues: Issue[] }): Map<string, Entry>
 /// ```
-pub fn parse_catalog_table(location: &str, item: Option<&Item>, bounded: bool, issues: &mut Vec<CatalogIssue>) -> EntryMap {
+pub fn parse_catalog_table(
+    location: &str,
+    item: Option<&Item>,
+    bounded: bool,
+    issues: &mut Vec<CatalogIssue>,
+) -> EntryMap {
     let mut entries: EntryMap = EntryMap::new();
     let Some(present) = item else {
         return entries;

@@ -99,8 +99,17 @@ pub const ERROR_FAILED: i64 = -32002;
 /// ```ts
 /// function requestLine(id: number, method: string, params: unknown): string
 /// ```
-pub fn request_line(id: u64, method: &str, params: Value) -> String {
-    let pairs = [("jsonrpc", v("2.0")), ("id", Value::from(id)), ("method", v(method)), ("params", params)];
+pub fn request_line(
+    id: u64,
+    method: &str,
+    params: Value,
+) -> String {
+    let pairs = [
+        ("jsonrpc", v("2.0")),
+        ("id", Value::from(id)),
+        ("method", v(method)),
+        ("params", params),
+    ];
     let mut line = object(&pairs).to_string();
     line.push('\n');
     return line;
@@ -115,8 +124,15 @@ pub fn request_line(id: u64, method: &str, params: Value) -> String {
 /// ```ts
 /// function notificationLine(method: string, params: unknown): string
 /// ```
-pub fn notification_line(method: &str, params: Value) -> String {
-    let pairs = [("jsonrpc", v("2.0")), ("method", v(method)), ("params", params)];
+pub fn notification_line(
+    method: &str,
+    params: Value,
+) -> String {
+    let pairs = [
+        ("jsonrpc", v("2.0")),
+        ("method", v(method)),
+        ("params", params),
+    ];
     let mut line = object(&pairs).to_string();
     line.push('\n');
     return line;
@@ -132,8 +148,15 @@ pub fn notification_line(method: &str, params: Value) -> String {
 /// ```ts
 /// function resultLine(id: unknown, result: unknown): string
 /// ```
-pub fn result_line(id: &Value, result: Value) -> String {
-    let pairs = [("jsonrpc", v("2.0")), ("id", id.clone()), ("result", result)];
+pub fn result_line(
+    id: &Value,
+    result: Value,
+) -> String {
+    let pairs = [
+        ("jsonrpc", v("2.0")),
+        ("id", id.clone()),
+        ("result", result),
+    ];
     let mut line = object(&pairs).to_string();
     line.push('\n');
     return line;
@@ -148,8 +171,17 @@ pub fn result_line(id: &Value, result: Value) -> String {
 /// ```ts
 /// function errorLine(id: unknown, code: number, message: string, data?: unknown): string
 /// ```
-pub fn error_line(id: &Value, code: i64, message: &str, data: Value) -> String {
-    let detail = object(&[("code", Value::from(code)), ("message", v(message)), ("data", data)]);
+pub fn error_line(
+    id: &Value,
+    code: i64,
+    message: &str,
+    data: Value,
+) -> String {
+    let detail = object(&[
+        ("code", Value::from(code)),
+        ("message", v(message)),
+        ("data", data),
+    ]);
     let pairs = [("jsonrpc", v("2.0")), ("id", id.clone()), ("error", detail)];
     let mut line = object(&pairs).to_string();
     line.push('\n');

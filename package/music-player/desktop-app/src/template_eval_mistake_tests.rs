@@ -6,7 +6,12 @@
 
 use super::evaluate_template;
 use crate::template_fixtures::analysed;
-use crate::template_model::{TemplateResult, TemplateTrack, error_lines, track_template_fields};
+use crate::template_model::{
+    TemplateResult,
+    TemplateTrack,
+    error_lines,
+    track_template_fields,
+};
 
 // What: `fn assert_refuses(text: &str, lines: &[&str])` asserts that the template on the analysed track is refused with exactly these lines.
 // Why: Every mistake case compares its wording, order, and count in one call.
@@ -15,7 +20,10 @@ use crate::template_model::{TemplateResult, TemplateTrack, error_lines, track_te
 // ```ts
 // function refuses(text: string, lines: string[]): void { ... }
 // ```
-fn assert_refuses(text: &str, lines: &[&str]) {
+fn assert_refuses(
+    text: &str,
+    lines: &[&str],
+) {
     let track = analysed();
     match evaluate_template(text, &track as &dyn TemplateTrack, &track_template_fields()) {
         TemplateResult::Refused(errors) => assert_eq!(error_lines(&errors), lines, "{text}"),
@@ -30,7 +38,10 @@ fn assert_refuses(text: &str, lines: &[&str]) {
 // ```ts
 // function shows(text: string, expected: string): void { ... }
 // ```
-fn assert_shows_analysed(text: &str, expected: &str) {
+fn assert_shows_analysed(
+    text: &str,
+    expected: &str,
+) {
     let track = analysed();
     assert_eq!(
         evaluate_template(text, &track as &dyn TemplateTrack, &track_template_fields()),
@@ -48,7 +59,10 @@ fn assert_shows_analysed(text: &str, expected: &str) {
 // ```
 #[test]
 fn unknown_functions_and_fields_are_named_in_order() {
-    assert_refuses("$xx(1)$ and $mi(nope)$", &["xx: unknown function", "mi: unknown field nope"]);
+    assert_refuses(
+        "$xx(1)$ and $mi(nope)$",
+        &["xx: unknown function", "mi: unknown field nope"],
+    );
     assert_refuses("$constructor(1)$", &["constructor: unknown function"]);
     assert_refuses("$mi(__proto__)$", &["mi: unknown field __proto__"]);
 }
@@ -75,8 +89,14 @@ fn unknown_function_stops_before_its_arguments() {
 #[test]
 fn every_argument_is_read_before_the_call() {
     let track = crate::template_fixtures::waiting();
-    match evaluate_template("$tf(mi(peak), mi(nope))$", &track as &dyn TemplateTrack, &track_template_fields()) {
-        TemplateResult::Refused(errors) => assert_eq!(error_lines(&errors), vec!["mi: unknown field nope"]),
+    match evaluate_template(
+        "$tf(mi(peak), mi(nope))$",
+        &track as &dyn TemplateTrack,
+        &track_template_fields(),
+    ) {
+        TemplateResult::Refused(errors) => {
+            assert_eq!(error_lines(&errors), vec!["mi: unknown field nope"])
+        }
         TemplateResult::Shown(shown) => panic!("expected a refusal, got {shown:?}"),
     }
 }
@@ -90,15 +110,24 @@ fn every_argument_is_read_before_the_call() {
 // ```
 #[test]
 fn unclosed_formulas_and_quotes_are_reported() {
-    assert_refuses("$mi(title)", &["formula: the $ at character 1 has no closing $"]);
+    assert_refuses(
+        "$mi(title)",
+        &["formula: the $ at character 1 has no closing $"],
+    );
     assert_refuses(
         "a $mi(title) - text",
-        &["formula: the $ at character 3 has no closing $", "formula: unexpected -"],
+        &[
+            "formula: the $ at character 3 has no closing $",
+            "formula: unexpected -",
+        ],
     );
     assert_refuses("$mi(title$", &["mi: a closing bracket is missing"]);
     assert_refuses(
         "$mi(\"title)$",
-        &["mi: a closing bracket is missing", "text: a quotation mark is not closed"],
+        &[
+            "mi: a closing bracket is missing",
+            "text: a quotation mark is not closed",
+        ],
     );
 }
 
@@ -112,9 +141,21 @@ fn unclosed_formulas_and_quotes_are_reported() {
 #[test]
 fn empty_and_misplaced_values_are_reported() {
     assert_refuses("$$", &["formula: a value is missing"]);
-    assert_refuses("$+$", &["formula: a value is missing before +", "formula: a value is missing"]);
+    assert_refuses(
+        "$+$",
+        &[
+            "formula: a value is missing before +",
+            "formula: a value is missing",
+        ],
+    );
     assert_refuses("$mi(title) mi(ext)$", &["formula: unexpected mi"]);
-    assert_refuses("$mi(,)$", &["formula: a value is missing before ,", "formula: a value is missing before )"]);
+    assert_refuses(
+        "$mi(,)$",
+        &[
+            "formula: a value is missing before ,",
+            "formula: a value is missing before )",
+        ],
+    );
     assert_refuses("$mi()$", &["mi: takes 1 value, as in mi(field)"]);
 }
 

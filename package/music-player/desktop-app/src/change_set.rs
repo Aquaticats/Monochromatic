@@ -74,7 +74,11 @@ use std::path::PathBuf;
 /// ```ts
 /// import { type Event, type EventKind, ModifyKind } from "notify-debouncer-mini";
 /// ```
-use notify_debouncer_mini::notify::{Event, EventKind, event::ModifyKind};
+use notify_debouncer_mini::notify::{
+    Event,
+    EventKind,
+    event::ModifyKind,
+};
 
 /// What:
 /// `pub(crate) const MAX_DIRTY_PATHS: usize = 100_000;` is a compile-time constant.
@@ -186,7 +190,10 @@ impl DirtyPaths {
     /// static single(path: string, structural: boolean): DirtyPaths { const set = new DirtyPaths(); set.insert(path, structural); return set; }
     /// ```
     #[cfg(test)]
-    pub(crate) fn single(path: PathBuf, structural: bool) -> DirtyPaths {
+    pub(crate) fn single(
+        path: PathBuf,
+        structural: bool,
+    ) -> DirtyPaths {
         // What:     `let mut set: DirtyPaths = DirtyPaths::default();` makes a new empty set. `DirtyPaths::default()` calls
         //           the `Default` ability that the `derive` wrote (an empty map). `mut` allows the variable to change;
         //           Rust variables are constants unless marked, and the `: DirtyPaths` annotation names the type.
@@ -231,7 +238,11 @@ impl DirtyPaths {
     /// ```ts
     /// insert(path: string, structural: boolean): void { this.entries.set(path, (this.entries.get(path) ?? false) || structural); }
     /// ```
-    pub(crate) fn insert(&mut self, path: PathBuf, structural: bool) {
+    pub(crate) fn insert(
+        &mut self,
+        path: PathBuf,
+        structural: bool,
+    ) {
         // What:     `let entry: &mut bool = self.entries.entry(path).or_insert(false);` finds the map slot for the path and
         //           creates it holding `false` when it is missing. `.entry(path)` is a lookup that gives access to the slot;
         //           `.or_insert(false)` fills an empty slot and answers `&mut bool`, a mutable borrow of the stored flag.
@@ -370,7 +381,10 @@ impl DirtyPaths {
     /// ```ts
     /// private absorb(other: DirtyPaths): void { for (const [path, structural] of other.entries) this.insert(path, structural); }
     /// ```
-    fn absorb(&mut self, other: DirtyPaths) {
+    fn absorb(
+        &mut self,
+        other: DirtyPaths,
+    ) {
         // What:     `for (path, structural) in other.entries { ... }` visits every pair of the other set's map. Iterating the
         //           map by value (no `&`) hands out each owned `PathBuf` and flag, consuming the map; the parenthesised
         //           pattern splits each pair into two names.
@@ -486,7 +500,10 @@ pub(crate) fn event_is_a_plain_write(kind: &EventKind) -> bool {
 /// left in,
 /// makes every refresh request another one.
 /// Elsewhere it is false.
-pub(crate) fn folder_was_only_read_or_touched(kind: &EventKind, path: &std::path::Path) -> bool {
+pub(crate) fn folder_was_only_read_or_touched(
+    kind: &EventKind,
+    path: &std::path::Path,
+) -> bool {
     return cfg!(windows) && matches!(kind, EventKind::Modify(ModifyKind::Any)) && path.is_dir();
 }
 
@@ -522,7 +539,9 @@ impl Change {
     /// ```ts
     /// static ofEvent(result: Result<Event>): Change | null { ... }
     /// ```
-    pub(crate) fn of_event(result: &notify_debouncer_mini::notify::Result<Event>) -> Option<Change> {
+    pub(crate) fn of_event(
+        result: &notify_debouncer_mini::notify::Result<Event>
+    ) -> Option<Change> {
         // What:     `let event: &Event = match result { Ok(event) => event, Err(_) => return Some(Change::Everything) };`
         //           takes the answer apart. `Ok(event)` binds the event and the arm's value is that same event; `Err(_)`
         //           matches any failure (the `_` means "I do not need the error value") and leaves the function early.
@@ -656,7 +675,10 @@ impl Change {
     /// ```ts
     /// merge(other: Change): Change { if (either is everything) return everything; absorb; if (size > MAX) return everything; return paths; }
     /// ```
-    pub(crate) fn merge(self, other: Change) -> Change {
+    pub(crate) fn merge(
+        self,
+        other: Change,
+    ) -> Change {
         // What:     `return match (self, other) { ... };` matches the pair of both changes at once, as a tuple. The first
         //           arm, `(Change::Everything, _) | (_, Change::Everything)`, matches when either side is `Everything` (`|`
         //           means "or" between patterns, and `_` ignores that side). The second arm,
@@ -698,7 +720,10 @@ impl Change {
                     // ```ts
                     // logger.info({ paths: left.len() }, "too many changed paths; the whole library is looked at instead");
                     // ```
-                    tracing::info!(paths = left.len(), "too many changed paths; the whole library is looked at instead");
+                    tracing::info!(
+                        paths = left.len(),
+                        "too many changed paths; the whole library is looked at instead"
+                    );
                     // What:     `return Change::Everything;` leaves the whole function (not just the block) with the case
                     //           that carries no data.
                     // Why:      The over-cap set is dropped and replaced by "everything".

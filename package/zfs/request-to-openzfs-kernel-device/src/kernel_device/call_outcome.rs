@@ -20,9 +20,18 @@
 use super::device_error::DeviceError;
 /// The per-name failures a write reply carries,
 /// and the request that reply arrived for.
-use crate::requests::{ElementError, Request, element_errors};
+use crate::requests::{
+    ElementError,
+    Request,
+    element_errors,
+};
 /// The request failure type and its reply refusal.
-use crate::requests::{Error, Operation, ReplyRefusal, ReplyRefusalReason};
+use crate::requests::{
+    Error,
+    Operation,
+    ReplyRefusal,
+    ReplyRefusalReason,
+};
 
 /// The facts one answer supplies.
 pub(crate) struct AnswerFacts<'a> {
@@ -163,7 +172,7 @@ pub(crate) fn require_reply(
 /// so the failure keeps the kernel's answer instead of
 /// replacing it with a decode error.
 pub(crate) fn write_failure_elements(
-    reply: Result<Option<crate::nvlist::NvList>, Error>,
+    reply: Result<Option<crate::nvlist::NvList>, Error>
 ) -> Vec<ElementError> {
     return match reply {
         Ok(Some(list)) => element_errors(&list),

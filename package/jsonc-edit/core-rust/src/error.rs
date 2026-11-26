@@ -74,7 +74,10 @@ impl std::fmt::Display for JsoncParseError {
     /// ```ts
     /// toString(): string { return `${this.message} (at offset ${this.offset})`; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(formatter, "{} (at offset {})", self.message, self.offset);
     }
 }
@@ -147,7 +150,10 @@ impl std::fmt::Display for JsoncNumberError {
     /// ```ts
     /// toString(): string { return this.kind; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         // What:     A `Record`-style lookup would need owned strings, so this match maps each
         //           variant to its static text.
         // Why:      Every variant must have a message; a catch-all arm would hide a new one.
@@ -223,7 +229,10 @@ impl std::fmt::Display for JsoncPathNotFoundError {
     /// ```ts
     /// toString(): string { return `no JSONC node at path ${JSON.stringify(this.path)}`; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return write!(formatter, "no JSONC node at path {:?}", self.path);
     }
 }
@@ -281,7 +290,10 @@ impl std::fmt::Display for JsoncTypeError {
     /// ```ts
     /// toString(): string { return this.message; }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(&self.message);
     }
 }
@@ -384,10 +396,17 @@ impl std::fmt::Display for JsoncEditError {
     /// ```ts
     /// toString(): string { return String(this.error); }
     /// ```
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
-            JsoncEditError::PathNotFound { error } => write!(formatter, "{error}"),
-            JsoncEditError::Type { error } => write!(formatter, "{error}"),
+            JsoncEditError::PathNotFound {
+                error,
+            } => write!(formatter, "{error}"),
+            JsoncEditError::Type {
+                error,
+            } => write!(formatter, "{error}"),
         };
     }
 }

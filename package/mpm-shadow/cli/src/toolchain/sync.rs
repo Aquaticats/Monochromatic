@@ -30,17 +30,30 @@ use std::collections::BTreeSet;
 /// Imports `winning_root` from `super::across_roots`.
 use super::across_roots::winning_root;
 /// Imports what this module uses from `super::agree`.
-use super::agree::{Disagreement, compare, refusal};
+use super::agree::{
+    Disagreement,
+    compare,
+    refusal,
+};
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_repository_published, older_lock_warnings, point_current_at_newest_of};
+use super::cargo_installs::{
+    is_repository_published,
+    older_lock_warnings,
+    point_current_at_newest_of,
+};
 /// Imports what this module uses from `super::context`.
-use super::context::{Context, Host};
+use super::context::{
+    Context,
+    Host,
+};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::exposure`.
-use super::exposure::{rebuild_exposure, run_postinstall_commands, unresolvable_bins};
-/// Imports `sync_postinstall_links` from `super::postinstall_links`.
-use super::postinstall_links::sync_postinstall_links;
+use super::exposure::{
+    rebuild_exposure,
+    run_postinstall_commands,
+    unresolvable_bins,
+};
 /// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
 /// Imports `install_tool` from `super::install`.
@@ -50,29 +63,51 @@ use super::install_rust_android::reconcile_rust_parts;
 /// Imports `applies_to_family` from `super::layout`.
 use super::layout::applies_to_family;
 /// Imports what this module uses from `super::load`.
-use super::load::{Loaded, load, load_agreeing};
-/// Imports what this module uses from `super::lock_cmd`.
-use super::lock_cmd::{LockMode, run_lock};
+use super::load::{
+    Loaded,
+    load,
+    load_agreeing,
+};
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
+/// Imports what this module uses from `super::lock_cmd`.
+use super::lock_cmd::{
+    LockMode,
+    run_lock,
+};
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Route};
+use super::model::{
+    LockedTool,
+    Route,
+};
 /// Imports what this module uses from `super::observe`.
-use super::observe::{compared_with_lock, observe_tool, satisfies_lock};
-/// Imports `retire_after_install` from `super::sync_old_copies`.
-use super::sync_old_copies::retire_after_install;
+use super::observe::{
+    compared_with_lock,
+    observe_tool,
+    satisfies_lock,
+};
 /// Imports `version_matches` from `super::parse_output`.
 use super::parse_output::version_matches;
 /// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
+/// Imports `sync_postinstall_links` from `super::postinstall_links`.
+use super::postinstall_links::sync_postinstall_links;
 /// Imports `Runner` from `super::runner`.
 use super::runner::Runner;
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope};
-/// Imports what this module uses from `super::update`.
-use super::update::{OutcomeKind, update_loaded};
+use super::scope::{
+    EnvMap,
+    Scope,
+};
+/// Imports `retire_after_install` from `super::sync_old_copies`.
+use super::sync_old_copies::retire_after_install;
 /// Imports `write_tool_env` from `super::tool_env`.
 use super::tool_env::write_tool_env;
+/// Imports what this module uses from `super::update`.
+use super::update::{
+    OutcomeKind,
+    update_loaded,
+};
 /// Imports the tool lookup.
 use super::util::find_tool;
 
@@ -87,7 +122,17 @@ use super::util::find_tool;
 /// `cargo-binstall`,
 /// Go,
 /// Node and `pnpm`.
-pub const STAGING_IDS: [&str; 9] = ["bin", "uv", "mpm", "rustup", "rust", "cargo-binstall", "go", "node", "pnpm"];
+pub const STAGING_IDS: [&str; 9] = [
+    "bin",
+    "uv",
+    "mpm",
+    "rustup",
+    "rust",
+    "cargo-binstall",
+    "go",
+    "node",
+    "pnpm",
+];
 
 /// What:
 /// The tools in install order:
@@ -178,7 +223,11 @@ pub struct SyncReport {
 /// ```ts
 /// export function replacementWarning(id: string, observed: string | undefined, locked: string): string | undefined
 /// ```
-pub fn replacement_warning(id: &str, observed: &Option<String>, locked: &str) -> Option<String> {
+pub fn replacement_warning(
+    id: &str,
+    observed: &Option<String>,
+    locked: &str,
+) -> Option<String> {
     let found: &str = observed.as_deref()?;
     if version_matches(found, locked) {
         return None;
@@ -202,7 +251,10 @@ pub fn replacement_warning(id: &str, observed: &Option<String>, locked: &str) ->
 /// ```ts
 /// export function syncTools(ctx: Context, only?: string[]): SyncReport
 /// ```
-pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
+pub fn sync_tools(
+    ctx: &Context,
+    only: Option<&[String]>,
+) -> SyncReport {
     let mut report: SyncReport = SyncReport::default();
     let mut entries: Vec<&LockedTool> = Vec::new();
     for tool in sync_order(ctx.tools) {
@@ -223,7 +275,8 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
         // a repository-published tool is never replaced by an older one (it keeps the newest and warns instead).
         if tool.declaration.route != Route::CargoBinstall
             && !is_repository_published(tool)
-            && let Some(warning) = replacement_warning(&tool.declaration.id, &observed, compared_with_lock(tool))
+            && let Some(warning) =
+                replacement_warning(&tool.declaration.id, &observed, compared_with_lock(tool))
         {
             report.warnings.push(warning);
         }
@@ -237,26 +290,33 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             if is_repository_published(tool)
                 && let Err(error) = point_current_at_newest_of(&winning_root(ctx.scope, tool), tool)
             {
-                report.failed.push((tool.declaration.id.clone(), error.message));
+                report
+                    .failed
+                    .push((tool.declaration.id.clone(), error.message));
             }
             // A toolchain another program installed is already at its version, so the install path (the only place
             // that applied the lock's component and target rows) never runs; the rows are reconciled here instead,
             // which asks `rustup` what it holds and adds nothing on a machine that already has every part.
             let mut added: Vec<String> = Vec::new();
-            let reconciled: Result<(), ToolchainError> = reconcile_rust_parts(ctx, tool, &mut added);
+            let reconciled: Result<(), ToolchainError> =
+                reconcile_rust_parts(ctx, tool, &mut added);
             let added_anything: bool = !added.is_empty();
             // Parts added before a later failure still happened, so their sentences stay in the report.
             report.reconciled.extend(added);
             match reconciled {
                 Ok(()) if added_anything => report.installed.push(tool.declaration.id.clone()),
                 Ok(()) => report.unchanged.push(tool.declaration.id.clone()),
-                Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
+                Err(error) => report
+                    .failed
+                    .push((tool.declaration.id.clone(), error.message)),
             }
             continue;
         }
         match install_tool(ctx, tool) {
             Ok(()) => report.installed.push(tool.declaration.id.clone()),
-            Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
+            Err(error) => report
+                .failed
+                .push((tool.declaration.id.clone(), error.message)),
         }
     }
     match sync_postinstall_links(ctx, &entries) {
@@ -264,23 +324,31 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             report.retired_links = notices.retired;
             report.warnings.extend(notices.warnings);
         }
-        Err(error) => report.failed.push(("postinstall links".to_string(), error.message)),
+        Err(error) => report
+            .failed
+            .push(("postinstall links".to_string(), error.message)),
     }
     if let Err(error) = rebuild_exposure(ctx, &entries) {
-        report.failed.push(("exposure directory".to_string(), error.message));
+        report
+            .failed
+            .push(("exposure directory".to_string(), error.message));
     }
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
     if only.is_none() {
         match write_tool_env(ctx) {
             Ok(outcome) => report.exported_env = outcome.names,
-            Err(error) => report.failed.push(("tool environment".to_string(), error.message)),
+            Err(error) => report
+                .failed
+                .push(("tool environment".to_string(), error.message)),
         }
     }
     let commands = run_postinstall_commands(ctx, &entries);
     report.failed.extend(commands.failed);
     report.missing_bins = unresolvable_bins(ctx.scope, &entries);
-    report.warnings.extend(older_lock_warnings(ctx.scope, ctx.tools, ctx.host.family));
+    report
+        .warnings
+        .extend(older_lock_warnings(ctx.scope, ctx.tools, ctx.host.family));
     return report;
 }
 
@@ -323,7 +391,10 @@ pub enum LockPolicy {
 
 /// The refusal for a frozen `install` whose plan is ahead of the lock:
 /// the usual disagreement message plus why `install` did not resolve.
-fn frozen_refusal(verdict: &Disagreement, reason: FrozenReason) -> ToolchainError {
+fn frozen_refusal(
+    verdict: &Disagreement,
+    reason: FrozenReason,
+) -> ToolchainError {
     let base: ToolchainError = refusal(verdict);
     let why: &str = match reason {
         FrozenReason::Flag => "`--frozen-lockfile` was given",
@@ -372,7 +443,10 @@ fn resolve_before_installing(
             "mpm-shadow install could not resolve the plan entries the lock lacks, so it wrote nothing and installed nothing:\n",
         );
         for outcome in &report.outcomes {
-            if let OutcomeKind::Failed { reason } = &outcome.kind {
+            if let OutcomeKind::Failed {
+                reason,
+            } = &outcome.kind
+            {
                 message.push_str(&format!("  {}: {reason}\n", outcome.id));
             }
         }
@@ -382,8 +456,13 @@ fn resolve_before_installing(
     let mut resolved: Vec<(String, String)> = Vec::new();
     for outcome in &report.outcomes {
         match &outcome.kind {
-            OutcomeKind::Added { version } => resolved.push((outcome.id.clone(), version.clone())),
-            OutcomeKind::Updated { new_version, .. } => resolved.push((outcome.id.clone(), new_version.clone())),
+            OutcomeKind::Added {
+                version,
+            } => resolved.push((outcome.id.clone(), version.clone())),
+            OutcomeKind::Updated {
+                new_version,
+                ..
+            } => resolved.push((outcome.id.clone(), new_version.clone())),
             // Looked up again and found the same version (a re-edited entry whose answer did not change).
             OutcomeKind::Unchanged | OutcomeKind::Pinned => {
                 if let Some(parsed) = &loaded.lock
@@ -449,7 +528,14 @@ pub fn run_sync_with_named(
 ) -> Result<SyncReport, ToolchainError> {
     let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy, named)?;
     let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
-    let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
+    let context: Context = Context {
+        scope,
+        env,
+        runner,
+        http,
+        host,
+        tools: &lock.tools,
+    };
     let mut report: SyncReport = sync_tools(&context, None);
     report.resolved = prepared.resolved;
     report.rewritten = prepared.rewritten;
@@ -506,7 +592,8 @@ pub fn prepare_lock(
             }
             // pnpm: the CI default is frozen only "if a lockfile is present", so without one it resolves and writes.
             LockPolicy::Frozen(FrozenReason::Ci) | LockPolicy::Resolve => {
-                resolved = resolve_before_installing(&loaded, None, scope, env, runner, http, host)?;
+                resolved =
+                    resolve_before_installing(&loaded, None, scope, env, runner, http, host)?;
             }
         },
         Some(parsed) => {
@@ -517,28 +604,55 @@ pub fn prepare_lock(
                         // A frozen run resolves what its own command line added and nothing else: every other id that
                         // needs a lookup, and every difference the lock could take from the plan without one, refuses.
                         let needed: Vec<String> = verdict.ids_needing_update();
-                        let only_named: Vec<String> = needed.iter().filter(|id| return named.contains(id)).cloned().collect();
-                        let nothing_else_differs: bool = only_named.len() == needed.len() && verdict.offline_fixable_lines().is_empty();
+                        let only_named: Vec<String> = needed
+                            .iter()
+                            .filter(|id| return named.contains(id))
+                            .cloned()
+                            .collect();
+                        let nothing_else_differs: bool = only_named.len() == needed.len()
+                            && verdict.offline_fixable_lines().is_empty();
                         if only_named.is_empty() || !nothing_else_differs {
                             return Err(frozen_refusal(&verdict, reason));
                         }
-                        resolved = resolve_before_installing(&loaded, Some(&only_named), scope, env, runner, http, host)?;
+                        resolved = resolve_before_installing(
+                            &loaded,
+                            Some(&only_named),
+                            scope,
+                            env,
+                            runner,
+                            http,
+                            host,
+                        )?;
                     }
                     LockPolicy::Resolve => {
                         let ids: Vec<String> = verdict.ids_needing_update();
-                        resolved = resolve_before_installing(&loaded, Some(&ids), scope, env, runner, http, host)?;
+                        resolved = resolve_before_installing(
+                            &loaded,
+                            Some(&ids),
+                            scope,
+                            env,
+                            runner,
+                            http,
+                            host,
+                        )?;
                         // The same write also carried the plan's other declaration changes into the lock.
                         rewritten = verdict.offline_fixable_lines();
                     }
                 }
-            } else if verdict.digest_problem.is_none() && !verdict.is_empty() && policy == LockPolicy::Resolve {
+            } else if verdict.digest_problem.is_none()
+                && !verdict.is_empty()
+                && policy == LockPolicy::Resolve
+            {
                 // Only the declaration half differs: pnpm's non-frozen install updates the lockfile for any manifest change.
                 run_lock(scope, LockMode::Write)?;
                 rewritten = verdict.offline_fixable_lines();
             }
         }
     }
-    return Ok(LockPreparation { resolved, rewritten });
+    return Ok(LockPreparation {
+        resolved,
+        rewritten,
+    });
 }
 
 /// What:
@@ -575,5 +689,12 @@ pub fn run_sync(
     http: &dyn HttpGet,
     host: &Host,
 ) -> Result<SyncReport, ToolchainError> {
-    return run_sync_with(scope, env, runner, http, host, LockPolicy::Frozen(FrozenReason::Flag));
+    return run_sync_with(
+        scope,
+        env,
+        runner,
+        http,
+        host,
+        LockPolicy::Frozen(FrozenReason::Flag),
+    );
 }

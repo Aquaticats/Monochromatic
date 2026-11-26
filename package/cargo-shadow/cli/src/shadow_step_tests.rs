@@ -13,12 +13,18 @@ fn arguments(words: &[&str]) -> Vec<OsString> {
 
 #[test]
 fn locked_is_added_after_the_command_words() {
-    assert_eq!(with_locked(&arguments(&["check", "-q"])), arguments(&["check", "-q", "--locked"]));
+    assert_eq!(
+        with_locked(&arguments(&["check", "-q"])),
+        arguments(&["check", "-q", "--locked"])
+    );
 }
 
 #[test]
 fn locked_goes_before_a_double_dash() {
-    assert_eq!(with_locked(&arguments(&["run", "--", "--flag"])), arguments(&["run", "--locked", "--", "--flag"]));
+    assert_eq!(
+        with_locked(&arguments(&["run", "--", "--flag"])),
+        arguments(&["run", "--locked", "--", "--flag"])
+    );
 }
 
 #[test]
@@ -31,7 +37,10 @@ fn a_user_who_already_asked_for_locked_or_frozen_gets_nothing_added() {
 
 #[test]
 fn a_locked_after_the_double_dash_belongs_to_the_program_and_does_not_count() {
-    assert_eq!(with_locked(&arguments(&["run", "--", "--locked"])), arguments(&["run", "--locked", "--", "--locked"]));
+    assert_eq!(
+        with_locked(&arguments(&["run", "--", "--locked"])),
+        arguments(&["run", "--locked", "--", "--locked"])
+    );
 }
 
 /// The owner's rule of 2026-11-03:
@@ -42,7 +51,10 @@ fn a_locked_after_the_double_dash_belongs_to_the_program_and_does_not_count() {
 #[test]
 fn a_refusal_stops_the_command_and_a_failure_runs_it_locked() {
     use crate::install_step::StepOutcome;
-    use crate::shadow_step::{Preflight, preflight_of};
+    use crate::shadow_step::{
+        Preflight,
+        preflight_of,
+    };
 
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
     // Why:      Absence is a value the caller must check; there is no `null`.
@@ -68,11 +80,17 @@ fn a_refusal_stops_the_command_and_a_failure_runs_it_locked() {
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    assert_eq!(preflight_of(StepOutcome::Refused("dep@1.0.1 refused".to_string())), Some(Preflight::Refused("dep@1.0.1 refused".to_string())));
+    assert_eq!(
+        preflight_of(StepOutcome::Refused("dep@1.0.1 refused".to_string())),
+        Some(Preflight::Refused("dep@1.0.1 refused".to_string()))
+    );
     // `Some`: the present or the absent value of an `Option`.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(preflight_of(StepOutcome::Failed("no network".to_string())), Some(Preflight::Failed("no network".to_string())));
+    assert_eq!(
+        preflight_of(StepOutcome::Failed("no network".to_string())),
+        Some(Preflight::Failed("no network".to_string()))
+    );
     // `None`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(preflight_of(StepOutcome::Passed), None);

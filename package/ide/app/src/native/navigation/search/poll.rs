@@ -1,7 +1,10 @@
 //! Debounce and worker polling share the existing native navigation timer.
 
 /// Presentation is the only point that replaces a result model.
-use super::{Search, present};
+use super::{
+    Search,
+    present,
+};
 /// Native handles remain on the UI thread while filesystem and subprocess work stays on the worker.
 use crate::native::AppWindow;
 /// Worker disconnects and admission failures remain visible.
@@ -10,7 +13,10 @@ use anyhow::Result;
 use std::time::Duration;
 
 /// Advance a live query without waiting on subprocess work or starting repeated empty requests.
-fn tick(window: &AppWindow, search: &mut Search) -> Result<()> {
+fn tick(
+    window: &AppWindow,
+    search: &mut Search,
+) -> Result<()> {
     if !window.get_search_open() || !window.get_search_busy() {
         return Ok(());
     }
@@ -48,7 +54,10 @@ fn tick(window: &AppWindow, search: &mut Search) -> Result<()> {
 
 /// A stopped worker reports once;
 ///  it does not alternate busy/error states on every timer tick.
-pub(in crate::native::navigation) fn update(window: &AppWindow, search: &mut Search) {
+pub(in crate::native::navigation) fn update(
+    window: &AppWindow,
+    search: &mut Search,
+) {
     if let Err(error) = tick(window, search) {
         tracing::warn!(%error, "native search could not advance");
         search.edited = None;

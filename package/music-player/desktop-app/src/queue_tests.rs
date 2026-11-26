@@ -22,7 +22,9 @@ fn paths(n: usize) -> Vec<PathBuf> {
     //           `i.to_string()` allocates a `String`; `PathBuf::from` wraps it.
     //           Tail expression.
     // Why:      Distinct dummy paths with no folder.
-    return (0..n).map(|i| return PathBuf::from(i.to_string())).collect()
+    return (0..n)
+        .map(|i| return PathBuf::from(i.to_string()))
+        .collect();
 }
 
 // What:     `fn track_paths(list: &[&str]) -> Vec<PathBuf>` test helper turning
@@ -34,7 +36,7 @@ fn track_paths(list: &[&str]) -> Vec<PathBuf> {
     //           `&&str`; `*s` derefs it to `&str`; `PathBuf::from` wraps it.
     //           Tail expression.
     // Why:      Build the owned path vector preserving folders.
-    return list.iter().map(|s| return PathBuf::from(*s)).collect()
+    return list.iter().map(|s| return PathBuf::from(*s)).collect();
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -202,7 +204,9 @@ fn shuffle_within_page_covers_only_current_page() {
     let mut q = Queue::with_rng_seed(777);
     // What:     three tracks in A (0,1,2) and one in B (3).
     // Why:      A page of size 3 plus a separate B page.
-    q.set_tracks(track_paths(&["A/1.flac", "A/2.flac", "A/3.flac", "B/4.flac"]));
+    q.set_tracks(track_paths(&[
+        "A/1.flac", "A/2.flac", "A/3.flac", "B/4.flac",
+    ]));
     // What:     enable within-page shuffle (anchored on current track 0, in A).
     // Why:      Scope becomes a shuffle of {0,1,2}.
     q.set_playback_mode(PlaybackMode::ShufflePage);
@@ -415,7 +419,9 @@ fn shuffle_new_cycle_avoids_immediate_repeat() {
 #[test]
 fn displayed_page_scope_keeps_current_until_manual_transport() {
     let mut q = Queue::with_rng_seed(17);
-    q.set_tracks(track_paths(&["A/1.flac", "A/2.flac", "B/3.flac", "B/4.flac"]));
+    q.set_tracks(track_paths(&[
+        "A/1.flac", "A/2.flac", "B/3.flac", "B/4.flac",
+    ]));
     q.set_page_scope(vec![2, 3]);
     assert_eq!(q.current_index(), Some(0));
     assert_eq!(q.advance(false), Some(2));
@@ -451,7 +457,9 @@ fn duplicate_page_labels_preserve_root_page_scope() {
 #[test]
 fn shuffle_page_change_preserves_history() {
     let mut q = Queue::with_rng_seed(19);
-    q.set_tracks(track_paths(&["A/1.flac", "A/2.flac", "B/3.flac", "B/4.flac"]));
+    q.set_tracks(track_paths(&[
+        "A/1.flac", "A/2.flac", "B/3.flac", "B/4.flac",
+    ]));
     q.set_page_scope(vec![0, 1]);
     q.set_playback_mode(PlaybackMode::ShufflePage);
     assert_eq!(q.advance(false), Some(1));
@@ -465,7 +473,9 @@ fn shuffle_page_change_preserves_history() {
 #[test]
 fn shuffle_page_uses_displayed_page_and_keeps_current() {
     let mut q = Queue::with_rng_seed(23);
-    q.set_tracks(track_paths(&["A/1.flac", "A/2.flac", "B/3.flac", "B/4.flac"]));
+    q.set_tracks(track_paths(&[
+        "A/1.flac", "A/2.flac", "B/3.flac", "B/4.flac",
+    ]));
     q.set_page_scope(vec![2, 3]);
     q.set_playback_mode(PlaybackMode::ShufflePage);
     assert_eq!(q.current_index(), Some(0));
@@ -495,7 +505,11 @@ fn peek_next_natural_in_order_names_the_next_track_without_moving() {
     assert_eq!(q.peek_next_natural(), None);
     assert_eq!(q.current_index(), Some(2));
     assert_eq!(q.advance(true), None);
-    assert_eq!(q.current_index(), Some(2), "the cursor stays on the last track until the caller rewinds");
+    assert_eq!(
+        q.current_index(),
+        Some(2),
+        "the cursor stays on the last track until the caller rewinds"
+    );
 }
 
 #[test]
@@ -516,7 +530,11 @@ fn peek_next_natural_in_shuffle_commits_the_pick_that_advance_then_takes() {
         for _ in 0..12 {
             let before = q.current_index();
             let peeked = q.peek_next_natural();
-            assert_eq!(q.current_index(), before, "peeking must not move the cursor");
+            assert_eq!(
+                q.current_index(),
+                before,
+                "peeking must not move the cursor"
+            );
             // Peeking again without advancing names the same track: the pick is committed once.
             assert_eq!(q.peek_next_natural(), peeked);
             assert_eq!(q.advance(true), peeked);
@@ -545,11 +563,19 @@ fn in_order_natural_end_at_the_last_track_stops_and_rewind_returns_to_the_first(
     q.set_tracks(track_paths(&["A/1.flac", "A/2.flac", "B/1.flac"]));
     q.set_playback_mode(PlaybackMode::InOrder);
     assert_eq!(q.advance(true), Some(1));
-    assert_eq!(q.advance(true), None, "the last track of folder A has nothing after it; folder B is not entered");
+    assert_eq!(
+        q.advance(true),
+        None,
+        "the last track of folder A has nothing after it; folder B is not entered"
+    );
     assert_eq!(q.current_index(), Some(1));
     assert_eq!(q.rewind_scope(), Some(0));
     assert_eq!(q.current_index(), Some(0));
-    assert_eq!(q.advance(true), Some(1), "the folder plays again after the rewind");
+    assert_eq!(
+        q.advance(true),
+        Some(1),
+        "the folder plays again after the rewind"
+    );
 }
 
 // What:     A single-track folder plays once and stops.
@@ -566,14 +592,21 @@ fn in_order_stops_after_a_single_track_folder() {
 // Why:      Only In order stops; the other modes have their own end rules.
 #[test]
 fn only_in_order_stops_at_a_natural_end() {
-    for mode in [PlaybackMode::Repeat, PlaybackMode::ShufflePage, PlaybackMode::ShuffleAll] {
+    for mode in [
+        PlaybackMode::Repeat,
+        PlaybackMode::ShufflePage,
+        PlaybackMode::ShuffleAll,
+    ] {
         let mut q = Queue::with_rng_seed(1);
         q.set_tracks(track_paths(&["A/1.flac", "A/2.flac"]));
         q.set_playback_mode(mode);
         for _ in 0..6 {
             assert!(q.advance(true).is_some(), "{mode:?} must keep going");
         }
-        assert!(q.peek_next_natural().is_some(), "{mode:?} always names a next track");
+        assert!(
+            q.peek_next_natural().is_some(),
+            "{mode:?} always names a next track"
+        );
     }
 }
 
@@ -603,10 +636,21 @@ fn first_in_scope_prefers_the_displayed_page() {
 fn display_root_keeps_the_single_folder_and_separates_loose_files() {
     let mut q = Queue::with_rng_seed(1);
     q.set_display_root(Some(PathBuf::from("/lib/Music")));
-    q.set_tracks(track_paths(&["/lib/Music/Artist/1.flac", "/lib/Music/Artist/2.flac", "/lib/Music/loose.flac"]));
-    assert_eq!(q.display_paths(), vec!["Artist/1.flac", "Artist/2.flac", "loose.flac"]);
+    q.set_tracks(track_paths(&[
+        "/lib/Music/Artist/1.flac",
+        "/lib/Music/Artist/2.flac",
+        "/lib/Music/loose.flac",
+    ]));
+    assert_eq!(
+        q.display_paths(),
+        vec!["Artist/1.flac", "Artist/2.flac", "loose.flac"]
+    );
     q.play_index(0);
     q.set_playback_mode(PlaybackMode::InOrder);
     assert_eq!(q.advance(true), Some(1));
-    assert_eq!(q.advance(true), None, "the loose file is another page, so the folder ends");
+    assert_eq!(
+        q.advance(true),
+        None,
+        "the loose file is another page, so the folder ends"
+    );
 }

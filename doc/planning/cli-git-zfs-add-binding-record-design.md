@@ -2066,16 +2066,20 @@ Lock moment:
 D5.
 A kill leaves a clone the recorded name and parent identify and possibly no inventory;
 the resume rebuilds the inventory only while the clone holds no snapshot of its own (V13).
-The build creates the clone with `mountpoint=legacy` and no `canmount` property:
-a clone inherits the origin's mountpoint,
-a legacy dataset is never mounted by itself whatever `canmount` says,
-and the kernel refused `canmount=off` at creation in the build's guest (`add_zfs.rs`:100 to :110,
-`bee6531780`,
-2026-11-24T00:51:32-05:00).
+The build creates the clone with no property at all:
+a clone inherits its parent's `mountpoint`,
+which is the clone container and not the origin,
+and a legacy dataset is never mounted by itself whatever `canmount` says (`add_zfs.rs`,
+corrected 2026-11-25 by `doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
+The kernel refused `canmount=off` at creation in the build's guest,
+and this record's correction of 2026-11-25 leaves no creation property:
+the preflight refuses a container whose `mountpoint` is not `legacy` or whose `canmount`,
+`setuid` or `devices` is on before any write,
+and the add reports a clone that does not read `legacy` inherited from the container after
+the clone request,
+with what it left.
 The build round's note first recorded both properties;
-the code decides,
-and `SPEC.md`'s account of this step still names both,
-which is a defect of that file.
+the code decides.
 
 A10.
 The mount,

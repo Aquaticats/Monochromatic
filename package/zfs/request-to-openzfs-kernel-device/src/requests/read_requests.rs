@@ -20,7 +20,11 @@ use super::error::Error;
 use super::operation::Operation;
 /// The request value,
 /// the name check and the flag list builder.
-use super::request::{Request, checked_name, flag_list};
+use super::request::{
+    Request,
+    checked_name,
+    flag_list,
+};
 /// The field a request name is bound for.
 use crate::names::NameField;
 
@@ -48,7 +52,10 @@ pub fn objset_stats(target: &str) -> Result<Request, Error> {
 /// # Throws
 ///
 /// [`Error::Name`] when the target does not fit `zc_name`.
-pub fn dataset_list_next(target: &str, cursor: u64) -> Result<Request, Error> {
+pub fn dataset_list_next(
+    target: &str,
+    cursor: u64,
+) -> Result<Request, Error> {
     let name = checked_name(
         Operation::DatasetListNext,
         target,
@@ -67,7 +74,10 @@ pub fn dataset_list_next(target: &str, cursor: u64) -> Result<Request, Error> {
 /// # Throws
 ///
 /// [`Error::Name`] when the target does not fit `zc_name`.
-pub fn snapshot_list_next(target: &str, cursor: u64) -> Result<Request, Error> {
+pub fn snapshot_list_next(
+    target: &str,
+    cursor: u64,
+) -> Result<Request, Error> {
     let name = checked_name(
         Operation::SnapshotListNext,
         target,
@@ -89,7 +99,10 @@ pub fn snapshot_list_next(target: &str, cursor: u64) -> Result<Request, Error> {
 /// [`Error::Name`] when the target does not fit `zc_name`,
 /// and
 /// [`Error::Encode`] when a property name cannot be packed.
-pub fn get_bookmarks(target: &str, properties: &[&str]) -> Result<Request, Error> {
+pub fn get_bookmarks(
+    target: &str,
+    properties: &[&str],
+) -> Result<Request, Error> {
     let name = checked_name(
         Operation::GetBookmarks,
         target,

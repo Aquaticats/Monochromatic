@@ -237,7 +237,10 @@ fn subfolder_path(segments: &[&str]) -> String {
 /// ```ts
 /// const namedOrder = <T>(left: [string, T], right: [string, T]): number => folderNameOrder(left[0], right[0]);
 /// ```
-fn named_order<T>(left: &(String, T), right: &(String, T)) -> Ordering {
+fn named_order<T>(
+    left: &(String, T),
+    right: &(String, T),
+) -> Ordering {
     return folder_name_order(&left.0, &right.0);
 }
 
@@ -256,7 +259,10 @@ fn named_order<T>(left: &(String, T), right: &(String, T)) -> Ordering {
 /// ```ts
 /// const folderNameOrder = (a: string, b: string) => collator.compare(a, b) || (a < b ? -1 : a > b ? 1 : 0);
 /// ```
-fn folder_name_order(left: &str, right: &str) -> Ordering {
+fn folder_name_order(
+    left: &str,
+    right: &str,
+) -> Ordering {
     let by_key = collation_key(left).cmp(&collation_key(right));
     if by_key != Ordering::Equal {
         return by_key;
@@ -279,7 +285,10 @@ fn folder_name_order(left: &str, right: &str) -> Ordering {
 /// ```ts
 /// // direct tracks, then for each sorted subfolder: header followed by its tracks
 /// ```
-fn folder_entry(name: String, placed: Vec<PlacedRow>) -> FolderEntry {
+fn folder_entry(
+    name: String,
+    placed: Vec<PlacedRow>,
+) -> FolderEntry {
     let track_count = placed.len();
     let mut items: Vec<FolderListItem> = Vec::new();
     let mut by_subfolder: BTreeMap<String, Vec<FolderTrackRow>> = BTreeMap::new();
@@ -359,10 +368,10 @@ pub fn folder_index(tracks: &[Track]) -> Vec<FolderEntry> {
         }
         let folder = segments[0].to_string();
         let subfolder = subfolder_path(&segments);
-        by_folder
-            .entry(folder)
-            .or_default()
-            .push(PlacedRow { subfolder, row });
+        by_folder.entry(folder).or_default().push(PlacedRow {
+            subfolder,
+            row,
+        });
     }
     let mut named: Vec<(String, Vec<PlacedRow>)> = by_folder.into_iter().collect();
     named.sort_by(named_order);

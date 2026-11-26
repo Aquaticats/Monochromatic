@@ -72,7 +72,7 @@ pub struct ParentEnvironment {
 /// const isPresent = (value?: string): boolean => value !== undefined && value !== "";
 /// ```
 fn is_present(value: Option<&OsStr>) -> bool {
-    return matches!(value, Some(text) if !text.is_empty())
+    return matches!(value, Some(text) if !text.is_empty());
 }
 
 /// Reading and querying the parent display variables.
@@ -90,7 +90,7 @@ impl ParentEnvironment {
             std::env::var_os("WAYLAND_DISPLAY").as_deref(),
             std::env::var_os("WAYLAND_SOCKET").as_deref(),
             std::env::var_os("DISPLAY").as_deref(),
-        )
+        );
     }
 
     /// Build the record from the three raw values.
@@ -110,7 +110,7 @@ impl ParentEnvironment {
             wayland_display: is_present(wayland_display),
             wayland_socket: is_present(wayland_socket),
             x11_display: is_present(x11_display),
-        }
+        };
     }
 
     /// Whether any parent display variable is present.
@@ -121,7 +121,7 @@ impl ParentEnvironment {
     ///       The nested window needs one of them;
     /// the failure message names `--headless` only without any.
     pub fn any_display(&self) -> bool {
-        return self.wayland_display || self.wayland_socket || self.x11_display
+        return self.wayland_display || self.wayland_socket || self.x11_display;
     }
 }
 
@@ -162,14 +162,21 @@ pub struct BackendChoice {
 /// selectBackend(false, { waylandDisplay: false }); // => nested-winit, then a clear failure
 /// selectBackend(true, { waylandDisplay: true });   // => headless, parent ignored
 /// ```
-pub fn select_backend(headless: bool, parent: ParentEnvironment) -> BackendChoice {
-    let kind = if headless { BackendKind::Headless } else { BackendKind::NestedWinit };
+pub fn select_backend(
+    headless: bool,
+    parent: ParentEnvironment,
+) -> BackendChoice {
+    let kind = if headless {
+        BackendKind::Headless
+    } else {
+        BackendKind::NestedWinit
+    };
     let choice = BackendChoice {
         kind,
         ignored_parent_display: kind == BackendKind::Headless && parent.any_display(),
     };
     info!(?choice, ?parent, "selected the render backend");
-    return choice
+    return choice;
 }
 
 /// Text for a failed nested window start.
@@ -186,9 +193,12 @@ pub fn select_backend(headless: bool, parent: ParentEnvironment) -> BackendChoic
 /// ```ts
 /// return parent.anyDisplay() ? cause : `${cause}; no parent display ... pass --headless`;
 /// ```
-pub fn nested_failure_message(cause: &str, parent: ParentEnvironment) -> String {
+pub fn nested_failure_message(
+    cause: &str,
+    parent: ParentEnvironment,
+) -> String {
     if parent.any_display() {
-        return format!("winit backend init failed: {cause}")
+        return format!("winit backend init failed: {cause}");
     }
     return format!(
         "winit backend init failed: {cause}. \
@@ -198,7 +208,7 @@ pub fn nested_failure_message(cause: &str, parent: ParentEnvironment) -> String 
          or pass --headless to render without any display, \
          which hosts the app on the GPU through EGL without opening a window \
          (see \"Headless mode\" in the README)"
-    )
+    );
 }
 
 /// Verifies the default choice for every parent display combination and the failure message.

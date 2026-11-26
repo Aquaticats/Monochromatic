@@ -80,7 +80,10 @@ impl Diagnostic {
     /// ```ts
     /// function diagnostic(code: string, message: string): Diagnostic;
     /// ```
-    pub fn new(code: &str, message: &str) -> Diagnostic {
+    pub fn new(
+        code: &str,
+        message: &str,
+    ) -> Diagnostic {
         return Diagnostic {
             code: code.to_string(),
             message: message.to_string(),
@@ -100,7 +103,10 @@ impl Diagnostic {
     /// ```ts
     /// withHint(hint: string): Diagnostic;
     /// ```
-    pub fn with_hint(mut self, hint: &str) -> Diagnostic {
+    pub fn with_hint(
+        mut self,
+        hint: &str,
+    ) -> Diagnostic {
         self.hint = Some(hint.to_string());
         return self;
     }
@@ -114,7 +120,10 @@ impl Diagnostic {
     /// ```ts
     /// withPath(path: string): Diagnostic;
     /// ```
-    pub fn with_path(mut self, path: &str) -> Diagnostic {
+    pub fn with_path(
+        mut self,
+        path: &str,
+    ) -> Diagnostic {
         self.path = Some(path.to_string());
         return self;
     }
@@ -128,7 +137,10 @@ impl Diagnostic {
     /// ```ts
     /// withRule(rule: string): Diagnostic;
     /// ```
-    pub fn with_rule(mut self, rule: &str) -> Diagnostic {
+    pub fn with_rule(
+        mut self,
+        rule: &str,
+    ) -> Diagnostic {
         self.rule = Some(rule.to_string());
         return self;
     }
@@ -142,7 +154,10 @@ impl Diagnostic {
     /// ```ts
     /// toEvent(type: string): Event;
     /// ```
-    pub fn to_event(&self, event_type: &str) -> Event {
+    pub fn to_event(
+        &self,
+        event_type: &str,
+    ) -> Event {
         let mut event = Event::new(event_type, &self.code, &self.message);
         event.hint = self.hint.clone();
         if let Some(path) = &self.path {
@@ -178,7 +193,10 @@ impl fmt::Display for Diagnostic {
     /// ```ts
     /// toString(): string { return `${this.code}: ${this.message}`; }
     /// ```
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return write!(formatter, "{}: {}", self.code, self.message);
     }
 }

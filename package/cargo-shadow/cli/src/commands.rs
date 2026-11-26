@@ -54,7 +54,10 @@ use std::path::PathBuf;
 /// ```ts
 /// import { SystemTime, UNIX_EPOCH } from 'std/time';
 /// ```
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// What:
 /// `use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};` imports `CatalogDocument`,
@@ -67,8 +70,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// ```ts
 /// import { CatalogDocument, parse_catalog } from 'monochromatic_dependency_catalog';
 /// ```
-use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
+use monochromatic_dependency_catalog::{
+    CatalogDocument,
+    parse_catalog,
+};
 
+/// What:
+/// `use crate::adapt::millis_of;` imports `millis_of` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `millis_of` is used by `now_millis`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { millis_of } from 'crate/adapt';
+/// ```
+use crate::adapt::millis_of;
 /// What:
 /// `use crate::cargo_run::RealCargo;` imports `RealCargo` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -100,7 +116,10 @@ use crate::cli::Command;
 /// ```ts
 /// import { CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE } from 'crate/constants';
 /// ```
-use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE};
+use crate::constants::{
+    CATALOG_MARKER,
+    INSTALL_FAILED_EXIT_CODE,
+};
 /// What:
 /// `use crate::crates::locked_crate_dirs;` imports `locked_crate_dirs` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -136,7 +155,12 @@ use crate::http::UreqFetcher;
 /// ```ts
 /// import { InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration } from 'crate/install';
 /// ```
-use crate::install::{InstallReport, InstallRequest, install_rust_lockfiles, is_continuous_integration};
+use crate::install::{
+    InstallReport,
+    InstallRequest,
+    install_rust_lockfiles,
+    is_continuous_integration,
+};
 /// What:
 /// `use crate::real_binary::find_real_cargo;` imports `find_real_cargo` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -168,16 +192,6 @@ use crate::registry::CratesIo;
 /// ```
 use crate::shadow_step::trust_base_setup;
 /// What:
-/// `use crate::toolchain::cargo_toolchain;` imports `cargo_toolchain` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `cargo_toolchain` is used by `run_command`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { cargo_toolchain } from 'crate/toolchain';
-/// ```
-use crate::toolchain::cargo_toolchain;
-/// What:
 /// `use crate::tighten::FileEnforcer;` imports `FileEnforcer` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `FileEnforcer` is used by `run_command`.
@@ -187,6 +201,16 @@ use crate::toolchain::cargo_toolchain;
 /// import { FileEnforcer } from 'crate/tighten';
 /// ```
 use crate::tighten::FileEnforcer;
+/// What:
+/// `use crate::toolchain::cargo_toolchain;` imports `cargo_toolchain` from another module of this crate so this file can name it unqualified.
+/// Why:
+/// `cargo_toolchain` is used by `run_command`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { cargo_toolchain } from 'crate/toolchain';
+/// ```
+use crate::toolchain::cargo_toolchain;
 /// What:
 /// `use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};` imports `UpdateKind`,
 /// `UpdateReport`,
@@ -202,7 +226,12 @@ use crate::tighten::FileEnforcer;
 /// ```ts
 /// import { UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles } from 'crate/update';
 /// ```
-use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};
+use crate::update::{
+    UpdateKind,
+    UpdateReport,
+    UpdateRequest,
+    update_rust_lockfiles,
+};
 /// What:
 /// `use crate::workspace::find_catalog_root;` imports `find_catalog_root` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -213,20 +242,13 @@ use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfil
 /// import { find_catalog_root } from 'crate/workspace';
 /// ```
 use crate::workspace::find_catalog_root;
-/// What:
-/// `use crate::adapt::millis_of;` imports `millis_of` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `millis_of` is used by `now_millis`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { millis_of } from 'crate/adapt';
-/// ```
-use crate::adapt::millis_of;
 
 /// Prints findings under a heading,
 /// with the pointer to the settings.
-pub fn print_findings(heading: &str, problems: &[String]) {
+pub fn print_findings(
+    heading: &str,
+    problems: &[String],
+) {
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      The findings go to standard error under a heading that names the refused step, one bullet per finding.
     //
@@ -246,7 +268,11 @@ pub fn print_findings(heading: &str, problems: &[String]) {
 }
 
 /// Prints an install report.
-pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dyn Write) {
+pub fn print_install_report(
+    report: &InstallReport,
+    dry_run: bool,
+    sink: &mut dyn Write,
+) {
     // Macro `writeln!`: builds or prints text (or a list) from a template.
     // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
     // Why:      The report goes to a writer the caller supplies; a failed write to it is not a reason to fail a finished install, so the results are dropped.
@@ -255,7 +281,8 @@ pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dy
     // ```ts
     // void expr;   // or try { expr } catch {}
     // ```
-    let _ = writeln!(sink, 
+    let _ = writeln!(
+        sink,
         "{} lockfiles, {} did not satisfy their manifests{}",
         report.crate_dirs.len(),
         report.stale.len(),
@@ -277,7 +304,11 @@ pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dy
     if !report.added.is_empty() {
         // Macro `writeln!`: builds or prints text (or a list) from a template.
         // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "{} versions no lockfile held before:", report.added.len());
+        let _ = writeln!(
+            sink,
+            "{} versions no lockfile held before:",
+            report.added.len()
+        );
     }
     // Borrow `&report.added`: lends the value without copying or giving it away.
     for added in &report.added {
@@ -298,15 +329,27 @@ pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dy
     } else if report.written {
         // Macro `writeln!`: builds or prints text (or a list) from a template.
         // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Every Cargo.lock satisfies its manifests. Review the diff.");
+        let _ = writeln!(
+            sink,
+            "Every Cargo.lock satisfies its manifests. Review the diff."
+        );
     }
 }
 
 /// Prints an update report.
-pub fn print_update_report(report: &UpdateReport, dry_run: bool, sink: &mut dyn Write) {
+pub fn print_update_report(
+    report: &UpdateReport,
+    dry_run: bool,
+    sink: &mut dyn Write,
+) {
     // Macro `writeln!`: builds or prints text (or a list) from a template.
     // `let _ =`: discards the result on purpose.
-    let _ = writeln!(sink, "{} lockfiles, {} newly locked versions:", report.crate_dirs.len(), report.added.len());
+    let _ = writeln!(
+        sink,
+        "{} lockfiles, {} newly locked versions:",
+        report.crate_dirs.len(),
+        report.added.len()
+    );
     // Borrow `&report.added`: lends the value without copying or giving it away.
     for added in &report.added {
         // Macro `writeln!`: builds or prints text (or a list) from a template.
@@ -317,7 +360,10 @@ pub fn print_update_report(report: &UpdateReport, dry_run: bool, sink: &mut dyn 
     for crate_dir in &report.fell_back {
         // Macro `writeln!`: builds or prints text (or a list) from a template.
         // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false, or crates exempt through minimumReleaseAgeExclude); crates that are not exempt are checked against it afterwards.");
+        let _ = writeln!(
+            sink,
+            "Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false, or crates exempt through minimumReleaseAgeExclude); crates that are not exempt are checked against it afterwards."
+        );
     }
     // Borrow `&report.warnings`: lends the value without copying or giving it away.
     for warning in &report.warnings {
@@ -338,7 +384,10 @@ pub fn print_update_report(report: &UpdateReport, dry_run: bool, sink: &mut dyn 
     } else if report.written {
         // Macro `writeln!`: builds or prints text (or a list) from a template.
         // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`, then `cargo-shadow install`.");
+        let _ = writeln!(
+            sink,
+            "Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`, then `cargo-shadow install`."
+        );
     }
 }
 
@@ -380,7 +429,10 @@ fn now_millis() -> i64 {
     // ```ts
     // // TS has one type for this: number
     // ```
-    return SystemTime::now().duration_since(UNIX_EPOCH).map(millis_of).unwrap_or(0);
+    return SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(millis_of)
+        .unwrap_or(0);
 }
 
 /// What:
@@ -399,11 +451,17 @@ fn now_millis() -> i64 {
 /// ```
 pub fn run_command(command: Command) -> i32 {
     // The lean-folder tools need no catalog: they start from the checkout that holds the working directory.
-    if let Command::Lean { action } = &command {
+    if let Command::Lean {
+        action,
+    } = &command
+    {
         return crate::lean_command::run_lean_action(action);
     }
     // Acknowledging a journal needs no catalog: it names the journal and the workspace follows from its path.
-    if let Command::Acknowledge { journal } = &command {
+    if let Command::Acknowledge {
+        journal,
+    } = &command
+    {
         return match crate::acknowledge::acknowledge(journal) {
             Ok(message) => {
                 println!("{message}");
@@ -462,7 +520,10 @@ pub fn run_command(command: Command) -> i32 {
         // `None`: the present or the absent value of an `Option`.
         None => {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            eprintln!("cargo-shadow: no {CATALOG_MARKER} above {}", current.display());
+            eprintln!(
+                "cargo-shadow: no {CATALOG_MARKER} above {}",
+                current.display()
+            );
             return INSTALL_FAILED_EXIT_CODE;
         }
     };
@@ -507,7 +568,11 @@ pub fn run_command(command: Command) -> i32 {
     // ```ts
     // const list: string[] = [];   // or new Set() / new Map()
     // ```
-    let registry: CratesIo = CratesIo::with_defaults(&root, Box::new(UreqFetcher::new()), Box::new(UreqFetcher::new()));
+    let registry: CratesIo = CratesIo::with_defaults(
+        &root,
+        Box::new(UreqFetcher::new()),
+        Box::new(UreqFetcher::new()),
+    );
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `program: PathBuf`.
     let program: PathBuf = match find_real_cargo() {
@@ -551,7 +616,11 @@ pub fn run_command(command: Command) -> i32 {
         }
     };
     // Typed binding: `runner: RealCargo`.
-    let runner: RealCargo = RealCargo { program, toolchain, bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS) };
+    let runner: RealCargo = RealCargo {
+        program,
+        toolchain,
+        bound: std::time::Duration::from_secs(crate::cargo_run::CARGO_CALL_SECONDS),
+    };
     // `match`: picks the arm whose pattern fits the value.
     // Borrow `&root`: lends the value without copying or giving it away.
     // Typed binding: `crate_dirs: Vec<String>`.
@@ -574,7 +643,11 @@ pub fn run_command(command: Command) -> i32 {
     };
     // `match`: picks the arm whose pattern fits the value.
     match command {
-        Command::Install { frozen_lockfile, no_frozen_lockfile, dry_run } => {
+        Command::Install {
+            frozen_lockfile,
+            no_frozen_lockfile,
+            dry_run,
+        } => {
             // Typed binding: `frozen: bool`.
             let frozen: bool = if frozen_lockfile {
                 true
@@ -587,7 +660,11 @@ pub fn run_command(command: Command) -> i32 {
             };
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&root`: lends the value without copying or giving it away.
-            let (trust_base, reader) = trust_base_setup(&root, &document, is_continuous_integration(&std::env::var("CI").unwrap_or_default()));
+            let (trust_base, reader) = trust_base_setup(
+                &root,
+                &document,
+                is_continuous_integration(&std::env::var("CI").unwrap_or_default()),
+            );
             let outcome = install_rust_lockfiles(&InstallRequest {
                 // Borrow `&root`: lends the value without copying or giving it away.
                 root: &root,
@@ -619,7 +696,10 @@ pub fn run_command(command: Command) -> i32 {
                         0
                     } else {
                         // Borrow `&report.problems`: lends the value without copying or giving it away.
-                        print_findings("Install refused; no Cargo.lock was left changed", &report.problems);
+                        print_findings(
+                            "Install refused; no Cargo.lock was left changed",
+                            &report.problems,
+                        );
                         INSTALL_FAILED_EXIT_CODE
                     }
                 }
@@ -631,10 +711,16 @@ pub fn run_command(command: Command) -> i32 {
                 }
             };
         }
-        Command::Update { dry_run } => {
+        Command::Update {
+            dry_run,
+        } => {
             // Borrow `&root`: lends the value without copying or giving it away.
             // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-            let (_update_trust_base, update_reader) = trust_base_setup(&root, &document, is_continuous_integration(&std::env::var("CI").unwrap_or_default()));
+            let (_update_trust_base, update_reader) = trust_base_setup(
+                &root,
+                &document,
+                is_continuous_integration(&std::env::var("CI").unwrap_or_default()),
+            );
             let outcome = update_rust_lockfiles(
                 // Borrow `&UpdateRequest`: lends the value without copying or giving it away.
                 &UpdateRequest {
@@ -672,7 +758,10 @@ pub fn run_command(command: Command) -> i32 {
                         0
                     } else {
                         // Borrow `&report.problems`: lends the value without copying or giving it away.
-                        print_findings("Update refused; every Cargo.lock was restored", &report.problems);
+                        print_findings(
+                            "Update refused; every Cargo.lock was restored",
+                            &report.problems,
+                        );
                         INSTALL_FAILED_EXIT_CODE
                     }
                 }
@@ -685,12 +774,16 @@ pub fn run_command(command: Command) -> i32 {
             };
         }
         // Handled before the catalog is read; reaching this arm means the early return above was removed.
-        Command::Lean { .. } => {
+        Command::Lean {
+            ..
+        } => {
             eprintln!("cargo-shadow: lean reached the catalog commands; this is a defect");
             return INSTALL_FAILED_EXIT_CODE;
         }
         // Handled before the catalog is read; reaching this arm means the early return above was removed.
-        Command::Acknowledge { .. } => {
+        Command::Acknowledge {
+            ..
+        } => {
             eprintln!("cargo-shadow: acknowledge reached the catalog commands; this is a defect");
             return INSTALL_FAILED_EXIT_CODE;
         }

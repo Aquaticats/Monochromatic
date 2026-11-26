@@ -14,17 +14,31 @@ use std::collections::HashMap;
 /// Imports `debug`,
 ///  `info`,
 ///  `warn` from `tracing`.
-use tracing::{debug, info, warn};
+use tracing::{
+    debug,
+    info,
+    warn,
+};
 /// Imports the items this module uses from `zbus`.
 use zbus::{
-    message::{Flags, Header},
+    ObjectServer,
+    OwnedVariant,
+    Variant,
+    message::{
+        Flags,
+        Header,
+    },
     object_server::SignalEmitter,
-    ObjectServer, OwnedVariant, Variant,
 };
 
 /// Imports the items this module uses from `crate`.
 use crate::{
-    job_store::{JobChanges, JobStore, TerminateCall, UpdateCall},
+    job_store::{
+        JobChanges,
+        JobStore,
+        TerminateCall,
+        UpdateCall,
+    },
     service_state::Shared,
     value_summary::summarize_map,
 };
@@ -46,20 +60,34 @@ pub struct JobView {
 impl JobView {
     /// Creates the object for job `id` served at `path`.
     #[must_use]
-    pub fn new(store: Shared<JobStore>, id: u32, path: String) -> Self {
-        return Self { store, id, path };
+    pub fn new(
+        store: Shared<JobStore>,
+        id: u32,
+        path: String,
+    ) -> Self {
+        return Self {
+            store,
+            id,
+            path,
+        };
     }
 }
 
 /// Looks up one property of an `update` call as a plain value.
-fn property<'a>(properties: &'a HashMap<String, OwnedVariant>, key: &str) -> Option<&'a Variant<'static>> {
+fn property<'a>(
+    properties: &'a HashMap<String, OwnedVariant>,
+    key: &str,
+) -> Option<&'a Variant<'static>> {
     let value = properties.get(key)?;
     return Some(value);
 }
 
 /// Reads a string property,
 ///  or `None` when the key is absent or not a string.
-fn string_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Option<String> {
+fn string_property(
+    properties: &HashMap<String, OwnedVariant>,
+    key: &str,
+) -> Option<String> {
     return match property(properties, key) {
         Some(Variant::Str(text)) => Some(text.to_string()),
         _ => None,
@@ -75,7 +103,10 @@ fn string_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Opt
 ///  which converts between integer widths,
 ///  so a caller that sends `int32` instead of `uint32` still moves the bar.
 ///  The log shows the signature the caller used.
-fn percent_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Option<u32> {
+fn percent_property(
+    properties: &HashMap<String, OwnedVariant>,
+    key: &str,
+) -> Option<u32> {
     return match property(properties, key) {
         Some(Variant::U8(number)) => Some(u32::from(*number)),
         Some(Variant::U16(number)) => Some(u32::from(*number)),
@@ -90,7 +121,10 @@ fn percent_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Op
 
 /// Reads a boolean property,
 ///  or `None` when the key is absent or not a boolean.
-fn bool_property(properties: &HashMap<String, OwnedVariant>, key: &str) -> Option<bool> {
+fn bool_property(
+    properties: &HashMap<String, OwnedVariant>,
+    key: &str,
+) -> Option<bool> {
     return match property(properties, key) {
         Some(Variant::Bool(flag)) => Some(*flag),
         _ => None,
@@ -129,7 +163,11 @@ const _: () = {
         ///  and `descriptionField` is ignored,
         ///  as in Plasma's `job_p.cpp`.
         #[zbus(name = "update")]
-        async fn update(&self, properties: HashMap<String, OwnedVariant>, #[zbus(header)] header: Header<'_>) {
+        async fn update(
+            &self,
+            properties: HashMap<String, OwnedVariant>,
+            #[zbus(header)] header: Header<'_>,
+        ) {
             let no_reply = header.primary().flags().contains(Flags::NO_REPLY_EXPECTED);
             let call = UpdateCall {
                 id: self.id,
@@ -161,10 +199,17 @@ const _: () = {
                 hints: summarize_map(&hints),
             };
             self.store.lock().terminate(self.store.now_ms(), call);
-            info!(id = self.id, code = error_code, no_reply, "recorded the end of a job");
+            info!(
+                id = self.id,
+                code = error_code,
+                no_reply,
+                "recorded the end of a job"
+            );
             match server.remove::<Self, _>(self.path.as_str()).await {
                 Ok(removed) => debug!(id = self.id, removed, "unregistered the ended job object"),
-                Err(error) => warn!(id = self.id, %error, "could not unregister the ended job object"),
+                Err(error) => {
+                    warn!(id = self.id, %error, "could not unregister the ended job object")
+                }
             }
         }
 

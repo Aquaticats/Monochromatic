@@ -106,7 +106,7 @@ pub fn normalization_gain(true_peak: f32) -> f32 {
     // ```ts
     // return Math.min(CEILING / truePeak, 1);
     // ```
-    return (CEILING / true_peak).min(1.0)
+    return (CEILING / true_peak).min(1.0);
 }
 
 /// What:
@@ -139,7 +139,7 @@ pub fn peak_dbtp(peak: f64) -> f64 {
     // ```ts
     // return DBTP_SCALE * Math.log10(peak);
     // ```
-    return DBTP_SCALE * peak.log10()
+    return DBTP_SCALE * peak.log10();
 }
 
 /// What:
@@ -161,7 +161,10 @@ pub fn peak_dbtp(peak: f64) -> f64 {
 ///   return sampledMax * 10 ** (marginDb / 20);
 /// }
 /// ```
-pub fn probe_estimated_peak(sampled_max_peak: f64, margin_db: f64) -> f64 {
+pub fn probe_estimated_peak(
+    sampled_max_peak: f64,
+    margin_db: f64,
+) -> f64 {
     // What:     `sampled_max_peak * DB_BASE.powf(margin_db / DBTP_SCALE)`. `.powf(x)`
     //           raises `DB_BASE` (10.0) to a fractional power. Multiplying scales the
     //           linear peak by the dB margin's linear ratio. Tail -> return.
@@ -172,7 +175,7 @@ pub fn probe_estimated_peak(sampled_max_peak: f64, margin_db: f64) -> f64 {
     // ```ts
     // return sampledMax * DB_BASE ** (marginDb / DBTP_SCALE);
     // ```
-    return sampled_max_peak * DB_BASE.powf(margin_db / DBTP_SCALE)
+    return sampled_max_peak * DB_BASE.powf(margin_db / DBTP_SCALE);
 }
 
 /// What:

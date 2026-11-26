@@ -1,12 +1,20 @@
 //! Key chords through the nested seat's keyboard.
 
 /// Error handling with context.
-use anyhow::{bail, Result};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Smithay compositor types.
 use smithay::backend::input::KeyState;
 
 /// Sibling modules of this crate.
-use crate::{input::send_key, key_chord::Chord, protocol::KeyAction, state::Compositor};
+use crate::{
+    input::send_key,
+    key_chord::Chord,
+    protocol::KeyAction,
+    state::Compositor,
+};
 
 /// Press,
 ///  release,
@@ -31,7 +39,11 @@ use crate::{input::send_key, key_chord::Chord, protocol::KeyAction, state::Compo
 /// ```ts
 /// function apply(state: Compositor, chord: Chord, action: KeyAction): void { ... }
 /// ```
-pub fn apply(state: &mut Compositor, chord: &Chord, action: KeyAction) -> Result<()> {
+pub fn apply(
+    state: &mut Compositor,
+    chord: &Chord,
+    action: KeyAction,
+) -> Result<()> {
     match action {
         KeyAction::Press => press_all(state, chord),
         KeyAction::Release => release_all(state, chord),
@@ -39,9 +51,11 @@ pub fn apply(state: &mut Compositor, chord: &Chord, action: KeyAction) -> Result
             press_all(state, chord);
             release_all(state, chord);
         }
-        KeyAction::Hold { millis } => bail!("a {millis} ms hold is timed and cannot run as an immediate key action"),
+        KeyAction::Hold {
+            millis,
+        } => bail!("a {millis} ms hold is timed and cannot run as an immediate key action"),
     }
-    return Ok(())
+    return Ok(());
 }
 
 /// Press every key of a chord in order.
@@ -55,7 +69,10 @@ pub fn apply(state: &mut Compositor, chord: &Chord, action: KeyAction) -> Result
 /// ```ts
 /// for (const code of chord.keys) send(code, "down");
 /// ```
-fn press_all(state: &mut Compositor, chord: &Chord) {
+fn press_all(
+    state: &mut Compositor,
+    chord: &Chord,
+) {
     for code in &chord.keys {
         send_key(state, *code, KeyState::Pressed);
     }
@@ -72,7 +89,10 @@ fn press_all(state: &mut Compositor, chord: &Chord) {
 /// ```ts
 /// for (const code of [...chord.keys].reverse()) send(code, "up");
 /// ```
-fn release_all(state: &mut Compositor, chord: &Chord) {
+fn release_all(
+    state: &mut Compositor,
+    chord: &Chord,
+) {
     for code in chord.keys.iter().rev() {
         send_key(state, *code, KeyState::Released);
     }

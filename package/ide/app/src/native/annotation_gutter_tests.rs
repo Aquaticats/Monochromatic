@@ -14,25 +14,46 @@
 //!  so text moves only when the line count gains a digit past 999.
 
 /// The production setter and the stamp of the displayed text.
-use super::annotate::{displayed, set_annotations};
+use super::annotate::{
+    displayed,
+    set_annotations,
+};
 /// Rendered frames,
 ///  scheme switching,
 ///  pixel reading,
 ///  contrast,
 ///  and readers over disposable files.
-use super::annotation_paint_tests::{contrast, fixture_reader, frame, near, pixel, switch};
+use super::annotation_paint_tests::{
+    contrast,
+    fixture_reader,
+    frame,
+    near,
+    pixel,
+    switch,
+};
 /// The shared fixture,
 ///  its snapshots,
 ///  the text origin,
 ///  a click,
 ///  and the diagnostic builder.
-use super::annotation_tests::{FIXTURE, TEXT_LEFT, TEXT_TOP, annotate, click, problem};
+use super::annotation_tests::{
+    FIXTURE,
+    TEXT_LEFT,
+    TEXT_TOP,
+    annotate,
+    click,
+    problem,
+};
 /// Width of the whole gutter for files of fewer than 1000 lines.
 use super::sidebar_tests::GUTTER;
 /// Texel comparison that accepts the GPU's one-level difference between two renders.
 use super::tile_reads::same_pixels;
 /// Snapshot records.
-use ide_app::language::diagnostics::{DiagnosticsSnapshot, Severity, SourceGroup};
+use ide_app::language::diagnostics::{
+    DiagnosticsSnapshot,
+    Severity,
+    SourceGroup,
+};
 /// The toolkit's scheme values,
 ///  reached through its unstable re-export module as the paint tests do.
 use slint::private_unstable_api::re_exports::ColorScheme;
@@ -51,14 +72,21 @@ use slint::private_unstable_api::re_exports::ColorScheme;
 /// import { type Model, type Color, LogicalPosition } from 'slint';
 /// ```
 use slint::{
-    Color, LogicalPosition, Model, Rgba8Pixel, SharedPixelBuffer,
+    Color,
+    LogicalPosition,
+    Model,
+    Rgba8Pixel,
+    SharedPixelBuffer,
     platform::update_timers_and_animations,
 };
 /// Shared snapshot pointers,
 ///  and the bound on waiting for the first highlighting answer.
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Advance of one JetBrains Mono digit or letter at the gutter's 15 px.
@@ -243,7 +271,10 @@ fn numbered(count: usize) -> String {
 
 /// Logical x of the caret before character `position` of the first line,
 ///  measured from where text starts.
-fn first_row_caret_x(reader: &super::find_tests::Reader, position: usize) -> f32 {
+fn first_row_caret_x(
+    reader: &super::find_tests::Reader,
+    position: usize,
+) -> f32 {
     let reading = reader.source.borrow();
     let view = reading.shaped.as_ref().expect("shaped source");
     return view.rows[0].caret_x(position, view.viewport.scale);
@@ -252,7 +283,10 @@ fn first_row_caret_x(reader: &super::find_tests::Reader, position: usize) -> f32
 /// An error diagnostic on `value`,
 ///  columns 11 to 16,
 ///  of each of `lines` of a [`numbered`] file.
-fn errors_on(reader: &super::find_tests::Reader, lines: &[usize]) {
+fn errors_on(
+    reader: &super::find_tests::Reader,
+    lines: &[usize],
+) {
     let stamp = displayed(&reader.source.borrow());
     let mut items = Vec::new();
     for line in lines {

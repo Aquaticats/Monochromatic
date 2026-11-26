@@ -24,10 +24,16 @@
 use std::fs;
 
 /// Imports the borrowed and owned path types.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the fixed values.
-use crate::constants::{NOTICE_MARKER_PREFIX, RUNTIME_DIR_VARIABLE};
+use crate::constants::{
+    NOTICE_MARKER_PREFIX,
+    RUNTIME_DIR_VARIABLE,
+};
 
 /// What:
 /// `pub fn runtime_dir() -> Option<PathBuf>` is the per-user runtime directory from the environment,
@@ -59,7 +65,10 @@ pub fn runtime_dir() -> Option<PathBuf> {
 /// ```ts
 /// export function markerPathIn(dir: string, pid: number): string { return join(dir, `cargo-shadow-notice-${pid}`); }
 /// ```
-pub fn marker_path_in(dir: &Path, pid: u32) -> PathBuf {
+pub fn marker_path_in(
+    dir: &Path,
+    pid: u32,
+) -> PathBuf {
     return dir.join(format!("{NOTICE_MARKER_PREFIX}{pid}"));
 }
 
@@ -76,7 +85,10 @@ pub fn marker_path_in(dir: &Path, pid: u32) -> PathBuf {
 /// ```ts
 /// export function leaveMarkerIn(dir: string, pid: number): void
 /// ```
-pub fn leave_marker_in(dir: &Path, pid: u32) {
+pub fn leave_marker_in(
+    dir: &Path,
+    pid: u32,
+) {
     // `let _ =` discards the write result on purpose.
     let _ = fs::write(marker_path_in(dir, pid), "");
 }
@@ -93,6 +105,9 @@ pub fn leave_marker_in(dir: &Path, pid: u32) {
 /// ```ts
 /// export function claimMarkerIn(dir: string, pid: number): boolean
 /// ```
-pub fn claim_marker_in(dir: &Path, pid: u32) -> bool {
+pub fn claim_marker_in(
+    dir: &Path,
+    pid: u32,
+) -> bool {
     return fs::remove_file(marker_path_in(dir, pid)).is_ok();
 }

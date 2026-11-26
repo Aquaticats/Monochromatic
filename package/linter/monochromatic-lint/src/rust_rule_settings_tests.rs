@@ -11,12 +11,24 @@
 
 /// Import the real conversion,
 ///  shared diagnostics and syntax dispatcher.
-use super::{DEFAULT_MAX_LINES, LineBudget, RustRuleSettings, rust_rule_settings};
-use crate::diagnostic::{Diagnostic, Severity};
+use super::{
+    DEFAULT_MAX_LINES,
+    LayoutRule,
+    LineBudget,
+    RustRuleSettings,
+    rust_rule_settings,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::rust_dispatch::check_syntax_rules;
 use crate::rust_source::RustSource;
 /// Import the repository's exact JSONC parser.
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// Convert one owned fixture without replacing configuration validation.
 fn settings(source: &str) -> RustRuleSettings {
@@ -213,15 +225,27 @@ fn other_rules_refuse_the_library_option() {
     assert!(rust_rule_settings(&value).is_err());
 }
 
-/// The two crate-wide layout checks carry only a severity,
+/// The two crate-wide layout checks carry a severity and an optional allow list,
 /// and are disabled by absence and by off.
 #[test]
 fn the_layout_checks_carry_a_severity_and_are_off_by_absence() {
     let selected: RustRuleSettings = settings(
         r#"{"rust/folder-uses-links":{"severity":"warn"},"rust/file-order-in-folder":{"severity":"error"}}"#,
     );
-    assert_eq!(selected.folder_uses_links, Some(Severity::Warn));
-    assert_eq!(selected.file_order_in_folder, Some(Severity::Error));
+    assert_eq!(
+        selected.folder_uses_links,
+        Some(LayoutRule {
+            severity: Severity::Warn,
+            allow: None,
+        })
+    );
+    assert_eq!(
+        selected.file_order_in_folder,
+        Some(LayoutRule {
+            severity: Severity::Error,
+            allow: None,
+        })
+    );
     let none: RustRuleSettings = settings(
         r#"{"rust/folder-uses-links":{"severity":"off"},"rust/file-order-in-folder":{"severity":"off"}}"#,
     );
@@ -232,7 +256,44 @@ fn the_layout_checks_carry_a_severity_and_are_off_by_absence() {
     assert_eq!(absent.file_order_in_folder, None);
 }
 
-/// The layout checks take no option besides severity.
+/// Each layout check reads the allow-list file its `allow` option names,
+///  and two checks may name different files.
+#[test]
+fn the_layout_checks_read_the_allow_list_they_name() {
+    let selected: RustRuleSettings = settings(
+        r#"{"rust/folder-uses-links":{"severity":"error","allow":"a/list.txt"},"rust/file-order-in-folder":{"severity":"error","allow":"the-other-list.txt"}}"#,
+    );
+    assert_eq!(
+        selected.folder_uses_links,
+        Some(LayoutRule {
+            severity: Severity::Error,
+            allow: Some(String::from("a/list.txt")),
+        })
+    );
+    assert_eq!(
+        selected.file_order_in_folder,
+        Some(LayoutRule {
+            severity: Severity::Error,
+            allow: Some(String::from("the-other-list.txt")),
+        })
+    );
+}
+
+/// An allow list that names no file is a configuration error.
+#[test]
+fn an_allow_list_that_names_no_file_is_an_error() {
+    let value: JsoncValue =
+        parse_jsonc(r#"{"rust/folder-uses-links":{"severity":"error","allow":""}}"#)
+            .expect("JSONC fixture");
+    let error = rust_rule_settings(&value).expect_err("an empty allow list is refused");
+    assert!(
+        error.message.contains("must name the file"),
+        "{}",
+        error.message
+    );
+}
+
+/// The layout checks take no option besides severity and the allow list.
 #[test]
 fn the_layout_checks_refuse_every_other_option() {
     for source in [

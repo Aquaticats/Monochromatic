@@ -41,7 +41,10 @@ use std::path::PathBuf;
 /// ```ts
 /// export function cargoHome(cargoHomeVariable: string | undefined, homeVariable: string | undefined): string | undefined
 /// ```
-pub fn cargo_home(cargo_home_variable: Option<String>, home_variable: Option<String>) -> Option<PathBuf> {
+pub fn cargo_home(
+    cargo_home_variable: Option<String>,
+    home_variable: Option<String>,
+) -> Option<PathBuf> {
     // What:     `if let Some(directory) = cargo_home_variable` runs the block only when the variable is set; it also
     //           moves the text out of the `Option` into `directory`. `!directory.is_empty()` rejects an empty text.
     // Why:      `CARGO_HOME` wins over the default, as it does for cargo itself.

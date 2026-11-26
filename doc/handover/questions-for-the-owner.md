@@ -773,6 +773,135 @@ link now > wait,
 because the record's reason for waiting was an install that converges the whole toolchain,
 and the measurement shows nothing left to install.
 
+## Open: should the account companion skip `setgroups` on Ubuntu 24.04? (recorded 2026-11-25T23:30-05:00)
+
+Ubuntu 24.04's default AppArmor restriction on unprivileged user namespaces refuses the companion's
+open of `/proc/self/setgroups` for write,
+before the write the design reasoned about,
+and the companion's skip list has no arm for that call,
+so every managed ZFS add on that distribution is refused and the slot takes the reflink or ordinary
+Git route instead
+(`doc/troubleshooting/ubuntu-apparmor-userns-restriction-refuses-the-zfs-account-companion.md`,
+measured on 2026-11-25 in a throwaway Ubuntu 24.04 guest on the recipe's own kernel).
+The companion already skips on that distribution's answer one step further on:
+the mount namespace,
+the private propagation and the scratch mount each skip `EPERM` or `EACCES`,
+a skip prints its line,
+and the add goes ahead.
+Only the `setgroups` step refuses.
+
+- Add that step's `EACCES` to the skip list (recommended):
+  a managed add on a stock Ubuntu 24.04 serves the route and gets its clone and its binding record,
+  and the skip's own line names the call and the number it answered;
+  the cost is that the step skipped there is the group drop,
+  so that part of the check proves nothing on that host,
+  and the change amends the skip reach in `doc/decision/cli-git-zfs-start-probe.md`,
+  the design's skip paragraph and their control.
+- Keep refusing,
+  and let the ladder serve every add there:
+  no shipped check is loosened,
+  and the refusal names the step,
+  the call and its number;
+  the cost is that the route never runs on Ubuntu 24.04,
+  so no add there gets a clone,
+  an origin snapshot or a binding record,
+  and nothing says a clone was ever wanted.
+
+Ranking:
+add the skip > keep refusing,
+because a managed add on a stock Ubuntu 24.04 exists only under the first,
+and the companion's rule for a distribution's refusal on a listed step is already to print and go
+ahead,
+which this step meets and is not written for.
+
+## Open: the forced arm refuses a locked holder where your V10 answer stops the unit, and refuses a taskless namespace (recorded 2026-11-25T23:30-05:00)
+
+The forced removal's arm is built,
+its guest arm passed,
+and the round that builds its kernel calls is open tonight
+(`feat/git-policy-cli-zfs-step-17-forced-arm-act-proven-in-a-guest`).
+It refuses two kinds of holder that the design answers differently,
+and both answers wait for that round's guest result.
+
+### A locked holder
+
+It is a copy whose mount namespace is owned by a user namespace of its own.
+The guest answered `EINVAL` to the unmount and to the move inside such a namespace,
+and the design's V10 answer,
+"Stop that unit (Recommended)",
+is to stop an eligible unit of the account's own user manager and finish the removal
+(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+accepted in `doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`).
+No round has measured that stop,
+so the arm refuses the copy with `holder-locked`,
+and `LOCKED_NOT_BUILT` names the arm it still owes.
+
+- Keep the refusal,
+  and write it into the design as what the arm does (recommended):
+  a forced removal never stops a unit that no arm has watched stopping;
+  the cost is a removal that refuses where the design promised to finish,
+  and the person's remedy is the `systemctl --user stop` the refusal names.
+- Build V10's stop,
+  with the arm that watches it:
+  the design holds,
+  and a locked holder is ended rather than refused;
+  the cost is a guest arm before it ships,
+  and it turns a shipped refusal into an act on the account's own unit.
+
+Ranking:
+keep the refusal > build the stop,
+because a stop of the account's own unit acts on more than the copy,
+and the plan's own rule is that an owed measurement comes before the act it measures.
+
+### A taskless namespace
+
+It is a mount namespace whose tasks are gone and which still holds the copy.
+The arm refuses it with `holder-unendable`:
+this build lists no namespace without tasks,
+the arms' guests answer `ENOSYS` to `listns`,
+and no arm has unmounted a copy inside one.
+The design's taskless arm needs a guest of `6.19` or newer.
+
+- Keep the refusal until a guest of that kernel measures the walk (recommended):
+  nothing ships that no arm has shown;
+  the cost is a forced removal that refuses where a taskless namespace holds the copy,
+  and the person unmounts it themselves.
+- Build the `listns` walk now and measure it in a newer guest:
+  the case finishes on a kernel that has the call;
+  the cost is a new guest for this host's arm,
+  since every guest the arms use answers `ENOSYS`.
+
+Ranking:
+keep the refusal > build the walk now,
+because both deliver nothing until a guest with `listns` runs,
+and the refusal costs a person one manual unmount while an unproven walk costs a shipped act
+that no arm behind it can explain.
+
+## Open: two choices in `doctor`'s managed-lock line, for when plan step 18 is wired (recorded 2026-11-25T20:35-05:00)
+
+Plan step 18's managed-lock line in `doctor` is built and unwired
+(branch `feat/git-policy-cli-zfs-step-18-doctor-managed-lock-lines`,
+`src/native/health/doctor_zfs_route/managed_lock_checks.rs`),
+and it prints the sentences step 13 already wrote (`worktree_clone_managed_lock/lock_state_words.rs`).
+The round that built it kept two of the design's mappings rather than deciding them in `doctor`,
+and they wait here until step 18 is wired, since no command prints the line before then.
+
+### A lock whose own read was refused
+
+It is folded into the state "locked by words its add did not write",
+with the refusal added in parentheses,
+as the managed lock design maps it.
+The alternative is a sentence of its own,
+since a lock nobody could read is not shown to hold someone else's words.
+
+### A lock cut short, and no lock at all
+
+Both are findings,
+because the lock the add writes is not standing,
+though the next holder of the slot's claim repairs both without a person.
+The alternative is to print both as notes;
+in the code that is one match arm.
+
 ## Answered: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
 
 Answered 2026-11-21T16:24:40-05:00 in the question tool:

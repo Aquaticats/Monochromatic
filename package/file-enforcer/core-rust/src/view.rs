@@ -19,18 +19,31 @@ use crate::diagnostic::Diagnostic;
 /// `list_real`,
 /// `read_real`,
 /// `sha256_hex` from `crate::real_fs`.
-use crate::real_fs::{EntryKind, RealState, list_real, read_real, sha256_hex};
+use crate::real_fs::{
+    EntryKind,
+    RealState,
+    list_real,
+    read_real,
+    sha256_hex,
+};
 /// Imports `Change` from `crate::rule`.
 use crate::rule::Change;
 /// Imports `Observed`,
 /// `Planned`,
 /// `observed_of` from `crate::view_types`.
-use crate::view_types::{Observed, Planned, observed_of};
+use crate::view_types::{
+    Observed,
+    Planned,
+    observed_of,
+};
 /// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The view:
@@ -128,7 +141,10 @@ impl View {
     /// ```ts
     /// beginRule(index: number): void
     /// ```
-    pub fn begin_rule(&mut self, index: usize) {
+    pub fn begin_rule(
+        &mut self,
+        index: usize,
+    ) {
         self.current_rule = index;
     }
 
@@ -172,20 +188,46 @@ impl View {
     /// ```ts
     /// apply(change: Change): void
     /// ```
-    pub fn apply(&mut self, change: &Change) -> Result<(), Diagnostic> {
+    pub fn apply(
+        &mut self,
+        change: &Change,
+    ) -> Result<(), Diagnostic> {
         match change {
-            Change::Write { path, content, mode } => {
-                self.overlay.insert(path.clone(), Planned::File { content: content.clone(), mode: *mode });
+            Change::Write {
+                path,
+                content,
+                mode,
+            } => {
+                self.overlay.insert(
+                    path.clone(),
+                    Planned::File {
+                        content: content.clone(),
+                        mode: *mode,
+                    },
+                );
             }
-            Change::Remove { path } => {
+            Change::Remove {
+                path,
+            } => {
                 self.overlay.insert(path.clone(), Planned::Removed);
             }
-            Change::SetMode { path, mode } => {
+            Change::SetMode {
+                path,
+                mode,
+            } => {
                 if let Some(content) = self.read_bytes(path)? {
-                    self.overlay.insert(path.clone(), Planned::File { content, mode: Some(*mode) });
+                    self.overlay.insert(
+                        path.clone(),
+                        Planned::File {
+                            content,
+                            mode: Some(*mode),
+                        },
+                    );
                 }
             }
-            Change::RemoveDirectory { .. } => {}
+            Change::RemoveDirectory {
+                ..
+            } => {}
         }
         return Ok(());
     }
@@ -203,22 +245,33 @@ impl View {
     /// ```ts
     /// readBytes(rel: string): Uint8Array | undefined
     /// ```
-    pub fn read_bytes(&mut self, rel: &str) -> Result<Option<Vec<u8>>, Diagnostic> {
+    pub fn read_bytes(
+        &mut self,
+        rel: &str,
+    ) -> Result<Option<Vec<u8>>, Diagnostic> {
         self.accesses.push((self.current_rule, rel.to_string()));
         match self.overlay.get(rel) {
-            Some(Planned::File { content, .. }) => return Ok(Some(content.clone())),
+            Some(Planned::File {
+                content,
+                ..
+            }) => return Ok(Some(content.clone())),
             Some(Planned::Removed) => return Ok(None),
             None => {}
         }
         match self.observe_file(rel)? {
-            RealState::File { content, .. } => return Ok(Some(content)),
+            RealState::File {
+                content,
+                ..
+            } => return Ok(Some(content)),
             RealState::Absent => return Ok(None),
             RealState::Directory => {
                 let message = format!("{rel} is a directory where a file was expected");
                 return Err(Diagnostic::new("path-blocked", &message).with_path(rel));
             }
             RealState::Symlink | RealState::Other => {
-                let message = format!("{rel} is a symbolic link or special file; it is never followed or read");
+                let message = format!(
+                    "{rel} is a symbolic link or special file; it is never followed or read"
+                );
                 return Err(Diagnostic::new("symlink-rejected", &message).with_path(rel));
             }
         }
@@ -233,7 +286,10 @@ impl View {
     /// ```ts
     /// readText(rel: string): string | undefined
     /// ```
-    pub fn read_text(&mut self, rel: &str) -> Result<Option<String>, Diagnostic> {
+    pub fn read_text(
+        &mut self,
+        rel: &str,
+    ) -> Result<Option<String>, Diagnostic> {
         match self.read_bytes(rel)? {
             None => return Ok(None),
             Some(bytes) => match String::from_utf8(bytes) {
@@ -257,16 +313,26 @@ impl View {
     /// ```ts
     /// modeOf(rel: string): number | undefined
     /// ```
-    pub fn mode_of(&mut self, rel: &str) -> Result<Option<u32>, Diagnostic> {
+    pub fn mode_of(
+        &mut self,
+        rel: &str,
+    ) -> Result<Option<u32>, Diagnostic> {
         self.accesses.push((self.current_rule, rel.to_string()));
-        if let Some(Planned::File { mode: Some(mode), .. }) = self.overlay.get(rel) {
+        if let Some(Planned::File {
+            mode: Some(mode),
+            ..
+        }) = self.overlay.get(rel)
+        {
             return Ok(Some(*mode));
         }
         if let Some(Planned::Removed) = self.overlay.get(rel) {
             return Ok(None);
         }
         match self.observe_file(rel)? {
-            RealState::File { mode, .. } => return Ok(Some(mode)),
+            RealState::File {
+                mode,
+                ..
+            } => return Ok(Some(mode)),
             _ => return Ok(None),
         }
     }
@@ -282,7 +348,10 @@ impl View {
     /// ```ts
     /// observeFile(rel: string): RealState
     /// ```
-    pub fn observe_file(&mut self, rel: &str) -> Result<RealState, Diagnostic> {
+    pub fn observe_file(
+        &mut self,
+        rel: &str,
+    ) -> Result<RealState, Diagnostic> {
         let state = read_real(&self.root, rel)?;
         if !self.files.contains_key(rel) {
             self.files.insert(rel.to_string(), observed_of(&state));
@@ -302,7 +371,10 @@ impl View {
     /// ```ts
     /// list(rel: string): [string, EntryKind][]
     /// ```
-    pub fn list(&mut self, rel: &str) -> Result<Vec<(String, EntryKind)>, Diagnostic> {
+    pub fn list(
+        &mut self,
+        rel: &str,
+    ) -> Result<Vec<(String, EntryKind)>, Diagnostic> {
         self.accesses.push((self.current_rule, rel.to_string()));
         let real = list_real(&self.root, rel)?;
         let mut digest_input = String::new();
@@ -312,11 +384,18 @@ impl View {
             merged.insert(name, kind);
         }
         if !self.dirs.contains_key(rel) {
-            self.dirs.insert(rel.to_string(), sha256_hex(digest_input.as_bytes()));
+            self.dirs
+                .insert(rel.to_string(), sha256_hex(digest_input.as_bytes()));
         }
-        let prefix = if rel.is_empty() { String::new() } else { format!("{rel}/") };
+        let prefix = if rel.is_empty() {
+            String::new()
+        } else {
+            format!("{rel}/")
+        };
         for (path, planned) in &self.overlay {
-            let Some(rest) = path.strip_prefix(&prefix) else { continue };
+            let Some(rest) = path.strip_prefix(&prefix) else {
+                continue;
+            };
             let (name, deeper) = match rest.split_once('/') {
                 Some((head, _)) => (head, true),
                 None => (rest, false),
@@ -377,6 +456,9 @@ impl View {
     /// readPaths(): { files: string[]; directories: string[] }
     /// ```
     pub fn read_paths(&self) -> (Vec<String>, Vec<String>) {
-        return (self.files.keys().cloned().collect(), self.dirs.keys().cloned().collect());
+        return (
+            self.files.keys().cloned().collect(),
+            self.dirs.keys().cloned().collect(),
+        );
     }
 }

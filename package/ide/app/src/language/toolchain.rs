@@ -41,7 +41,11 @@ pub mod search;
 pub mod state;
 
 /// What the lookup and the reader need from the outcome.
-pub use state::{Failed, Provided, ToolchainState};
+pub use state::{
+    Failed,
+    Provided,
+    ToolchainState,
+};
 
 /// The sandbox the run uses.
 use crate::language::confine::BUBBLEWRAP;
@@ -56,8 +60,14 @@ use crate::language::confine::BUBBLEWRAP;
 /// type Path = string;
 /// ```
 use std::{
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The file that makes a directory a toolchain worktree,
@@ -236,7 +246,9 @@ pub fn resolve_disabled(_request: &ToolchainRequest) -> ToolchainState {
 /// const resolveConfined: ToolchainPolicy = request => resolveWith(request, runConfined);
 /// ```
 pub fn resolve_confined(request: &ToolchainRequest) -> ToolchainState {
-    let runner = ConfinedRunner { request };
+    let runner = ConfinedRunner {
+        request,
+    };
     return resolve_with(request, &runner);
 }
 
@@ -259,7 +271,9 @@ fn failure(completed: &command::Completed) -> Failed {
             ),
         };
     }
-    return Failed { message };
+    return Failed {
+        message,
+    };
 }
 
 /// What:
@@ -275,7 +289,10 @@ fn failure(completed: &command::Completed) -> Failed {
 /// ```ts
 /// function resolveWith(request: ToolchainRequest, runner: Runner): ToolchainState
 /// ```
-pub fn resolve_with(request: &ToolchainRequest, runner: &dyn Runner) -> ToolchainState {
+pub fn resolve_with(
+    request: &ToolchainRequest,
+    runner: &dyn Runner,
+) -> ToolchainState {
     let Some(entry) = entry_point(&request.project_root) else {
         tracing::debug!(
             root = %request.project_root.display(),
@@ -328,7 +345,9 @@ pub fn resolve_with(request: &ToolchainRequest, runner: &dyn Runner) -> Toolchai
         Ok(directories) => directories,
         Err(reason) => {
             tracing::warn!(%reason, "the toolchain lookup printed an answer that cannot be read");
-            return ToolchainState::Failed(Failed { message: reason });
+            return ToolchainState::Failed(Failed {
+                message: reason,
+            });
         }
     };
     let warnings = parse::message(&done.stderr);
@@ -356,7 +375,11 @@ pub fn resolve_with(request: &ToolchainRequest, runner: &dyn Runner) -> Toolchai
 /// ```ts
 /// const due = (state: ToolchainState, ageMs: number, serverMissing: boolean) => ...
 /// ```
-pub fn due(state: &ToolchainState, age: Duration, server_missing: bool) -> bool {
+pub fn due(
+    state: &ToolchainState,
+    age: Duration,
+    server_missing: bool,
+) -> bool {
     return match state {
         ToolchainState::Failed(_) => age >= RETRY_AFTER,
         ToolchainState::Provided(_) => server_missing && age >= RETRY_AFTER,

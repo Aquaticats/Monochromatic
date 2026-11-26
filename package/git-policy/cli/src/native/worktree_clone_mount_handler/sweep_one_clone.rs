@@ -49,6 +49,10 @@
 //!  kept,
 //!  instead of the walk refusing the slot and a `refused` receipt overwriting
 //!  it.
+//!  Where that read answers nothing and the walk later stops at the slot,
+//!  the attach step asks the same proof and answers the mount it finds,
+//!  so a mount this clone already holds at its slot is answered `done` under
+//!  the request's nonce rather than refused.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

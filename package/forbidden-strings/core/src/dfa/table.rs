@@ -22,7 +22,10 @@
 /// ```ts
 /// import { Deserialize, Serialize } from "serde";
 /// ```
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// What:
 ///     Imports the error type for validation of a decoded automaton.
@@ -66,9 +69,12 @@ use crate::charset::ByteSet;
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn accept_bit(word_after: bool, line_end: bool) -> u8 {
+pub fn accept_bit(
+    word_after: bool,
+    line_end: bool,
+) -> u8 {
     let index = ((line_end as u8) << 1) | (word_after as u8);
-    return 1u8 << index
+    return 1u8 << index;
 }
 
 /// A compiled,
@@ -257,7 +263,10 @@ pub struct Dfa {
 
 /// Whether any value reaches the limit,
 /// the range check of a decoded class map or transition table.
-fn has_value_at_least<Value: Copy + Into<usize>>(values: &[Value], limit: usize) -> bool {
+fn has_value_at_least<Value: Copy + Into<usize>>(
+    values: &[Value],
+    limit: usize,
+) -> bool {
     for &value in values {
         if value.into() >= limit {
             return true;
@@ -268,7 +277,10 @@ fn has_value_at_least<Value: Copy + Into<usize>>(values: &[Value], limit: usize)
 
 /// Whether any transition of one state's row leads somewhere other than `state`,
 /// which a self-looping sink never does.
-fn row_leaves_state(row: &[u16], state: usize) -> bool {
+fn row_leaves_state(
+    row: &[u16],
+    state: usize,
+) -> bool {
     for &target in row {
         if target as usize != state {
             return true;
@@ -328,7 +340,7 @@ impl Dfa {
             start,
             num_states,
             dead,
-        }
+        };
     }
 
     /// Reports whether the pattern matches some substring of `line`.
@@ -351,7 +363,10 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn is_match(&self, line: &[u8]) -> bool {
+    pub fn is_match(
+        &self,
+        line: &[u8],
+    ) -> bool {
         let nc = self.nclasses as usize;
         let dead = self.dead as usize;
         let mut state = self.start as usize;
@@ -388,7 +403,7 @@ impl Dfa {
         // ```ts
         // // Same step as the Rust statement below, written with ordinary TS objects/functions.
         // ```
-        return self.accept[state] & accept_bit(false, true) != 0
+        return self.accept[state] & accept_bit(false, true) != 0;
     }
 
     /// Adds to `set` every byte that could begin a match from the start state.
@@ -409,7 +424,10 @@ impl Dfa {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn mark_first_bytes(&self, set: &mut ByteSet) {
+    pub fn mark_first_bytes(
+        &self,
+        set: &mut ByteSet,
+    ) {
         let nc = self.nclasses as usize;
         let start = self.start as usize;
         let start_accepts = self.accept[start] != 0;
@@ -488,11 +506,15 @@ impl Dfa {
             if dead > ns {
                 return Err(CompileError::invalid("dead state out of range"));
             }
-            if self.accept[dead] != 0 || row_leaves_state(&self.trans[dead * nc..(dead + 1) * nc], dead) {
-                return Err(CompileError::invalid("dead state is not a non-accepting sink"));
+            if self.accept[dead] != 0
+                || row_leaves_state(&self.trans[dead * nc..(dead + 1) * nc], dead)
+            {
+                return Err(CompileError::invalid(
+                    "dead state is not a non-accepting sink",
+                ));
             }
         }
-        return Ok(())
+        return Ok(());
     }
 }
 
@@ -532,12 +554,17 @@ mod tests;
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn find_dead(trans: &[u16], accept: &[u8], nclasses: u32, num_states: u16) -> u16 {
+fn find_dead(
+    trans: &[u16],
+    accept: &[u8],
+    nclasses: u32,
+    num_states: u16,
+) -> u16 {
     let nc = nclasses as usize;
     for state in 0..num_states as usize {
         if accept[state] == 0 && !row_leaves_state(&trans[state * nc..(state + 1) * nc], state) {
             return state as u16;
         }
     }
-    return num_states
+    return num_states;
 }

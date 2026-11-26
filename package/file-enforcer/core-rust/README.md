@@ -231,6 +231,13 @@ neither written nor checked.
   through `toml_edit`,
   so comments,
   order and unowned keys survive and a conforming file is not rewritten.
+- `json-keys`:
+  guarded member assignments in JSON manifests,
+  through the bytes of the one member an edit owns,
+  so member order,
+  indentation and unowned members survive and a conforming file is not rewritten.
+  A member the manifest does not have is added as the last member of the object its path addresses;
+  a path whose parent is not an object is left alone.
 - `mise-path-list`:
   a Mise config listing the existing non-empty directories matching the globs.
 

@@ -56,13 +56,16 @@ pub struct ManualPushFailure {
     /// What the person can do about it,
     /// which the engine failure's hint is chosen by.
     pub cause: ManualPushCause,
+    /// The sentence naming the next step a refused key needs, printed after Git's own words.
+    /// It is nothing for every failure that is not a refused key, and for every system with no such relay.
+    pub sentence: Option<String>,
 }
 
 impl ManualPushFailure {
     /// A failure of the wrapper's own step,
     /// which is no refusal by Git.
     pub fn step(cause: ManualPushCause, message: String) -> Self {
-        return Self { message, refusal: None, cause };
+        return Self { message, refusal: None, cause, sentence: None };
     }
 }
 
@@ -86,6 +89,7 @@ fn from_probe(error: &crate::manual_push_probe::ManualPushProbeError) -> ManualP
         message: error.message.clone(),
         refusal: error.refusal.clone(),
         cause: error.cause,
+        sentence: None,
     };
 }
 
@@ -310,7 +314,29 @@ pub fn manual_push_scope_with_destination(
 ) -> Result<(PushedScope, Option<DestinationHeads>), ManualPushFailure> {
     let probed = match probe_manual_push_and_destination(git, global_prefix, post_subcommand) {
         Ok(found) => found,
-        Err(error) => return Err(from_probe(&error)),
+        Err(error) => {
+            // What: The probe is the process that meets a refused key for a typed push, so the sentence naming the next step is
+            //       printed here, before the failure's own words.
+            // Why:  Git's push never starts after a refused probe, and a person left with OpenSSH's line alone has no next step
+            //       (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // noteARefusedProbeOfAPush(git.realGit, git.cwd, overlay, postSubcommand, error.refusal?.stderr ?? '');
+            // ```
+            let mut failure: ManualPushFailure = from_probe(&error);
+            #[cfg(unix)]
+            if let Some(refusal) = error.refusal.as_ref() {
+                failure.sentence = crate::typed_network_command_relay::sentence_after_a_refused_probe_of_a_push(
+                    git.real_git.as_path(),
+                    git.cwd.as_path(),
+                    git.environment.as_slice(),
+                    post_subcommand,
+                    refusal.stderr.as_str(),
+                );
+            }
+            return Err(failure);
+        }
     };
     let scopes = scopes_of_updates(git, &probed.updates)?;
     return Ok((pushed_scope(&scopes)?, probed.destination));

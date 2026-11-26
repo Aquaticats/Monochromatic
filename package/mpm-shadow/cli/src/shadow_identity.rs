@@ -53,9 +53,15 @@ use std::ffi::OsString;
 /// Imports the file-system module that opens and reads the files the identity lives in.
 use std::fs;
 /// Imports the positioned-read trait for an open file and the metadata trait that gives a file's device and inode.
-use std::os::unix::fs::{FileExt, MetadataExt};
+use std::os::unix::fs::{
+    FileExt,
+    MetadataExt,
+};
 /// Imports the borrowed and the owned path types of the programs and records that are checked.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Imports the command type that starts the vetted program.
 use std::process::Command;
 
@@ -95,7 +101,12 @@ const MAX_SECTION_BYTES: u64 = 64 * 1024;
 
 /// The identity text this program carries,
 /// written in full so that the compiler places it in the section below.
-const CARRIED_TEXT: &str = concat!("MONOCHROMATIC-SHADOW-IDENTITY/1 ", env!("CARGO_PKG_NAME"), " ", env!("CARGO_PKG_VERSION"));
+const CARRIED_TEXT: &str = concat!(
+    "MONOCHROMATIC-SHADOW-IDENTITY/1 ",
+    env!("CARGO_PKG_NAME"),
+    " ",
+    env!("CARGO_PKG_VERSION")
+);
 
 /// Copies a text into an array of its own length,
 /// which a `static` needs.
@@ -136,17 +147,31 @@ pub fn own_identity() -> &'static str {
 }
 
 /// Reads a little-endian 16-bit number out of a header.
-fn u16_at(bytes: &[u8], offset: usize) -> usize {
+fn u16_at(
+    bytes: &[u8],
+    offset: usize,
+) -> usize {
     return usize::from(u16::from_le_bytes([bytes[offset], bytes[offset + 1]]));
 }
 
 /// Reads a little-endian 32-bit number out of a header.
-fn u32_at(bytes: &[u8], offset: usize) -> usize {
-    return u32::from_le_bytes([bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]]) as usize;
+fn u32_at(
+    bytes: &[u8],
+    offset: usize,
+) -> usize {
+    return u32::from_le_bytes([
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
+    ]) as usize;
 }
 
 /// Reads a little-endian 64-bit number out of a header.
-fn u64_at(bytes: &[u8], offset: usize) -> u64 {
+fn u64_at(
+    bytes: &[u8],
+    offset: usize,
+) -> u64 {
     let mut eight: [u8; 8] = [0; 8];
     eight.copy_from_slice(&bytes[offset..offset + 8]);
     return u64::from_le_bytes(eight);
@@ -154,7 +179,11 @@ fn u64_at(bytes: &[u8], offset: usize) -> u64 {
 
 /// One section header of an ELF section table:
 /// the `index`-th run of `entry_size` bytes.
-fn section_entry(table: &[u8], entry_size: usize, index: usize) -> &[u8] {
+fn section_entry(
+    table: &[u8],
+    entry_size: usize,
+    index: usize,
+) -> &[u8] {
     return &table[index * entry_size..(index + 1) * entry_size];
 }
 
@@ -177,7 +206,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 pub fn identity_of_open_file(file: &fs::File) -> Option<String> {
     let mut header: [u8; 64] = [0; 64];
     file.read_exact_at(&mut header, 0).ok()?;
-    let is_elf64_little_endian: bool = header[..4] == *b"\x7fELF" && header[4] == 2 && header[5] == 1;
+    let is_elf64_little_endian: bool =
+        header[..4] == *b"\x7fELF" && header[4] == 2 && header[5] == 1;
     if !is_elf64_little_endian {
         return None;
     }
@@ -185,7 +215,11 @@ pub fn identity_of_open_file(file: &fs::File) -> Option<String> {
     let entry_size: usize = u16_at(&header, 0x3A);
     let entry_count: usize = u16_at(&header, 0x3C);
     let names_index: usize = u16_at(&header, 0x3E);
-    if entry_size < 64 || entry_count == 0 || entry_count > MAX_SECTIONS || names_index >= entry_count {
+    if entry_size < 64
+        || entry_count == 0
+        || entry_count > MAX_SECTIONS
+        || names_index >= entry_count
+    {
         return None;
     }
     let mut table: Vec<u8> = vec![0; entry_size * entry_count];
@@ -196,12 +230,16 @@ pub fn identity_of_open_file(file: &fs::File) -> Option<String> {
         return None;
     }
     let mut names: Vec<u8> = vec![0; usize::try_from(names_size).ok()?];
-    file.read_exact_at(&mut names, u64_at(names_entry, 0x18)).ok()?;
+    file.read_exact_at(&mut names, u64_at(names_entry, 0x18))
+        .ok()?;
     for index in 0..entry_count {
         let candidate: &[u8] = section_entry(&table, entry_size, index);
         let name_start: usize = u32_at(candidate, 0);
         let name_bytes: &[u8] = names.get(name_start..)?;
-        let name_end: usize = name_bytes.iter().position(is_nul_byte).unwrap_or(name_bytes.len());
+        let name_end: usize = name_bytes
+            .iter()
+            .position(is_nul_byte)
+            .unwrap_or(name_bytes.len());
         if &name_bytes[..name_end] != IDENTITY_SECTION.as_bytes() {
             continue;
         }
@@ -210,9 +248,13 @@ pub fn identity_of_open_file(file: &fs::File) -> Option<String> {
             return None;
         }
         let mut text: Vec<u8> = vec![0; usize::try_from(size).ok()?];
-        file.read_exact_at(&mut text, u64_at(candidate, 0x18)).ok()?;
+        file.read_exact_at(&mut text, u64_at(candidate, 0x18))
+            .ok()?;
         let whole: String = String::from_utf8(text).ok()?;
-        return whole.trim_end_matches('\0').strip_prefix(IDENTITY_PREFIX).map(str::to_string);
+        return whole
+            .trim_end_matches('\0')
+            .strip_prefix(IDENTITY_PREFIX)
+            .map(str::to_string);
     }
     return None;
 }
@@ -260,7 +302,9 @@ pub fn shadow_behind(candidate: &Path) -> Option<String> {
         let file: fs::File = fs::File::open(&resolved).ok()?;
         return identity_of_open_file(&file);
     }
-    return Some(format!("a chain of more than {MAX_LAUNCHER_HOPS} launchers that never reaches a program"));
+    return Some(format!(
+        "a chain of more than {MAX_LAUNCHER_HOPS} launchers that never reaches a program"
+    ));
 }
 
 /// Whether a launcher record stands beside the program once its path is resolved,
@@ -282,7 +326,10 @@ fn has_launcher_record(program: &Path) -> bool {
 /// its own bytes say nothing about the tool it starts.
 /// Without a record the open file is the whole answer,
 /// and it is the file that is about to be started.
-pub fn identity_of_open_file_unless_launcher(file: &fs::File, program: &Path) -> Option<String> {
+pub fn identity_of_open_file_unless_launcher(
+    file: &fs::File,
+    program: &Path,
+) -> Option<String> {
     let has_record: bool = has_launcher_record(program);
     if has_record {
         return shadow_behind(program);
@@ -339,7 +386,10 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
             let by_path: fs::File = match by_path_result {
                 Ok(opened) => opened,
                 Err(second) => {
-                    return Err(format!("{} cannot be opened ({error}; by path only: {second})", program.display()));
+                    return Err(format!(
+                        "{} cannot be opened ({error}; by path only: {second})",
+                        program.display()
+                    ));
                 }
             };
             (by_path, false)
@@ -347,13 +397,22 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
         Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
     };
     if let Some(identity) = identity_of_open_file_unless_launcher(&file, program) {
-        return Err(format!("{} is or leads to {identity}, a shadow, so it was not started", program.display()));
+        return Err(format!(
+            "{} is or leads to {identity}, a shadow, so it was not started",
+            program.display()
+        ));
     }
     let mut magic: [u8; 4] = [0; 4];
-    let looks_compiled: bool = readable && file.read_exact_at(&mut magic, 0).is_ok() && magic == ELF_MAGIC;
+    let looks_compiled: bool =
+        readable && file.read_exact_at(&mut magic, 0).is_ok() && magic == ELF_MAGIC;
     let has_record: bool = has_launcher_record(program);
-    let through_descriptor: bool = looks_compiled && !has_record && Path::new("/proc/self/fd").is_dir();
-    return Ok(Vetted { file, spelled: program.to_path_buf(), through_descriptor });
+    let through_descriptor: bool =
+        looks_compiled && !has_record && Path::new("/proc/self/fd").is_dir();
+    return Ok(Vetted {
+        file,
+        spelled: program.to_path_buf(),
+        through_descriptor,
+    });
 }
 
 /// The command that starts the program that was vetted.
@@ -375,7 +434,8 @@ impl Vetted {
         /// Imports the trait that adds `arg0` to a command.
         use std::os::unix::process::CommandExt;
         if self.through_descriptor {
-            let mut command: Command = Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
+            let mut command: Command =
+                Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
             command.arg0(&self.spelled);
             return command;
         }
@@ -419,7 +479,11 @@ pub fn birth_in(stat_text: &str) -> String {
     let Some((_, after_name)) = stat_text.rsplit_once(')') else {
         return "?".to_string();
     };
-    return after_name.split_whitespace().nth(19).unwrap_or("?").to_string();
+    return after_name
+        .split_whitespace()
+        .nth(19)
+        .unwrap_or("?")
+        .to_string();
 }
 
 /// What:
@@ -469,7 +533,12 @@ pub fn parse_arrival(text: &str) -> Option<Arrival> {
     let pid: u32 = fields.next()?.parse().ok()?;
     let birth: String = fields.next()?.to_string();
     let starter: String = fields.next()?.to_string();
-    return Some(Arrival { mode, pid, birth, starter });
+    return Some(Arrival {
+        mode,
+        pid,
+        birth,
+        starter,
+    });
 }
 
 /// What:
@@ -481,7 +550,11 @@ pub fn parse_arrival(text: &str) -> Option<Arrival> {
 /// Anyone else,
 /// such as a script the real tool runs,
 /// passes.
-pub fn is_meant_for(arrival: &Arrival, own: (u32, &str), parent: (u32, &str)) -> bool {
+pub fn is_meant_for(
+    arrival: &Arrival,
+    own: (u32, &str),
+    parent: (u32, &str),
+) -> bool {
     let (pid, birth): (u32, &str) = match arrival.mode {
         StartMode::Exec => own,
         StartMode::Spawn => parent,
@@ -500,7 +573,11 @@ pub fn arrival_at_this_process() -> Option<Arrival> {
     let arrival: Arrival = parse_arrival(&text)?;
     let own_pid: u32 = std::process::id();
     let parent_pid: u32 = std::os::unix::process::parent_id();
-    let meant: bool = is_meant_for(&arrival, (own_pid, &process_birth(own_pid)), (parent_pid, &process_birth(parent_pid)));
+    let meant: bool = is_meant_for(
+        &arrival,
+        (own_pid, &process_birth(own_pid)),
+        (parent_pid, &process_birth(parent_pid)),
+    );
     return if meant { Some(arrival) } else { None };
 }
 
@@ -511,7 +588,10 @@ pub fn arrival_at_this_process() -> Option<Arrival> {
 /// the shadow that started it,
 /// the tool and what to do,
 /// so a reader who knows nothing about shadows can act.
-pub fn arrival_line(tool: &str, arrival: &Arrival) -> String {
+pub fn arrival_line(
+    tool: &str,
+    arrival: &Arrival,
+) -> String {
     return format!(
         "{own}: stopped at once, before doing anything, because it was started by {starter} (process {pid}) as the real `{tool}`; a shadow never starts a shadow. \
          Put the real `{tool}` before the shadows on PATH, or remove the program on PATH that leads back to a shadow. Exit status {ARRIVAL_EXIT_CODE} means this stop.",
@@ -527,7 +607,10 @@ pub fn arrival_line(tool: &str, arrival: &Arrival) -> String {
 /// Every start of a real program carries it,
 /// so a shadow among the programs reached (a launcher with no record,
 /// a script) stops on arrival.
-pub fn mark_start(command: &mut Command, mode: StartMode) {
+pub fn mark_start(
+    command: &mut Command,
+    mode: StartMode,
+) {
     command.env(ARRIVAL_VARIABLE, arrival_value(mode));
 }
 
@@ -535,7 +618,10 @@ pub fn mark_start(command: &mut Command, mode: StartMode) {
 /// `pub fn is_same_file(first: &Path, second: &Path) -> bool` says whether two paths name one file (the same device and inode).
 /// Why:
 /// Two names of one program (hard links) have different resolved paths and one identity.
-pub fn is_same_file(first: &Path, second: &Path) -> bool {
+pub fn is_same_file(
+    first: &Path,
+    second: &Path,
+) -> bool {
     return match (fs::metadata(first), fs::metadata(second)) {
         (Ok(left), Ok(right)) => left.dev() == right.dev() && left.ino() == right.ino(),
         _ => false,

@@ -1,5 +1,16 @@
 //! Parse informational/usage requests before logging or starting Wayland.
 
+/// Context retains application diagnostics without changing the public error type.
+use anyhow::{
+    Context,
+    Result,
+};
+/// The library owns parsing and the compositor;
+///  this binary owns process policy.
+use nested_wayland_session::{
+    parse_args,
+    run,
+};
 /// What:
 ///  ExitCode is the process status returned from main,
 ///  unlike ().
@@ -11,11 +22,6 @@
 /// // Equivalent to a final process.exitCode value.
 /// ```
 use std::process::ExitCode;
-/// Context retains application diagnostics without changing the public error type.
-use anyhow::{Context, Result};
-/// The library owns parsing and the compositor;
-///  this binary owns process policy.
-use nested_wayland_session::{parse_args, run};
 /// Log selection is installed only after command-line parsing succeeds.
 use tracing_subscriber::EnvFilter;
 

@@ -11,11 +11,21 @@
 //! ```
 
 /// Import the common finding and edit models and the native parse interface.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the edit and fix types that every finding constructor attaches to a diagnostic.
-use crate::edits::{Edit, Fix, FixClass};
+use crate::edits::{
+    Edit,
+    Fix,
+    FixClass,
+};
 /// Import the parse error and source model that structure failures are built from.
-use crate::markdown_source::{MarkdownError, MarkdownSource};
+use crate::markdown_source::{
+    MarkdownError,
+    MarkdownSource,
+};
 /// What:
 ///  Import the shared constructor of `core/processing-failure` findings.
 /// Why:

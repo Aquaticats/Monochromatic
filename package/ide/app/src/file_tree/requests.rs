@@ -1,17 +1,26 @@
 //! Opaque directory-read identities fence asynchronous replies independently of source-file revisions.
 
 /// Parent-owned cache state and request tokens share one lifecycle boundary.
-use super::{DirectoryRequest, FileTree};
+use super::{
+    DirectoryRequest,
+    FileTree,
+};
 /// What the rule files said about the snapshot is accepted or dropped together with it.
 use crate::git_ignore::IgnoreAnswer;
 /// Completed requests carry the reader's original ordered snapshot or failure.
 use crate::workspace::DirectoryEntry;
 /// Request failures identify the directory;
 ///  stale failures never replace a current diagnostic.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Path borrows native names;
 ///  Arc preserves one allocation identity across threads.
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 /// Expose the read target without exposing mutation of its opaque identity.
 impl DirectoryRequest {
@@ -34,7 +43,10 @@ impl DirectoryRequest {
 impl FileTree {
     /// Start or supersede a read for a known directory;
     ///  actual I/O belongs to the worker.
-    pub fn begin_listing(&mut self, directory: &Path) -> Result<DirectoryRequest> {
+    pub fn begin_listing(
+        &mut self,
+        directory: &Path,
+    ) -> Result<DirectoryRequest> {
         if directory != self.root {
             // What: the entry's directory flag is read only for a present borrowed entry.
             // Why: Unknown paths, files, and symlink dirents cannot become directory read requests.

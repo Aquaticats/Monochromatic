@@ -15,7 +15,11 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
-use git_policy_cli_fuzz::batch::{check_batch_reply, check_generated_reply, request_and_stream};
+use git_policy_cli_fuzz::batch::{
+    check_batch_reply,
+    check_generated_reply,
+    request_and_stream,
+};
 use libfuzzer_sys::fuzz_target;
 
 // Run both views of every input: bytes split at the first line feed into a request and a

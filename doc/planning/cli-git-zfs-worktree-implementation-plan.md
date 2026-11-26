@@ -2072,10 +2072,13 @@ the settle a failed add hands over to is step 14's,
 which is the step that lands the move,
 and `source_guard/add_route_issues_no_destroy_tests.rs` fails the day the add's
 folder names a destroying entry without moving them.
-Owned by issue 6462:
-the add's clone asks the pool for `mountpoint=legacy`,
-and `mountpoint` is a delegation the design forbids the account,
-so the guest refuses that request for a delegated account whatever the nine say.
+Settled by issue 6462 on 2026-11-25
+(`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`):
+the add's clone sends no property and inherits the container's `mountpoint=legacy`,
+the preflight refuses a container whose `mountpoint` is not `legacy` or whose `canmount`,
+`setuid` or `devices` is on before any write,
+and the add reports a clone that does not read `legacy` inherited from the container after
+the clone request, destroying nothing.
 
 #### Design sections
 
@@ -2552,6 +2555,7 @@ the exclusion sections and the guard's scope;
 unmounted and staged clones,
 interrupt states,
 damaged registrations,
+the managed Git lock in the state step 13 tells apart,
 each clone's origin and retention;
 the holders of a clone by namespace ID and representative PID,
 read from step 9's all-namespace scan result;
@@ -2580,7 +2584,23 @@ and omits it only at the default,
 which is a value that is not `disabled` either,
 so an absent value is reported as the default `hidden`.
 It prints the concrete root-once and setup commands without running them,
-and reports the deferred-origin check as not yet designed until step 15 lands.
+and reports the deferred-origin check through the `clone-origin` line step 15
+built,
+the same line that answers whether a marked origin is refused.
+(Amended 2026-11-25 by an agent,
+in a round of its own;
+this note is unapproved and non-final.)
+The sentence here said this step "reports the deferred-origin check as not yet
+designed until step 15 lands",
+and step 15 is on `main` (merged 2026-11-25).
+That round also built the managed Git lock's line and nothing else of this
+step:
+`health::doctor_zfs_route::managed_lock_checks` answers each of step 13's
+states with the sentence `worktree_clone_managed_lock::lock_state_words`
+already writes,
+its guest arm shows a real slot's verified,
+lost and person-written locks,
+and `doctor` itself reaches none of them until this step is wired.
 
 #### Design sections
 
@@ -2612,7 +2632,9 @@ each dot entry it does not remove is reported,
 and `.parent` and every slot record's bytes are unchanged.
 The doctor clauses of the removal bullets:
 it names the holders,
-and it reports the deferred-origin check as not yet designed.
+and it reports the deferred-origin check through `clone-origin`,
+which step 15 built (amended 2026-11-25,
+where this line said the check is reported as not yet designed).
 
 #### VM measurements
 
@@ -2627,9 +2649,15 @@ Until then a host `doctor` run refuses at the gate or reports the check as not y
 
 It depends on those open items through the steps that build them,
 and blocks none.
-It reports the deferred-origin check before step 15 lands,
+It reports the deferred-origin check through `clone-origin`,
+which step 15 built,
 and any check it cannot read or prove,
  as unknown.
+(Amended 2026-11-25 by an agent,
+in a round of its own;
+this note is unapproved and non-final:
+the sentence here said this step reports that check "before step 15 lands",
+and step 15 is on `main`.)
 
 #### Depends on
 

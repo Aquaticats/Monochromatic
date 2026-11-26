@@ -15,9 +15,15 @@
 
 /// Imports the atomic counter and its ordering,
 /// which let the realtime callback count underruns without locking.
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 /// Imports the duration and instant types that time the once-a-second report.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///      `pub const REPORT_INTERVAL: Duration = Duration::from_secs(1);`.
@@ -161,7 +167,10 @@ impl MeterSnapshot {
     /// ```ts
     /// since(earlier: MeterSnapshot): MeterSnapshot { ... }
     /// ```
-    pub fn since(self, earlier: MeterSnapshot) -> MeterSnapshot {
+    pub fn since(
+        self,
+        earlier: MeterSnapshot,
+    ) -> MeterSnapshot {
         return MeterSnapshot {
             short_callbacks: self.short_callbacks.saturating_sub(earlier.short_callbacks),
             silent_frames: self.silent_frames.saturating_sub(earlier.silent_frames),
@@ -204,9 +213,13 @@ impl AudioMeter {
     /// ```ts
     /// recordShort(silentFrames: number): void { ... }
     /// ```
-    pub fn record_short(&self, silent_frames: u64) {
+    pub fn record_short(
+        &self,
+        silent_frames: u64,
+    ) {
         self.short_callbacks.fetch_add(1, Ordering::Relaxed);
-        self.silent_frames.fetch_add(silent_frames, Ordering::Relaxed);
+        self.silent_frames
+            .fetch_add(silent_frames, Ordering::Relaxed);
     }
 
     /// What:
@@ -219,9 +232,15 @@ impl AudioMeter {
     /// ```ts
     /// recordBuffer(requestedFrames: number, bufferFrames: number): void { ... }
     /// ```
-    pub fn record_buffer(&self, requested_frames: u64, buffer_frames: u64) {
-        self.last_requested_frames.store(requested_frames, Ordering::Relaxed);
-        self.last_buffer_frames.store(buffer_frames, Ordering::Relaxed);
+    pub fn record_buffer(
+        &self,
+        requested_frames: u64,
+        buffer_frames: u64,
+    ) {
+        self.last_requested_frames
+            .store(requested_frames, Ordering::Relaxed);
+        self.last_buffer_frames
+            .store(buffer_frames, Ordering::Relaxed);
     }
 
     /// What:
@@ -347,7 +366,11 @@ impl MeterReporter {
     /// ```ts
     /// takeChange(now: number, read: () => MeterSnapshot): MeterSnapshot | null { ... }
     /// ```
-    pub fn take_change(&mut self, now: Instant, read: impl FnOnce() -> MeterSnapshot) -> Option<MeterSnapshot> {
+    pub fn take_change(
+        &mut self,
+        now: Instant,
+        read: impl FnOnce() -> MeterSnapshot,
+    ) -> Option<MeterSnapshot> {
         if !self.is_due(now) {
             return None;
         }
@@ -365,7 +388,10 @@ impl MeterReporter {
     /// ```ts
     /// isDue(now: number): boolean { return this.lastReport === null || now - this.lastReport >= REPORT_INTERVAL; }
     /// ```
-    pub fn is_due(&self, now: Instant) -> bool {
+    pub fn is_due(
+        &self,
+        now: Instant,
+    ) -> bool {
         return match self.last_report {
             Some(last) => now.saturating_duration_since(last) >= REPORT_INTERVAL,
             None => true,
@@ -386,7 +412,11 @@ impl MeterReporter {
     /// ```ts
     /// record(now: number, current: MeterSnapshot): MeterSnapshot | null { ... }
     /// ```
-    pub fn record(&mut self, now: Instant, current: MeterSnapshot) -> Option<MeterSnapshot> {
+    pub fn record(
+        &mut self,
+        now: Instant,
+        current: MeterSnapshot,
+    ) -> Option<MeterSnapshot> {
         let change = current.since(self.previous);
         self.previous = current;
         self.last_report = Some(now);

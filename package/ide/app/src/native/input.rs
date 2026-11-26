@@ -4,15 +4,27 @@
 ///  its single rendering boundary,
 ///  and the caret-following scroll.
 use super::{
-    AppWindow, State,
-    pointer_log::{Pointer, Selection, log_drag, log_press, log_release},
+    AppWindow,
+    State,
+    pointer_log::{
+        Pointer,
+        Selection,
+        log_drag,
+        log_press,
+        log_release,
+    },
     render,
     viewport::follow,
 };
 /// The side of a soft-wrap offset is part of a click.
 use ide_app::document::ReadingAffinity;
 /// Click counting and unit-wise drag extension.
-use ide_app::pointer_selection::{ClickCounter, Granularity, extended, unit};
+use ide_app::pointer_selection::{
+    ClickCounter,
+    Granularity,
+    extended,
+    unit,
+};
 /// Weak window handles.
 use slint::ComponentHandle;
 /// What:
@@ -27,7 +39,11 @@ use slint::ComponentHandle;
 /// ```ts
 /// const drag = { current: createDrag() }; const now = performance.now();
 /// ```
-use std::{cell::RefCell, rc::Rc, time::Instant};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::Instant,
+};
 
 /// What:
 ///  The unit selected by the latest press;
@@ -131,7 +147,11 @@ pub(super) fn pointer_position(
 /// ```ts
 /// function shownY(window: AppWindow, current: State, y: number): number;
 /// ```
-pub(super) fn shown_y(window: &AppWindow, current: &State, y: f32) -> f32 {
+pub(super) fn shown_y(
+    window: &AppWindow,
+    current: &State,
+    y: f32,
+) -> f32 {
     let Some(shown) = current.gpu.shown_offset() else {
         return y;
     };
@@ -139,7 +159,10 @@ pub(super) fn shown_y(window: &AppWindow, current: &State, y: f32) -> f32 {
 }
 
 /// Bind pointer selection without letting the UI mutate source text.
-pub(super) fn bind_pointer(owner: &AppWindow, shared: &Rc<RefCell<State>>) {
+pub(super) fn bind_pointer(
+    owner: &AppWindow,
+    shared: &Rc<RefCell<State>>,
+) {
     // What: `Rc::new(RefCell::new(...))` creates the shared owner of the pointer state.
     // Why: The press and the drag callback both outlive this binding function.
     //

@@ -6,7 +6,16 @@
 use std::sync::mpsc::SyncSender;
 
 /// Sibling modules of this crate.
-use crate::{control::execute, protocol::{Command, Response}, state::Compositor, timeline, timeline_plan::plan};
+use crate::{
+    control::execute,
+    protocol::{
+        Command,
+        Response,
+    },
+    state::Compositor,
+    timeline,
+    timeline_plan::plan,
+};
 
 /// Execute a command and answer on its reply channel.
 ///
@@ -22,7 +31,11 @@ use crate::{control::execute, protocol::{Command, Response}, state::Compositor, 
 /// ```ts
 /// function run(state: Compositor, command: Command, reply: (r: Response) => void): void { ... }
 /// ```
-pub fn run(state: &mut Compositor, command: Command, reply: SyncSender<Response>) {
+pub fn run(
+    state: &mut Compositor,
+    command: Command,
+    reply: SyncSender<Response>,
+) {
     match plan(&command) {
         Some(Ok(steps)) => timeline::start(state, steps, reply),
         Some(Err(message)) => {

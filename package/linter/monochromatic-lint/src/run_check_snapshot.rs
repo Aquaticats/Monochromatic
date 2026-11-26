@@ -17,13 +17,22 @@ use super::HostChecker;
 /// Import the finding model.
 use crate::diagnostic::Diagnostic;
 /// Import the directive filter and its context.
-use crate::directive_apply::{DirectiveContext, apply_directives};
+use crate::directive_apply::{
+    DirectiveContext,
+    apply_directives,
+};
 /// Import the processor seam.
-use crate::processors::{VirtualSource, extract};
+use crate::processors::{
+    VirtualSource,
+    extract,
+};
 /// Import the processing-failure construction.
 use crate::run_failure::processor_failure;
 /// Import the plan records.
-use crate::run_plan::{FilePlan, RootRules};
+use crate::run_plan::{
+    FilePlan,
+    RootRules,
+};
 
 /// What:
 ///  The complete check of one snapshot,
@@ -55,7 +64,10 @@ impl HostChecker<'_> {
     /// ```ts
     /// checkSnapshot(source: string): Diagnostic[]
     /// ```
-    pub fn check_snapshot(&mut self, source: &str) -> Vec<Diagnostic> {
+    pub fn check_snapshot(
+        &mut self,
+        source: &str,
+    ) -> Vec<Diagnostic> {
         let findings: Vec<Diagnostic> = self.collect_findings(source);
         let context: DirectiveContext<'_> = DirectiveContext {
             language: self.plan.language,
@@ -69,18 +81,23 @@ impl HostChecker<'_> {
     /// Check the host's own rules,
     ///  then every virtual file extracted from this snapshot,
     ///  before directives are applied.
-    fn collect_findings(&mut self, source: &str) -> Vec<Diagnostic> {
+    fn collect_findings(
+        &mut self,
+        source: &str,
+    ) -> Vec<Diagnostic> {
         let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
         let plan: &FilePlan = self.plan;
         let parsed: bool = match &plan.root {
             RootRules::None => true,
-            RootRules::Rust { settings } => {
+            RootRules::Rust {
+                settings,
+            } => {
                 self.check_rust_root(source, settings, &mut findings);
                 true
             }
-            RootRules::Markdown { settings } => {
-                self.check_markdown_root(source, settings, &mut findings)
-            }
+            RootRules::Markdown {
+                settings,
+            } => self.check_markdown_root(source, settings, &mut findings),
         };
         if !parsed {
             return findings;

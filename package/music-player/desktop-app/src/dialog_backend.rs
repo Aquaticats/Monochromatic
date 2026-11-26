@@ -40,7 +40,8 @@ pub const ZENITY: &str = "zenity";
 ///       Both the missing-chooser message and the failed-chooser message end with the two ways forward,
 /// and a test holds
 ///       the longer message's ending to this text.
-pub const NO_DIALOG_REMEDY: &str = "Install zenity, or start the player with a folder: music-player /path/to/music";
+pub const NO_DIALOG_REMEDY: &str =
+    "Install zenity, or start the player with a folder: music-player /path/to/music";
 
 /// What:
 ///      `pub const NO_DIALOG_MESSAGE: &str`.
@@ -66,7 +67,10 @@ pub const NO_DIALOG_MESSAGE: &str = "This computer has no folder chooser for the
 /// ```ts
 /// const executableOnPath = (program: string, pathVariable: string) => pathVariable.split(delimiter).some((dir) => isFile(join(dir, program)));
 /// ```
-pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
+pub fn executable_on_path(
+    program: &str,
+    path_variable: &OsStr,
+) -> bool {
     return resolve_on_path(program, path_variable).is_some();
 }
 
@@ -86,7 +90,10 @@ pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
 /// ```ts
 /// const resolveOnPath = (program: string, pathVariable: string) => pathVariable.split(delimiter).map((dir) => join(dir, program)).find((file) => isFile(file));
 /// ```
-pub fn resolve_on_path(program: &str, path_variable: &OsStr) -> Option<PathBuf> {
+pub fn resolve_on_path(
+    program: &str,
+    path_variable: &OsStr,
+) -> Option<PathBuf> {
     for directory in std::env::split_paths(path_variable) {
         let candidate: PathBuf = directory.join(program);
         if candidate.is_file() {
@@ -124,7 +131,9 @@ pub(crate) fn portal_is_available() -> bool {
     let Ok(bus) = crate::dbus_step_bound::step(zbus::fdo::DBusProxy::new(&connection)) else {
         return false;
     };
-    return match crate::dbus_step_bound::step(async { return Ok(bus.list_activatable_names().await?) }) {
+    return match crate::dbus_step_bound::step(async {
+        return Ok(bus.list_activatable_names().await?);
+    }) {
         Ok(names) => {
             let mut found = false;
             for name in &names {
@@ -149,7 +158,10 @@ pub(crate) fn portal_is_available() -> bool {
 /// ```ts
 /// const noChooserCanOpen = (zenity: boolean, portal: boolean) => !zenity && !portal;
 /// ```
-pub fn no_chooser_can_open(zenity: bool, portal: bool) -> bool {
+pub fn no_chooser_can_open(
+    zenity: bool,
+    portal: bool,
+) -> bool {
     return !zenity && !portal;
 }
 

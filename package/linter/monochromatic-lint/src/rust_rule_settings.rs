@@ -10,11 +10,18 @@
 //! ```
 
 /// Import existing schema readers and validation instead of adding another configuration grammar.
-use crate::config_data::{key_text, text, validate_data};
+use crate::config_data::{
+    key_text,
+    text,
+    validate_data,
+};
 /// Import the configuration error type returned when a Rust rule setting is invalid.
 use crate::config_error::ConfigError;
 /// Import the validators that read the line limit and the rule table from configuration.
-use crate::configuration_rules::{line_limit, validate_rules};
+use crate::configuration_rules::{
+    line_limit,
+    validate_rules,
+};
 /// Import the diagnostic severity,
 ///  which intentionally has no Off variant.
 use crate::diagnostic::Severity;
@@ -32,6 +39,18 @@ pub struct LineBudget {
     pub severity: Severity,
     /// Exact nonnegative code-line limit.
     pub max: usize,
+}
+
+/// A selected layout rule's complete execution parameters.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LayoutRule {
+    /// Severity selected by matching configuration blocks.
+    pub severity: Severity,
+    /// The file the rule's `allow` option names,
+    ///  as written in configuration,
+    ///  relative to the configuration file's directory,
+    ///  or nothing when the rule tolerates no finding.
+    pub allow: Option<String>,
 }
 
 /// A selected closure-lint rule's complete execution parameters.
@@ -63,16 +82,18 @@ pub struct RustRuleSettings {
     /// Require every source folder to link,
     ///  in its `uses/` folder,
     ///  to exactly the folders its code uses.
-    pub folder_uses_links: Option<Severity>,
+    pub folder_uses_links: Option<LayoutRule>,
     /// Require the files of one folder to use each other in no loop,
     ///  and to be listed in the folder's top doc in an order where each file uses only files listed before it.
-    pub file_order_in_folder: Option<Severity>,
+    pub file_order_in_folder: Option<LayoutRule>,
 }
 
 /// The options of one rule after merging:
 ///  a severity (`None` for off),
-///  the line limit and the Dylint library path.
-type Options = (Option<Severity>, usize, Option<String>);
+///  the line limit,
+///  the Dylint library path,
+///  and the layout rules' allow-list file.
+type Options = (Option<Severity>, usize, Option<String>, Option<String>);
 
 /// Read a selected severity,
 ///  line limit and library path after ordinary schema validation.
@@ -80,6 +101,7 @@ fn options(setting: &JsoncValue) -> Result<Options, ConfigError> {
     let mut selected: Option<Option<Severity>> = None;
     let mut max: usize = DEFAULT_MAX_LINES;
     let mut library: Option<String> = None;
+    let mut allow: Option<String> = None;
     for entry in setting
         .entries()
         .expect("rule settings validated as a record")
@@ -101,6 +123,8 @@ fn options(setting: &JsoncValue) -> Result<Options, ConfigError> {
             max = line_limit(&entry.value)?;
         } else if key == "library" {
             library = Some(text(&entry.value, "library")?);
+        } else if key == "allow" {
+            allow = Some(text(&entry.value, "allow")?);
         }
     }
     let Some(severity): Option<Option<Severity>> = selected else {
@@ -108,7 +132,7 @@ fn options(setting: &JsoncValue) -> Result<Options, ConfigError> {
             "A selected rule requires severity off, warn, or error before execution.",
         ));
     };
-    return Ok((severity, max, library));
+    return Ok((severity, max, library, allow));
 }
 
 /// Convert merged rules without enabling unselected Rust checks or ignoring misspelled settings.
@@ -121,7 +145,7 @@ pub fn rust_rule_settings(rules: &JsoncValue) -> Result<RustRuleSettings, Config
         if !id.starts_with("rust/") {
             continue;
         }
-        let (severity, max, library): Options = options(&entry.value)?;
+        let (severity, max, library, allow): Options = options(&entry.value)?;
         match id.as_str() {
             "rust/max-lines" => {
                 if let Some(value) = severity {
@@ -134,8 +158,22 @@ pub fn rust_rule_settings(rules: &JsoncValue) -> Result<RustRuleSettings, Config
             "rust/require-rustdoc" => result.rustdoc = severity,
             "rust/require-explicit-types" => result.explicit_types = severity,
             "rust/tests-in-sidecars" => result.tests_in_sidecars = severity,
-            "rust/folder-uses-links" => result.folder_uses_links = severity,
-            "rust/file-order-in-folder" => result.file_order_in_folder = severity,
+            "rust/folder-uses-links" => {
+                result.folder_uses_links = severity.map(|value| {
+                    return LayoutRule {
+                        severity: value,
+                        allow: allow.clone(),
+                    };
+                });
+            }
+            "rust/file-order-in-folder" => {
+                result.file_order_in_folder = severity.map(|value| {
+                    return LayoutRule {
+                        severity: value,
+                        allow: allow.clone(),
+                    };
+                });
+            }
             "rust/avoidable-closure" => {
                 if let Some(value) = severity {
                     let Some(path) = library else {

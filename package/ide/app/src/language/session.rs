@@ -4,15 +4,27 @@
 /// The store that decides which diagnostic sets are current.
 use super::diagnostics::DiagnosticStore;
 /// Hints are kept per server so one server's exit removes only its own.
-use super::hints::{HintWindow, InlayHint};
+use super::hints::{
+    HintWindow,
+    InlayHint,
+};
 /// Identities that tag every result.
-use super::identity::{DocumentStamp, ServerIdentity};
+use super::identity::{
+    DocumentStamp,
+    ServerIdentity,
+};
 /// The failures kept for one server process.
 use super::notice::Trouble;
 /// Requests of the worker's own that a server left unanswered.
 use super::owed::Owed;
 /// The latest-value status rows are built from these records.
-use super::status::{DocumentState, Features, LanguageStatus, ServerState, ServerStatus};
+use super::status::{
+    DocumentState,
+    Features,
+    LanguageStatus,
+    ServerState,
+    ServerStatus,
+};
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer;
 ///  the `config` types describe one
@@ -27,12 +39,19 @@ use super::status::{DocumentState, Features, LanguageStatus, ServerState, Server
 /// ```
 use helix_core::{
     Rope,
-    syntax::config::{LanguageConfiguration, LanguageServerFeature},
+    syntax::config::{
+        LanguageConfiguration,
+        LanguageServerFeature,
+    },
 };
 /// helix-lsp's client handle,
 ///  its server key,
 ///  and the protocol's data types.
-use helix_lsp::{Client, LanguageServerId, lsp};
+use helix_lsp::{
+    Client,
+    LanguageServerId,
+    lsp,
+};
 /// What:
 ///  `PathBuf` is an owned filesystem path;
 ///  `Arc` is a thread-safe shared pointer
@@ -47,7 +66,10 @@ use helix_lsp::{Client, LanguageServerId, lsp};
 /// ```ts
 /// type Shared<T> = T;
 /// ```
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// What:
 ///  One server the worker knows about:
@@ -254,7 +276,10 @@ impl Session {
     /// ```ts
     /// indexOf(id: ServerId): number | undefined
     /// ```
-    pub(super) fn index_of(&self, id: LanguageServerId) -> Option<usize> {
+    pub(super) fn index_of(
+        &self,
+        id: LanguageServerId,
+    ) -> Option<usize> {
         // `position` is `Array.prototype.findIndex`, returning `None` instead of -1.
         for (index, record) in self.servers.iter().enumerate() {
             if record.id() == Some(id) {
@@ -265,7 +290,10 @@ impl Session {
     }
 
     /// Index of the record with this identity.
-    pub(super) fn index_of_identity(&self, identity: &ServerIdentity) -> Option<usize> {
+    pub(super) fn index_of_identity(
+        &self,
+        identity: &ServerIdentity,
+    ) -> Option<usize> {
         for (index, record) in self.servers.iter().enumerate() {
             if &record.identity == identity {
                 return Some(index);
@@ -315,7 +343,11 @@ impl Session {
     }
 
     /// Add a status row for a configured server that has no process.
-    pub(super) fn report(&mut self, name: &str, state: ServerState) {
+    pub(super) fn report(
+        &mut self,
+        name: &str,
+        state: ServerState,
+    ) {
         self.servers.push(ServerRecord {
             identity: ServerIdentity {
                 // `to_string` copies the borrowed name into owned storage.
@@ -333,7 +365,10 @@ impl Session {
     }
 
     /// Which of the application's features a ready server offers for the displayed document.
-    fn features(&self, record: &ServerRecord) -> Option<Features> {
+    fn features(
+        &self,
+        record: &ServerRecord,
+    ) -> Option<Features> {
         // The trailing `?` returns `None` unless the client has initialized.
         let client = record.ready()?;
         let config = match self.document.as_ref() {
@@ -395,7 +430,10 @@ impl Session {
     /// ```ts
     /// answered(request: number): number
     /// ```
-    pub(super) fn answered(&mut self, request: u64) -> usize {
+    pub(super) fn answered(
+        &mut self,
+        request: u64,
+    ) -> usize {
         let mut found = None;
         for (position, (known, _)) in self.pending.iter().enumerate() {
             if *known == request {

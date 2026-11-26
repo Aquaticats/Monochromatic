@@ -9,9 +9,19 @@ use crate::Step;
 /// Rendering of observations.
 use crate::render;
 /// Failures name the operation that failed.
-use anyhow::{Result, bail};
+use anyhow::{
+    Result,
+    bail,
+};
 /// The conditions steps wait for.
-use condition::{Answered, Condition, DiagnosticsWithin, HintsEnough, Never, ServerReady};
+use condition::{
+    Answered,
+    Condition,
+    DiagnosticsWithin,
+    HintsEnough,
+    Never,
+    ServerReady,
+};
 /// `json_value!` is `json!` with the one lint allowance the repository's `unwrap` ban needs.
 use ide_app::json_value;
 /// The handle and the types it exchanges.
@@ -19,17 +29,35 @@ use ide_app::language::{
     LanguageWorker,
     config::LanguageSetup,
     diagnostics::DiagnosticsSnapshot,
-    hints::{HintWindow, HintsSnapshot},
+    hints::{
+        HintWindow,
+        HintsSnapshot,
+    },
     identity::DocumentStamp,
-    reply::{LanguageReply, PositionRequest, RequestKind, RequestOutcome},
+    reply::{
+        LanguageReply,
+        PositionRequest,
+        RequestKind,
+        RequestOutcome,
+    },
     status::LanguageStatus,
-    sync::{DocumentOpen, DocumentReload},
+    sync::{
+        DocumentOpen,
+        DocumentReload,
+    },
 };
 /// The application's own document and reload path,
 ///  and its change watcher and project boundary.
-use ide_app::{change_watch::ChangeWatcher, document::Document, workspace::Workspace};
+use ide_app::{
+    change_watch::ChangeWatcher,
+    document::Document,
+    workspace::Workspace,
+};
 /// JSON values and the literal-building macro.
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 /// What:
 ///  `Path`/`PathBuf` are borrowed and owned filesystem paths;
 ///  `Arc` is a thread-safe shared
@@ -44,9 +72,15 @@ use serde_json::{Value, json};
 /// const deadline = Date.now() + seconds * 1000;
 /// ```
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The conditions a step waits for.
@@ -101,7 +135,10 @@ pub struct Session {
 }
 
 /// Print one observation line with the milliseconds since the session started.
-fn emit(started: Instant, mut record: Value) {
+fn emit(
+    started: Instant,
+    mut record: Value,
+) {
     record["ms"] = json_value!(started.elapsed().as_millis());
     println!("{record}");
 }
@@ -110,7 +147,11 @@ fn emit(started: Instant, mut record: Value) {
 impl Session {
     /// Start the worker for a project;
     ///  no server starts until a file is opened.
-    pub fn new(project: &Path, setup: LanguageSetup, forward: bool) -> Result<Self> {
+    pub fn new(
+        project: &Path,
+        setup: LanguageSetup,
+        forward: bool,
+    ) -> Result<Self> {
         // The trailing `?` returns the start error to the caller.
         let worker = LanguageWorker::with_setup(project, setup)?;
         let watcher = if forward {
@@ -204,7 +245,11 @@ impl Session {
     /// ```ts
     /// until(seconds: number, done: (session: Session) => boolean): boolean
     /// ```
-    fn until(&mut self, limit: Duration, done: &dyn Condition) -> Result<bool> {
+    fn until(
+        &mut self,
+        limit: Duration,
+        done: &dyn Condition,
+    ) -> Result<bool> {
         let start = Instant::now();
         loop {
             self.poll()?;
@@ -220,7 +265,11 @@ impl Session {
 
     /// Send one position request;
     ///  nothing is returned when the command queue is full.
-    fn ask(&mut self, kind: RequestKind, at: usize) -> Result<Option<u64>> {
+    fn ask(
+        &mut self,
+        kind: RequestKind,
+        at: usize,
+    ) -> Result<Option<u64>> {
         let request = PositionRequest {
             stamp: self.stamp(),
             kind,
@@ -230,7 +279,10 @@ impl Session {
     }
 
     /// Write new content to the displayed file and apply the reload as the application does.
-    fn reload(&mut self, text: &str) -> Result<()> {
+    fn reload(
+        &mut self,
+        text: &str,
+    ) -> Result<()> {
         if let Err(error) = std::fs::write(&self.path, text) {
             return Err(
                 anyhow::Error::new(error).context(format!("Cannot write {}", self.path.display()))
@@ -258,7 +310,13 @@ impl Session {
     /// ```ts
     /// request(kind: string, at: number, until: string, seconds: number): object
     /// ```
-    fn request(&mut self, kind: &str, at: usize, until: &str, seconds: u64) -> Result<Value> {
+    fn request(
+        &mut self,
+        kind: &str,
+        at: usize,
+        until: &str,
+        seconds: u64,
+    ) -> Result<Value> {
         let wanted = match kind {
             "definition" => RequestKind::Definition,
             "references" => RequestKind::References,
@@ -281,7 +339,9 @@ impl Session {
             // ```ts
             // const answered = (session: Session) => session.replies.some(r => r.request === number && r.remaining === 0);
             // ```
-            let answered = Answered { request: number };
+            let answered = Answered {
+                request: number,
+            };
             let complete = self.until(limit.saturating_sub(start.elapsed()), &answered)?;
             let mut matched = false;
             for reply in self.replies.iter() {
@@ -316,9 +376,15 @@ impl Session {
     /// ```ts
     /// run(number: number, step: Step): void
     /// ```
-    pub fn run(&mut self, number: usize, step: &Step) -> Result<()> {
+    pub fn run(
+        &mut self,
+        number: usize,
+        step: &Step,
+    ) -> Result<()> {
         let result = match step {
-            Step::Open { file } => {
+            Step::Open {
+                file,
+            } => {
                 let path = self.project.join(file);
                 let text = match std::fs::read_to_string(&path) {
                     Ok(found) => found,
@@ -341,7 +407,9 @@ impl Session {
                 })?;
                 json_value!({ "sent": sent })
             }
-            Step::Ready { seconds } => {
+            Step::Ready {
+                seconds,
+            } => {
                 json_value!({ "ready": self.until(Duration::from_secs(*seconds), &ServerReady)? })
             }
             Step::Request {
@@ -381,11 +449,17 @@ impl Session {
                 };
                 json_value!({ "within": self.until(Duration::from_secs(*seconds), &within)? })
             }
-            Step::Reload { text } => {
+            Step::Reload {
+                text,
+            } => {
                 self.reload(text)?;
                 json_value!({ "revision": self.document.revision() })
             }
-            Step::Stale { at, text, settle } => {
+            Step::Stale {
+                at,
+                text,
+                settle,
+            } => {
                 let before = self.worker.fence_counts();
                 self.replies.clear();
                 let overtaken = self.ask(RequestKind::Hover, *at)?;
@@ -405,9 +479,17 @@ impl Session {
                     "droppedStaleRevision": after.stale_revision - before.stale_revision,
                 })
             }
-            Step::Write { file, text } => self.write(file, text)?,
-            Step::Folders { minimum, seconds } => self.folders(*minimum, *seconds)?,
-            Step::Sleep { milliseconds } => {
+            Step::Write {
+                file,
+                text,
+            } => self.write(file, text)?,
+            Step::Folders {
+                minimum,
+                seconds,
+            } => self.folders(*minimum, *seconds)?,
+            Step::Sleep {
+                milliseconds,
+            } => {
                 self.until(Duration::from_millis(*milliseconds), &Never)?;
                 json!({})
             }

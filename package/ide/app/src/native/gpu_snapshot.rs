@@ -35,8 +35,13 @@ use crate::gpu_device::open_hardware_device_capped;
 /// import { FemtoVGWGPURenderer, Platform, PlatformError, WindowAdapter } from 'slint/platform';
 /// ```
 use slint::platform::{
-    Clipboard, Platform, PlatformError, WindowAdapter, WindowEvent,
-    femtovg_renderer::FemtoVGWGPURenderer, set_platform,
+    Clipboard,
+    Platform,
+    PlatformError,
+    WindowAdapter,
+    WindowEvent,
+    femtovg_renderer::FemtoVGWGPURenderer,
+    set_platform,
 };
 /// The `wgpu` crate as Slint re-exports it,
 ///  so the harness uses exactly the wgpu release (30) that Slint's renderer was built against.
@@ -44,11 +49,21 @@ use slint::wgpu_30::wgpu;
 /// Window sizes,
 ///  the pixel type of a snapshot,
 ///  and the window handle.
-use slint::{PhysicalSize, Rgba8Pixel, SharedPixelBuffer, Window, WindowSize};
+use slint::{
+    PhysicalSize,
+    Rgba8Pixel,
+    SharedPixelBuffer,
+    Window,
+    WindowSize,
+};
 /// Single-threaded shared ownership,
 ///  as Slint's adapters are shared.
 use std::{
-    cell::{Cell, OnceCell, RefCell},
+    cell::{
+        Cell,
+        OnceCell,
+        RefCell,
+    },
     rc::Rc,
 };
 
@@ -110,7 +125,10 @@ impl WindowAdapter for GpuWindow {
     /// Mirrors Slint's testing window:
     ///  the window learns the logical size at scale 1 first,
     ///  then the adapter stores the physical size.
-    fn set_size(&self, size: WindowSize) {
+    fn set_size(
+        &self,
+        size: WindowSize,
+    ) {
         self.window.dispatch_event(WindowEvent::Resized {
             size: size.to_logical(1.0),
         });
@@ -130,7 +148,10 @@ impl WindowAdapter for GpuWindow {
     }
 
     /// The first layout gives the window the preferred size of its component.
-    fn update_window_properties(&self, properties: slint::platform::WindowProperties<'_>) {
+    fn update_window_properties(
+        &self,
+        properties: slint::platform::WindowProperties<'_>,
+    ) {
         if self.size.get().width == 0 {
             let preferred = properties.layout_constraints().preferred;
             self.size
@@ -218,7 +239,11 @@ impl Platform for GpuPlatform {
     /// The default clipboard lives in memory,
     ///  as in Slint's testing backend,
     ///  so Copy and Paste in a test never touch the desktop clipboard.
-    fn set_clipboard_text(&self, text: &str, clipboard: Clipboard) {
+    fn set_clipboard_text(
+        &self,
+        text: &str,
+        clipboard: Clipboard,
+    ) {
         if clipboard == Clipboard::DefaultClipboard {
             *self.clipboard.borrow_mut() = Some(text.to_string());
         }
@@ -226,7 +251,10 @@ impl Platform for GpuPlatform {
 
     /// The text last copied to the default clipboard;
     ///  the selection clipboard is not kept.
-    fn clipboard_text(&self, clipboard: Clipboard) -> Option<String> {
+    fn clipboard_text(
+        &self,
+        clipboard: Clipboard,
+    ) -> Option<String> {
         if clipboard == Clipboard::DefaultClipboard {
             return self.clipboard.borrow().clone();
         }

@@ -14,7 +14,10 @@
 /// Canonical source,
 /// the current caret,
 /// and the side of a wrap offset it stands on.
-use crate::document::{Document, ReadingAffinity};
+use crate::document::{
+    Document,
+    ReadingAffinity,
+};
 /// A target row is hit in its middle.
 use crate::row_map::CODE_ROW;
 /// The same shaper that paints the viewport supplies the advances for hit testing.

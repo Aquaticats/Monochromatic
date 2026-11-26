@@ -29,13 +29,20 @@ use crate::runtime;
 use helix_core::syntax::Loader;
 /// One lazily filled cell per language,
 ///  and the set of bundled grammar names.
-use std::{cell::OnceCell, collections::HashSet};
+use std::{
+    cell::OnceCell,
+    collections::HashSet,
+};
 /// The parser library's loader interface,
 ///  compiled language type,
 ///  palette entry,
 ///  and grammar loader.
 use tree_house::{
-    InjectionLanguageMarker, Language, LanguageConfig, LanguageLoader, highlighter::Highlight,
+    InjectionLanguageMarker,
+    Language,
+    LanguageConfig,
+    LanguageLoader,
+    highlighter::Highlight,
     tree_sitter::Grammar,
 };
 
@@ -90,7 +97,10 @@ pub(crate) struct OwnLoader {
 /// ```ts
 /// function bestScope(capture: string, scopes: string[]): number | undefined
 /// ```
-fn best_scope(capture: &str, scopes: &[&str]) -> Option<Highlight> {
+fn best_scope(
+    capture: &str,
+    scopes: &[&str],
+) -> Option<Highlight> {
     // What: `split('.').collect()` gathers the capture's parts into a list; `Vec<&str>` lends each part.
     // Why: Parts are compared position by position against each scope.
     //
@@ -258,7 +268,10 @@ impl OwnLoader {
     /// ```ts
     /// compile(language: Language): LanguageConfig // throws a message
     /// ```
-    fn compile(&self, language: Language) -> Result<LanguageConfig, String> {
+    fn compile(
+        &self,
+        language: Language,
+    ) -> Result<LanguageConfig, String> {
         let config = self.helix.language(language).config();
         let name = &config.language_id;
         // What: `as_deref()` views `Option<String>` as `Option<&str>`; `unwrap_or(name)` uses the
@@ -345,7 +358,10 @@ impl OwnLoader {
     /// ```ts
     /// prepared(language: Language): LanguageConfig // throws the stored message
     /// ```
-    pub(crate) fn prepared(&self, language: Language) -> Result<&LanguageConfig, String> {
+    pub(crate) fn prepared(
+        &self,
+        language: Language,
+    ) -> Result<&LanguageConfig, String> {
         let Some(cell) = self.configs.get(language.idx()) else {
             return Err(format!("language number {} is unknown", language.idx()));
         };
@@ -396,7 +412,10 @@ impl LanguageLoader for OwnLoader {
     /// ```ts
     /// languageForMarker(marker: InjectionLanguageMarker): Language | undefined
     /// ```
-    fn language_for_marker(&self, marker: InjectionLanguageMarker) -> Option<Language> {
+    fn language_for_marker(
+        &self,
+        marker: InjectionLanguageMarker,
+    ) -> Option<Language> {
         return self.helix.language_for_marker(marker);
     }
 
@@ -410,7 +429,10 @@ impl LanguageLoader for OwnLoader {
     /// ```ts
     /// getConfig(language: Language): LanguageConfig | undefined
     /// ```
-    fn get_config(&self, lang: Language) -> Option<&LanguageConfig> {
+    fn get_config(
+        &self,
+        lang: Language,
+    ) -> Option<&LanguageConfig> {
         return self.prepared(lang).ok();
     }
 }

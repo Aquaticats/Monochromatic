@@ -9,8 +9,15 @@
 //! ```
 
 /// Import the real guard boundary and installed arena construction API.
-use super::{MarkdownError, MarkdownSource, traversal};
-use crate::diagnostic::{Diagnostic, Severity};
+use super::{
+    MarkdownError,
+    MarkdownSource,
+    traversal,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::markdown_duplicate_headings::no_duplicate_heading;
 use crate::markdown_headings::no_emphasis_as_heading;
 use crate::markdown_punctuation::no_trailing_punctuation;
@@ -18,7 +25,10 @@ use crate::markdown_semantic_breaks::semantic_line_breaks;
 /// Import the finding model and every rule that walks ancestors or descendants,
 ///  to observe how a walk failure is reported.
 use crate::run_failure::PROCESSING_FAILURE;
-use satteri_arena::{Arena, Mdast};
+use satteri_arena::{
+    Arena,
+    Mdast,
+};
 use satteri_ast::mdast::MdastNodeType;
 
 /// Construct an actual arena with a root and one reachable child.
@@ -119,7 +129,10 @@ fn parsed(source: &str) -> MarkdownSource {
 
 /// Find the only node of one kind,
 ///  so corruption below targets real parser output rather than guessed ids.
-fn only(document: &MarkdownSource, kind: MdastNodeType) -> u32 {
+fn only(
+    document: &MarkdownSource,
+    kind: MdastNodeType,
+) -> u32 {
     // `Option<u32>` holds the match once found; a second match means the fixture is not what the test assumes.
     let mut found: Option<u32> = None;
     for id in document.all_nodes() {
@@ -219,7 +232,11 @@ fn a_parent_index_cycle_is_a_typed_error_and_a_processing_failure() {
 
 /// Point a node's first child slot at another node,
 ///  the way a corrupt child index would.
-fn replace_first_child(document: &mut MarkdownSource, node: u32, child: u32) {
+fn replace_first_child(
+    document: &mut MarkdownSource,
+    node: u32,
+    child: u32,
+) {
     // `as usize` widens ids and offsets to the index type a Vec takes.
     let slot: usize = document.arena.nodes[node as usize].children_start as usize;
     document.arena.children[slot] = child;

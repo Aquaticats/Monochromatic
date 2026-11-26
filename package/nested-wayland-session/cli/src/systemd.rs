@@ -32,7 +32,10 @@ use std::process::Command;
 /// Why:
 ///       Announce the isolation applied,
 ///  or warn when degrading.
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// Resource-isolation settings for the hosted app.
 ///
@@ -187,7 +190,7 @@ pub fn default_quota_percent() -> u32 {
     // What:     `(app_cores * PERCENT_PER_CORE) as u32`. Convert to a percentage (tail
     //           expression).
     // Why:      systemd's `CPUQuota` is expressed in percent-of-one-core.
-    return (app_cores * PERCENT_PER_CORE) as u32
+    return (app_cores * PERCENT_PER_CORE) as u32;
 }
 
 /// Whether `systemd-run` and a user manager are usable here.
@@ -247,7 +250,11 @@ pub fn available() -> bool {
 /// ```ts
 /// const cmd = buildChildCommand("music-player", ["songs"], { enabled: true, cpuQuotaPercent: 800 });
 /// ```
-pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation) -> Command {
+pub fn build_child_command(
+    program: &str,
+    args: &[String],
+    isolation: &Isolation,
+) -> Command {
     // What:     `if !isolation.enabled { return direct(program, args); }`. No isolation
     //           requested: launch the app directly.
     // Why:      The default, un-isolated path.
@@ -308,11 +315,14 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
 
     // What:     `info!(...)`. Announce the applied isolation.
     // Why:      Make the constraint visible in logs.
-    info!("hosting the app under a systemd scope with {}", properties.join(" "));
+    info!(
+        "hosting the app under a systemd scope with {}",
+        properties.join(" ")
+    );
 
     // What:     `cmd`. Return the configured wrapper command (tail expression).
     // Why:      The caller adds Wayland env and spawns it.
-    return cmd
+    return cmd;
 }
 
 /// What:
@@ -345,7 +355,9 @@ pub fn isolation_properties(isolation: &Isolation) -> Vec<String> {
     // ```ts
     // const quota = isolation.cpuQuotaPercent ?? defaultQuotaPercent();
     // ```
-    let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);
+    let quota = isolation
+        .cpu_quota_percent
+        .unwrap_or_else(default_quota_percent);
 
     // What:     `let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);`. The soft
     //           share; `unwrap_or` takes the value when present and otherwise the constant.
@@ -403,7 +415,7 @@ pub fn isolation_properties(isolation: &Isolation) -> Vec<String> {
         format!("--property=MemoryMax={memory_max}"),
         format!("--property=TasksMax={tasks_max}"),
         format!("--property=IOWeight={APP_IO_WEIGHT}"),
-    ]
+    ];
 }
 
 /// Build a direct (un-isolated) command for the app.
@@ -414,7 +426,10 @@ pub fn isolation_properties(isolation: &Isolation) -> Vec<String> {
 ///           `Command::new(program).args(args)` path.
 /// Why:
 ///       Shared by the disabled and the degraded branches.
-fn direct(program: &str, args: &[String]) -> Command {
+fn direct(
+    program: &str,
+    args: &[String],
+) -> Command {
     // What:     `let mut cmd = Command::new(program);`. Build the app command.
     // Why:      Launch the app itself.
     let mut cmd = Command::new(program);
@@ -425,7 +440,7 @@ fn direct(program: &str, args: &[String]) -> Command {
 
     // What:     `cmd`. Return it (tail expression).
     // Why:      Hand it back to the caller.
-    return cmd
+    return cmd;
 }
 
 /// Verifies the properties the isolated scope carries.

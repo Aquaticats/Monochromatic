@@ -11,10 +11,17 @@
 //! test('groups by manifest', () => expect(groupPackages(plans, cwd).packages.map(p => p.manifest)).toEqual([...]));
 //! ```
 
-use super::{group_packages, is_sidecar_crate};
+use super::{
+    group_packages,
+    is_sidecar_crate,
+};
 use crate::{
     run_plan::FilePlan,
-    run_test_support::{CONFIG, plan, write},
+    run_test_support::{
+        CONFIG,
+        plan,
+        write,
+    },
     test_fs::Fixture,
 };
 use std::path::Path;
@@ -27,7 +34,10 @@ const CONFIGURATION: &str = r#"[
 ]"#;
 
 /// Plan files of a fixture.
-fn plans(root: &Path, files: &[&str]) -> Vec<FilePlan> {
+fn plans(
+    root: &Path,
+    files: &[&str],
+) -> Vec<FilePlan> {
     let mut found: Vec<FilePlan> = Vec::<FilePlan>::new();
     for file in files {
         found.push(plan(root, file));

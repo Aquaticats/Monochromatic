@@ -50,8 +50,12 @@ pub enum TextElement {
 impl TextElement {
     /// Every element in the order of the Settings rows,
     /// which is also the index the window uses for a stepper.
-    pub const ALL: [TextElement; 4] =
-        [TextElement::PaneTitle, TextElement::GroupHeading, TextElement::FolderName, TextElement::TrackTitle];
+    pub const ALL: [TextElement; 4] = [
+        TextElement::PaneTitle,
+        TextElement::GroupHeading,
+        TextElement::FolderName,
+        TextElement::TrackTitle,
+    ];
 
     /// What:
     /// `default_px` is the size the app drew the text at before the setting existed.
@@ -147,7 +151,10 @@ impl TextSizes {
     /// Why:
     /// the window reads each size by element.
     #[must_use]
-    pub const fn get(&self, element: TextElement) -> u16 {
+    pub const fn get(
+        &self,
+        element: TextElement,
+    ) -> u16 {
         return match element {
             TextElement::PaneTitle => self.pane_title_px,
             TextElement::GroupHeading => self.group_heading_px,
@@ -163,7 +170,11 @@ impl TextSizes {
     /// no caller can build a size outside the limits,
     /// so the window never draws one.
     #[must_use]
-    pub fn with(self, element: TextElement, px: u16) -> TextSizes {
+    pub fn with(
+        self,
+        element: TextElement,
+        px: u16,
+    ) -> TextSizes {
         let held = px.clamp(MIN_TEXT_SIZE_PX, MAX_TEXT_SIZE_PX);
         let mut next = self;
         match element {
@@ -181,7 +192,11 @@ impl TextSizes {
     /// a stepper changes a size by one pixel,
     /// and a press past the end changes nothing.
     #[must_use]
-    pub fn stepped(self, element: TextElement, delta: i32) -> TextSizes {
+    pub fn stepped(
+        self,
+        element: TextElement,
+        delta: i32,
+    ) -> TextSizes {
         let moved = i32::from(self.get(element)).saturating_add(delta);
         let held = moved.clamp(i32::from(MIN_TEXT_SIZE_PX), i32::from(MAX_TEXT_SIZE_PX));
         return self.with(element, u16::try_from(held).unwrap_or(element.default_px()));
@@ -192,7 +207,10 @@ impl TextSizes {
     /// Why:
     /// the button draws as disabled at the lower limit.
     #[must_use]
-    pub const fn can_decrease(&self, element: TextElement) -> bool {
+    pub const fn can_decrease(
+        &self,
+        element: TextElement,
+    ) -> bool {
         return self.get(element) > MIN_TEXT_SIZE_PX;
     }
 
@@ -201,7 +219,10 @@ impl TextSizes {
     /// Why:
     /// the button draws as disabled at the upper limit.
     #[must_use]
-    pub const fn can_increase(&self, element: TextElement) -> bool {
+    pub const fn can_increase(
+        &self,
+        element: TextElement,
+    ) -> bool {
         return self.get(element) < MAX_TEXT_SIZE_PX;
     }
 
@@ -230,7 +251,10 @@ impl TextSizes {
 /// A missing field is a
 /// session file written before the setting existed and stays quiet.
 #[must_use]
-pub fn size_or_default(element: TextElement, stored: Option<&serde_json::Value>) -> u16 {
+pub fn size_or_default(
+    element: TextElement,
+    stored: Option<&serde_json::Value>,
+) -> u16 {
     let Some(value) = stored else {
         return element.default_px();
     };

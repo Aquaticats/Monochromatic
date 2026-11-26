@@ -10,7 +10,11 @@
 //! ```
 
 /// Import the digest and both round functions under test.
-use super::{choose, majority, sha256_hex};
+use super::{
+    choose,
+    majority,
+    sha256_hex,
+};
 
 /// Both round functions equal their FIPS 180-4 definitions on every combination of three input bits:
 /// each of the eight combinations appears at one bit position of these three words.

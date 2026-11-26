@@ -10,7 +10,10 @@
 //! The GPU tests then show that the data lands on the screen.
 
 /// The items to flatten.
-use super::{Item, StrokeItem};
+use super::{
+    Item,
+    StrokeItem,
+};
 /// The box of a path.
 use vello::kurbo::Shape;
 
@@ -127,7 +130,10 @@ pub fn drawn_runs(items: &[Item]) -> Vec<DrawnRun> {
                     baseline,
                 });
             }
-            Item::Stroke(_) | Item::Fill { .. } => {}
+            Item::Stroke(_)
+            | Item::Fill {
+                ..
+            } => {}
         }
     }
     return runs;
@@ -170,7 +176,10 @@ pub fn drawn_strokes(items: &[Item]) -> Vec<DrawnStroke> {
                 band,
                 stroke: stroke.clone(),
             }),
-            Item::Glyphs(_) | Item::Fill { .. } => {}
+            Item::Glyphs(_)
+            | Item::Fill {
+                ..
+            } => {}
         }
     }
     return strokes;

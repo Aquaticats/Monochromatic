@@ -29,7 +29,10 @@ use helix_core::syntax::config::Configuration;
 /// ```ts
 /// const settings = {};
 /// ```
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// Name of Helix's rust-analyzer definition.
 const SERVER: &str = "rust-analyzer";

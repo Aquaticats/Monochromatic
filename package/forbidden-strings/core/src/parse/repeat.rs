@@ -99,7 +99,10 @@ pub(crate) const REPEAT_CAP: usize = 1024;
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub fn parse_repeat(cur: &mut Cursor, atom: Node) -> Result<Node, CompileError> {
+pub fn parse_repeat(
+    cur: &mut Cursor,
+    atom: Node,
+) -> Result<Node, CompileError> {
     let pos = cur.pos();
     cur.bump();
     let n = parse_number(cur, pos)?;
@@ -114,16 +117,18 @@ pub fn parse_repeat(cur: &mut Cursor, atom: Node) -> Result<Node, CompileError> 
         Some(b'}') => {
             cur.bump();
             check_cap(n, pos)?;
-            return Ok(repeat(atom, n, n))
+            return Ok(repeat(atom, n, n));
         }
         Some(b',') => {
             cur.bump();
-            return parse_repeat_upper(cur, atom, n, pos)
+            return parse_repeat_upper(cur, atom, n, pos);
         }
-        _ => return Err(CompileError::Syntax {
-            pos,
-            message: "malformed repetition; expected '}' or ','".to_string(),
-        }),
+        _ => {
+            return Err(CompileError::Syntax {
+                pos,
+                message: "malformed repetition; expected '}' or ','".to_string(),
+            });
+        }
     }
 }
 
@@ -145,7 +150,12 @@ pub fn parse_repeat(cur: &mut Cursor, atom: Node) -> Result<Node, CompileError> 
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn parse_repeat_upper(cur: &mut Cursor, atom: Node, n: usize, pos: usize) -> Result<Node, CompileError> {
+fn parse_repeat_upper(
+    cur: &mut Cursor,
+    atom: Node,
+    n: usize,
+    pos: usize,
+) -> Result<Node, CompileError> {
     // What: a `}` here means `{n,}`, which is unbounded and unsupported.
     // Why: the engine only admits finite bounded repetition.
     //
@@ -174,7 +184,7 @@ fn parse_repeat_upper(cur: &mut Cursor, atom: Node, n: usize, pos: usize) -> Res
         });
     }
     check_cap(m, pos)?;
-    return Ok(repeat(atom, n, m))
+    return Ok(repeat(atom, n, m));
 }
 
 /// Reads a run of ASCII digits as a `usize`,
@@ -193,7 +203,10 @@ fn parse_repeat_upper(cur: &mut Cursor, atom: Node, n: usize, pos: usize) -> Res
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn parse_number(cur: &mut Cursor, pos: usize) -> Result<usize, CompileError> {
+fn parse_number(
+    cur: &mut Cursor,
+    pos: usize,
+) -> Result<usize, CompileError> {
     let mut value: usize = 0;
     let mut any = false;
     // What: consume while the next byte is a digit. Why: bounded linear scan of
@@ -226,7 +239,7 @@ fn parse_number(cur: &mut Cursor, pos: usize) -> Result<usize, CompileError> {
             message: "expected a number inside {...}".to_string(),
         });
     }
-    return Ok(value)
+    return Ok(value);
 }
 
 /// Rejects a count above the cap.
@@ -242,13 +255,16 @@ fn parse_number(cur: &mut Cursor, pos: usize) -> Result<usize, CompileError> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn check_cap(count: usize, pos: usize) -> Result<(), CompileError> {
+fn check_cap(
+    count: usize,
+    pos: usize,
+) -> Result<(), CompileError> {
     if count > REPEAT_CAP {
         return Err(CompileError::Syntax {
             pos,
             message: format!("repetition count {count} exceeds the cap of {REPEAT_CAP}"),
-        })
+        });
     } else {
-        return Ok(())
+        return Ok(());
     }
 }

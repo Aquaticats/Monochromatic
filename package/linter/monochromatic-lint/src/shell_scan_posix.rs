@@ -18,7 +18,10 @@
 /// Import the construct names.
 use crate::shell_dialect::Construct;
 /// Import the hit record and the GitHub expression skipper.
-use crate::shell_scan::{Hit, expression_end};
+use crate::shell_scan::{
+    Hit,
+    expression_end,
+};
 
 /// A here-document whose body starts on the line after the command line.
 struct Heredoc {
@@ -67,7 +70,11 @@ struct Scan<'a> {
 /// Movement and recording shared by the scan steps.
 impl Scan<'_> {
     /// Record a construct covering `length` bytes from the cursor.
-    fn record(&mut self, construct: Construct, length: usize) {
+    fn record(
+        &mut self,
+        construct: Construct,
+        length: usize,
+    ) {
         self.hits.push(Hit {
             construct,
             start: self.index,
@@ -77,7 +84,10 @@ impl Scan<'_> {
 
     /// The byte `offset` places ahead of the cursor,
     ///  or zero past the end.
-    fn ahead(&self, offset: usize) -> u8 {
+    fn ahead(
+        &self,
+        offset: usize,
+    ) -> u8 {
         // `get` returns None past the end instead of panicking; `copied` turns `Option<&u8>` into `Option<u8>`.
         return self.bytes.get(self.index + offset).copied().unwrap_or(0);
     }
@@ -94,7 +104,12 @@ impl Scan<'_> {
     /// Move the cursor to the byte after the next `needle` at or after `from`,
     ///  skipping backslash-escaped bytes when `escapes` is set,
     ///  or to the end when there is none.
-    fn skip_past(&mut self, from: usize, needle: u8, escapes: bool) {
+    fn skip_past(
+        &mut self,
+        from: usize,
+        needle: u8,
+        escapes: bool,
+    ) {
         let mut cursor: usize = from;
         while cursor < self.bytes.len() {
             if escapes && self.bytes[cursor] == b'\\' {
@@ -145,7 +160,10 @@ impl Scan<'_> {
                 cursor += 1;
             }
             let word: String = String::from(&self.text[word_start..cursor]);
-            self.heredocs.push(Heredoc { word, strip_tabs });
+            self.heredocs.push(Heredoc {
+                word,
+                strip_tabs,
+            });
             self.index = (cursor + 1).min(self.bytes.len());
             return true;
         }
@@ -160,13 +178,19 @@ impl Scan<'_> {
             return false;
         }
         let word: String = String::from(&self.text[word_start..cursor]);
-        self.heredocs.push(Heredoc { word, strip_tabs });
+        self.heredocs.push(Heredoc {
+            word,
+            strip_tabs,
+        });
         self.index = cursor;
         return true;
     }
 
     /// Move past the bodies of the here-documents the line just ended opened.
-    fn skip_heredoc_bodies(&mut self, mut position: usize) {
+    fn skip_heredoc_bodies(
+        &mut self,
+        mut position: usize,
+    ) {
         let pending: Vec<Heredoc> = std::mem::take(&mut self.heredocs);
         for heredoc in pending {
             loop {
@@ -207,7 +231,9 @@ impl Scan<'_> {
             self.index += 1;
         } else if byte == b'$' && self.ahead(1) == b'(' && self.ahead(2) != b'(' {
             self.record(Construct::DollarParen, 2);
-            self.frames.push(Frame::Sub { depth: 1 });
+            self.frames.push(Frame::Sub {
+                depth: 1,
+            });
             self.index += 2;
         } else if byte == b'`' && !self.fish {
             self.record(Construct::Backtick, 1);
@@ -231,7 +257,9 @@ impl Scan<'_> {
             }
         } else if self.ahead(1) == b'(' {
             self.record(Construct::DollarParen, 2);
-            self.frames.push(Frame::Sub { depth: 1 });
+            self.frames.push(Frame::Sub {
+                depth: 1,
+            });
             self.index += 2;
         } else if self.ahead(1) == b'\'' && !self.fish {
             self.skip_past(self.index + 2, b'\'', true);
@@ -316,7 +344,10 @@ impl Scan<'_> {
 
     /// Count a `(` inside `$( ... )`.
     fn open_paren(&mut self) {
-        if let Some(Frame::Sub { depth }) = self.frames.last_mut() {
+        if let Some(Frame::Sub {
+            depth,
+        }) = self.frames.last_mut()
+        {
             *depth += 1;
         }
         self.index += 1;
@@ -325,7 +356,10 @@ impl Scan<'_> {
     /// Count a `)` inside `$( ... )` and leave the substitution when it balances.
     fn close_paren(&mut self) {
         let mut finished: bool = false;
-        if let Some(Frame::Sub { depth }) = self.frames.last_mut() {
+        if let Some(Frame::Sub {
+            depth,
+        }) = self.frames.last_mut()
+        {
             *depth -= 1;
             finished = *depth == 0;
         }
@@ -347,7 +381,10 @@ impl Scan<'_> {
 /// ```ts
 /// function scan(text: string, fish: boolean): Hit[];
 /// ```
-pub(crate) fn scan(text: &str, fish: bool) -> Vec<Hit> {
+pub(crate) fn scan(
+    text: &str,
+    fish: bool,
+) -> Vec<Hit> {
     let mut state: Scan<'_> = Scan {
         text,
         bytes: text.as_bytes(),

@@ -25,7 +25,10 @@ use std::cmp::Ordering;
 /// Imports `PathBuf` from `std::path`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
@@ -58,19 +61,34 @@ pub struct WinningCopy {
 /// ```ts
 /// export function winningCopy(scope: Scope, tool: LockedTool): { root: string; version: string } | undefined
 /// ```
-pub fn winning_copy(scope: &Scope, tool: &LockedTool) -> Option<WinningCopy> {
+pub fn winning_copy(
+    scope: &Scope,
+    tool: &LockedTool,
+) -> Option<WinningCopy> {
     let own: Option<String> = newest_installed_of(&scope.toolchain_root, tool);
     let other: Option<String> = newest_installed_of(&scope.other_toolchain_root, tool);
     return match (own, other) {
         (Some(mine), Some(theirs)) => {
             if compare_versions(&theirs, &mine) == Ordering::Greater {
-                Some(WinningCopy { root: scope.other_toolchain_root.clone(), version: theirs })
+                Some(WinningCopy {
+                    root: scope.other_toolchain_root.clone(),
+                    version: theirs,
+                })
             } else {
-                Some(WinningCopy { root: scope.toolchain_root.clone(), version: mine })
+                Some(WinningCopy {
+                    root: scope.toolchain_root.clone(),
+                    version: mine,
+                })
             }
         }
-        (Some(mine), None) => Some(WinningCopy { root: scope.toolchain_root.clone(), version: mine }),
-        (None, Some(theirs)) => Some(WinningCopy { root: scope.other_toolchain_root.clone(), version: theirs }),
+        (Some(mine), None) => Some(WinningCopy {
+            root: scope.toolchain_root.clone(),
+            version: mine,
+        }),
+        (None, Some(theirs)) => Some(WinningCopy {
+            root: scope.other_toolchain_root.clone(),
+            version: theirs,
+        }),
         (None, None) => None,
     };
 }
@@ -78,7 +96,10 @@ pub fn winning_copy(scope: &Scope, tool: &LockedTool) -> Option<WinningCopy> {
 /// The root whose `current` link the tool runs through:
 /// the winning copy's root,
 /// or the scope's own when nothing is installed yet.
-pub fn winning_root(scope: &Scope, tool: &LockedTool) -> PathBuf {
+pub fn winning_root(
+    scope: &Scope,
+    tool: &LockedTool,
+) -> PathBuf {
     return match winning_copy(scope, tool) {
         Some(winner) => winner.root,
         None => scope.toolchain_root.clone(),
@@ -86,7 +107,10 @@ pub fn winning_root(scope: &Scope, tool: &LockedTool) -> PathBuf {
 }
 
 /// The version that runs.
-pub fn winning_version(scope: &Scope, tool: &LockedTool) -> Option<String> {
+pub fn winning_version(
+    scope: &Scope,
+    tool: &LockedTool,
+) -> Option<String> {
     return match winning_copy(scope, tool) {
         Some(winner) => Some(winner.version),
         None => None,
@@ -107,8 +131,12 @@ pub fn winning_version(scope: &Scope, tool: &LockedTool) -> Option<String> {
 /// ```ts
 /// export function otherRootForwardsTo(otherCurrent: string, directory: string): boolean
 /// ```
-pub fn other_root_forwards_to(other_current: &Path, directory: &Path) -> bool {
-    let (Ok(resolved), Ok(target)) = (fs::canonicalize(other_current), fs::canonicalize(directory)) else {
+pub fn other_root_forwards_to(
+    other_current: &Path,
+    directory: &Path,
+) -> bool {
+    let (Ok(resolved), Ok(target)) = (fs::canonicalize(other_current), fs::canonicalize(directory))
+    else {
         return false;
     };
     return resolved.starts_with(target);

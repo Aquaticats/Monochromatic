@@ -10,7 +10,10 @@
 //! ```
 
 /// Import the id operations under test and the digest used as the independent expectation.
-use super::{is_lfs_oid, lfs_oid_of_bytes};
+use super::{
+    is_lfs_oid,
+    lfs_oid_of_bytes,
+};
 use crate::markdown_lfs_sha256::sha256_hex;
 
 /// Declared oid used by the pointer fixtures.

@@ -21,10 +21,16 @@
 //! export function repositoryLinkVerdict(home: string, path: string, deadlineMs: number): LinkVerdict
 //! ```
 
-/// Imports `Duration` and `Instant` from `std::time`.
-use std::time::{Duration, Instant};
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// Imports `Duration` and `Instant` from `std::time`.
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The identity file the cut-over writes,
 /// below the home directory.
@@ -34,7 +40,8 @@ pub const IDENTITY_RELATIVE_PATH: &str = ".config/monochromatic-dev/repository-l
 /// below the home directory:
 /// outside the repository,
 /// so it runs when the repository is away.
-pub const CHECK_RELATIVE_PATH: &str = ".local/share/monochromatic-dev/repository-link/repository-link-check";
+pub const CHECK_RELATIVE_PATH: &str =
+    ".local/share/monochromatic-dev/repository-link/repository-link-check";
 
 /// How long the check program may run before it is killed and the answer is that it did not answer.
 /// The check waits five seconds for the drive itself (`package/repository-link/check/src/constants.ts`,
@@ -87,7 +94,10 @@ pub enum LinkVerdict {
 
 /// The text of one field of the identity file,
 /// empty when the file or the field is missing or not text.
-fn identity_field(home: &Path, field: &str) -> String {
+fn identity_field(
+    home: &Path,
+    field: &str,
+) -> String {
     let Ok(text) = std::fs::read_to_string(home.join(IDENTITY_RELATIVE_PATH)) else {
         return String::new();
     };
@@ -119,7 +129,9 @@ fn resolved_as_far_as_it_exists(path: &Path) -> PathBuf {
                 std::path::Component::ParentDir => {
                     resolved.pop();
                 }
-                std::path::Component::CurDir | std::path::Component::RootDir | std::path::Component::Prefix(_) => {}
+                std::path::Component::CurDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_) => {}
             }
         }
         return resolved;
@@ -139,7 +151,10 @@ fn resolved_as_far_as_it_exists(path: &Path) -> PathBuf {
 /// ```ts
 /// underRepositoryLink(home, path)
 /// ```
-pub fn under_repository_link(home: &Path, path: &Path) -> bool {
+pub fn under_repository_link(
+    home: &Path,
+    path: &Path,
+) -> bool {
     let resolved: PathBuf = resolved_as_far_as_it_exists(path);
     for field in ["linkPath", "canonicalRoot"] {
         let root: String = identity_field(home, field);
@@ -153,7 +168,10 @@ pub fn under_repository_link(home: &Path, path: &Path) -> bool {
             (Some(parent), Some(name)) => resolved_as_far_as_it_exists(parent).join(name),
             _ => root_path.to_path_buf(),
         };
-        if spelled || resolved.starts_with(resolved_root.as_path()) || resolved.starts_with(resolved_as_far_as_it_exists(root_path)) {
+        if spelled
+            || resolved.starts_with(resolved_root.as_path())
+            || resolved.starts_with(resolved_as_far_as_it_exists(root_path))
+        {
             return true;
         }
     }
@@ -176,7 +194,10 @@ fn home_is_known_ready(home: &Path) -> bool {
 /// Waits for a started check program until the deadline,
 /// and returns its exit status,
 /// or nothing when the deadline passed (the program is killed).
-fn wait_for_check(child: &mut std::process::Child, deadline: Duration) -> Option<std::process::ExitStatus> {
+fn wait_for_check(
+    child: &mut std::process::Child,
+    deadline: Duration,
+) -> Option<std::process::ExitStatus> {
     let give_up_at: Instant = Instant::now() + deadline;
     loop {
         match child.try_wait() {
@@ -206,7 +227,11 @@ fn wait_for_check(child: &mut std::process::Child, deadline: Duration) -> Option
 /// ```ts
 /// repositoryLinkVerdict(home, path, deadline)
 /// ```
-pub fn repository_link_verdict(home: &Path, path: &Path, deadline: Duration) -> LinkVerdict {
+pub fn repository_link_verdict(
+    home: &Path,
+    path: &Path,
+    deadline: Duration,
+) -> LinkVerdict {
     if !home.join(IDENTITY_RELATIVE_PATH).is_file() || !under_repository_link(home, path) {
         return LinkVerdict::NotConfigured;
     }
@@ -222,11 +247,18 @@ pub fn repository_link_verdict(home: &Path, path: &Path, deadline: Duration) -> 
         .spawn()
     {
         Ok(started) => started,
-        Err(error) => return LinkVerdict::CheckUnavailable { why: format!("{} could not be started: {error}", program.display()) },
+        Err(error) => {
+            return LinkVerdict::CheckUnavailable {
+                why: format!("{} could not be started: {error}", program.display()),
+            };
+        }
     };
     let Some(status) = wait_for_check(&mut child, deadline) else {
         return LinkVerdict::NotReady {
-            message: format!("the repository link check did not answer within {} s, so the state of the repository is unknown", deadline.as_secs_f64()),
+            message: format!(
+                "the repository link check did not answer within {} s, so the state of the repository is unknown",
+                deadline.as_secs_f64()
+            ),
         };
     };
     if status.success() {
@@ -239,7 +271,9 @@ pub fn repository_link_verdict(home: &Path, path: &Path, deadline: Duration) -> 
     if let Some(mut stderr) = child.stderr.take() {
         let _read = std::io::Read::read_to_string(&mut stderr, &mut message);
     }
-    return LinkVerdict::NotReady { message: message.trim().to_string() };
+    return LinkVerdict::NotReady {
+        message: message.trim().to_string(),
+    };
 }
 
 /// The unit tests of the repository link cause.

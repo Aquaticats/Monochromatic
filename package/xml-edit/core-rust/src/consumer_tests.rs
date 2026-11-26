@@ -13,12 +13,25 @@
 //! describe('LSP4IJ policy edits', () => { /* base lookup, option rewrite, scoped entry */ });
 //! ```
 
-use crate::fixtures::{LANGUAGE_XML, USER_DEFINED_XML};
-use crate::{parse_xml, XmlDocument, XmlElementId, XmlElementSpec};
+use crate::fixtures::{
+    LANGUAGE_XML,
+    USER_DEFINED_XML,
+};
+use crate::{
+    XmlDocument,
+    XmlElementId,
+    XmlElementSpec,
+    parse_xml,
+};
 
 /// Build a one-line `<option name=".." value=".." />` description.
-fn option(name: &str, value: &str) -> XmlElementSpec {
-    return XmlElementSpec::named("option").with_attribute("name", name).with_attribute("value", value);
+fn option(
+    name: &str,
+    value: &str,
+) -> XmlElementSpec {
+    return XmlElementSpec::named("option")
+        .with_attribute("name", name)
+        .with_attribute("value", value);
 }
 
 /// Check the whole policy flow:
@@ -45,7 +58,10 @@ fn policy_flow_edits_both_files() {
         }
     }
     let base_entry: XmlElementId = base.expect("base server found");
-    let key: String = user_defined.attribute(base_entry, "key").expect("entry key").to_string();
+    let key: String = user_defined
+        .attribute(base_entry, "key")
+        .expect("entry key")
+        .to_string();
     assert_eq!(key, "srv-1");
 
     let language: XmlDocument = parse_xml(LANGUAGE_XML).expect("fixture parses");
@@ -58,43 +74,82 @@ fn policy_flow_edits_both_files() {
     }
     let language_entry: XmlElementId = found_entry.expect("entry for the base key");
     let settings: XmlElementId = language.children(language.children(language_entry)[0])[0];
-    let config: XmlElementId = language.find_child(settings, "option", "name", "configurationContent").expect("config");
-    let merged: String = "{\n  \"harper-ls.linters.Keep\": true,\n  \"harper-ls.linters.SplitWords\": false\n}".to_string();
-    let language_edited: XmlDocument = language.set_attribute(config, "value", &merged).expect("rewrite");
+    let config: XmlElementId = language
+        .find_child(settings, "option", "name", "configurationContent")
+        .expect("config");
+    let merged: String =
+        "{\n  \"harper-ls.linters.Keep\": true,\n  \"harper-ls.linters.SplitWords\": false\n}"
+            .to_string();
+    let language_edited: XmlDocument = language
+        .set_attribute(config, "value", &merged)
+        .expect("rewrite");
     let map: XmlElementId = language_edited.descendants_named(language_edited.root(), "map")[0];
-    let scoped: XmlElementSpec = XmlElementSpec::named("entry").with_attribute("key", "harper-ls-agents-claude-md").with_child(
-        XmlElementSpec::named("value").with_child(
-            XmlElementSpec::named("LanguageServerDefinitionSettings").with_child(option("configurationContent", &merged)),
-        ),
-    );
+    let scoped: XmlElementSpec = XmlElementSpec::named("entry")
+        .with_attribute("key", "harper-ls-agents-claude-md")
+        .with_child(
+            XmlElementSpec::named("value").with_child(
+                XmlElementSpec::named("LanguageServerDefinitionSettings")
+                    .with_child(option("configurationContent", &merged)),
+            ),
+        );
     let language_done: XmlDocument = language_edited.append_child(map, &scoped).expect("append");
     let reread: XmlDocument = parse_xml(language_done.source()).expect("output is well-formed");
     let appended: XmlElementId = reread.descendants_named(reread.root(), "entry")[1];
     let appended_settings: XmlElementId = reread.descendants_named(appended, "option")[0];
-    assert_eq!(reread.attribute(appended_settings, "value"), Some(merged.as_str()));
-    assert_eq!(reread.attribute(appended, "key"), Some("harper-ls-agents-claude-md"));
+    assert_eq!(
+        reread.attribute(appended_settings, "value"),
+        Some(merged.as_str())
+    );
+    assert_eq!(
+        reread.attribute(appended, "key"),
+        Some("harper-ls-agents-claude-md")
+    );
 
     let user_map: XmlElementId = user_defined.descendants_named(user_defined.root(), "map")[0];
-    let mapping: XmlElementSpec = XmlElementSpec::named("option").with_attribute("name", "mappings").with_child(
-        XmlElementSpec::named("ServerMappingSettings").with_attribute("languageId", "markdown").with_child(
-            XmlElementSpec::named("fileType").with_child(XmlElementSpec::named("FileTypeSettings").with_child(
-                XmlElementSpec::named("option").with_attribute("name", "patterns").with_child(
-                    XmlElementSpec::named("option").with_attribute("value", "AGENTS.md"),
+    let mapping: XmlElementSpec = XmlElementSpec::named("option")
+        .with_attribute("name", "mappings")
+        .with_child(
+            XmlElementSpec::named("ServerMappingSettings")
+                .with_attribute("languageId", "markdown")
+                .with_child(
+                    XmlElementSpec::named("fileType").with_child(
+                        XmlElementSpec::named("FileTypeSettings").with_child(
+                            XmlElementSpec::named("option")
+                                .with_attribute("name", "patterns")
+                                .with_child(
+                                    XmlElementSpec::named("option")
+                                        .with_attribute("value", "AGENTS.md"),
+                                ),
+                        ),
+                    ),
                 ),
-            )),
-        ),
-    );
-    let user_entry: XmlElementSpec = XmlElementSpec::named("entry").with_attribute("key", "harper-ls-agents-claude-md").with_child(
-        XmlElementSpec::named("value").with_child(
-            XmlElementSpec::named("UserDefinedLanguageServerItemSettings")
-                .with_child(option("commandLine", "harper-ls"))
-                .with_child(mapping),
-        ),
-    );
-    let user_done: XmlDocument = user_defined.append_child(user_map, &user_entry).expect("append");
+        );
+    let user_entry: XmlElementSpec = XmlElementSpec::named("entry")
+        .with_attribute("key", "harper-ls-agents-claude-md")
+        .with_child(
+            XmlElementSpec::named("value").with_child(
+                XmlElementSpec::named("UserDefinedLanguageServerItemSettings")
+                    .with_child(option("commandLine", "harper-ls"))
+                    .with_child(mapping),
+            ),
+        );
+    let user_done: XmlDocument = user_defined
+        .append_child(user_map, &user_entry)
+        .expect("append");
     assert!(user_done.source().contains("<!-- keep me -->"));
-    assert!(user_done.source().contains("                        <option value=\"AGENTS.md\" />"));
+    assert!(
+        user_done
+            .source()
+            .contains("                        <option value=\"AGENTS.md\" />")
+    );
     assert!(parse_xml(user_done.source()).is_ok());
-    let untouched: String = user_done.source().replace(&user_done.source()[user_done.source().find("        <entry key=\"harper").expect("scoped entry")..user_done.source().find("      </map>").expect("map end")], "");
+    let untouched: String = user_done.source().replace(
+        &user_done.source()[user_done
+            .source()
+            .find("        <entry key=\"harper")
+            .expect("scoped entry")
+            ..user_done.source().find("      </map>").expect("map end")],
+        "",
+    );
     assert_eq!(untouched, commented);
 }

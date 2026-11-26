@@ -40,7 +40,10 @@
 /// // Path ~ string; Duration ~ a millisecond count.
 /// ```
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 
@@ -70,13 +73,27 @@ use anyhow::Result;
 /// ```
 use smithay::{
     backend::input::ButtonState,
-    input::pointer::{ButtonEvent, GrabStartData as PointerGrabStartData, MotionEvent},
+    input::pointer::{
+        ButtonEvent,
+        GrabStartData as PointerGrabStartData,
+        MotionEvent,
+    },
     reexports::{
-        calloop::timer::{TimeoutAction, Timer},
+        calloop::timer::{
+            TimeoutAction,
+            Timer,
+        },
         wayland_server::protocol::wl_data_device_manager::DndAction,
     },
-    utils::{Logical, Point, SERIAL_COUNTER},
-    wayland::selection::data_device::{start_dnd, SourceMetadata},
+    utils::{
+        Logical,
+        Point,
+        SERIAL_COUNTER,
+    },
+    wayland::selection::data_device::{
+        SourceMetadata,
+        start_dnd,
+    },
 };
 
 /// What:
@@ -97,7 +114,11 @@ use tracing::info;
 /// import { Compositor } from "./state";
 /// ```
 use crate::{
-    lazy_error_text::{failed_error, option_or_error, with_message},
+    lazy_error_text::{
+        failed_error,
+        option_or_error,
+        with_message,
+    },
     protocol::PointerButton,
     state::Compositor,
 };
@@ -152,14 +173,22 @@ const NUDGE_PX: f64 = 1.0;
 /// ```ts
 /// dropFile(state, "/tmp/hello.txt"); // drops at the window centre
 /// ```
-pub fn drop_file(state: &mut Compositor, paths: &[PathBuf], x: Option<f64>, y: Option<f64>) -> Result<()> {
+pub fn drop_file(
+    state: &mut Compositor,
+    paths: &[PathBuf],
+    x: Option<f64>,
+    y: Option<f64>,
+) -> Result<()> {
     // What:     Resolve every path to an absolute, symlink-free path, failing the whole drop
     //           (naming the path) when one does not exist.
     // Why:      A `file:` URI must be absolute, and every file must exist to be dropped.
     let mut absolute_paths = Vec::with_capacity(paths.len());
     for path in paths {
         let canonical = path.canonicalize();
-        absolute_paths.push(with_message(canonical, format_args!("resolving drop-file path {}", path.display()))?);
+        absolute_paths.push(with_message(
+            canonical,
+            format_args!("resolving drop-file path {}", path.display()),
+        )?);
     }
     let borrowed: Vec<&Path> = absolute_paths.iter().map(PathBuf::as_path).collect();
 
@@ -202,7 +231,10 @@ pub fn drop_file(state: &mut Compositor, paths: &[PathBuf], x: Option<f64>, y: O
     //           handle (a cheap `Arc` clone, NOT a borrow of `state`, so `state` is still
     //           passable mutably below).
     // Why:      Motion / button events are sent through this handle.
-    let pointer = option_or_error(state.seat.get_pointer(), format_args!("seat has no pointer"))?;
+    let pointer = option_or_error(
+        state.seat.get_pointer(),
+        format_args!("seat has no pointer"),
+    )?;
 
     // What:     `let button = PointerButton::Left.evdev_code();`. The `BTN_LEFT` evdev code.
     // Why:      The drag is a held-left-button gesture.
@@ -280,7 +312,15 @@ pub fn drop_file(state: &mut Compositor, paths: &[PathBuf], x: Option<f64>, y: O
     //           pointer start; `None` is the (unused) touch start.
     // Why:      From here, pointer motion is turned into data-device enter/motion/drop toward
     //           the app.
-    start_dnd(&dh, &seat, state, press_serial, Some(start_data), None, metadata);
+    start_dnd(
+        &dh,
+        &seat,
+        state,
+        press_serial,
+        Some(start_data),
+        None,
+        metadata,
+    );
 
     // What:     `let move_time = event_time(state);`. Timestamp for the in-grab motion.
     // Why:      A fresh time for the nudge event.
@@ -315,7 +355,7 @@ pub fn drop_file(state: &mut Compositor, paths: &[PathBuf], x: Option<f64>, y: O
 
     // What:     `Ok(())`. The drag is under way; the drop completes on the timer.
     // Why:      Report success to the control caller.
-    return Ok(())
+    return Ok(());
 }
 
 /// Compute the centre of the single hosted window in logical coordinates.
@@ -338,7 +378,10 @@ fn window_centre(state: &Compositor) -> Result<(f64, f64)> {
     // What:     `let bbox = state.space.element_bbox(window).ok_or_else(...)?;`. The window's
     //           bounding box (`Rectangle<i32, Logical>`); error if it has none.
     // Why:      The centre is derived from the box's origin and size.
-    let bbox = option_or_error(state.space.element_bbox(window), format_args!("mapped window has no bounding box"))?;
+    let bbox = option_or_error(
+        state.space.element_bbox(window),
+        format_args!("mapped window has no bounding box"),
+    )?;
 
     // What:     `let cx = f64::from(bbox.loc.x) + f64::from(bbox.size.w) / 2.0;`. Horizontal
     //           centre. `f64::from(i32)` is a lossless widening conversion (`.loc.x` is the
@@ -353,7 +396,7 @@ fn window_centre(state: &Compositor) -> Result<(f64, f64)> {
 
     // What:     `Ok((cx, cy))`. The centre point (tail expression).
     // Why:      Hand the drop point back to `drop_file`.
-    return Ok((cx, cy))
+    return Ok((cx, cy));
 }
 
 /// Schedule the drag's button release after [`DWELL_MS`] on the event loop.
@@ -364,7 +407,10 @@ fn window_centre(state: &Compositor) -> Result<(f64, f64)> {
 /// Why:
 ///       The release must happen after the app's accept round-trips,
 ///  not synchronously.
-fn schedule_release(state: &mut Compositor, button: u32) -> Result<()> {
+fn schedule_release(
+    state: &mut Compositor,
+    button: u32,
+) -> Result<()> {
     // What:     `let timer = Timer::from_duration(Duration::from_millis(DWELL_MS));`. A timer
     //           that fires once after the dwell.
     // Why:      Delay the release without blocking the event loop.
@@ -381,20 +427,23 @@ fn schedule_release(state: &mut Compositor, button: u32) -> Result<()> {
             reason = "calloop's insert_source needs a callable that carries the button; see doc/closure-lint-suppressions.md"
         )
     )]
-    let inserted = state.loop_handle.insert_source(timer, move |_, _, event_state: &mut Compositor| {
-        // What:     release_drag sends the deferred button release through the current seat.
-        // Why:      The callback receives event-loop state, not the registration borrow.
-        release_drag(event_state, button);
+    let inserted =
+        state
+            .loop_handle
+            .insert_source(timer, move |_, _, event_state: &mut Compositor| {
+                // What:     release_drag sends the deferred button release through the current seat.
+                // Why:      The callback receives event-loop state, not the registration borrow.
+                release_drag(event_state, button);
 
-        // What:     `TimeoutAction::Drop`. Tell calloop not to re-arm the timer.
-        // Why:      The release is a one-shot.
-        return TimeoutAction::Drop
-    });
+                // What:     `TimeoutAction::Drop`. Tell calloop not to re-arm the timer.
+                // Why:      The release is a one-shot.
+                return TimeoutAction::Drop;
+            });
     failed_error(inserted, "scheduling the drop-file release timer failed")?;
 
     // What:     `Ok(())`. The timer is armed.
     // Why:      Signal the release is scheduled.
-    return Ok(())
+    return Ok(());
 }
 
 /// Release the held left button,
@@ -407,7 +456,10 @@ fn schedule_release(state: &mut Compositor, button: u32) -> Result<()> {
 /// Why:
 ///       The drop fires when the last button is released;
 ///  the app then requests the data.
-fn release_drag(state: &mut Compositor, button: u32) {
+fn release_drag(
+    state: &mut Compositor,
+    button: u32,
+) {
     // What:     `let Some(pointer) = state.seat.get_pointer() else { return; };`. The pointer
     //           handle, or bail if the seat lost its pointer (it should not).
     // Why:      Nothing to release without a pointer.
@@ -463,5 +515,5 @@ fn event_time(state: &Compositor) -> u32 {
     // What:     `state.start_time.elapsed().as_millis() as u32`. Elapsed ms, narrowed. Tail
     //           expression.
     // Why:      Provide the event timestamp.
-    return state.start_time.elapsed().as_millis() as u32
+    return state.start_time.elapsed().as_millis() as u32;
 }

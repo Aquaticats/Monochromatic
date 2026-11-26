@@ -22,24 +22,54 @@ use music_player::engine::Engine;
 /// Imports the title that a menu shows for its track.
 use music_player::track_entries::track_title_for;
 /// Imports the menu actions and the list of them for a track.
-use music_player::track_menu::{TrackMenuAction, track_menu_actions_for};
+use music_player::track_menu::{
+    TrackMenuAction,
+    track_menu_actions_for,
+};
 /// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
 /// Imports the file actions and their error type.
-use crate::ui_files::{FileActionError, can_restore_from_trash, copy_text, move_to_trash, show_in_file_manager};
+use crate::ui_files::{
+    FileActionError,
+    can_restore_from_trash,
+    copy_text,
+    move_to_trash,
+    show_in_file_manager,
+};
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 /// Imports the pure menu texts and rows.
-use crate::ui_menu_model::{copied_text, details_text, human_size, menu_items, shown_in_file_manager_text};
+use crate::ui_menu_model::{
+    copied_text,
+    details_text,
+    human_size,
+    menu_items,
+    shown_in_file_manager_text,
+};
 /// Imports the overlays that report the outcome of an action.
-use crate::ui_overlays::{show_error, show_file_error, show_long_notice, show_notice, show_trash_notice, show_undo};
+use crate::ui_overlays::{
+    show_error,
+    show_file_error,
+    show_long_notice,
+    show_notice,
+    show_trash_notice,
+    show_undo,
+};
 /// Imports the model builder and the state accessors of the screen.
-use crate::ui_screen::{model_of, read_screen, read_state, write_screen};
+use crate::ui_screen::{
+    model_of,
+    read_screen,
+    read_state,
+    write_screen,
+};
 /// Imports the page scope lookup.
 use crate::ui_screen_view::selected_page_scope;
 /// Imports the window and the generated menu row type.
-use crate::{AppWindow, TrackMenuItem};
+use crate::{
+    AppWindow,
+    TrackMenuItem,
+};
 
 /// What:
 /// `menu_dismissed` clears the menu highlight when the menu closes without an action.
@@ -65,7 +95,10 @@ fn menu_dismissed() {
 /// ```ts
 /// function wireMenu(app: AppWindow, engine: Engine): void { ... };
 /// ```
-pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
+pub(crate) fn wire(
+    app: &AppWindow,
+    engine: &Rc<Engine>,
+) {
     wire_request(app);
     let select_weak = app.as_weak();
     let select_engine = engine.clone();
@@ -102,7 +135,10 @@ pub(crate) fn wire_request(app: &AppWindow) {
 /// Why:
 /// the details row shows the file size,
 /// which is read from disk when the menu opens.
-fn fill_menu(window: &AppWindow, index: Option<usize>) {
+fn fill_menu(
+    window: &AppWindow,
+    index: Option<usize>,
+) {
     {
         let mut state = write_screen();
         state.menu_index = index;
@@ -160,11 +196,17 @@ fn fill_menu(window: &AppWindow, index: Option<usize>) {
 pub(crate) trait FileEffects {
     /// What:
     /// `copy_text` writes text to the clipboard.
-    fn copy_text(&self, text: &str) -> Result<(), FileActionError>;
+    fn copy_text(
+        &self,
+        text: &str,
+    ) -> Result<(), FileActionError>;
 
     /// What:
     /// `show_in_file_manager` opens the file manager on a track's folder.
-    fn show_in_file_manager(&self, path: &Path) -> Result<(), FileActionError>;
+    fn show_in_file_manager(
+        &self,
+        path: &Path,
+    ) -> Result<(), FileActionError>;
 }
 
 /// What:
@@ -177,13 +219,19 @@ struct SystemFileEffects;
 impl FileEffects for SystemFileEffects {
     /// What:
     /// `copy_text` writes to the system clipboard.
-    fn copy_text(&self, text: &str) -> Result<(), FileActionError> {
+    fn copy_text(
+        &self,
+        text: &str,
+    ) -> Result<(), FileActionError> {
         return copy_text(text);
     }
 
     /// What:
     /// `show_in_file_manager` starts the platform file manager.
-    fn show_in_file_manager(&self, path: &Path) -> Result<(), FileActionError> {
+    fn show_in_file_manager(
+        &self,
+        path: &Path,
+    ) -> Result<(), FileActionError> {
         return show_in_file_manager(path);
     }
 }
@@ -194,7 +242,11 @@ impl FileEffects for SystemFileEffects {
 /// Why:
 /// the target is read from the state at selection time,
 /// so the action uses the row the user saw.
-pub(crate) fn run_action(window: &AppWindow, host: &dyn Host, action: TrackMenuAction) {
+pub(crate) fn run_action(
+    window: &AppWindow,
+    host: &dyn Host,
+    action: TrackMenuAction,
+) {
     run_action_with(window, host, &SystemFileEffects, action);
 }
 
@@ -206,7 +258,12 @@ pub(crate) fn run_action(window: &AppWindow, host: &dyn Host, action: TrackMenuA
 /// show) and an
 /// error for the ones that failed,
 /// and a test checks that with effects that answer at once.
-pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn FileEffects, action: TrackMenuAction) {
+pub(crate) fn run_action_with(
+    window: &AppWindow,
+    host: &dyn Host,
+    effects: &dyn FileEffects,
+    action: TrackMenuAction,
+) {
     let target = read_screen().menu_target();
     let Some((index, name, path)) = target else {
         show_error(window, "The track is no longer in the library.");
@@ -240,7 +297,11 @@ pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn
 /// and the keyboard shortcut (Alt+Enter)
 /// shows the same facts with the folder as a message,
 /// so the shortcut has a visible effect.
-fn show_details(window: &AppWindow, name: &str, path: &Path) {
+fn show_details(
+    window: &AppWindow,
+    name: &str,
+    path: &Path,
+) {
     let size = match std::fs::metadata(path) {
         Ok(meta) => Some(human_size(meta.len())),
         Err(_error) => None,
@@ -260,7 +321,11 @@ fn show_details(window: &AppWindow, name: &str, path: &Path) {
 /// D8 deletes immediately;
 /// Undo restores from the OS trash,
 /// and macOS offers no Undo because the trash crate cannot restore there.
-fn move_track_to_trash(window: &AppWindow, name: &str, path: &Path) {
+fn move_track_to_trash(
+    window: &AppWindow,
+    name: &str,
+    path: &Path,
+) {
     match move_to_trash(path) {
         Ok(()) => {
             let message = format!("Moved {} to the trash", file_name_of(name));
@@ -280,10 +345,15 @@ fn move_track_to_trash(window: &AppWindow, name: &str, path: &Path) {
 /// Android's shuffle-from-here sets the page scope,
 /// then the shuffle mode,
 /// then plays the index (D7).
-fn shuffle_from_here(host: &dyn Host, index: usize) {
+fn shuffle_from_here(
+    host: &dyn Host,
+    index: usize,
+) {
     let scope = read_state(selected_page_scope);
     host.send(Command::SetPageScope(scope));
-    host.send(Command::SetPlaybackMode(music_player::command::PlaybackMode::ShufflePage));
+    host.send(Command::SetPlaybackMode(
+        music_player::command::PlaybackMode::ShufflePage,
+    ));
     host.send(Command::SelectIndex(index));
     host.send(Command::Play);
 }

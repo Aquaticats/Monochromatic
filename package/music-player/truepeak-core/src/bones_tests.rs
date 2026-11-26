@@ -9,18 +9,22 @@ fn crc8_bitwise(bytes: &[u8]) -> u8 {
     return bytes.iter().fold(0u8, |mut crc, &byte| {
         crc ^= byte;
         for _ in 0..8 {
-            crc = if crc & 0x80 != 0 { (crc << 1) ^ 0x07 } else { crc << 1 };
+            crc = if crc & 0x80 != 0 {
+                (crc << 1) ^ 0x07
+            } else {
+                crc << 1
+            };
         }
-        return crc
-    })
+        return crc;
+    });
 }
 
 // The standard CRC-8 check vector: "123456789" hashes to 0xF4 under poly 0x07 init 0.
 #[test]
 fn crc8_table_matches_check_vector() {
-    let crc = b"123456789"
-        .iter()
-        .fold(0u8, |accumulator, &byte| return CRC8_TABLE[usize::from(accumulator ^ byte)]);
+    let crc = b"123456789".iter().fold(0u8, |accumulator, &byte| {
+        return CRC8_TABLE[usize::from(accumulator ^ byte)];
+    });
     assert_eq!(crc, 0xf4);
     assert_eq!(crc8_bitwise(b"123456789"), 0xf4);
 }
@@ -62,7 +66,7 @@ fn synthetic_flac(payload_sizes: &[usize]) -> Vec<u8> {
         // Payload bytes carry no 0xff so the walk cannot false-sync inside them.
         buf.extend(std::iter::repeat_n(0x00, *payload));
     }
-    return buf
+    return buf;
 }
 
 // The walk confirms every synthetic frame and measures their byte spans.
@@ -71,7 +75,8 @@ fn walk_confirms_frames_and_byte_spans() {
     let buf = synthetic_flac(&[300, 3000, 300]);
     let (info, first_frame_offset) = parse_metadata(&buf).expect("metadata parses");
     assert_eq!(info.sample_rate, 44100);
-    let (frames, duration_secs) = walk_frames(&buf, first_frame_offset, &info).expect("frames walk");
+    let (frames, duration_secs) =
+        walk_frames(&buf, first_frame_offset, &info).expect("frames walk");
     assert_eq!(frames.len(), 3);
     // Header is 5 bytes plus the CRC, so each span is payload + 6.
     assert_eq!(frames[0].byte_count, 306);

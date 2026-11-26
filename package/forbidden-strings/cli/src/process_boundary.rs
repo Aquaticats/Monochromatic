@@ -39,7 +39,9 @@ pub(super) fn run(operation: fn() -> Result<i32>) -> ExitCode {
         }
         Err(_payload) => {
             // Never format the payload: rule text and candidate bytes may be embedded in it.
-            eprintln!("forbidden-strings: scanner operation panicked; no complete scan result is available.");
+            eprintln!(
+                "forbidden-strings: scanner operation panicked; no complete scan result is available."
+            );
             return ExitCode::from(2);
         }
     }

@@ -29,7 +29,10 @@
 /// ```ts
 /// import type { JsoncNumberError, JsoncParseError } from './error';
 /// ```
-use crate::error::{JsoncNumberError, JsoncParseError};
+use crate::error::{
+    JsoncNumberError,
+    JsoncParseError,
+};
 /// What:
 ///      Import the exact mathematical identity used by number values.
 /// Why:
@@ -50,7 +53,10 @@ use crate::number::JsoncNumberIdentity;
 /// ```ts
 /// import { decodeQuoted, encodeQuoted } from './textUnits';
 /// ```
-use crate::text_units::{decode_quoted, encode_quoted};
+use crate::text_units::{
+    decode_quoted,
+    encode_quoted,
+};
 
 /// What:
 ///      How one attached comment was written in the source.
@@ -323,7 +329,10 @@ impl JsoncValue {
         // ```ts
         // return this.kind.kind === 'record' ? this.kind.entries : undefined;
         // ```
-        if let JsoncKind::Record { entries } = &self.kind {
+        if let JsoncKind::Record {
+            entries,
+        } = &self.kind
+        {
             return Some(entries.as_slice());
         }
         return None;
@@ -339,7 +348,10 @@ impl JsoncValue {
     /// elements(): JsoncValue[] | undefined;
     /// ```
     pub fn elements(&self) -> Option<&[JsoncValue]> {
-        if let JsoncKind::Array { elements } = &self.kind {
+        if let JsoncKind::Array {
+            elements,
+        } = &self.kind
+        {
             return Some(elements.as_slice());
         }
         return None;
@@ -369,7 +381,10 @@ impl JsoncValue {
     /// static null(): JsoncValue { return { kind: { kind: 'null' } }; }
     /// ```
     pub fn null() -> JsoncValue {
-        return JsoncValue { kind: JsoncKind::Null, comment: None };
+        return JsoncValue {
+            kind: JsoncKind::Null,
+            comment: None,
+        };
     }
 
     /// What:
@@ -382,7 +397,12 @@ impl JsoncValue {
     /// static boolean(value: boolean): JsoncValue;
     /// ```
     pub fn boolean(value: bool) -> JsoncValue {
-        return JsoncValue { kind: JsoncKind::Boolean { value }, comment: None };
+        return JsoncValue {
+            kind: JsoncKind::Boolean {
+                value,
+            },
+            comment: None,
+        };
     }
 
     /// What:
@@ -401,7 +421,10 @@ impl JsoncValue {
     pub fn text_from_token(raw: &str) -> Result<JsoncValue, JsoncParseError> {
         let units = decode_quoted(raw)?;
         return Ok(JsoncValue {
-            kind: JsoncKind::Text { units, raw: String::from(raw) },
+            kind: JsoncKind::Text {
+                units,
+                raw: String::from(raw),
+            },
             comment: None,
         });
     }
@@ -419,7 +442,13 @@ impl JsoncValue {
     /// ```
     pub fn text_from_units(units: Vec<u16>) -> JsoncValue {
         let raw = encode_quoted(&units);
-        return JsoncValue { kind: JsoncKind::Text { units, raw }, comment: None };
+        return JsoncValue {
+            kind: JsoncKind::Text {
+                units,
+                raw,
+            },
+            comment: None,
+        };
     }
 
     /// What:
@@ -439,7 +468,10 @@ impl JsoncValue {
     pub fn number_from_token(token: &str) -> Result<JsoncValue, JsoncNumberError> {
         let identity = JsoncNumberIdentity::from_token(token)?;
         return Ok(JsoncValue {
-            kind: JsoncKind::Number { raw: String::from(token), identity },
+            kind: JsoncKind::Number {
+                raw: String::from(token),
+                identity,
+            },
             comment: None,
         });
     }
@@ -456,7 +488,12 @@ impl JsoncValue {
     /// static array(elements: JsoncValue[]): JsoncValue;
     /// ```
     pub fn array(elements: Vec<JsoncValue>) -> JsoncValue {
-        return JsoncValue { kind: JsoncKind::Array { elements }, comment: None };
+        return JsoncValue {
+            kind: JsoncKind::Array {
+                elements,
+            },
+            comment: None,
+        };
     }
 
     /// What:
@@ -470,7 +507,12 @@ impl JsoncValue {
     /// static record(entries: JsoncEntry[]): JsoncValue;
     /// ```
     pub fn record(entries: Vec<JsoncEntry>) -> JsoncValue {
-        return JsoncValue { kind: JsoncKind::Record { entries }, comment: None };
+        return JsoncValue {
+            kind: JsoncKind::Record {
+                entries,
+            },
+            comment: None,
+        };
     }
 
     /// What:
@@ -485,7 +527,11 @@ impl JsoncValue {
     /// textUnits(): number[] | undefined;
     /// ```
     pub fn text_units(&self) -> Option<&[u16]> {
-        if let JsoncKind::Text { units, .. } = &self.kind {
+        if let JsoncKind::Text {
+            units,
+            ..
+        } = &self.kind
+        {
             return Some(units.as_slice());
         }
         return None;
@@ -502,7 +548,11 @@ impl JsoncValue {
     /// numberToken(): string | undefined;
     /// ```
     pub fn number_token(&self) -> Option<&str> {
-        if let JsoncKind::Number { raw, .. } = &self.kind {
+        if let JsoncKind::Number {
+            raw,
+            ..
+        } = &self.kind
+        {
             return Some(raw.as_str());
         }
         return None;
@@ -537,7 +587,11 @@ impl JsoncKey {
     /// Returns the scanner's failure when the token is not one complete quoted JSON string.
     pub fn from_token(raw: &str) -> Result<JsoncKey, JsoncParseError> {
         let units = decode_quoted(raw)?;
-        return Ok(JsoncKey { units, raw: String::from(raw), comment: None });
+        return Ok(JsoncKey {
+            units,
+            raw: String::from(raw),
+            comment: None,
+        });
     }
 
     /// What:
@@ -554,6 +608,10 @@ impl JsoncKey {
     pub fn from_text(text: &str) -> JsoncKey {
         let units: Vec<u16> = text.encode_utf16().collect();
         let raw = encode_quoted(&units);
-        return JsoncKey { units, raw, comment: None };
+        return JsoncKey {
+            units,
+            raw,
+            comment: None,
+        };
     }
 }

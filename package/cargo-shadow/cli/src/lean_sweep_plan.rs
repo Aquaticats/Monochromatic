@@ -17,9 +17,15 @@
 //! ```
 
 /// The decision types.
-use crate::lean_unit_reader::{ProfileUnits, Unit};
+use crate::lean_unit_reader::{
+    ProfileUnits,
+    Unit,
+};
 /// Imports the names this file uses from `crate::lean_unit_removal`.
-use crate::lean_unit_removal::{Planner, Removals};
+use crate::lean_unit_removal::{
+    Planner,
+    Removals,
+};
 
 /// The sweep with its grace period.
 #[derive(Clone, Copy, Debug)]
@@ -51,9 +57,15 @@ fn newest_unit(units: &[Unit]) -> Option<&Unit> {
 /// Removes the units an older compiler built and the incremental directories older than the newest compiler's first unit.
 impl Planner for OlderCompilerSweep {
     /// Decides which units and incremental directories the sweep removes.
-    fn plan(&self, found: &ProfileUnits, now: i64) -> Removals {
+    fn plan(
+        &self,
+        found: &ProfileUnits,
+        now: i64,
+    ) -> Removals {
         let mut removals: Removals = Removals::default();
-        let Some(newest) = newest_unit(&found.units) else { return removals };
+        let Some(newest) = newest_unit(&found.units) else {
+            return removals;
+        };
         let mut other_compiler: bool = false;
         let mut first_of_newest: i64 = newest.invoked;
         for unit in &found.units {
@@ -78,7 +90,10 @@ impl Planner for OlderCompilerSweep {
                 removals.incremental.push(directory.clone());
             }
         }
-        removals.reason = format!("built by a compiler older than the newest ({}) and invoked before the grace period", newest.compiler);
+        removals.reason = format!(
+            "built by a compiler older than the newest ({}) and invoked before the grace period",
+            newest.compiler
+        );
         return removals;
     }
 }

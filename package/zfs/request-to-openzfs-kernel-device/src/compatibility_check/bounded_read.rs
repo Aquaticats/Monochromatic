@@ -27,17 +27,21 @@
 //! ```
 
 /// The step vocabulary and the refusal builders.
-use super::refusal::{Refusal, Step, refusal_at};
-/// The read trait the bounded loop uses.
-use std::io::Read;
+use super::refusal::{
+    Refusal,
+    Step,
+    refusal_at,
+};
 /// The open options that carry the flags.
 use std::fs::OpenOptions;
-/// The borrowed path type of one read.
-use std::path::Path;
+/// The read trait the bounded loop uses.
+use std::io::Read;
 /// The one open flag set:
 /// no link below the path,
 /// no descriptor inherited.
 use std::os::unix::fs::OpenOptionsExt;
+/// The borrowed path type of one read.
+use std::path::Path;
 
 /// The most bytes one identity file may hold:
 /// the sysfs page it is created as.
@@ -106,16 +110,19 @@ pub fn read_bounded(request: &ReadRequest<'_>) -> Result<Vec<u8>, Refusal> {
 /// # Errors
 /// A refusal naming the step,
 /// the path and the bound the file passed.
-fn read_to_the_end(file: &mut std::fs::File, request: &ReadRequest<'_>) -> Result<Vec<u8>, Refusal> {
+fn read_to_the_end(
+    file: &mut std::fs::File,
+    request: &ReadRequest<'_>,
+) -> Result<Vec<u8>, Refusal> {
     let mut bytes: Vec<u8> = Vec::<u8>::new();
     let mut limited = file.take(request.bound.saturating_add(1));
     let read: u64 = limited.read_to_end(&mut bytes).map_err(|error| {
-            return refusal_at(
-                request.step,
-                request.path,
-                format!("it could not be read: {error}"),
-            );
-        })? as u64;
+        return refusal_at(
+            request.step,
+            request.path,
+            format!("it could not be read: {error}"),
+        );
+    })? as u64;
     if read > request.bound {
         return Err(refusal_at(
             request.step,

@@ -11,7 +11,15 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, fixed, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    VirtualSource,
+    fixed,
+    inputs,
+};
 /// Typed refusals carry the explanation and authored anchor under test.
 use crate::processors::ProcessorError;
 

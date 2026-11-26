@@ -34,7 +34,11 @@ pub struct MarkDecision {
 ///
 /// The decision reads only the scan and the attached paths,
 /// so it can be tested without a cgroup filesystem and without the kernel's mark.
-pub fn decide_marks(attached: &[PathBuf], scan: &ApplicationScan, reported: &[PathBuf]) -> MarkDecision {
+pub fn decide_marks(
+    attached: &[PathBuf],
+    scan: &ApplicationScan,
+    reported: &[PathBuf],
+) -> MarkDecision {
     let mut decision = MarkDecision::default();
     for path in attached {
         if scan.targets.contains(path) {
@@ -55,7 +59,10 @@ pub fn decide_marks(attached: &[PathBuf], scan: &ApplicationScan, reported: &[Pa
 /// The reports that still apply:
 /// a cgroup the scan selects again is no longer a name without its program,
 /// so a later loss of the application is reported again instead of staying silent.
-pub fn reports_that_still_apply(reported: &[PathBuf], scan: &ApplicationScan) -> Vec<PathBuf> {
+pub fn reports_that_still_apply(
+    reported: &[PathBuf],
+    scan: &ApplicationScan,
+) -> Vec<PathBuf> {
     let mut still: Vec<PathBuf> = Vec::new();
     for cgroup in reported {
         if scan.without_application.contains(cgroup) {

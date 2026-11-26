@@ -1,0 +1,7 @@
+logger file sink: No ancestor node_modules directory was found; using fallback "<home>/.local/state/monochromatic/log"
+/root/zfs-2.4.4.tar.gz: OK
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+ 40 32.9M   40 13.3M    0     0  19.6M      0  0:00:01 --:--:--  0:00:01 19.6M100 32.9M  100 32.9M    0     0  28.8M      0  0:00:01  0:00:01 --:--:-- 42.6M

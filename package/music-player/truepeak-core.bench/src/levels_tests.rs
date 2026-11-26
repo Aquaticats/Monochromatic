@@ -21,7 +21,11 @@ const QUIET_PEAK: f64 = 0.05;
 ///  so the guard changes nothing for real measurements.
 #[test]
 fn a_positive_peak_converts_to_the_shared_dbtp() {
-    assert_eq!(peak_dbtp_or_silence(FULL_SCALE), 0.0, "full scale is 0 dBTP");
+    assert_eq!(
+        peak_dbtp_or_silence(FULL_SCALE),
+        0.0,
+        "full scale is 0 dBTP"
+    );
     for peak in [HALF_SCALE, QUIET_PEAK] {
         assert_eq!(peak_dbtp_or_silence(peak), peak_dbtp(peak), "peak {peak}");
     }
@@ -49,5 +53,8 @@ fn the_conversion_keeps_the_order_of_the_peaks_it_converts() {
     let half = peak_dbtp_or_silence(HALF_SCALE);
     let full = peak_dbtp_or_silence(FULL_SCALE);
     assert!(quiet < half && half < full, "{quiet} < {half} < {full}");
-    assert!(peak_dbtp_or_silence(SILENCE) < quiet, "silence is the floor");
+    assert!(
+        peak_dbtp_or_silence(SILENCE) < quiet,
+        "silence is the floor"
+    );
 }

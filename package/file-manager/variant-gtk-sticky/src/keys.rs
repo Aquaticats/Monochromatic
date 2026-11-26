@@ -15,15 +15,15 @@
 use std::rc::Rc;
 
 /// What:
-///  imports the event-controller extension trait.
-/// Why:
-///  the key controller needs capture-phase propagation.
-use gtk4::prelude::EventControllerExt;
-/// What:
 ///  imports the key-symbol type.
 /// Why:
 ///  the handler matches Left/Right/Backspace.
 use gtk4::gdk::Key;
+/// What:
+///  imports the event-controller extension trait.
+/// Why:
+///  the key controller needs capture-phase propagation.
+use gtk4::prelude::EventControllerExt;
 /// What:
 ///  imports the key event controller,
 ///  its propagation phase,
@@ -31,7 +31,11 @@ use gtk4::gdk::Key;
 /// Why:
 ///  a capture-phase `EventControllerKey` intercepts navigation keys and returns a
 ///      `glib::Propagation`.
-use gtk4::{EventControllerKey, PropagationPhase, glib};
+use gtk4::{
+    EventControllerKey,
+    PropagationPhase,
+    glib,
+};
 
 /// What:
 ///  imports the strip's shared inner state and its focus/close entry points.
@@ -39,7 +43,11 @@ use gtk4::{EventControllerKey, PropagationPhase, glib};
 ///  navigation reads the pane model,
 ///  asks the layout adapter to move focus,
 ///  and closes panes.
-use crate::strip::{StripInner, close_active, focus_pane};
+use crate::strip::{
+    StripInner,
+    close_active,
+    focus_pane,
+};
 
 /// What:
 ///  install a capture-phase key controller on the scroller:
@@ -62,7 +70,7 @@ pub(crate) fn install_strip_keys(inner: &Rc<StripInner>) {
             Key::Right => return focus_relative_column(&upgraded, 1),
             Key::BackSpace => {
                 close_active(&upgraded);
-                return glib::Propagation::Stop
+                return glib::Propagation::Stop;
             }
             _ => return glib::Propagation::Proceed,
         }
@@ -76,7 +84,10 @@ pub(crate) fn install_strip_keys(inner: &Rc<StripInner>) {
 /// Why:
 ///  Left/Right walk the lineage;
 ///  an out-of-range move is ignored and the key passes through.
-fn focus_relative_column(inner: &Rc<StripInner>, delta: i32) -> glib::Propagation {
+fn focus_relative_column(
+    inner: &Rc<StripInner>,
+    delta: i32,
+) -> glib::Propagation {
     let target = inner.layout.focused_column() as i32 + delta;
     let columns = inner.state.borrow().column_count() as i32;
     if target < 0 || target >= columns {
@@ -94,5 +105,5 @@ fn focus_relative_column(inner: &Rc<StripInner>, delta: i32) -> glib::Propagatio
     }
     inner.layout.set_focused_column(target_column);
     focus_pane(inner, id);
-    return glib::Propagation::Stop
+    return glib::Propagation::Stop;
 }

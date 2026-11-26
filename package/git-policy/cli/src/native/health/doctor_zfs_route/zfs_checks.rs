@@ -426,11 +426,11 @@ fn property_failure(role: &DatasetRole, facts: &CloneObjectFacts) -> Option<(Str
 /// set-user-ID or device nodes in a mount of it.
 fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     if facts.mountpoint.text() != Some(LEGACY_MOUNTPOINT) {
-        return Some((String::from("mountpoint"), format!("`{}`: `mountpoint` is {}, and the clone container must be `{LEGACY_MOUNTPOINT}`", facts.name, facts.mountpoint.describe("mountpoint"))));
+        return Some((String::from("mountpoint"), format!("`{}`: {}, and the clone container must be `{LEGACY_MOUNTPOINT}`", facts.name, facts.mountpoint.describe("mountpoint"))));
     }
     let canmount: PropertyValue = value_of(&facts.properties, CANMOUNT_PROPERTY);
     if canmount.number() != Some(CANMOUNT_OFF) {
-        return Some((String::from(CANMOUNT_PROPERTY), format!("`{}`: {CANMOUNT_PROPERTY} is {} and the container must be off so no clone mounts automatically", facts.name, canmount.describe(CANMOUNT_PROPERTY))));
+        return Some((String::from(CANMOUNT_PROPERTY), format!("`{}`: {}, and the container must be off so no clone mounts automatically", facts.name, canmount.describe(CANMOUNT_PROPERTY))));
     }
     return flag_failure(facts);
 }
@@ -439,7 +439,7 @@ fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
 /// set-user-ID or device nodes in its mount.
 fn clone_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     if facts.mountpoint.text() != Some(LEGACY_MOUNTPOINT) {
-        return Some((String::from("mountpoint"), format!("`{}`: `mountpoint` is {} and a clone must inherit `{LEGACY_MOUNTPOINT}`", facts.name, facts.mountpoint.describe("mountpoint"))));
+        return Some((String::from("mountpoint"), format!("`{}`: {}, and a clone must inherit `{LEGACY_MOUNTPOINT}`", facts.name, facts.mountpoint.describe("mountpoint"))));
     }
     return flag_failure(facts);
 }
@@ -448,7 +448,7 @@ fn clone_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
 fn flag_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     for (property, found) in [("setuid", &facts.setuid), ("devices", &facts.devices)] {
         if found.number() != Some(FLAG_OFF) {
-            return Some((String::from(property), format!("`{}`: `{property}` is {} and a mount of this dataset must be without it", facts.name, found.describe(property))));
+            return Some((String::from(property), format!("`{}`: {}, and `{property}` must be off for a mount of this dataset", facts.name, found.describe(property))));
         }
     }
     return None;

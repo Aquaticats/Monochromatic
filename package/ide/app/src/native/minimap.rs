@@ -33,7 +33,13 @@ pub(super) use state::MinimapState;
 mod pace;
 /// The pure decision and its periods are held against every kind of change by the tests.
 #[cfg(test)]
-pub(super) use pace::{DEBOUNCE, Plan, SLIDE, THROTTLE, plan};
+pub(super) use pace::{
+    DEBOUNCE,
+    Plan,
+    SLIDE,
+    THROTTLE,
+    plan,
+};
 
 /// Posting a request to the worker when what the picture is valid for changes.
 mod request;
@@ -44,13 +50,19 @@ pub(super) use request::note;
 mod picture;
 /// The tests hand finished pictures to the window directly.
 #[cfg(test)]
-pub(super) use picture::{PICTURE_FRAMES_ASKED, apply};
+pub(super) use picture::{
+    PICTURE_FRAMES_ASKED,
+    apply,
+};
 
 /// A press on the minimap,
 ///  mapped again through the layout that follows it while nothing else has moved the view.
 mod aim;
 /// What the view's placement and the vertical mapping ask of a remembered press.
-pub(super) use aim::{aim_again, forget_unless};
+pub(super) use aim::{
+    aim_again,
+    forget_unless,
+};
 
 /// The minimap as a scroll control:
 ///  press,

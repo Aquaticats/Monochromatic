@@ -17,7 +17,11 @@
 /// Imports the corpus track record.
 use crate::corpus::Track;
 /// Imports the per-candidate evaluation and its report.
-use crate::evaluate::{Candidate, Report, evaluate};
+use crate::evaluate::{
+    Candidate,
+    Report,
+    evaluate,
+};
 
 /// One scored point in the search,
 ///  kept for ranking and reporting.
@@ -64,7 +68,7 @@ pub fn sweep(
             });
         }
     }
-    return scored
+    return scored;
 }
 
 /// Rank scored candidates by the decided objective,
@@ -81,7 +85,10 @@ pub fn sweep(
 ///  this encodes
 /// "loudest-safe,
 ///  then simplest" directly.
-pub fn rank(mut scored: Vec<Scored>, target_secs: f64) -> Vec<Scored> {
+pub fn rank(
+    mut scored: Vec<Scored>,
+    target_secs: f64,
+) -> Vec<Scored> {
     // Drop over-budget points: they cannot ship.
     scored.retain(|point| return point.within_budget);
     // Order by the objective; floats are compared through total_cmp to stay total.
@@ -98,9 +105,9 @@ pub fn rank(mut scored: Vec<Scored>, target_secs: f64) -> Vec<Scored> {
         let budget = (target_secs - left.report.decoded_secs)
             .abs()
             .total_cmp(&(target_secs - right.report.decoded_secs).abs());
-        return quiet.then(violators).then(budget)
+        return quiet.then(violators).then(budget);
     });
-    return scored
+    return scored;
 }
 
 /// What:

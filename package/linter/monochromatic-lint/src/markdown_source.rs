@@ -17,11 +17,21 @@ use crate::markdown_positions::MarkdownPositions;
 /// Import the validated structural walk.
 use crate::markdown_traversal::traversal;
 /// Import the approved parser and arena types.
-use satteri_arena::{Arena, ArenaNode, Mdast};
+use satteri_arena::{
+    Arena,
+    ArenaNode,
+    Mdast,
+};
 /// Import the node kind enum and string decoder used by the parsed syntax tree.
-use satteri_ast::mdast::{MdastNodeType, decode_string_ref_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_string_ref_data,
+};
 /// Import the CommonMark parser and its options that build the syntax tree.
-use satteri_pulldown_cmark::{Options, parse};
+use satteri_pulldown_cmark::{
+    Options,
+    parse,
+};
 /// Import panic containment and the common diagnostic span.
 use std::panic::catch_unwind;
 
@@ -47,7 +57,10 @@ pub struct MarkdownError {
 impl std::fmt::Display for MarkdownError {
     /// Emit only the stored explanation;
     ///  the caller owns filename and position rendering.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.message.as_str());
     }
 }
@@ -175,33 +188,51 @@ impl MarkdownSource {
     }
 
     /// Read one parser-owned node by a validated id.
-    pub fn node(&self, id: u32) -> &ArenaNode {
+    pub fn node(
+        &self,
+        id: u32,
+    ) -> &ArenaNode {
         return self.arena.get_node(id);
     }
 
     /// Decode a kind already checked during construction.
-    pub fn kind(&self, id: u32) -> MdastNodeType {
+    pub fn kind(
+        &self,
+        id: u32,
+    ) -> MdastNodeType {
         return MdastNodeType::from_u8(self.node(id).node_type)
             .expect("construction validates node kinds");
     }
 
     /// Borrow direct children without flattening structural relationships.
-    pub fn children(&self, id: u32) -> &[u32] {
+    pub fn children(
+        &self,
+        id: u32,
+    ) -> &[u32] {
         return self.arena.get_children(id);
     }
 
     /// Borrow type-specific data for the node's matching typed decoder.
-    pub fn data(&self, id: u32) -> &[u8] {
+    pub fn data(
+        &self,
+        id: u32,
+    ) -> &[u8] {
         return self.arena.get_type_data(id);
     }
 
     /// Read decoded parser text by its validated arena reference.
-    pub fn text(&self, reference: satteri_arena::StringRef) -> &str {
+    pub fn text(
+        &self,
+        reference: satteri_arena::StringRef,
+    ) -> &str {
         return self.arena.get_str(reference);
     }
 
     /// Return the original-source half-open byte range.
-    pub fn offsets(&self, id: u32) -> (usize, usize) {
+    pub fn offsets(
+        &self,
+        id: u32,
+    ) -> (usize, usize) {
         let node = self.node(id);
         return (
             node.start_offset as usize + self.bom,
@@ -210,25 +241,38 @@ impl MarkdownSource {
     }
 
     /// Borrow exact authored spelling rather than the parser's normalized text.
-    pub fn slice(&self, id: u32) -> &str {
+    pub fn slice(
+        &self,
+        id: u32,
+    ) -> &str {
         let (start, end) = self.offsets(id);
         return &self.source[start..end];
     }
 
     /// Resolve original-source byte positions with Markdown's UTF-16 columns.
-    pub fn span(&self, offset: usize, length: usize) -> Span {
+    pub fn span(
+        &self,
+        offset: usize,
+        length: usize,
+    ) -> Span {
         return self.positions.span(offset, length);
     }
 
     /// Return a full-node diagnostic range with original-source addressing.
-    pub fn node_span(&self, id: u32) -> Span {
+    pub fn node_span(
+        &self,
+        id: u32,
+    ) -> Span {
         let (start, end) = self.offsets(id);
         return self.span(start, end - start);
     }
 
     /// Read the reachable parent,
     ///  with root absence represented explicitly.
-    pub fn parent(&self, id: u32) -> Option<u32> {
+    pub fn parent(
+        &self,
+        id: u32,
+    ) -> Option<u32> {
         let parent = self.parents[id as usize];
         if parent == u32::MAX {
             return None;
@@ -260,7 +304,10 @@ impl MarkdownSource {
     /// ```ts
     /// ancestors(id: number): number[] // throws MarkdownError when the parent index has a cycle
     /// ```
-    pub fn ancestors(&self, id: u32) -> Result<Vec<u32>, MarkdownError> {
+    pub fn ancestors(
+        &self,
+        id: u32,
+    ) -> Result<Vec<u32>, MarkdownError> {
         // Owned list the caller receives; it grows by one id per step up the tree.
         let mut chain: Vec<u32> = Vec::new();
         // `Option<u32>` is `Some(id)` for a parent or `None` above the root, like `number | undefined`.
@@ -297,7 +344,11 @@ impl MarkdownSource {
     /// ```ts
     /// hasAncestor(id: number, kind: MdastNodeType): boolean // throws MarkdownError on a cycle
     /// ```
-    pub fn has_ancestor(&self, id: u32, kind: MdastNodeType) -> Result<bool, MarkdownError> {
+    pub fn has_ancestor(
+        &self,
+        id: u32,
+        kind: MdastNodeType,
+    ) -> Result<bool, MarkdownError> {
         // The `?` returns the walk's error to the caller at once, like rethrowing; otherwise it unwraps the list.
         for parent in self.ancestors(id)? {
             if self.kind(parent) == kind {
@@ -326,7 +377,10 @@ impl MarkdownSource {
     /// ```ts
     /// subtree(id: number): number[] // throws MarkdownError when the child index has a cycle
     /// ```
-    pub fn subtree(&self, id: u32) -> Result<Vec<u32>, MarkdownError> {
+    pub fn subtree(
+        &self,
+        id: u32,
+    ) -> Result<Vec<u32>, MarkdownError> {
         // Owned list the caller receives; it grows by one id per visited node.
         let mut visited: Vec<u32> = Vec::new();
         // A work stack of nodes still to visit, used in place of recursion.
@@ -364,7 +418,10 @@ impl MarkdownSource {
     /// ```ts
     /// textContent(id: number): string // throws MarkdownError on a cycle
     /// ```
-    pub fn text_content(&self, id: u32) -> Result<String, MarkdownError> {
+    pub fn text_content(
+        &self,
+        id: u32,
+    ) -> Result<String, MarkdownError> {
         let mut output: String = String::new();
         for current in self.subtree(id)? {
             let kind: MdastNodeType = self.kind(current);
@@ -389,7 +446,10 @@ impl MarkdownSource {
     /// ```ts
     /// textNodes(id: number): number[] // throws MarkdownError on a cycle
     /// ```
-    pub fn text_nodes(&self, id: u32) -> Result<Vec<u32>, MarkdownError> {
+    pub fn text_nodes(
+        &self,
+        id: u32,
+    ) -> Result<Vec<u32>, MarkdownError> {
         let mut output: Vec<u32> = Vec::new();
         for current in self.subtree(id)? {
             if self.kind(current) == MdastNodeType::Text {
@@ -415,7 +475,7 @@ impl MarkdownSource {
 /// ```
 #[cfg(test)]
 pub(crate) fn paragraph_placements(
-    context: &MarkdownSource,
+    context: &MarkdownSource
 ) -> Result<Vec<(Vec<MdastNodeType>, Vec<String>)>, MarkdownError> {
     let mut found: Vec<(Vec<MdastNodeType>, Vec<String>)> = Vec::new();
     for id in context.all_nodes() {
@@ -449,7 +509,7 @@ pub(crate) fn paragraph_placements(
 /// ```
 #[cfg(test)]
 pub(crate) fn block_containers(
-    context: &MarkdownSource,
+    context: &MarkdownSource
 ) -> Result<Vec<(usize, MdastNodeType)>, MarkdownError> {
     let mut found: Vec<(usize, MdastNodeType)> = Vec::new();
     for id in context.all_nodes() {

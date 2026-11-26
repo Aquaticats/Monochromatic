@@ -2,16 +2,33 @@
 //!  never filesystem identities.
 
 /// The window model owns copied labels while native search retains the original paths.
-use crate::native::{AppWindow, ui::SearchEntry};
+use crate::native::{
+    AppWindow,
+    ui::SearchEntry,
+};
 /// Content line numbers and truncation state describe navigation and preview fidelity separately.
-use ide_app::search::{SearchHit, SearchKind, SearchResults};
+use ide_app::search::{
+    SearchHit,
+    SearchKind,
+    SearchResults,
+};
 /// Bounded immutable rows become one native model replacement per accepted reply.
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{
+    ModelRc,
+    SharedString,
+    VecModel,
+};
 /// Scope-relative display paths keep the searched directory visible without repeating its full prefix.
-use std::{path::Path, rc::Rc};
+use std::{
+    path::Path,
+    rc::Rc,
+};
 
 /// Preserve useful results from either stream and report each actual failure.
-pub(super) fn results(results: &SearchResults, content_only: bool) -> (Vec<SearchHit>, String) {
+pub(super) fn results(
+    results: &SearchResults,
+    content_only: bool,
+) -> (Vec<SearchHit>, String) {
     let mut hits = Vec::new();
     let mut messages = Vec::new();
     if !content_only {
@@ -36,7 +53,11 @@ pub(super) fn results(results: &SearchResults, content_only: bool) -> (Vec<Searc
 /// ```ts
 /// window.rows = hits.map(hit => present(hit, scope));
 /// ```
-pub(super) fn rows(window: &AppWindow, hits: &[SearchHit], scope: &Path) {
+pub(super) fn rows(
+    window: &AppWindow,
+    hits: &[SearchHit],
+    scope: &Path,
+) {
     let mut rows = Vec::with_capacity(hits.len());
     for hit in hits {
         let path = hit.path.strip_prefix(scope).unwrap_or(&hit.path);

@@ -13,7 +13,10 @@
 //!  the one the caller asked for.
 
 use super::*;
-use crate::nvlist::{NvData, NvList};
+use crate::nvlist::{
+    NvData,
+    NvList,
+};
 
 #[test]
 fn objset_stats_names_the_dataset_and_carries_no_input() {

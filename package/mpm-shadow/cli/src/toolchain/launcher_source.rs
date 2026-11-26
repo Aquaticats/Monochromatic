@@ -30,7 +30,10 @@ use std::ffi::OsString;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
@@ -69,7 +72,9 @@ const DELETED_SUFFIX: &str = " (deleted)";
 pub fn running_program() -> Result<PathBuf, ToolchainError> {
     return match std::env::current_exe() {
         Ok(found) => Ok(found),
-        Err(error) => Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
+        Err(error) => Err(ToolchainError::failure(format!(
+            "cannot find the running mpm-shadow to make a launcher: {error}"
+        ))),
     };
 }
 
@@ -86,7 +91,10 @@ pub fn running_program() -> Result<PathBuf, ToolchainError> {
 /// ```ts
 /// export function usableSource(path: string, procAvailable: boolean): string  // throws
 /// ```
-pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, ToolchainError> {
+pub fn usable_source(
+    path: PathBuf,
+    proc_available: bool,
+) -> Result<PathBuf, ToolchainError> {
     if path.exists() {
         return Ok(path);
     }
@@ -174,7 +182,10 @@ fn install_directory_above(program: &Path) -> Option<&Path> {
 /// ```ts
 /// function installBelowRoot(scope: Scope, program: string): string | undefined
 /// ```
-fn install_below_root(scope: &Scope, program: &Path) -> Option<PathBuf> {
+fn install_below_root(
+    scope: &Scope,
+    program: &Path,
+) -> Option<PathBuf> {
     let install: &Path = install_directory_above(program)?;
     let Ok(resolved_install) = fs::canonicalize(install) else {
         return None;
@@ -226,7 +237,10 @@ pub fn program_name(program: &Path) -> Option<OsString> {
 /// ```ts
 /// export function newestInstalledShadow(scope: Scope, running: string): string | undefined
 /// ```
-pub fn newest_installed_shadow(scope: &Scope, running: &Path) -> Option<PathBuf> {
+pub fn newest_installed_shadow(
+    scope: &Scope,
+    running: &Path,
+) -> Option<PathBuf> {
     let relative: PathBuf = install_below_root(scope, running)?;
     let name: OsString = program_name(running)?;
     let mut newest: Option<(String, PathBuf)> = None;
@@ -260,7 +274,11 @@ pub fn newest_installed_shadow(scope: &Scope, running: &Path) -> Option<PathBuf>
 /// ```ts
 /// export function launcherSource(scope: Scope, running: string, procAvailable: boolean): string  // throws
 /// ```
-pub fn launcher_source(scope: &Scope, running: PathBuf, proc_available: bool) -> Result<PathBuf, ToolchainError> {
+pub fn launcher_source(
+    scope: &Scope,
+    running: PathBuf,
+    proc_available: bool,
+) -> Result<PathBuf, ToolchainError> {
     if let Some(newest) = newest_installed_shadow(scope, &running) {
         return Ok(newest);
     }

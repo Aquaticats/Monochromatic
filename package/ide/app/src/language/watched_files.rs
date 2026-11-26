@@ -29,7 +29,10 @@
 //!  with the kind that matches its final state on disk.
 
 /// The changes the change watcher forwards.
-use crate::change_watch::{ServerChange, ServerChangeKind};
+use crate::change_watch::{
+    ServerChange,
+    ServerChangeKind,
+};
 /// What:
 ///  `GlobBuilder` compiles one glob pattern;
 ///  `GlobMatcher` tests paths against it.
@@ -42,7 +45,10 @@ use crate::change_watch::{ServerChange, ServerChangeKind};
 /// ```ts
 /// import { minimatch } from 'minimatch';
 /// ```
-use globset::{GlobBuilder, GlobMatcher};
+use globset::{
+    GlobBuilder,
+    GlobMatcher,
+};
 /// The protocol's data types.
 use helix_lsp::lsp;
 /// What:
@@ -60,11 +66,20 @@ use helix_lsp::lsp;
 /// const pending = new Map<string, Kind>();
 /// ```
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fmt::Display,
     hash::Hash,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A burst is sent once no change arrived for this long.
@@ -89,7 +104,10 @@ pub(super) const FORWARD_LIMIT: Duration = Duration::from_millis(500);
 /// ```ts
 /// function merge(previous: Kind | undefined, next: Kind): Kind
 /// ```
-pub fn merge(previous: Option<ServerChangeKind>, next: ServerChangeKind) -> ServerChangeKind {
+pub fn merge(
+    previous: Option<ServerChangeKind>,
+    next: ServerChangeKind,
+) -> ServerChangeKind {
     // What: `match` on the pair; `Some(ServerChangeKind::Deleted | ServerChangeKind::Changed)` matches either.
     // Why: The latest event decides whether the path exists; the earlier one decides whether it is new.
     //
@@ -237,15 +255,26 @@ fn protocol_kind(kind: ServerChangeKind) -> lsp::FileChangeType {
 /// ```
 pub(super) trait WatchHost<Server> {
     /// The spelling of a resolved path that the servers use for the project root.
-    fn respell(&self, path: &Path) -> PathBuf;
+    fn respell(
+        &self,
+        path: &Path,
+    ) -> PathBuf;
     /// Whether the server still runs.
-    fn live(&self, server: Server) -> bool;
+    fn live(
+        &self,
+        server: Server,
+    ) -> bool;
 }
 
 /// True when `watcher` wants this change of `path`,
 ///  spelled as the server spells the project root.
 /// A string pattern that does not match the whole path is also tried against the path below `root`.
-fn matches(watcher: &Watcher, path: &Path, root: &Path, kind: ServerChangeKind) -> bool {
+fn matches(
+    watcher: &Watcher,
+    path: &Path,
+    root: &Path,
+    kind: ServerChangeKind,
+) -> bool {
     if !watcher.kinds.contains(wanted_kind(kind)) {
         return false;
     }
@@ -366,7 +395,11 @@ impl<Server: Copy + Eq + Hash + Display> WatchedFiles<Server> {
 
     /// Forget one registration;
     ///  a server with none left hears about nothing.
-    pub(super) fn unregister(&mut self, server: Server, identifier: &str) {
+    pub(super) fn unregister(
+        &mut self,
+        server: Server,
+        identifier: &str,
+    ) {
         if let Some(server_registrations) = self.registrations.get_mut(&server) {
             server_registrations.remove(identifier);
             if server_registrations.is_empty() {
@@ -392,7 +425,11 @@ impl<Server: Copy + Eq + Hash + Display> WatchedFiles<Server> {
     /// Gather one change;
     ///  true when it is the first of a burst,
     ///  so the caller schedules sending.
-    pub(super) fn record(&mut self, change: ServerChange, now: Instant) -> bool {
+    pub(super) fn record(
+        &mut self,
+        change: ServerChange,
+        now: Instant,
+    ) -> bool {
         // Nothing is gathered while no server could want it.
         if self.registrations.is_empty() {
             return false;
@@ -411,7 +448,10 @@ impl<Server: Copy + Eq + Hash + Display> WatchedFiles<Server> {
     /// How long to wait before sending:
     ///  `None` with nothing pending,
     ///  zero when the burst is due.
-    pub(super) fn wait(&self, now: Instant) -> Option<Duration> {
+    pub(super) fn wait(
+        &self,
+        now: Instant,
+    ) -> Option<Duration> {
         let (first, last) = (self.first?, self.last?);
         let quiet = FORWARD_QUIET.saturating_sub(now.saturating_duration_since(last));
         let limit = FORWARD_LIMIT.saturating_sub(now.saturating_duration_since(first));

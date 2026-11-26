@@ -9,7 +9,12 @@
 // });
 // ```
 
-use super::{RuleOutcome, WORKER_STACK_BYTES, build_pattern, build_rules_with};
+use super::{
+    RuleOutcome,
+    WORKER_STACK_BYTES,
+    build_pattern,
+    build_rules_with,
+};
 use crate::RegexSet;
 
 // What:    Valid and invalid patterns interleaved, with two distinct failure kinds.
@@ -31,7 +36,7 @@ fn mixed_patterns() -> Vec<&'static str> {
         "stuvwx[0-9]{5}",
         "(?:another",
         "yzabcd[a-f]{6}",
-    ]
+    ];
 }
 
 // What:    The input indices of a sorted outcome list.
@@ -44,7 +49,7 @@ fn mixed_patterns() -> Vec<&'static str> {
 // }
 // ```
 fn indices(outcomes: &[RuleOutcome]) -> Vec<usize> {
-    return outcomes.iter().map(|outcome| return outcome.0).collect()
+    return outcomes.iter().map(|outcome| return outcome.0).collect();
 }
 
 // What:    Each outcome's index with its error text, or `None` for a built rule.
@@ -57,14 +62,24 @@ fn indices(outcomes: &[RuleOutcome]) -> Vec<usize> {
 fn summary(outcomes: &[RuleOutcome]) -> Vec<(usize, Option<String>)> {
     return outcomes
         .iter()
-        .map(|(index, result)| return (*index, result.as_ref().err().map(|error| return error.to_string())))
-        .collect()
+        .map(|(index, result)| {
+            return (
+                *index,
+                result.as_ref().err().map(|error| return error.to_string()),
+            );
+        })
+        .collect();
 }
 
 #[test]
 fn threaded_outcomes_come_back_in_input_order() {
-    let owned: Vec<String> = (0..24).map(|n| return format!("rule{n:02}abc[0-9]{{3}}")).collect();
-    let patterns: Vec<&str> = owned.iter().map(|pattern| return pattern.as_str()).collect();
+    let owned: Vec<String> = (0..24)
+        .map(|n| return format!("rule{n:02}abc[0-9]{{3}}"))
+        .collect();
+    let patterns: Vec<&str> = owned
+        .iter()
+        .map(|pattern| return pattern.as_str())
+        .collect();
     let outcomes = build_rules_with(&patterns, false, 4, WORKER_STACK_BYTES, build_pattern);
     assert_eq!(indices(&outcomes), (0..24).collect::<Vec<usize>>());
     assert!(outcomes.iter().all(|outcome| return outcome.1.is_ok()));
@@ -104,7 +119,16 @@ fn strict_threaded_reports_the_lowest_index_failure() {
         let first_failure = outcomes
             .iter()
             .find(|outcome| return outcome.1.is_err())
-            .map(|outcome| return (outcome.0, outcome.1.as_ref().err().map(|error| return error.to_string())));
+            .map(|outcome| {
+                return (
+                    outcome.0,
+                    outcome
+                        .1
+                        .as_ref()
+                        .err()
+                        .map(|error| return error.to_string()),
+                );
+            });
         assert_eq!(first_failure, Some((2, summary(&unclosed)[0].1.clone())));
         assert_eq!(&indices(&outcomes)[..3], &[0, 1, 2]);
     }
@@ -160,7 +184,7 @@ fn panicking_builder(pattern: &str) -> Result<super::BuiltRule, crate::error::Co
     if pattern == "boom" {
         panic!("worker fault marker");
     }
-    return build_pattern(pattern)
+    return build_pattern(pattern);
 }
 
 #[test]
@@ -176,16 +200,22 @@ fn worker_panic_reaches_the_caller_with_its_payload() {
     // try { build_rules_with(patterns, false, 2, WORKER_STACK_BYTES, panicking_builder); } catch (error) { caught = error; }
     // ```
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        return build_rules_with(&patterns, false, 2, WORKER_STACK_BYTES, panicking_builder)
+        return build_rules_with(&patterns, false, 2, WORKER_STACK_BYTES, panicking_builder);
     }));
-    let payload = caught.err().expect("a worker panic must propagate to the caller");
+    let payload = caught
+        .err()
+        .expect("a worker panic must propagate to the caller");
     assert_eq!(payload.downcast_ref::<&str>(), Some(&"worker fault marker"));
 }
 
 #[test]
 fn regex_set_new_reports_the_first_failing_rule() {
-    let expected = RegexSet::new(&["(?:unclosed"]).err().map(|error| return error.to_string());
-    let actual = RegexSet::new(&mixed_patterns()).err().map(|error| return error.to_string());
+    let expected = RegexSet::new(&["(?:unclosed"])
+        .err()
+        .map(|error| return error.to_string());
+    let actual = RegexSet::new(&mixed_patterns())
+        .err()
+        .map(|error| return error.to_string());
     assert!(expected.is_some());
     assert_eq!(actual, expected);
 }

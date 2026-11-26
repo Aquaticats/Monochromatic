@@ -9,8 +9,15 @@
 //! ```
 
 /// Import the actual process boundary and ordinary native subprocess API.
-use super::{omit_panic_payload, run};
-use std::process::{Command, ExitCode, Output};
+use super::{
+    omit_panic_payload,
+    run,
+};
+use std::process::{
+    Command,
+    ExitCode,
+    Output,
+};
 
 /// Deliberate fault exists only in the test binary,
 ///  never behind a production environment trigger.
@@ -32,7 +39,9 @@ fn ordinary_success() -> anyhow::Result<i32> {
 ///  no hook is changed in the ordinary parent test process.
 #[test]
 fn isolated_boundary_probe() {
-    let Ok(mode) = std::env::var("FORBIDDEN_STRINGS_BOUNDARY_TEST") else { return; };
+    let Ok(mode) = std::env::var("FORBIDDEN_STRINGS_BOUNDARY_TEST") else {
+        return;
+    };
     if mode == "protected" {
         std::panic::set_hook(Box::new(omit_panic_payload));
         assert_eq!(run(synthetic_panic), ExitCode::from(2));
@@ -50,7 +59,11 @@ fn isolated_boundary_probe() {
 /// Invoke the exact child test with its own process-wide hook state.
 fn probe(mode: &str) -> Output {
     return Command::new(std::env::current_exe().expect("test executable"))
-        .args(["--exact", "process_boundary::tests::isolated_boundary_probe", "--nocapture"])
+        .args([
+            "--exact",
+            "process_boundary::tests::isolated_boundary_probe",
+            "--nocapture",
+        ])
         .env("FORBIDDEN_STRINGS_BOUNDARY_TEST", mode)
         .output()
         .expect("isolated boundary probe");
@@ -72,5 +85,8 @@ fn process_owner_redacts_payloads_without_turning_panics_into_success() {
     assert!(stderr.contains("scanner operation panicked; no complete scan result is available."));
     let ordinary: Output = probe("ordinary");
     assert!(ordinary.status.success());
-    assert!(String::from_utf8_lossy(&ordinary.stderr).contains("forbidden-strings: ordinary fixture failure"));
+    assert!(
+        String::from_utf8_lossy(&ordinary.stderr)
+            .contains("forbidden-strings: ordinary fixture failure")
+    );
 }

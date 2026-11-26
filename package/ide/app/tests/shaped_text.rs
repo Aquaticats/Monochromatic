@@ -3,13 +3,23 @@
 /// Rasterization uses the same shaped rows and font faces.
 use ide_app::{
     code_colors::CodeColors,
-    tile_scene::{paint_tile, read::drawn_runs, tile_items},
+    tile_scene::{
+        paint_tile,
+        read::drawn_runs,
+        tile_items,
+    },
 };
 /// Canonical document and shaped source-view interfaces.
 use ide_app::{
-    document::{Document, ReadingPosition},
+    document::{
+        Document,
+        ReadingPosition,
+    },
     row_map::CODE_ROW,
-    shaped_text::{TextShaper, Viewport},
+    shaped_text::{
+        TextShaper,
+        Viewport,
+    },
 };
 /// Inspect actual glyph runs when checking baseline coherence.
 use parley::PositionedLayoutItem;

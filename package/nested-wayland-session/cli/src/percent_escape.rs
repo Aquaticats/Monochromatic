@@ -28,7 +28,10 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789ABCDEF";
 /// Why:
 ///       The answer grammars separate fields with bytes a client can send,
 ///  so a client-chosen string may carry only the separators its format documents.
-pub(crate) fn percent_escape(bytes: &[u8], is_safe: fn(u8) -> bool) -> String {
+pub(crate) fn percent_escape(
+    bytes: &[u8],
+    is_safe: fn(u8) -> bool,
+) -> String {
     let mut escaped: String = String::with_capacity(bytes.len());
     for byte in bytes {
         if is_safe(*byte) {

@@ -13,7 +13,10 @@ use super::LANES;
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
 use crate::dfa::table::Dfa;
-use crate::dfa::{build_dfa_within, minimize};
+use crate::dfa::{
+    build_dfa_within,
+    minimize,
+};
 use crate::parse::parse;
 
 // What:    Builds the same unanchored search DFA an engine would for `pattern`.
@@ -28,7 +31,7 @@ use crate::parse::parse;
 // ```
 fn search_dfa(pattern: &str) -> Dfa {
     let node = concat(vec![Node::Top, parse(pattern).expect("pattern parses")]);
-    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"))
+    return minimize(&build_dfa_within(node, 10_000).expect("builds under cap"));
 }
 
 // What:    Asserts every kernel agrees with the per-line scalar oracle on `lines`.
@@ -41,7 +44,10 @@ fn search_dfa(pattern: &str) -> Dfa {
 //   // Rust body below is the implementation.
 // }
 // ```
-fn kernels_agree(pattern: &str, lines: &[&[u8]]) {
+fn kernels_agree(
+    pattern: &str,
+    lines: &[&[u8]],
+) {
     let dfa = search_dfa(pattern);
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
 
@@ -51,7 +57,10 @@ fn kernels_agree(pattern: &str, lines: &[&[u8]]) {
 
     let mut interleaved = vec![false; lines.len()];
     dfa.is_match_batch_interleaved(lines, &mut interleaved);
-    assert_eq!(interleaved, oracle, "interleaved batch disagrees for {pattern}");
+    assert_eq!(
+        interleaved, oracle,
+        "interleaved batch disagrees for {pattern}"
+    );
 }
 
 #[test]
@@ -162,8 +171,16 @@ fn tight_kernel_matches_oracle_on_equal_length_lines() {
     // ```
     let dfa = search_dfa("AKIA[A-Z2-7]{4}");
     let lines: &[&[u8]] = &[
-        b"AKIA2345", b"nomatch1", b"AKIAZ7Q9", b"xxxxxxxx", b"AKIA0000",
-        b"abcdefgh", b"AKIA6QZ7", b"zzzzzzzz", b"AKIA9999", b"plain---",
+        b"AKIA2345",
+        b"nomatch1",
+        b"AKIAZ7Q9",
+        b"xxxxxxxx",
+        b"AKIA0000",
+        b"abcdefgh",
+        b"AKIA6QZ7",
+        b"zzzzzzzz",
+        b"AKIA9999",
+        b"plain---",
     ];
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
     let mut out = vec![false; lines.len()];
@@ -186,11 +203,16 @@ fn end_of_input_acceptance_fires_on_a_line_end_anchor() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let dfa = search_dfa("cat$");
-    let lines: &[&[u8]] = &[b"cat", b"dog", b"cat", b"act", b"cat", b"tac", b"cat", b"xyz", b"cat"];
+    let lines: &[&[u8]] = &[
+        b"cat", b"dog", b"cat", b"act", b"cat", b"tac", b"cat", b"xyz", b"cat",
+    ];
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
     let mut out = vec![false; lines.len()];
     dfa.is_match_batch_tight_w::<8>(lines, &mut out);
-    assert_eq!(out, oracle, "the end-of-input check must use the line-end accept bit");
+    assert_eq!(
+        out, oracle,
+        "the end-of-input check must use the line-end accept bit"
+    );
 }
 
 #[test]
@@ -205,7 +227,15 @@ fn interleaved_width_hook_fills_every_lane() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     let dfa = search_dfa("AKIA[A-Z2-7]{4}");
-    let lines: &[&[u8]] = &[b"AKIA2345", b"miss", b"x AKIAZ7Q9", b"", b"AKIA9999", b"nope", b"AKIA0000"];
+    let lines: &[&[u8]] = &[
+        b"AKIA2345",
+        b"miss",
+        b"x AKIAZ7Q9",
+        b"",
+        b"AKIA9999",
+        b"nope",
+        b"AKIA0000",
+    ];
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
     let mut out = vec![false; lines.len()];
     dfa.is_match_batch_interleaved_w::<16>(lines, &mut out);
@@ -231,5 +261,8 @@ fn tight_kernel_accumulates_a_match_that_ends_before_the_line() {
     let oracle: Vec<bool> = lines.iter().map(|line| return dfa.is_match(line)).collect();
     let mut out = vec![false; lines.len()];
     dfa.is_match_batch_tight_w::<4>(lines, &mut out);
-    assert_eq!(out, oracle, "a mid-line match must be accumulated, not only the end boundary");
+    assert_eq!(
+        out, oracle,
+        "a mid-line match must be accumulated, not only the end boundary"
+    );
 }

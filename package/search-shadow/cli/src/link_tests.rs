@@ -32,10 +32,14 @@ use std::path::Path;
 /// ```ts
 /// function writeTool(directory: string, name: string): void { fs.writeFileSync(...); fs.chmodSync(..., 0o755); }
 /// ```
-fn write_tool(directory: &Path, name: &str) {
+fn write_tool(
+    directory: &Path,
+    name: &str,
+) {
     // `.expect("...")` unwraps a `Result` and, on error, stops the test with that message (tests may panic on purpose).
     fs::write(directory.join(name), "#!/bin/sh\n").expect("write the fixture tool");
-    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).expect("make the fixture tool executable");
+    fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755))
+        .expect("make the fixture tool executable");
 }
 
 /// What:
@@ -60,14 +64,18 @@ fn links_only_the_names_that_have_a_real_tool() {
     let links_directory = world.path().join("bin");
     let path_variable = tools.to_string_lossy().to_string();
 
-    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+    let report =
+        link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
     // `assert_eq!(a, b)` stops the test with a message when `a != b` (a macro, hence `!`).
     assert_eq!(report.linked.len(), 3);
     assert!(report.removed.is_empty());
     for name in ["rg", "grep", "find"] {
         // `fs::read_link` gives the path a symlink points at.
-        assert_eq!(fs::read_link(links_directory.join(name)).expect("read the link"), executable);
+        assert_eq!(
+            fs::read_link(links_directory.join(name)).expect("read the link"),
+            executable
+        );
     }
     // Absent tools get no link and are reported as skipped.
     assert!(report.skipped.contains(&"ag".to_string()));
@@ -111,9 +119,13 @@ fn linking_again_keeps_its_own_links_and_skips_them_as_candidates() {
     let path_variable = format!("{}:{}", links_directory.display(), tools.display());
 
     link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
-    let second = link_shadows(&links_directory, &executable, &path_variable).expect("create the links again");
+    let second = link_shadows(&links_directory, &executable, &path_variable)
+        .expect("create the links again");
 
-    assert_eq!(fs::read_link(links_directory.join("rg")).expect("read the link"), executable);
+    assert_eq!(
+        fs::read_link(links_directory.join("rg")).expect("read the link"),
+        executable
+    );
     assert_eq!(second.linked, vec![links_directory.join("rg")]);
     assert!(second.removed.is_empty());
 }
@@ -130,13 +142,18 @@ fn leaves_a_regular_file_in_the_way_alone() {
     write_tool(world.path(), "search-shadow");
     let links_directory = world.path().join("bin");
     fs::create_dir(&links_directory).expect("make the links directory");
-    fs::write(links_directory.join("rg"), "old regular file").expect("write an old file in the way");
+    fs::write(links_directory.join("rg"), "old regular file")
+        .expect("write an old file in the way");
     let path_variable = format!("{}:{}", links_directory.display(), tools.display());
 
-    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+    let report =
+        link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
     // `fs::read_to_string` reads the file back; the content proves nothing wrote over it.
-    assert_eq!(fs::read_to_string(links_directory.join("rg")).expect("read the file"), "old regular file");
+    assert_eq!(
+        fs::read_to_string(links_directory.join("rg")).expect("read the file"),
+        "old regular file"
+    );
     assert_eq!(report.left_alone, vec![links_directory.join("rg")]);
     assert!(report.linked.is_empty());
 }
@@ -156,7 +173,8 @@ fn leaves_a_directory_in_the_way_alone_and_links_the_rest() {
     fs::create_dir_all(links_directory.join("rg")).expect("make a directory named like the tool");
     let path_variable = format!("{}:{}", links_directory.display(), tools.display());
 
-    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+    let report =
+        link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
     assert!(links_directory.join("rg").is_dir());
     assert_eq!(report.left_alone, vec![links_directory.join("rg")]);
@@ -178,12 +196,17 @@ fn leaves_a_link_to_another_program_alone() {
     write_tool(world.path(), "search-shadow");
     let links_directory = world.path().join("bin");
     fs::create_dir(&links_directory).expect("make the links directory");
-    std::os::unix::fs::symlink(elsewhere.join("my-own-find"), links_directory.join("find")).expect("write the foreign link");
+    std::os::unix::fs::symlink(elsewhere.join("my-own-find"), links_directory.join("find"))
+        .expect("write the foreign link");
     let path_variable = format!("{}:{}", links_directory.display(), tools.display());
 
-    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+    let report =
+        link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
-    assert_eq!(fs::read_link(links_directory.join("find")).expect("read the link"), elsewhere.join("my-own-find"));
+    assert_eq!(
+        fs::read_link(links_directory.join("find")).expect("read the link"),
+        elsewhere.join("my-own-find")
+    );
     assert_eq!(report.left_alone, vec![links_directory.join("find")]);
     assert!(report.linked.is_empty());
 }
@@ -201,12 +224,20 @@ fn takes_over_a_dangling_link_that_points_at_a_search_shadow_program() {
     let links_directory = world.path().join("bin");
     fs::create_dir(&links_directory).expect("make the links directory");
     // The version directory the older link named is gone, as a prune leaves it.
-    std::os::unix::fs::symlink(world.path().join("gone/search-shadow"), links_directory.join("rg")).expect("write the dangling link");
+    std::os::unix::fs::symlink(
+        world.path().join("gone/search-shadow"),
+        links_directory.join("rg"),
+    )
+    .expect("write the dangling link");
     let path_variable = format!("{}:{}", links_directory.display(), tools.display());
 
-    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+    let report =
+        link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
 
-    assert_eq!(fs::read_link(links_directory.join("rg")).expect("read the link"), executable);
+    assert_eq!(
+        fs::read_link(links_directory.join("rg")).expect("read the link"),
+        executable
+    );
     assert_eq!(report.linked, vec![links_directory.join("rg")]);
     assert!(report.left_alone.is_empty());
 }

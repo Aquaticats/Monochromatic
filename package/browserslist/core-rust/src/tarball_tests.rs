@@ -13,15 +13,23 @@
 //! describe('extractFiles', () => { /* success and refusals */ });
 //! ```
 
-use crate::fixture::{build_symlink_tgz, build_tgz};
+use crate::fixture::{
+    build_symlink_tgz,
+    build_tgz,
+};
 use crate::tarball::extract_files;
 
 /// Wanted files come back in the order requested,
 /// ignoring unrelated entries.
 #[test]
 fn extracts_in_requested_order() {
-    let tgz = build_tgz(&[("package/a.txt", b"A"), ("package/skip.txt", b"S"), ("package/data/b.json", b"BB")]);
-    let files = extract_files("pkg", &tgz, &["package/data/b.json", "package/a.txt"]).expect("extracts");
+    let tgz = build_tgz(&[
+        ("package/a.txt", b"A"),
+        ("package/skip.txt", b"S"),
+        ("package/data/b.json", b"BB"),
+    ]);
+    let files =
+        extract_files("pkg", &tgz, &["package/data/b.json", "package/a.txt"]).expect("extracts");
     assert_eq!(files, vec![b"BB".to_vec(), b"A".to_vec()]);
 }
 
@@ -31,8 +39,14 @@ fn extracts_in_requested_order() {
 /// or a path elsewhere in the archive does not count.
 #[test]
 fn matches_paths_exactly() {
-    let tgz = build_tgz(&[("package/a.txt.bak", b"x"), ("other/package/a.txt", b"y"), ("a.txt", b"z")]);
-    let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("missing").to_string();
+    let tgz = build_tgz(&[
+        ("package/a.txt.bak", b"x"),
+        ("other/package/a.txt", b"y"),
+        ("a.txt", b"z"),
+    ]);
+    let message = extract_files("pkg", &tgz, &["package/a.txt"])
+        .expect_err("missing")
+        .to_string();
     assert_eq!(message, "pkg tarball: package/a.txt is missing");
 }
 
@@ -40,7 +54,9 @@ fn matches_paths_exactly() {
 #[test]
 fn rejects_duplicates() {
     let tgz = build_tgz(&[("package/a.txt", b"1"), ("package/a.txt", b"2")]);
-    let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("duplicate").to_string();
+    let message = extract_files("pkg", &tgz, &["package/a.txt"])
+        .expect_err("duplicate")
+        .to_string();
     assert!(message.contains("appears more than once"), "{message}");
 }
 
@@ -48,7 +64,9 @@ fn rejects_duplicates() {
 #[test]
 fn rejects_links() {
     let tgz = build_symlink_tgz("package/a.txt");
-    let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("link").to_string();
+    let message = extract_files("pkg", &tgz, &["package/a.txt"])
+        .expect_err("link")
+        .to_string();
     assert!(message.contains("not a regular file"), "{message}");
 }
 
@@ -60,7 +78,9 @@ fn rejects_corrupt_input() {
     assert!(extract_files("pkg", b"not gzip at all", &["x"]).is_err());
     let mut tgz = build_tgz(&[("package/a.txt", &[7_u8; 4096])]);
     tgz.truncate(tgz.len() / 2);
-    let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("truncated").to_string();
+    let message = extract_files("pkg", &tgz, &["package/a.txt"])
+        .expect_err("truncated")
+        .to_string();
     assert!(message.starts_with("pkg tarball: "), "{message}");
 }
 
@@ -68,5 +88,8 @@ fn rejects_corrupt_input() {
 #[test]
 fn empty_request() {
     let tgz = build_tgz(&[("package/a.txt", b"1")]);
-    assert_eq!(extract_files("pkg", &tgz, &[]).expect("extracts"), Vec::<Vec<u8>>::new());
+    assert_eq!(
+        extract_files("pkg", &tgz, &[]).expect("extracts"),
+        Vec::<Vec<u8>>::new()
+    );
 }

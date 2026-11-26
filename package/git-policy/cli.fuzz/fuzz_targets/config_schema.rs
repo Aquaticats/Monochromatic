@@ -12,7 +12,10 @@
 
 /// Import the libFuzzer entry macro and the sidecar's shared generators and checks.
 use git_policy_cli_fuzz::configuration::{
-    GeneratedConfig, check_config_source, check_generated_config, generated_config,
+    GeneratedConfig,
+    check_config_source,
+    check_generated_config,
+    generated_config,
 };
 use libfuzzer_sys::fuzz_target;
 

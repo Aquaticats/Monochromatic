@@ -17,15 +17,35 @@
 //! ```
 
 /// Files and sets.
-use std::{collections::HashSet, fs, path::{Path, PathBuf}};
+use std::{
+    collections::HashSet,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::Deadline;
 /// Named reads of paths and text.
-use crate::lean_text::{extension_is, name_of};
+use crate::lean_text::{
+    extension_is,
+    name_of,
+};
 
 /// Directory names the scan never enters.
-const SKIPPED_DIRECTORIES: [&str; 9] = ["node_modules", "target", ".git", "dist", ".claude", ".cache", "doc", ".pnpm-store", "LICENSES"];
+const SKIPPED_DIRECTORIES: [&str; 9] = [
+    "node_modules",
+    "target",
+    ".git",
+    "dist",
+    ".claude",
+    ".cache",
+    "doc",
+    ".pnpm-store",
+    "LICENSES",
+];
 
 /// File extensions the scan reads.
 const READ_EXTENSIONS: [&str; 6] = ["toml", "ts", "rs", "sh", "yml", "yaml"];
@@ -67,7 +87,10 @@ fn reads(path: &Path) -> bool {
 /// ```ts
 /// function flushRun(run: { text: string }, words: Set<string>): void
 /// ```
-fn flush_run(run: &mut String, words: &mut HashSet<String>) {
+fn flush_run(
+    run: &mut String,
+    words: &mut HashSet<String>,
+) {
     let templated: bool = run.ends_with(':');
     let trimmed: &str = run.trim_matches(['.', ':', '-', '/']);
     if trimmed.len() > 2 && !templated {
@@ -108,7 +131,10 @@ fn small_enough(entry: &fs::DirEntry) -> bool {
 /// ```ts
 /// export function wordsOf(text: string, words: Set<string>): void
 /// ```
-pub fn words_of(text: &str, words: &mut HashSet<String>) {
+pub fn words_of(
+    text: &str,
+    words: &mut HashSet<String>,
+) {
     let mut current: String = String::new();
     for character in text.chars() {
         if character.is_ascii_alphanumeric() || "._/:@-".contains(character) {
@@ -131,16 +157,23 @@ pub fn words_of(text: &str, words: &mut HashSet<String>) {
 /// ```ts
 /// export function collectReferences(root: string, deadline: Deadline): Set<string> | undefined
 /// ```
-pub fn collect_references(root: &Path, deadline: &Deadline) -> Option<HashSet<String>> {
+pub fn collect_references(
+    root: &Path,
+    deadline: &Deadline,
+) -> Option<HashSet<String>> {
     let mut words: HashSet<String> = HashSet::new();
     let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = stack.pop() {
         if deadline.passed() {
             return None;
         }
-        let Ok(entries) = fs::read_dir(&directory) else { continue };
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
         for entry in entries.flatten() {
-            let Ok(kind) = entry.file_type() else { continue };
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
             let path: PathBuf = entry.path();
             if kind.is_dir() {
                 let name: String = entry.file_name().to_string_lossy().to_string();

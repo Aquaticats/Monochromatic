@@ -51,13 +51,28 @@ use super::comparison::compare;
 /// The walk that compares the request numbers.
 use super::comparison_requests::compare_requests;
 /// The reader-neutral vocabulary this adapter fills.
-use super::declaration::{ContainerKind, DeclaredMember, DeclaredType, Declaration};
+use super::declaration::{
+    ContainerKind,
+    Declaration,
+    DeclaredMember,
+    DeclaredType,
+};
 /// The one difference value either walk returns.
 use super::mismatch::Mismatch;
 /// The refusal value and the step one difference is reported as.
-use super::refusal::{Refusal, Step, refusal_at};
+use super::refusal::{
+    Refusal,
+    Step,
+    refusal_at,
+};
 /// The adopted reader.
-use btf_rs::{Btf, BtfType, Member, Struct, Type};
+use btf_rs::{
+    Btf,
+    BtfType,
+    Member,
+    Struct,
+    Type,
+};
 /// The borrowed path type a refusal names.
 use std::path::Path;
 
@@ -84,12 +99,22 @@ pub fn compare_declared_layout(
     module_path: &Path,
 ) -> Result<(), Refusal> {
     let base: Btf = Btf::from_bytes(base_bytes).map_err(|error| {
-        return refusal_at(Step::BaseBtf, base_path, format!("btf-rs refused it: {error}"));
+        return refusal_at(
+            Step::BaseBtf,
+            base_path,
+            format!("btf-rs refused it: {error}"),
+        );
     })?;
     let module: Btf = Btf::from_split_bytes(module_bytes, &base).map_err(|error| {
-        return refusal_at(Step::ModuleBtf, module_path, format!("btf-rs refused it: {error}"));
+        return refusal_at(
+            Step::ModuleBtf,
+            module_path,
+            format!("btf-rs refused it: {error}"),
+        );
     })?;
-    let declaration: BtfRsDeclaration = BtfRsDeclaration { btf: module };
+    let declaration: BtfRsDeclaration = BtfRsDeclaration {
+        btf: module,
+    };
     compare(&declaration).map_err(|mismatch: Mismatch| {
         return refusal_at(mismatch.step, module_path, mismatch.detail);
     })?;
@@ -122,14 +147,21 @@ struct BtfRsDeclaration {
 impl BtfRsDeclaration {
     /// One type entry the module's own section holds,
     /// and nothing for a handle only the base file answers.
-    fn own_type(&self, id: u32) -> Option<Type> {
+    fn own_type(
+        &self,
+        id: u32,
+    ) -> Option<Type> {
         let split = self.btf.split()?;
         return split.resolve_type_by_id(id).ok();
     }
 
     /// One record,
     /// or nothing when any of its members cannot be read.
-    fn record(&self, kind: ContainerKind, container: &Struct) -> Option<DeclaredType> {
+    fn record(
+        &self,
+        kind: ContainerKind,
+        container: &Struct,
+    ) -> Option<DeclaredType> {
         let mut members: Vec<DeclaredMember> =
             Vec::<DeclaredMember>::with_capacity(container.members.len());
         for member in &container.members {
@@ -151,7 +183,10 @@ impl BtfRsDeclaration {
     /// record it was,
     /// and the comparison's member count is the only control that would
     /// notice.
-    fn member(&self, member: &Member) -> Option<DeclaredMember> {
+    fn member(
+        &self,
+        member: &Member,
+    ) -> Option<DeclaredMember> {
         let name: String = self.btf.resolve_name(member).ok()?;
         let width: Option<u32> = member.bitfield_size();
         let bitfield_bits: Option<u8> = match width {
@@ -179,7 +214,11 @@ impl BtfRsDeclaration {
     /// so one budget bounds both and neither ends in a loop:
     /// the answer is nothing,
     /// and the comparison refuses the size it cannot compute.
-    fn declared_within(&self, id: u32, budget: usize) -> Option<DeclaredType> {
+    fn declared_within(
+        &self,
+        id: u32,
+        budget: usize,
+    ) -> Option<DeclaredType> {
         let mut current: u32 = id;
         for hop in 0..budget {
             let left: usize = budget - hop - 1;
@@ -252,7 +291,11 @@ impl BtfRsDeclaration {
 
     /// The size in bytes one handle describes,
     /// inside the budget the handles above it left.
-    fn size_within(&self, id: u32, budget: usize) -> Option<u64> {
+    fn size_within(
+        &self,
+        id: u32,
+        budget: usize,
+    ) -> Option<u64> {
         return self.declared_within(id, budget)?.byte_size();
     }
 }
@@ -260,29 +303,35 @@ impl BtfRsDeclaration {
 /// The declaration read through the adopted reader.
 impl Declaration for BtfRsDeclaration {
     /// One named structure or union the module declares.
-    fn find_container(&self, name: &str, kind: ContainerKind) -> Option<u32> {
+    fn find_container(
+        &self,
+        name: &str,
+        kind: ContainerKind,
+    ) -> Option<u32> {
         let ids: Vec<u32> = self.btf.resolve_ids_by_name(name).ok()?;
         return ids.into_iter().find(|id| {
-            let found: Option<ContainerKind> =
-                self.own_type(*id).as_ref().and_then(container_kind);
+            let found: Option<ContainerKind> = self.own_type(*id).as_ref().and_then(container_kind);
             return found == Some(kind);
         });
     }
 
     /// One named enumeration the module declares.
-    fn find_enumeration(&self, name: &str) -> Option<u32> {
+    fn find_enumeration(
+        &self,
+        name: &str,
+    ) -> Option<u32> {
         let ids: Vec<u32> = self.btf.resolve_ids_by_name(name).ok()?;
         return ids.into_iter().find(|id| {
-            return matches!(
-                self.own_type(*id),
-                Some(Type::Enum(_) | Type::Enum64(_))
-            );
+            return matches!(self.own_type(*id), Some(Type::Enum(_) | Type::Enum64(_)));
         });
     }
 
     /// One entry,
     /// through every alias over it and every array element under it.
-    fn declared(&self, id: u32) -> Option<DeclaredType> {
+    fn declared(
+        &self,
+        id: u32,
+    ) -> Option<DeclaredType> {
         return self.declared_within(id, ALIAS_HOPS);
     }
 }

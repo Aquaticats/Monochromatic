@@ -20,15 +20,25 @@
 
 /// Imports `Future` from `std`,
 ///  `Duration` from `std::time`.
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    time::Duration,
+};
 
 /// Imports `Context`,
 ///  `Result`,
 ///  and `bail` from `anyhow`.
-use anyhow::{bail, Context, Result};
+use anyhow::{
+    Context,
+    Result,
+    bail,
+};
 /// Imports `Builder`,
 ///  `Connection` from `zbus::connection`.
-use zbus::connection::{Builder, Connection};
+use zbus::connection::{
+    Builder,
+    Connection,
+};
 /// Imports `SharedRuntime` from `zruntime`.
 use zruntime::SharedRuntime;
 
@@ -66,7 +76,11 @@ pub const BUS_STEP_BOUND: Duration = Duration::from_secs(5);
 ///
 /// Fails with the step's own error,
 ///  or with a timeout message naming `step` and `bound`.
-pub async fn within<T, E>(bound: Duration, step: &str, work: impl Future<Output = Result<T, E>>) -> Result<T>
+pub async fn within<T, E>(
+    bound: Duration,
+    step: &str,
+    work: impl Future<Output = Result<T, E>>,
+) -> Result<T>
 where
     E: Into<anyhow::Error>,
 {
@@ -92,7 +106,11 @@ where
 /// # Errors
 ///
 /// Fails as `within` does.
-pub fn block_on_within<T, E>(bound: Duration, step: &str, work: impl Future<Output = Result<T, E>>) -> Result<T>
+pub fn block_on_within<T, E>(
+    bound: Duration,
+    step: &str,
+    work: impl Future<Output = Result<T, E>>,
+) -> Result<T>
 where
     E: Into<anyhow::Error>,
 {
@@ -109,7 +127,10 @@ where
 /// # Errors
 ///
 /// Fails as `within` does.
-pub fn block_on_bounded<T, E>(step: &str, work: impl Future<Output = Result<T, E>>) -> Result<T>
+pub fn block_on_bounded<T, E>(
+    step: &str,
+    work: impl Future<Output = Result<T, E>>,
+) -> Result<T>
 where
     E: Into<anyhow::Error>,
 {
@@ -128,8 +149,16 @@ where
 /// # Errors
 ///
 /// Fails as `within` does.
-pub async fn connect_within_bound(builder: Builder<'_>, step: &str) -> Result<Connection> {
-    return within(BUS_STEP_BOUND, step, builder.method_timeout(BUS_STEP_BOUND).build()).await;
+pub async fn connect_within_bound(
+    builder: Builder<'_>,
+    step: &str,
+) -> Result<Connection> {
+    return within(
+        BUS_STEP_BOUND,
+        step,
+        builder.method_timeout(BUS_STEP_BOUND).build(),
+    )
+    .await;
 }
 
 /// Builds the connection `builder` describes on the calling thread,
@@ -146,7 +175,10 @@ pub async fn connect_within_bound(builder: Builder<'_>, step: &str) -> Result<Co
 /// # Errors
 ///
 /// Fails as `within` does.
-pub fn build_bounded(builder: Builder<'_>, step: &str) -> Result<Connection> {
+pub fn build_bounded(
+    builder: Builder<'_>,
+    step: &str,
+) -> Result<Connection> {
     return zbus::block_on(connect_within_bound(builder, step));
 }
 

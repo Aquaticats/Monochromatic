@@ -14,7 +14,10 @@ use ide_app::json_value;
 /// ```ts
 /// type Value = unknown;
 /// ```
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 /// What:
 ///  `HashMap` is a key-value table;
 ///  `File` an open file;
@@ -35,14 +38,28 @@ use serde_json::{Value, json};
 /// ```
 use std::{
     collections::HashMap,
-    fs::{File, OpenOptions},
-    io::{self, BufRead, Write},
+    fs::{
+        File,
+        OpenOptions,
+    },
+    io::{
+        self,
+        BufRead,
+        Write,
+    },
     path::Path,
     sync::{
         Mutex,
-        mpsc::{Sender, channel},
+        mpsc::{
+            Sender,
+            channel,
+        },
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// What:
@@ -119,7 +136,10 @@ impl Wire {
     ///   process.stdout.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
     /// }
     /// ```
-    pub fn send(&self, mut message: Value) -> io::Result<()> {
+    pub fn send(
+        &self,
+        mut message: Value,
+    ) -> io::Result<()> {
         message["jsonrpc"] = json_value!("2.0");
         let body = message.to_string();
         // What: `lock()` waits for exclusive access and returns a guard; `expect` stops the
@@ -152,7 +172,10 @@ impl Wire {
     /// ```ts
     /// record(entry: object) { appendFileSync(report, JSON.stringify({ ...entry, at: Date.now() }) + '\n'); }
     /// ```
-    pub fn record(&self, mut entry: Value) {
+    pub fn record(
+        &self,
+        mut entry: Value,
+    ) {
         // What: `SystemTime::now().duration_since(UNIX_EPOCH)` is the time since 1970 as a
         //       `Result`; the `match` turns it into fractional milliseconds, or zero for a clock set
         //       before 1970. `as_secs_f64` gives seconds as a 64-bit floating-point number.
@@ -188,7 +211,11 @@ impl Wire {
     /// ```ts
     /// async ask(method: string, params: unknown): Promise<unknown>
     /// ```
-    pub fn ask(&self, method: &str, params: Value) -> Value {
+    pub fn ask(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> Value {
         // `channel()` creates a sender and a receiver; the reply travels through them.
         let (sender, receiver) = channel();
         let id = {
@@ -213,7 +240,11 @@ impl Wire {
     }
 
     /// Hand a client reply to the thread that asked.
-    pub fn resolve(&self, id: u64, reply: Value) {
+    pub fn resolve(
+        &self,
+        id: u64,
+        reply: Value,
+    ) {
         let sender = self
             .waiting
             .lock()

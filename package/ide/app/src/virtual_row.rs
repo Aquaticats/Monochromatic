@@ -17,7 +17,11 @@
 
 /// Diagnostics as the annotation store indexes them,
 ///  and the text one message shows.
-use crate::annotation::{Problem, describe, severity_name};
+use crate::annotation::{
+    Problem,
+    describe,
+    severity_name,
+};
 /// Severities as the Language module names them.
 use crate::language::diagnostics::Severity;
 
@@ -217,14 +221,20 @@ impl Block {
     /// ```ts
     /// hintRise(row: number): number;
     /// ```
-    pub fn hint_rise(&self, row: usize) -> f32 {
+    pub fn hint_rise(
+        &self,
+        row: usize,
+    ) -> f32 {
         // `saturating_sub` stops at zero for a row index past the last hint row.
         let below = self.hint_rows.saturating_sub(row);
         return self.message_part() + below as f32 * ROW_HEIGHT;
     }
 
     /// How far above the top of the code row message row `index` starts.
-    pub fn message_rise(&self, index: usize) -> f32 {
+    pub fn message_rise(
+        &self,
+        index: usize,
+    ) -> f32 {
         let below = self.messages.len().saturating_sub(index);
         return below as f32 * ROW_HEIGHT;
     }
@@ -267,7 +277,10 @@ fn columns(character: char) -> usize {
 /// ```ts
 /// function wrap(line: string, limit: number): string[];
 /// ```
-pub fn wrap(line: &str, limit: usize) -> Vec<String> {
+pub fn wrap(
+    line: &str,
+    limit: usize,
+) -> Vec<String> {
     // Each row keeps its text and drops how it follows the row before it.
     let mut rows: Vec<String> = Vec::new();
     for (text, _) in wrap_gapped(line, limit) {
@@ -291,7 +304,10 @@ pub fn wrap(line: &str, limit: usize) -> Vec<String> {
 /// ```ts
 /// function wrapGapped(line: string, limit: number): [text: string, gap?: ' ' | ''][];
 /// ```
-fn wrap_gapped(line: &str, limit: usize) -> Vec<(String, Option<&'static str>)> {
+fn wrap_gapped(
+    line: &str,
+    limit: usize,
+) -> Vec<(String, Option<&'static str>)> {
     // `Vec::new()` and `String::new()` create the empty list and the empty row the loops fill.
     let mut rows = Vec::new();
     let mut gap: Option<&'static str> = None;

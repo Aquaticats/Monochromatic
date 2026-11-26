@@ -21,15 +21,37 @@
 ///  the folder uses,
 ///  the group entries and the link reader.
 use crate::{
-    layout_finding::{LayoutFinding, shown},
-    layout_folder_uses::{FolderUses, Proof},
-    layout_group_entries::{entry_of, owner_of},
-    layout_link_entries::{Link, USES_FOLDER, link_command, read_links},
+    layout_finding::{
+        LayoutFinding,
+        key_path,
+        shown,
+    },
+    layout_folder_uses::{
+        FolderUses,
+        Proof,
+    },
+    layout_group_entries::{
+        entry_of,
+        owner_of,
+    },
+    layout_link_entries::{
+        Link,
+        USES_FOLDER,
+        link_command,
+        link_loop_hazard,
+        read_links,
+    },
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// What:
@@ -116,7 +138,12 @@ fn summaries(
 /// ```ts
 /// function extraLink(group: Path, link: Link, groups: Set<Path>, base: Path): LayoutFinding;
 /// ```
-fn extra_link(group: &Path, link: &Link, groups: &BTreeSet<PathBuf>, base: &Path) -> LayoutFinding {
+fn extra_link(
+    group: &Path,
+    link: &Link,
+    groups: &BTreeSet<PathBuf>,
+    base: &Path,
+) -> LayoutFinding {
     let inside: Option<PathBuf> = match owner_of(&link.target, groups) {
         Some(other) if other != group => Some(other),
         _ => None,
@@ -153,6 +180,7 @@ fn extra_link(group: &Path, link: &Link, groups: &BTreeSet<PathBuf>, base: &Path
         line: 0,
         message,
         help: Some(help),
+        key: format!("summary-extra {}", key_path(&link.entry, base)),
     };
 }
 
@@ -165,7 +193,12 @@ fn extra_link(group: &Path, link: &Link, groups: &BTreeSet<PathBuf>, base: &Path
 /// ```ts
 /// function missingSummary(group: Path, entry: Path, used: SummaryUse, base: Path): LayoutFinding;
 /// ```
-fn missing_summary(group: &Path, entry: &Path, used: &SummaryUse, base: &Path) -> LayoutFinding {
+fn missing_summary(
+    group: &Path,
+    entry: &Path,
+    used: &SummaryUse,
+    base: &Path,
+) -> LayoutFinding {
     let inside: String = if used.to == entry {
         String::new()
     } else {
@@ -183,9 +216,15 @@ fn missing_summary(group: &Path, entry: &Path, used: &SummaryUse, base: &Path) -
             shown(entry, base)
         ),
         help: Some(format!(
-            "Create the link: {}",
-            link_command(group, entry, base)
+            "Create the link: {}. {}",
+            link_command(group, entry, base),
+            link_loop_hazard()
         )),
+        key: format!(
+            "summary-missing {} {}",
+            key_path(group, base),
+            key_path(entry, base)
+        ),
     };
 }
 

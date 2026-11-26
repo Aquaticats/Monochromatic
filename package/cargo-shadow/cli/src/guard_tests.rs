@@ -4,7 +4,13 @@
 //! and which process a guard is meant for.
 
 /// Imports the functions and types under test.
-use crate::guard::{Guard, GuardKind, format_guard, is_meant_for, parse_guard};
+use crate::guard::{
+    Guard,
+    GuardKind,
+    format_guard,
+    is_meant_for,
+    parse_guard,
+};
 
 /// Imports the owned path type.
 use std::path::PathBuf;
@@ -18,7 +24,10 @@ fn sample(kind: GuardKind) -> Guard {
         kind,
         pid: WRITER_PID,
         hops: 2,
-        skipped: vec![PathBuf::from("/a/launcher"), PathBuf::from("/b/with:colon/cargo")],
+        skipped: vec![
+            PathBuf::from("/a/launcher"),
+            PathBuf::from("/b/with:colon/cargo"),
+        ],
     };
 }
 
@@ -33,7 +42,14 @@ fn a_guard_survives_the_text_round_trip_including_a_path_with_a_colon() {
 
 #[test]
 fn text_that_is_not_a_guard_is_ignored() {
-    let texts: [&str; 6] = ["", "x", "e", "e\nnot-a-number\n1", "e\n7\nnot-a-number", "q\n7\n1\n/a"];
+    let texts: [&str; 6] = [
+        "",
+        "x",
+        "e",
+        "e\nnot-a-number\n1",
+        "e\n7\nnot-a-number",
+        "q\n7\n1\n/a",
+    ];
     for text in texts {
         assert_eq!(parse_guard(text), None, "text {text:?}");
     }

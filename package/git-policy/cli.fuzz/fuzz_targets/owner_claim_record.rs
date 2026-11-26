@@ -14,7 +14,10 @@
 #![no_main]
 
 /// Import the libFuzzer entry macro and the sidecar's claim-record checks.
-use git_policy_cli_fuzz::owner_claim_record::{check_claim_text, check_generated_claim_text};
+use git_policy_cli_fuzz::owner_claim_record::{
+    check_claim_text,
+    check_generated_claim_text,
+};
 use libfuzzer_sys::fuzz_target;
 
 // The `|data: &[u8]|` form is the macro's input grammar, not a closure.

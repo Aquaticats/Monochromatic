@@ -1,0 +1,7 @@
+git version 2.43.0
+monochromatic-git-policy-cli 0.6.1-alpha.46, shadowing git at /usr/bin/git
+a_record_nothing_announced_is_found::a_record_the_look_ran_is_not_run_again_by_a_late_wake: test
+a_record_nothing_announced_is_found::a_running_service_pushes_a_promoted_record_within_the_bound: test
+a_record_nothing_announced_is_found::an_idle_service_runs_no_work: test
+a_record_nothing_announced_is_found::every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound: test
+abort_during_an_operation::a_cherry_pick_abort_inside_an_edit_step_refuses_the_hand_resolution: test

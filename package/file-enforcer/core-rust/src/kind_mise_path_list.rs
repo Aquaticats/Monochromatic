@@ -20,10 +20,17 @@ use crate::real_fs::EntryKind;
 /// Imports `Change`,
 /// `Rule`,
 /// `RulePlan` from `crate::rule`.
-use crate::rule::{Change, Rule, RulePlan};
+use crate::rule::{
+    Change,
+    Rule,
+    RulePlan,
+};
 /// Imports `Vars`,
 /// `evaluate_text` from `crate::value_eval`.
-use crate::value_eval::{Vars, evaluate_text};
+use crate::value_eval::{
+    Vars,
+    evaluate_text,
+};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
 /// Imports `expand_glob` from `crate::view_glob`.
@@ -108,7 +115,10 @@ impl Rule for MisePathListRule {
     /// ```ts
     /// plan(view: View): RulePlan
     /// ```
-    fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
+    fn plan(
+        &self,
+        view: &mut View,
+    ) -> Result<RulePlan, Diagnostic> {
         let mut found: Vec<String> = Vec::new();
         for pattern in &self.directories {
             for directory in expand_glob(view, pattern, EntryKind::Directory)? {
@@ -129,7 +139,14 @@ impl Rule for MisePathListRule {
             text.push_str(&format!("  {},\n", toml_string(directory)));
         }
         text.push_str("]\n");
-        let change = Change::Write { path: self.output.clone(), content: text.into_bytes(), mode: None };
-        return Ok(RulePlan { changes: vec![change], warnings: Vec::new() });
+        let change = Change::Write {
+            path: self.output.clone(),
+            content: text.into_bytes(),
+            mode: None,
+        };
+        return Ok(RulePlan {
+            changes: vec![change],
+            warnings: Vec::new(),
+        });
     }
 }

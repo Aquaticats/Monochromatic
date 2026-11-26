@@ -20,7 +20,10 @@
 /// ```ts
 /// import { BrowserslistError, Outcome } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+};
 /// What:
 ///  Import `GzDecoder` from `flate2::read::GzDecoder`.
 /// Why:
@@ -59,13 +62,23 @@ const MAX_ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Build an error naming the tarball.
-fn failure(subject: &str, message: &str) -> BrowserslistError {
-    return BrowserslistError::Data { file: format!("{subject} tarball"), offset: None, message: message.to_string() };
+fn failure(
+    subject: &str,
+    message: &str,
+) -> BrowserslistError {
+    return BrowserslistError::Data {
+        file: format!("{subject} tarball"),
+        offset: None,
+        message: message.to_string(),
+    };
 }
 
 /// The position of the wanted path that equals `path`,
 /// if any.
-fn position_of(wanted: &[&str], path: &str) -> Option<usize> {
+fn position_of(
+    wanted: &[&str],
+    path: &str,
+) -> Option<usize> {
     for (position, candidate) in wanted.iter().enumerate() {
         if *candidate == path {
             return Some(position);
@@ -91,7 +104,11 @@ fn position_of(wanted: &[&str], path: &str) -> Option<usize> {
 /// ```ts
 /// function extractFiles(subject: string, tgz: Uint8Array, wanted: string[]): Uint8Array[];
 /// ```
-pub fn extract_files(subject: &str, tgz: &[u8], wanted: &[&str]) -> Outcome<Vec<Vec<u8>>> {
+pub fn extract_files(
+    subject: &str,
+    tgz: &[u8],
+    wanted: &[&str],
+) -> Outcome<Vec<Vec<u8>>> {
     let decoder = GzDecoder::new(tgz).take(MAX_ARCHIVE_BYTES);
     let mut archive = Archive::new(decoder);
     let mut found: Vec<Option<Vec<u8>>> = vec![None; wanted.len()];
@@ -102,7 +119,12 @@ pub fn extract_files(subject: &str, tgz: &[u8], wanted: &[&str]) -> Outcome<Vec<
     for entry_result in entries {
         let mut entry = match entry_result {
             Ok(entry) => entry,
-            Err(error) => return Err(failure(subject, &format!("unreadable archive entry: {error}"))),
+            Err(error) => {
+                return Err(failure(
+                    subject,
+                    &format!("unreadable archive entry: {error}"),
+                ));
+            }
         };
         let path = match entry.path() {
             Ok(path) => path.to_string_lossy().into_owned(),
@@ -118,7 +140,10 @@ pub fn extract_files(subject: &str, tgz: &[u8], wanted: &[&str]) -> Outcome<Vec<
             return Err(failure(subject, &format!("{path} appears more than once")));
         }
         if entry.size() > MAX_FILE_BYTES {
-            return Err(failure(subject, &format!("{path} is larger than {MAX_FILE_BYTES} bytes")));
+            return Err(failure(
+                subject,
+                &format!("{path} is larger than {MAX_FILE_BYTES} bytes"),
+            ));
         }
         let mut contents: Vec<u8> = Vec::new();
         if let Err(error) = entry.read_to_end(&mut contents) {

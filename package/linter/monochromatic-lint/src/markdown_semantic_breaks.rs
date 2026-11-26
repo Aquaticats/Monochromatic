@@ -10,9 +10,16 @@
 //! ```
 
 /// Import the established diagnostic/fix model and native source.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the edit and fix types that a semantic line-break repair is expressed as.
-use crate::edits::{Edit, Fix, FixClass};
+use crate::edits::{
+    Edit,
+    Fix,
+    FixClass,
+};
 /// Import byte-oriented lexical guards and AST boundary helpers.
 use crate::markdown_block_start::starts_block_construct;
 /// Import the planner that picks where a paragraph may break without changing its meaning.
@@ -20,7 +27,11 @@ use crate::markdown_break_points::break_offsets;
 /// Import the processing-failure finding a rule reports when the document's structure cannot be walked.
 use crate::markdown_finding::structure_failure;
 /// Import the constructor that reports a document the break planner cannot read.
-use crate::markdown_prose_context::{continuation_prefix, delimiter_tail, paragraph_for};
+use crate::markdown_prose_context::{
+    continuation_prefix,
+    delimiter_tail,
+    paragraph_for,
+};
 /// Import the prose-context helpers that locate each paragraph and its continuation prefix.
 use crate::markdown_source::MarkdownSource;
 /// Import the parsed Markdown source that paragraphs are read from.
@@ -37,14 +48,20 @@ fn is_script_whitespace(character: char) -> bool {
 /// such as a component written with JSX braces.
 ///  CommonMark does not read such a tag as HTML,
 /// so it parses as prose that has nothing to break.
-fn is_tag_like_paragraph(context: &MarkdownSource, paragraph: u32) -> bool {
+fn is_tag_like_paragraph(
+    context: &MarkdownSource,
+    paragraph: u32,
+) -> bool {
     let text: &str = context.slice(paragraph).trim_matches(is_script_whitespace);
     return text.starts_with('<') && text.ends_with('>');
 }
 
 /// Report missing line breaks at their insertion points,
 ///  not at the paragraph's beginning.
-pub fn semantic_line_breaks(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn semantic_line_breaks(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     // Match the incumbent's CRLF preference; existing breaks of either kind remain untouched.
     let newline: &str = if context.source.contains("\r\n") {
         "\r\n"

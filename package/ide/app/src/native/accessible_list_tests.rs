@@ -13,7 +13,10 @@
 
 /// Finding exactly one element by its accessible label,
 ///  and counting the elements with one label.
-use super::accessible_box_tests::{count, only};
+use super::accessible_box_tests::{
+    count,
+    only,
+};
 /// One key press and release through the window,
 ///  and a bounded wait that names what did not happen.
 use super::find_tests::key;
@@ -24,11 +27,23 @@ use super::search_tests::open;
 /// The 1100 by 660 sidebar fixture,
 ///  an exact window size,
 ///  and settled layout.
-use super::sidebar_tests::{fixture, resize, settle};
+use super::sidebar_tests::{
+    fixture,
+    resize,
+    settle,
+};
 /// The window type and the location row type generated from the shipped markup.
-use super::{AppWindow, find_tests, search_tests, ui::ReferenceEntry};
+use super::{
+    AppWindow,
+    find_tests,
+    search_tests,
+    ui::ReferenceEntry,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// What:
 ///  `AccessibleRole` is the toolkit's enum of accessible roles;
 ///  `ElementHandle` is Slint's test-only
@@ -44,11 +59,21 @@ use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
 /// ```ts
 /// import { AccessibleRole, ElementHandle, ElementQuery } from 'slint-testing';
 /// ```
-use i_slint_backend_testing::{AccessibleRole, ElementHandle, ElementQuery};
+use i_slint_backend_testing::{
+    AccessibleRole,
+    ElementHandle,
+    ElementQuery,
+};
 /// Window ownership,
 ///  toolkit models,
 ///  and key names.
-use slint::{ComponentHandle, Model, ModelRc, VecModel, platform::Key};
+use slint::{
+    ComponentHandle,
+    Model,
+    ModelRc,
+    VecModel,
+    platform::Key,
+};
 /// What:
 ///  `Rc` is a shared pointer for one thread (sibling `Arc` works across threads);
 ///  `Cell` holds a small
@@ -60,7 +85,11 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel, platform::Key};
 /// ```ts
 /// type Shared<T> = { current: T };
 /// ```
-use std::{cell::Cell, fs, rc::Rc};
+use std::{
+    cell::Cell,
+    fs,
+    rc::Rc,
+};
 
 /// What:
 ///  `query` is an element query already narrowed to a window or to one list;
@@ -77,7 +106,11 @@ use std::{cell::Cell, fs, rc::Rc};
 /// ```ts
 /// function matching(query: ElementQuery, role: AccessibleRole, label: string): ElementHandle;
 /// ```
-fn matching(query: ElementQuery, role: AccessibleRole, label: &str) -> ElementHandle {
+fn matching(
+    query: ElementQuery,
+    role: AccessibleRole,
+    label: &str,
+) -> ElementHandle {
     // What: `.to_string()` copies the borrowed label into an owned `String` (sibling `&str` borrows).
     // Why: The filter below is kept by the query, so it must own its copy of the label.
     //
@@ -118,7 +151,10 @@ fn matching(query: ElementQuery, role: AccessibleRole, label: &str) -> ElementHa
 }
 
 /// Whether an element reads out exactly `wanted` as its accessible label.
-fn has_label(candidate: &ElementHandle, wanted: &str) -> bool {
+fn has_label(
+    candidate: &ElementHandle,
+    wanted: &str,
+) -> bool {
     return match candidate.accessible_label() {
         Some(text) => text == wanted,
         None => false,
@@ -135,7 +171,10 @@ fn has_label(candidate: &ElementHandle, wanted: &str) -> bool {
 /// ```ts
 /// function item(list: ElementHandle, label: string): ElementHandle;
 /// ```
-fn item(list: &ElementHandle, label: &str) -> ElementHandle {
+fn item(
+    list: &ElementHandle,
+    label: &str,
+) -> ElementHandle {
     // What: `query_descendants()` starts a query over every element below this one.
     // Why: Only this list's rows are candidates.
     //
@@ -156,7 +195,12 @@ fn item(list: &ElementHandle, label: &str) -> ElementHandle {
 /// ```ts
 /// function assertRow(list: ElementHandle, label: string, selected: boolean, index: number): void;
 /// ```
-fn assert_row(list: &ElementHandle, label: &str, selected: bool, index: usize) {
+fn assert_row(
+    list: &ElementHandle,
+    label: &str,
+    selected: bool,
+    index: usize,
+) {
     let row = item(list, label);
     // What: `.to_string()` copies the label for the filter, which the query keeps; `.len()` counts the matches.
     // Why: Only the row itself may carry its name; a text inside it with the same name is read twice.
@@ -215,7 +259,12 @@ fn assert_row(list: &ElementHandle, label: &str, selected: bool, index: usize) {
 /// ```ts
 /// function container(window: AppWindow, role: AccessibleRole, label: string, rows: number): ElementHandle;
 /// ```
-fn container(window: &AppWindow, role: AccessibleRole, label: &str, rows: usize) -> ElementHandle {
+fn container(
+    window: &AppWindow,
+    role: AccessibleRole,
+    label: &str,
+    rows: usize,
+) -> ElementHandle {
     // What: `ElementQuery::from_root(window)` is a query over every element of the window.
     // Why: Lists and the tree are found anywhere in the window.
     //

@@ -28,21 +28,34 @@
 /// Import the layer's failure causes.
 use git_policy_cli::candidate_error::CandidateFailure;
 /// Import the mode type and the object-name parser.
-use git_policy_cli::candidate_object::{CandidateMode, parse_object_id};
+use git_policy_cli::candidate_object::{
+    CandidateMode,
+    parse_object_id,
+};
 /// Import the listing parser,
 ///  the delta and their record types.
 use git_policy_cli::candidate_stage::{
-    ChangedPath, StageRecord, parse_stage_records, staged_delta,
+    ChangedPath,
+    StageRecord,
+    parse_stage_records,
+    staged_delta,
 };
 /// Import the `rulesFile` check and its refusals.
-use git_policy_cli::config_rules_file::{RulesFileRefusal, check_rules_file};
+use git_policy_cli::config_rules_file::{
+    RulesFileRefusal,
+    check_rules_file,
+};
 /// Import the final-newline rule.
 use git_policy_cli::policy_final_newline::normalized_final_newline;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
 /// `Component`,
 ///  `Path` and `PathBuf` read a filesystem path component by component.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// Git's mode text for a candidate mode,
 ///  restated from `git ls-files --stage` output.
@@ -122,9 +135,9 @@ pub fn check_stage_records(data: &[u8]) {
                 error.failure
             );
             assert!(
-                error
-                    .message
-                    .starts_with("monochromatic-git-policy-cli could not read the index: entry record "),
+                error.message.starts_with(
+                    "monochromatic-git-policy-cli could not read the index: entry record "
+                ),
                 "{}",
                 error.message
             );
@@ -252,7 +265,9 @@ fn generated_index(cursor: &mut Cursor<'_>) -> Vec<StageRecord> {
 /// function generatedListings(data: Buffer): [StageRecord[], StageRecord[]];
 /// ```
 pub fn generated_listings(data: &[u8]) -> (Vec<StageRecord>, Vec<StageRecord>) {
-    let mut cursor: Cursor<'_> = Cursor { rest: data };
+    let mut cursor: Cursor<'_> = Cursor {
+        rest: data,
+    };
     let before: Vec<StageRecord> = generated_index(&mut cursor);
     if cursor.next().is_multiple_of(2) {
         return (before, generated_index(&mut cursor));
@@ -322,7 +337,10 @@ fn records_by_path(records: &[StageRecord]) -> PathGroups {
 /// ```ts
 /// function checkStagedDelta(before: StageRecord[], after: StageRecord[]): void;
 /// ```
-pub fn check_staged_delta(before: &[StageRecord], after: &[StageRecord]) {
+pub fn check_staged_delta(
+    before: &[StageRecord],
+    after: &[StageRecord],
+) {
     let (before_order, before_groups) = records_by_path(before);
     let (after_order, after_groups) = records_by_path(after);
     let mut expected: Vec<ChangedPath> = Vec::new();

@@ -2,7 +2,10 @@
 //!  and what it means for the lookup and for the reader.
 
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The tool directories the toolchain provides for a project.
@@ -141,7 +144,10 @@ impl ToolchainState {
     /// ```ts
     /// advisory(root: string): string[]
     /// ```
-    pub fn advisory(&self, root: &Path) -> Vec<String> {
+    pub fn advisory(
+        &self,
+        root: &Path,
+    ) -> Vec<String> {
         let Self::Failed(failed) = self else {
             return Vec::new();
         };

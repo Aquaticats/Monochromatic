@@ -142,7 +142,10 @@ impl LfsUrlRejection {
 /// Render the explanation through the ordinary error interface.
 impl std::fmt::Display for LfsUrlRejection {
     /// Borrow the formatter only while writing the fixed explanation.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return formatter.write_str(self.explanation());
     }
 }
@@ -234,7 +237,10 @@ fn is_hex_byte(byte: u8) -> bool {
 /// ```ts
 /// function allBytes(text: string, accept: (byte: number) => boolean): boolean;
 /// ```
-fn all_bytes(text: &str, accept: fn(u8) -> bool) -> bool {
+fn all_bytes(
+    text: &str,
+    accept: fn(u8) -> bool,
+) -> bool {
     for byte in text.bytes() {
         if !accept(byte) {
             return false;
@@ -351,7 +357,10 @@ fn supported_scheme(endpoint: &str) -> Option<(&'static str, u32)> {
 /// ```ts
 /// function parsePort(digits: string, defaultPort: number): number | undefined;
 /// ```
-fn parse_port(digits: &str, default_port: u32) -> Result<Option<u32>, LfsUrlRejection> {
+fn parse_port(
+    digits: &str,
+    default_port: u32,
+) -> Result<Option<u32>, LfsUrlRejection> {
     if digits.is_empty() {
         return Ok(None);
     }

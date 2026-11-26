@@ -29,19 +29,38 @@ use super::error::ToolchainError;
 /// Imports `safe_file_name` from `super::install_archive`.
 use super::install_archive::safe_file_name;
 /// Imports what this module uses from `super::install_support`.
-use super::install_support::{artifact_for_host, download_verified, extract_archive, run_checked};
+use super::install_support::{
+    artifact_for_host,
+    download_verified,
+    extract_archive,
+    run_checked,
+};
 /// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{
+    RunOutcome,
+    RunRequest,
+};
 
 /// `rustup toolchain install --no-self-update <package id, or the locked version>`.
-pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_rust_toolchain(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let channel: &str = tool.rustup_channel();
-    let request: RunRequest = ctx.request("rustup", &["toolchain", "install", "--no-self-update", channel]);
-    run_checked(ctx, &request, "rustup toolchain install", &tool.declaration.id)?;
+    let request: RunRequest = ctx.request(
+        "rustup",
+        &["toolchain", "install", "--no-self-update", channel],
+    );
+    run_checked(
+        ctx,
+        &request,
+        "rustup toolchain install",
+        &tool.declaration.id,
+    )?;
     return Ok(());
 }
 
@@ -57,14 +76,57 @@ pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), To
 /// ```ts
 /// export function installRustComponents(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
-    for component in tool.declaration.options.rust_components.clone().unwrap_or_default() {
-        let request: RunRequest = ctx.request("rustup", &["component", "add", &component, "--toolchain", tool.rustup_channel()]);
-        run_checked(ctx, &request, &format!("rustup component add ({component})"), &tool.declaration.id)?;
+pub fn install_rust_components(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
+    for component in tool
+        .declaration
+        .options
+        .rust_components
+        .clone()
+        .unwrap_or_default()
+    {
+        let request: RunRequest = ctx.request(
+            "rustup",
+            &[
+                "component",
+                "add",
+                &component,
+                "--toolchain",
+                tool.rustup_channel(),
+            ],
+        );
+        run_checked(
+            ctx,
+            &request,
+            &format!("rustup component add ({component})"),
+            &tool.declaration.id,
+        )?;
     }
-    for target in tool.declaration.options.rust_targets.clone().unwrap_or_default() {
-        let request: RunRequest = ctx.request("rustup", &["target", "add", &target, "--toolchain", tool.rustup_channel()]);
-        run_checked(ctx, &request, &format!("rustup target add ({target})"), &tool.declaration.id)?;
+    for target in tool
+        .declaration
+        .options
+        .rust_targets
+        .clone()
+        .unwrap_or_default()
+    {
+        let request: RunRequest = ctx.request(
+            "rustup",
+            &[
+                "target",
+                "add",
+                &target,
+                "--toolchain",
+                tool.rustup_channel(),
+            ],
+        );
+        run_checked(
+            ctx,
+            &request,
+            &format!("rustup target add ({target})"),
+            &tool.declaration.id,
+        )?;
     }
     return Ok(());
 }
@@ -80,11 +142,20 @@ pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), T
 /// ```ts
 /// function installedNames(ctx: Context, tool: LockedTool, listing: 'component' | 'target'): string[]
 /// ```
-fn installed_names(ctx: &Context, tool: &LockedTool, listing: &str) -> Result<Vec<String>, ToolchainError> {
+fn installed_names(
+    ctx: &Context,
+    tool: &LockedTool,
+    listing: &str,
+) -> Result<Vec<String>, ToolchainError> {
     // What: a `rustup_query`, so the question cannot install the toolchain it asks about.
     // Why: see `Context::rustup_query`; a query that installs answers as if the parts were always there.
-    let request: RunRequest =
-        ctx.rustup_query(&[listing, "list", "--installed", "--toolchain", tool.rustup_channel()]);
+    let request: RunRequest = ctx.rustup_query(&[
+        listing,
+        "list",
+        "--installed",
+        "--toolchain",
+        tool.rustup_channel(),
+    ]);
     let what: String = format!("rustup {listing} list --installed");
     // What: `run_checked` starts `rustup` and turns a non-zero exit into an error naming this step.
     // Why: a listing that fails cannot prove which parts are installed, so the tool is reported as failed
@@ -147,7 +218,10 @@ fn installed_names(ctx: &Context, tool: &LockedTool, listing: &str) -> Result<Ve
 /// ```ts
 /// function listsExactly(installed: string[], name: string): boolean
 /// ```
-fn lists_exactly(installed: &[String], name: &str) -> bool {
+fn lists_exactly(
+    installed: &[String],
+    name: &str,
+) -> bool {
     for listed in installed {
         if listed == name {
             return true;
@@ -173,12 +247,18 @@ fn lists_exactly(installed: &[String], name: &str) -> bool {
 /// ```ts
 /// function listsComponent(installed: string[], name: string, targets: string[]): boolean
 /// ```
-fn lists_component(installed: &[String], name: &str, targets: &[String]) -> bool {
+fn lists_component(
+    installed: &[String],
+    name: &str,
+    targets: &[String],
+) -> bool {
     for listed in installed {
         if listed == name {
             return true;
         }
-        if spelled_with_one_of_the_targets(listed, name, targets) || spelled_with_one_of_the_targets(name, listed, targets) {
+        if spelled_with_one_of_the_targets(listed, name, targets)
+            || spelled_with_one_of_the_targets(name, listed, targets)
+        {
             return true;
         }
     }
@@ -196,7 +276,11 @@ fn lists_component(installed: &[String], name: &str, targets: &[String]) -> bool
 /// ```ts
 /// function spelledWithOneOfTheTargets(long: string, short: string, targets: string[]): boolean
 /// ```
-fn spelled_with_one_of_the_targets(long: &str, short: &str, targets: &[String]) -> bool {
+fn spelled_with_one_of_the_targets(
+    long: &str,
+    short: &str,
+    targets: &[String],
+) -> bool {
     // What: `let Some(leftover) = ... else { return false }` binds the text after the prefix and leaves the
     // function with `false` when `long` does not start with it (the sibling is a plain `match`).
     // Why: `long` need not carry the prefix at all, which is the common case.
@@ -244,8 +328,17 @@ fn declared_names(row: &Option<Vec<String>>) -> Vec<String> {
 /// ```ts
 /// function addPart(ctx: Context, tool: LockedTool, listing: 'component' | 'target', name: string, added: string[]): void
 /// ```
-fn add_part(ctx: &Context, tool: &LockedTool, listing: &str, name: &str, added: &mut Vec<String>) -> Result<(), ToolchainError> {
-    let request: RunRequest = ctx.request("rustup", &[listing, "add", name, "--toolchain", tool.rustup_channel()]);
+fn add_part(
+    ctx: &Context,
+    tool: &LockedTool,
+    listing: &str,
+    name: &str,
+    added: &mut Vec<String>,
+) -> Result<(), ToolchainError> {
+    let request: RunRequest = ctx.request(
+        "rustup",
+        &[listing, "add", name, "--toolchain", tool.rustup_channel()],
+    );
     let what: String = format!("rustup {listing} add ({name})");
     run_checked(ctx, &request, &what, &tool.declaration.id)?;
     // What: `format!` builds the sentence the report prints in place of counting the tool unchanged.
@@ -277,7 +370,11 @@ fn add_part(ctx: &Context, tool: &LockedTool, listing: &str, name: &str, added: 
 /// ```ts
 /// function reconcileRustParts(ctx: Context, tool: LockedTool, added: string[]): void  // throws
 /// ```
-pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool, added: &mut Vec<String>) -> Result<(), ToolchainError> {
+pub fn reconcile_rust_parts(
+    ctx: &Context,
+    tool: &LockedTool,
+    added: &mut Vec<String>,
+) -> Result<(), ToolchainError> {
     let components: Vec<String> = declared_names(&tool.declaration.options.rust_components);
     let targets: Vec<String> = declared_names(&tool.declaration.options.rust_targets);
     if components.is_empty() && targets.is_empty() {
@@ -335,22 +432,32 @@ pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool, added: &mut Vec<St
 /// ```ts
 /// export function installAndroidSdk(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_android_sdk(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+pub fn install_android_sdk(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
     let artifact = artifact_for_host(tool, &ctx.host.platform)?;
-    let download_path: PathBuf = ctx
-        .scope
-        .toolchain_root
-        .join("downloads")
-        .join(format!("android-sdk-{}-{}", tool.version, safe_file_name(&artifact.url)));
+    let download_path: PathBuf = ctx.scope.toolchain_root.join("downloads").join(format!(
+        "android-sdk-{}-{}",
+        tool.version,
+        safe_file_name(&artifact.url)
+    ));
     download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
-    let sdk_root: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
+    let sdk_root: PathBuf = tool_install_dir(
+        &ctx.scope.toolchain_root,
+        &tool.declaration.id,
+        &tool.version,
+    )?;
     let staging: PathBuf = sdk_root.join(".cmdline-tools-staging");
     let destination: PathBuf = sdk_root.join("cmdline-tools").join(&tool.version);
     // Best effort: a staging directory left by a killed run is cleared; absence is the normal case.
     let _ = fs::remove_dir_all(&staging);
     extract_archive(ctx, &download_path, &staging)?;
     if let Err(error) = fs::create_dir_all(sdk_root.join("cmdline-tools")) {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", sdk_root.join("cmdline-tools").display())));
+        return Err(ToolchainError::failure(format!(
+            "cannot create {}: {error}",
+            sdk_root.join("cmdline-tools").display()
+        )));
     }
     let _ = fs::remove_dir_all(&destination);
     if let Err(error) = fs::rename(staging.join("cmdline-tools"), &destination) {
@@ -362,10 +469,22 @@ pub fn install_android_sdk(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
     let _ = fs::remove_dir_all(&staging);
     let android_cli: PathBuf = destination.join("bin").join("android");
     let mut args: Vec<String> = vec!["sdk".to_string(), "install".to_string()];
-    args.extend(tool.declaration.options.android_packages.clone().unwrap_or_default());
+    args.extend(
+        tool.declaration
+            .options
+            .android_packages
+            .clone()
+            .unwrap_or_default(),
+    );
     let mut env = ctx.path_env();
-    env.insert("ANDROID_HOME".to_string(), sdk_root.to_string_lossy().to_string());
-    env.insert("ANDROID_SDK_ROOT".to_string(), sdk_root.to_string_lossy().to_string());
+    env.insert(
+        "ANDROID_HOME".to_string(),
+        sdk_root.to_string_lossy().to_string(),
+    );
+    env.insert(
+        "ANDROID_SDK_ROOT".to_string(),
+        sdk_root.to_string_lossy().to_string(),
+    );
     let request: RunRequest = RunRequest {
         command: android_cli.to_string_lossy().to_string(),
         args,

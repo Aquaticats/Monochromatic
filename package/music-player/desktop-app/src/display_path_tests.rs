@@ -15,7 +15,10 @@ use super::*;
 // Why:      A separator inside a name becomes the U+2215 look-alike, so it adds no folder level.
 #[test]
 fn separator_in_name_becomes_division_slash() {
-    assert_eq!(sanitize_component("AC/DC - song.flac"), "AC\u{2215}DC - song.flac");
+    assert_eq!(
+        sanitize_component("AC/DC - song.flac"),
+        "AC\u{2215}DC - song.flac"
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -46,8 +49,14 @@ fn join_under_empty_prefix_gives_bare_segment() {
 // Why:      A name joins under a prefix with exactly one separator.
 #[test]
 fn join_appends_name_under_prefix() {
-    assert_eq!(join_display_path("Artist/Album", "01 song.flac"), "Artist/Album/01 song.flac");
-    assert_eq!(join_display_path("Rock", "AC/DC - song.flac"), "Rock/AC\u{2215}DC - song.flac");
+    assert_eq!(
+        join_display_path("Artist/Album", "01 song.flac"),
+        "Artist/Album/01 song.flac"
+    );
+    assert_eq!(
+        join_display_path("Rock", "AC/DC - song.flac"),
+        "Rock/AC\u{2215}DC - song.flac"
+    );
 }
 
 // What:     `#[test]` marks the next function as a test case.

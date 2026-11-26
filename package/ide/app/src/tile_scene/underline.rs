@@ -6,11 +6,18 @@
 //!  so severity is never shown by color alone.
 
 /// The stroke item and the item list it joins.
-use super::{Item, StrokeItem};
+use super::{
+    Item,
+    StrokeItem,
+};
 /// Repeat length,
 /// wave height,
 /// and thickness of the line styles.
-use crate::annotation_paint::{AMPLITUDE, PERIOD, THICKNESS};
+use crate::annotation_paint::{
+    AMPLITUDE,
+    PERIOD,
+    THICKNESS,
+};
 /// Severities as the Language module names them.
 use crate::language::diagnostics::Severity;
 /// The path of a stroke.
@@ -62,7 +69,10 @@ pub struct Geometry {
 /// ```ts
 /// function dashes(severity: Severity, scale: number): number[] | undefined;
 /// ```
-fn dashes(severity: Severity, scale: f32) -> Option<Vec<f64>> {
+fn dashes(
+    severity: Severity,
+    scale: f32,
+) -> Option<Vec<f64>> {
     let unit = f64::from(scale);
     let period = f64::from(PERIOD);
     if severity == Severity::Error {
@@ -92,7 +102,12 @@ fn dashes(severity: Severity, scale: f32) -> Option<Vec<f64>> {
 /// ```ts
 /// function wave(span: [number, number], middle: number, swingPixels: number, scale: number): Path;
 /// ```
-fn wave(span: (f32, f32), middle: f32, swing_pixels: f32, scale: f32) -> BezPath {
+fn wave(
+    span: (f32, f32),
+    middle: f32,
+    swing_pixels: f32,
+    scale: f32,
+) -> BezPath {
     let half = f64::from(PERIOD * scale) / 2.0;
     let swing = f64::from(swing_pixels);
     let (left, right) = (f64::from(span.0), f64::from(span.1));
@@ -131,7 +146,11 @@ fn wave(span: (f32, f32), middle: f32, swing_pixels: f32, scale: f32) -> BezPath
 /// ```ts
 /// function underlineItems(items: Item[], geometry: Geometry, ink: Rgba): void;
 /// ```
-pub fn underline_items(items: &mut Vec<Item>, geometry: &Geometry, ink: [u8; 4]) {
+pub fn underline_items(
+    items: &mut Vec<Item>,
+    geometry: &Geometry,
+    ink: [u8; 4],
+) {
     let (left, right) = geometry.span;
     if right <= left {
         return;

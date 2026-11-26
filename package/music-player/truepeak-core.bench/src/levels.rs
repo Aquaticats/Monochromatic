@@ -25,9 +25,9 @@ use truepeak_core::peak_dbtp;
 ///  which would silently drop a silent track from every count the reports make.
 pub(crate) fn peak_dbtp_or_silence(peak: f64) -> f64 {
     if peak <= 0.0 {
-        return f64::NEG_INFINITY
+        return f64::NEG_INFINITY;
     } else {
-        return peak_dbtp(peak)
+        return peak_dbtp(peak);
     }
 }
 

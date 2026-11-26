@@ -1,0 +1,448 @@
+2026-11-26T03:56:58+00:00
+MemTotal:        8131780 kB
+MemFree:         7679384 kB
+MemAvailable:    7632656 kB
+Cached:           158304 kB
+SwapFree:              0 kB
+AnonPages:        112908 kB
+2026-11-26T03:57:03+00:00
+MemTotal:        8131780 kB
+MemFree:         7040088 kB
+MemAvailable:    7372224 kB
+Cached:           533716 kB
+SwapFree:              0 kB
+AnonPages:        169668 kB
+2026-11-26T03:57:08+00:00
+MemTotal:        8131780 kB
+MemFree:         7138192 kB
+MemAvailable:    7577760 kB
+Cached:           636440 kB
+SwapFree:              0 kB
+AnonPages:         98284 kB
+2026-11-26T03:57:13+00:00
+MemTotal:        8131780 kB
+MemFree:         6675948 kB
+MemAvailable:    7445028 kB
+Cached:           938680 kB
+SwapFree:              0 kB
+AnonPages:         76536 kB
+2026-11-26T03:57:19+00:00
+MemTotal:        8131780 kB
+MemFree:         6678180 kB
+MemAvailable:    7518100 kB
+Cached:          1002744 kB
+SwapFree:              0 kB
+AnonPages:         79404 kB
+2026-11-26T03:57:24+00:00
+MemTotal:        8131780 kB
+MemFree:         6594516 kB
+MemAvailable:    7577536 kB
+Cached:          1134372 kB
+SwapFree:              0 kB
+AnonPages:         51284 kB
+2026-11-26T03:57:29+00:00
+MemTotal:        8131780 kB
+MemFree:         6415860 kB
+MemAvailable:    7422104 kB
+Cached:          1151264 kB
+SwapFree:              0 kB
+AnonPages:         69488 kB
+2026-11-26T03:57:34+00:00
+MemTotal:        8131780 kB
+MemFree:         6432000 kB
+MemAvailable:    7446048 kB
+Cached:          1156364 kB
+SwapFree:              0 kB
+AnonPages:        161636 kB
+2026-11-26T03:57:39+00:00
+MemTotal:        8131780 kB
+MemFree:         6430384 kB
+MemAvailable:    7456852 kB
+Cached:          1168112 kB
+SwapFree:              0 kB
+AnonPages:        223896 kB
+2026-11-26T03:57:44+00:00
+MemTotal:        8131780 kB
+MemFree:         6411340 kB
+MemAvailable:    7449324 kB
+Cached:          1178960 kB
+SwapFree:              0 kB
+AnonPages:        173420 kB
+2026-11-26T03:57:49+00:00
+MemTotal:        8131780 kB
+MemFree:         6486964 kB
+MemAvailable:    7533428 kB
+Cached:          1186260 kB
+SwapFree:              0 kB
+AnonPages:         69596 kB
+2026-11-26T03:57:54+00:00
+MemTotal:        8131780 kB
+MemFree:         6417108 kB
+MemAvailable:    7482044 kB
+Cached:          1203892 kB
+SwapFree:              0 kB
+AnonPages:        210072 kB
+2026-11-26T03:57:59+00:00
+MemTotal:        8131780 kB
+MemFree:         6393700 kB
+MemAvailable:    7505124 kB
+Cached:          1249284 kB
+SwapFree:              0 kB
+AnonPages:        124332 kB
+2026-11-26T03:58:04+00:00
+MemTotal:        8131780 kB
+MemFree:         6276044 kB
+MemAvailable:    7397472 kB
+Cached:          1258328 kB
+SwapFree:              0 kB
+AnonPages:        205956 kB
+2026-11-26T03:58:09+00:00
+MemTotal:        8131780 kB
+MemFree:         6148680 kB
+MemAvailable:    7281824 kB
+Cached:          1269748 kB
+SwapFree:              0 kB
+AnonPages:        242884 kB
+2026-11-26T03:58:14+00:00
+MemTotal:        8131780 kB
+MemFree:         6172480 kB
+MemAvailable:    7316312 kB
+Cached:          1280136 kB
+SwapFree:              0 kB
+AnonPages:        254300 kB
+2026-11-26T03:58:19+00:00
+MemTotal:        8131780 kB
+MemFree:         5960636 kB
+MemAvailable:    7118808 kB
+Cached:          1294188 kB
+SwapFree:              0 kB
+AnonPages:        536280 kB
+2026-11-26T03:58:24+00:00
+MemTotal:        8131780 kB
+MemFree:         6054188 kB
+MemAvailable:    7228940 kB
+Cached:          1310440 kB
+SwapFree:              0 kB
+AnonPages:        295464 kB
+2026-11-26T03:58:29+00:00
+MemTotal:        8131780 kB
+MemFree:         6098996 kB
+MemAvailable:    7291124 kB
+Cached:          1327476 kB
+SwapFree:              0 kB
+AnonPages:        298796 kB
+2026-11-26T03:58:34+00:00
+MemTotal:        8131780 kB
+MemFree:         6094396 kB
+MemAvailable:    7304544 kB
+Cached:          1345148 kB
+SwapFree:              0 kB
+AnonPages:        287284 kB
+2026-11-26T03:58:39+00:00
+MemTotal:        8131780 kB
+MemFree:         6033444 kB
+MemAvailable:    7260816 kB
+Cached:          1361996 kB
+SwapFree:              0 kB
+AnonPages:        196460 kB
+2026-11-26T03:58:44+00:00
+MemTotal:        8131780 kB
+MemFree:         5797540 kB
+MemAvailable:    7047544 kB
+Cached:          1384068 kB
+SwapFree:              0 kB
+AnonPages:        363904 kB
+2026-11-26T03:58:49+00:00
+MemTotal:        8131780 kB
+MemFree:         6088416 kB
+MemAvailable:    7545008 kB
+Cached:          1587548 kB
+SwapFree:              0 kB
+AnonPages:        156492 kB
+2026-11-26T03:58:54+00:00
+MemTotal:        8131780 kB
+MemFree:         6165336 kB
+MemAvailable:    7630192 kB
+Cached:          1595380 kB
+SwapFree:              0 kB
+AnonPages:         71484 kB
+2026-11-26T03:58:59+00:00
+MemTotal:        8131780 kB
+MemFree:         6003888 kB
+MemAvailable:    7481300 kB
+Cached:          1607644 kB
+SwapFree:              0 kB
+AnonPages:        150032 kB
+2026-11-26T03:59:04+00:00
+MemTotal:        8131780 kB
+MemFree:         6066032 kB
+MemAvailable:    7557960 kB
+Cached:          1621876 kB
+SwapFree:              0 kB
+AnonPages:        110932 kB
+2026-11-26T03:59:09+00:00
+MemTotal:        8131780 kB
+MemFree:         5966648 kB
+MemAvailable:    7473304 kB
+Cached:          1636292 kB
+SwapFree:              0 kB
+AnonPages:        179008 kB
+2026-11-26T03:59:14+00:00
+MemTotal:        8131780 kB
+MemFree:         5843804 kB
+MemAvailable:    7361912 kB
+Cached:          1647444 kB
+SwapFree:              0 kB
+AnonPages:        148808 kB
+2026-11-26T03:59:19+00:00
+MemTotal:        8131780 kB
+MemFree:         6111360 kB
+MemAvailable:    7638960 kB
+Cached:          1656704 kB
+SwapFree:              0 kB
+AnonPages:         85788 kB
+2026-11-26T03:59:24+00:00
+MemTotal:        8131780 kB
+MemFree:         6000212 kB
+MemAvailable:    7534680 kB
+Cached:          1663264 kB
+SwapFree:              0 kB
+AnonPages:        186444 kB
+2026-11-26T03:59:29+00:00
+MemTotal:        8131780 kB
+MemFree:         5911280 kB
+MemAvailable:    7456696 kB
+Cached:          1674004 kB
+SwapFree:              0 kB
+AnonPages:        222860 kB
+2026-11-26T03:59:34+00:00
+MemTotal:        8131780 kB
+MemFree:         5927056 kB
+MemAvailable:    7482340 kB
+Cached:          1683540 kB
+SwapFree:              0 kB
+AnonPages:        247144 kB
+2026-11-26T03:59:39+00:00
+MemTotal:        8131780 kB
+MemFree:         6004516 kB
+MemAvailable:    7594864 kB
+Cached:          1717716 kB
+SwapFree:              0 kB
+AnonPages:        137904 kB
+2026-11-26T03:59:44+00:00
+MemTotal:        8131780 kB
+MemFree:         5568744 kB
+MemAvailable:    7494436 kB
+Cached:          2043264 kB
+SwapFree:              0 kB
+AnonPages:         51332 kB
+2026-11-26T03:59:49+00:00
+MemTotal:        8131780 kB
+MemFree:         5022440 kB
+MemAvailable:    7306112 kB
+Cached:          2396028 kB
+SwapFree:              0 kB
+AnonPages:        173100 kB
+2026-11-26T03:59:54+00:00
+MemTotal:        8131780 kB
+MemFree:         4718336 kB
+MemAvailable:    7314004 kB
+Cached:          2703096 kB
+SwapFree:              0 kB
+AnonPages:         75228 kB
+2026-11-26T03:59:59+00:00
+MemTotal:        8131780 kB
+MemFree:         4409072 kB
+MemAvailable:    7286156 kB
+Cached:          2947296 kB
+SwapFree:              0 kB
+AnonPages:        244988 kB
+2026-11-26T04:00:04+00:00
+MemTotal:        8131780 kB
+MemFree:         3685696 kB
+MemAvailable:    6832292 kB
+Cached:          3188084 kB
+SwapFree:              0 kB
+AnonPages:        558248 kB
+2026-11-26T04:00:09+00:00
+MemTotal:        8131780 kB
+MemFree:         3672104 kB
+MemAvailable:    6909464 kB
+Cached:          3275452 kB
+SwapFree:              0 kB
+AnonPages:        599540 kB
+2026-11-26T04:00:14+00:00
+MemTotal:        8131780 kB
+MemFree:         3637964 kB
+MemAvailable:    6948944 kB
+Cached:          3346568 kB
+SwapFree:              0 kB
+AnonPages:        438304 kB
+2026-11-26T04:00:19+00:00
+MemTotal:        8131780 kB
+MemFree:         3767932 kB
+MemAvailable:    7152700 kB
+Cached:          3417200 kB
+SwapFree:              0 kB
+AnonPages:        453704 kB
+2026-11-26T04:00:24+00:00
+MemTotal:        8131780 kB
+MemFree:         3663276 kB
+MemAvailable:    7109704 kB
+Cached:          3476204 kB
+SwapFree:              0 kB
+AnonPages:        458492 kB
+2026-11-26T04:00:29+00:00
+MemTotal:        8131780 kB
+MemFree:         3495156 kB
+MemAvailable:    6972560 kB
+Cached:          3505668 kB
+SwapFree:              0 kB
+AnonPages:        499496 kB
+2026-11-26T04:00:34+00:00
+MemTotal:        8131780 kB
+MemFree:         3364196 kB
+MemAvailable:    6890004 kB
+Cached:          3551868 kB
+SwapFree:              0 kB
+AnonPages:        670760 kB
+2026-11-26T04:00:39+00:00
+MemTotal:        8131780 kB
+MemFree:         3284180 kB
+MemAvailable:    6832788 kB
+Cached:          3573656 kB
+SwapFree:              0 kB
+AnonPages:        663372 kB
+2026-11-26T04:00:44+00:00
+MemTotal:        8131780 kB
+MemFree:         3328928 kB
+MemAvailable:    6937508 kB
+Cached:          3631260 kB
+SwapFree:              0 kB
+AnonPages:        541068 kB
+2026-11-26T04:00:49+00:00
+MemTotal:        8131780 kB
+MemFree:         3050212 kB
+MemAvailable:    6696632 kB
+Cached:          3667176 kB
+SwapFree:              0 kB
+AnonPages:        856804 kB
+2026-11-26T04:00:54+00:00
+MemTotal:        8131780 kB
+MemFree:         3050848 kB
+MemAvailable:    6725176 kB
+Cached:          3694208 kB
+SwapFree:              0 kB
+AnonPages:        699900 kB
+2026-11-26T04:00:59+00:00
+MemTotal:        8131780 kB
+MemFree:         3246500 kB
+MemAvailable:    6973428 kB
+Cached:          3744848 kB
+SwapFree:              0 kB
+AnonPages:        344984 kB
+2026-11-26T04:01:04+00:00
+MemTotal:        8131780 kB
+MemFree:         3075416 kB
+MemAvailable:    6852120 kB
+Cached:          3792452 kB
+SwapFree:              0 kB
+AnonPages:        631544 kB
+2026-11-26T04:01:09+00:00
+MemTotal:        8131780 kB
+MemFree:         2828624 kB
+MemAvailable:    6650588 kB
+Cached:          3835976 kB
+SwapFree:              0 kB
+AnonPages:        763244 kB
+2026-11-26T04:01:14+00:00
+MemTotal:        8131780 kB
+MemFree:         2869656 kB
+MemAvailable:    6729824 kB
+Cached:          3872800 kB
+SwapFree:              0 kB
+AnonPages:        691336 kB
+2026-11-26T04:01:19+00:00
+MemTotal:        8131780 kB
+MemFree:         2615744 kB
+MemAvailable:    6489944 kB
+Cached:          3886140 kB
+SwapFree:              0 kB
+AnonPages:        834768 kB
+2026-11-26T04:01:24+00:00
+MemTotal:        8131780 kB
+MemFree:         2101924 kB
+MemAvailable:    5991732 kB
+Cached:          3901344 kB
+SwapFree:              0 kB
+AnonPages:       1530732 kB
+2026-11-26T04:01:29+00:00
+MemTotal:        8131780 kB
+MemFree:         2158580 kB
+MemAvailable:    6048556 kB
+Cached:          3901504 kB
+SwapFree:              0 kB
+AnonPages:       1522200 kB
+2026-11-26T04:01:34+00:00
+MemTotal:        8131780 kB
+MemFree:         2143384 kB
+MemAvailable:    6044372 kB
+Cached:          3912288 kB
+SwapFree:              0 kB
+AnonPages:       1541700 kB
+2026-11-26T04:01:39+00:00
+MemTotal:        8131780 kB
+MemFree:         2642164 kB
+MemAvailable:    6581540 kB
+Cached:          3949596 kB
+SwapFree:              0 kB
+AnonPages:        846180 kB
+2026-11-26T04:01:44+00:00
+MemTotal:        8131780 kB
+MemFree:         4333576 kB
+MemAvailable:    7396368 kB
+Cached:          3102444 kB
+SwapFree:              0 kB
+AnonPages:         49000 kB
+2026-11-26T04:01:49+00:00
+MemTotal:        8131780 kB
+MemFree:         7764768 kB
+MemAvailable:    7663076 kB
+Cached:            59012 kB
+SwapFree:              0 kB
+AnonPages:         49328 kB
+2026-11-26T04:01:54+00:00
+MemTotal:        8131780 kB
+MemFree:         7787752 kB
+MemAvailable:    7686220 kB
+Cached:            59176 kB
+SwapFree:              0 kB
+AnonPages:         49172 kB
+2026-11-26T04:01:59+00:00
+MemTotal:        8131780 kB
+MemFree:         7807064 kB
+MemAvailable:    7705548 kB
+Cached:            59176 kB
+SwapFree:              0 kB
+AnonPages:         49060 kB
+2026-11-26T04:02:04+00:00
+MemTotal:        8131780 kB
+MemFree:         7783488 kB
+MemAvailable:    7690524 kB
+Cached:            73548 kB
+SwapFree:              0 kB
+AnonPages:         49064 kB
+2026-11-26T04:02:09+00:00
+MemTotal:        8131780 kB
+MemFree:         7787044 kB
+MemAvailable:    7694080 kB
+Cached:            73548 kB
+SwapFree:              0 kB
+AnonPages:         48952 kB
+2026-11-26T04:02:14+00:00
+MemTotal:        8131780 kB
+MemFree:         7796196 kB
+MemAvailable:    7703232 kB
+Cached:            73532 kB
+SwapFree:              0 kB
+AnonPages:         49084 kB

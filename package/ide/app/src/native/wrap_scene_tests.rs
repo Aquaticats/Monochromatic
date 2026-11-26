@@ -16,30 +16,61 @@
 use super::{
     gpu_snapshot::install_gpu_platform,
     gpu_tile::render_scene,
-    tile_reads::{RENDER_NOISE, rendered_tile, same_buffers},
+    tile_reads::{
+        RENDER_NOISE,
+        rendered_tile,
+        same_buffers,
+    },
 };
 /// The marks that become underlines,
 /// their layout,
 /// and the document under test.
 use ide_app::{
-    annotation::{Mark, Visible},
-    annotation_layout::{AnnotationColors, lay_out},
+    annotation::{
+        Mark,
+        Visible,
+    },
+    annotation_layout::{
+        AnnotationColors,
+        lay_out,
+    },
     code_colors::CodeColors,
-    document::{Document, ReadingAffinity, ReadingPosition},
+    document::{
+        Document,
+        ReadingAffinity,
+        ReadingPosition,
+    },
     language::diagnostics::Severity,
-    row_map::{CODE_ROW, RowMap},
-    shaped_text::{Clip, TextShaper, Viewport},
-    wrap_sign::{SIGN_INK, Sign},
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
+    shaped_text::{
+        Clip,
+        TextShaper,
+        Viewport,
+    },
+    wrap_sign::{
+        SIGN_INK,
+        Sign,
+    },
 };
 /// The pixels the GPU drew.
-use slint::{Rgba8Pixel, SharedPixelBuffer};
+use slint::{
+    Rgba8Pixel,
+    SharedPixelBuffer,
+};
 
 /// A long line of ordinary code that wraps at the widths used here.
 const CODE: &str = "let value = compute_total(first_item, second_item); // a long comment that keeps going and going";
 
 /// A viewport of `count` lines from `first`,
 /// wrapped at `wrap` logical pixels.
-fn viewport(first: usize, count: usize, wrap: f32) -> Viewport {
+fn viewport(
+    first: usize,
+    count: usize,
+    wrap: f32,
+) -> Viewport {
     return Viewport {
         first,
         count,

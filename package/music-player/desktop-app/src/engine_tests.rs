@@ -21,7 +21,12 @@ use std::sync::mpsc;
 //           monotonic clock reading, a wall clock, and the epoch reference.
 // Why:      `Duration` bounds the wait, `Instant` builds the deadline, `SystemTime`/
 //           `UNIX_EPOCH` build a unique throwaway directory name.
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    Instant,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // What:     `fn wait_for_len(rx: &mpsc::Receiver<usize>, want: usize, secs: u64) -> bool`.
 //           Read queue-length updates until one equals `want`, or `secs` elapse. Returns
@@ -30,7 +35,11 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 //           only about a `Queue` update of a specific length, and an OS filesystem event is
 //           inherently async, so a bounded wait that skips other lengths is the correct way
 //           to await it.
-fn wait_for_len(rx: &mpsc::Receiver<usize>, want: usize, secs: u64) -> bool {
+fn wait_for_len(
+    rx: &mpsc::Receiver<usize>,
+    want: usize,
+    secs: u64,
+) -> bool {
     // What:     `let deadline = Instant::now() + Duration::from_secs(secs);`. The instant the
     //           wait gives up.
     // Why:      Bound total waiting across however many non-matching updates arrive first.
@@ -117,7 +126,10 @@ fn idle_root_emits_no_extra_queue_updates() {
             //           updates, not `Queue`, so the guard must watch both.
             let len = match &update {
                 Update::Queue(paths) => Some(paths.len()),
-                Update::Reconciled { names, .. } => Some(names.len()),
+                Update::Reconciled {
+                    names,
+                    ..
+                } => Some(names.len()),
                 _ => None,
             };
             if let Some(queue_len) = len {
@@ -209,7 +221,10 @@ fn watcher_drives_rescan_update_through_engine() {
             //           rescan (`Reconciled`).
             let len = match &update {
                 Update::Queue(paths) => Some(paths.len()),
-                Update::Reconciled { names, .. } => Some(names.len()),
+                Update::Reconciled {
+                    names,
+                    ..
+                } => Some(names.len()),
                 _ => None,
             };
             if let Some(queue_len) = len {

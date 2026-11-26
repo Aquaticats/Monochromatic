@@ -27,7 +27,11 @@
 /// ```ts
 /// import { Command } from 'commander';
 /// ```
-use clap::{Arg, ArgAction, Command};
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+};
 
 /// Imports the process-environment module (CARGO_HOME,
 /// HOME).
@@ -40,13 +44,21 @@ use crate::constants::USAGE_EXIT_CODE;
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
 /// Imports the toolchain verbs' grammar and dispatch.
-use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands, Verb, VERBS as TOOLCHAIN_VERBS};
-/// Imports the environment view and the toolchain roots.
-use crate::toolchain::scope::{EnvMap, toolchain_roots};
-/// Imports the owned path type.
-use std::path::PathBuf;
+use crate::toolchain::commands::{
+    VERBS as TOOLCHAIN_VERBS,
+    Verb,
+    dispatch,
+    subcommands as toolchain_subcommands,
+};
 /// Imports the toolchain prune command.
 use crate::toolchain::prune_cargo::run_prune_command;
+/// Imports the environment view and the toolchain roots.
+use crate::toolchain::scope::{
+    EnvMap,
+    toolchain_roots,
+};
+/// Imports the owned path type.
+use std::path::PathBuf;
 
 /// What:
 /// The root verb `prune`:
@@ -241,7 +253,9 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
 /// ```
 fn prune_now() -> i32 {
     let Some(directory) = cargo_home(env::var("CARGO_HOME").ok(), env::var("HOME").ok()) else {
-        eprintln!("mpm-shadow: neither CARGO_HOME nor HOME is set, so cargo's home cannot be found");
+        eprintln!(
+            "mpm-shadow: neither CARGO_HOME nor HOME is set, so cargo's home cannot be found"
+        );
         return 1;
     };
     let roots: Vec<PathBuf> = toolchain_roots(&EnvMap::from_process());

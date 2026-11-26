@@ -23,7 +23,6 @@
 use crate::bounded_push::{Patience, StopCause};
 use crate::push_progress::{Clock, Meter, SAMPLE_INTERVAL};
 use std::net::{TcpListener, TcpStream};
-use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -135,37 +134,38 @@ fn tcp_probe() {
 /// this test binary,
 /// asked to only exist.
 fn spawn_named_child(subcommand: &str) -> Child {
-    let test_binary: std::path::PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-    return Command::new(test_binary)
-        .arg0("git")
-        .arg(subcommand)
-        .args(["--exact", PROBE_NAME, "--nocapture", "--test-threads", "1"])
-        .env(PORT_VARIABLE, "0")
-        .env(MODE_VARIABLE, "idle")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("start the named child");
+    // The name and the subcommand are what make the process read as `git <subcommand>` in a process listing.
+    let environment: [(&str, &std::ffi::OsStr); 2] = [(PORT_VARIABLE, std::ffi::OsStr::new("0")), (MODE_VARIABLE, std::ffi::OsStr::new("idle"))];
+    let arguments: [&str; 1] = [subcommand];
+    return crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: PROBE_NAME,
+        environment: environment.as_slice(),
+        arguments_before_the_test_name: arguments.as_slice(),
+        program_name: Some("git"),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    });
 }
 
 /// Start the probe against a listener's port,
 /// in a mode,
 /// with a child under a Git subcommand's name or none.
 fn start_probe(port: u16, mode: &str, child: Option<&str>) -> Owned {
-    let test_binary: std::path::PathBuf = crate::test_support::this_test_binary().expect("this test binary");
-    let mut command: Command = Command::new(test_binary);
-    command
-        .args(["--exact", PROBE_NAME, "--nocapture", "--test-threads", "1"])
-        .env(PORT_VARIABLE, port.to_string())
-        .env(MODE_VARIABLE, mode)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    let port_text: String = port.to_string();
+    let mut environment: Vec<(&str, &std::ffi::OsStr)> =
+        vec![(PORT_VARIABLE, std::ffi::OsStr::new(port_text.as_str())), (MODE_VARIABLE, std::ffi::OsStr::new(mode))];
     if let Some(subcommand) = child {
-        command.env(CHILD_VARIABLE, subcommand);
+        environment.push((CHILD_VARIABLE, std::ffi::OsStr::new(subcommand)));
     }
-    return Owned(crate::test_support::spawn_owned(&mut command).expect("start the probe"));
+    // The probe connects and holds; nothing it prints is read, so its streams answer nothing.
+    return Owned(crate::child_test_process::started(crate::child_test_process::ChildTest {
+        exact_test: PROBE_NAME,
+        environment: environment.as_slice(),
+        standard_output: Stdio::null(),
+        standard_error: Stdio::null(),
+        ..crate::child_test_process::ChildTest::default()
+    }));
 }
 
 /// The connection the probe made,

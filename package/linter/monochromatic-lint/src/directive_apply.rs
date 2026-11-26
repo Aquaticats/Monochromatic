@@ -16,17 +16,38 @@
 /// Import the finding model,
 /// the directive stages and the registry that declares suppressibility.
 use crate::{
-    diagnostic::{Diagnostic, Severity, Span},
+    diagnostic::{
+        Diagnostic,
+        Severity,
+        Span,
+    },
     directive_findings::Reporter,
     directive_options::DirectiveOptions,
-    directive_parse::{DIRECTIVE_PREFIX, DirectiveKind},
-    directive_resolve::{Directive, Targets, resolve_directives},
-    directive_scan::{ScannedComments, scan_comments},
-    run_modes::{RULES, RuleInfo, rule_info},
+    directive_parse::{
+        DIRECTIVE_PREFIX,
+        DirectiveKind,
+    },
+    directive_resolve::{
+        Directive,
+        Targets,
+        resolve_directives,
+    },
+    directive_scan::{
+        ScannedComments,
+        scan_comments,
+    },
+    run_modes::{
+        RULES,
+        RuleInfo,
+        rule_info,
+    },
     run_paths::Language,
 };
 /// Import ordered containers for the line index and the replayed disabled set.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// What:
 ///  Everything the filter needs besides the findings.
@@ -88,7 +109,10 @@ fn build_index(directives: &[Directive]) -> Index {
             ranges.push(position);
         }
     }
-    return Index { ranges, lines };
+    return Index {
+        ranges,
+        lines,
+    };
 }
 
 /// What:
@@ -179,7 +203,11 @@ fn is_suppressible(finding: &Diagnostic) -> bool {
 /// ```ts
 /// function creditEnables(directives, index, used): void;
 /// ```
-fn credit_enables(directives: &[Directive], index: &Index, used: &mut [Vec<bool>]) {
+fn credit_enables(
+    directives: &[Directive],
+    index: &Index,
+    used: &mut [Vec<bool>],
+) {
     let mut disabled: BTreeSet<&'static str> = BTreeSet::<&'static str>::new();
     for position in &index.ranges {
         let directive: &Directive = &directives[*position];

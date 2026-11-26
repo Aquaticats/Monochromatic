@@ -17,7 +17,11 @@ use crate::{
     layout_finding::LayoutFinding,
     layout_folder_links::check_folder_links,
     layout_module_uses::collect_uses,
-    layout_test_support::{link, package_with, tree_of},
+    layout_test_support::{
+        link,
+        package_with,
+        tree_of,
+    },
 };
 use std::path::Path;
 
@@ -27,7 +31,7 @@ fn findings_of(root: &Path) -> Vec<String> {
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), root);
+    let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), root, None);
     let prefix: String = format!("{}/", root.display());
     return found
         .iter()

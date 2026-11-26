@@ -6,8 +6,18 @@
 // a track whose length is NaN makes the stored default template refuse.
 
 use super::*;
-use crate::template_fixtures::{another_xronixle, burning_aquamarine, bare_playing, edit_at, library, typed};
-use crate::template_model::{DEFAULT_TRACK_TEMPLATE, PlayingTrackFields};
+use crate::template_fixtures::{
+    another_xronixle,
+    bare_playing,
+    burning_aquamarine,
+    edit_at,
+    library,
+    typed,
+};
+use crate::template_model::{
+    DEFAULT_TRACK_TEMPLATE,
+    PlayingTrackFields,
+};
 
 // What: `fn row(title: &str, supporting: &str) -> TemplatePreviewRow` builds one expected preview row.
 // Why: Each expected row reads like the study's copy, so each case compares whole rows.
@@ -16,7 +26,10 @@ use crate::template_model::{DEFAULT_TRACK_TEMPLATE, PlayingTrackFields};
 // ```ts
 // const row = (title, supporting) => ({ title, supporting });
 // ```
-fn row(title: &str, supporting: &str) -> TemplatePreviewRow {
+fn row(
+    title: &str,
+    supporting: &str,
+) -> TemplatePreviewRow {
     return TemplatePreviewRow {
         title: title.to_string(),
         supporting: supporting.to_string(),
@@ -30,7 +43,11 @@ fn row(title: &str, supporting: &str) -> TemplatePreviewRow {
 // ```ts
 // const entry = (label, mode, value) => ({ label, mode, insert: `mi(${mode})`, value });
 // ```
-fn entry(label: &'static str, mode: &'static str, value: &str) -> TemplateEditorFieldEntry {
+fn entry(
+    label: &'static str,
+    mode: &'static str,
+    value: &str,
+) -> TemplateEditorFieldEntry {
     return TemplateEditorFieldEntry {
         label,
         mode,
@@ -52,8 +69,14 @@ fn settings_lines_show_each_template_line() {
     assert_eq!(
         state.settings_lines(),
         Ok(vec![
-            (TemplateKind::TrackRows, String::from("4:35 \u{2212}1.2 dBTP")),
-            (TemplateKind::PlayingTrack, String::from("1 of 16 \u{2212}1.2 dBTP")),
+            (
+                TemplateKind::TrackRows,
+                String::from("4:35 \u{2212}1.2 dBTP")
+            ),
+            (
+                TemplateKind::PlayingTrack,
+                String::from("1 of 16 \u{2212}1.2 dBTP")
+            ),
         ])
     );
 }
@@ -70,7 +93,10 @@ fn track_row_preview_matches_study_copy() {
     let state = TemplateEditorState::initial(&library());
     assert_eq!(
         state.preview_rows(),
-        Ok(vec![row("Another Xronixle", "4:35 \u{2212}1.2 dBTP"), row("Burning Aquamarine", "5:12 ")])
+        Ok(vec![
+            row("Another Xronixle", "4:35 \u{2212}1.2 dBTP"),
+            row("Burning Aquamarine", "5:12 ")
+        ])
     );
 }
 
@@ -86,7 +112,10 @@ fn playing_track_preview_matches_study_copy() {
     let state = TemplateEditorState::initial(&library()).open(TemplateKind::PlayingTrack);
     assert_eq!(
         state.preview_rows(),
-        Ok(vec![row("Another Xronixle", "1 of 16 \u{2212}1.2 dBTP"), row("Burning Aquamarine", "2 of 16 ")])
+        Ok(vec![
+            row("Another Xronixle", "1 of 16 \u{2212}1.2 dBTP"),
+            row("Burning Aquamarine", "2 of 16 ")
+        ])
     );
 }
 
@@ -118,7 +147,10 @@ fn empty_library_uses_sample_values() {
     assert_eq!(state.preview_notes(), vec![TEMPLATE_SAMPLE_NOTE]);
     assert_eq!(
         state.preview_rows(),
-        Ok(vec![row("Track title", "3:20 \u{2212}1.0 dBTP"), row("Track not analyzed yet", "3:20 ")])
+        Ok(vec![
+            row("Track title", "3:20 \u{2212}1.0 dBTP"),
+            row("Track not analyzed yet", "3:20 ")
+        ])
     );
 }
 
@@ -187,7 +219,9 @@ fn track_row_fields_list_seven_with_first_track_values() {
 // ```
 #[test]
 fn playing_fields_add_place_and_total() {
-    let fields = TemplateEditorState::initial(&library()).open(TemplateKind::PlayingTrack).fields();
+    let fields = TemplateEditorState::initial(&library())
+        .open(TemplateKind::PlayingTrack)
+        .fields();
     assert_eq!(fields.len(), 9);
     assert_eq!(fields[7], entry("Place in folder", "track", "1"));
     assert_eq!(fields[8], entry("Tracks in folder", "total", "16"));
@@ -224,7 +258,10 @@ fn custom_template_changes_both_rows() {
     assert_eq!(
         state.preview_rows(),
         Ok(vec![
-            row("Another Xronixle", "FLAC \u{b7} 4:35 \u{b7} \u{2212}1.2 dBTP"),
+            row(
+                "Another Xronixle",
+                "FLAC \u{b7} 4:35 \u{b7} \u{2212}1.2 dBTP"
+            ),
             row("Burning Aquamarine", "FLAC \u{b7} 5:12 \u{b7} "),
         ])
     );
@@ -242,9 +279,15 @@ fn unknown_field_is_refused_and_rows_keep_default() {
     let initial = TemplateEditorState::initial(&library());
     let state = typed(&initial, "$tf(mi(len), m:ss)$ $mi(peek)$");
     assert!(!state.is_valid());
-    assert_eq!(state.mistake_lines(), vec!["mi has no field called peek. Pick a name from the Fields list."]);
+    assert_eq!(
+        state.mistake_lines(),
+        vec!["mi has no field called peek. Pick a name from the Fields list."]
+    );
     assert_eq!(state.preview_rows(), initial.preview_rows());
-    assert_eq!(state.preview_notes(), vec![TEMPLATE_LIBRARY_NOTE, TEMPLATE_KEPT_NOTE]);
+    assert_eq!(
+        state.preview_notes(),
+        vec![TEMPLATE_LIBRARY_NOTE, TEMPLATE_KEPT_NOTE]
+    );
 }
 
 // What: `fn settings_line_for_empty_library_uses_stand_ins(...)` checks the Settings line with no library tracks.
@@ -275,7 +318,9 @@ fn track_without_duration_or_peak_keeps_default_rows() {
     assert!(state.is_valid());
     assert_eq!(state.preview_rows(), Ok(vec![row("Bare", " ")]));
     assert_eq!(
-        state.open(TemplateKind::PlayingTrack).settings_line(TemplateKind::PlayingTrack),
+        state
+            .open(TemplateKind::PlayingTrack)
+            .settings_line(TemplateKind::PlayingTrack),
         Ok(String::from(" of  "))
     );
 }
@@ -301,7 +346,10 @@ fn track_whose_length_is_not_a_number_reports_the_applied_template_error() {
         "The applied Track rows template no longer applies: tf: needs a number of seconds, not NaN"
     );
     assert!(state.settings_lines().is_err());
-    assert_eq!(state.settings_line(TemplateKind::PlayingTrack), Ok(String::from("1 of 16 \u{2212}1.2 dBTP")));
+    assert_eq!(
+        state.settings_line(TemplateKind::PlayingTrack),
+        Ok(String::from("1 of 16 \u{2212}1.2 dBTP"))
+    );
     assert_eq!(state.fields()[5].value, "NaN");
     assert!(!state.is_valid());
 }
@@ -315,8 +363,19 @@ fn track_whose_length_is_not_a_number_reports_the_applied_template_error() {
 // ```
 #[test]
 fn help_follows_focus_and_the_caret() {
-    let state = edit_at(&TemplateEditorState::initial(&library()), DEFAULT_TRACK_TEMPLATE, 15, 15);
+    let state = edit_at(
+        &TemplateEditorState::initial(&library()),
+        DEFAULT_TRACK_TEMPLATE,
+        15,
+        15,
+    );
     assert!(state.help().is_none());
-    assert_eq!(state.with_focus(true).help().map(|found| return found.parameter), Some("format"));
+    assert_eq!(
+        state
+            .with_focus(true)
+            .help()
+            .map(|found| return found.parameter),
+        Some("format")
+    );
     assert_eq!(state.with_focus(true).text(), DEFAULT_TRACK_TEMPLATE);
 }

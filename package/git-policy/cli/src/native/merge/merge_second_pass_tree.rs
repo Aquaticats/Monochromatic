@@ -47,6 +47,12 @@ use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_layout::read_layout_after_success_with;
 use crate::random_id::random_uuid;
 use crate::scratch_location::prepare_repository_scratch;
+/// The jobs of the blocking pool that make this step's file calls,
+/// so a disk that makes them wait holds no worker of the runtime
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "Blocking files,
+/// fsync and the runtime's own shutdown").
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -416,10 +422,18 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
             }
         }
     }
-    let scratch = match prepare_repository_scratch(common_dir) {
-        Ok(found) => found,
-        Err(reason) => {
+    // Making the scratch directory, and the sweep of the repository scratch it makes, are file calls and a walk that can wait
+    //  on a disk, so a job of the blocking pool makes them.
+    let common_directory: std::path::PathBuf = common_dir.to_path_buf();
+    let scratch = match run_blocking_job_within_the_budget(move || return prepare_repository_scratch(common_directory.as_path())).await {
+        Ok(Ok(found)) => found,
+        Ok(Err(reason)) => {
             debug(TAG, format!("no scratch directory for the second pass: {reason}").as_str());
+            return None;
+        }
+        // The system gave the pool no thread, so no scratch directory was made and the second pass has none.
+        Err(refused) => {
+            debug(TAG, format!("no scratch directory for the second pass: {refused}").as_str());
             return None;
         }
     };
@@ -436,8 +450,22 @@ pub async fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str,
         files.push((file.path.as_slice(), file.mode, oid.as_str()));
     }
     let rewritten: Result<String, String> = tree_with_files(runner, tree, files.as_slice(), index.as_path()).await;
-    if let Err(error) = std::fs::remove_file(index.as_path()) {
-        debug(TAG, format!("the scratch index could not be removed ({error}); the repository scratch sweep collects it").as_str());
+    // The removal of the scratch index is a file call that can wait on a disk, so a job of the blocking pool makes it.
+    let removing: std::path::PathBuf = index.clone();
+    let removed = run_blocking_job_within_the_budget(move || {
+        return std::fs::remove_file(removing.as_path());
+    })
+    .await;
+    match removed {
+        // The index went, which is all this step asks of the removal.
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            debug(TAG, format!("the scratch index could not be removed ({error}); the repository scratch sweep collects it").as_str());
+        }
+        // The name may still be there, and the repository scratch sweep is what collects it.
+        Err(refused) => {
+            debug(TAG, format!("the scratch index could not be removed ({refused}); the repository scratch sweep collects it").as_str());
+        }
     }
     return match rewritten {
         Ok(found) => Some(Resolved { tree: found, merged }),

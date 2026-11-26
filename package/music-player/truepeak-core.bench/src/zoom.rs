@@ -61,7 +61,11 @@ pub struct ZoomRow {
 ///  and the climb is the shipped one,
 ///  so these rows
 /// describe what playback runs.
-fn zoom_probe(track: &Track, pass1_coverage: f64, total_coverage: f64) -> (f64, f64) {
+fn zoom_probe(
+    track: &Track,
+    pass1_coverage: f64,
+    total_coverage: f64,
+) -> (f64, f64) {
     let bins = &track.bin_peaks;
     let selection = select_over_bin_peaks(
         ProbeGrid {
@@ -72,7 +76,10 @@ fn zoom_probe(track: &Track, pass1_coverage: f64, total_coverage: f64) -> (f64, 
         },
         bins,
     );
-    return (f64::from(selection.peak), selection.used_bins as f64 * track.bin_seconds)
+    return (
+        f64::from(selection.peak),
+        selection.used_bins as f64 * track.bin_seconds,
+    );
 }
 
 /// Evaluate the zoom policy over the corpus at the full decoded-seconds budget.
@@ -121,7 +128,7 @@ pub fn evaluate_zoom(
             safe: safe_paths.contains(&track.path),
         });
     }
-    return (decoded, rows)
+    return (decoded, rows);
 }
 
 /// One margin's outcome over the zoom rows:
@@ -185,12 +192,16 @@ pub fn measure_zoom(
         avg_quiet_db: quiet_sum / all_tracks.max(1) as f64,
         worst_quiet_db: worst_quiet,
         worst_over_db: worst_over,
-    }
+    };
 }
 
 /// The under-read quantile over the loud long rows,
 ///  sorted ascending.
-pub fn zoom_under_read_quantile(rows: &[ZoomRow], ceiling_dbtp: f64, fraction: f64) -> f64 {
+pub fn zoom_under_read_quantile(
+    rows: &[ZoomRow],
+    ceiling_dbtp: f64,
+    fraction: f64,
+) -> f64 {
     let mut values: Vec<f64> = rows
         .iter()
         .filter(|row| return row.full_db > ceiling_dbtp)
@@ -198,7 +209,7 @@ pub fn zoom_under_read_quantile(rows: &[ZoomRow], ceiling_dbtp: f64, fraction: f
         .collect();
     values.sort_by(f64::total_cmp);
     let index = ((values.len() as f64 - 1.0) * fraction).round() as usize;
-    return values.get(index).copied().unwrap_or(0.0)
+    return values.get(index).copied().unwrap_or(0.0);
 }
 
 /// What:

@@ -28,17 +28,32 @@
 use smithay::{
     delegate_xdg_shell,
     desktop::{
-        find_popup_root_surface, get_popup_toplevel_coords, PopupKind, PopupManager, Space, Window,
+        PopupKind,
+        PopupManager,
+        Space,
+        Window,
+        find_popup_root_surface,
+        get_popup_toplevel_coords,
     },
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
-        wayland_server::protocol::{wl_seat, wl_surface::WlSurface},
+        wayland_server::protocol::{
+            wl_seat,
+            wl_surface::WlSurface,
+        },
     },
     utils::Serial,
     wayland::{
-        compositor::{with_states, SurfaceData},
+        compositor::{
+            SurfaceData,
+            with_states,
+        },
         shell::xdg::{
-            PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
+            PopupSurface,
+            PositionerState,
+            ToplevelSurface,
+            XdgShellHandler,
+            XdgShellState,
             XdgToplevelSurfaceData,
         },
     },
@@ -81,7 +96,10 @@ use crate::screen_geometry::ScreenGeometry;
 /// ```ts
 /// function setFullscreen(surface, geometry) { ... }
 /// ```
-fn set_fullscreen(surface: &ToplevelSurface, geometry: ScreenGeometry) {
+fn set_fullscreen(
+    surface: &ToplevelSurface,
+    geometry: ScreenGeometry,
+) {
     // What:     `surface.with_pending_state(|state| { ... });`. Runs the closure with a
     //           mutable borrow of the toplevel's not-yet-sent configure state.
     // Why:      Stage the fullscreen flags and size so the next `send_configure` carries
@@ -190,7 +208,7 @@ impl XdgShellHandler for Compositor {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         // What:     `&mut self.xdg_shell_state`. Mutable borrow (tail expression).
         // Why:      Return the shell state.
-        return &mut self.xdg_shell_state
+        return &mut self.xdg_shell_state;
     }
 
     /// What:
@@ -202,7 +220,10 @@ impl XdgShellHandler for Compositor {
     ///       Configure it fullscreen,
     ///  map it at the origin,
     ///  and focus it.
-    fn new_toplevel(&mut self, surface: ToplevelSurface) {
+    fn new_toplevel(
+        &mut self,
+        surface: ToplevelSurface,
+    ) {
         // What:     `let wl_surface = surface.wl_surface().clone();`. Grab an owned clone
         //           of the underlying `wl_surface` before `surface` is moved into the
         //           window below.
@@ -243,7 +264,10 @@ impl XdgShellHandler for Compositor {
     /// ```ts
     /// toplevelDestroyed(surface: ToplevelSurface): void { focus.toplevelGone(this, surface.wlSurface); }
     /// ```
-    fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
+    fn toplevel_destroyed(
+        &mut self,
+        surface: ToplevelSurface,
+    ) {
         crate::focus::toplevel_gone(self, surface.wl_surface());
     }
 
@@ -253,7 +277,11 @@ impl XdgShellHandler for Compositor {
     ///  Called when the app opens a popup (menu/tooltip).
     /// Why:
     ///       Track and position it so it renders correctly.
-    fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {
+    fn new_popup(
+        &mut self,
+        surface: PopupSurface,
+        _positioner: PositionerState,
+    ) {
         // What:     `self.unconstrain_popup(&surface);`. Adjust the popup so it stays on
         //           screen relative to its parent.
         // Why:      A popup positioned off the edge would be clipped.
@@ -273,7 +301,12 @@ impl XdgShellHandler for Compositor {
     ///  The app asks to move an existing popup.
     /// Why:
     ///       Recompute and acknowledge the new popup geometry.
-    fn reposition_request(&mut self, surface: PopupSurface, positioner: PositionerState, token: u32) {
+    fn reposition_request(
+        &mut self,
+        surface: PopupSurface,
+        positioner: PositionerState,
+        token: u32,
+    ) {
         // What:     `surface.with_pending_state(|state| { state.geometry =
         //           positioner.get_geometry(); state.positioner = positioner; });`. Stage
         //           the new geometry and positioner on the popup.
@@ -307,7 +340,13 @@ impl XdgShellHandler for Compositor {
     /// Why:
     ///       A single fullscreen fixture window never moves;
     ///  ignore the request.
-    fn move_request(&mut self, _surface: ToplevelSurface, _seat: wl_seat::WlSeat, _serial: Serial) {}
+    fn move_request(
+        &mut self,
+        _surface: ToplevelSurface,
+        _seat: wl_seat::WlSeat,
+        _serial: Serial,
+    ) {
+    }
 
     /// What:
     ///      `fn resize_request(&mut self, _surface: ToplevelSurface, _seat:
@@ -333,7 +372,13 @@ impl XdgShellHandler for Compositor {
     /// Why:
     ///       Not needed for scripted testing;
     ///  ignore.
-    fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {}
+    fn grab(
+        &mut self,
+        _surface: PopupSurface,
+        _seat: wl_seat::WlSeat,
+        _serial: Serial,
+    ) {
+    }
 }
 
 // What:     `delegate_xdg_shell!(Compositor);`. Generate the xdg-shell dispatch glue.
@@ -354,8 +399,10 @@ fn read_initial_configure_sent(states: &SurfaceData) -> bool {
         .get::<XdgToplevelSurfaceData>()
         .unwrap()
         .lock()
-        .expect("XdgToplevelSurfaceData mutex is poisoned: a thread panicked while it held the lock")
-        .initial_configure_sent
+        .expect(
+            "XdgToplevelSurfaceData mutex is poisoned: a thread panicked while it held the lock",
+        )
+        .initial_configure_sent;
 }
 
 /// Send the initial configure for a toplevel or popup on its first commit.
@@ -377,7 +424,11 @@ fn read_initial_configure_sent(states: &SurfaceData) -> bool {
 /// ```ts
 /// function handleCommit(popups, space, surface) { ... }
 /// ```
-pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: &WlSurface) {
+pub fn handle_commit(
+    popups: &mut PopupManager,
+    space: &Space<Window>,
+    surface: &WlSurface,
+) {
     // What:     `if let Some(window) = space.elements().find(|w|
     //           w.toplevel().unwrap().wl_surface() == surface).cloned() { ... }`. Find the
     //           window whose toplevel surface is the one that committed, cloning it out of
@@ -449,7 +500,10 @@ impl Compositor {
     ///           it fits on the output relative to its parent window.
     /// Why:
     ///       Prevent popups from rendering off the edge of the nested screen.
-    fn unconstrain_popup(&self, popup: &PopupSurface) {
+    fn unconstrain_popup(
+        &self,
+        popup: &PopupSurface,
+    ) {
         // What:     `let Ok(root) = find_popup_root_surface(&PopupKind::Xdg(popup.clone()))
         //           else { return; };`. `find_popup_root_surface` returns a `Result`; the
         //           `let Ok(root) = ... else { return; }` binds the success value or

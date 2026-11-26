@@ -71,6 +71,9 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST snapdir-default-is-a-finding',
   'DOCTOR-GUEST snapdir-follows-the-container',
   'DOCTOR-GUEST-REMOVAL healthy-lines-pass',
+  'DOCTOR-GUEST-REMOVAL lost-lock-is-a-finding',
+  'DOCTOR-GUEST-REMOVAL written-lock-passes-and-the-line-wrote-nothing',
+  'DOCTOR-GUEST-REMOVAL foreign-lock-is-a-finding',
   'DOCTOR-GUEST-REMOVAL interrupt-state-is-a-finding',
   'DOCTOR-GUEST-REMOVAL blocked-removal-names-the-holder',
   'DOCTOR-GUEST-REMOVAL lost-snapshot-is-a-finding',
@@ -185,9 +188,9 @@ async function build(chosen: Options): Promise<void> {
     'export PATH=/root/.cargo/bin:$PATH',
     // The lib test binary is built without optimisation: one release-mode rustc compiling the whole crate's tests was
     // killed with SIGKILL inside this guest's 7.75 GiB, and the removal lines' arm needs that harness, not its speed.
-    'cargo build --release --locked --bins > /root/doctor-route-build.log 2>&1',
-    'cargo build --release --locked --test native_binary >> /root/doctor-route-build.log 2>&1',
-    'cargo test --locked --lib --no-run >> /root/doctor-route-build.log 2>&1',
+    'cargo build --release --locked --features test-only-switches --bins > /root/doctor-route-build.log 2>&1',
+    'cargo build --release --locked --features test-only-switches --test native_binary >> /root/doctor-route-build.log 2>&1',
+    'cargo test --locked --features test-only-switches --lib --no-run >> /root/doctor-route-build.log 2>&1',
     'tail --lines=3 /root/doctor-route-build.log',
   ].join('\n');
   guest({ chosen, script, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
@@ -206,7 +209,7 @@ function arm(chosen: Options): void {
     `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
     `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
-    'if /root/.cargo/bin/cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+    'if /root/.cargo/bin/cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/doctor-route-arm.log',
     'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_removal_lines_guest ' +

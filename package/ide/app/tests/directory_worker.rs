@@ -9,17 +9,27 @@ use anyhow::Result;
 /// The consumer combines the read-only workspace,
 ///  UI-thread tree,
 ///  and background reader.
-use ide_app::{directory_worker::DirectoryWorker, file_tree::FileTree, workspace::Workspace};
+use ide_app::{
+    directory_worker::DirectoryWorker,
+    file_tree::FileTree,
+    workspace::Workspace,
+};
 /// Filesystem fixtures are private;
 ///  worker waits have an explicit deadline.
 use std::{
     fs,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Wait for one bounded reply;
 ///  idle polls never block the caller.
-fn finish(worker: &mut DirectoryWorker, tree: &mut FileTree) -> Result<bool> {
+fn finish(
+    worker: &mut DirectoryWorker,
+    tree: &mut FileTree,
+) -> Result<bool> {
     let start = Instant::now();
     while worker.is_busy() {
         // What: ? propagates a current read failure; a stale reply instead returns false successfully.

@@ -11,11 +11,22 @@
 //! ```
 
 /// Import the real conversion and the shared types.
-use super::{DEFAULT_MAX_LINES, ShellBudget, ShellRuleSettings, shell_rule_settings};
+use super::{
+    DEFAULT_MAX_LINES,
+    ShellBudget,
+    ShellRuleSettings,
+    shell_rule_settings,
+};
 use crate::diagnostic::Severity;
-use crate::shell_dialect::{CONSTRUCTS, Construct};
+use crate::shell_dialect::{
+    CONSTRUCTS,
+    Construct,
+};
 /// Import the repository's exact JSONC parser.
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// Convert one owned fixture without replacing configuration validation.
 fn settings(source: &str) -> Result<ShellRuleSettings, String> {

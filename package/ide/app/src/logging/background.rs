@@ -36,7 +36,10 @@
 /// ```ts
 /// interface Write { write(bytes: Uint8Array): number; flush(): void; }
 /// ```
-use std::io::{self, Write};
+use std::io::{
+    self,
+    Write,
+};
 /// What:
 ///  `Arc` is a thread-safe shared pointer;
 ///  `Mutex` guards a value that several threads
@@ -53,8 +56,12 @@ use std::io::{self, Write};
 /// const queue: Message[] = []; // shared between workers
 /// ```
 use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    Arc,
+    Mutex,
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
     mpsc,
 };
 /// What:
@@ -68,7 +75,10 @@ use std::sync::{
 /// ```ts
 /// const writer = new Worker('log-writer');
 /// ```
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::Duration,
+};
 /// What:
 ///  `FormatTime` writes a timestamp;
 ///  `SystemTime` is the clock the log's other lines use;
@@ -87,7 +97,10 @@ use std::{thread, time::Duration};
 use tracing_subscriber::fmt::{
     MakeWriter,
     format::Writer,
-    time::{FormatTime, SystemTime},
+    time::{
+        FormatTime,
+        SystemTime,
+    },
 };
 
 /// Bytes of formatted records that may wait for the output at once.
@@ -180,7 +193,10 @@ impl Shared {
     /// ```ts
     /// lose(loss: Loss) { this.lost.records += loss.records; this.lost.bytes += loss.bytes; }
     /// ```
-    fn lose(&self, loss: Loss) {
+    fn lose(
+        &self,
+        loss: Loss,
+    ) {
         // `lock()` returns `Err` only when a thread panicked while holding it; the count is still usable.
         let mut lost = match self.lost.lock() {
             Ok(guard) => guard,
@@ -246,7 +262,10 @@ impl BackgroundWriter {
     /// ```ts
     /// enqueue(bytes: Uint8Array) { if (queued + bytes.length > budget) { lose(bytes); return; } queue.push({ bytes, lostBefore: takeLoss() }); }
     /// ```
-    fn enqueue(&self, bytes: &[u8]) {
+    fn enqueue(
+        &self,
+        bytes: &[u8],
+    ) {
         let size = bytes.len();
         // `fetch_add` adds and returns the earlier value in one step, so two threads never both
         // see room for the same bytes.
@@ -302,7 +321,10 @@ pub struct RecordWriter<'owner> {
 impl Write for RecordWriter<'_> {
     /// Queue the bytes;
     ///  claiming them all keeps the subscriber from splitting the record.
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> io::Result<usize> {
         self.owner.enqueue(bytes);
         return Ok(bytes.len());
     }
@@ -322,7 +344,9 @@ impl<'owner> MakeWriter<'owner> for BackgroundWriter {
 
     /// Lend this background writer to one record.
     fn make_writer(&'owner self) -> Self::Writer {
-        return RecordWriter { owner: self };
+        return RecordWriter {
+            owner: self,
+        };
     }
 }
 
@@ -383,7 +407,10 @@ impl Drop for LogFlush {
 /// ```ts
 /// function report(output: Write, loss: Loss): boolean { if (loss.records === 0) return true; return tryWrite(output, line(loss)); }
 /// ```
-fn report<O: Write>(output: &mut O, loss: Loss) -> bool {
+fn report<O: Write>(
+    output: &mut O,
+    loss: Loss,
+) -> bool {
     if loss.records == 0 {
         return true;
     }
@@ -413,7 +440,11 @@ fn report<O: Write>(output: &mut O, loss: Loss) -> bool {
 /// ```ts
 /// for await (const message of queue) { if (message.kind === 'record') { report(output, message.lostBefore); output.write(message.bytes); } else { output.flush(); message.done(); } }
 /// ```
-fn drain<O: Write>(receiver: &mpsc::Receiver<Message>, output: &mut O, shared: &Shared) {
+fn drain<O: Write>(
+    receiver: &mpsc::Receiver<Message>,
+    output: &mut O,
+    shared: &Shared,
+) {
     // `iter()` yields messages until the queue is closed.
     for message in receiver.iter() {
         match message {
@@ -456,7 +487,7 @@ fn drain<O: Write>(receiver: &mpsc::Receiver<Message>, output: &mut O, shared: &
 /// function background(output: Write): [BackgroundWriter, LogFlush]
 /// ```
 pub fn background<O: Write + Send + 'static>(
-    output: O,
+    output: O
 ) -> io::Result<(BackgroundWriter, LogFlush)> {
     return background_with(output, QUEUE_BUDGET, FLUSH_GRACE);
 }
@@ -501,7 +532,10 @@ pub fn background_with<O: Write + Send + 'static>(
         sender: sender.clone(),
         shared,
     };
-    let flush = LogFlush { sender, grace };
+    let flush = LogFlush {
+        sender,
+        grace,
+    };
     return Ok((writer, flush));
 }
 

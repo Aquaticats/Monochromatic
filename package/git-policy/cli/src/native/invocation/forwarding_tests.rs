@@ -417,18 +417,14 @@ fn a_blocked_terminating_signal_still_ends_by_it() {
         // Only reached when the signal could not end this process: the parent names that status.
         std::process::exit(SIGNAL_NOT_DELIVERED_CODE);
     }
-    let binary: PathBuf = crate::test_support::this_test_binary().expect("the test binary");
-    let output: std::process::Output = Command::new(binary)
-        .args([
-            "--exact",
-            "invocation::forwarding::tests::a_blocked_terminating_signal_still_ends_by_it",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env(BLOCKED_SIGNAL_CHILD_VARIABLE, "1")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
+    // The death by signal is the assertion, so this asks for the raw ending rather than for a passing test.
+    let environment: [(&str, &OsStr); 1] = [(BLOCKED_SIGNAL_CHILD_VARIABLE, OsStr::new("1"))];
+    let output: std::process::Output = crate::child_test_process::finished(crate::child_test_process::ChildTest {
+        exact_test: "invocation::forwarding::tests::a_blocked_terminating_signal_still_ends_by_it",
+        environment: environment.as_slice(),
+        ..crate::child_test_process::ChildTest::default()
+    })
+    .expect("the child ends within the deadline");
     assert_eq!(
         output.status.signal(),
         Some(super::SIGNAL_TO_END_BY),

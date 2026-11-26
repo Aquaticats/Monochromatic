@@ -39,13 +39,27 @@ mod command_buffer;
 mod zfs_cmd_t;
 
 /// The field bounds and the struct size the design pins.
-pub use abi_limits::{COMMAND_STRUCT_SIZE, MAX_VALUE_LEN, MAXNAMELEN, MAXPATHLEN};
+pub use abi_limits::{
+    COMMAND_STRUCT_SIZE,
+    MAX_VALUE_LEN,
+    MAXNAMELEN,
+    MAXPATHLEN,
+};
 /// The command buffer and the size it refuses.
 pub use command_buffer::{
-    CommandBuffer, CommandBufferSize, DEFAULT_COMMAND_BUFFER_SIZE, MAXIMUM_COMMAND_BUFFER_SIZE,
+    CommandBuffer,
+    CommandBufferSize,
+    DEFAULT_COMMAND_BUFFER_SIZE,
+    MAXIMUM_COMMAND_BUFFER_SIZE,
 };
 /// The mirrored struct and the records it holds.
 pub use zfs_cmd_t::{
-    DmuObjsetStats, DrrBegin, ZcDestroyControl, ZcInjectOverlay, ZfsCmd, ZfsShare, ZfsStat,
+    DmuObjsetStats,
+    DrrBegin,
+    ZcDestroyControl,
+    ZcInjectOverlay,
+    ZfsCmd,
+    ZfsShare,
+    ZfsStat,
     ZinjectRecord,
 };

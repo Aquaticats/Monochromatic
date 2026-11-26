@@ -14,7 +14,14 @@ use super::navigation_tests::row;
 ///  source state,
 ///  and the bindings the shipped application installs.
 use super::{
-    AppWindow, State, bind_appearance, bind_keys, bind_pointer, bind_viewport, navigation, reload,
+    AppWindow,
+    State,
+    bind_appearance,
+    bind_keys,
+    bind_pointer,
+    bind_viewport,
+    navigation,
+    reload,
     render,
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
@@ -22,7 +29,11 @@ use crate::native::waiting_tests::Waiting;
 /// The canonical project boundary is created only over disposable fixtures.
 use ide_app::workspace::Workspace;
 /// Real headless timers drive the same refresh timers as the shipped event loop.
-use slint::{ComponentHandle, SharedString, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    SharedString,
+    platform::update_timers_and_animations,
+};
 /// What:
 ///  `Rc<RefCell<State>>` is the window's shared source state;
 ///  `Duration` and `Instant` time trials.
@@ -37,7 +48,10 @@ use std::{
     cell::RefCell,
     fs,
     rc::Rc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Trials per measured case;
@@ -71,7 +85,10 @@ struct Sequence(u64);
 /// Next value in `0..bound`.
 impl Sequence {
     /// High bits of a linear congruential generator are its best-distributed bits.
-    fn below(&mut self, bound: u64) -> u64 {
+    fn below(
+        &mut self,
+        bound: u64,
+    ) -> u64 {
         self.0 = self
             .0
             .wrapping_mul(6_364_136_223_846_793_005)
@@ -95,7 +112,10 @@ fn idle(span: Duration) {
 
 /// Return the time until the tree lists a row labeled `label`,
 ///  polling the model about once per millisecond.
-fn elapsed_until_row(window: &AppWindow, label: &str) -> Duration {
+fn elapsed_until_row(
+    window: &AppWindow,
+    label: &str,
+) -> Duration {
     let mut waiting = Waiting::closely(TRIAL_LIMIT);
     while row(window, label).is_none() {
         waiting.step("an external write did not reach the window");
@@ -105,7 +125,10 @@ fn elapsed_until_row(window: &AppWindow, label: &str) -> Duration {
 
 /// Return the time until the window shows `content` as the source text,
 ///  polling the model about once per millisecond.
-fn elapsed_until_source(window: &AppWindow, content: &str) -> Duration {
+fn elapsed_until_source(
+    window: &AppWindow,
+    content: &str,
+) -> Duration {
     let mut waiting = Waiting::closely(TRIAL_LIMIT);
     while window.get_source_text() != content {
         waiting.step("an external write did not reach the window");
@@ -118,7 +141,11 @@ fn elapsed_until_source(window: &AppWindow, content: &str) -> Duration {
 ///  median,
 ///  90th percentile,
 ///  and maximum in milliseconds.
-fn report(case: &str, folders: usize, samples: &[Duration]) {
+fn report(
+    case: &str,
+    folders: usize,
+    samples: &[Duration],
+) {
     // What: `Vec<f64>` is an owned growable list of 64-bit floats; `f32` would round sub-millisecond parts.
     // Why: Sorting a copy keeps the trial order of `samples` intact for nothing else to depend on.
     //

@@ -3,8 +3,10 @@
 
 /// The same function the compositor's control dispatcher calls for this verb.
 use nested_wayland_session::{
-    appearance_portal::AppearancePortal, control_color_scheme::switch, protocol::Response,
     ColorSchemePreference,
+    appearance_portal::AppearancePortal,
+    control_color_scheme::switch,
+    protocol::Response,
 };
 
 /// Without `--color-scheme` there is no private bus,
@@ -27,9 +29,15 @@ fn switch_reports_changed_only_when_the_served_value_changes() -> anyhow::Result
     let portal = AppearancePortal::start(ColorSchemePreference::Dark, bus)?;
     let changed = Response::OkWith("changed".to_string());
     let unchanged = Response::OkWith("unchanged".to_string());
-    assert_eq!(switch(Some(&portal), ColorSchemePreference::Dark), unchanged);
+    assert_eq!(
+        switch(Some(&portal), ColorSchemePreference::Dark),
+        unchanged
+    );
     assert_eq!(switch(Some(&portal), ColorSchemePreference::Light), changed);
-    assert_eq!(switch(Some(&portal), ColorSchemePreference::Light), unchanged);
+    assert_eq!(
+        switch(Some(&portal), ColorSchemePreference::Light),
+        unchanged
+    );
     assert_eq!(switch(Some(&portal), ColorSchemePreference::Dark), changed);
     return Ok(());
 }

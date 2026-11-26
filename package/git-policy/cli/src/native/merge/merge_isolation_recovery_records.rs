@@ -19,6 +19,12 @@
 
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
+/// The one job of the blocking pool that reads the records,
+/// so a disk that makes a read wait holds no worker of the runtime
+/// (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "Blocking files,
+/// fsync and the runtime's own shutdown").
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::merge_isolation_journal::{MergeIntent, list_merge_intents, parse_merge_intent};
 use crate::merge_isolation_kept_copies_decisions::sweep_kept_copies_awaiting;
 use crate::merge_isolation_take_aside_names::merge_key_of_a_record;
@@ -124,13 +130,32 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
     // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
     //  stops the command with nothing changed (owner, 2026-11-04, "Refuse and name it (Recommended)"; sol-1 round 3, P1 C).
+    // Listing the records and reading each record's bytes are file calls that can wait on a disk, so one job of the blocking
+    //  pool makes them all before the first record is judged.
+    let records_of: PathBuf = git_dir.to_path_buf();
+    let read: Result<Result<Vec<(PathBuf, Vec<u8>)>, RecoveryError>, crate::blocking_job::BlockingJobError> =
+        run_blocking_job_within_the_budget(move || {
+            let mut kept: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+            for record in list_merge_intents(records_of.as_path())? {
+                let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
+                    Ok(found) => found,
+                    // A record a merge removed after the listing is one this command has nothing to settle.
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
+                };
+                kept.push((record, bytes));
+            }
+            return Ok(kept);
+        })
+        .await;
+    let records: Vec<(PathBuf, Vec<u8>)> = match read {
+        Ok(Ok(found)) => found,
+        Ok(Err(failure)) => return Err(failure),
+        // A folder the pool never read is no evidence that no merge was interrupted, so a record is never dropped from the walk.
+        Err(refused) => return Err(RecoveryError(format!("the merge records could not be read: {refused}"))),
+    };
     let mut planned: Vec<(PathBuf, MergeIntent, OwnerLiveness)> = Vec::new();
-    for record in list_merge_intents(git_dir)? {
-        let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
-            Ok(found) => found,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
-        };
+    for (record, bytes) in records {
         let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
             return Err(RecoveryError(format!(
                 "The merge record {} is malformed. It was left in place; if no merge is running in this worktree, \

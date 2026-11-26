@@ -37,7 +37,10 @@ use std::collections::HashMap;
 /// ```ts
 /// import { ByteSet, is_word_byte } from "crate/charset";
 /// ```
-use crate::charset::{ByteSet, is_word_byte};
+use crate::charset::{
+    ByteSet,
+    is_word_byte,
+};
 
 /// What:
 ///     Imports the node algebra walked to gather classes.
@@ -205,7 +208,7 @@ pub fn compute_classes(root: &Node) -> Classes {
         reps,
         class_word,
         class_newline,
-    }
+    };
 }
 
 /// Builds the equivalence signature of one byte.
@@ -223,7 +226,10 @@ pub fn compute_classes(root: &Node) -> Classes {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn byte_signature(b: u8, sets: &[ByteSet]) -> Vec<bool> {
+fn byte_signature(
+    b: u8,
+    sets: &[ByteSet],
+) -> Vec<bool> {
     // What: start with the two context bits, then one bit per set.
     // Why: order is fixed so equal signatures hash and compare equal.
     //
@@ -237,7 +243,7 @@ fn byte_signature(b: u8, sets: &[ByteSet]) -> Vec<bool> {
     for set in sets {
         signature.push(set.contains(b));
     }
-    return signature
+    return signature;
 }
 
 /// Walks a node collecting its distinct `Class` byte sets.
@@ -255,7 +261,10 @@ fn byte_signature(b: u8, sets: &[ByteSet]) -> Vec<bool> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn collect_sets(node: &Node, out: &mut Vec<ByteSet>) {
+fn collect_sets(
+    node: &Node,
+    out: &mut Vec<ByteSet>,
+) {
     // What: recurse into children; record sets at the leaves. Why: bounded walk
     // of the AST, never of input bytes.
     //
@@ -275,7 +284,15 @@ fn collect_sets(node: &Node, out: &mut Vec<ByteSet>) {
             }
         }
         Node::Comp(inner) => collect_sets(inner, out),
-        Node::Repeat { node: body, .. } => collect_sets(body, out),
-        Node::Empty | Node::Fail | Node::Top | Node::LineStart | Node::LineEnd | Node::WordBoundary => {}
+        Node::Repeat {
+            node: body,
+            ..
+        } => collect_sets(body, out),
+        Node::Empty
+        | Node::Fail
+        | Node::Top
+        | Node::LineStart
+        | Node::LineEnd
+        | Node::WordBoundary => {}
     }
 }

@@ -9,26 +9,65 @@
 /// the marks that become underlines,
 /// and the records the store takes.
 use ide_app::{
-    annotation::{Annotations, Mark, Visible},
-    annotation_layout::{AnnotationColors, lay_out, pack},
+    annotation::{
+        Annotations,
+        Mark,
+        Visible,
+    },
+    annotation_layout::{
+        AnnotationColors,
+        lay_out,
+        pack,
+    },
     code_colors::CodeColors,
     document::Document,
     language::{
-        diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup},
-        hints::{HintKind, HintsSnapshot, InlayHint},
-        identity::{DocumentStamp, ServerIdentity},
+        diagnostics::{
+            Diagnostic,
+            DiagnosticsSnapshot,
+            Freshness,
+            Severity,
+            SourceGroup,
+        },
+        hints::{
+            HintKind,
+            HintsSnapshot,
+            InlayHint,
+        },
+        identity::{
+            DocumentStamp,
+            ServerIdentity,
+        },
     },
-    row_map::{CODE_ROW, RowMap},
-    shaped_text::{TextShaper, Viewport},
+    row_map::{
+        CODE_ROW,
+        RowMap,
+    },
+    shaped_text::{
+        TextShaper,
+        Viewport,
+    },
     tile_scene::{
-        read::{center_y, drawn_strokes},
+        read::{
+            center_y,
+            drawn_strokes,
+        },
         tile_items,
     },
-    virtual_row::{BLOCK_GAP, Block, CONTINUATION_INDENT, MESSAGE_ROWS, ROW_HEIGHT},
+    virtual_row::{
+        BLOCK_GAP,
+        Block,
+        CONTINUATION_INDENT,
+        MESSAGE_ROWS,
+        ROW_HEIGHT,
+    },
 };
 /// The pointer snapshots travel in,
 /// and the range of lines near the view.
-use std::{ops::Range, sync::Arc};
+use std::{
+    ops::Range,
+    sync::Arc,
+};
 
 /// A line that wraps to several rows at the widths used here,
 /// with a clear place for hints on its later rows.
@@ -51,12 +90,18 @@ const COLORS: AnnotationColors = AnnotationColors {
 };
 
 /// The character offset where line `line` of `text` starts.
-fn start_of(text: &str, line: usize) -> usize {
+fn start_of(
+    text: &str,
+    line: usize,
+) -> usize {
     return Document::new(text).text().line_to_char(line);
 }
 
 /// The block that stands above `line`.
-fn block_at(blocks: &[Arc<Block>], line: usize) -> Arc<Block> {
+fn block_at(
+    blocks: &[Arc<Block>],
+    line: usize,
+) -> Arc<Block> {
     for block in blocks {
         if block.line == line {
             return Arc::clone(block);
@@ -88,7 +133,10 @@ fn server() -> ServerIdentity {
 }
 
 /// One hint at `position`.
-fn hint(position: usize, label: &str) -> InlayHint {
+fn hint(
+    position: usize,
+    label: &str,
+) -> InlayHint {
     return InlayHint {
         position,
         label: label.to_string(),
@@ -100,7 +148,11 @@ fn hint(position: usize, label: &str) -> InlayHint {
 }
 
 /// One error over `start..end`.
-fn error(start: usize, end: usize, message: &str) -> Diagnostic {
+fn error(
+    start: usize,
+    end: usize,
+    message: &str,
+) -> Diagnostic {
     return Diagnostic {
         start,
         end,
@@ -149,7 +201,10 @@ fn everywhere() -> Range<usize> {
 }
 
 /// A viewport of `count` lines wrapped at `wrap`.
-fn viewport(count: usize, wrap: f32) -> Viewport {
+fn viewport(
+    count: usize,
+    wrap: f32,
+) -> Viewport {
     return Viewport {
         first: 0,
         count,

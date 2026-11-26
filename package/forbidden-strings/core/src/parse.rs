@@ -189,7 +189,7 @@ pub fn parse(pattern: &str) -> Result<Node, CompileError> {
     if can_match_empty(&node) {
         return Err(CompileError::EmptyMatchable);
     }
-    return Ok(node)
+    return Ok(node);
 }
 
 /// Reports whether the node can match the empty string at some real boundary.
@@ -245,7 +245,7 @@ fn can_match_empty(node: &Node) -> bool {
             }
         }
     }
-    return false
+    return false;
 }
 
 /// What:

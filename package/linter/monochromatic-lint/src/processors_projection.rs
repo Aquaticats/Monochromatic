@@ -10,11 +10,22 @@
 
 /// Import existing grouped edits,
 ///  exact lines and immutable mapping facts.
-use crate::edits::{Edit, Fix};
+use crate::edits::{
+    Edit,
+    Fix,
+};
 /// Preserve each affected physical line's original newline spelling.
-use crate::processors_lines::{newline, physical_lines};
+use crate::processors_lines::{
+    newline,
+    physical_lines,
+};
 /// Identify synthetic text and the extraction operation to recheck.
-use crate::processors_model::{Guard, MappedLine, Mapping, ProcessorError};
+use crate::processors_model::{
+    Guard,
+    MappedLine,
+    Mapping,
+    ProcessorError,
+};
 /// Validate atomic edits without rejecting an empty virtual snippet.
 use crate::processors_rewrite::rewrite;
 /// Share original snapshots while checking a disposable changed parent.
@@ -22,7 +33,10 @@ use std::sync::Arc;
 
 /// Locate an authored edit endpoint,
 ///  preferring the next line at a shared boundary.
-fn endpoint(mapping: &Mapping, offset: usize) -> Result<&MappedLine, ProcessorError> {
+fn endpoint(
+    mapping: &Mapping,
+    offset: usize,
+) -> Result<&MappedLine, ProcessorError> {
     for line in &mapping.lines {
         if line.start <= offset && offset < line.end {
             return Ok(line);
@@ -38,7 +52,11 @@ fn endpoint(mapping: &Mapping, offset: usize) -> Result<&MappedLine, ProcessorEr
 }
 
 /// Restore a replacement's newline and direct-parent prefix at its final interpolation.
-fn encoded(replacement: &str, ending: &str, prefix: &str) -> String {
+fn encoded(
+    replacement: &str,
+    ending: &str,
+    prefix: &str,
+) -> String {
     let mut result: String = String::new();
     for line in physical_lines(replacement) {
         result.push_str(&replacement[line.start..line.content_end]);
@@ -113,10 +131,19 @@ fn edit_to_parent(
 }
 
 /// Prove the same native container yields exactly the intended virtual rewrite.
-fn verify(mapping: &Mapping, parent: &Arc<Mapping>, expected: &str) -> Result<(), ProcessorError> {
+fn verify(
+    mapping: &Mapping,
+    parent: &Arc<Mapping>,
+    expected: &str,
+) -> Result<(), ProcessorError> {
     let extracted: Result<Option<String>, ProcessorError> = match mapping.guard {
-        Guard::Fence { marker, .. } => crate::processors_fences::fence_text(parent, marker),
-        Guard::Docs { anchor } => crate::processors_docs::doc_text(parent, anchor),
+        Guard::Fence {
+            marker,
+            ..
+        } => crate::processors_fences::fence_text(parent, marker),
+        Guard::Docs {
+            anchor,
+        } => crate::processors_docs::doc_text(parent, anchor),
         Guard::Prepared => Ok(Some(crate::processors_prepare::prepared_text(parent))),
         Guard::Step => {
             return Err(mapping
@@ -146,7 +173,10 @@ fn verify(mapping: &Mapping, parent: &Arc<Mapping>, expected: &str) -> Result<()
 
 /// Project one entire fix to the original host,
 ///  validating every intermediate container.
-pub(crate) fn project(mapping: &Mapping, fix: &Fix) -> Result<Fix, ProcessorError> {
+pub(crate) fn project(
+    mapping: &Mapping,
+    fix: &Fix,
+) -> Result<Fix, ProcessorError> {
     rewrite(mapping, fix)?;
     let Some(parent) = &mapping.parent else {
         return Ok(fix.clone());

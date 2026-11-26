@@ -9,7 +9,10 @@
 //! ```
 
 /// Import actual findings and severities.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the disposable Cargo-backed fixture,
 ///  not a test-only implementation of the rule.
 use crate::rust_semantic_test_support::SemanticFixture;
@@ -35,7 +38,10 @@ struct Case {
 
 /// Check exact finding counts,
 ///  severity and the distinction from unavailable semantic information.
-fn assert_case(fixture: &mut SemanticFixture, case: &Case) {
+fn assert_case(
+    fixture: &mut SemanticFixture,
+    case: &Case,
+) {
     let findings: Vec<Diagnostic> = fixture.check(case.source, Severity::Warn);
     assert_eq!(findings.len(), case.count, "{}: {findings:?}", case.name);
     for finding in &findings {

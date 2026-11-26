@@ -16,8 +16,14 @@
 use crate::closure_probe::PackageSetup;
 /// Import native paths and the process types that query `cargo ndk-env`.
 use std::{
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// What:
@@ -59,7 +65,10 @@ const BUILD_DIRECTORY: &str = "dylint";
 /// function link(location: Path, destination: string): void; // throws string
 /// ```
 #[cfg(unix)]
-fn link(location: &Path, destination: &Path) -> Result<(), String> {
+fn link(
+    location: &Path,
+    destination: &Path,
+) -> Result<(), String> {
     if let Some(parent) = location.parent()
         && let Err(error) = std::fs::create_dir_all(parent)
     {
@@ -87,7 +96,10 @@ fn link(location: &Path, destination: &Path) -> Result<(), String> {
 /// function link(location: Path, destination: string): void; // always throws
 /// ```
 #[cfg(not(unix))]
-fn link(location: &Path, _destination: &Path) -> Result<(), String> {
+fn link(
+    location: &Path,
+    _destination: &Path,
+) -> Result<(), String> {
     return Err(format!(
         "cannot link {}: symbolic links are not made on this platform",
         location.display()

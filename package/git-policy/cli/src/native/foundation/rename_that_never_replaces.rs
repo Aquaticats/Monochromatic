@@ -17,9 +17,18 @@
 //! ```ts
 //! await renameNoReplace(from, to); // no Node API; the kernel call is renameat2(RENAME_NOREPLACE)
 //! await exchange(from, to); // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
+//! const moved = await renameNoReplaceOnTheBlockingPool(from, to); // the same rename, off a worker of the runtime
 //! ```
 
-use std::path::Path;
+/// The pool a rename of a user's file goes to,
+/// so the directory write it makes never holds a worker of the runtime.
+use crate::blocking_job::BlockingJobError;
+/// One job of the blocking pool,
+/// under the process's own bound on them.
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// A borrowed `Path`,
+/// and an owned `PathBuf` for the job that outlives the caller's borrow.
+use std::path::{Path, PathBuf};
 
 /// Renames `from` to `to` unless `to` exists:
 /// one step that is as exclusive as `create_new` and leaves no second name.
@@ -67,6 +76,71 @@ pub fn exchange(from: &Path, to: &Path) -> std::io::Result<()> {
 #[cfg(not(target_os = "linux"))]
 pub fn exchange(_from: &Path, _to: &Path) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
+}
+
+/// What:
+///  What one rename that never replaces a name came to,
+///  made as a job of the blocking pool.
+/// Why:
+///   A caller has to tell four outcomes apart:
+/// the name is at the entry now,
+/// another write took it (which a merge reports rather than fails),
+/// the rename failed for another reason,
+///  and the system gave the pool no thread,
+/// where the rename did not run or may yet,
+///  so no caller may read that as a refusal of the work itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheAnswerOfARename =
+///   | { kind: 'renamed' }
+///   | { kind: 'name-taken' }
+///   | { kind: 'failed'; error: Error }
+///   | { kind: 'no-thread'; refused: BlockingJobError };
+/// ```
+pub enum TheAnswerOfARename {
+    /// The name was free, and the entry is at it now.
+    Renamed,
+    /// An entry stood at the name,
+    /// so nothing moved and both names stay,
+    /// with the error that says so.
+    NameTaken(std::io::Error),
+    /// The rename failed for another reason.
+    Failed(std::io::Error),
+    /// The system refused the pool a thread,
+    /// so the rename did not run, or the pool ran it after all: the refusal says which.
+    NoThreadToRunIt(BlockingJobError),
+}
+
+/// What:
+///  Renames `from` to `to` without replacing a name,
+///  as a job of the blocking pool.
+/// Why:
+///   A rename writes the directory the name lands in,
+/// and that can wait on a disk,
+/// a lock or a mount,
+/// so a step that runs on a task hands the rename to the pool
+///  (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "Blocking files,
+/// fsync and the runtime's own shutdown"),
+/// where it holds no worker of the runtime
+///  that would end its wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const moved: TheAnswerOfARename = await renameNoReplaceOnTheBlockingPool(from, to);
+/// ```
+pub async fn rename_noreplace_on_the_blocking_pool(from: &Path, to: &Path) -> TheAnswerOfARename {
+    let (source, landing): (PathBuf, PathBuf) = (from.to_path_buf(), to.to_path_buf());
+    let moved: Result<std::io::Result<()>, BlockingJobError> =
+        run_blocking_job_within_the_budget(move || return rename_noreplace(source.as_path(), landing.as_path())).await;
+    return match moved {
+        Ok(Ok(())) => TheAnswerOfARename::Renamed,
+        // The name another write took is not a failure: the caller keeps both entries and names the one it moved aside.
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::AlreadyExists => TheAnswerOfARename::NameTaken(error),
+        Ok(Err(error)) => TheAnswerOfARename::Failed(error),
+        Err(refused) => TheAnswerOfARename::NoThreadToRunIt(refused),
+    };
 }
 
 /// Whether a failed rename without replacing means the filesystem cannot do one (renameat2(2):

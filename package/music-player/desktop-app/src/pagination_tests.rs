@@ -34,7 +34,7 @@ fn names(list: &[&str]) -> Vec<String> {
     // ```ts
     // return list.map((s) => s);
     // ```
-    return list.iter().map(|s| return s.to_string()).collect()
+    return list.iter().map(|s| return s.to_string()).collect();
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -328,7 +328,12 @@ fn non_letter_root_names_go_to_catch_all() {
     // ```ts
     // const pages = paginate(["1 song.flac", "初音.flac", "#tag.flac", "élan.flac"]);
     // ```
-    let pages = paginate(&names(&["1 song.flac", "初音.flac", "#tag.flac", "élan.flac"]));
+    let pages = paginate(&names(&[
+        "1 song.flac",
+        "初音.flac",
+        "#tag.flac",
+        "élan.flac",
+    ]));
     // What:     `assert_eq!(pages.len(), 1);`. One page expected.
     // Why:      None of the four is a plain A-Z letter.
     //

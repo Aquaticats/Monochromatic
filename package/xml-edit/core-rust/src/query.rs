@@ -23,7 +23,12 @@
 /// ```ts
 /// import type { AttributeData, ElementData, XmlDocument, XmlElementId } from './document';
 /// ```
-use crate::document::{AttributeData, ElementData, XmlDocument, XmlElementId};
+use crate::document::{
+    AttributeData,
+    ElementData,
+    XmlDocument,
+    XmlElementId,
+};
 
 /// What:
 /// Add the read-only queries to the document.
@@ -46,7 +51,11 @@ impl XmlDocument {
     /// ```ts
     /// attribute(id: XmlElementId, name: string): string | undefined;
     /// ```
-    pub fn attribute(&self, id: XmlElementId, name: &str) -> Option<&str> {
+    pub fn attribute(
+        &self,
+        id: XmlElementId,
+        name: &str,
+    ) -> Option<&str> {
         let data: &ElementData = self.data(id)?;
         for attribute in &data.attributes {
             if &self.source[attribute.name.start..attribute.name.end] == name {
@@ -65,7 +74,10 @@ impl XmlDocument {
     /// ```ts
     /// attributes(id: XmlElementId): Array<[string, string]>;
     /// ```
-    pub fn attributes(&self, id: XmlElementId) -> Vec<(&str, &str)> {
+    pub fn attributes(
+        &self,
+        id: XmlElementId,
+    ) -> Vec<(&str, &str)> {
         let mut pairs: Vec<(&str, &str)> = Vec::new();
         if let Some(data) = self.data(id) {
             for attribute in &data.attributes {
@@ -86,7 +98,11 @@ impl XmlDocument {
     /// ```ts
     /// childrenNamed(id: XmlElementId, name: string): XmlElementId[];
     /// ```
-    pub fn children_named(&self, id: XmlElementId, name: &str) -> Vec<XmlElementId> {
+    pub fn children_named(
+        &self,
+        id: XmlElementId,
+        name: &str,
+    ) -> Vec<XmlElementId> {
         let mut found: Vec<XmlElementId> = Vec::new();
         for child in self.children(id) {
             if self.name(*child) == Some(name) {
@@ -107,7 +123,11 @@ impl XmlDocument {
     /// ```ts
     /// descendantsNamed(id: XmlElementId, name: string): XmlElementId[];
     /// ```
-    pub fn descendants_named(&self, id: XmlElementId, name: &str) -> Vec<XmlElementId> {
+    pub fn descendants_named(
+        &self,
+        id: XmlElementId,
+        name: &str,
+    ) -> Vec<XmlElementId> {
         let mut found: Vec<XmlElementId> = Vec::new();
         if let Some(data) = self.data(id) {
             for index in (id.0 + 1)..=data.subtree_end {
@@ -156,7 +176,10 @@ impl XmlDocument {
     /// ```ts
     /// text(id: XmlElementId): string | undefined;
     /// ```
-    pub fn text(&self, id: XmlElementId) -> Option<&str> {
+    pub fn text(
+        &self,
+        id: XmlElementId,
+    ) -> Option<&str> {
         let data: &ElementData = self.data(id)?;
         return Some(&data.text);
     }
@@ -173,7 +196,11 @@ impl XmlDocument {
     /// ```ts
     /// attributeData(id: XmlElementId, name: string): AttributeData | undefined;
     /// ```
-    pub(crate) fn attribute_data(&self, id: XmlElementId, name: &str) -> Option<&AttributeData> {
+    pub(crate) fn attribute_data(
+        &self,
+        id: XmlElementId,
+        name: &str,
+    ) -> Option<&AttributeData> {
         let data: &ElementData = self.data(id)?;
         for attribute in &data.attributes {
             if &self.source[attribute.name.start..attribute.name.end] == name {

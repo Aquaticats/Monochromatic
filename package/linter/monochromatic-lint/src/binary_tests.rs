@@ -19,19 +19,36 @@
 ///  stream plumbing and native paths.
 use std::{
     io::Write,
-    path::{Path, PathBuf},
-    process::{Child, Command, Output, Stdio},
-    sync::atomic::{AtomicU64, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        Output,
+        Stdio,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// The declared long options of the command grammar,
 ///  the help summary it renders,
 ///  and the program name its output carries.
-use monochromatic_lint::cli_options::{ABOUT, long_options};
+use monochromatic_lint::cli_options::{
+    ABOUT,
+    long_options,
+};
 /// The configuration filename the executable discovers.
 use monochromatic_lint::config_lookup::CONFIG_NAME;
 /// The core diagnostic codes the controls expect.
-use monochromatic_lint::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
+use monochromatic_lint::run_failure::{
+    FIX_REFUSED,
+    PROCESSING_FAILURE,
+};
 /// The program name the executable's output carries.
 use monochromatic_lint::run_finish::PROGRAM;
 /// The shipped rule registry the listing controls compare against.
@@ -39,7 +56,12 @@ use monochromatic_lint::run_modes::RULES as REGISTRY;
 /// The lockfile name,
 /// table header and diagnostic codes the controls expect,
 ///  re-exported by the library for its executable tests.
-use monochromatic_lint::{LOCK_NAME, NON_SUPPRESSIBLE, TOOL_TABLE, UNUSED};
+use monochromatic_lint::{
+    LOCK_NAME,
+    NON_SUPPRESSIBLE,
+    TOOL_TABLE,
+    UNUSED,
+};
 
 /// The path of the executable Cargo built for this test run.
 const BINARY: &str = env!("CARGO_BIN_EXE_monochromatic-lint");
@@ -90,7 +112,11 @@ impl Fixture {
 
     /// Write one file below the root,
     ///  creating its parent directories.
-    fn write(&self, relative: &str, contents: &str) -> PathBuf {
+    fn write(
+        &self,
+        relative: &str,
+        contents: &str,
+    ) -> PathBuf {
         let path: PathBuf = self.path.join(relative);
         std::fs::create_dir_all(path.parent().expect("fixture file has a parent"))
             .expect("fixture directories");
@@ -99,7 +125,10 @@ impl Fixture {
     }
 
     /// Read one file below the root as text.
-    fn read(&self, relative: &str) -> String {
+    fn read(
+        &self,
+        relative: &str,
+    ) -> String {
         return std::fs::read_to_string(self.path.join(relative)).expect("fixture text");
     }
 }
@@ -126,7 +155,11 @@ struct Run {
 
 /// Run the executable in a directory with arguments and standard input,
 ///  and wait for it.
-fn run(cwd: &Path, arguments: &[&str], input: &[u8]) -> Run {
+fn run(
+    cwd: &Path,
+    arguments: &[&str],
+    input: &[u8],
+) -> Run {
     let mut child: Child = Command::new(BINARY)
         .args(arguments)
         .current_dir(cwd)
@@ -764,7 +797,10 @@ fn an_older_repository_pin_adds_no_stale_binary_hint() {
 #[cfg(unix)]
 #[test]
 fn fixing_writes_atomically_and_keeps_the_file_mode() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
     let fixture: Fixture = Fixture::new();
     fixture.write(CONFIG, RULES);
     let fixable: PathBuf = fixture.write("doc/a.md", "# Title.\n\n```\ncode\n```\n\n# Second\n");
@@ -1267,7 +1303,12 @@ fn a_refused_stream_write_exits_two_and_names_the_stream() {
 ///  so nothing is quoted by hand,
 /// and `exec` replaces the shell,
 ///  so the status is the executable's own.
-fn run_with_main_stack(cwd: &Path, kibibytes: &str, arguments: &[&str], input: &[u8]) -> Run {
+fn run_with_main_stack(
+    cwd: &Path,
+    kibibytes: &str,
+    arguments: &[&str],
+    input: &[u8],
+) -> Run {
     let mut child: Child = Command::new("sh")
         .args(["-c", "ulimit -s \"$0\" && exec \"$@\"", kibibytes, BINARY])
         .args(arguments)

@@ -27,9 +27,17 @@
 /// import { DmabufHandler, ImportDma, ... } from "smithay";
 /// ```
 use smithay::{
-    backend::{allocator::dmabuf::Dmabuf, renderer::ImportDma},
+    backend::{
+        allocator::dmabuf::Dmabuf,
+        renderer::ImportDma,
+    },
     delegate_dmabuf,
-    wayland::dmabuf::{DmabufGlobal, DmabufHandler, DmabufState, ImportNotifier},
+    wayland::dmabuf::{
+        DmabufGlobal,
+        DmabufHandler,
+        DmabufState,
+        ImportNotifier,
+    },
 };
 
 /// What:
@@ -61,7 +69,7 @@ impl DmabufHandler for Compositor {
     fn dmabuf_state(&mut self) -> &mut DmabufState {
         // What:     `&mut self.dmabuf_state`. Mutable borrow (tail expression).
         // Why:      Return the dmabuf state.
-        return &mut self.dmabuf_state
+        return &mut self.dmabuf_state;
     }
 
     /// What:
@@ -76,7 +84,12 @@ impl DmabufHandler for Compositor {
     ///       Import the buffer into the renderer and tell the client whether it
     ///           worked,
     ///  so it knows the buffer is usable.
-    fn dmabuf_imported(&mut self, _global: &DmabufGlobal, dmabuf: Dmabuf, notifier: ImportNotifier) {
+    fn dmabuf_imported(
+        &mut self,
+        _global: &DmabufGlobal,
+        dmabuf: Dmabuf,
+        notifier: ImportNotifier,
+    ) {
         // What:     `if self.backend.renderer().import_dmabuf(&dmabuf, None).is_ok() { ... }`.
         //           `self.backend.renderer()` borrows the GLES renderer mutably;
         //           `import_dmabuf(&dmabuf, None)` (from the `ImportDma` trait) uploads

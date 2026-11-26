@@ -22,10 +22,16 @@
 /// Imports the file-system module that canonicalizes paths and reads launcher records.
 use std::fs;
 /// Imports the borrowed and owned path types of the programs and records that are followed.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports the reader of a launcher record and the path where a record stands beside a launcher.
-use super::launcher::{parse_record, record_path};
+use super::launcher::{
+    parse_record,
+    record_path,
+};
 
 /// How many launchers in a row are followed before the chain counts as one that never reaches a program.
 /// Delegated pick under the owner's rule that nothing waits without end (the same bound as the shadows' lookups,
@@ -44,7 +50,10 @@ pub const MAX_LAUNCHER_CHAIN: usize = 8;
 /// or a record that cannot be read,
 /// ends the walk with no problem:
 /// the start itself reports a missing program.
-pub fn chain_problem(own: &Path, program: &Path) -> Option<String> {
+pub fn chain_problem(
+    own: &Path,
+    program: &Path,
+) -> Option<String> {
     let own_resolved: PathBuf = match fs::canonicalize(own) {
         Ok(resolved) => resolved,
         Err(_) => own.to_path_buf(),

@@ -11,11 +11,19 @@
 //! ```
 
 /// Import the production discovery entry and its explicit options.
-use super::{DiscoveryOptions, FileDiscoveryError, discover_literal_path, supported_source};
+use super::{
+    DiscoveryOptions,
+    FileDiscoveryError,
+    discover_literal_path,
+    supported_source,
+};
 /// Import owned temporary directories.
 use crate::test_fs::Fixture;
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Build default discovery settings relative to the owned fixture.
 fn options(fixture: &Fixture) -> DiscoveryOptions {
@@ -28,7 +36,10 @@ fn options(fixture: &Fixture) -> DiscoveryOptions {
 }
 
 /// Create one fixture file and its parent directories.
-fn file(fixture: &Fixture, name: &str) -> PathBuf {
+fn file(
+    fixture: &Fixture,
+    name: &str,
+) -> PathBuf {
     let path: PathBuf = fixture.path.join(name);
     std::fs::create_dir_all(path.parent().expect("fixture file parent"))
         .expect("create fixture parent");

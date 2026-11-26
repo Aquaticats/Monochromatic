@@ -28,7 +28,7 @@ use crate::percent_escape::percent_escape;
 /// `=`,
 /// and line breaks always become escapes.
 fn is_uri_safe(byte: u8) -> bool {
-    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b':' | b'/')
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b':' | b'/');
 }
 
 /// Percent-encodes an app URI so it contains no space,
@@ -48,7 +48,7 @@ fn is_uri_safe(byte: u8) -> bool {
 /// encodeUri("application://a b.desktop"); // => "application://a%20b.desktop"
 /// ```
 pub fn encode_uri(text: &str) -> String {
-    return percent_escape(text.as_bytes(), is_uri_safe)
+    return percent_escape(text.as_bytes(), is_uri_safe);
 }
 
 /// Formats the `launcher` answer payload for the newest update.
@@ -64,7 +64,10 @@ pub fn encode_uri(text: &str) -> String {
 /// `age-ms`.
 /// Why:
 ///       One line lets a test read every field of the newest update in a single round trip.
-pub fn format_latest(update: &LauncherUpdate, now_ms: u64) -> String {
+pub fn format_latest(
+    update: &LauncherUpdate,
+    now_ms: u64,
+) -> String {
     // What:     `now_ms.saturating_sub(update.at_ms)`. Age of the update, never negative.
     // Why:      The update may be newer than the `now_ms` the caller sampled.
     let age_ms = now_ms.saturating_sub(update.at_ms);
@@ -76,7 +79,7 @@ pub fn format_latest(update: &LauncherUpdate, now_ms: u64) -> String {
         update.count,
         update.count_visible,
         update.urgent,
-    )
+    );
 }
 
 /// Formats one record of the `launcher-log` answer.
@@ -90,7 +93,7 @@ pub fn format_record(update: &LauncherUpdate) -> String {
     return format!(
         "t={} progress={:.4} visible={}",
         update.at_ms, update.progress, update.progress_visible,
-    )
+    );
 }
 
 /// Formats the `launcher-log` answer payload:
@@ -114,7 +117,7 @@ pub fn format_log(records: &[&LauncherUpdate]) -> String {
     for record in records {
         rendered.push(format_record(record));
     }
-    return format!("{} {}", records.len(), rendered.join("; "))
+    return format!("{} {}", records.len(), rendered.join("; "));
 }
 
 /// Unit tests for the answer text.

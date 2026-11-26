@@ -7,24 +7,48 @@
 
 /// The paint inputs of a tile that a windowless build needs,
 /// and the tile's raster width rule.
-use super::render::{tile_cap, viewport_of};
+use super::render::{
+    tile_cap,
+    viewport_of,
+};
 /// The map rules a measurement ends in.
-use super::rows::{absorb, settle};
+use super::rows::{
+    absorb,
+    settle,
+};
 /// Exact window sizes for the text width.
-use super::sidebar_tests::{TEXT_LEFT, minimap_beside};
+use super::sidebar_tests::{
+    TEXT_LEFT,
+    minimap_beside,
+};
 /// The worker's pass gate,
 /// the tile that is wanted,
 /// and the placement of the view.
 use super::{
     State,
-    tile::{TileBounds, requested},
+    tile::{
+        TileBounds,
+        requested,
+    },
     tile_build::PASS_GATE,
-    viewport::{holds as window_holds, place, wrap_width},
+    viewport::{
+        holds as window_holds,
+        place,
+        wrap_width,
+    },
 };
 /// The open reader and the pixels of the shown image.
 use super::{
-    tile_reads::{shown, tile_size, tile_textures},
-    wrap_tests::{long_text, measured, open},
+    tile_reads::{
+        shown,
+        tile_size,
+        tile_textures,
+    },
+    wrap_tests::{
+        long_text,
+        measured,
+        open,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::Waiting;
@@ -32,12 +56,20 @@ use crate::native::waiting_tests::Waiting;
 /// and the limit one raster may not pass.
 use ide_app::{
     row_map::CODE_ROW,
-    shaped_text::{stack_fits, texture_dimension, texture_fits},
+    shaped_text::{
+        stack_fits,
+        texture_dimension,
+        texture_fits,
+    },
 };
 /// Toolkit events.
 use slint::{
-    ComponentHandle, LogicalSize,
-    platform::{WindowEvent, update_timers_and_animations},
+    ComponentHandle,
+    LogicalSize,
+    platform::{
+        WindowEvent,
+        update_timers_and_animations,
+    },
 };
 
 /// Lines of several lengths,

@@ -11,7 +11,11 @@
 /// Imports the production selection,
 ///  the grid it reads,
 ///  and what it reports.
-use truepeak_core::{ProbeGrid, ProbeSelection, select_probe_bins};
+use truepeak_core::{
+    ProbeGrid,
+    ProbeSelection,
+    select_probe_bins,
+};
 
 /// Select the bins a probe measures over a track's precomputed bin peaks.
 ///
@@ -22,11 +26,14 @@ use truepeak_core::{ProbeGrid, ProbeSelection, select_probe_bins};
 ///  Why:
 ///  a lookup cannot fail,
 ///  so the selection's impossible error is matched away rather than unwrapped.
-pub fn select_over_bin_peaks(grid: ProbeGrid<'_>, bin_peaks: &[f32]) -> ProbeSelection {
+pub fn select_over_bin_peaks(
+    grid: ProbeGrid<'_>,
+    bin_peaks: &[f32],
+) -> ProbeSelection {
     let mut lookup = bin_peaks;
     let selection = match select_probe_bins(grid, &mut lookup) {
         Ok(selection) => selection,
         Err(never) => match never {},
     };
-    return selection
+    return selection;
 }

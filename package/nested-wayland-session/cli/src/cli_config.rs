@@ -1,15 +1,17 @@
 //! Display-independent configuration consumed by the compositor.
 
-/// Owned filesystem paths survive argument parsing.
-use std::path::PathBuf;
-/// Existing private-portal appearance values.
-use crate::{
-    accent_color::AccentColor, appearance_portal::ColorSchemePreference, notification_mode::NotificationMode,
-};
-/// Validated output scale shared with the runtime `scale` verb.
-use crate::screen_geometry::OutputScale;
 /// The device choice for headless rendering.
 use crate::gpu_choice::GpuChoice;
+/// Validated output scale shared with the runtime `scale` verb.
+use crate::screen_geometry::OutputScale;
+/// Existing private-portal appearance values.
+use crate::{
+    accent_color::AccentColor,
+    appearance_portal::ColorSchemePreference,
+    notification_mode::NotificationMode,
+};
+/// Owned filesystem paths survive argument parsing.
+use std::path::PathBuf;
 
 /// Validated program configuration parsed from the command line.
 ///

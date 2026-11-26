@@ -17,14 +17,27 @@
 //! ```
 
 use super::{
-    DriverSite, DriverState, driver_gaps, driver_state, parse_version, probe_manifest, warm_command,
+    DriverSite,
+    DriverState,
+    driver_gaps,
+    driver_state,
+    parse_version,
+    probe_manifest,
+    warm_command,
 };
 use crate::{
     closure_packages::ClosurePackage,
-    closure_stub_support::{Scenario, scenario, stub_cargo},
+    closure_stub_support::{
+        Scenario,
+        scenario,
+        stub_cargo,
+    },
     test_fs::Fixture,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The toolchain name that the `rustup` stub reports.
 const TOOLCHAIN: &str = "nightly-fixture-toolchain";
@@ -83,7 +96,10 @@ impl Machine {
     }
 
     /// Install a driver for the fixture toolchain that answers `-V` with the given files.
-    fn install_driver(&self, answers: &[(&str, &str)]) {
+    fn install_driver(
+        &self,
+        answers: &[(&str, &str)],
+    ) {
         let directory: PathBuf = self.drivers().join(TOOLCHAIN);
         std::fs::create_dir_all(&directory).expect("driver directory");
         std::fs::hard_link(stub_cargo(), directory.join("dylint-driver")).expect("driver link");
@@ -95,7 +111,11 @@ impl Machine {
     /// A package of the grouping below the library fixture's directory;
     /// the library directory exists,
     /// because `rustup` runs in it.
-    fn package(&self, directory: &str, library: &str) -> ClosurePackage {
+    fn package(
+        &self,
+        directory: &str,
+        library: &str,
+    ) -> ClosurePackage {
         std::fs::create_dir_all(self.library.path.join(library)).expect("library directory");
         return ClosurePackage {
             manifest: self.library.path.join(directory).join("Cargo.toml"),

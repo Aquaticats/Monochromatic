@@ -1,7 +1,11 @@
 //! Tests that the feasible model scores against the policy's own too-loud bound.
 
 use super::*;
-use crate::test_fixtures::{flat_bins, levels_match, track};
+use crate::test_fixtures::{
+    flat_bins,
+    levels_match,
+    track,
+};
 use truepeak_core::peak_dbtp;
 
 /// The test density:
@@ -78,8 +82,16 @@ fn the_provenance_margins_follow_the_policy_too_loud_bound_for_both_groups() {
     let policy = policy_with_bound(bound);
     let split = provenance_margin(&policy, &tracks, CANDIDATE, &safe);
     let expected = under_read_db() - bound;
-    assert!((split.margin_safe_db - expected).abs() < 1.0e-9, "safe margin {}", split.margin_safe_db);
-    assert!((split.margin_unsafe_db - expected).abs() < 1.0e-9, "unsafe margin {}", split.margin_unsafe_db);
+    assert!(
+        (split.margin_safe_db - expected).abs() < 1.0e-9,
+        "safe margin {}",
+        split.margin_safe_db
+    );
+    assert!(
+        (split.margin_unsafe_db - expected).abs() < 1.0e-9,
+        "unsafe margin {}",
+        split.margin_unsafe_db
+    );
 }
 
 #[test]
@@ -103,14 +115,34 @@ const FLAT_PEAK: f32 = 0.5;
 #[test]
 fn the_density_charges_shorts_in_full_and_longs_one_probe() {
     let short_secs = CANDIDATE.window_count as u64;
-    let short = track("short.flac", short_secs, FLAT_PEAK, flat_bins(short_secs as usize, FLAT_PEAK));
-    let long = track("long.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK));
+    let short = track(
+        "short.flac",
+        short_secs,
+        FLAT_PEAK,
+        flat_bins(short_secs as usize, FLAT_PEAK),
+    );
+    let long = track(
+        "long.flac",
+        LONG_SECS,
+        FLAT_PEAK,
+        flat_bins(LONG_SECS as usize, FLAT_PEAK),
+    );
     let feasible = evaluate_density(&default_policy(), &[short, long], CANDIDATE, 1.0e9, -100.0);
     let threshold = CANDIDATE.window_count as f64 * CANDIDATE.window_seconds;
     let expected = short_secs as f64 + threshold;
-    assert!(levels_match(feasible.probe_decoded_secs, expected), "decoded {}", feasible.probe_decoded_secs);
-    assert!(levels_match(feasible.margin_db, 0.0), "a flat quiet corpus needs no margin");
-    assert!(feasible.feasible, "zero margin inside a wide bound and budget is feasible");
+    assert!(
+        levels_match(feasible.probe_decoded_secs, expected),
+        "decoded {}",
+        feasible.probe_decoded_secs
+    );
+    assert!(
+        levels_match(feasible.margin_db, 0.0),
+        "a flat quiet corpus needs no margin"
+    );
+    assert!(
+        feasible.feasible,
+        "zero margin inside a wide bound and budget is feasible"
+    );
 }
 
 /// What:
@@ -121,12 +153,24 @@ fn a_density_outside_the_bound_or_the_budget_is_infeasible() {
     let gap = gap_track("gap.flac");
     let policy = default_policy();
     let over_bound = evaluate_density(&policy, &[gap], CANDIDATE, 1.0e9, -1.0);
-    assert!(!over_bound.feasible, "a {:.3} dB margin breaks a -1 dB bound", over_bound.margin_db);
+    assert!(
+        !over_bound.feasible,
+        "a {:.3} dB margin breaks a -1 dB bound",
+        over_bound.margin_db
+    );
     assert!(over_bound.worst_quiet_db < -1.0);
 
-    let flat = track("flat.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK));
+    let flat = track(
+        "flat.flac",
+        LONG_SECS,
+        FLAT_PEAK,
+        flat_bins(LONG_SECS as usize, FLAT_PEAK),
+    );
     let over_budget = evaluate_density(&policy, &[flat], CANDIDATE, 0.0, -100.0);
-    assert!(!over_budget.feasible, "a zero target cannot afford even one probe");
+    assert!(
+        !over_budget.feasible,
+        "a zero target cannot afford even one probe"
+    );
     assert!(over_budget.probe_decoded_secs > 0.0);
 }
 
@@ -136,11 +180,35 @@ fn a_density_outside_the_bound_or_the_budget_is_infeasible() {
 ///  then the smallest probe cost.
 #[test]
 fn the_density_search_orders_by_margin_then_cost() {
-    let flat = track("flat.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK));
-    let thresholds = [CANDIDATE.window_count as f64 * CANDIDATE.window_seconds, 4.0];
-    let results = best_feasible(&[flat], &[CANDIDATE.window_count], &thresholds, 1.0e9, -100.0);
+    let flat = track(
+        "flat.flac",
+        LONG_SECS,
+        FLAT_PEAK,
+        flat_bins(LONG_SECS as usize, FLAT_PEAK),
+    );
+    let thresholds = [
+        CANDIDATE.window_count as f64 * CANDIDATE.window_seconds,
+        4.0,
+    ];
+    let results = best_feasible(
+        &[flat],
+        &[CANDIDATE.window_count],
+        &thresholds,
+        1.0e9,
+        -100.0,
+    );
     assert_eq!(results.len(), thresholds.len());
-    assert!(results.iter().all(|point| return point.feasible), "a flat corpus is feasible everywhere");
-    let costs: Vec<f64> = results.iter().map(|point| return point.probe_decoded_secs).collect();
-    assert_eq!(costs, vec![thresholds[0], thresholds[1]], "the cheaper probe ranks first");
+    assert!(
+        results.iter().all(|point| return point.feasible),
+        "a flat corpus is feasible everywhere"
+    );
+    let costs: Vec<f64> = results
+        .iter()
+        .map(|point| return point.probe_decoded_secs)
+        .collect();
+    assert_eq!(
+        costs,
+        vec![thresholds[0], thresholds[1]],
+        "the cheaper probe ranks first"
+    );
 }

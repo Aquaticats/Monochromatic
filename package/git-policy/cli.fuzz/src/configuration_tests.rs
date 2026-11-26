@@ -13,12 +13,18 @@
 
 /// Import the generator and invariants under control.
 use super::{
-    GeneratedConfig, canonical_document, check_config_source, check_generated_config,
+    GeneratedConfig,
+    canonical_document,
+    check_config_source,
+    check_generated_config,
     generated_config,
 };
 use git_policy_cli::config_parse::parse_config;
 use git_policy_cli::config_schema::CliGitConfig;
-use git_policy_cli::policy_registry::{PolicyId, Severity};
+use git_policy_cli::policy_registry::{
+    PolicyId,
+    Severity,
+};
 use monochromatic_jsonc_edit::emit_jsonc_value;
 
 /// Every single-byte fill and a spread of mixed inputs produce documents that parse to their expectation.
@@ -87,7 +93,10 @@ fn generated_documents_parse_to_their_expectation() {
                 if files.iter().any(|file| return file.optional) {
                     with_optional_rules_file += 1;
                 }
-                if files.iter().any(|file| return file.path.contains(',') || file.path.contains('?')) {
+                if files
+                    .iter()
+                    .any(|file| return file.path.contains(',') || file.path.contains('?'))
+                {
                     with_punctuated_rules_file += 1;
                 }
             }
@@ -111,10 +120,22 @@ fn generated_documents_parse_to_their_expectation() {
         ),
         ("documents tuning concurrency", tuned),
         ("documents turning a built-in off", severities_off),
-        ("documents with one required rules file", with_one_rules_file),
-        ("documents with several rules files", with_several_rules_files),
-        ("documents with an optional rules file", with_optional_rules_file),
-        ("documents with a comma or question mark in a rules path", with_punctuated_rules_file),
+        (
+            "documents with one required rules file",
+            with_one_rules_file,
+        ),
+        (
+            "documents with several rules files",
+            with_several_rules_files,
+        ),
+        (
+            "documents with an optional rules file",
+            with_optional_rules_file,
+        ),
+        (
+            "documents with a comma or question mark in a rules path",
+            with_punctuated_rules_file,
+        ),
     ] {
         assert!(count > 10, "{name} reached only {count} times");
     }
@@ -127,11 +148,20 @@ fn canonical_document_round_trips() {
     let restated: CliGitConfig = parse_config(source.as_str()).expect("canonical defaults");
     let defaults = CliGitConfig::defaults().concurrency;
     // The canonical document states every retired key, so only whether the file had each one differs.
-    assert_eq!(restated.concurrency.hooks.concurrent_commits, defaults.hooks.concurrent_commits);
+    assert_eq!(
+        restated.concurrency.hooks.concurrent_commits,
+        defaults.hooks.concurrent_commits
+    );
     assert!(restated.concurrency.hooks.present);
-    assert_eq!(restated.concurrency.index_lock.unproven_owner_timeout_ms, defaults.index_lock.unproven_owner_timeout_ms);
+    assert_eq!(
+        restated.concurrency.index_lock.unproven_owner_timeout_ms,
+        defaults.index_lock.unproven_owner_timeout_ms
+    );
     assert!(restated.concurrency.index_lock.present);
-    assert_eq!(restated.concurrency.landing.reserve_after_lost_races, defaults.landing.reserve_after_lost_races);
+    assert_eq!(
+        restated.concurrency.landing.reserve_after_lost_races,
+        defaults.landing.reserve_after_lost_races
+    );
     assert!(restated.concurrency.landing.present);
     assert!(
         source.contains("\"security/forbidden-strings\""),

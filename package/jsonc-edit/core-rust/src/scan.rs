@@ -50,7 +50,10 @@ use crate::span::SpanRecorder;
 /// ```ts
 /// import type { JsoncComment, JsoncCommentKind } from './value';
 /// ```
-use crate::value::{JsoncComment, JsoncCommentKind};
+use crate::value::{
+    JsoncComment,
+    JsoncCommentKind,
+};
 
 /// What:
 ///  Borrow a source string and track its next UTF-8 byte offset.
@@ -156,7 +159,11 @@ impl<'a> Scanner<'a> {
     /// function scanner(source: string): Scanner { return { source, offset: 0 }; }
     /// ```
     pub fn new(source: &'a str) -> Self {
-        return Self { source, offset: 0, spans: SpanRecorder::new(source, false) };
+        return Self {
+            source,
+            offset: 0,
+            spans: SpanRecorder::new(source, false),
+        };
     }
 
     /// What:
@@ -170,7 +177,11 @@ impl<'a> Scanner<'a> {
     /// function scannerWithSpans(source: string): Scanner { return { source, offset: 0, spans: new SpanRecorder(source, true) }; }
     /// ```
     pub fn with_spans(source: &'a str) -> Self {
-        return Self { source, offset: 0, spans: SpanRecorder::new(source, true) };
+        return Self {
+            source,
+            offset: 0,
+            spans: SpanRecorder::new(source, true),
+        };
     }
 
     /// What:
@@ -202,7 +213,10 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// function consume(expected: number): boolean;
     /// ```
-    pub fn consume(&mut self, expected: u8) -> bool {
+    pub fn consume(
+        &mut self,
+        expected: u8,
+    ) -> bool {
         if self.byte() != Some(expected) {
             return false;
         }
@@ -219,8 +233,14 @@ impl<'a> Scanner<'a> {
     /// ```ts
     /// function error(message: string): JsoncParseError { return { offset, message }; }
     /// ```
-    pub fn error(&self, message: &str) -> JsoncParseError {
-        return JsoncParseError { offset: self.offset, message: message.to_string() };
+    pub fn error(
+        &self,
+        message: &str,
+    ) -> JsoncParseError {
+        return JsoncParseError {
+            offset: self.offset,
+            message: message.to_string(),
+        };
     }
 
     /// What:
@@ -238,7 +258,8 @@ impl<'a> Scanner<'a> {
         if self.source.as_bytes().get(self.offset + 1) == Some(&b'/') {
             self.offset = start;
             // JSONC line comments stop before either CR or LF, so CRLF is not part of the body.
-            while self.byte().is_some() && self.byte() != Some(b'\n') && self.byte() != Some(b'\r') {
+            while self.byte().is_some() && self.byte() != Some(b'\n') && self.byte() != Some(b'\r')
+            {
                 self.offset += 1;
             }
             // What: `Ok` wraps the parsed comment as a successful result.
@@ -248,15 +269,23 @@ impl<'a> Scanner<'a> {
             // ```ts
             // return { kind: 'inline', text: source.slice(start, offset) };
             // ```
-            return Ok(JsoncComment { kind: JsoncCommentKind::Line, text: self.source[start..self.offset].to_string() });
+            return Ok(JsoncComment {
+                kind: JsoncCommentKind::Line,
+                text: self.source[start..self.offset].to_string(),
+            });
         }
         if self.source.as_bytes().get(self.offset + 1) == Some(&b'*') {
             self.offset = start;
             while self.offset + 1 < self.source.len() {
-                if self.byte() == Some(b'*') && self.source.as_bytes().get(self.offset + 1) == Some(&b'/') {
+                if self.byte() == Some(b'*')
+                    && self.source.as_bytes().get(self.offset + 1) == Some(&b'/')
+                {
                     let text = self.source[start..self.offset].to_string();
                     self.offset += 2;
-                    return Ok(JsoncComment { kind: JsoncCommentKind::Block, text });
+                    return Ok(JsoncComment {
+                        kind: JsoncCommentKind::Block,
+                        text,
+                    });
                 }
                 self.offset += 1;
             }
@@ -284,12 +313,16 @@ impl<'a> Scanner<'a> {
         // ```
         let mut comments: Vec<JsoncComment> = Vec::new();
         loop {
-            if self.byte() == Some(b' ') || self.byte() == Some(b'\t')
-                || self.byte() == Some(b'\r') || self.byte() == Some(b'\n') {
+            if self.byte() == Some(b' ')
+                || self.byte() == Some(b'\t')
+                || self.byte() == Some(b'\r')
+                || self.byte() == Some(b'\n')
+            {
                 self.offset += 1;
             } else if self.byte() == Some(b'/')
                 && (self.source.as_bytes().get(self.offset + 1) == Some(&b'/')
-                    || self.source.as_bytes().get(self.offset + 1) == Some(&b'*')) {
+                    || self.source.as_bytes().get(self.offset + 1) == Some(&b'*'))
+            {
                 // What: `?` returns a scanner error immediately or unwraps its successful comment.
                 // Why: Unterminated comments cannot silently disappear during parsing.
                 //
@@ -318,20 +351,25 @@ impl<'a> Scanner<'a> {
         let mut comments = Vec::new();
         let mut comma = false;
         loop {
-            if self.byte() == Some(b' ') || self.byte() == Some(b'\t') || self.byte() == Some(b'\r') {
+            if self.byte() == Some(b' ') || self.byte() == Some(b'\t') || self.byte() == Some(b'\r')
+            {
                 self.offset += 1;
             } else if self.byte() == Some(b',') && !comma {
                 comma = true;
                 self.offset += 1;
             } else if self.byte() == Some(b'/')
                 && (self.source.as_bytes().get(self.offset + 1) == Some(&b'/')
-                    || self.source.as_bytes().get(self.offset + 1) == Some(&b'*')) {
+                    || self.source.as_bytes().get(self.offset + 1) == Some(&b'*'))
+            {
                 comments.push(self.comment()?);
             } else {
                 break;
             }
         }
-        return Ok(Trailing { comments, comma });
+        return Ok(Trailing {
+            comments,
+            comma,
+        });
     }
 
     /// What:
@@ -353,8 +391,12 @@ impl<'a> Scanner<'a> {
             // ```ts
             // const byte = sourceBytes[offset]; if (byte === undefined) throw Error('short escape');
             // ```
-            let Some(byte) = self.byte() else { return Err(self.error("incomplete Unicode escape")); };
-            let Some(digit) = hex_digit(byte) else { return Err(self.error("invalid Unicode escape digit")); };
+            let Some(byte) = self.byte() else {
+                return Err(self.error("incomplete Unicode escape"));
+            };
+            let Some(digit) = hex_digit(byte) else {
+                return Err(self.error("invalid Unicode escape digit"));
+            };
             value = value * 16 + digit;
             self.offset += 1;
         }
@@ -377,29 +419,45 @@ impl<'a> Scanner<'a> {
         }
         let mut units = Vec::new();
         loop {
-            let Some(byte) = self.byte() else { return Err(self.error("unterminated JSON string")); };
+            let Some(byte) = self.byte() else {
+                return Err(self.error("unterminated JSON string"));
+            };
             if byte == b'"' {
                 self.offset += 1;
                 return Ok((units, self.source[start..self.offset].to_string()));
             }
             if byte == b'\\' {
                 self.offset += 1;
-                let Some(escape) = self.byte() else { return Err(self.error("unterminated JSON escape")); };
+                let Some(escape) = self.byte() else {
+                    return Err(self.error("unterminated JSON escape"));
+                };
                 self.offset += 1;
                 if escape == b'u' {
                     units.push(self.code_unit()?);
                     continue;
                 }
-                let simple_escape = if escape == b'"' { Some(u16::from(b'"')) }
-                    else if escape == b'\\' { Some(u16::from(b'\\')) }
-                    else if escape == b'/' { Some(u16::from(b'/')) }
-                    else if escape == b'b' { Some(8) }
-                    else if escape == b'f' { Some(12) }
-                    else if escape == b'n' { Some(10) }
-                    else if escape == b'r' { Some(13) }
-                    else if escape == b't' { Some(9) }
-                    else { None };
-                let Some(decoded) = simple_escape else { return Err(self.error("invalid JSON string escape")); };
+                let simple_escape = if escape == b'"' {
+                    Some(u16::from(b'"'))
+                } else if escape == b'\\' {
+                    Some(u16::from(b'\\'))
+                } else if escape == b'/' {
+                    Some(u16::from(b'/'))
+                } else if escape == b'b' {
+                    Some(8)
+                } else if escape == b'f' {
+                    Some(12)
+                } else if escape == b'n' {
+                    Some(10)
+                } else if escape == b'r' {
+                    Some(13)
+                } else if escape == b't' {
+                    Some(9)
+                } else {
+                    None
+                };
+                let Some(decoded) = simple_escape else {
+                    return Err(self.error("invalid JSON string escape"));
+                };
                 units.push(decoded);
                 continue;
             }
@@ -413,7 +471,9 @@ impl<'a> Scanner<'a> {
             // ```ts
             // units.push(...utf16Encode(nextUnicodeScalar(source)));
             // ```
-            let Some(ch) = self.source[self.offset..].chars().next() else { return Err(self.error("unterminated JSON string")); };
+            let Some(ch) = self.source[self.offset..].chars().next() else {
+                return Err(self.error("unterminated JSON string"));
+            };
             let mut buffer = [0u16; 2];
             units.extend_from_slice(ch.encode_utf16(&mut buffer));
             self.offset += ch.len_utf8();
@@ -432,8 +492,13 @@ impl<'a> Scanner<'a> {
     pub fn number(&mut self) -> Result<(String, JsoncNumberIdentity), JsoncParseError> {
         let start = self.offset;
         while let Some(byte) = self.byte() {
-            if byte.is_ascii_digit() || byte == b'-' || byte == b'+'
-                || byte == b'.' || byte == b'e' || byte == b'E' {
+            if byte.is_ascii_digit()
+                || byte == b'-'
+                || byte == b'+'
+                || byte == b'.'
+                || byte == b'e'
+                || byte == b'E'
+            {
                 self.offset += 1;
             } else {
                 break;

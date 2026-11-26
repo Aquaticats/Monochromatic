@@ -5,7 +5,11 @@
 use super::*;
 
 /// Builds an update with the given URI and progress for formatting checks.
-fn update(app_uri: &str, at_ms: u64, progress: f64) -> LauncherUpdate {
+fn update(
+    app_uri: &str,
+    at_ms: u64,
+    progress: f64,
+) -> LauncherUpdate {
     return LauncherUpdate {
         at_ms,
         app_uri: app_uri.to_owned(),
@@ -14,14 +18,17 @@ fn update(app_uri: &str, at_ms: u64, progress: f64) -> LauncherUpdate {
         count: 3,
         count_visible: false,
         urgent: true,
-    }
+    };
 }
 
 /// Ordinary URIs keep their letters and separators,
 /// while every delimiter is escaped.
 #[test]
 fn uri_encoding_escapes_separators_and_keeps_plain_uris() {
-    assert_eq!(encode_uri("application://org.example.app.desktop"), "application://org.example.app.desktop");
+    assert_eq!(
+        encode_uri("application://org.example.app.desktop"),
+        "application://org.example.app.desktop"
+    );
     assert_eq!(encode_uri("a b;c=d\ne\rf%g"), "a%20b%3Bc%3Dd%0Ae%0Df%25g");
     assert_eq!(encode_uri(""), "");
 }
@@ -49,7 +56,10 @@ fn latest_answer_has_every_field_in_order() {
 fn latest_answer_keeps_hostile_uri_on_one_field() {
     let record = update("x y;progress=9", 0, 0.5);
     let answer = format_latest(&record, 0);
-    assert!(answer.starts_with("uri=x%20y%3Bprogress%3D9 progress=0.5000 "), "{answer}");
+    assert!(
+        answer.starts_with("uri=x%20y%3Bprogress%3D9 progress=0.5000 "),
+        "{answer}"
+    );
     assert_eq!(answer.matches(" progress=").count(), 1);
     assert!(!answer.contains('\n'));
 }

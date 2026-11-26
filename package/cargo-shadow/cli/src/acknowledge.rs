@@ -25,15 +25,31 @@
 
 /// Error text built only on failure,
 /// from a `format_args!` value.
-use crate::lazy_error_text::{ExplainedError, OrText};
+use crate::lazy_error_text::{
+    ExplainedError,
+    OrText,
+};
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `std::time::{SystemTime, UNIX_EPOCH}` for this file.
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// Imports the journal names and the publication helpers for this file.
-use crate::journal::{ACKNOWLEDGED_FILE, ACKNOWLEDGED_HEADER, DONE_SUFFIX, JOURNAL_DIR, atomic_write, sync_directory};
+use crate::journal::{
+    ACKNOWLEDGED_FILE,
+    ACKNOWLEDGED_HEADER,
+    DONE_SUFFIX,
+    JOURNAL_DIR,
+    atomic_write,
+    sync_directory,
+};
 
 /// Imports the workspace lock for this file.
 use crate::journal_transaction::take_workspace;
@@ -49,15 +65,24 @@ use crate::journal_transaction::take_workspace;
 /// function workspaceOf(journal: string): string  // throws the reason
 /// ```
 fn workspace_of(journal: &Path) -> Result<PathBuf, String> {
-    let parent: &Path = journal.parent().or_text(format_args!("{} has no parent directory", journal.display()))?;
+    let parent: &Path = journal.parent().or_text(format_args!(
+        "{} has no parent directory",
+        journal.display()
+    ))?;
     let mut root: PathBuf = parent.to_path_buf();
     for _component in Path::new(JOURNAL_DIR).components() {
         if !root.pop() {
-            return Err(format!("{} is not a journal directory of a workspace (expected <root>/{JOURNAL_DIR}/<name>)", journal.display()));
+            return Err(format!(
+                "{} is not a journal directory of a workspace (expected <root>/{JOURNAL_DIR}/<name>)",
+                journal.display()
+            ));
         }
     }
     if parent != root.join(JOURNAL_DIR) {
-        return Err(format!("{} is not a journal directory of a workspace (expected <root>/{JOURNAL_DIR}/<name>)", journal.display()));
+        return Err(format!(
+            "{} is not a journal directory of a workspace (expected <root>/{JOURNAL_DIR}/<name>)",
+            journal.display()
+        ));
     }
     return Ok(root);
 }
@@ -79,9 +104,13 @@ fn workspace_of(journal: &Path) -> Result<PathBuf, String> {
 /// export function acknowledge(journal: string): string  // throws the reason
 /// ```
 pub fn acknowledge(journal: &Path) -> Result<String, String> {
-    let resolved: PathBuf = std::fs::canonicalize(journal).explained(format_args!("{} cannot be examined", journal.display()))?;
+    let resolved: PathBuf = std::fs::canonicalize(journal)
+        .explained(format_args!("{} cannot be examined", journal.display()))?;
     if resolved.to_string_lossy().ends_with(DONE_SUFFIX) {
-        return Err(format!("{} is a journal that is already finished", resolved.display()));
+        return Err(format!(
+            "{} is a journal that is already finished",
+            resolved.display()
+        ));
     }
     if !resolved.is_dir() {
         return Err(format!("{} is not a directory", resolved.display()));
@@ -90,7 +119,11 @@ pub fn acknowledge(journal: &Path) -> Result<String, String> {
     let _workspace = match take_workspace(&root) {
         Ok(Ok(held)) => held,
         Ok(Err(holder)) => return Err(format!("{holder}; nothing was acknowledged")),
-        Err(error) => return Err(format!("the workspace lock could not be tried ({error}); nothing was acknowledged")),
+        Err(error) => {
+            return Err(format!(
+                "the workspace lock could not be tried ({error}); nothing was acknowledged"
+            ));
+        }
     };
     let seconds: u64 = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_secs(),
@@ -99,20 +132,32 @@ pub fn acknowledge(journal: &Path) -> Result<String, String> {
     let text: String = format!("{ACKNOWLEDGED_HEADER}\n{}\n{seconds}\n", std::process::id());
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementPublish) {
-        return Err("the acknowledgement could not be written (injected failure); nothing was acknowledged".to_string());
+        return Err(
+            "the acknowledgement could not be written (injected failure); nothing was acknowledged"
+                .to_string(),
+        );
     }
-    atomic_write(&resolved.join(ACKNOWLEDGED_FILE), &text).explained_with_tail(format_args!("the acknowledgement could not be written"), "; nothing was acknowledged")?;
+    atomic_write(&resolved.join(ACKNOWLEDGED_FILE), &text).explained_with_tail(
+        format_args!("the acknowledgement could not be written"),
+        "; nothing was acknowledged",
+    )?;
     // The barrier is the real directory sync, and a test replaces its result, so a failure takes the path of a failure of the kernel
     // (sixth pass, group 13).
     #[cfg(test)]
-    let durable: std::io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
-        Err(std::io::Error::other("injected acknowledgement durability failure"))
-    } else {
-        sync_directory(&resolved)
-    };
+    let durable: std::io::Result<()> =
+        if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
+            Err(std::io::Error::other(
+                "injected acknowledgement durability failure",
+            ))
+        } else {
+            sync_directory(&resolved)
+        };
     #[cfg(not(test))]
     let durable: std::io::Result<()> = sync_directory(&resolved);
-    durable.explained_with_tail(format_args!("the acknowledgement could not be made durable"), "; it counts only once it is, so run the command again")?;
+    durable.explained_with_tail(
+        format_args!("the acknowledgement could not be made durable"),
+        "; it counts only once it is, so run the command again",
+    )?;
     return Ok(format!(
         "acknowledged {}: you asserted that every process or worker of that run that can modify the workspace has stopped; the next cargo-shadow run settles the journal",
         resolved.display()

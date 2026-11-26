@@ -20,15 +20,27 @@ use super::find_clear_tests::opened;
 /// Typing into whatever has keyboard focus,
 ///  one key press,
 ///  and the bounded wait for a condition.
-use super::find_tests::{key, type_text};
+use super::find_tests::{
+    key,
+    type_text,
+};
 /// The bounded wait for native navigation state and the tree-row lookup.
 use super::navigation_tests::row;
 /// The search reader and the double-Shift opening of the search overlay.
-use super::search_tests::{open, reader};
+use super::search_tests::{
+    open,
+    reader,
+};
 /// An exact window size and settled layout.
-use super::sidebar_tests::{resize, settle};
+use super::sidebar_tests::{
+    resize,
+    settle,
+};
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+use crate::native::waiting_tests::{
+    NAVIGATION_UNREACHED,
+    Waiting,
+};
 /// What:
 ///  `ElementHandle` is Slint's test-only handle on one element of a live window;
 ///  `AccessibleRole`
@@ -48,11 +60,18 @@ use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
 /// ```ts
 /// import { ElementHandle, AccessibleRole } from 'slint-testing';
 /// ```
-use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+use i_slint_backend_testing::{
+    AccessibleRole,
+    ElementHandle,
+};
 /// Window ownership,
 ///  row counts of the result model,
 ///  and the toolkit's key names.
-use slint::{ComponentHandle, Model, platform::Key};
+use slint::{
+    ComponentHandle,
+    Model,
+    platform::Key,
+};
 /// Fixture files for the disposable search project.
 use std::fs;
 
@@ -70,7 +89,10 @@ use std::fs;
 /// ```ts
 /// function only(window: AppWindow, label: string): ElementHandle;
 /// ```
-pub(super) fn only(window: &AppWindow, label: &str) -> ElementHandle {
+pub(super) fn only(
+    window: &AppWindow,
+    label: &str,
+) -> ElementHandle {
     // What: `find_by_accessible_label` returns an iterator, a lazy sequence that hands out one match per
     // `next()` call; `mut` lets the calls advance it.
     // Why: The first `next()` takes the match and the second proves there is no other.
@@ -109,7 +131,10 @@ pub(super) fn only(window: &AppWindow, label: &str) -> ElementHandle {
 
 /// The number of visible elements with this accessible label;
 ///  hidden elements are not offered.
-pub(super) fn count(window: &AppWindow, label: &str) -> usize {
+pub(super) fn count(
+    window: &AppWindow,
+    label: &str,
+) -> usize {
     return ElementHandle::find_by_accessible_label(window, label).count();
 }
 
@@ -124,7 +149,10 @@ pub(super) fn count(window: &AppWindow, label: &str) -> usize {
 /// ```ts
 /// function assertClearButton(element: ElementHandle, name: string): void;
 /// ```
-fn assert_clear_button(element: &ElementHandle, name: &str) {
+fn assert_clear_button(
+    element: &ElementHandle,
+    name: &str,
+) {
     // What: `Some(AccessibleRole::Button)` is the present variant of `Option` holding the button role;
     // `assert_eq!` compares both sides and prints them on failure.
     // Why: The role tells an assistive tool that the element is activated, not edited.
@@ -360,7 +388,11 @@ fn search_box_and_clear_control_expose_role_label_value_and_actions() {
 /// ```ts
 /// function described(field: ElementHandle, expected: string, after: string): void;
 /// ```
-fn described(field: &ElementHandle, expected: &str, after: &str) {
+fn described(
+    field: &ElementHandle,
+    expected: &str,
+    after: &str,
+) {
     // What: `.unwrap_or_default()` takes the text out of the `Option`, or an empty text when there is none.
     // Why: An absent description and an empty one read the same to an assistive tool.
     //

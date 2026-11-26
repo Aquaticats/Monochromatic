@@ -43,7 +43,10 @@ use super::plan::Plan;
 /// ```ts
 /// export function matchesPattern(pattern: string, text: string): boolean
 /// ```
-pub fn matches_pattern(pattern: &str, text: &str) -> bool {
+pub fn matches_pattern(
+    pattern: &str,
+    text: &str,
+) -> bool {
     let pattern_chars: Vec<char> = pattern.chars().collect();
     let text_chars: Vec<char> = text.chars().collect();
     let mut pattern_index: usize = 0;
@@ -55,7 +58,9 @@ pub fn matches_pattern(pattern: &str, text: &str) -> bool {
             star_pattern_index = Some(pattern_index);
             star_text_index = text_index;
             pattern_index += 1;
-        } else if pattern_index < pattern_chars.len() && pattern_chars[pattern_index] == text_chars[text_index] {
+        } else if pattern_index < pattern_chars.len()
+            && pattern_chars[pattern_index] == text_chars[text_index]
+        {
             pattern_index += 1;
             text_index += 1;
         } else if let Some(star) = star_pattern_index {
@@ -75,7 +80,10 @@ pub fn matches_pattern(pattern: &str, text: &str) -> bool {
 
 /// The ids of the plan's tools that match one pattern,
 /// in plan order.
-fn ids_matching(plan: &Plan, pattern: &str) -> Vec<String> {
+fn ids_matching(
+    plan: &Plan,
+    pattern: &str,
+) -> Vec<String> {
     let mut matched: Vec<String> = Vec::new();
     for declaration in &plan.tools {
         if matches_pattern(pattern, &declaration.id) {
@@ -101,7 +109,10 @@ fn ids_matching(plan: &Plan, pattern: &str) -> Vec<String> {
 /// ```ts
 /// export function selectTools(plan: Plan, patterns: string[]): Set<string>
 /// ```
-pub fn select_tools(plan: &Plan, patterns: &[String]) -> Result<BTreeSet<String>, ToolchainError> {
+pub fn select_tools(
+    plan: &Plan,
+    patterns: &[String],
+) -> Result<BTreeSet<String>, ToolchainError> {
     let mut included: BTreeSet<String> = BTreeSet::new();
     let mut excluded: BTreeSet<String> = BTreeSet::new();
     let mut has_inclusion: bool = false;
@@ -159,7 +170,11 @@ pub fn select_tools(plan: &Plan, patterns: &[String]) -> Result<BTreeSet<String>
 /// ```ts
 /// export function unnamedNeedingResolution(plan: Plan, disagreement: Disagreement | undefined, selected: Set<string>): string[]
 /// ```
-pub fn unnamed_needing_resolution(plan: &Plan, disagreement: Option<&Disagreement>, selected: &BTreeSet<String>) -> Vec<String> {
+pub fn unnamed_needing_resolution(
+    plan: &Plan,
+    disagreement: Option<&Disagreement>,
+    selected: &BTreeSet<String>,
+) -> Vec<String> {
     let mut ids: Vec<String> = Vec::new();
     for declaration in &plan.tools {
         if selected.contains(&declaration.id) {

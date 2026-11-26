@@ -10,28 +10,60 @@
 /// the pixels of the shown image,
 /// and the waits.
 use super::{
-    AppWindow, State,
+    AppWindow,
+    State,
     overscan_tile_tests::scroll_to,
-    render::{Paint, job, stamp_for},
-    tall_window_tests::{hold_the_pass, mixed, resize_without_frame, settled_tile},
+    render::{
+        Paint,
+        job,
+        stamp_for,
+    },
+    tall_window_tests::{
+        hold_the_pass,
+        mixed,
+        resize_without_frame,
+        settled_tile,
+    },
     theme_tests::switch,
-    tile::{TileBounds, apply, requested},
-    tile_build::{FAIL_NEXT_BUILD, build_tile},
+    tile::{
+        TileBounds,
+        apply,
+        requested,
+    },
+    tile_build::{
+        FAIL_NEXT_BUILD,
+        build_tile,
+    },
     tile_reads::shown,
-    wrap_tests::{long_text, open, settled},
+    wrap_tests::{
+        long_text,
+        open,
+        settled,
+    },
 };
 /// Bounded waiting that advances native timers until a state the test checks holds.
-use crate::native::waiting_tests::{Facts, Waiting};
+use crate::native::waiting_tests::{
+    Facts,
+    Waiting,
+};
 /// Toolkit events.
 use slint::{
-    ComponentHandle, platform::update_timers_and_animations,
+    ComponentHandle,
+    platform::update_timers_and_animations,
     private_unstable_api::re_exports::ColorScheme,
 };
 /// The switch is read by the next build.
-use std::{cell::RefCell, rc::Rc, sync::atomic::Ordering};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::atomic::Ordering,
+};
 
 /// Whether any pixel of the visible band of the tile has ink.
-fn has_ink(window: &AppWindow, source: &Rc<RefCell<State>>) -> bool {
+fn has_ink(
+    window: &AppWindow,
+    source: &Rc<RefCell<State>>,
+) -> bool {
     if source.borrow().gpu.read_tile().is_none() && !source.borrow().gpu.has_pending() {
         return false;
     }

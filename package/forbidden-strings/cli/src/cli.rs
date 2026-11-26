@@ -33,7 +33,10 @@
 // ```ts
 // import { parseArgs } from "some-cli-parser";
 // ```
-use clap::{Parser, Subcommand};
+use clap::{
+    Parser,
+    Subcommand,
+};
 
 /// Custom clap help layout with the historical uppercase usage heading.
 // What:     `const HELP_TEMPLATE: &str = "..."` declares a borrowed static string.
@@ -179,8 +182,10 @@ pub enum CliCommand {
 impl CliCommand {
     /// Borrows rules path carried by compile operation.
     pub fn rules_path(&self) -> &str {
-        let Self::CompileRules { rules_path } = self;
-        return rules_path
+        let Self::CompileRules {
+            rules_path,
+        } = self;
+        return rules_path;
     }
 }
 

@@ -37,7 +37,11 @@
 
 /// Imports the path component type that lexical normalization classifies,
 ///  and the two path types every caller passes.
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// Imports the platform-aware separator normalization,
 ///  so one scope prefix compares against Git's always-`/`-separated index paths.
@@ -112,23 +116,34 @@ pub(crate) fn discover(walk_root: &Path) -> Discovery {
         return Discovery::Unusable {
             entry: walk_root.to_path_buf(),
             cause: "the scan directory cannot be resolved".to_string(),
-        }
+        };
     };
     for candidate in absolute.ancestors() {
         match git_directories(candidate) {
             RootEntry::None => {}
-            RootEntry::Unusable { entry, cause } => return Discovery::Unusable { entry, cause },
-            RootEntry::Tree { git_dir, common_dir } => {
+            RootEntry::Unusable {
+                entry,
+                cause,
+            } => {
+                return Discovery::Unusable {
+                    entry,
+                    cause,
+                };
+            }
+            RootEntry::Tree {
+                git_dir,
+                common_dir,
+            } => {
                 let below: &Path = absolute.strip_prefix(candidate).unwrap_or(Path::new(""));
                 return Discovery::WorkingTree(GitWorkingTree {
                     git_dir,
                     common_dir,
                     scope_below_root: scope_bytes(below),
-                })
+                });
             }
         }
     }
-    return Discovery::NoRepository
+    return Discovery::NoRepository;
 }
 
 /// What this working tree's index is asked for,
@@ -145,14 +160,14 @@ impl GitWorkingTree {
         if let Some(named) = std::env::var_os(INDEX_FILE_ENVIRONMENT)
             && !named.is_empty()
         {
-            return PathBuf::from(named)
+            return PathBuf::from(named);
         }
-        return self.git_dir.join("index")
+        return self.git_dir.join("index");
     }
 
     /// The configuration file recording this working tree's object format.
     pub(crate) fn config_path(&self) -> PathBuf {
-        return self.common_dir.join("config")
+        return self.common_dir.join("config");
     }
 
     /// One index entry's path expressed below the walked directory,
@@ -162,11 +177,14 @@ impl GitWorkingTree {
     ///  so a scan of a subfolder drops both the prefix above the walked
     ///  directory and every entry outside it;
     ///  reporting them unchanged would scan files the caller did not ask for.
-    pub(crate) fn below_walk_root<'entry>(&self, entry: &'entry [u8]) -> Option<&'entry [u8]> {
+    pub(crate) fn below_walk_root<'entry>(
+        &self,
+        entry: &'entry [u8],
+    ) -> Option<&'entry [u8]> {
         if self.scope_below_root.is_empty() {
-            return Some(entry)
+            return Some(entry);
         }
-        return entry.strip_prefix(self.scope_below_root.as_slice())
+        return entry.strip_prefix(self.scope_below_root.as_slice());
     }
 }
 
@@ -181,7 +199,7 @@ impl GitWorkingTree {
 ///  failing.
 pub(crate) fn index_hash_kind(config_path: &Path) -> gix_hash::Kind {
     let Ok(config) = std::fs::read_to_string(config_path) else {
-        return gix_hash::Kind::Sha1
+        return gix_hash::Kind::Sha1;
     };
     let mut in_extensions: bool = false;
     for raw in config.lines() {
@@ -203,11 +221,13 @@ pub(crate) fn index_hash_kind(config_path: &Path) -> gix_hash::Kind {
         let Some((key, value)) = line.split_once('=') else {
             continue;
         };
-        if key.trim().eq_ignore_ascii_case("objectformat") && value.trim().eq_ignore_ascii_case("sha256") {
-            return gix_hash::Kind::Sha256
+        if key.trim().eq_ignore_ascii_case("objectformat")
+            && value.trim().eq_ignore_ascii_case("sha256")
+        {
+            return gix_hash::Kind::Sha256;
         }
     }
-    return gix_hash::Kind::Sha1
+    return gix_hash::Kind::Sha1;
 }
 
 /// What one directory in the walk upward holds as a `.git` entry.
@@ -253,32 +273,45 @@ fn git_directories(root: &Path) -> RootEntry {
             return RootEntry::Unusable {
                 entry: dot_git,
                 cause: format!("it cannot be read ({})", error),
-            }
+            };
         }
     };
     if metadata.is_dir() {
         // A directory named `.git` is a repository only when it holds Git's
         // state; Git steps over anything else and keeps walking upward.
         if !is_git_directory(&dot_git) {
-            return RootEntry::None
+            return RootEntry::None;
         }
         let git_dir: PathBuf = resolved_or_spelled(&dot_git);
         let common_dir: PathBuf = common_dir_of(&git_dir);
-        return RootEntry::Tree { git_dir, common_dir }
+        return RootEntry::Tree {
+            git_dir,
+            common_dir,
+        };
     }
     if !metadata.is_file() {
         return RootEntry::Unusable {
             entry: dot_git,
             cause: "it is not a regular file".to_string(),
-        }
+        };
     }
     let contents: Vec<u8> = match read_git_file(&dot_git) {
         Ok(contents) => contents,
-        Err(cause) => return RootEntry::Unusable { entry: dot_git, cause },
+        Err(cause) => {
+            return RootEntry::Unusable {
+                entry: dot_git,
+                cause,
+            };
+        }
     };
     let named: PathBuf = match gitdir_from_git_file(&contents) {
         Ok(named) => named,
-        Err(cause) => return RootEntry::Unusable { entry: dot_git, cause },
+        Err(cause) => {
+            return RootEntry::Unusable {
+                entry: dot_git,
+                cause,
+            };
+        }
     };
     // Git builds the path by concatenation and leaves `..` to the operating
     // system, so the spelling is kept and no component is collapsed here.
@@ -291,12 +324,18 @@ fn git_directories(root: &Path) -> RootEntry {
     if !is_git_directory(&git_dir) {
         return RootEntry::Unusable {
             entry: dot_git,
-            cause: format!("it names {}, which is not a Git directory", git_dir.display()),
-        }
+            cause: format!(
+                "it names {}, which is not a Git directory",
+                git_dir.display()
+            ),
+        };
     }
     let resolved_git_dir: PathBuf = resolved_or_spelled(&git_dir);
     let common_dir: PathBuf = common_dir_of(&resolved_git_dir);
-    return RootEntry::Tree { git_dir: resolved_git_dir, common_dir }
+    return RootEntry::Tree {
+        git_dir: resolved_git_dir,
+        common_dir,
+    };
 }
 
 /// Whether `suspect` holds what Git's `is_git_directory` requires:
@@ -304,10 +343,10 @@ fn git_directories(root: &Path) -> RootEntry {
 ///  and `objects` and `refs` beside the shared state.
 fn is_git_directory(suspect: &Path) -> bool {
     if !head_names_a_ref_or_object_id(&suspect.join("HEAD")) {
-        return false
+        return false;
     }
     let common: PathBuf = common_dir_of(suspect);
-    return common.join("objects").is_dir() && common.join("refs").is_dir()
+    return common.join("objects").is_dir() && common.join("refs").is_dir();
 }
 
 /// Whether `head` is the file Git accepts as a repository's `HEAD`:
@@ -315,28 +354,28 @@ fn is_git_directory(suspect: &Path) -> bool {
 /// or an object id.
 fn head_names_a_ref_or_object_id(head: &Path) -> bool {
     let Ok(contents) = std::fs::read_to_string(head) else {
-        return false
+        return false;
     };
     let line: &str = contents.lines().next().unwrap_or("").trim();
     if let Some(target) = line.strip_prefix("ref:") {
-        return target.trim_start().starts_with("refs/")
+        return target.trim_start().starts_with("refs/");
     }
     // A detached HEAD holds one object id, forty bytes for Sha1 and sixty-four for Sha256.
     if !matches!(line.len(), 40 | 64) {
-        return false
+        return false;
     }
     for byte in line.bytes() {
         if !byte.is_ascii_hexdigit() {
-            return false
+            return false;
         }
     }
-    return true
+    return true;
 }
 
 /// What an operating system refusal of a `.git` file means for a scan,
 ///  in one phrase.
 fn git_file_unreadable(error: std::io::Error) -> String {
-    return format!("it cannot be read ({})", error)
+    return format!("it cannot be read ({})", error);
 }
 
 /// The bytes of a `.git` file,
@@ -344,9 +383,9 @@ fn git_file_unreadable(error: std::io::Error) -> String {
 fn read_git_file(path: &Path) -> Result<Vec<u8>, String> {
     let metadata: std::fs::Metadata = std::fs::metadata(path).map_err(git_file_unreadable)?;
     if metadata.len() > GIT_FILE_MAX_BYTES {
-        return Err("it is too large to be a .git file".to_string())
+        return Err("it is too large to be a .git file".to_string());
     }
-    return std::fs::read(path).map_err(git_file_unreadable)
+    return std::fs::read(path).map_err(git_file_unreadable);
 }
 
 /// The Git directory a `.git` file's own contents name,
@@ -365,15 +404,15 @@ pub(crate) fn gitdir_from_git_file(contents: &[u8]) -> Result<PathBuf, String> {
         line = rest;
     }
     let Some(named) = line.strip_prefix(GITDIR_PREFIX) else {
-        return Err("it does not start with `gitdir: `".to_string())
+        return Err("it does not start with `gitdir: `".to_string());
     };
     if named.is_empty() {
-        return Err("it names no path".to_string())
+        return Err("it names no path".to_string());
     }
     let Ok(text) = std::str::from_utf8(named) else {
-        return Err("the path it names is not UTF-8".to_string())
+        return Err("the path it names is not UTF-8".to_string());
     };
-    return Ok(PathBuf::from(text))
+    return Ok(PathBuf::from(text));
 }
 
 /// The directory holding the repository's shared state,
@@ -384,7 +423,7 @@ pub(crate) fn gitdir_from_git_file(contents: &[u8]) -> Result<PathBuf, String> {
 ///  and resolves a relative entry against the Git directory.
 fn common_dir_of(git_dir: &Path) -> PathBuf {
     let Ok(contents) = std::fs::read(git_dir.join("commondir")) else {
-        return git_dir.to_path_buf()
+        return git_dir.to_path_buf();
     };
     let mut line: &[u8] = &contents;
     while let [rest @ .., last] = line {
@@ -394,9 +433,9 @@ fn common_dir_of(git_dir: &Path) -> PathBuf {
         line = rest;
     }
     let Ok(text) = std::str::from_utf8(line) else {
-        return git_dir.to_path_buf()
+        return git_dir.to_path_buf();
     };
-    return resolved_or_spelled(&git_dir.join(text))
+    return resolved_or_spelled(&git_dir.join(text));
 }
 
 /// `path` with symlinks followed and navigation components settled by the
@@ -413,7 +452,7 @@ fn resolved_or_spelled(path: &Path) -> PathBuf {
     return match std::fs::canonicalize(path) {
         Ok(resolved) => resolved,
         Err(_) => path.to_path_buf(),
-    }
+    };
 }
 
 /// The walked directory's path below the working tree root,
@@ -421,11 +460,11 @@ fn resolved_or_spelled(path: &Path) -> PathBuf {
 ///  empty when the two are the same directory.
 fn scope_bytes(below: &Path) -> Vec<u8> {
     if below.as_os_str().is_empty() {
-        return Vec::new()
+        return Vec::new();
     }
     let mut bytes: Vec<u8> = normalized_path(below);
     bytes.push(b'/');
-    return bytes
+    return bytes;
 }
 
 /// The absolute form of `path`,
@@ -433,10 +472,10 @@ fn scope_bytes(below: &Path) -> Vec<u8> {
 ///  with `.` and `..` dealt with lexically and no symlink followed.
 fn absolute_path(path: &Path) -> Option<PathBuf> {
     if path.is_absolute() {
-        return Some(lexically_normalized(path))
+        return Some(lexically_normalized(path));
     }
     let current: PathBuf = std::env::current_dir().ok()?;
-    return Some(lexically_normalized(&current.join(path)))
+    return Some(lexically_normalized(&current.join(path)));
 }
 
 /// `path` with `.` components dropped and `..` resolved against the
@@ -474,7 +513,7 @@ pub(crate) fn lexically_normalized(path: &Path) -> PathBuf {
             other => normalized.push(other.as_os_str()),
         }
     }
-    return normalized
+    return normalized;
 }
 
 /// Registers the `tests` child module.

@@ -1,19 +1,32 @@
 //! Latest-query search worker cancels and reaps old ripgrep children before running the newest request.
 
 /// Search data remains immutable when published to the native thread.
-use crate::{search::SearchResults, search_cancel::SearchCancellation, workspace::Workspace};
+use crate::{
+    search::SearchResults,
+    search_cancel::SearchCancellation,
+    workspace::Workspace,
+};
 /// Startup and unexpected worker failures must not masquerade as no results.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 /// Arc shares immutable requests/replies across threads;
 ///  the join handle owns shutdown.
 use std::{
     path::PathBuf,
     sync::Arc,
-    thread::{self, JoinHandle},
+    thread::{
+        self,
+        JoinHandle,
+    },
 };
 /// One retained request/reply avoids unbounded queues while async process I/O stays off the GUI thread.
 use tokio::{
-    runtime::{Builder, Runtime},
+    runtime::{
+        Builder,
+        Runtime,
+    },
     sync::watch,
 };
 
@@ -150,18 +163,29 @@ impl SearchWorker {
     }
 
     /// Search the fixed project root without an additional selected-directory scope.
-    pub fn request(&mut self, query: String) -> Result<u64> {
+    pub fn request(
+        &mut self,
+        query: String,
+    ) -> Result<u64> {
         return self.submit(query, None);
     }
 
     /// Narrow a query to a selected directory;
     ///  resolution and containment checks run on the worker.
-    pub fn request_scoped(&mut self, query: String, scope: PathBuf) -> Result<u64> {
+    pub fn request_scoped(
+        &mut self,
+        query: String,
+        scope: PathBuf,
+    ) -> Result<u64> {
         return self.submit(query, Some(scope));
     }
 
     /// Cancel earlier work and publish only the newest desired query and scope together.
-    fn submit(&mut self, query: String, scope: Option<PathBuf>) -> Result<u64> {
+    fn submit(
+        &mut self,
+        query: String,
+        scope: Option<PathBuf>,
+    ) -> Result<u64> {
         self.clear()?;
         let cancellation = SearchCancellation::new();
         let request = Arc::new(Request {

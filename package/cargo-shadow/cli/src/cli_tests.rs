@@ -6,7 +6,11 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::cli::{Cli, Command, LeanAction};
+use crate::cli::{
+    Cli,
+    Command,
+    LeanAction,
+};
 
 fn parse(words: &[&str]) -> Result<Cli, clap::Error> {
     let mut all: Vec<&str> = vec!["cargo-shadow"];
@@ -16,8 +20,15 @@ fn parse(words: &[&str]) -> Result<Cli, clap::Error> {
 
 #[test]
 fn install_takes_pnpms_frozen_flags_and_dry_run() {
-    match parse(&["install", "--frozen-lockfile", "--dry-run"]).expect("parses").command {
-        Command::Install { frozen_lockfile, no_frozen_lockfile, dry_run } => {
+    match parse(&["install", "--frozen-lockfile", "--dry-run"])
+        .expect("parses")
+        .command
+    {
+        Command::Install {
+            frozen_lockfile,
+            no_frozen_lockfile,
+            dry_run,
+        } => {
             assert!(frozen_lockfile);
             assert!(!no_frozen_lockfile);
             assert!(dry_run);
@@ -48,14 +59,30 @@ fn update_takes_dry_run_and_nothing_else() {
 
 #[test]
 fn lean_records_names_the_directories_a_producing_task_writes() {
-    match parse(&["lean", "records", "target/verification", "--dry-run"]).expect("parses").command {
-        Command::Lean { action: LeanAction::Records { directory, dry_run, deadline_minutes } } => {
+    match parse(&["lean", "records", "target/verification", "--dry-run"])
+        .expect("parses")
+        .command
+    {
+        Command::Lean {
+            action:
+                LeanAction::Records {
+                    directory,
+                    dry_run,
+                    deadline_minutes,
+                },
+        } => {
             assert_eq!(directory, vec![PathBuf::from("target/verification")]);
             assert!(dry_run);
             assert_eq!(deadline_minutes, None);
         }
         _ => panic!("expected lean records"),
     }
-    assert!(parse(&["lean", "records", "a", "b"]).is_ok(), "every directory a task writes can be named");
-    assert!(parse(&["lean", "records"]).is_err(), "a sweep with no directory has nothing to sweep");
+    assert!(
+        parse(&["lean", "records", "a", "b"]).is_ok(),
+        "every directory a task writes can be named"
+    );
+    assert!(
+        parse(&["lean", "records"]).is_err(),
+        "a sweep with no directory has nothing to sweep"
+    );
 }

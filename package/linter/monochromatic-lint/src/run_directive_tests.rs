@@ -16,17 +16,35 @@
 /// Import the production checker,
 ///  planner,
 ///  command runner and fixtures.
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::directive_findings::{MISSING_JUSTIFICATION, NON_SUPPRESSIBLE, UNUSED};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::directive_findings::{
+    MISSING_JUSTIFICATION,
+    NON_SUPPRESSIBLE,
+    UNUSED,
+};
 use crate::directive_options::DirectiveOptions;
 use crate::run_check::HostChecker;
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_lfs::LfsRepos;
 use crate::run_output::RunOutput;
 use crate::run_plan::FilePlan;
-use crate::run_test_support::{CONFIG, codes, plan, read, records, run, write};
+use crate::run_test_support::{
+    CONFIG,
+    codes,
+    plan,
+    read,
+    records,
+    run,
+    write,
+};
 use crate::rust_file_engine::RustFileEngine;
-use crate::rust_semantic_test_support::{prepare_lockfile, progress};
+use crate::rust_semantic_test_support::{
+    prepare_lockfile,
+    progress,
+};
 use crate::rust_workspace::WorkspacePreparation;
 use crate::test_fs::Fixture;
 use std::path::Path;
@@ -52,7 +70,9 @@ fn check(
 ) -> Vec<Diagnostic> {
     write(root, CONFIG, config);
     let mut planned: FilePlan = plan(root, file);
-    planned.directives = DirectiveOptions { unused };
+    planned.directives = DirectiveOptions {
+        unused,
+    };
     let lfs: LfsRepos = LfsRepos::new();
     let mut checker: HostChecker<'_> = HostChecker::new(&planned, &lfs, None);
     return checker.check_snapshot(source);
@@ -69,7 +89,10 @@ fn located(found: &[Diagnostic]) -> Vec<String> {
 
 /// One expected finding:
 /// the diagnostic code and the source line that carries it.
-fn expected(code: &str, line: usize) -> String {
+fn expected(
+    code: &str,
+    line: usize,
+) -> String {
     return format!("{code}@{line}");
 }
 

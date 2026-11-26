@@ -4,9 +4,17 @@
 ///  so the platform is installed before the thread's first window.
 use super::gpu_snapshot::install_gpu_platform;
 /// Exercise the shipped project component rather than a separate scrolling fixture.
-use super::{AppWindow, tree_pointer_tests::sixty_entries};
+use super::{
+    AppWindow,
+    tree_pointer_tests::sixty_entries,
+};
 /// Native model and snapshot APIs force the toolkit to materialize its displayed row window.
-use slint::{ComponentHandle, ModelRc, VecModel, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    ModelRc,
+    VecModel,
+    platform::update_timers_and_animations,
+};
 /// Owned model rows stay alive across programmatic viewport movement.
 use std::rc::Rc;
 

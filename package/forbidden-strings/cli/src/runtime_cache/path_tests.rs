@@ -8,11 +8,23 @@
 //!  so their assertions run on Unix hosts only.
 
 use super::{
-    APPLICATION_DIRECTORY, ARTIFACT_FILENAME, cache_location, resolve_cache_root, source_digest,
-    CacheEnvironment, CacheRootError, HostPlatform, SourceDigest, digest_hex,
+    APPLICATION_DIRECTORY,
+    ARTIFACT_FILENAME,
+    CacheEnvironment,
+    CacheRootError,
+    HostPlatform,
+    SourceDigest,
+    cache_location,
+    digest_hex,
+    resolve_cache_root,
+    source_digest,
 };
 use std::ffi::OsString;
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// Explicit absolute override wins under Unix target semantics.
 ///
@@ -49,8 +61,7 @@ fn absolute_windows_override_wins() {
         ..CacheEnvironment::default()
     };
     assert_eq!(
-        resolve_cache_root(&windows_environment, HostPlatform::Windows)
-            .expect("Windows override"),
+        resolve_cache_root(&windows_environment, HostPlatform::Windows).expect("Windows override"),
         PathBuf::from("C:\\private\\cache"),
     );
 }
@@ -179,7 +190,10 @@ fn source_bytes_select_content_addressed_path() {
     // ```ts
     // const below: string[] = path.relative(root, location.artifactPath).split(path.sep);
     // ```
-    let below: &Path = location.artifact_path.strip_prefix(&root).expect("artifact under root");
+    let below: &Path = location
+        .artifact_path
+        .strip_prefix(&root)
+        .expect("artifact under root");
     let mut names: Vec<String> = Vec::new();
     for component in below.components() {
         names.push(normal_name(component));
@@ -197,15 +211,24 @@ fn source_bytes_select_content_addressed_path() {
         expected.push(normal_name(component));
     }
     expected.push(String::from(ARTIFACT_FILENAME));
-    assert_eq!(names, expected, "application, version, platform, digest and filename");
+    assert_eq!(
+        names, expected,
+        "application, version, platform, digest and filename"
+    );
     assert_eq!(names[0], APPLICATION_DIRECTORY);
     // Independent spellings of the version and compile-target partitions, not the helpers that build them.
     assert_eq!(names[1], format!("v{}", env!("CARGO_PKG_VERSION")));
-    assert_eq!(names[2], format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH));
+    assert_eq!(
+        names[2],
+        format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+    );
     let digest_component: &str = names[3].as_str();
     assert_eq!(digest_component.len(), 64);
     for character in digest_component.chars() {
-        assert!(character.is_ascii_digit() || ('a'..='f').contains(&character), "lowercase hex digest: {digest_component}");
+        assert!(
+            character.is_ascii_digit() || ('a'..='f').contains(&character),
+            "lowercase hex digest: {digest_component}"
+        );
     }
 }
 

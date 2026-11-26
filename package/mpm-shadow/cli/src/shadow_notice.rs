@@ -190,7 +190,11 @@ fn shadow_version() -> &'static str {
 /// export function versionLine(realMpm: string): string
 /// ```
 pub fn version_line(real_mpm: &Path) -> String {
-    return format!("mpm-shadow {}, shadowing mpm at {}\n", shadow_version(), real_mpm.display());
+    return format!(
+        "mpm-shadow {}, shadowing mpm at {}\n",
+        shadow_version(),
+        real_mpm.display()
+    );
 }
 
 /// What:

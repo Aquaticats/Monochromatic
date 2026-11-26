@@ -10,11 +10,18 @@
 
 /// Import the shared finding,
 ///  severity and byte-span model.
-use crate::diagnostic::{Diagnostic, Severity, Span};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
 /// Import the exact input bytes and their indexed positions.
 use crate::rust_source::RustSource;
 /// Import the syntax node and byte-range types supplied by the shared parser.
-use ra_ap_syntax::{SyntaxNode, TextRange};
+use ra_ap_syntax::{
+    SyntaxNode,
+    TextRange,
+};
 
 /// Build a report-only type-policy finding from authored syntax.
 pub(crate) fn type_finding(

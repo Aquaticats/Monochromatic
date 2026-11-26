@@ -10,8 +10,15 @@
 // });
 // ```
 
-use super::{Element, MAX_DECODED_COUNT, validate_element};
-use crate::charset::{ByteSet, singleton};
+use super::{
+    Element,
+    MAX_DECODED_COUNT,
+    validate_element,
+};
+use crate::charset::{
+    ByteSet,
+    singleton,
+};
 
 #[test]
 fn class_and_anchors_always_validate() {
@@ -23,7 +30,11 @@ fn class_and_anchors_always_validate() {
 
 #[test]
 fn well_formed_counted_validates() {
-    let counted = Element::Counted { set: singleton(b'x'), min: 2, max: 5 };
+    let counted = Element::Counted {
+        set: singleton(b'x'),
+        min: 2,
+        max: 5,
+    };
     assert!(validate_element(&counted).is_ok());
     // What:    min == max and min == 0 are both fine.
     // Why:     The test uses this setup or assertion to pin the behavior named by the test
@@ -33,26 +44,56 @@ fn well_formed_counted_validates() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(validate_element(&Element::Counted { set: singleton(b'x'), min: 4, max: 4 }).is_ok());
-    assert!(validate_element(&Element::Counted { set: singleton(b'x'), min: 0, max: 3 }).is_ok());
+    assert!(
+        validate_element(&Element::Counted {
+            set: singleton(b'x'),
+            min: 4,
+            max: 4
+        })
+        .is_ok()
+    );
+    assert!(
+        validate_element(&Element::Counted {
+            set: singleton(b'x'),
+            min: 0,
+            max: 3
+        })
+        .is_ok()
+    );
 }
 
 #[test]
 fn counted_with_empty_set_is_rejected() {
-    let counted = Element::Counted { set: ByteSet::empty(), min: 1, max: 3 };
+    let counted = Element::Counted {
+        set: ByteSet::empty(),
+        min: 1,
+        max: 3,
+    };
     assert!(validate_element(&counted).is_err());
 }
 
 #[test]
 fn counted_with_min_greater_than_max_is_rejected() {
-    let counted = Element::Counted { set: singleton(b'x'), min: 5, max: 2 };
+    let counted = Element::Counted {
+        set: singleton(b'x'),
+        min: 5,
+        max: 2,
+    };
     assert!(validate_element(&counted).is_err());
 }
 
 #[test]
 fn counted_bound_at_the_cap_is_allowed_but_beyond_is_rejected() {
-    let at_cap = Element::Counted { set: singleton(b'x'), min: 0, max: MAX_DECODED_COUNT };
+    let at_cap = Element::Counted {
+        set: singleton(b'x'),
+        min: 0,
+        max: MAX_DECODED_COUNT,
+    };
     assert!(validate_element(&at_cap).is_ok());
-    let beyond = Element::Counted { set: singleton(b'x'), min: 0, max: MAX_DECODED_COUNT + 1 };
+    let beyond = Element::Counted {
+        set: singleton(b'x'),
+        min: 0,
+        max: MAX_DECODED_COUNT + 1,
+    };
     assert!(validate_element(&beyond).is_err());
 }

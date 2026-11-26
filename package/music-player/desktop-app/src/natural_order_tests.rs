@@ -9,7 +9,10 @@ use super::*;
 /// the tests read the whole order,
 /// as the folder walk does.
 fn sorted(names: &[&str]) -> Vec<String> {
-    let mut owned: Vec<String> = names.iter().map(|name| return (*name).to_string()).collect();
+    let mut owned: Vec<String> = names
+        .iter()
+        .map(|name| return (*name).to_string())
+        .collect();
     owned.sort_by(|left, right| return natural_cmp(left, right));
     return owned;
 }
@@ -24,7 +27,10 @@ fn a_number_inside_a_name_counts_by_value() {
 
 #[test]
 fn letters_compare_without_regard_to_case() {
-    assert_eq!(sorted(&["beta", "Alpha", "alpha2", "Zed"]), vec!["Alpha", "alpha2", "beta", "Zed"]);
+    assert_eq!(
+        sorted(&["beta", "Alpha", "alpha2", "Zed"]),
+        vec!["Alpha", "alpha2", "beta", "Zed"]
+    );
 }
 
 #[test]
@@ -55,19 +61,32 @@ fn equal_names_are_equal_and_names_differing_only_in_case_are_not() {
 
 #[test]
 fn digits_come_before_letters_and_non_latin_names_keep_a_stable_place() {
-    assert_eq!(sorted(&["b", "9", "かめりあ 2", "かめりあ 10", "a"]), vec!["9", "a", "b", "かめりあ 2", "かめりあ 10"]);
+    assert_eq!(
+        sorted(&["b", "9", "かめりあ 2", "かめりあ 10", "a"]),
+        vec!["9", "a", "b", "かめりあ 2", "かめりあ 10"]
+    );
 }
 
 #[test]
 fn the_order_is_total_across_mixed_names() {
-    let names: Vec<&str> = vec!["a", "A", "a1", "a01", "a2", "a10", "A10", "b", "1", "01", "", "a 1", "a-1", "ß", "SS"];
+    let names: Vec<&str> = vec![
+        "a", "A", "a1", "a01", "a2", "a10", "A10", "b", "1", "01", "", "a 1", "a-1", "ß", "SS",
+    ];
     for left in &names {
         for right in &names {
             let forward: Ordering = natural_cmp(left, right);
-            assert_eq!(forward, natural_cmp(right, left).reverse(), "{left:?} against {right:?} is not antisymmetric");
+            assert_eq!(
+                forward,
+                natural_cmp(right, left).reverse(),
+                "{left:?} against {right:?} is not antisymmetric"
+            );
             for third in &names {
                 if forward != Ordering::Greater && natural_cmp(right, third) != Ordering::Greater {
-                    assert_ne!(natural_cmp(left, third), Ordering::Greater, "{left:?} {right:?} {third:?} is not transitive");
+                    assert_ne!(
+                        natural_cmp(left, third),
+                        Ordering::Greater,
+                        "{left:?} {right:?} {third:?} is not transitive"
+                    );
                 }
             }
         }

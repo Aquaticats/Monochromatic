@@ -1,9 +1,23 @@
 //! Verifies procfs parsing and the account lookup.
 
-/// Account lookup under test.
-use crate::user_account::{account_from_entry, lookup_user};
 /// Parsers under test.
-use crate::process_info::{list_pids, parse_cgroup, parse_stat, parse_stat_fields, parse_status_id, read_own_pid_namespace, read_process, read_whole, split_cmdline, StatFields};
+use crate::process_info::{
+    StatFields,
+    list_pids,
+    parse_cgroup,
+    parse_stat,
+    parse_stat_fields,
+    parse_status_id,
+    read_own_pid_namespace,
+    read_process,
+    read_whole,
+    split_cmdline,
+};
+/// Account lookup under test.
+use crate::user_account::{
+    account_from_entry,
+    lookup_user,
+};
 
 /// Reads the parent and start time past a command name that contains spaces and parentheses.
 #[test]
@@ -17,7 +31,10 @@ fn stat_parsing_skips_a_hostile_command_name() {
 
 /// Builds the text of a stat file whose fields after the command name are the given state,
 /// flags and start time.
-fn stat_text(state: &str, flags: u64) -> String {
+fn stat_text(
+    state: &str,
+    flags: u64,
+) -> String {
     let mut fields: Vec<String> = vec!["0".to_string(); 20];
     fields[0] = state.to_string();
     fields[1] = "1".to_string();
@@ -31,7 +48,15 @@ fn stat_text(state: &str, flags: u64) -> String {
 #[test]
 fn stat_fields_carry_the_state_and_the_flags() {
     let text = stat_text("R", 4_194_368).replace("5 (x)", "42 (we ird) name)");
-    assert_eq!(parse_stat_fields(&text), Some(StatFields { state: 'R', parent: 1, flags: 4_194_368, start_time: 99 }));
+    assert_eq!(
+        parse_stat_fields(&text),
+        Some(StatFields {
+            state: 'R',
+            parent: 1,
+            flags: 4_194_368,
+            start_time: 99
+        })
+    );
     assert_eq!(parse_stat_fields("42 (x) S 7 0 0"), None);
 }
 
@@ -42,7 +67,11 @@ fn stat_fields_carry_the_state_and_the_flags() {
 /// is not.
 #[test]
 fn zombies_dead_processes_and_pf_exiting_processes_are_exiting() {
-    let exiting = |state: &str, flags: u64| return parse_stat_fields(&stat_text(state, flags)).expect("parses").exiting();
+    let exiting = |state: &str, flags: u64| {
+        return parse_stat_fields(&stat_text(state, flags))
+            .expect("parses")
+            .exiting();
+    };
     assert!(exiting("Z", 0));
     assert!(exiting("X", 0));
     assert!(exiting("S", 4));
@@ -64,14 +93,20 @@ fn status_ids_use_the_real_id() {
 /// Reads the unified hierarchy line only.
 #[test]
 fn only_the_unified_cgroup_line_counts() {
-    assert_eq!(parse_cgroup("1:name=systemd:/a\n0::/b/c.scope\n"), Some("/b/c.scope".to_string()));
+    assert_eq!(
+        parse_cgroup("1:name=systemd:/a\n0::/b/c.scope\n"),
+        Some("/b/c.scope".to_string())
+    );
     assert_eq!(parse_cgroup("1:name=systemd:/a\n"), None);
 }
 
 /// Splits a command line on NUL and drops the trailing empty argument.
 #[test]
 fn command_lines_split_on_nul() {
-    assert_eq!(split_cmdline(b"mise\0run\0x\0"), vec![b"mise".to_vec(), b"run".to_vec(), b"x".to_vec()]);
+    assert_eq!(
+        split_cmdline(b"mise\0run\0x\0"),
+        vec![b"mise".to_vec(), b"run".to_vec(), b"x".to_vec()]
+    );
     assert_eq!(split_cmdline(b""), Vec::<Vec<u8>>::new());
 }
 
@@ -89,28 +124,52 @@ fn own_ids() -> (u32, u32) {
 fn the_real_procfs_describes_this_process() {
     let pid = i32::try_from(std::process::id()).expect("pid fits");
     let (uid, _gid) = own_ids();
-    let info = read_process(std::path::Path::new("/proc"), pid, uid).expect("readable").expect("alive");
+    let info = read_process(std::path::Path::new("/proc"), pid, uid)
+        .expect("readable")
+        .expect("alive");
     assert_eq!(info.pid, pid);
     assert!(info.exe.is_absolute());
     assert!(!info.args.is_empty());
     assert!(info.cgroup.starts_with('/'));
-    assert!(info.pid_namespace.as_deref().is_some_and(|link| return link.starts_with("pid:[")));
-    assert_eq!(read_own_pid_namespace(std::path::Path::new("/proc")), info.pid_namespace);
-    assert!(list_pids(std::path::Path::new("/proc")).expect("list").contains(&pid));
-    assert_eq!(read_process(std::path::Path::new("/proc"), i32::MAX, uid).expect("no error"), None);
-    assert_eq!(read_process(std::path::Path::new("/proc"), pid, uid.wrapping_add(1)).expect("no error"), None);
+    assert!(
+        info.pid_namespace
+            .as_deref()
+            .is_some_and(|link| return link.starts_with("pid:["))
+    );
+    assert_eq!(
+        read_own_pid_namespace(std::path::Path::new("/proc")),
+        info.pid_namespace
+    );
+    assert!(
+        list_pids(std::path::Path::new("/proc"))
+            .expect("list")
+            .contains(&pid)
+    );
+    assert_eq!(
+        read_process(std::path::Path::new("/proc"), i32::MAX, uid).expect("no error"),
+        None
+    );
+    assert_eq!(
+        read_process(std::path::Path::new("/proc"), pid, uid.wrapping_add(1)).expect("no error"),
+        None
+    );
 }
 
 /// Builds a fake process directory with readable files.
 fn fake_process(name: &str) -> std::path::PathBuf {
     let (uid, gid) = own_ids();
-    let root = crate::test_scratch::scratch_root().join(format!("wg-quicker-info-{name}-{}", std::process::id()));
+    let root = crate::test_scratch::scratch_root()
+        .join(format!("wg-quicker-info-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&root);
     let base = root.join("5");
     std::fs::create_dir_all(&base).expect("make the process directory");
     std::os::unix::fs::symlink("/usr/bin/mise", base.join("exe")).expect("link the executable");
     std::fs::write(base.join("cmdline"), b"mise\0run\0").expect("write cmdline");
-    std::fs::write(base.join("status"), format!("Uid:\t{uid}\t{uid}\t{uid}\t{uid}\nGid:\t{gid}\t{gid}\t{gid}\t{gid}\n")).expect("write status");
+    std::fs::write(
+        base.join("status"),
+        format!("Uid:\t{uid}\t{uid}\t{uid}\t{uid}\nGid:\t{gid}\t{gid}\t{gid}\t{gid}\n"),
+    )
+    .expect("write status");
     std::fs::write(base.join("cgroup"), "0::/user.slice/x.scope\n").expect("write cgroup");
     let zeros = vec!["0"; 17].join(" ");
     std::fs::write(base.join("stat"), format!("5 (x) S 1 {zeros} 99 0\n")).expect("write stat");
@@ -122,7 +181,9 @@ fn fake_process(name: &str) -> std::path::PathBuf {
 fn a_fixture_without_a_namespace_link_parses_with_the_field_absent() {
     let root = fake_process("plain");
     let (uid, _gid) = own_ids();
-    let info = read_process(&root, 5, uid).expect("readable").expect("alive");
+    let info = read_process(&root, 5, uid)
+        .expect("readable")
+        .expect("alive");
     assert_eq!(info.pid_namespace, None);
     assert_eq!(info.start_time, 99);
     assert_eq!(info.parent, 1);
@@ -137,9 +198,15 @@ fn an_exiting_process_is_reported_as_absent() {
     let root = fake_process("exiting");
     assert!(read_process(&root, 5, uid).expect("readable").is_some());
     std::fs::write(root.join("5/stat"), stat_text("Z", 0)).expect("write a zombie");
-    assert_eq!(read_process(&root, 5, uid).expect("a zombie is not an error"), None);
+    assert_eq!(
+        read_process(&root, 5, uid).expect("a zombie is not an error"),
+        None
+    );
     std::fs::write(root.join("5/stat"), stat_text("R", 4)).expect("write an exiting process");
-    assert_eq!(read_process(&root, 5, uid).expect("an exiting process is not an error"), None);
+    assert_eq!(
+        read_process(&root, 5, uid).expect("an exiting process is not an error"),
+        None
+    );
     std::fs::write(root.join("5/stat"), stat_text("S", 0)).expect("write a sleeper");
     assert!(read_process(&root, 5, uid).expect("readable").is_some());
 }
@@ -154,8 +221,13 @@ fn large_files_are_read_whole() {
     cmdline.extend(std::iter::repeat_n(b'a', 20_000));
     cmdline.push(0);
     std::fs::write(root.join("5/cmdline"), &cmdline).expect("write a long command line");
-    assert_eq!(read_whole(&root.join("5/cmdline")).expect("read").len(), cmdline.len());
-    let info = read_process(&root, 5, uid).expect("readable").expect("alive");
+    assert_eq!(
+        read_whole(&root.join("5/cmdline")).expect("read").len(),
+        cmdline.len()
+    );
+    let info = read_process(&root, 5, uid)
+        .expect("readable")
+        .expect("alive");
     assert_eq!(info.args.len(), 3);
     assert_eq!(info.args[2].len(), 20_000);
     let (_uid, gid) = own_ids();
@@ -229,7 +301,10 @@ fn an_unreadable_file_is_an_error_and_not_a_vanished_process() {
     assert!(read_process(&fresh, 5, uid).is_err());
     // A missing file is a vanished process.
     std::fs::remove_file(fresh.join("5/exe")).expect("remove the file");
-    assert_eq!(read_process(&fresh, 5, uid).expect("a vanish is not an error"), None);
+    assert_eq!(
+        read_process(&fresh, 5, uid).expect("a vanish is not an error"),
+        None
+    );
 }
 
 /// A permission error on a process of the watched user is an error,
@@ -245,7 +320,11 @@ fn a_permission_error_is_an_error_and_not_a_vanished_process() {
     let root = fake_process("permission");
     let (uid, _gid) = own_ids();
     let cmdline = root.join("5/cmdline");
-    std::fs::set_permissions(&cmdline, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("lock the file");
+    std::fs::set_permissions(
+        &cmdline,
+        std::os::unix::fs::PermissionsExt::from_mode(0o000),
+    )
+    .expect("lock the file");
     let error = read_process(&root, 5, uid).expect_err("a locked file");
     assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
 }
@@ -288,7 +367,13 @@ fn a_reaped_process_answers_esrch_and_counts_as_gone() {
     let reaped = std::io::Error::from_raw_os_error(libc::ESRCH);
     assert_eq!(reaped.raw_os_error(), Some(libc::ESRCH));
     assert!(crate::process_info::means_vanished(&reaped));
-    assert!(crate::process_info::means_vanished(&std::io::Error::from(std::io::ErrorKind::NotFound)));
-    assert!(!crate::process_info::means_vanished(&std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
-    assert!(!crate::process_info::means_vanished(&std::io::Error::from(std::io::ErrorKind::InvalidData)));
+    assert!(crate::process_info::means_vanished(&std::io::Error::from(
+        std::io::ErrorKind::NotFound
+    )));
+    assert!(!crate::process_info::means_vanished(&std::io::Error::from(
+        std::io::ErrorKind::PermissionDenied
+    )));
+    assert!(!crate::process_info::means_vanished(&std::io::Error::from(
+        std::io::ErrorKind::InvalidData
+    )));
 }

@@ -10,7 +10,11 @@
 /// ```ts
 /// import { WHITE_MINIMUM, contrast, legibleInk } from 'ide-app/selection-ink';
 /// ```
-use ide_app::selection_ink::{WHITE_MINIMUM, contrast, legible_ink};
+use ide_app::selection_ink::{
+    WHITE_MINIMUM,
+    contrast,
+    legible_ink,
+};
 
 /// What:
 ///  `const` names a compile-time value;

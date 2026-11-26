@@ -1,6 +1,10 @@
 //! Unit tests of the depth guard.
 
-use crate::nesting::{MAX_NESTING, must_refuse, nesting_depth};
+use crate::nesting::{
+    MAX_NESTING,
+    must_refuse,
+    nesting_depth,
+};
 
 #[test]
 fn no_value_and_unreadable_values_name_no_depth() {

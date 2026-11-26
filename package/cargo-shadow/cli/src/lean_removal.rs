@@ -33,17 +33,35 @@
 /// Files,
 /// directories and metadata,
 /// and the effective user id that decides whose directory may be changed.
-use std::{fs, io, os::unix::fs::{MetadataExt, PermissionsExt}, path::{Path, PathBuf}};
+use std::{
+    fs,
+    io,
+    os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// The effective user id,
 /// which is the user a removal acts as.
 use rustix::process::geteuid;
 
 /// The rename that fails instead of replacing.
-use rustix::fs::{CWD, RenameFlags, renameat_with};
+use rustix::fs::{
+    CWD,
+    RenameFlags,
+    renameat_with,
+};
 
 /// Device and inode.
-use crate::lean_identity::{Identity, identity_of};
+use crate::lean_identity::{
+    Identity,
+    identity_of,
+};
 /// The final component of a path as text.
 use crate::lean_text::name_of;
 
@@ -122,9 +140,16 @@ pub enum Refusal {
 /// The text a refusal shows.
 impl std::fmt::Display for Refusal {
     /// Writes the refusal as text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         return match self {
-            Refusal::Changed { path, judged, found } => write!(
+            Refusal::Changed {
+                path,
+                judged,
+                found,
+            } => write!(
                 formatter,
                 "{} is not the entry that was judged (device {} inode {} then, device {} inode {} now); nothing was removed",
                 path.display(),
@@ -133,9 +158,19 @@ impl std::fmt::Display for Refusal {
                 found.device,
                 found.inode
             ),
-            Refusal::Gone(path) => write!(formatter, "{} was already removed by another owner", path.display()),
-            Refusal::Io { path, error } => write!(formatter, "{}: {error}", path.display()),
-            Refusal::PartlyRemoved { path, deleted } => write!(
+            Refusal::Gone(path) => write!(
+                formatter,
+                "{} was already removed by another owner",
+                path.display()
+            ),
+            Refusal::Io {
+                path,
+                error,
+            } => write!(formatter, "{}: {error}", path.display()),
+            Refusal::PartlyRemoved {
+                path,
+                deleted,
+            } => write!(
                 formatter,
                 "{} was only partly removed: {} disk bytes are gone, {} part(s) of it stay{}, and each stayed because: {}",
                 path.display(),
@@ -159,7 +194,10 @@ impl std::fmt::Display for Refusal {
 /// export const itemOf = (path: string): Item => ({ path, identity: identityOf(path) });
 /// ```
 pub fn item_of(path: &Path) -> io::Result<Item> {
-    return Ok(Item { path: path.to_path_buf(), identity: identity_of(path)? });
+    return Ok(Item {
+        path: path.to_path_buf(),
+        identity: identity_of(path)?,
+    });
 }
 
 /// What:
@@ -173,7 +211,11 @@ pub fn item_of(path: &Path) -> io::Result<Item> {
 /// ```ts
 /// const trashName = (trash: string, item: string, serial: number) => join(trash, `${process.pid}-${Date.now()}-${serial}-${basename(item)}`);
 /// ```
-fn trash_name(trash: &Path, item: &Path, serial: u64) -> PathBuf {
+fn trash_name(
+    trash: &Path,
+    item: &Path,
+    serial: u64,
+) -> PathBuf {
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),
         Err(_) => 0,
@@ -194,31 +236,65 @@ fn trash_name(trash: &Path, item: &Path, serial: u64) -> PathBuf {
 /// ```ts
 /// export function claimIntoTrash(item: Item, trash: string, serial: number): string  // throws Refusal
 /// ```
-pub fn claim_into_trash(item: &Item, trash: &Path, serial: u64) -> Result<PathBuf, Refusal> {
+pub fn claim_into_trash(
+    item: &Item,
+    trash: &Path,
+    serial: u64,
+) -> Result<PathBuf, Refusal> {
     let before: Identity = match identity_of(&item.path) {
         Ok(found) => found,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Err(Refusal::Gone(item.path.clone())),
-        Err(error) => return Err(Refusal::Io { path: item.path.clone(), error }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err(Refusal::Gone(item.path.clone()));
+        }
+        Err(error) => {
+            return Err(Refusal::Io {
+                path: item.path.clone(),
+                error,
+            });
+        }
     };
     if before != item.identity {
-        return Err(Refusal::Changed { path: item.path.clone(), judged: item.identity, found: before });
+        return Err(Refusal::Changed {
+            path: item.path.clone(),
+            judged: item.identity,
+            found: before,
+        });
     }
     if let Err(error) = fs::create_dir_all(trash) {
-        return Err(Refusal::Io { path: trash.to_path_buf(), error });
+        return Err(Refusal::Io {
+            path: trash.to_path_buf(),
+            error,
+        });
     }
     let target: PathBuf = trash_name(trash, &item.path, serial);
     match renameat_with(CWD, &item.path, CWD, &target, RenameFlags::NOREPLACE) {
         Ok(()) => {}
-        Err(code) if code == rustix::io::Errno::NOENT => return Err(Refusal::Gone(item.path.clone())),
-        Err(code) => return Err(Refusal::Io { path: item.path.clone(), error: io::Error::from(code) }),
+        Err(code) if code == rustix::io::Errno::NOENT => {
+            return Err(Refusal::Gone(item.path.clone()));
+        }
+        Err(code) => {
+            return Err(Refusal::Io {
+                path: item.path.clone(),
+                error: io::Error::from(code),
+            });
+        }
     }
     let after: Identity = match identity_of(&target) {
         Ok(found) => found,
-        Err(error) => return Err(Refusal::Io { path: target, error }),
+        Err(error) => {
+            return Err(Refusal::Io {
+                path: target,
+                error,
+            });
+        }
     };
     if after != item.identity {
         // The path was swapped between the check and the rename: what moved is not what was judged. It stays in the trash.
-        return Err(Refusal::Changed { path: target, judged: item.identity, found: after });
+        return Err(Refusal::Changed {
+            path: target,
+            judged: item.identity,
+            found: after,
+        });
     }
     return Ok(target);
 }
@@ -262,7 +338,11 @@ pub fn modes_named(modes: &[PathBuf]) -> String {
         Some(more) if more > 0 => format!(" and {more} more"),
         _ => String::new(),
     };
-    return format!("; mode changed on {} directories this user could not write: {}{rest}", modes.len(), named.join(", "));
+    return format!(
+        "; mode changed on {} directories this user could not write: {}{rest}",
+        modes.len(),
+        named.join(", ")
+    );
 }
 
 /// What:
@@ -295,7 +375,11 @@ pub(crate) fn widened_mode(mode: u32) -> u32 {
 /// ```ts
 /// function openDirectory(path: string, metadata: Stats, walk: Walk): string | undefined
 /// ```
-fn open_directory(path: &Path, metadata: &fs::Metadata, walk: &mut Walk<'_>) -> Option<String> {
+fn open_directory(
+    path: &Path,
+    metadata: &fs::Metadata,
+    walk: &mut Walk<'_>,
+) -> Option<String> {
     let mode: u32 = metadata.mode() & 0o7777;
     if mode & OWNER_ACCESS_BITS == OWNER_ACCESS_BITS {
         return None;
@@ -314,7 +398,10 @@ fn open_directory(path: &Path, metadata: &fs::Metadata, walk: &mut Walk<'_>) -> 
             walk.deleted.modes_added.push(path.to_path_buf());
             None
         }
-        Err(error) => Some(format!("{} could not be made writable (mode {mode:04o}): {error}", path.display())),
+        Err(error) => Some(format!(
+            "{} could not be made writable (mode {mode:04o}): {error}",
+            path.display()
+        )),
     };
 }
 
@@ -342,12 +429,17 @@ struct Walk<'a> {
 /// ```ts
 /// function deleteEntry(path: string, walk: Walk): void
 /// ```
-fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
+fn delete_entry(
+    path: &Path,
+    walk: &mut Walk<'_>,
+) {
     let metadata: fs::Metadata = match fs::symlink_metadata(path) {
         Ok(found) => found,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return,
         Err(error) => {
-            walk.deleted.remaining.push(format!("{} could not be read: {error}", path.display()));
+            walk.deleted
+                .remaining
+                .push(format!("{} could not be read: {error}", path.display()));
             return;
         }
     };
@@ -358,8 +450,12 @@ fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
             match fs::remove_dir(path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) if error.kind() == io::ErrorKind::DirectoryNotEmpty => walk.deleted.remaining.push(reason),
-                Err(error) => walk.deleted.remaining.push(format!("{reason}, and it could not be removed either: {error}")),
+                Err(error) if error.kind() == io::ErrorKind::DirectoryNotEmpty => {
+                    walk.deleted.remaining.push(reason)
+                }
+                Err(error) => walk.deleted.remaining.push(format!(
+                    "{reason}, and it could not be removed either: {error}"
+                )),
             }
             return;
         }
@@ -368,28 +464,44 @@ fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
                 for child in entries {
                     match child {
                         Ok(entry) => delete_entry(&entry.path(), walk),
-                        Err(error) => walk.deleted.remaining.push(format!("{} holds an entry that could not be read: {error}", path.display())),
+                        Err(error) => walk.deleted.remaining.push(format!(
+                            "{} holds an entry that could not be read: {error}",
+                            path.display()
+                        )),
                     }
                 }
             }
-            Err(error) => walk.deleted.remaining.push(format!("{} could not be listed: {error}", path.display())),
+            Err(error) => walk
+                .deleted
+                .remaining
+                .push(format!("{} could not be listed: {error}", path.display())),
         }
         match fs::remove_dir(path) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) if error.kind() == io::ErrorKind::DirectoryNotEmpty => {}
-            Err(error) => walk.deleted.remaining.push(format!("{} could not be removed: {error}", path.display())),
+            Err(error) => walk
+                .deleted
+                .remaining
+                .push(format!("{} could not be removed: {error}", path.display())),
         }
         return;
     }
-    let first: bool = metadata.nlink() <= 1 || walk.seen.insert(Identity { device: metadata.dev(), inode: metadata.ino() });
+    let first: bool = metadata.nlink() <= 1
+        || walk.seen.insert(Identity {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        });
     if first {
         walk.deleted.bytes += allocated_bytes_of(&metadata);
     }
     match fs::remove_file(path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => walk.deleted.remaining.push(format!("{} could not be removed: {error}", path.display())),
+        Err(error) => walk
+            .deleted
+            .remaining
+            .push(format!("{} could not be removed: {error}", path.display())),
     }
 }
 
@@ -405,7 +517,10 @@ fn delete_entry(path: &Path, walk: &mut Walk<'_>) {
 /// ```ts
 /// export function deleteClaimed(claimed: string, judged: Identity): Deleted  // throws Refusal
 /// ```
-pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<Deleted, Refusal> {
+pub fn delete_claimed(
+    claimed: &Path,
+    judged: Identity,
+) -> Result<Deleted, Refusal> {
     return delete_claimed_as(claimed, judged, geteuid().as_raw());
 }
 
@@ -420,21 +535,43 @@ pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<Deleted, Refus
 /// ```ts
 /// export function deleteClaimedAs(claimed: string, judged: Identity, thisUid: number): Deleted  // throws Refusal
 /// ```
-pub(crate) fn delete_claimed_as(claimed: &Path, judged: Identity, this_uid: u32) -> Result<Deleted, Refusal> {
+pub(crate) fn delete_claimed_as(
+    claimed: &Path,
+    judged: Identity,
+    this_uid: u32,
+) -> Result<Deleted, Refusal> {
     let found: Identity = match identity_of(claimed) {
         Ok(identity) => identity,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Err(Refusal::Gone(claimed.to_path_buf())),
-        Err(error) => return Err(Refusal::Io { path: claimed.to_path_buf(), error }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err(Refusal::Gone(claimed.to_path_buf()));
+        }
+        Err(error) => {
+            return Err(Refusal::Io {
+                path: claimed.to_path_buf(),
+                error,
+            });
+        }
     };
     if found != judged {
-        return Err(Refusal::Changed { path: claimed.to_path_buf(), judged, found });
+        return Err(Refusal::Changed {
+            path: claimed.to_path_buf(),
+            judged,
+            found,
+        });
     }
     let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
-    let mut walk: Walk<'_> = Walk { this_uid, deleted: Deleted::default(), seen: &mut seen };
+    let mut walk: Walk<'_> = Walk {
+        this_uid,
+        deleted: Deleted::default(),
+        seen: &mut seen,
+    };
     delete_entry(claimed, &mut walk);
     return match walk.deleted.remaining.is_empty() {
         true => Ok(walk.deleted),
-        false => Err(Refusal::PartlyRemoved { path: claimed.to_path_buf(), deleted: walk.deleted }),
+        false => Err(Refusal::PartlyRemoved {
+            path: claimed.to_path_buf(),
+            deleted: walk.deleted,
+        }),
     };
 }
 
@@ -453,7 +590,10 @@ pub struct TrashSweep {
 /// What one finished deletion adds to a sweep.
 impl TrashSweep {
     /// Adds what a finished deletion did.
-    fn add(&mut self, deleted: Deleted) {
+    fn add(
+        &mut self,
+        deleted: Deleted,
+    ) {
         self.bytes += deleted.bytes;
         self.modes_added.extend(deleted.modes_added);
     }
@@ -477,20 +617,31 @@ impl TrashSweep {
 /// ```
 pub fn empty_trash(trash: &Path) -> TrashSweep {
     let mut sweep: TrashSweep = TrashSweep::default();
-    let Ok(entries) = fs::read_dir(trash) else { return sweep };
+    let Ok(entries) = fs::read_dir(trash) else {
+        return sweep;
+    };
     for entry in entries.flatten() {
         let judged: Identity = match identity_of(&entry.path()) {
             Ok(found) => found,
             Err(error) => {
-                sweep.failures.push(format!("{}: {error}", entry.path().display()));
+                sweep
+                    .failures
+                    .push(format!("{}: {error}", entry.path().display()));
                 continue;
             }
         };
         match delete_claimed(&entry.path(), judged) {
             Ok(deleted) => sweep.add(deleted),
             Err(Refusal::Gone(_)) => {}
-            Err(Refusal::PartlyRemoved { deleted, .. }) => {
-                let reason: String = Refusal::PartlyRemoved { path: entry.path(), deleted: deleted.clone() }.to_string();
+            Err(Refusal::PartlyRemoved {
+                deleted,
+                ..
+            }) => {
+                let reason: String = Refusal::PartlyRemoved {
+                    path: entry.path(),
+                    deleted: deleted.clone(),
+                }
+                .to_string();
                 sweep.add(deleted);
                 sweep.failures.push(reason);
             }

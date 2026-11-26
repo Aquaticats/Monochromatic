@@ -5033,8 +5033,15 @@ and every step reads the state a kill at the step before it leaves:
   published,
   and the phase becomes `snapshotted`.
 - The origin snapshot is cloned as
-  `<container>/<slot>` with `mountpoint=legacy` and no `canmount` property:
-  a clone inherits the origin's mountpoint,
+  `<container>/<slot>` with no property at all:
+  a clone inherits its parent's `mountpoint`,
+  which is the clone container and not the origin,
+  so the clone reads `mountpoint=legacy` inherited from the container.
+  `mountpoint` is also a delegation the design forbids the account,
+  so a request that carried it is refused for the account the add runs as
+  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`,
+  2026-11-25).
+  No `canmount` property is sent either:
   a legacy dataset is never mounted by itself whatever `canmount` says,
   and the kernel refused `canmount=off` at creation in the build's guest.
   The design's own mount is therefore the only one the clone gets.
@@ -5119,6 +5126,17 @@ its dataset and the one next safe action
 pruned and moved ZFS worktree clones");
 a record at an earlier phase resumes the add from that phase,
 and a removal's plan that names the clone refuses before the claim.
+That refusal names the plan,
+its head word and the clone the pool can find,
+and prints the one command those two facts leave:
+the removal the plan belongs to,
+the settling command,
+the finish pass's wait line where the pool cannot prove the clone gone,
+`cancel-worktree-removal <slot>` beside it where the plan records no destroy,
+and no command at all where the recorded name answers another clone.
+The read stands after the device opens,
+because the presence is a pool answer,
+and a plan the add cannot read keeps its refusal and names no command.
 
 The record is
 `<common>/monochromatic-git-policy-cli/worktree-clones/v1/<slot>.binding`,
@@ -5163,6 +5181,18 @@ when a decided permission is effective only through a wider ancestor grant,
 reaches the account through a named set,
 is granted to everyone,
 or is one of the lineage-changing grants the route must not have.
+A creation-time grant (`zfs allow -c`) of a lineage-changing permission,
+and a lineage-changing permission inside a named set the account can hold,
+are ones the account holds or will hold:
+the kernel copies a creation-time grant onto every dataset its creator makes
+below the dataset that carries it,
+as a local grant to that creator,
+so the check refuses them too,
+naming the `zfs unallow -c` or `zfs unallow -s` command that clears the
+permission.
+A named set's members come from the kernel's own entry for the set,
+so a set the account can come to hold is expanded and its permission named
+rather than reported only as unreadable.
 The permissions the add's own steps use are the six the unprivileged lifecycle
 needs
 (`snapshot` on the checkout,
@@ -7514,7 +7544,16 @@ identical-binary spread it was measured beside
 (`perf/sweep-cost-2026-11-23-statmount-interleaved.json`).
 A standing clone whose `done` receipt is already the one this request would
 file is answered without writing anything.
-A slot holding another dataset's mount is refused as the walk refuses it.
+The attach path asks that same proof once more where the walk stops,
+because the walk never crosses a mount:
+a request that reaches the walk with the clone's own mount at the slot is
+answered `done` from that mount under the request's nonce,
+and no second mount is attempted at the slot.
+A slot holding another dataset's mount,
+a bind of this clone (the same source over another root) and a mount without the
+`nosuid` and `nodev` attributes are each not this clone's own mount,
+so the walk's boundary refusal stands for them exactly as it did,
+and an empty slot is walked and attached as before.
 The holder reads the intent again after every release of a claim the turn took:
 after an attach,
 after answering a standing mount,
@@ -7586,7 +7625,10 @@ Item 2's measured arms map onto this module as follows:
 (`clone_slot_walk_tests::a_checkout_named_through_a_link_is_refused`,
 extended for the magic link),
 and a slot that already holds the clone's mount is refused as a boundary
-by the `refusals` arm with a real clone mounted there.
+by the `refusals` arm with a real clone mounted there,
+which is the walk's own answer and not the handler's:
+the handler's attach step proves such a slot with the sweep's standing-mount
+answer and replies from that mount instead ("The sweep's checks").
 
 The root-run integration test the plan suggests calls this module directly,
 because no account-side binary dispatch exists until step 5;
@@ -9494,15 +9536,36 @@ and the clone ends 0
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
 The wrapper adds no words of its own where a question was asked:
 the program it names answers nothing and prints nothing.
-This release therefore names no next step at a new host key,
-and how such a text reaches a person is the project's next choice
-(`doc/decision/cli-git-typed-network-command-next-step-at-a-new-host-key.md`,
-the record that chose the delivery this release removed).
+The program that answers no question therefore still says nothing,
+and `SSH_ASKPASS` stays `false`:
+the next step reaches a person from the wrapper's own process instead,
+which is the one that owns the child
+(`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
+A typed `clone`,
+`fetch`,
+`pull` or `push` whose remote ssh carries is run as the wrapper's child with its error stream relayed,
+and when that transcript reads as a refused host key it prints one sentence after Git's own words,
+naming the plain `ssh` command to run
+(`src/native/invocation/typed_network_command_relay/`,
+and the three texts are the proposal's kept files byte for byte).
+A command ssh does not carry names no next step and keeps the process replacement it has today.
+Four limits stand with it:
+`kill -9` of the typed process number is not one of the four signals the relay carries:
+the wrapper ends at once, prints nothing, and does not end Git through the relay;
+under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
+so no sentence follows;
+a typed LFS push explains a refused key through the upload's own words instead,
+and the two faces print one sentence and not two;
+and a key whose options live only in `GIT_SSH_COMMAND`,
+`core.sshCommand` or `GIT_SSH` sends the advised plain `ssh` to other settings,
+where it may read another `known_hosts` file.
 A person meets OpenSSH's own refusals at both questions this rule answers with nothing,
 measured against a throwaway `sshd` on loopback with OpenSSH 10.6p2:
 `Host key verification failed.` at an unknown host key,
 and `Permission denied (publickey).` at a key whose passphrase nobody can give,
-each ending 128 with Git's own lines below and no line of the wrapper's among them.
+each ending 128 with Git's own lines.
+A typed network command whose remote ssh carries then prints the one sentence above after those lines;
+a command the wrapper runs or forwards over a transport ssh does not carry shows no line of the wrapper's among them.
 A key the agent holds asks for no passphrase,
 so it still opens the connection.
 A key without a passphrase needs no agent at all:
@@ -13220,8 +13283,9 @@ in-process reader can) gives every value of the multi-valued keys.
   a control that must see it fire cannot wait that long,
   so `CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`,
   a positive whole number of seconds,
-  shortens it for every run of the process,
-  in the manner of the crate's other control-only variables.
+  shortens it for every run of a build made for a control,
+  in the manner of the crate's other control-only variables;
+  a release build holds no read of it.
   One limit applies,
   in whole seconds and ignored when zero,
   negative,
@@ -13838,7 +13902,8 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
   (`lock_birth_times.rs`);
   a control states a file system of one-second ticks,
   and one of no birth times,
-  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`;
+  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`,
+  which only a build made for a control reads;
 - **no live process has that number**.
   A number a process has now is no proof of anything:
   it may be the recorded process that still runs,
@@ -14839,6 +14904,16 @@ with `a_second_settlement_of_one_record_lands_the_change_once`,
   called from `stack_if_push` in `entry.rs`).
   The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
   A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
+- A typed `clone`,
+  `fetch`,
+  `pull` or `push` whose remote ssh carries is not replaced:
+  the wrapper reads the remote first and keeps Git as its child with the error stream relayed,
+  so that command does have an "after",
+  and the one sentence it prints there follows Git's own words
+  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
+  and the rule below that keeps the no-prompt list as it is).
+  Every command ssh does not carry keeps the handover above,
+  with its bytes and its signals.
 - The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
   lookups:
   measured while this entry was written at a median 1.9 ms (25 runs,
@@ -16670,6 +16745,11 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+A process whose process limit refuses that thread says which limit refused it,
+and writes every line on the thread that says it instead:
+one write, made only where the descriptor reports room,
+so no caller waits for a reader and nothing a command says is lost
+(issue 6476).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -17432,14 +17512,16 @@ each with its reason in the code and here:
   with no Git process,
   no file and no other lock,
   so a commit's question is answered from memory and never waits for a volume.
-- The mutex and the condition of the service's own log lines (`service_log_lines_off_the_calling_thread.rs`):
+- The mutex and the condition of a queue of lines written by a thread of their own
+  (`foundation/lines_written_by_a_thread.rs`,
+  which the service's own log lines and the command's diagnostic lines are both made of):
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
-  under it one line is pushed or popped and the writer is handed out or given back,
+  under it one line is pushed or popped, one number is moved and the writer is handed out or given back,
   and the write itself runs outside it.
-  A queue of `QUEUED_LINES` (256,
-  measured over the six slowest commits of 2026-11-12)
+  A queue of `QUEUED_LINES` (256 in each: measured over the six slowest commits of 2026-11-12 for the service's log,
+  and over this repository's commit timing log and the package's gates on 2026-11-15 for the diagnostics)
   is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
   one reclaimer at a time,
@@ -22141,6 +22223,34 @@ where nothing runs it again.
 `source_guard`'s `records_read_without_blocking_tests` fails a release file that names one of those folders
 and reads with a call that can wait.
 
+Every file this wrapper reads from a Git directory is opened as a plain file (`foundation/plain_file.rs`) too:
+opening a pipe for reading waits for a writer that may never come,
+and a person or another program can put one at any name beside a checkout.
+That covers a Git directory's `commondir`
+(read by `foundation/common_directory_of_a_git_directory.rs`, which is the one reader of it),
+its `HEAD`,
+the `.git` pointer file a linked worktree or a partially filled clone holds,
+a fetched-heads list (`FETCH_HEAD`),
+a rebase or sequencer todo list,
+and a configuration file,
+each read to a bound the wrapper already sets:
+`SMALL_FILE_LIMIT` (1 MiB) for the small files and `CONFIG_TEXT_LIMIT` for a configuration file.
+A pipe at one of those names is a file this command cannot read rather than a wait:
+the Git directory is its own common directory,
+a head cannot answer so Git is asked,
+a pull or a merge runs through native Git,
+a todo list asks for no editor,
+and a configuration that cannot be read leaves its answer to Git.
+`source_guard`'s `raw_file_reads_tests` fails a release file outside `foundation/plain_file.rs` that reads a file
+with `std::fs::read` or `std::fs::read_to_string`,
+and the sites that stay are on a list of exact counts that may only shrink,
+each under the class whose reason keeps it:
+a fact the kernel or the operating system's own installation writes,
+a record the wrapper wrote into a folder of its own,
+a file Git wrote in a Git directory,
+a path the person's own project holds,
+or a file a control's stand-in process writes.
+
 Limits:
 machines cloned with one machine ID cannot be told apart,
 so their claims are judged as one machine's;
@@ -23302,9 +23412,13 @@ Until step 19 adds the `ExecStartPre=-`,
 no boot unit runs the probe,
 and it runs only from a transient unit in a guest.
 
-Test-only variables are compiled into the release executable and inert unless
-set,
-and none turns a refusal into a pass:
+A build the release ships reads no test-only variable at all:
+a `CLI_GIT_TEST_ONLY_*` value is read only by a build made for a control,
+which turns on the Cargo feature `test-only-switches`
+(and `start-probe-raised-deadline` for the probe's own deadline below),
+so a unit's `Environment=` line cannot arm one in a shipped run
+(`doc/decision/cli-git-test-only-switches-compiled-out-of-release.md`).
+None of them turns a refusal into a pass:
 `CLI_GIT_TEST_ONLY_START_PROBE` takes `disabled`,
 which writes a skipped record for the timing control arm,
 or `hold-<step>`,
@@ -23459,6 +23573,8 @@ and compare each commit line with native Git field by field.
 Phases that have no hook are reached through a test-only phase marker:
 `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill[:<directory>]` makes the wrapper `SIGKILL` itself at the phase,
 and `<phase>:pause:<directory>` writes `<directory>/<phase>.reached` and waits for `<directory>/<phase>.release`.
+A release build holds no read of that variable,
+so only a build made for a control reaches a marker at all.
 The phases that are still reached are `service-staged`
 (a commit has staged its content in the private index and has not yet read it back),
 `service-prepared`

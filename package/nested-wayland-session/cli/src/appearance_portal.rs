@@ -27,14 +27,24 @@ use std::collections::HashMap;
 /// // Arc<AtomicU32> ~ a Uint32Array over a SharedArrayBuffer, used through Atomics.
 /// ```
 use std::sync::{
-    atomic::{AtomicU32, Ordering},
     Arc,
+    atomic::{
+        AtomicU32,
+        Ordering,
+    },
 };
 
 /// The private bus this portal is served on,
 ///  shared with the compositor,
 ///  and the accent color the portal can serve beside the color scheme.
-use crate::{accent_color::AccentColor, bus_step_bound::{block_on_bounded, build_bounded}, private_bus::PrivateBus};
+use crate::{
+    accent_color::AccentColor,
+    bus_step_bound::{
+        block_on_bounded,
+        build_bounded,
+    },
+    private_bus::PrivateBus,
+};
 
 /// Imports shared error context and result channel.
 use anyhow::Result;
@@ -54,7 +64,12 @@ use anyhow::Result;
 /// ```ts
 /// type Variant = { signature: string; value: unknown };
 /// ```
-use zbus::{Connection, OwnedVariant, Structure, Variant};
+use zbus::{
+    Connection,
+    OwnedVariant,
+    Structure,
+    Variant,
+};
 
 /// Stores portal well-known bus name.
 const PORTAL_BUS_NAME: &str = "org.freedesktop.portal.Desktop";
@@ -175,19 +190,30 @@ const _: () = {
     impl PortalSettings {
         /// Serves Slint's `ReadOne` compatibility method.
         #[zbus(name = "ReadOne")]
-        fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
+        fn read_one(
+            &self,
+            namespace: &str,
+            key: &str,
+        ) -> zbus::fdo::Result<OwnedVariant> {
             return self.read_setting(namespace, key);
         }
 
         /// Serves standard XDG portal `Read` method.
         #[zbus(name = "Read")]
-        fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
+        fn read(
+            &self,
+            namespace: &str,
+            key: &str,
+        ) -> zbus::fdo::Result<OwnedVariant> {
             return self.read_setting(namespace, key);
         }
 
         /// Serves standard XDG portal `ReadAll` method for appearance consumers.
         #[zbus(name = "ReadAll")]
-        fn read_all(&self, namespaces: Vec<String>) -> HashMap<String, HashMap<String, OwnedVariant>> {
+        fn read_all(
+            &self,
+            namespaces: Vec<String>,
+        ) -> HashMap<String, HashMap<String, OwnedVariant>> {
             if !namespaces_match_appearance(&namespaces) {
                 return HashMap::new();
             }
@@ -211,7 +237,11 @@ impl PortalSettings {
     ///
     /// The accent color leaves as the `(ddd)` structure of doubles in `[0, 1]` the portal defines,
     ///  which Slint reads with `downcast_ref::<(f64, f64, f64)>()`.
-    fn read_setting(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
+    fn read_setting(
+        &self,
+        namespace: &str,
+        key: &str,
+    ) -> zbus::fdo::Result<OwnedVariant> {
         if namespace == APPEARANCE_NAMESPACE && key == COLOR_SCHEME_KEY {
             let served = self.served_value.load(Ordering::SeqCst);
             if served != NOT_SERVED {
@@ -303,8 +333,15 @@ impl AppearancePortal {
     ///  so the portal never starts a second daemon.
     /// Why:
     ///       `--color-scheme` and `--launcher-log` share one private bus.
-    pub fn start(preference: ColorSchemePreference, bus: Arc<PrivateBus>) -> Result<Self> {
-        return Self::serve(PortalStart { color_scheme: Some(preference), accent_color: None, bus });
+    pub fn start(
+        preference: ColorSchemePreference,
+        bus: Arc<PrivateBus>,
+    ) -> Result<Self> {
+        return Self::serve(PortalStart {
+            color_scheme: Some(preference),
+            accent_color: None,
+            bus,
+        });
     }
 
     /// Serves the settings `start` names on an already started private bus.
@@ -328,9 +365,13 @@ impl AppearancePortal {
         // const settings = { servedValue }; // same buffer, second reference
         // ```
         let served_value = Arc::new(AtomicU32::new(
-            start.color_scheme.map_or(NOT_SERVED, ColorSchemePreference::portal_value),
+            start
+                .color_scheme
+                .map_or(NOT_SERVED, ColorSchemePreference::portal_value),
         ));
-        let served_accent = Arc::new(AtomicU32::new(start.accent_color.map_or(NOT_SERVED, AccentColor::pack)));
+        let served_accent = Arc::new(AtomicU32::new(
+            start.accent_color.map_or(NOT_SERVED, AccentColor::pack),
+        ));
         let settings = PortalSettings {
             served_value: Arc::clone(&served_value),
             served_accent: Arc::clone(&served_accent),
@@ -345,7 +386,12 @@ impl AppearancePortal {
             accent_color = ?start.accent_color,
             "started isolated XDG appearance portal",
         );
-        return Ok(Self { connection, served_value, served_accent, bus: start.bus });
+        return Ok(Self {
+            connection,
+            served_value,
+            served_accent,
+            bus: start.bus,
+        });
     }
 
     /// Tells whether `--color-scheme` was given,
@@ -381,7 +427,10 @@ impl AppearancePortal {
     ///   return "changed";
     /// }
     /// ```
-    pub fn set_color_scheme(&self, preference: ColorSchemePreference) -> Result<SwitchOutcome> {
+    pub fn set_color_scheme(
+        &self,
+        preference: ColorSchemePreference,
+    ) -> Result<SwitchOutcome> {
         if !self.serves_color_scheme() {
             anyhow::bail!("the private appearance portal was started without --color-scheme");
         }
@@ -392,7 +441,10 @@ impl AppearancePortal {
         let previous = self.served_value.swap(value, Ordering::SeqCst);
         // The portal emits SettingChanged when a setting changes; repeating a value changes nothing.
         if previous == value {
-            tracing::debug!(?preference, "isolated appearance already served; no signal emitted");
+            tracing::debug!(
+                ?preference,
+                "isolated appearance already served; no signal emitted"
+            );
             return Ok(SwitchOutcome::Unchanged);
         }
         // What:     `emit_signal(destination, path, interface, member, body)`. `None::<&str>` is
@@ -429,7 +481,10 @@ impl AppearancePortal {
             self.served_value.store(previous, Ordering::SeqCst);
             return Err(error);
         }
-        tracing::info!(?preference, "switched isolated appearance and emitted SettingChanged");
+        tracing::info!(
+            ?preference,
+            "switched isolated appearance and emitted SettingChanged"
+        );
         return Ok(SwitchOutcome::Changed);
     }
 

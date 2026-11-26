@@ -204,7 +204,11 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn leaf(&mut self, element: Element, nullable: bool) -> Frag {
+    fn leaf(
+        &mut self,
+        element: Element,
+        nullable: bool,
+    ) -> Frag {
         let id = self.elements.len() as u32;
         self.elements.push(element);
         self.follow.push(Vec::new());
@@ -212,7 +216,7 @@ impl Builder {
             nullable,
             first: vec![id],
             last: vec![id],
-        }
+        };
     }
 
     /// Adds a follow edge from every `from` position to every `to` position.
@@ -229,7 +233,11 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn link(&mut self, from: &[u32], to: &[u32]) {
+    fn link(
+        &mut self,
+        from: &[u32],
+        to: &[u32],
+    ) {
         for &f in from {
             for &t in to {
                 if !self.follow[f as usize].contains(&t) {
@@ -256,13 +264,20 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn build(&mut self, node: &Node) -> Option<Frag> {
+    fn build(
+        &mut self,
+        node: &Node,
+    ) -> Option<Frag> {
         match node {
             Node::Class(set) => return Some(self.leaf(Element::Class(*set), false)),
             Node::LineStart => return Some(self.leaf(Element::LineStart, false)),
             Node::LineEnd => return Some(self.leaf(Element::LineEnd, false)),
             Node::WordBoundary => return Some(self.leaf(Element::WordBoundary, false)),
-            Node::Repeat { node: body, min, max } => return self.build_repeat(body, *min, *max),
+            Node::Repeat {
+                node: body,
+                min,
+                max,
+            } => return self.build_repeat(body, *min, *max),
             Node::Concat(parts) => return self.build_concat(parts),
             Node::Alt(parts) => return self.build_alt(parts),
             Node::Empty => return Some(empty_frag()),
@@ -290,9 +305,21 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn build_repeat(&mut self, body: &Node, min: usize, max: usize) -> Option<Frag> {
+    fn build_repeat(
+        &mut self,
+        body: &Node,
+        min: usize,
+        max: usize,
+    ) -> Option<Frag> {
         if let Node::Class(set) = body {
-            return Some(self.leaf(Element::Counted { set: *set, min, max }, min == 0));
+            return Some(self.leaf(
+                Element::Counted {
+                    set: *set,
+                    min,
+                    max,
+                },
+                min == 0,
+            ));
         }
         if max == 0 {
             return Some(empty_frag());
@@ -315,7 +342,7 @@ impl Builder {
             }
             acc = self.link_frags(acc, copy);
         }
-        return Some(acc)
+        return Some(acc);
     }
 
     /// Builds a concatenation,
@@ -333,13 +360,16 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn build_concat(&mut self, parts: &[Node]) -> Option<Frag> {
+    fn build_concat(
+        &mut self,
+        parts: &[Node],
+    ) -> Option<Frag> {
         let mut acc = empty_frag();
         for part in parts {
             let next = self.build(part)?;
             acc = self.link_frags(acc, next);
         }
-        return Some(acc)
+        return Some(acc);
     }
 
     /// Links two fragments in sequence by the Glushkov concatenation rule.
@@ -356,7 +386,11 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn link_frags(&mut self, acc: Frag, next: Frag) -> Frag {
+    fn link_frags(
+        &mut self,
+        acc: Frag,
+        next: Frag,
+    ) -> Frag {
         self.link(&acc.last, &next.first);
         let first = extend_if(acc.nullable, &acc.first, &next.first);
         let last = extend_if(next.nullable, &next.last, &acc.last);
@@ -364,7 +398,7 @@ impl Builder {
             nullable: acc.nullable && next.nullable,
             first,
             last,
-        }
+        };
     }
 
     /// Builds an alternation by unioning the branches' fragments.
@@ -384,7 +418,10 @@ impl Builder {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    fn build_alt(&mut self, parts: &[Node]) -> Option<Frag> {
+    fn build_alt(
+        &mut self,
+        parts: &[Node],
+    ) -> Option<Frag> {
         let mut frag = Frag {
             nullable: false,
             first: Vec::new(),
@@ -396,7 +433,7 @@ impl Builder {
             push_unique(&mut frag.first, &branch.first);
             push_unique(&mut frag.last, &branch.last);
         }
-        return Some(frag)
+        return Some(frag);
     }
 }
 
@@ -436,7 +473,7 @@ pub fn build_nfa(node: &Node) -> Option<CountingNfa> {
         elements: builder.elements,
         follow: builder.follow,
         start,
-    })
+    });
 }
 
 /// Builds the fragment for an empty (epsilon) subexpression.
@@ -457,7 +494,7 @@ fn empty_frag() -> Frag {
         nullable: true,
         first: Vec::new(),
         last: Vec::new(),
-    }
+    };
 }
 
 /// Returns `base` extended by `extra` when `cond` holds,
@@ -475,12 +512,16 @@ fn empty_frag() -> Frag {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn extend_if(cond: bool, base: &[u32], extra: &[u32]) -> Vec<u32> {
+fn extend_if(
+    cond: bool,
+    base: &[u32],
+    extra: &[u32],
+) -> Vec<u32> {
     let mut out = base.to_vec();
     if cond {
         push_unique(&mut out, extra);
     }
-    return out
+    return out;
 }
 
 /// Appends each id of `extra` to `out` if not already present.
@@ -497,7 +538,10 @@ fn extend_if(cond: bool, base: &[u32], extra: &[u32]) -> Vec<u32> {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-fn push_unique(out: &mut Vec<u32>, extra: &[u32]) {
+fn push_unique(
+    out: &mut Vec<u32>,
+    extra: &[u32],
+) {
     for &id in extra {
         if !out.contains(&id) {
             out.push(id);

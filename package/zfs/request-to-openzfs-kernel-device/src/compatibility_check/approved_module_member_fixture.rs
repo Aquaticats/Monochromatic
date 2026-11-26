@@ -19,7 +19,10 @@
 //! and nothing else reads them.
 
 /// The writer of the bytes.
-use super::blob_fixture::{Blob, WrittenMember};
+use super::blob_fixture::{
+    Blob,
+    WrittenMember,
+};
 
 /// `unsigned char`,
 /// one byte.
@@ -182,7 +185,11 @@ pub(super) const fn bits(bytes: u32) -> u32 {
 }
 
 /// One member at one byte offset.
-const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
+const fn at(
+    name: &'static str,
+    type_id: u32,
+    bytes: u32,
+) -> WrittenMember {
     return WrittenMember {
         name,
         type_id,
@@ -192,7 +199,10 @@ const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
 }
 
 /// The member types one declaration is built from.
-pub(super) fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
+pub(super) fn member_types(
+    blob: &mut Blob,
+    change: Change,
+) -> MemberTypes {
     let byte: u32 = blob.int("unsigned char", BYTE_BYTES);
     let word: u32 = blob.int("unsigned int", WORD_BYTES);
     let wide: u32 = blob.int("unsigned long", WIDE_BYTES);
@@ -284,7 +294,10 @@ pub(super) fn inject_bytes(change: Change) -> u32 {
 
 /// `zfs_cmd`'s 32 members,
 /// in the order the module declares them.
-pub(super) fn command_members(types: &MemberTypes, change: Change) -> Vec<WrittenMember> {
+pub(super) fn command_members(
+    types: &MemberTypes,
+    change: Change,
+) -> Vec<WrittenMember> {
     let mut members: Vec<WrittenMember> = vec![
         at("zc_name", types.name, 0),
         at("zc_nvlist_src", types.wide, 4_096),
@@ -332,7 +345,13 @@ pub(super) fn command_members(types: &MemberTypes, change: Change) -> Vec<Writte
 
 /// `dmu_objset_stats`'s nine members,
 /// the flag `zfs-2.4.4` added last.
-pub(super) fn stats_members(wide: u32, word: u32, byte: u32, origin: u32, change: Change) -> Vec<WrittenMember> {
+pub(super) fn stats_members(
+    wide: u32,
+    word: u32,
+    byte: u32,
+    origin: u32,
+    change: Change,
+) -> Vec<WrittenMember> {
     let mut members: Vec<WrittenMember> = vec![
         at("dds_num_clones", wide, 0),
         at("dds_creation_txg", wide, 8),
@@ -354,7 +373,12 @@ pub(super) fn stats_members(wide: u32, word: u32, byte: u32, origin: u32, change
 
 /// `zinject_record`'s 19 members,
 /// the two counters `zfs-2.4.4` added last.
-pub(super) fn inject_members(wide: u32, word: u32, function: u32, change: Change) -> Vec<WrittenMember> {
+pub(super) fn inject_members(
+    wide: u32,
+    word: u32,
+    function: u32,
+    change: Change,
+) -> Vec<WrittenMember> {
     let mut members: Vec<WrittenMember> = vec![
         at("zi_objset", wide, 0),
         at("zi_object", wide, 8),

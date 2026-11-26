@@ -6,11 +6,21 @@
 //           per-keystroke latency holding during the scan.
 use super::*;
 use crate::search_feed::feed_library;
-use crate::search_results::{SEARCH_RESULT_LIMIT, SearchResultKind};
-use std::sync::mpsc::{self, Receiver, Sender};
+use crate::search_results::{
+    SEARCH_RESULT_LIMIT,
+    SearchResultKind,
+};
 use std::sync::Arc;
+use std::sync::mpsc::{
+    self,
+    Receiver,
+    Sender,
+};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 // What:     How long a test waits for an answer before it fails.
 // Why:      A test must fail with a message instead of hanging when the worker is stuck.
@@ -28,20 +38,31 @@ struct Heard {
 fn service_with_channel() -> (Arc<SearchService>, Receiver<Heard>) {
     let (sender, receiver): (Sender<Heard>, Receiver<Heard>) = mpsc::channel();
     let service: Arc<SearchService> = Arc::new(SearchService::start(move |answer| {
-        let _sent = sender.send(Heard { answer, at: Instant::now() });
+        let _sent = sender.send(Heard {
+            answer,
+            at: Instant::now(),
+        });
     }));
     return (service, receiver);
 }
 
 // What:     `names`, display paths `Artist {n % artists}/{prefix}{n}.flac` for n in a range.
 // Why:      Predictable names let a test know which queries match which tracks.
-fn names(range: std::ops::Range<usize>, prefix: &str) -> Vec<String> {
-    return range.map(|number| return format!("Artist {}/{prefix} {number}.flac", number % 5)).collect();
+fn names(
+    range: std::ops::Range<usize>,
+    prefix: &str,
+) -> Vec<String> {
+    return range
+        .map(|number| return format!("Artist {}/{prefix} {number}.flac", number % 5))
+        .collect();
 }
 
 // What:     `wait_for`, reads answers until one satisfies the predicate.
 // Why:      Refresh answers arrive after a throttle, so a test waits for the one that shows the expected state.
-fn wait_for(receiver: &Receiver<Heard>, predicate: impl Fn(&SearchAnswer) -> bool) -> SearchAnswer {
+fn wait_for(
+    receiver: &Receiver<Heard>,
+    predicate: impl Fn(&SearchAnswer) -> bool,
+) -> SearchAnswer {
     let deadline: Instant = Instant::now() + PATIENCE;
     loop {
         let remaining: Duration = deadline.saturating_duration_since(Instant::now());
@@ -57,7 +78,10 @@ fn wait_for(receiver: &Receiver<Heard>, predicate: impl Fn(&SearchAnswer) -> boo
 // Why:      Most assertions count rows.
 fn result_count(state: &SearchState) -> usize {
     return match state {
-        SearchState::Results { items, .. } => items.len(),
+        SearchState::Results {
+            items,
+            ..
+        } => items.len(),
         _ => 0,
     };
 }
@@ -101,10 +125,14 @@ fn an_append_refreshes_the_current_query() {
     let generation: u64 = service.reset(10, 200);
     service.append_for(generation, &names(0..3, "song"));
     let sequence: u64 = service.query("song");
-    let before: SearchAnswer = wait_for(&receiver, |answer| return answer.sequence == sequence && !answer.refresh);
+    let before: SearchAnswer = wait_for(&receiver, |answer| {
+        return answer.sequence == sequence && !answer.refresh;
+    });
     assert_eq!(result_count(&before.state), 3);
     service.append_for(generation, &names(3..6, "song"));
-    let after: SearchAnswer = wait_for(&receiver, |answer| return answer.refresh && answer.known_tracks == 6);
+    let after: SearchAnswer = wait_for(&receiver, |answer| {
+        return answer.refresh && answer.known_tracks == 6;
+    });
     assert_eq!(after.sequence, sequence);
     assert_eq!(result_count(&after.state), 6);
 }
@@ -166,9 +194,15 @@ fn feeding_an_empty_service_is_searchable_while_it_runs() {
     }
     let sequence: u64 = service.query("song");
     let partial: SearchAnswer = wait_for(&receiver, |answer| return answer.sequence == sequence);
-    assert!(partial.known_tracks > 0 && partial.known_tracks < 400, "searched {} of 400", partial.known_tracks);
+    assert!(
+        partial.known_tracks > 0 && partial.known_tracks < 400,
+        "searched {} of 400",
+        partial.known_tracks
+    );
     assert!(!partial.complete);
-    let done: SearchAnswer = wait_for(&receiver, |answer| return answer.known_tracks == 400 && answer.complete);
+    let done: SearchAnswer = wait_for(&receiver, |answer| {
+        return answer.known_tracks == 400 && answer.complete;
+    });
     assert_eq!(result_count(&done.state), 400);
 }
 
@@ -183,12 +217,24 @@ fn a_second_library_replaces_the_first_only_when_complete() {
         assert!(Instant::now() < deadline, "the first library never arrived");
         thread::sleep(Duration::from_millis(5));
     }
-    feed_library(&service, Arc::new(names(0..120, "new")), 10, Duration::from_millis(30));
+    feed_library(
+        &service,
+        Arc::new(names(0..120, "new")),
+        10,
+        Duration::from_millis(30),
+    );
     thread::sleep(Duration::from_millis(60));
-    assert_eq!(service.track_count(), 50, "the old library keeps answering while the new one is built");
+    assert_eq!(
+        service.track_count(),
+        50,
+        "the old library keeps answering while the new one is built"
+    );
     assert_eq!(result_count(&service.search_now("old")), 50);
     while service.track_count() != 120 {
-        assert!(Instant::now() < deadline, "the second library never arrived");
+        assert!(
+            Instant::now() < deadline,
+            "the second library never arrived"
+        );
         thread::sleep(Duration::from_millis(5));
     }
     assert_eq!(result_count(&service.search_now("old")), 0);
@@ -200,9 +246,19 @@ fn a_second_library_replaces_the_first_only_when_complete() {
 #[test]
 fn a_newer_feed_cancels_an_older_one() {
     let (service, _receiver) = service_with_channel();
-    feed_library(&service, Arc::new(names(0..1000, "first")), 10, Duration::from_millis(20));
+    feed_library(
+        &service,
+        Arc::new(names(0..1000, "first")),
+        10,
+        Duration::from_millis(20),
+    );
     thread::sleep(Duration::from_millis(60));
-    feed_library(&service, Arc::new(names(0..30, "second")), 10, Duration::ZERO);
+    feed_library(
+        &service,
+        Arc::new(names(0..30, "second")),
+        10,
+        Duration::ZERO,
+    );
     let deadline: Instant = Instant::now() + PATIENCE;
     while result_count(&service.search_now("second")) < 30 {
         assert!(Instant::now() < deadline, "the newer feed never finished");
@@ -222,7 +278,13 @@ fn typing_during_a_slow_scan_finds_known_and_new_tracks_within_the_bar() {
     let batches: usize = 12;
     let per_batch: usize = 200;
     let library: Vec<String> = (0..batches * per_batch)
-        .map(|number| return format!("Artist {}/batch{}-{number:05}.flac", number % 5, number / per_batch))
+        .map(|number| {
+            return format!(
+                "Artist {}/batch{}-{number:05}.flac",
+                number % 5,
+                number / per_batch
+            );
+        })
         .collect();
     let generation: u64 = service.reset(library.len(), library.len() * 30);
     let scan: Arc<SearchService> = Arc::clone(&service);
@@ -242,14 +304,19 @@ fn typing_during_a_slow_scan_finds_known_and_new_tracks_within_the_bar() {
     let scan_ends: Duration = Duration::from_millis(60 * batches as u64 + 200);
     while started.elapsed() < scan_ends {
         if started.elapsed() < typing_ends && service.track_count() > 0 {
-            let query: String = ["b", "ba", "bat", "batc", "batch", "batch1", "batch1-"][sent.len() % 7].to_string();
+            let query: String = ["b", "ba", "bat", "batc", "batch", "batch1", "batch1-"]
+                [sent.len() % 7]
+                .to_string();
             sent.push((service.query(&query), Instant::now()));
         }
         thread::sleep(Duration::from_millis(15));
         while let Ok(heard) = receiver.try_recv() {
             if heard.answer.refresh {
                 refreshed_sizes.push(heard.answer.known_tracks);
-            } else if let Some((_, at)) = sent.iter().find(|(sequence, _)| return *sequence == heard.answer.sequence) {
+            } else if let Some((_, at)) = sent
+                .iter()
+                .find(|(sequence, _)| return *sequence == heard.answer.sequence)
+            {
                 latencies.push(heard.at.duration_since(*at));
             }
             if heard.answer.known_tracks > per_batch {
@@ -259,21 +326,57 @@ fn typing_during_a_slow_scan_finds_known_and_new_tracks_within_the_bar() {
     }
     scanner.join().expect("the scanner thread finishes");
     let last: u64 = service.query("batch");
-    let done: SearchAnswer = wait_for(&receiver, |answer| return answer.sequence == last && answer.complete);
+    let done: SearchAnswer = wait_for(&receiver, |answer| {
+        return answer.sequence == last && answer.complete;
+    });
     assert_eq!(done.known_tracks, batches * per_batch);
-    assert!(saw_new_batch_after_first, "no answer ever saw a batch after the first");
-    assert!(refreshed_sizes.len() >= 2, "too few refresh answers while the scan appended: {refreshed_sizes:?}");
-    assert!(refreshed_sizes.windows(2).any(|pair| return pair[1] > pair[0]), "refresh answers never saw the library grow: {refreshed_sizes:?}");
+    assert!(
+        saw_new_batch_after_first,
+        "no answer ever saw a batch after the first"
+    );
+    assert!(
+        refreshed_sizes.len() >= 2,
+        "too few refresh answers while the scan appended: {refreshed_sizes:?}"
+    );
+    assert!(
+        refreshed_sizes
+            .windows(2)
+            .any(|pair| return pair[1] > pair[0]),
+        "refresh answers never saw the library grow: {refreshed_sizes:?}"
+    );
     latencies.sort();
     let slowest: Duration = latencies.last().copied().unwrap_or_default();
-    let bar: Duration = if cfg!(debug_assertions) { Duration::from_millis(1500) } else { Duration::from_millis(250) };
-    assert!(!latencies.is_empty(), "no keystroke was answered during the scan");
-    assert!(slowest < bar, "slowest keystroke {slowest:?} is over the {bar:?} bar; {} samples", latencies.len());
-    let SearchState::Results { items, .. } = &done.state else {
+    let bar: Duration = if cfg!(debug_assertions) {
+        Duration::from_millis(1500)
+    } else {
+        Duration::from_millis(250)
+    };
+    assert!(
+        !latencies.is_empty(),
+        "no keystroke was answered during the scan"
+    );
+    assert!(
+        slowest < bar,
+        "slowest keystroke {slowest:?} is over the {bar:?} bar; {} samples",
+        latencies.len()
+    );
+    let SearchState::Results {
+        items,
+        ..
+    } = &done.state
+    else {
         panic!("expected results after the scan, got {:?}", done.state);
     };
-    assert_eq!(items.len(), SEARCH_RESULT_LIMIT, "the cap applies to the complete library");
-    assert!(items.iter().all(|item| return item.kind == SearchResultKind::Track));
+    assert_eq!(
+        items.len(),
+        SEARCH_RESULT_LIMIT,
+        "the cap applies to the complete library"
+    );
+    assert!(
+        items
+            .iter()
+            .all(|item| return item.kind == SearchResultKind::Track)
+    );
 }
 
 // What:     Streamed scan batches make tracks searchable at once, and the final list is adopted without a rebuild when equal.
@@ -296,9 +399,14 @@ fn streamed_batches_are_searchable_and_adopted_when_the_final_list_is_equal() {
     let mut different: Vec<String> = library.clone();
     // Position 139 is one of the sixteen evenly spaced positions that `adopt_streamed` compares at 300 tracks.
     different[139] = "Elsewhere/other.flac".to_string();
-    assert!(!service.adopt_streamed(&different), "a list that differs at a sampled position is not adopted");
+    assert!(
+        !service.adopt_streamed(&different),
+        "a list that differs at a sampled position is not adopted"
+    );
     assert!(service.adopt_streamed(&library), "an equal list is adopted");
-    let done: SearchAnswer = wait_for(&receiver, |answer| return answer.complete && answer.known_tracks == 300);
+    let done: SearchAnswer = wait_for(&receiver, |answer| {
+        return answer.complete && answer.known_tracks == 300;
+    });
     assert_eq!(result_count(&done.state), 300);
 }
 
@@ -316,7 +424,11 @@ fn a_scan_batch_that_does_not_continue_the_index_is_ignored() {
     assert_eq!(service.track_count(), 50, "an overlap is ignored");
     service.stream_batch(0, names(0..10, "fresh"));
     service.stream_flush();
-    assert_eq!(service.track_count(), 10, "position zero starts a new library");
+    assert_eq!(
+        service.track_count(),
+        10,
+        "position zero starts a new library"
+    );
     assert_eq!(result_count(&service.search_now("song")), 0);
     assert_eq!(result_count(&service.search_now("fresh")), 10);
 }
@@ -324,7 +436,11 @@ fn a_scan_batch_that_does_not_continue_the_index_is_ignored() {
 // What:     `running_threads`, how many threads the service still has to join.
 // Why:      `shutdown` empties the list, so the count tells whether a second call has anything left to do.
 fn running_threads(service: &SearchService) -> usize {
-    return service.threads.lock().expect("no thread of the service panics while holding the list").len();
+    return service
+        .threads
+        .lock()
+        .expect("no thread of the service panics while holding the list")
+        .len();
 }
 
 // What:     `shutdown` joins the three threads once, and the later `drop` and a second `shutdown` find nothing to join.

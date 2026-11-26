@@ -91,6 +91,10 @@ pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, S
     // ```
     match ColorSchemePreference::parse(name) {
         Ok(preference) => return Ok(Command::ColorScheme(preference)),
-        Err(_) => return Err(format!("color-scheme value must be dark or light, got: {name}")),
+        Err(_) => {
+            return Err(format!(
+                "color-scheme value must be dark or light, got: {name}"
+            ));
+        }
     }
 }

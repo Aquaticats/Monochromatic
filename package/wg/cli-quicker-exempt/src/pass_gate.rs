@@ -9,7 +9,10 @@
 //! so the two can be read and tested one at a time.
 
 /// The durations and instants of a pass.
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// Failed moves one pass may spend before it postpones the rest,
 /// so a manager that fails slowly cannot stall the watcher for long.
@@ -45,7 +48,10 @@ impl PassGate {
 
     /// Starts a pass at `now`:
     /// failed moves spent earlier no longer count against the next ones.
-    pub fn begin(&mut self, now: Instant) {
+    pub fn begin(
+        &mut self,
+        now: Instant,
+    ) {
         self.failed_attempts = 0;
         self.started = Some(now);
     }
@@ -57,12 +63,18 @@ impl PassGate {
 
     /// Stops every move until `BLOCK_AFTER_TIMEOUT` has passed,
     /// which is what a manager that did not answer earns.
-    pub fn block(&mut self, now: Instant) {
+    pub fn block(
+        &mut self,
+        now: Instant,
+    ) {
         self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
     }
 
     /// Reports whether moves are paused after a client timeout.
-    pub fn is_blocked(&self, now: Instant) -> bool {
+    pub fn is_blocked(
+        &self,
+        now: Instant,
+    ) -> bool {
         return match self.blocked_until {
             Some(until) => now < until,
             None => false,
@@ -71,12 +83,19 @@ impl PassGate {
 
     /// Why a move must wait now,
     /// or `None` when it may go ahead.
-    pub fn postponement(&self, now: Instant) -> Option<&'static str> {
+    pub fn postponement(
+        &self,
+        now: Instant,
+    ) -> Option<&'static str> {
         if self.is_blocked(now) {
-            return Some("the user's service manager did not answer in time, so moves are paused for a few seconds");
+            return Some(
+                "the user's service manager did not answer in time, so moves are paused for a few seconds",
+            );
         }
         if self.failed_attempts >= FAILED_ATTEMPTS_PER_PASS {
-            return Some("earlier moves in this pass failed, and a pass spends at most two failed attempts");
+            return Some(
+                "earlier moves in this pass failed, and a pass spends at most two failed attempts",
+            );
         }
         if let Some(started) = self.started
             && now.duration_since(started) >= PASS_MOVE_BUDGET

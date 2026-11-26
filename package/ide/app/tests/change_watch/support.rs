@@ -4,7 +4,10 @@
 ///  its invalidation record,
 ///  and the canonical project boundary.
 use ide_app::{
-    change_watch::{ChangeWatcher, Changes},
+    change_watch::{
+        ChangeWatcher,
+        Changes,
+    },
     workspace::Workspace,
 };
 /// What:
@@ -32,8 +35,14 @@ use std::os::unix::fs::MetadataExt;
 use std::{
     collections::BTreeSet,
     fs,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Longest wait for a notification that must arrive.
@@ -44,7 +53,10 @@ const SILENCE: Duration = Duration::from_millis(400);
 
 /// Fold one `take` result into an accumulated record;
 ///  the latest source change and watched set win.
-fn merge(into: &mut Changes, from: Changes) {
+fn merge(
+    into: &mut Changes,
+    from: Changes,
+) {
     into.directories.extend(from.directories);
     if from.source.is_some() {
         into.source = from.source;
@@ -74,7 +86,10 @@ pub struct Arrival {
 
 impl Arrival {
     /// Begin a wait for `what` and take what the watcher already published.
-    pub fn begin(watcher: &mut ChangeWatcher, what: &str) -> Self {
+    pub fn begin(
+        watcher: &mut ChangeWatcher,
+        what: &str,
+    ) -> Self {
         let mut record = Changes::default();
         merge(&mut record, watcher.take());
         return Self {
@@ -86,7 +101,10 @@ impl Arrival {
 
     /// Fail the test naming what was awaited when five seconds passed,
     ///  else pause and take what the watcher published since.
-    pub fn again(&mut self, watcher: &mut ChangeWatcher) {
+    pub fn again(
+        &mut self,
+        watcher: &mut ChangeWatcher,
+    ) {
         assert!(
             self.started.elapsed() < ARRIVAL,
             "{} was not reported: {:?}",
@@ -118,7 +136,10 @@ pub fn quiet(watcher: &mut ChangeWatcher) -> Changes {
 }
 
 /// True when the record's latest watched set contains `path`.
-pub fn watching(record: &Changes, path: &Path) -> bool {
+pub fn watching(
+    record: &Changes,
+    path: &Path,
+) -> bool {
     return match record.watched.as_ref() {
         Some(watched) => watched.contains(path),
         None => false,
@@ -126,7 +147,10 @@ pub fn watching(record: &Changes, path: &Path) -> bool {
 }
 
 /// True when the record carries a watched set that lacks `path`.
-pub fn not_watching(record: &Changes, path: &Path) -> bool {
+pub fn not_watching(
+    record: &Changes,
+    path: &Path,
+) -> bool {
     return match record.watched.as_ref() {
         Some(watched) => !watched.contains(path),
         None => false,
@@ -134,7 +158,10 @@ pub fn not_watching(record: &Changes, path: &Path) -> bool {
 }
 
 /// True when the record's latest watched set contains every one of `paths`.
-fn watching_all(record: &Changes, paths: &[&Path]) -> bool {
+fn watching_all(
+    record: &Changes,
+    paths: &[&Path],
+) -> bool {
     for path in paths {
         if !watching(record, path) {
             return false;
@@ -145,7 +172,10 @@ fn watching_all(record: &Changes, paths: &[&Path]) -> bool {
 
 /// Wait until every one of `paths` has a live watch,
 ///  then drain the follow-up invalidations.
-pub fn settle(watcher: &mut ChangeWatcher, paths: &[&Path]) {
+pub fn settle(
+    watcher: &mut ChangeWatcher,
+    paths: &[&Path],
+) {
     let mut arrival = Arrival::begin(watcher, "the watches for the shown folders");
     while !watching_all(&arrival.record, paths) {
         arrival.again(watcher);

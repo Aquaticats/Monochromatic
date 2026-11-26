@@ -3,9 +3,14 @@
 /// Creates unpinned links retained by holder process.
 use crate::bpf::attach_marker_unpinned;
 /// Validates and terminates only exact holder process identities.
-use crate::keeper_process::{keeper_is_live, process_start_time, stop_process};
+use crate::keeper_process::{
+    keeper_is_live,
+    process_start_time,
+    stop_process,
+};
 /// Transition state and commit-marker persistence.
 use crate::keeper_state::{
+    KeeperProcess,
     active_state,
     commit_marker_exists,
     read_state,
@@ -14,20 +19,34 @@ use crate::keeper_state::{
     replacing_state,
     write_commit_marker,
     write_state,
-    KeeperProcess,
 };
 /// Canonical or stable lexical cgroup identity.
 use crate::pin::cgroup_identity_path;
 /// Buffered handshake input and output.
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{
+    self,
+    BufRead,
+    BufReader,
+    Read,
+    Write,
+};
 /// Raw descriptor access for cgroup file.
 use std::os::fd::AsRawFd;
 /// Child setup hook for detached session.
 use std::os::unix::process::CommandExt;
 /// Cgroup filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 /// Holder process and pipe handles during replacement handshake.
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{
+    Child,
+    ChildStdin,
+    ChildStdout,
+    Command,
+    Stdio,
+};
 
 /// Exact readiness line sent after all four unpinned links exist.
 const READY: &str = "READY";
@@ -58,7 +77,10 @@ const HANDSHAKE_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Reads one newline-delimited child handshake message,
 /// but not for longer than the handshake limit.
-fn read_message_within(output: &mut BufReader<ChildStdout>, what: &str) -> io::Result<String> {
+fn read_message_within(
+    output: &mut BufReader<ChildStdout>,
+    what: &str,
+) -> io::Result<String> {
     return crate::line_ready::read_message_within(output, HANDSHAKE_LIMIT, what);
 }
 
@@ -79,7 +101,10 @@ fn start_new_session() -> io::Result<()> {
 }
 
 /// Starts candidate in a detached session and waits until all links exist.
-fn spawn_candidate(mark: u32, cgroup_dir: &Path) -> io::Result<Candidate> {
+fn spawn_candidate(
+    mark: u32,
+    cgroup_dir: &Path,
+) -> io::Result<Candidate> {
     let executable = std::env::current_exe()?;
     let mut command = Command::new(executable);
     command
@@ -113,7 +138,10 @@ fn spawn_candidate(mark: u32, cgroup_dir: &Path) -> io::Result<Candidate> {
             }
             return Err(io::Error::new(
                 error.kind(),
-                format!("keeper failed before readiness ({status}): {}", stderr.trim()),
+                format!(
+                    "keeper failed before readiness ({status}): {}",
+                    stderr.trim()
+                ),
             ));
         }
     };
@@ -188,7 +216,10 @@ fn recover(cgroup_dir: &Path) -> io::Result<Option<KeeperProcess>> {
 }
 
 /// Replaces holder only after new links and durable transition state exist.
-pub fn replace_keeper(mark: u32, cgroup_dir: &Path) -> io::Result<()> {
+pub fn replace_keeper(
+    mark: u32,
+    cgroup_dir: &Path,
+) -> io::Result<()> {
     let canonical = cgroup_identity_path(cgroup_dir)?;
     let active = recover(&canonical)?;
     let mut candidate = spawn_candidate(mark, &canonical)?;
@@ -230,13 +261,18 @@ pub fn detach_keeper(cgroup_dir: &Path) -> io::Result<()> {
 /// Child entry loads all links,
 ///  waits for durable parent transition,
 ///  then holds descriptors.
-pub fn run_holder(mark: u32, cgroup_dir: &Path) -> io::Result<()> {
+pub fn run_holder(
+    mark: u32,
+    cgroup_dir: &Path,
+) -> io::Result<()> {
     let identity: PathBuf = cgroup_identity_path(cgroup_dir)?;
     let cgroup = std::fs::File::open(&identity)?;
     let _links = attach_marker_unpinned(cgroup.as_raw_fd(), mark)?;
     #[cfg(debug_assertions)]
     if std::env::var_os(FAIL_AFTER_ATTACH_ENV).is_some() {
-        return Err(io::Error::other("injected holder failure after complete attach"));
+        return Err(io::Error::other(
+            "injected holder failure after complete attach",
+        ));
     }
     println!("{READY}");
     io::stdout().flush()?;

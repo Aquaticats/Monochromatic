@@ -40,16 +40,27 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Imports the check for a lone version or help flag and the runner that adds the shadow's text after it.
-use crate::announce::{announcement_for, run_announced};
+use crate::announce::{
+    announcement_for,
+    run_announced,
+};
 
 /// Imports the escape-hatch variable name and the exit codes the shim returns.
-use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, REFUSED_EXIT_CODE};
+use crate::constants::{
+    ALLOW_WIDE_VARIABLE,
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+    REFUSED_EXIT_CODE,
+};
 
 /// Imports the function that replaces the process with the real tool.
 use crate::launch::replace_process;
 
 /// Imports the record every policy reads and the function that asks the policies for a refusal.
-use crate::policy::{Invocation, refusal_for};
+use crate::policy::{
+    Invocation,
+    refusal_for,
+};
 
 /// Imports the kind of standard input a tool would read.
 use crate::stdin_kind::StdinKind;
@@ -57,7 +68,11 @@ use crate::stdin_kind::StdinKind;
 /// Imports the arrival stop:
 /// the marker a shadow leaves for the program it starts,
 /// the line printed on arrival and the exit code.
-use crate::shadow_identity::{ARRIVAL_EXIT_CODE, arrival_at_this_process, arrival_line};
+use crate::shadow_identity::{
+    ARRIVAL_EXIT_CODE,
+    arrival_at_this_process,
+    arrival_line,
+};
 
 /// Imports the function that lowers the disk priority.
 use crate::priority::lower_disk_priority;
@@ -139,7 +154,10 @@ fn stdin_kind() -> StdinKind {
 /// ```ts
 /// export function runShim(name: string, args: Buffer[]): number { ... }
 /// ```
-pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
+pub fn run_shim(
+    name: &str,
+    arguments: Vec<OsString>,
+) -> i32 {
     // The arrival stop comes before anything else: a shadow that a shadow started as its real tool does nothing and says so in one line
     // (`shadow_identity.rs`), whatever the policies or the arguments would have said.
     if let Some(arrival) = arrival_at_this_process() {

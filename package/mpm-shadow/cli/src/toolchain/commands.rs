@@ -21,25 +21,46 @@
 //! ```
 
 /// Imports the `clap` type for reading a parsed command line and starting a command.
-use clap::{ArgMatches, Command};
+use clap::{
+    ArgMatches,
+    Command,
+};
 
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
 /// Imports what this module uses from `super::bin_paths`.
-use super::bin_paths::{bin_paths_output, render_bin_paths};
+use super::bin_paths::{
+    bin_paths_output,
+    render_bin_paths,
+};
 /// Imports `older_lock_warnings` from `super::cargo_installs`.
 use super::cargo_installs::older_lock_warnings;
+/// Imports `is_ci` from `super::ci_detect`.
+use super::ci_detect::is_ci;
+/// Imports what this module uses from `super::context`.
+use super::context::{
+    Context,
+    Host,
+};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
-/// Imports what this module uses from `super::context`.
-use super::context::{Context, Host};
 /// Imports `connect_or_explain` from `super::http`.
 use super::http::connect_or_explain;
-/// Imports what this module uses from `super::lock_cmd`.
-use super::lock_cmd::{LockMode, run_lock};
+/// Imports what this module uses from `super::install_argument`.
+use super::install_argument::{
+    AddRefusal,
+    AddReport,
+    add_named_tools,
+    nothing_stops_the_run,
+};
 /// Imports `parse_lock` from `super::lock`.
 use super::lock::parse_lock;
+/// Imports what this module uses from `super::lock_cmd`.
+use super::lock_cmd::{
+    LockMode,
+    run_lock,
+};
 /// Imports `OsFamily` from `super::model`.
 use super::model::OsFamily;
 /// Imports `read_plan` from `super::plan`.
@@ -47,26 +68,41 @@ use super::plan::read_plan;
 /// Imports `ProcessRunner` from `super::runner`.
 use super::runner::ProcessRunner;
 /// Imports what this module uses from `super::scope`.
-use super::scope::{EnvMap, Scope, resolve_scope};
+use super::scope::{
+    EnvMap,
+    Scope,
+    resolve_scope,
+};
 /// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
-/// Imports what this module uses from `super::install_argument`.
-use super::install_argument::{AddRefusal, AddReport, add_named_tools, nothing_stops_the_run};
 /// Imports what this module uses from `super::sync`.
-use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync_with_named};
+use super::sync::{
+    FrozenReason,
+    LockPolicy,
+    run_lockfile_only,
+    run_sync_with_named,
+};
 /// Imports the lines `install` prints for a sync.
-use super::sync_report_text::{format_sync_report, locked_line, rewritten_line};
-/// Imports `is_ci` from `super::ci_detect`.
-use super::ci_detect::is_ci;
+use super::sync_report_text::{
+    format_sync_report,
+    locked_line,
+    rewritten_line,
+};
 /// Imports what this module uses from `super::verify_archive`.
 use super::verify_archive::run_verify_archive;
 
 /// Imports what this module uses from `super::update`.
-use super::update::{format_update_report, run_update_for};
+use super::update::{
+    format_update_report,
+    run_update_for,
+};
 
 /// Re-exports the verb declarations from `super::verb_grammar`,
 /// so `cli.rs` and the tests keep reading the grammar through this module.
-pub use super::verb_grammar::{Verb, VERBS};
+pub use super::verb_grammar::{
+    VERBS,
+    Verb,
+};
 
 /// What:
 /// The toolchain subcommands for `mpm-shadow --help`,
@@ -95,7 +131,11 @@ fn print_line(line: &str) {
 }
 
 /// Prints the result of a `run_lock` call the way every lock-only mode does and returns the exit code.
-fn print_lock_outcome(verb: &str, scope: &Scope, outcome: Result<String, ToolchainError>) -> i32 {
+fn print_lock_outcome(
+    verb: &str,
+    scope: &Scope,
+    outcome: Result<String, ToolchainError>,
+) -> i32 {
     return match outcome {
         Ok(line) => {
             print_line(&line);
@@ -128,7 +168,11 @@ fn report(error: &ToolchainError) -> i32 {
 /// ```ts
 /// export function olderLockWarningLines(verb: string, scope: Scope, family?: OsFamily): string[]
 /// ```
-pub fn older_lock_warning_lines(verb: &str, scope: &Scope, family: Option<OsFamily>) -> Vec<String> {
+pub fn older_lock_warning_lines(
+    verb: &str,
+    scope: &Scope,
+    family: Option<OsFamily>,
+) -> Vec<String> {
     let Ok(text) = std::fs::read_to_string(&scope.lock_file) else {
         return Vec::new();
     };
@@ -143,7 +187,10 @@ pub fn older_lock_warning_lines(verb: &str, scope: &Scope, family: Option<OsFami
 }
 
 /// Prints `older_lock_warning_lines` on standard error.
-fn warn_older_locks(verb: &str, scope: &Scope) {
+fn warn_older_locks(
+    verb: &str,
+    scope: &Scope,
+) {
     for line in older_lock_warning_lines(verb, scope, Host::current().family) {
         eprintln!("{line}");
     }
@@ -168,7 +215,10 @@ fn start_directory() -> PathBuf {
 /// ```ts
 /// export function dispatch(name: string, matches: ParsedArgs): number | undefined
 /// ```
-pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
+pub fn dispatch(
+    name: &str,
+    matches: &ArgMatches,
+) -> Option<i32> {
     let env: EnvMap = EnvMap::from_process();
     let global: bool = matches.get_flag("global");
     let scope: Scope = match resolve_scope(global, &start_directory(), &env) {
@@ -196,13 +246,14 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             let host: Host = Host::current();
             let mut named: Vec<String> = Vec::new();
             if !arguments.is_empty() {
-                let refusal: Option<AddRefusal> = if lockfile_only && matches!(policy, LockPolicy::Frozen(_)) {
-                    Some(AddRefusal::FrozenCheck)
-                } else if offline {
-                    Some(AddRefusal::Offline)
-                } else {
-                    None
-                };
+                let refusal: Option<AddRefusal> =
+                    if lockfile_only && matches!(policy, LockPolicy::Frozen(_)) {
+                        Some(AddRefusal::FrozenCheck)
+                    } else if offline {
+                        Some(AddRefusal::Offline)
+                    } else {
+                        None
+                    };
                 let context: Context = Context {
                     scope: &scope,
                     env: &env,
@@ -211,10 +262,11 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                     host: &host,
                     tools: &[],
                 };
-                let additions: AddReport = match add_named_tools(&context, &arguments, refusal, nothing_stops_the_run) {
-                    Ok(report) => report,
-                    Err(error) => return Some(report(&error)),
-                };
+                let additions: AddReport =
+                    match add_named_tools(&context, &arguments, refusal, nothing_stops_the_run) {
+                        Ok(report) => report,
+                        Err(error) => return Some(report(&error)),
+                    };
                 for declaration in &additions.added {
                     println!(
                         "toolchain install: added {} to {}: request {}, route {}, bins {}",
@@ -235,43 +287,76 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             if lockfile_only {
                 // A frozen lock check writes nothing and needs no network.
                 if matches!(policy, LockPolicy::Frozen(_)) && scope.lock_file.exists() {
-                    return Some(print_lock_outcome("install", &scope, run_lock(&scope, LockMode::Check)));
+                    return Some(print_lock_outcome(
+                        "install",
+                        &scope,
+                        run_lock(&scope, LockMode::Check),
+                    ));
                 }
                 if offline {
-                    return Some(print_lock_outcome("install", &scope, run_lock(&scope, LockMode::Write)));
+                    return Some(print_lock_outcome(
+                        "install",
+                        &scope,
+                        run_lock(&scope, LockMode::Write),
+                    ));
                 }
-                return Some(match run_lockfile_only(&scope, &env, &ProcessRunner, http.as_ref(), &host, policy) {
-                    Ok(prepared) => {
-                        for (id, version) in &prepared.resolved {
-                            print!("{}", locked_line(id, version));
+                return Some(
+                    match run_lockfile_only(
+                        &scope,
+                        &env,
+                        &ProcessRunner,
+                        http.as_ref(),
+                        &host,
+                        policy,
+                    ) {
+                        Ok(prepared) => {
+                            for (id, version) in &prepared.resolved {
+                                print!("{}", locked_line(id, version));
+                            }
+                            for description in &prepared.rewritten {
+                                print!("{}", rewritten_line(description));
+                            }
+                            if prepared.resolved.is_empty() && prepared.rewritten.is_empty() {
+                                println!(
+                                    "toolchain lock already current: {}",
+                                    scope.lock_file.display()
+                                );
+                            } else {
+                                println!(
+                                    "toolchain install: wrote {}; nothing was installed",
+                                    scope.lock_file.display()
+                                );
+                            }
+                            warn_older_locks("install", &scope);
+                            0
                         }
-                        for description in &prepared.rewritten {
-                            print!("{}", rewritten_line(description));
-                        }
-                        if prepared.resolved.is_empty() && prepared.rewritten.is_empty() {
-                            println!("toolchain lock already current: {}", scope.lock_file.display());
-                        } else {
-                            println!("toolchain install: wrote {}; nothing was installed", scope.lock_file.display());
-                        }
-                        warn_older_locks("install", &scope);
-                        0
+                        Err(error) => report(&error),
+                    },
+                );
+            }
+            return Some(
+                match run_sync_with_named(
+                    &scope,
+                    &env,
+                    &ProcessRunner,
+                    http.as_ref(),
+                    &host,
+                    policy,
+                    &named,
+                ) {
+                    Ok(sync_report) => {
+                        println!(
+                            "toolchain install: platform {}, root {}, exposure {}",
+                            host.platform,
+                            scope.toolchain_root.display(),
+                            scope.exposure_dir.display()
+                        );
+                        print!("{}", format_sync_report(&sync_report));
+                        i32::from(!sync_report.failed.is_empty())
                     }
                     Err(error) => report(&error),
-                });
-            }
-            return Some(match run_sync_with_named(&scope, &env, &ProcessRunner, http.as_ref(), &host, policy, &named) {
-                Ok(sync_report) => {
-                    println!(
-                        "toolchain install: platform {}, root {}, exposure {}",
-                        host.platform,
-                        scope.toolchain_root.display(),
-                        scope.exposure_dir.display()
-                    );
-                    print!("{}", format_sync_report(&sync_report));
-                    i32::from(!sync_report.failed.is_empty())
-                }
-                Err(error) => report(&error),
-            });
+                },
+            );
         }
         "update" | "outdated" => {
             // pnpm outdated reports and exits 1 when anything is outdated; pnpm update writes.
@@ -281,38 +366,60 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 None => Vec::new(),
             };
             let http = connect_or_explain();
-            return Some(match run_update_for(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check, &names) {
-                Ok(update_report) => {
-                    print!("{}", format_update_report(&update_report, check));
-                    warn_older_locks(name, &scope);
-                    i32::from(update_report.has_failures() || (check && update_report.has_movement()))
-                }
-                Err(error) => report(&error),
-            });
+            return Some(
+                match run_update_for(
+                    &scope,
+                    &env,
+                    &ProcessRunner,
+                    http.as_ref(),
+                    &Host::current(),
+                    check,
+                    &names,
+                ) {
+                    Ok(update_report) => {
+                        print!("{}", format_update_report(&update_report, check));
+                        warn_older_locks(name, &scope);
+                        i32::from(
+                            update_report.has_failures() || (check && update_report.has_movement()),
+                        )
+                    }
+                    Err(error) => report(&error),
+                },
+            );
         }
         "verify-archive" => {
-            let tool: &str = matches.get_one::<String>("tool").map(String::as_str).unwrap_or("");
-            let file: &str = matches.get_one::<String>("file").map(String::as_str).unwrap_or("");
+            let tool: &str = matches
+                .get_one::<String>("tool")
+                .map(String::as_str)
+                .unwrap_or("");
+            let file: &str = matches
+                .get_one::<String>("file")
+                .map(String::as_str)
+                .unwrap_or("");
             let platform: String = match matches.get_one::<String>("platform") {
                 Some(given) => given.clone(),
                 None => Host::current().platform,
             };
-            return Some(match run_verify_archive(&scope, &platform, tool, std::path::Path::new(file)) {
-                Ok(line) => {
-                    print_line(&line);
-                    0
-                }
-                Err(error) => report(&error),
-            });
+            return Some(
+                match run_verify_archive(&scope, &platform, tool, std::path::Path::new(file)) {
+                    Ok(line) => {
+                        print_line(&line);
+                        0
+                    }
+                    Err(error) => report(&error),
+                },
+            );
         }
         "list" => {
-            return Some(match run_status(&scope, &env, &ProcessRunner, &Host::current()) {
-                Ok(status_report) => {
-                    print!("{}", status_report.text);
-                    i32::from(status_report.drifted)
-                }
-                Err(error) => report(&error),
-            });
+            return Some(
+                match run_status(&scope, &env, &ProcessRunner, &Host::current()) {
+                    Ok(status_report) => {
+                        print!("{}", status_report.text);
+                        i32::from(status_report.drifted)
+                    }
+                    Err(error) => report(&error),
+                },
+            );
         }
         "bin" => {
             // Plain output is what `pnpm bin` prints: the directory the executables are linked into.

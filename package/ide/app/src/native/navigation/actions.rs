@@ -1,13 +1,25 @@
 //! Native tree activation and session-local Ctrl+digit navigation.
 
 /// Shared source and project state remain independent of the background filesystem workers.
-use super::{AppWindow, Navigation, State, open, present};
+use super::{
+    AppWindow,
+    Navigation,
+    State,
+    open,
+    present,
+};
 /// Decode exactly the approved editord-compatible shortcut grammar.
 use ide_app::recent::shortcut_slot;
 /// Weak native window handles avoid retaining a hidden window after shutdown.
-use slint::{ComponentHandle, SharedString};
+use slint::{
+    ComponentHandle,
+    SharedString,
+};
 /// UI callbacks share state without any cross-thread mutable ownership.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Activate the current native row identity,
 ///  never reconstructing a path from its display label.

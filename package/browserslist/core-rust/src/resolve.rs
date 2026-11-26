@@ -20,7 +20,10 @@
 /// ```ts
 /// import { ConfigLine, parseConfig } from './config';
 /// ```
-use crate::config::{ConfigLine, parse_config};
+use crate::config::{
+    ConfigLine,
+    parse_config,
+};
 /// What:
 ///  Import `BrowserData` from `crate::data::BrowserData`.
 /// Why:
@@ -51,7 +54,11 @@ use crate::dead::subtract_dead;
 /// ```ts
 /// import { BrowserslistError, Outcome, notImplemented } from './error';
 /// ```
-use crate::error::{BrowserslistError, Outcome, not_implemented};
+use crate::error::{
+    BrowserslistError,
+    Outcome,
+    not_implemented,
+};
 /// What:
 ///  Import `parse_int_prefix` from `crate::js_number::parse_int_prefix`.
 /// Why:
@@ -71,7 +78,10 @@ use crate::js_number::parse_int_prefix;
 /// ```ts
 /// import { Query, parseQuery } from './query';
 /// ```
-use crate::query::{Query, parse_query};
+use crate::query::{
+    Query,
+    parse_query,
+};
 /// What:
 ///  Import `firefox_esr, last_node_major, last_version` from `crate::select`.
 /// Why:
@@ -81,7 +91,11 @@ use crate::query::{Query, parse_query};
 /// ```ts
 /// import { firefoxEsr, lastNodeMajor, lastVersion } from './select';
 /// ```
-use crate::select::{firefox_esr, last_node_major, last_version};
+use crate::select::{
+    firefox_esr,
+    last_node_major,
+    last_version,
+};
 /// What:
 ///  Import `Ordering` from `std::cmp::Ordering`.
 /// Why:
@@ -105,11 +119,15 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 /// browserslist's message for a `not` query with nothing before it (`index.js:348-354`).
-const NOT_FIRST_MESSAGE: &str = "Write any browsers query (for instance, `defaults`) before `not dead`";
+const NOT_FIRST_MESSAGE: &str =
+    "Write any browsers query (for instance, `defaults`) before `not dead`";
 
 /// Order two keyed results by name ascending,
 /// then by version descending.
-fn compare_keyed(left: &((String, [u64; 3]), String), right: &((String, [u64; 3]), String)) -> Ordering {
+fn compare_keyed(
+    left: &((String, [u64; 3]), String),
+    right: &((String, [u64; 3]), String),
+) -> Ordering {
     match left.0.0.cmp(&right.0.0) {
         Ordering::Equal => return right.0.1.cmp(&left.0.1),
         other => return other,
@@ -122,7 +140,9 @@ fn compare_keyed(left: &((String, [u64; 3]), String), right: &((String, [u64; 3]
 fn refuse_zero_versions(selected: &[String]) -> Outcome<()> {
     for item in selected {
         if item.split(' ').nth(1) == Some("0") {
-            return Err(not_implemented(&format!("selected entry {item:?} has version 0, which browserslist rewrites")));
+            return Err(not_implemented(&format!(
+                "selected entry {item:?} has version 0, which browserslist rewrites"
+            )));
         }
     }
     return Ok(());
@@ -131,13 +151,17 @@ fn refuse_zero_versions(selected: &[String]) -> Outcome<()> {
 /// Split `<name> <version>` and read the first three dot-separated components of the version's part before a dash.
 fn sort_key(item: &str) -> Outcome<(String, [u64; 3])> {
     let Some((name, version)) = item.split_once(' ') else {
-        return Err(not_implemented(&format!("result entry {item:?} is not `<name> <version>`")));
+        return Err(not_implemented(&format!(
+            "result entry {item:?} is not `<name> <version>`"
+        )));
     };
     let lead = version.split('-').next().unwrap_or("");
     let mut parts = [0_u64; 3];
     for (slot, text) in parts.iter_mut().zip(lead.split('.')) {
         let Some(number) = parse_int_prefix(text) else {
-            return Err(not_implemented(&format!("sorting entry {item:?}: version component {text:?} is not a number")));
+            return Err(not_implemented(&format!(
+                "sorting entry {item:?}: version component {text:?} is not a number"
+            )));
         };
         *slot = number;
     }
@@ -179,7 +203,10 @@ pub fn finalize(selected: &[String]) -> Outcome<Vec<String>> {
 /// ```ts
 /// function resolveLines(lines: ConfigLine[], data: BrowserData): string[];
 /// ```
-pub fn resolve_lines(lines: &[ConfigLine], data: &BrowserData) -> Outcome<Vec<String>> {
+pub fn resolve_lines(
+    lines: &[ConfigLine],
+    data: &BrowserData,
+) -> Outcome<Vec<String>> {
     let mut accumulated: Vec<String> = Vec::new();
     for (index, line) in lines.iter().enumerate() {
         let query = parse_query(line.number, &line.text)?;
@@ -190,7 +217,9 @@ pub fn resolve_lines(lines: &[ConfigLine], data: &BrowserData) -> Outcome<Vec<St
             Query::NotDead => {
                 // `not` removes from everything accumulated so far, and is an error when nothing precedes it.
                 if index == 0 {
-                    return Err(BrowserslistError::Browserslist { message: NOT_FIRST_MESSAGE.to_string() });
+                    return Err(BrowserslistError::Browserslist {
+                        message: NOT_FIRST_MESSAGE.to_string(),
+                    });
                 }
                 accumulated = subtract_dead(&accumulated, &data.agents)?;
                 continue;
@@ -215,7 +244,10 @@ pub fn resolve_lines(lines: &[ConfigLine], data: &BrowserData) -> Outcome<Vec<St
 /// ```ts
 /// function resolveConfigText(text: string, data: BrowserData): string[];
 /// ```
-pub fn resolve_config_text(text: &str, data: &BrowserData) -> Outcome<Vec<String>> {
+pub fn resolve_config_text(
+    text: &str,
+    data: &BrowserData,
+) -> Outcome<Vec<String>> {
     let lines = parse_config(text)?;
     return resolve_lines(&lines, data);
 }

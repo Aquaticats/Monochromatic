@@ -27,7 +27,10 @@ use arbitrary::Unstructured;
 /// ```ts
 /// import { randomPath } from './pathPick';
 /// ```
-use crate::path_pick::{random_path, MAX_SEGMENTS};
+use crate::path_pick::{
+    MAX_SEGMENTS,
+    random_path,
+};
 
 /// What:
 ///      Import the crate's address model and queries.
@@ -38,14 +41,21 @@ use crate::path_pick::{random_path, MAX_SEGMENTS};
 /// ```ts
 /// import { jsoncHas, parseJsonc, JsoncPathSegment } from 'monochromatic-jsonc-edit';
 /// ```
-use monochromatic_jsonc_edit::{jsonc_has, parse_jsonc, JsoncPathSegment};
+use monochromatic_jsonc_edit::{
+    JsoncPathSegment,
+    jsonc_has,
+    parse_jsonc,
+};
 
 /// What:
 ///      Draw one address from a seed.
 /// Why:
 ///       Every case needs a fresh budget,
 ///  and the seed makes the draw reproducible.
-fn draw(document: &monochromatic_jsonc_edit::JsoncValue, seed: &[u8]) -> Vec<JsoncPathSegment> {
+fn draw(
+    document: &monochromatic_jsonc_edit::JsoncValue,
+    seed: &[u8],
+) -> Vec<JsoncPathSegment> {
     let mut unstructured = Unstructured::new(seed);
     return random_path(document, &mut unstructured).expect("selection succeeds");
 }
@@ -54,7 +64,8 @@ fn draw(document: &monochromatic_jsonc_edit::JsoncValue, seed: &[u8]) -> Vec<Jso
 ///  and must stay within the documented length cap.
 #[test]
 fn drawn_addresses_resolve_and_stay_bounded() {
-    let document = parse_jsonc("{\"a\":{\"b\":[10,{\"c\":true}]},\"d\":null}").expect("test document parses");
+    let document =
+        parse_jsonc("{\"a\":{\"b\":[10,{\"c\":true}]},\"d\":null}").expect("test document parses");
     let mut saw_key = false;
     let mut saw_index = false;
     let mut drew = 0;
@@ -64,18 +75,27 @@ fn drawn_addresses_resolve_and_stay_bounded() {
     for first in 0u8..=255 {
         for second in [0u8, 1, 2, 9, 250] {
             for third in [0u8, 1, 128, 255] {
-            let path = draw(&document, &[first, second, third, third | 1, second | 1, 255, 7, 8]);
-            assert!(path.len() <= MAX_SEGMENTS, "drawn address exceeded the cap: {path:?}");
-            assert!(jsonc_has(&document, &path), "drawn address does not resolve: {path:?}");
-            for segment in &path {
-                if matches!(segment, JsoncPathSegment::Key { .. }) {
-                    saw_key = true;
+                let path = draw(
+                    &document,
+                    &[first, second, third, third | 1, second | 1, 255, 7, 8],
+                );
+                assert!(
+                    path.len() <= MAX_SEGMENTS,
+                    "drawn address exceeded the cap: {path:?}"
+                );
+                assert!(
+                    jsonc_has(&document, &path),
+                    "drawn address does not resolve: {path:?}"
+                );
+                for segment in &path {
+                    if matches!(segment, JsoncPathSegment::Key { .. }) {
+                        saw_key = true;
+                    }
+                    if matches!(segment, JsoncPathSegment::Index { .. }) {
+                        saw_index = true;
+                    }
                 }
-                if matches!(segment, JsoncPathSegment::Index { .. }) {
-                    saw_index = true;
-                }
-            }
-            drew += 1;
+                drew += 1;
             }
         }
     }
@@ -92,7 +112,10 @@ fn empty_containers_yield_the_root_address() {
         let document = parse_jsonc(source).expect("test document parses");
         for seed in [[0u8, 0, 0], [255, 255, 255], [1, 0, 255]] {
             let path = draw(&document, &seed);
-            assert!(path.is_empty(), "{source} produced a non-root address: {path:?}");
+            assert!(
+                path.is_empty(),
+                "{source} produced a non-root address: {path:?}"
+            );
         }
     }
 }

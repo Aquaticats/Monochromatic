@@ -170,18 +170,42 @@ pub(super) enum Role {
 /// ```ts
 /// const neutral = (lightness, chroma, hueOffset) => ({ neutral: { lightness, chroma, hueOffset } });
 /// ```
-const fn neutral(lightness: f64, chroma: f64, hue_offset: f64) -> Role {
-    return Role::Neutral(RoleSpec { lightness, chroma, hue_offset });
+const fn neutral(
+    lightness: f64,
+    chroma: f64,
+    hue_offset: f64,
+) -> Role {
+    return Role::Neutral(RoleSpec {
+        lightness,
+        chroma,
+        hue_offset,
+    });
 }
 
 /// See `neutral`.
-const fn accent(lightness: f64, chroma: f64, hue_offset: f64) -> Role {
-    return Role::Accent(RoleSpec { lightness, chroma, hue_offset });
+const fn accent(
+    lightness: f64,
+    chroma: f64,
+    hue_offset: f64,
+) -> Role {
+    return Role::Accent(RoleSpec {
+        lightness,
+        chroma,
+        hue_offset,
+    });
 }
 
 /// See `neutral`.
-const fn fixed(red: u8, green: u8, blue: u8) -> Role {
-    return Role::Fixed(Srgb8 { red, green, blue });
+const fn fixed(
+    red: u8,
+    green: u8,
+    blue: u8,
+) -> Role {
+    return Role::Fixed(Srgb8 {
+        red,
+        green,
+        blue,
+    });
 }
 
 /// What:

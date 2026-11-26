@@ -28,7 +28,12 @@ use std::cmp::Ordering;
 use crate::folder_rail::collation_key;
 /// Imports the index type and the bit,
 /// slot and marker constants that classify a candidate.
-use crate::search_index::{FOLDER_BIT, ROOT_FOLDER_SLOT, SearchIndex, UNFILED};
+use crate::search_index::{
+    FOLDER_BIT,
+    ROOT_FOLDER_SLOT,
+    SearchIndex,
+    UNFILED,
+};
 /// Imports the characters that separate words in a name.
 use crate::search_matcher::WORD_SEPARATORS;
 /// Imports the title that a candidate shows.
@@ -75,14 +80,19 @@ pub(crate) struct Ranked {
 /// ```ts
 /// const fastTier = (norm: string, terms: string[], joined: string) => allStartAWord(norm, terms) ? tierOf(norm, terms, joined) : null;
 /// ```
-pub(crate) fn fast_tier(norm: &str, terms: &[String], joined: &str) -> Option<u8> {
+pub(crate) fn fast_tier(
+    norm: &str,
+    terms: &[String],
+    joined: &str,
+) -> Option<u8> {
     let bytes: &[u8] = norm.as_bytes();
     for term in terms {
         let mut from: usize = 0;
         let mut found: bool = false;
         while let Some(offset) = norm[from..].find(term.as_str()) {
             let start: usize = from + offset;
-            let previous_is_separator: bool = start == 0 || WORD_SEPARATORS.contains(&char::from(bytes[start - 1]));
+            let previous_is_separator: bool =
+                start == 0 || WORD_SEPARATORS.contains(&char::from(bytes[start - 1]));
             if previous_is_separator {
                 found = true;
                 break;
@@ -109,7 +119,10 @@ pub(crate) fn fast_tier(norm: &str, terms: &[String], joined: &str) -> Option<u8
 ///       A track is named by the file name without its extension and sorts by its whole display path;
 /// a folder
 ///  is named and sorted by its own name.
-fn name_and_sort_path(index: &SearchIndex, id: u32) -> (String, &str) {
+fn name_and_sort_path(
+    index: &SearchIndex,
+    id: u32,
+) -> (String, &str) {
     if id & FOLDER_BIT == 0 {
         let path: &str = index.path(id as usize);
         return (track_title_for(path), path);
@@ -158,7 +171,10 @@ struct Keyed<'a> {
 /// Why:
 ///       Ordering needs them,
 /// and building them is deferred until it does.
-fn keyed(index: &SearchIndex, ranked: Ranked) -> Keyed<'_> {
+fn keyed(
+    index: &SearchIndex,
+    ranked: Ranked,
+) -> Keyed<'_> {
     let (name, sort_path) = name_and_sort_path(index, ranked.id);
     return Keyed {
         ranked,
@@ -195,7 +211,10 @@ fn tier_and_length(candidate: &Ranked) -> (u8, u32) {
 /// Why:
 ///       It is the order the replaced matcher used,
 /// so results stay identical.
-fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering {
+fn full_order(
+    left: &Keyed<'_>,
+    right: &Keyed<'_>,
+) -> Ordering {
     let left_kind: bool = left.ranked.id & FOLDER_BIT == 0;
     let right_kind: bool = right.ranked.id & FOLDER_BIT == 0;
     let left_position: Option<u32> = left_kind.then_some(left.ranked.id);
@@ -239,7 +258,11 @@ fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering {
 /// ```ts
 /// function selectBest(matched: Ranked[], keep: number): Ranked[] { /* nth element by (tier, len), then tie-break */ }
 /// ```
-pub(crate) fn select_best(index: &SearchIndex, mut matched: Vec<Ranked>, keep: usize) -> Vec<Ranked> {
+pub(crate) fn select_best(
+    index: &SearchIndex,
+    mut matched: Vec<Ranked>,
+    keep: usize,
+) -> Vec<Ranked> {
     if keep == 0 {
         return Vec::new();
     }

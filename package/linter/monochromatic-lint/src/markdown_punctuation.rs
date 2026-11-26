@@ -10,15 +10,24 @@
 //! ```
 
 /// Import the existing diagnostic and localized edit boundaries.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the edit type that a punctuation repair is written as.
 use crate::edits::Edit;
 /// Import the finding constructors for punctuation problems and unreadable documents.
-use crate::markdown_finding::{finding, structure_failure};
+use crate::markdown_finding::{
+    finding,
+    structure_failure,
+};
 /// Import the parsed Markdown source whose punctuation is inspected.
 use crate::markdown_source::MarkdownSource;
 /// Import native text decoding and heading kinds.
-use satteri_ast::mdast::{MdastNodeType, decode_string_ref_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_string_ref_data,
+};
 
 /// Count only the configured ASCII punctuation suffix.
 fn trailing_count(value: &str) -> usize {
@@ -58,7 +67,10 @@ fn punctuation_entity(entity: &str) -> bool {
 ///  the first failed scan returns immediately.
 /// Therefore source bytes are scanned a bounded number of times,
 ///  including backslash runs.
-fn suffix_start(written: &str, count: usize) -> Option<usize> {
+fn suffix_start(
+    written: &str,
+    count: usize,
+) -> Option<usize> {
     let bytes: &[u8] = written.as_bytes();
     let mut end: usize = bytes.len();
     for _ in 0..count {
@@ -110,7 +122,12 @@ fn suffix_start(written: &str, count: usize) -> Option<usize> {
 /// ```ts
 /// function punctuationEdit(written, count, start, end): Edit | undefined;
 /// ```
-fn punctuation_edit(written: &str, count: usize, start: usize, end: usize) -> Option<Edit> {
+fn punctuation_edit(
+    written: &str,
+    count: usize,
+    start: usize,
+    end: usize,
+) -> Option<Edit> {
     // What: The question mark returns None immediately when the suffix has no verified mapping.
     // Why: Successful mappings can construct their edit without a capturing callback.
     //
@@ -128,7 +145,10 @@ fn punctuation_edit(written: &str, count: usize, start: usize, end: usize) -> Op
 }
 
 /// Report heading punctuation while keeping the original heading and inline delimiters intact.
-pub fn no_trailing_punctuation(context: &MarkdownSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn no_trailing_punctuation(
+    context: &MarkdownSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let mut findings: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for id in context.visible_nodes() {
         if context.kind(*id) != MdastNodeType::Heading {

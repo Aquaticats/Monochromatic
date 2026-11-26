@@ -10,7 +10,11 @@
 // ```
 
 use super::{
-    Prefilter, leading_literals, leading_seeds, leading_seeds_min, seeds_from_node,
+    Prefilter,
+    leading_literals,
+    leading_seeds,
+    leading_seeds_min,
+    seeds_from_node,
     seeds_from_node_min,
 };
 use crate::parse::parse;
@@ -26,13 +30,19 @@ use crate::parse::parse;
 // }
 // ```
 fn node(pattern: &str) -> crate::ast::node::Node {
-    return parse(pattern).expect("test pattern parses")
+    return parse(pattern).expect("test pattern parses");
 }
 
 #[test]
 fn leading_literal_is_the_seed_for_a_prefixed_rule() {
-    assert_eq!(seeds_from_node(&node("AKIA[A-Z2-7]{16}")), vec![b"AKIA".to_vec()]);
-    assert_eq!(leading_seeds(&node("AKIA[A-Z2-7]{16}")), vec![b"AKIA".to_vec()]);
+    assert_eq!(
+        seeds_from_node(&node("AKIA[A-Z2-7]{16}")),
+        vec![b"AKIA".to_vec()]
+    );
+    assert_eq!(
+        leading_seeds(&node("AKIA[A-Z2-7]{16}")),
+        vec![b"AKIA".to_vec()]
+    );
 }
 
 #[test]
@@ -103,7 +113,10 @@ fn short_literals_are_below_the_default_floor_but_pass_the_weak_floor() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     assert!(leading_seeds(&node("SK[0-9a-f]{32}")).is_empty());
-    assert_eq!(leading_seeds_min(&node("SK[0-9a-f]{32}"), 2), vec![b"SK".to_vec()]);
+    assert_eq!(
+        leading_seeds_min(&node("SK[0-9a-f]{32}"), 2),
+        vec![b"SK".to_vec()]
+    );
 }
 
 #[test]
@@ -172,7 +185,10 @@ fn best_inner_literal_keeps_the_first_of_equal_length() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert_eq!(seeds_from_node_min(&node("ab[0-9]cd"), 1), vec![b"ab".to_vec()]);
+    assert_eq!(
+        seeds_from_node_min(&node("ab[0-9]cd"), 1),
+        vec![b"ab".to_vec()]
+    );
     // What:    A strictly longer later run does displace the shorter earlier one.
     // Why:     The test uses this setup or assertion to pin the behavior named by the test
     //          function.
@@ -181,7 +197,10 @@ fn best_inner_literal_keeps_the_first_of_equal_length() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert_eq!(seeds_from_node_min(&node("ab[0-9]cdef"), 1), vec![b"cdef".to_vec()]);
+    assert_eq!(
+        seeds_from_node_min(&node("ab[0-9]cdef"), 1),
+        vec![b"cdef".to_vec()]
+    );
 }
 
 #[test]

@@ -19,10 +19,11 @@
 //! expect(sweepOneClone(context, CLONE).kind).toBe('attached');
 //! ```
 
-use super::{CloneOutcome, IDENTITY_RECORD_STEP, LiveMountTableSource, MountTableSource, StandingMounts, SweepContext, is_this_clones_own_mount, sweep_one_clone};
+use super::{CloneOutcome, IDENTITY_RECORD_STEP, MountTableSource, StandingMounts, SweepContext, is_this_clones_own_mount, sweep_one_clone};
 use crate::start_probe::first_attach_record::{FIRST_ATTACH_NAME, FirstAttachClaim, FirstAttachOutcome, FirstAttachPlace};
 use crate::start_probe::probe_fingerprint::ProbeFingerprint;
 use crate::testing::root_namespace_test_support::in_a_root_namespace;
+use crate::testing::standing_slot_mounts::{MountedSlot, the_slots_mount_reads};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::{CloneFolderIdentity, LookAgainAtSlotRequest, MountIdentity, SlotIdentityStore, publish_parent_identity_under_root_control};
 use crate::worktree_clone_mount_handler::per_slot_root_claim::SlotClaimDirectory;
@@ -35,7 +36,6 @@ use crate::worktree_clone_mount_handler::sweep_first_attach::FirstAttachRecorder
 use crate::worktree_clone_mount_protocol::{CloneMountReceipt, DESIRED_STATE_PROPERTY, DatasetGuid, MOUNT_WORD, ReceiptOutcome, ReceiptsFolder, clone_mount_receipt::ReceiptMountIdentity};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
 use std::cell::{Cell, RefCell};
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -1373,77 +1373,6 @@ fn a_mount_replaced_under_a_reused_id_is_read_again_after_the_poll() {
     assert_eq!(standing.table_reads(), 2, "the replacement costs one re-read");
 }
 
-/// One tmpfs mount a control makes,
-/// taken down however the control ends.
-struct PolledMount {
-    /// The mount point.
-    path: PathBuf,
-}
-
-impl Drop for PolledMount {
-    fn drop(&mut self) {
-        let target: std::ffi::CString = std::ffi::CString::new(self.path.as_os_str().as_bytes()).expect("no NUL in the path");
-        // SAFETY: `target` is a NUL-terminated path that outlives the call, and no flag is passed.
-        let _taken: libc::c_int = unsafe { libc::umount2(target.as_ptr(), 0) };
-    }
-}
-
-/// Mount one tmpfs at `path` with `flags`.
-fn mount_tmpfs(source: &str, path: &Path, flags: libc::c_ulong) {
-    let source_name: std::ffi::CString = std::ffi::CString::new(source).expect("no NUL in the source");
-    let target: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
-    let kind: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("no NUL in the type");
-    // SAFETY: both strings outlive the call, the type is a NUL-terminated name, and no data pointer is read.
-    let mounted: libc::c_int = unsafe { libc::mount(source_name.as_ptr(), target.as_ptr(), kind.as_ptr(), flags, std::ptr::null()) };
-    assert_eq!(mounted, 0, "the control's tmpfs mounts: {}", std::io::Error::last_os_error());
-}
-
-/// Remount one tmpfs in place with `flags`.
-fn remount_tmpfs(path: &Path, flags: libc::c_ulong) {
-    let target: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
-    // SAFETY: the target is a NUL-terminated path that outlives the call, and `MS_REMOUNT|MS_BIND` with no type or data
-    // changes the per-mount flags in place.
-    let changed: libc::c_int = unsafe { libc::mount(std::ptr::null(), target.as_ptr(), std::ptr::null(), libc::MS_REMOUNT | libc::MS_BIND | flags, std::ptr::null()) };
-    assert_eq!(changed, 0, "the control's tmpfs remounts in place: {}", std::io::Error::last_os_error());
-}
-
-/// One table source that reads the live table and shapes the control's tmpfs as
-/// the clone's own mount while it carries both enforced flags.
-struct CloneShapedTable {
-    /// The live source and its poll.
-    live: LiveMountTableSource,
-}
-
-impl MountTableSource for CloneShapedTable {
-    fn changed(&self) -> bool {
-        return self.live.changed();
-    }
-
-    fn read(&self) -> Result<Vec<MountFacts>, String> {
-        let mut facts: Vec<MountFacts> = self.live.read()?;
-        for mount in &mut facts {
-            if mount.source == "zfs-step-8-poll-clone" && mount.has_option("nosuid") && mount.has_option("nodev") {
-                mount.filesystem_type = String::from("zfs");
-                mount.source = String::from(CLONE);
-                mount.root = PathBuf::from("/");
-            }
-        }
-        return Ok(facts);
-    }
-}
-
-/// A source that names the clone's own source for every mount,
-/// which this control supplies because the tmpfs's own source is not a dataset
-/// name;
-/// the flags it is about come from the table the poll refreshes.
-struct SourceSaysTheClone;
-
-impl super::MountSourceByNumber for SourceSaysTheClone {
-    fn source_of(&self, _unique_mount_number: Option<u64>) -> super::MountSourceAnswer {
-        return super::MountSourceAnswer::Source(String::from(CLONE));
-    }
-}
-
 /// What:
 ///  A mount whose enforced flags are removed in place while a sweep runs is
 ///  no longer recognised after the poll.
@@ -1461,16 +1390,14 @@ fn a_mount_whose_flags_change_in_place_is_read_again_after_the_poll() {
     let root: PathBuf = crate::test_support::fixture("standing-poll-flags");
     let slot: PathBuf = root.join("checkout").join(".claude").join("worktrees").join("one");
     std::fs::create_dir_all(slot.as_path()).expect("the slot folder is made");
-    mount_tmpfs("zfs-step-8-poll-clone", slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
-    let _guard: PolledMount = PolledMount { path: slot.clone() };
-    let source: CloneShapedTable = CloneShapedTable { live: LiveMountTableSource::open() };
-    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_sources(Box::new(source), Box::new(SourceSaysTheClone));
+    let slot_mount: MountedSlot = MountedSlot::at(slot.as_path());
+    let standing: super::LiveStandingMounts = the_slots_mount_reads(CLONE, "/");
     let checkout: PathBuf = root.join("checkout");
     let request: LookAgainAtSlotRequest<'_> = LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" };
     assert!(standing.standing_mount_of(&request, CLONE).is_some(), "the clone's own mount is recognised first");
-    remount_tmpfs(slot.as_path(), 0);
+    slot_mount.remount(0);
     assert!(standing.standing_mount_of(&request, CLONE).is_none(), "the flags removed in place are seen after the poll");
-    remount_tmpfs(slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
+    slot_mount.remount(libc::MS_NOSUID | libc::MS_NODEV);
     assert!(standing.standing_mount_of(&request, CLONE).is_some(), "the flags restored in place are seen after the poll");
 }
 
@@ -1608,6 +1535,43 @@ fn a_standing_mount_answers_a_new_nonce_with_a_new_receipt() {
     assert!(matches!(again, CloneOutcome::Attached { mount_id: 41, .. }), "{again:?}");
     let kept: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("a receipt stands");
     assert_eq!(kept.nonce.as_str(), second_digits, "a new request on a standing mount gets its own receipt");
+}
+
+/// What:
+///  An attach step that finds this clone's own mount at the slot answers the
+///  request with a `done` receipt carrying that mount and that request's nonce,
+///  and records this boot's first attach with the mount that stands.
+/// Why:
+///  The step's own answer is where a mount placed between the sweep's standing
+///  read and the walk is answered rather than refused,
+///  so the receipt a waiting command reads must be filed here,
+///  under the nonce it wrote,
+///  and the mount it names is the one the kernel shows at the slot.
+#[test]
+fn an_attach_step_that_finds_the_clone_at_its_slot_files_a_done_receipt() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::an_attach_step_that_finds_the_clone_at_its_slot_files_a_done_receipt") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("already-standing-receipt");
+    let fresh_digits: &str = "ffeeddccbbaa99887766554433221100";
+    let reader: ScriptedReader = reader_with(Some(mount_request(fresh_digits).as_str()), CLONE);
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::AlreadyStanding { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let outcome: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
+    assert!(matches!(outcome, CloneOutcome::Attached { mount_id: 41, .. }), "{outcome:?}");
+    assert_eq!(attach.asked.get(), 1, "the turn asks the step once");
+    let filed: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("a done receipt is filed");
+    assert_eq!(filed.outcome, ReceiptOutcome::Done, "the answer to a mount request is done");
+    assert_eq!(filed.nonce.as_str(), fresh_digits, "the receipt carries the request's own nonce");
+    assert_eq!(filed.mount.as_ref().map(|mount| return mount.mount_id), Some(41), "the receipt names the mount the slot holds");
+    let recorded: FirstAttachOutcome = fixture.first_attach.recorded().expect("this boot's first attach is recorded");
+    let FirstAttachOutcome::Attached { mount_id, slot, clone, .. } = recorded else {
+        panic!("the record carries the mount that stands: {recorded:?}");
+    };
+    assert_eq!(mount_id, 41, "the record names the mount that stands at the slot");
+    assert_eq!(slot, "one");
+    assert_eq!(clone, CLONE);
 }
 
 /// What:

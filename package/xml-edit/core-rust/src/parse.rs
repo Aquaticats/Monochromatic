@@ -14,6 +14,16 @@
 //! ```
 
 /// What:
+/// Import the whitespace test.
+/// Why:
+/// Whitespace-only text is not content.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { isXmlSpace } from './chars';
+/// ```
+use crate::chars::is_xml_space;
+/// What:
 /// Import the text decoder.
 /// Why:
 /// Element text is validated and decoded as it is scanned.
@@ -32,17 +42,12 @@ use crate::coding::decode_text;
 /// ```ts
 /// import type { ElementData, XmlDocument, XmlElementId, XmlSpan } from './document';
 /// ```
-use crate::document::{ElementData, XmlDocument, XmlElementId, XmlSpan};
-/// What:
-/// Import the whitespace test.
-/// Why:
-/// Whitespace-only text is not content.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { isXmlSpace } from './chars';
-/// ```
-use crate::chars::is_xml_space;
+use crate::document::{
+    ElementData,
+    XmlDocument,
+    XmlElementId,
+    XmlSpan,
+};
 /// What:
 /// Import the parse failure type.
 /// Why:
@@ -62,7 +67,10 @@ use crate::error::XmlParseError;
 /// ```ts
 /// import { Scanner, type StartTag } from './scan';
 /// ```
-use crate::scan::{Scanner, StartTag};
+use crate::scan::{
+    Scanner,
+    StartTag,
+};
 
 /// What:
 /// Record that a non-element child node ended at `end` inside the element at the top of the stack.
@@ -74,7 +82,11 @@ use crate::scan::{Scanner, StartTag};
 /// ```ts
 /// function noteContent(elements: ElementData[], parent: number, end: number): void;
 /// ```
-fn note_content(elements: &mut [ElementData], parent: usize, end: usize) {
+fn note_content(
+    elements: &mut [ElementData],
+    parent: usize,
+    end: usize,
+) {
     elements[parent].last_content_end = Some(end);
 }
 
@@ -102,13 +114,19 @@ fn parse_prolog(scanner: &mut Scanner<'_>) -> Result<(), XmlParseError> {
         } else if scanner.starts_with("<?") {
             scanner.scan_processing_instruction()?;
         } else if scanner.starts_with("<!") {
-            return Err(scanner.fail(scanner.offset, "DOCTYPE and other markup declarations are outside the supported XML grammar"));
+            return Err(scanner.fail(
+                scanner.offset,
+                "DOCTYPE and other markup declarations are outside the supported XML grammar",
+            ));
         } else if scanner.peek(0) == Some(b'<') {
             return Ok(());
         } else if scanner.peek(0).is_none() {
             return Err(scanner.fail(scanner.offset, "the document has no root element"));
         } else {
-            return Err(scanner.fail(scanner.offset, "text is not allowed before the root element"));
+            return Err(scanner.fail(
+                scanner.offset,
+                "text is not allowed before the root element",
+            ));
         }
     }
 }
@@ -133,7 +151,10 @@ fn parse_epilog(scanner: &mut Scanner<'_>) -> Result<(), XmlParseError> {
         } else if scanner.starts_with("<?") {
             scanner.scan_processing_instruction()?;
         } else {
-            return Err(scanner.fail(scanner.offset, "only comments and whitespace may follow the root element"));
+            return Err(scanner.fail(
+                scanner.offset,
+                "only comments and whitespace may follow the root element",
+            ));
         }
     }
 }
@@ -148,7 +169,12 @@ fn parse_epilog(scanner: &mut Scanner<'_>) -> Result<(), XmlParseError> {
 /// ```ts
 /// function openElement(elements: ElementData[], stack: number[], tag: StartTag, start: number): number;
 /// ```
-fn open_element(elements: &mut Vec<ElementData>, stack: &[usize], tag: StartTag, start: usize) -> usize {
+fn open_element(
+    elements: &mut Vec<ElementData>,
+    stack: &[usize],
+    tag: StartTag,
+    start: usize,
+) -> usize {
     let id: usize = elements.len();
     let mut parent: Option<XmlElementId> = None;
     if let Some(index) = stack.last() {
@@ -156,7 +182,10 @@ fn open_element(elements: &mut Vec<ElementData>, stack: &[usize], tag: StartTag,
     }
     elements.push(ElementData {
         name: tag.name,
-        start_tag: XmlSpan { start, end: tag.end },
+        start_tag: XmlSpan {
+            start,
+            end: tag.end,
+        },
         end_tag: None,
         parent,
         children: Vec::new(),
@@ -224,7 +253,10 @@ fn parse_tree(scanner: &mut Scanner<'_>) -> Result<Vec<ElementData>, XmlParseErr
                 );
                 return Err(scanner.fail(at, &message));
             }
-            elements[parent].end_tag = Some(XmlSpan { start: at, end: scanner.offset });
+            elements[parent].end_tag = Some(XmlSpan {
+                start: at,
+                end: scanner.offset,
+            });
             elements[parent].subtree_end = elements.len() - 1;
             stack.pop();
             if let Some(grandparent) = stack.last().copied() {
@@ -238,7 +270,9 @@ fn parse_tree(scanner: &mut Scanner<'_>) -> Result<Vec<ElementData>, XmlParseErr
             note_content(&mut elements, parent, scanner.offset);
         } else if scanner.starts_with("<![CDATA[") {
             let (_, content): (XmlSpan, XmlSpan) = scanner.scan_cdata()?;
-            elements[parent].text.push_str(&scanner.source[content.start..content.end]);
+            elements[parent]
+                .text
+                .push_str(&scanner.source[content.start..content.end]);
             elements[parent].has_text = true;
             note_content(&mut elements, parent, scanner.offset);
         } else if scanner.starts_with("<?") {
@@ -246,7 +280,10 @@ fn parse_tree(scanner: &mut Scanner<'_>) -> Result<Vec<ElementData>, XmlParseErr
             elements[parent].has_other_markup = true;
             note_content(&mut elements, parent, scanner.offset);
         } else if scanner.starts_with("<!") {
-            return Err(scanner.fail(at, "this markup declaration is outside the supported XML grammar"));
+            return Err(scanner.fail(
+                at,
+                "this markup declaration is outside the supported XML grammar",
+            ));
         } else if scanner.peek(0) == Some(b'<') {
             let tag: StartTag = scanner.scan_start_tag()?;
             let self_closing: bool = tag.self_closing;
@@ -258,7 +295,9 @@ fn parse_tree(scanner: &mut Scanner<'_>) -> Result<Vec<ElementData>, XmlParseErr
                 stack.push(id);
             }
         } else {
-            let length: usize = scanner.source[at..].find('<').unwrap_or(scanner.source.len() - at);
+            let length: usize = scanner.source[at..]
+                .find('<')
+                .unwrap_or(scanner.source.len() - at);
             let raw: &str = &scanner.source[at..at + length];
             let decoded: String = match decode_text(raw) {
                 Ok(text) => text,
@@ -300,9 +339,16 @@ fn parse_tree(scanner: &mut Scanner<'_>) -> Result<Vec<ElementData>, XmlParseErr
 /// ```
 pub fn parse_xml(source: &str) -> Result<XmlDocument, XmlParseError> {
     let has_bom: bool = source.starts_with('\u{FEFF}');
-    let mut scanner: Scanner<'_> = Scanner { source, offset: if has_bom { 3 } else { 0 } };
+    let mut scanner: Scanner<'_> = Scanner {
+        source,
+        offset: if has_bom { 3 } else { 0 },
+    };
     parse_prolog(&mut scanner)?;
     let elements: Vec<ElementData> = parse_tree(&mut scanner)?;
     parse_epilog(&mut scanner)?;
-    return Ok(XmlDocument { source: source.to_string(), elements, has_bom });
+    return Ok(XmlDocument {
+        source: source.to_string(),
+        elements,
+        has_bom,
+    });
 }

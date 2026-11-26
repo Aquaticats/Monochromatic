@@ -15,7 +15,12 @@
 
 /// Import the scanner,
 ///  the file reader and disposable directories.
-use super::{js_trim, lfs_endpoints, read_lfs_object_base, read_optional_text};
+use super::{
+    js_trim,
+    lfs_endpoints,
+    read_lfs_object_base,
+    read_optional_text,
+};
 use crate::test_fs::Fixture;
 
 /// `lfs.url` and `remote.<name>.lfsurl` are read;
@@ -150,4 +155,22 @@ fn optional_reads_distinguish_absence_from_failure() {
     );
     assert_eq!(error.to_string(), error.message);
     assert!(read_lfs_object_base(&fixture.path).is_err());
+}
+
+/// A repository file over the bound is refused rather than read,
+///  and the refusal names the file and the bound.
+#[test]
+fn a_repository_file_over_the_bound_is_refused() {
+    let fixture: Fixture = Fixture::new();
+    let path: std::path::PathBuf = fixture.path.join(".gitattributes");
+    let file: std::fs::File = std::fs::File::create(&path).expect("fixture file");
+    file.set_len(super::MAX_REPOSITORY_TEXT_BYTES as u64 + 1)
+        .expect("sparse file one byte over the bound");
+    let error = read_optional_text(&path).expect_err("a file over the bound is refused");
+    assert!(
+        error.message.contains(".gitattributes"),
+        "{}",
+        error.message
+    );
+    assert!(error.message.contains("over the"), "{}", error.message);
 }

@@ -4,17 +4,28 @@
 
 /// Reuse the production window and rendering state rather than a lookalike Text widget.
 use super::{
-    AppWindow, State,
-    gpu_snapshot::{install_gpu_platform, snapshot},
-    gpu_tile, render,
+    AppWindow,
+    State,
+    gpu_snapshot::{
+        install_gpu_platform,
+        snapshot,
+    },
+    gpu_tile,
+    render,
     tile_reads::RENDER_NOISE,
 };
 /// Source positions stay independent of the rendered font instance.
 use ide_app::document::ReadingPosition;
 /// Construct immutable real-face requests through the public source API.
-use ide_app::{shaped_text::TextShaper, source_typography::SourceTypography};
+use ide_app::{
+    shaped_text::TextShaper,
+    source_typography::SourceTypography,
+};
 /// Flush pending property changes before taking the consumer's displayed pixels.
-use slint::{ComponentHandle, platform::update_timers_and_animations};
+use slint::{
+    ComponentHandle,
+    platform::update_timers_and_animations,
+};
 /// What:
 ///  Rc owns UI-thread shared state;
 ///  RefCell checks temporary exclusive borrows.
@@ -26,10 +37,16 @@ use slint::{ComponentHandle, platform::update_timers_and_animations};
 /// ```ts
 /// const state = { current: new State(source) };
 /// ```
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+};
 
 /// Whether two window captures agree byte for byte to within the GPU's render noise of one level.
-fn same_frame(left: &[u8], right: &[u8]) -> bool {
+fn same_frame(
+    left: &[u8],
+    right: &[u8],
+) -> bool {
     return left.len() == right.len()
         && left
             .iter()
@@ -40,7 +57,12 @@ fn same_frame(left: &[u8], right: &[u8]) -> bool {
 /// Install a new immutable shaper,
 ///  invalidate its frame,
 ///  and capture the real source view.
-fn capture(window: &AppWindow, state: &Rc<RefCell<State>>, weight: f32, italic: bool) -> Vec<u8> {
+fn capture(
+    window: &AppWindow,
+    state: &Rc<RefCell<State>>,
+    weight: f32,
+    italic: bool,
+) -> Vec<u8> {
     // What: borrow_mut lends the state exclusively until this inner block ends.
     // Why: Release the borrow before toolkit setters can invoke rendering callbacks.
     //

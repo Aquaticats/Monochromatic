@@ -35,7 +35,10 @@
 /// ```ts
 /// // Closest analogue: Atomics.add / Atomics.load over a SharedArrayBuffer Int32Array.
 /// ```
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 /// What:
 ///     Imports `OnceLock<T>`,
@@ -73,7 +76,10 @@ use std::thread;
 /// ```ts
 /// import { BuiltRule, build_rule } from "crate/build";
 /// ```
-use crate::build::{BuiltRule, build_rule};
+use crate::build::{
+    BuiltRule,
+    build_rule,
+};
 
 /// What:
 ///     Imports the error type.
@@ -195,7 +201,7 @@ pub(crate) fn build_pattern(pattern: &str) -> Result<BuiltRule, CompileError> {
     // ```ts
     // try { return build_rule(parse(pattern)); } catch (error) { return error; }
     // ```
-    return parse(pattern).and_then(build_rule)
+    return parse(pattern).and_then(build_rule);
 }
 
 /// What:
@@ -255,7 +261,7 @@ fn core_count() -> usize {
     // CORE_COUNT ??= os.availableParallelism?.() ?? 1;
     // return CORE_COUNT;
     // ```
-    return *CORE_COUNT.get_or_init(detected_core_count)
+    return *CORE_COUNT.get_or_init(detected_core_count);
 }
 
 /// Builds every pattern into a rule on as many threads as the machine has cores.
@@ -279,7 +285,10 @@ fn core_count() -> usize {
 ///   // Rust body below is the implementation.
 /// }
 /// ```
-pub(crate) fn build_rules(patterns: &[&str], stop_on_error: bool) -> Vec<RuleOutcome> {
+pub(crate) fn build_rules(
+    patterns: &[&str],
+    stop_on_error: bool,
+) -> Vec<RuleOutcome> {
     // What:    The cached core count.
     // Why:     The upper bound on useful workers.
     //
@@ -297,7 +306,13 @@ pub(crate) fn build_rules(patterns: &[&str], stop_on_error: bool) -> Vec<RuleOut
     // const worker_count = Math.min(cores, patterns.length);
     // ```
     let worker_count = cores.min(patterns.len());
-    return build_rules_with(patterns, stop_on_error, worker_count, WORKER_STACK_BYTES, build_pattern)
+    return build_rules_with(
+        patterns,
+        stop_on_error,
+        worker_count,
+        WORKER_STACK_BYTES,
+        build_pattern,
+    );
 }
 
 /// The index of the rule an outcome belongs to,
@@ -368,7 +383,15 @@ pub(crate) fn build_rules_with(
     let mut outcomes = if worker_count <= 1 {
         drain(patterns, stop_on_error, &next, &first_error, build)
     } else {
-        drain_on_workers(patterns, stop_on_error, &next, &first_error, worker_count, stack_bytes, build)
+        drain_on_workers(
+            patterns,
+            stop_on_error,
+            &next,
+            &first_error,
+            worker_count,
+            stack_bytes,
+            build,
+        )
     };
     // What:    `sort_unstable_by_key` sorts in place by the tuple's first element (`.0`,
     //          the index). `|outcome| return outcome.0` is a closure (an arrow function).
@@ -382,7 +405,7 @@ pub(crate) fn build_rules_with(
     // outcomes.sort((a, b) => a[0] - b[0]);
     // ```
     outcomes.sort_unstable_by_key(rule_index_of);
-    return outcomes
+    return outcomes;
 }
 
 /// Runs the claim-and-build loop on spawned worker threads and gathers their outcomes.
@@ -463,9 +486,12 @@ fn drain_on_workers(
                     reason = "`Builder::spawn_scoped` accepts only a callable, and the worker must carry the patterns and the shared counters; see package/forbidden-strings/core/doc/closure-lint-suppressions.md"
                 )
             )]
-            let spawned = thread::Builder::new()
-                .stack_size(stack_bytes)
-                .spawn_scoped(scope, || return drain(patterns, stop_on_error, next, first_error, build));
+            let spawned =
+                thread::Builder::new()
+                    .stack_size(stack_bytes)
+                    .spawn_scoped(scope, || {
+                        return drain(patterns, stop_on_error, next, first_error, build);
+                    });
             // What:    `match spawned { Ok(handle) => ..., Err(error) => ... }` branches on
             //          whether the thread started.
             // Why:     A refused spawn leaves fewer workers, not a failure: the remaining
@@ -513,8 +539,8 @@ fn drain_on_workers(
                 Err(payload) => std::panic::resume_unwind(payload),
             }
         }
-        return outcomes
-    })
+        return outcomes;
+    });
 }
 
 /// Claims rule indices from the shared counter and builds each until none remain.

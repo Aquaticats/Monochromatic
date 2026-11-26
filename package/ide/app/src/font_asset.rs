@@ -4,7 +4,10 @@
 use parley::fontique::Blob;
 /// LazyLock constructs each font identity once;
 ///  Arc retains immutable embedded bytes across threads.
-use std::sync::{Arc, LazyLock};
+use std::sync::{
+    Arc,
+    LazyLock,
+};
 
 /// JetBrains Mono variable roman,
 ///  with its original wght axis and OpenType features.

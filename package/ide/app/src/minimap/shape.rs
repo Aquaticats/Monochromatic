@@ -6,11 +6,22 @@
 //!  and the annotations of those lines.
 
 /// Shaped lines kept by what shaped them.
-use super::line_cache::{LineCache, line_key};
+use super::line_cache::{
+    LineCache,
+    line_key,
+};
 /// The inputs and what a build reports.
-use super::scene::{BUILD_WORK, Cancel, Source, Stats};
+use super::scene::{
+    BUILD_WORK,
+    Cancel,
+    Source,
+    Stats,
+};
 /// Diagnostic marks.
-use crate::annotation::{Mark, Visible};
+use crate::annotation::{
+    Mark,
+    Visible,
+};
 /// The positioning of hints and messages beside the rows.
 use crate::annotation_layout::lay_out;
 /// Canonical text,
@@ -19,15 +30,28 @@ use crate::document::Document;
 /// The rectangles of the matches in a frame.
 use crate::find_paint::rectangles;
 /// The vertical mapping the lines are placed by.
-use crate::row_map::{CODE_ROW, RowMap};
+use crate::row_map::{
+    CODE_ROW,
+    RowMap,
+};
 /// Shaping,
 /// and the frame it prepares.
-use crate::shaped_text::{ShapedRow, ShapedView, TextShaper, Viewport, line_work, raster_width};
+use crate::shaped_text::{
+    ShapedRow,
+    ShapedView,
+    TextShaper,
+    Viewport,
+    line_work,
+    raster_width,
+};
 /// Blocks of virtual rows.
 use crate::virtual_row::Block;
 /// Blocks are shared between the window and the worker;
 /// a window of bands is a range of numbers.
-use std::{ops::Range, sync::Arc};
+use std::{
+    ops::Range,
+    sync::Arc,
+};
 
 /// What:
 ///  The lines the rows `rows` of the picture show,
@@ -40,7 +64,12 @@ use std::{ops::Range, sync::Arc};
 /// ```ts
 /// function linesOf(map: RowMap, rows: [number, number], scale: number, ratio: number): [number, number];
 /// ```
-pub(super) fn lines_of(map: &RowMap, rows: &Range<usize>, scale: f32, ratio: f64) -> Range<usize> {
+pub(super) fn lines_of(
+    map: &RowMap,
+    rows: &Range<usize>,
+    scale: f32,
+    ratio: f64,
+) -> Range<usize> {
     let per_row = 1.0 / (ratio * f64::from(scale));
     let top = (rows.start as f64 * per_row) as f32;
     let bottom = (rows.end as f64 * per_row) as f32;
@@ -170,7 +199,10 @@ pub(super) fn view_of(
     let mut placed_rows = Vec::with_capacity(count);
     for shaped in rows {
         let top = placed.code_top(shaped.row);
-        placed_rows.push(ShapedRow { top, ..shaped });
+        placed_rows.push(ShapedRow {
+            top,
+            ..shaped
+        });
     }
     let raster = raster_width(source.wrap);
     let mut view = ShapedView {
@@ -211,7 +243,10 @@ pub(super) fn view_of(
 
 /// Index of the first block that belongs to a line at or past `line`,
 /// by a halving search.
-fn first_block_from(blocks: &[Arc<Block>], line: usize) -> usize {
+fn first_block_from(
+    blocks: &[Arc<Block>],
+    line: usize,
+) -> usize {
     let (mut low, mut high) = (0, blocks.len());
     while low < high {
         let middle = low + (high - low) / 2;
@@ -225,14 +260,22 @@ fn first_block_from(blocks: &[Arc<Block>], line: usize) -> usize {
 }
 
 /// The blocks of `blocks` that belong to the lines `first` to `end`.
-pub fn blocks_between(blocks: &[Arc<Block>], first: usize, end: usize) -> Vec<Arc<Block>> {
+pub fn blocks_between(
+    blocks: &[Arc<Block>],
+    first: usize,
+    end: usize,
+) -> Vec<Arc<Block>> {
     let from = first_block_from(blocks, first);
     let to = first_block_from(blocks, end).max(from);
     return blocks[from..to].to_vec();
 }
 
 /// The marks of `marks` that touch the characters `start` to `end`.
-pub fn marks_between(marks: &[Mark], start: usize, end: usize) -> Vec<Mark> {
+pub fn marks_between(
+    marks: &[Mark],
+    start: usize,
+    end: usize,
+) -> Vec<Mark> {
     let mut found = Vec::new();
     for mark in marks {
         if mark.start >= end {

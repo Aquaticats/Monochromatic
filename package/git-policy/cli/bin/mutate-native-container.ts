@@ -115,6 +115,12 @@ const command = campaignCommand({
   buildTimeoutSeconds,
   additionalExclusions: [],
   tail: [
+    // Every mutant's suite is the gate's: a build without this feature holds no read of any test-only variable, so
+    // the controls that arm one would fail for a reason the mutant is not about
+    // (doc/decision/cli-git-test-only-switches-compiled-out-of-release.md). These come before the first bare `--`
+    // below, which starts the arguments cargo-mutants forwards to the test binaries.
+    '--cargo-arg=--features',
+    '--cargo-arg=test-only-switches',
     ...examine.flatMap(function examineArguments(pattern) {
       return [
         '--re',

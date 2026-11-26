@@ -13,11 +13,26 @@
 /// Import the exact line copier.
 use crate::processors_lines::copy_line;
 /// Import the immutable mapping records.
-use crate::processors_model::{Guard, MappedLine, Mapping, ProcessorError, ProcessorLanguage};
+use crate::processors_model::{
+    Guard,
+    MappedLine,
+    Mapping,
+    ProcessorError,
+    ProcessorLanguage,
+};
 /// Import the dialect classification.
-use crate::shell_dialect::{ShellClass, ShellDialect, classify_shell};
+use crate::shell_dialect::{
+    ShellClass,
+    ShellDialect,
+    classify_shell,
+};
 /// Import the records the walk returns.
-use crate::workflow_model::{RunBody, Step, WalkError, Workflow};
+use crate::workflow_model::{
+    RunBody,
+    Step,
+    WalkError,
+    Workflow,
+};
 /// Import the walk.
 use crate::workflow_walk::walk;
 /// Share exact parent snapshots between sibling steps.
@@ -40,7 +55,10 @@ use std::sync::Arc;
 /// ```ts
 /// function dialectFor(workflow: Workflow, step: Step): ShellDialect | undefined; // throws WalkError
 /// ```
-fn dialect_for(workflow: &Workflow, step: &Step) -> Result<Option<ShellDialect>, WalkError> {
+fn dialect_for(
+    workflow: &Workflow,
+    step: &Step,
+) -> Result<Option<ShellDialect>, WalkError> {
     let mut chosen = step.shell.as_ref();
     let mut windows: bool = false;
     if let Some(index) = step.job {
@@ -73,9 +91,16 @@ fn dialect_for(workflow: &Workflow, step: &Step) -> Result<Option<ShellDialect>,
 
 /// Copy a step's script into an empty child mapping,
 ///  keeping each removed indentation as the line prefix.
-fn fill(child: &mut Mapping, parent: &Mapping, body: &RunBody) {
+fn fill(
+    child: &mut Mapping,
+    parent: &Mapping,
+    body: &RunBody,
+) {
     match body {
-        RunBody::Plain { start, end } => {
+        RunBody::Plain {
+            start,
+            end,
+        } => {
             child.text.push_str(&parent.text[*start..*end]);
             child.lines.push(MappedLine {
                 start: 0,
@@ -85,7 +110,9 @@ fn fill(child: &mut Mapping, parent: &Mapping, body: &RunBody) {
                 prefix: String::new(),
             });
         }
-        RunBody::Block { lines } => {
+        RunBody::Block {
+            lines,
+        } => {
             for line in lines {
                 let prefix: String = String::from(&parent.text[line.envelope..line.payload]);
                 copy_line(

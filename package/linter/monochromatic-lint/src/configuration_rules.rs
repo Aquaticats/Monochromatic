@@ -9,11 +9,18 @@
 //! ```
 
 /// Import shared schema readers and typed errors.
-use crate::config_data::{key_text, strings, text};
+use crate::config_data::{
+    key_text,
+    strings,
+    text,
+};
 /// Import the configuration error type returned when a rule value fails validation.
 use crate::config_error::ConfigError;
 /// Import the JSONC model so numbers stay exact until their rule-specific conversion.
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue};
+use monochromatic_jsonc_edit::{
+    JsoncKind,
+    JsoncValue,
+};
 
 /// What:
 ///  The exact identifiers of the currently specified built-in rules.
@@ -84,7 +91,10 @@ pub(crate) fn line_limit(value: &JsoncValue) -> Result<usize, ConfigError> {
 /// ```ts
 /// function countLimit(id: string, value: JsoncValue): number;
 /// ```
-pub(crate) fn count_limit(id: &str, value: &JsoncValue) -> Result<usize, ConfigError> {
+pub(crate) fn count_limit(
+    id: &str,
+    value: &JsoncValue,
+) -> Result<usize, ConfigError> {
     // What: Extract the exact-number payload from a borrowed value.
     // Why: A string such as "300" must not be silently accepted as a numeric option.
     //
@@ -92,7 +102,11 @@ pub(crate) fn count_limit(id: &str, value: &JsoncValue) -> Result<usize, ConfigE
     // ```ts
     // if (value.kind !== 'number') throw new ConfigError('...');
     // ```
-    let JsoncKind::Number { identity, .. } = &value.kind else {
+    let JsoncKind::Number {
+        identity,
+        ..
+    } = &value.kind
+    else {
         return Err(ConfigError::new(
             format!("{id} max must be a nonnegative integer.").as_str(),
         ));
@@ -145,7 +159,10 @@ pub(crate) fn count_limit(id: &str, value: &JsoncValue) -> Result<usize, ConfigE
 /// ```ts
 /// function validateSetting(id: string, setting: JsoncValue): void;
 /// ```
-pub(crate) fn validate_setting(id: &str, setting: &JsoncValue) -> Result<(), ConfigError> {
+pub(crate) fn validate_setting(
+    id: &str,
+    setting: &JsoncValue,
+) -> Result<(), ConfigError> {
     // Borrow the rule name for registry lookup; membership does not allocate.
     if !RULE_IDS.contains(&id) {
         // The constructor keeps the identifier so startup composition can tell a stale binary
@@ -176,6 +193,19 @@ pub(crate) fn validate_setting(id: &str, setting: &JsoncValue) -> Result<(), Con
         }
         if id == "markdown/lfs-image-url" && name == "exclude" {
             strings(&entry.value, "exclude")?;
+            continue;
+        }
+        if (id == "rust/folder-uses-links" || id == "rust/file-order-in-folder") && name == "allow"
+        {
+            // The path is read when the rule runs; an empty one names no file.
+            if text(&entry.value, "allow")?.is_empty() {
+                return Err(ConfigError::new(
+                    format!(
+                        "Rule {id} option allow must name the file that holds the findings it tolerates."
+                    )
+                    .as_str(),
+                ));
+            }
             continue;
         }
         if id == "rust/avoidable-closure" && name == "library" {

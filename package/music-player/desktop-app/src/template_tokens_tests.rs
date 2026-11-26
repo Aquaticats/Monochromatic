@@ -24,7 +24,10 @@ fn utf16(text: &str) -> Vec<u16> {
 // const spans = tokens.map(t => [t.kind, t.value, t.start, t.end]);
 // ```
 fn spans(tokens: &[Token]) -> Vec<(TokenKind, String, usize, usize)> {
-    return tokens.iter().map(|token| return (token.kind, token.value.clone(), token.start, token.end)).collect();
+    return tokens
+        .iter()
+        .map(|token| return (token.kind, token.value.clone(), token.start, token.end))
+        .collect();
 }
 
 // What: `fn tokenize_splits_a_call_into_tokens_with_offsets(...)` checks a call's tokens and their spans.
@@ -77,7 +80,10 @@ fn tokenize_shifts_offsets_by_the_formula_offset() {
 fn tokenize_reads_quoted_text_without_its_marks() {
     let mut errors = Vec::new();
     let tokens = tokenize(&utf16("\"m min\""), 0, &mut errors);
-    assert_eq!(spans(&tokens), vec![(TokenKind::Text, String::from("m min"), 0, 7)]);
+    assert_eq!(
+        spans(&tokens),
+        vec![(TokenKind::Text, String::from("m min"), 0, 7)]
+    );
     assert!(errors.is_empty());
 }
 
@@ -92,7 +98,10 @@ fn tokenize_reads_quoted_text_without_its_marks() {
 fn tokenize_reports_an_unclosed_quotation_mark() {
     let mut errors = Vec::new();
     let tokens = tokenize(&utf16("\"abc"), 0, &mut errors);
-    assert_eq!(spans(&tokens), vec![(TokenKind::Text, String::from("abc"), 0, 4)]);
+    assert_eq!(
+        spans(&tokens),
+        vec![(TokenKind::Text, String::from("abc"), 0, 4)]
+    );
     assert_eq!(
         errors,
         vec![TemplateError {
@@ -123,7 +132,10 @@ fn tokenize_skips_only_space_tab_and_line_feed() {
         ]
     );
     let kept = tokenize(&utf16("a\rb"), 0, &mut errors);
-    assert_eq!(spans(&kept), vec![(TokenKind::Word, String::from("a\rb"), 0, 3)]);
+    assert_eq!(
+        spans(&kept),
+        vec![(TokenKind::Word, String::from("a\rb"), 0, 3)]
+    );
 }
 
 // What: `fn tokenize_counts_astral_characters_as_two_units(...)` checks offsets after a surrogate pair.
