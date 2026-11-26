@@ -20,7 +20,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! import * as fixtures from './language/requests/fixtures';
+//! import * as replyValidation from './language/requests/reply_validation';
 //! ```
 
 /// What a reply may say:
