@@ -483,6 +483,7 @@ fn phase_path_holder(fixture: &Fixture, ignores_the_ask: bool) -> String {
 struct AHeldCopy {
     namespace: std::fs::File,
     identity: String,
+    dataset: String,
     deeper: NamespaceTable,
     receivers: ReceiverSet,
 }
@@ -490,13 +491,13 @@ struct AHeldCopy {
 impl AHeldCopy {
     /// The act's own view of the copy,
     /// borrowed from the descriptor this value owns.
-    fn named<'a>(&'a self, fixture: &'a Fixture, checkout: &'a Path, slot: &'a Path, handle: &'a RecordedHandle) -> NamespaceCopy<'a> {
+    fn named<'a>(&'a self, checkout: &'a Path, slot: &'a Path, handle: &'a RecordedHandle) -> NamespaceCopy<'a> {
         return NamespaceCopy {
             namespace: &self.namespace,
             identity: self.identity.as_str(),
             checkout,
             slot,
-            dataset: fixture.pool.as_str(),
+            dataset: self.dataset.as_str(),
             handle,
             directory: THE_RESERVED_NAME,
         };
@@ -522,7 +523,7 @@ fn a_copy_in_the_holder(fixture: &Fixture, slot: &Path, holder: &AHolder) -> AHe
     let handled: Vec<String> = vec![deeper.namespace.clone()];
     let receivers: ReceiverSet = plan_the_receivers(&deeper, &copy_row, tables.as_slice(), fixture.pool.as_str(), handled.as_slice());
     let namespace: std::fs::File = std::fs::File::open(format!("/proc/{}/ns/mnt", holder.pid)).expect("the holder's namespace is opened");
-    return AHeldCopy { namespace, identity: deeper.namespace.clone(), deeper, receivers };
+    return AHeldCopy { namespace, identity: deeper.namespace.clone(), dataset: fixture.clone(), deeper, receivers };
 }
 
 /// What:
@@ -545,7 +546,7 @@ fn phase_way_8(fixture: &Fixture) -> String {
     let holder: AHolder = hold(AShape::NamespaceOfItsOwnAndShared, checkout.as_path(), slot.as_path(), false);
     assert!(wait_for_the_holder(AShape::NamespaceOfItsOwnAndShared, &holder), "the holder's own namespace and session are there");
     let held: AHeldCopy = a_copy_in_the_holder(fixture, slot.as_path(), &holder);
-    let copy: NamespaceCopy<'_> = held.named(fixture, checkout.as_path(), slot.as_path(), &handle);
+    let copy: NamespaceCopy<'_> = held.named(checkout.as_path(), slot.as_path(), &handle);
     let receivers: ReceiverSet = held.receivers.clone();
     fields.push(("parent", if held.deeper.rows.iter().any(|row| return row.mount_point == checkout.to_string_lossy() && !row.shared.is_empty()) { "shared" } else { "not-shared" }));
     fields.push(("way-eight", if receivers.way_eight { "true" } else { "false" }));
@@ -590,7 +591,7 @@ fn phase_peer(fixture: &Fixture) -> String {
     let holder: AHolder = hold(AShape::NamespaceOfItsOwn, checkout.as_path(), slot.as_path(), false);
     pause(Duration::from_millis(200));
     let held: AHeldCopy = a_copy_in_the_holder(fixture, slot.as_path(), &holder);
-    let copy: NamespaceCopy<'_> = held.named(fixture, checkout.as_path(), slot.as_path(), &handle);
+    let copy: NamespaceCopy<'_> = held.named(checkout.as_path(), slot.as_path(), &handle);
     let receivers: ReceiverSet = held.receivers.clone();
     fields.push(("way-eight", if receivers.way_eight { "true" } else { "false" }));
     fields.push(("outside", if receivers.outside.is_empty() { "none" } else { "the-host" }));
@@ -646,7 +647,7 @@ fn phase_way_7(fixture: &Fixture, shared_here: bool) -> String {
     let holder: AHolder = hold(shape, checkout.as_path(), slot.as_path(), false);
     assert!(wait_for_the_holder(shape, &holder), "the holder's own namespace and session are there");
     let held: AHeldCopy = a_copy_in_the_holder(fixture, slot.as_path(), &holder);
-    let copy: NamespaceCopy<'_> = held.named(fixture, checkout.as_path(), slot.as_path(), &handle);
+    let copy: NamespaceCopy<'_> = held.named(checkout.as_path(), slot.as_path(), &handle);
     let receivers: ReceiverSet = held.receivers.clone();
     let parent_before: Option<MountRow> = held.deeper.rows.iter().find(|row| return row.mount_point == checkout.to_string_lossy()).cloned();
     fields.push(("parent-before", propagation_of(parent_before.as_ref())));
@@ -696,7 +697,7 @@ fn phase_locked(fixture: &Fixture) -> String {
     let owner: NamespaceOwner = read_the_owner(Path::new(format!("/proc/{}/ns/mnt", holder.pid).as_str())).expect("the holder's namespace owner is read");
     fields.push(("owner", if owner.locked() { "another" } else { "ours" }));
     let held: AHeldCopy = a_copy_in_the_holder(fixture, slot.as_path(), &holder);
-    let copy: NamespaceCopy<'_> = held.named(fixture, checkout.as_path(), slot.as_path(), &handle);
+    let copy: NamespaceCopy<'_> = held.named(checkout.as_path(), slot.as_path(), &handle);
     // Way 8's structural stage only opens the handle, which a locked namespace still allows; its unmount is where the
     // kernel refuses, so the phase takes the copy out and reports the word that stopped it.
     let way8: String = match make_the_way_ready(Route::InPlaceByTheHandle, &copy) {
