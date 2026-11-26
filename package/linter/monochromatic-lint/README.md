@@ -1214,6 +1214,8 @@ never absolute and never climbing out with `..`,
 and no line may repeat another.
 A `.` segment and a trailing separator are read away,
 so `uses ./src/a/ -> src/b` is the same entry as `uses src/a -> src/b` and the second line for it is refused.
+A `.` on its own names the package folder itself,
+which is how its keys write it.
 A `uses` path that holds a backslash is refused too,
 because a key writes `/` on every machine and a backslash would name a folder no finding names.
 The two file words of a `file-uses` line are read as written,
