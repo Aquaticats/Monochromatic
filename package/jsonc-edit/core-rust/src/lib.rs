@@ -136,6 +136,22 @@ pub mod text_units;
 mod comment_merge;
 
 /// What:
+///  The container stack one parse keeps:
+///  its nesting bound,
+///  one frame per open array or record,
+///  and the
+///           steps that attach trivia to a frame and finish it.
+/// Why:
+///  The bound and the frame list are what let a 512-container document parse without a call frame per
+///           container.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: MAX_CONTAINERS, type Frame, finish(frame, beforeClose).
+/// ```
+mod parse_frames;
+
+/// What:
 ///      The iterative,
 ///  depth-bounded JSONC parser.
 /// Why:
