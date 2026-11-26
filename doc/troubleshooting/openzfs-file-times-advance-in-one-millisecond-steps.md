@@ -106,7 +106,7 @@ and that span depends on how much its neighbours have warmed the process's runti
 
 ```text
 run                                              runs   span of the write   stamp identical
-worktree_copying::, 496 tests threaded              6    0.34 to 0.79 ms    6 of 6
+worktree_copying::, 496 tests, instrumented         6    0.34 to 0.79 ms    6 of 6
 worktree_copying::worktree_copy_compare::, 14      30    1.83 to 2.62 ms    0 of 30
 the control alone, --exact                          1    2.65 ms            0 of 1
 ```
