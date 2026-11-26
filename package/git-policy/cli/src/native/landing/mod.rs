@@ -402,6 +402,21 @@
 //! - `earlier_service_journal_adopted.rs`:
 //!   the batches the commit service of an earlier release left open,
 //!   finished by the service of this release when none runs.
+//! - `service_prepare_what_it_reads.rs`:
+//!   what a preparation reads once before it stages anything:
+//!   the layout,
+//!   the selection,
+//!   the capture,
+//!   the scratch directory,
+//!   and the two index files.
+//! - `service_prepare_the_commit_index.rs`:
+//!   the commit's own index,
+//!   from the change a retry captured or from the working copy the command line selects.
+//! - `service_prepare_the_ready_shape.rs`:
+//!   the shape every ending of a preparation shares,
+//!   and the conclusion state a retry is compared against.
+//! - `service_prepare_the_policies.rs`:
+//!   the policies a preparation runs over the commit's own index.
 //! - `service_prepare.rs`:
 //!   the answers service prepare holds.
 //! - `service_branch_shows.rs`:
@@ -843,6 +858,25 @@ pub mod service_index_watch;
 /// The notices a commit's preparation prints on standard error,
 /// given to the descriptor under a ceiling.
 pub mod preparation_notice;
+
+/// What a preparation reads once before it stages anything:
+/// the layout,
+/// the selection,
+/// the capture,
+/// the scratch directory,
+/// and the two index files.
+pub mod service_prepare_what_it_reads;
+
+/// The commit's own index,
+/// from the change a retry captured or from the working copy the command line selects.
+pub mod service_prepare_the_commit_index;
+
+/// The shape every ending of a preparation shares,
+/// and the conclusion state a retry is compared against.
+pub mod service_prepare_the_ready_shape;
+
+/// The policies a preparation runs over the commit's own index.
+pub mod service_prepare_the_policies;
 
 pub mod service_prepare;
 
