@@ -1532,6 +1532,9 @@ function step10Arms(options: Options): void {
     // the driver's own steps carry them.
     'grep --quiet "^UNRUN the boot arm" /root/step10-suite.log',
     'grep --quiet "^UNRUN the power-loss arm" /root/step10-suite.log',
+    // The whole-add arm as the delegated account hands the checkout to that account, so it runs alone, with
+    // `zfs-add-arm-account` and its own variable, and never beside these root arms.
+    'grep --quiet "^UNRUN the delegated account arm" /root/step10-suite.log',
     // Choice 3C's split, as the delegated account: every withheld permission of the nine refuses or warns as the record
     // says, and the whole delegation prints no line.
     'grep --quiet "^test zfs_add_guest::grants::every_withheld_permission_refuses_or_warns_as_the_record_says" /root/step10-suite.log',
