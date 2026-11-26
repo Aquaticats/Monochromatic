@@ -232,6 +232,20 @@ which is what the two refusals in `testing/no_threads_child_test_support.rs` and
 A child whose ending is the assertion, such as one that dies by a signal, takes `finished`
 and judges the ending itself; a child a control keeps and talks to takes `started`,
 and its own waits carry the bounds.
+A fixture's own Git starts one more child outside any test's reach:
+`git commit` starts `git maintenance run --auto` in that repository in the background,
+and that runs `git worktree prune --expire 3.months.ago`,
+which removes a `.git/worktrees/<name>` directory Git did not make,
+recursively and whatever its age,
+so a registration a control makes by hand goes while the control still asserts on it
+(measured 2026-11-26:
+gone 1.237 ms after the commit returned,
+in one run of ten,
+issue 6518).
+A fixture's registration is the one Git's own `worktree add --no-checkout --lock` makes,
+and a control whose subject is that registration runs the housekeeping itself,
+proving it keeps the registration Git made while removing one made by hand
+(`worktree_clone_add_route/add_index_tests.rs`).
 
 ## Every wait has a deadline
 
@@ -239,10 +253,33 @@ A test waits for a condition with a bound and fails at the bound with what it wa
 never by sleeping for a guess and never without an end.
 A bound in an assertion holds under this host's load,
 because other sessions build on it all the time (issue 6405 is a bound that did not).
+A bound that is the control's own wait,
+rather than the code's promise,
+is stated as a multiple of the bound the code owes,
+so a host that wakes the control's own thread late spends the control's window and never the code's promise
+(issue 6519:
+the control that proves a reader which stopped reading does not hold the commit waited two seconds,
+twice the notice's own maximum,
+and failed that way in three threaded `commit::` runs;
+it waits thirty times the notice's own bound now,
+sized from a measured answer of 500.1 to 501.6 ms).
+A state a control means to test is reached by the control and not by a sleep:
+that control offers a line into the queue the writer takes its lines from,
+where sleeping three cadences expected a starved notice thread to have offered one
+(a thread with three looks in 400 ms never did).
 Code under test bounds its waits too: every read of a file a person or another program controls opens it so it cannot
 block (not a named pipe, not a device; the type checked through the open handle, never by a path check before the open)
 and has a size bound (issues 6415 and 6433).
 No blocking work runs on the commit's own thread or on the async runtime (`source_guard`'s runtime guard; issue 6421).
+
+A control that needs two file times to differ states the difference instead of hoping the clock moved between them
+(issue 6520:
+the copy compare stamp control wrote the source 0.34 to 0.79 ms after taking its stamp,
+this host's ZFS takes a write's change and modification times from the kernel's coarse clock,
+and that clock advances once per 1 ms tick,
+so the write left the stamp exactly as it was and the final check rightly passed in 6 runs of 6).
+`stamped_pair` gives its source a modification time `RECENT_CHANGE_NANOS` before now for that reason,
+and the measurement is in `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`.
 
 ## Write less code
 
