@@ -13,8 +13,15 @@
 //! ```
 
 /// Import the probe under test and the running build's version.
-use super::{older_than_pin, pinned_tool_version, stale_binary_hint_with};
-use std::path::{Path, PathBuf};
+use super::{
+    older_than_pin,
+    pinned_tool_version,
+    stale_binary_hint_with,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The lockfile table header as it appears in a real mise lockfile,
 ///  written out here so the

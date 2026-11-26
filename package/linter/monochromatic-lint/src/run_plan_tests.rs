@@ -15,19 +15,38 @@
 
 /// Import the store,
 ///  its outcomes and fixture helpers.
-use super::{ConfigStore, FilePlan, Planned, RootRules};
+use super::{
+    ConfigStore,
+    FilePlan,
+    Planned,
+    RootRules,
+};
 use crate::config_error::ConfigError;
-use crate::config_lookup::{ConfigurationSource, discover_configuration};
+use crate::config_lookup::{
+    ConfigurationSource,
+    discover_configuration,
+};
 use crate::diagnostic::Severity;
 use crate::run_paths::Language;
-use crate::run_test_support::{CONFIG, write};
+use crate::run_test_support::{
+    CONFIG,
+    write,
+};
 use crate::test_fs::Fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Plan a path and require a lint plan.
-fn lint(store: &mut ConfigStore, path: &str) -> FilePlan {
+fn lint(
+    store: &mut ConfigStore,
+    path: &str,
+) -> FilePlan {
     match store.plan(Path::new(path)).expect("planning succeeds") {
-        Planned::Lint { plan } => return *plan,
+        Planned::Lint {
+            plan,
+        } => return *plan,
         _ => panic!("{path} must be planned for linting"),
     }
 }
@@ -178,7 +197,10 @@ fn an_explicit_configuration_resolves_against_the_working_directory() {
     assert_eq!(plan.config.path, explicit);
     assert_eq!(plan.config.base, work);
     assert_eq!(plan.relative, PathBuf::from("doc/a.md"));
-    let RootRules::Markdown { settings: rules } = plan.root else {
+    let RootRules::Markdown {
+        settings: rules,
+    } = plan.root
+    else {
         panic!("Markdown rules expected");
     };
     assert_eq!(rules.single_h1, Some(Severity::Warn));

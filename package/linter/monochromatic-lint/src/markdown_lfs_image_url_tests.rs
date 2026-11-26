@@ -14,9 +14,18 @@
 /// Import the rule under test,
 ///  its context model and the production grouped-fix applier.
 use super::lfs_image_url;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::edits::{Fix, apply_fixes};
-use crate::markdown_lfs_context::{LfsImageContext, LfsImageTarget};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
+use crate::markdown_lfs_context::{
+    LfsImageContext,
+    LfsImageTarget,
+};
 use crate::markdown_source::MarkdownSource;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -59,7 +68,10 @@ fn context() -> LfsImageContext {
 }
 
 /// Run only the rule over one source with the fixture context.
-fn lint(source: &str, mdx: bool) -> Vec<Diagnostic> {
+fn lint(
+    source: &str,
+    mdx: bool,
+) -> Vec<Diagnostic> {
     let document: MarkdownSource =
         MarkdownSource::new(String::from("README.md"), String::from(source), mdx)
             .expect("fixture parses");

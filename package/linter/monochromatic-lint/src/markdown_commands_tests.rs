@@ -12,8 +12,14 @@
 ///  parser,
 ///  diagnostic and edit application.
 use super::commands_show_output;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::edits::{Fix, apply_fixes};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
 use crate::markdown_source::MarkdownSource;
 
 /// Check a Markdown fixture through the native adapter.

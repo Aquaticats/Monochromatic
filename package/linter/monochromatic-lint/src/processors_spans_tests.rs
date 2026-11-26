@@ -11,9 +11,20 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, finding, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    VirtualSource,
+    finding,
+    inputs,
+};
 /// Inspect mapped labels and severities exactly as an output engine would.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Typed refusals carry the original-host anchor under test.
 use crate::processors::ProcessorError;
 /// Reach the empty-snippet and semantic-refusal anchors through real rule selection.
@@ -28,12 +39,19 @@ const DOC_HOST: &str = "fn before() {}\n/// Alpha.\n/// Beta.\nfn item() {}\n";
 const NESTED_HOST: &str = "fn before() {}\n/// ```rust\n/// //! Example.\n/// # let value: u32 = 1;\n/// value;\n/// ```\nfn item() {}\n";
 
 /// Find authored host text or fail the control loudly instead of comparing against a sentinel.
-fn at(host: &str, needle: &str) -> usize {
+fn at(
+    host: &str,
+    needle: &str,
+) -> usize {
     return host.find(needle).expect("authored host text");
 }
 
 /// Map one virtual label and return its original-host byte offset and length.
-fn mapped(input: &VirtualSource, start: usize, length: usize) -> (usize, usize) {
+fn mapped(
+    input: &VirtualSource,
+    start: usize,
+    length: usize,
+) -> (usize, usize) {
     let mut label: Diagnostic = finding(input, start, 0);
     // The finding helper clamps to one virtual line; multi-line labels set their length afterwards.
     label.labels[0].span.length = length;

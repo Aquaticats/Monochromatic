@@ -10,10 +10,20 @@
 
 /// Import the constructors and position helper under test.
 use super::{
-    FIX_REFUSED, PROCESSING_FAILURE, file_start, fix_refused, host_span, panic_text,
-    processing_failure, processor_failure,
+    FIX_REFUSED,
+    PROCESSING_FAILURE,
+    file_start,
+    fix_refused,
+    host_span,
+    panic_text,
+    processing_failure,
+    processor_failure,
 };
-use crate::diagnostic::{Diagnostic, Severity, Span};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    Span,
+};
 use crate::processors::ProcessorError;
 use crate::run_paths::Language;
 

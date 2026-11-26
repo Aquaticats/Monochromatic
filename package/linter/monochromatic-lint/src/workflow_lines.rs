@@ -191,7 +191,9 @@ pub(crate) fn parse_entry<'a>(line: &Line<'a>) -> Entry<'a> {
     if ODD_KEY_START.contains(&first) || name == "<<" {
         return Entry {
             dashes,
-            content: Content::OddKey { column },
+            content: Content::OddKey {
+                column,
+            },
         };
     }
     let after: &str = &rest[colon + 1..];

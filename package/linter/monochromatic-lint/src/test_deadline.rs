@@ -11,7 +11,10 @@
 //! ```
 
 /// Import the channel that carries the probe's answer and the deadline type.
-use std::{sync::mpsc, time::Duration};
+use std::{
+    sync::mpsc,
+    time::Duration,
+};
 
 /// How long a probe may run before it counts as not finishing.
 /// The probes of these controls scan a few dozen bytes:
@@ -35,7 +38,7 @@ const DEADLINE: Duration = Duration::from_secs(30);
 /// function finishedWithinDeadline<T>(work: () => T): T;
 /// ```
 pub(crate) fn finished_within_deadline<T: Send + 'static>(
-    work: impl FnOnce() -> T + Send + 'static,
+    work: impl FnOnce() -> T + Send + 'static
 ) -> T {
     return finished_within_deadline_after(DEADLINE, work);
 }

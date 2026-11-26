@@ -15,7 +15,12 @@
 
 /// Import the scanner,
 ///  the file reader and disposable directories.
-use super::{js_trim, lfs_endpoints, read_lfs_object_base, read_optional_text};
+use super::{
+    js_trim,
+    lfs_endpoints,
+    read_lfs_object_base,
+    read_optional_text,
+};
 use crate::test_fs::Fixture;
 
 /// `lfs.url` and `remote.<name>.lfsurl` are read;

@@ -10,13 +10,24 @@
 //! ```
 
 /// Import the new core's source and diagnostic interfaces.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the Rust source model that rule checks read syntax and spans from.
 use crate::rust_source::RustSource;
 /// Import the syntax kinds and typed impl/doc-comment views used by the incumbent.
-use ra_ap_syntax::ast::{DocCommentIter, Impl};
+use ra_ap_syntax::ast::{
+    DocCommentIter,
+    Impl,
+};
 /// Import the syntax node and doc-comment types that the documentation rule walks.
-use ra_ap_syntax::{AstNode, NodeOrToken, SyntaxKind, SyntaxNode};
+use ra_ap_syntax::{
+    AstNode,
+    NodeOrToken,
+    SyntaxKind,
+    SyntaxNode,
+};
 
 /// What:
 ///  Documentable node kinds paired with their established diagnostic labels.
@@ -124,7 +135,10 @@ fn is_trait_impl_member(node: &SyntaxNode) -> bool {
 /// ```ts
 /// function missingMessage(node: SyntaxNode, label: string): string;
 /// ```
-fn missing_message(node: &SyntaxNode, label: &str) -> String {
+fn missing_message(
+    node: &SyntaxNode,
+    label: &str,
+) -> String {
     for child in node.children() {
         if child.kind() == SyntaxKind::NAME {
             return format!("Missing rustdoc on {label} \"{}\".", child.text());
@@ -164,7 +178,11 @@ fn declaration_offset(node: &SyntaxNode) -> usize {
 /// ```ts
 /// function checkMaxLines(context: RustSource, limit: number, severity: Severity): Diagnostic[];
 /// ```
-pub fn check_max_lines(context: &RustSource, limit: usize, severity: Severity) -> Vec<Diagnostic> {
+pub fn check_max_lines(
+    context: &RustSource,
+    limit: usize,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let count = context.code_line_count();
     if count <= limit {
         return Vec::new();
@@ -196,7 +214,10 @@ pub fn check_max_lines(context: &RustSource, limit: usize, severity: Severity) -
 /// ```ts
 /// function checkRustdoc(context: RustSource, severity: Severity): Diagnostic[];
 /// ```
-pub fn check_rustdoc(context: &RustSource, severity: Severity) -> Vec<Diagnostic> {
+pub fn check_rustdoc(
+    context: &RustSource,
+    severity: Severity,
+) -> Vec<Diagnostic> {
     let bridge = uses_cxx_qt(context.syntax());
     let mut findings = Vec::new();
     for node in context.syntax().descendants() {

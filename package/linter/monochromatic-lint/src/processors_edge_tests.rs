@@ -10,11 +10,25 @@
 //! ```
 
 /// Import the same consumer helpers and atomic fix models as ordinary projection tests.
-use super::{Edit, Fix, FixClass, ProcessorLanguage, finding, fixed, inputs};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+    finding,
+    fixed,
+    inputs,
+};
 /// Preserve the existing diagnostic severity model.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Exercise the empty-snippet documentation policy through typed real rule selection.
-use crate::rust_rule_settings::{LineBudget, RustRuleSettings};
+use crate::rust_rule_settings::{
+    LineBudget,
+    RustRuleSettings,
+};
 
 /// First,
 ///  middle and last full-line deletion preserve surviving prefixes and bytes.

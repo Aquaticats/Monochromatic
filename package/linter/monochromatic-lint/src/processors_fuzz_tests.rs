@@ -13,7 +13,12 @@
 /// Original-host mapping uses the real finding helper.
 use super::finding;
 /// Import the actual processor and production host edit implementation.
-use super::{Edit, Fix, FixClass, ProcessorLanguage};
+use super::{
+    Edit,
+    Fix,
+    FixClass,
+    ProcessorLanguage,
+};
 /// Exercise exact original-host application,
 ///  not a test-owned replacement algorithm.
 use crate::edits::apply_fixes;

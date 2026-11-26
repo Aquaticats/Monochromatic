@@ -12,11 +12,18 @@
 /// Original host diagnostics are the only returned findings.
 use crate::diagnostic::Diagnostic;
 /// Import caller-visible processor input and typed selections.
-use crate::processors::{ProcessorError, ProcessorLanguage, VirtualSource};
+use crate::processors::{
+    ProcessorError,
+    ProcessorLanguage,
+    VirtualSource,
+};
 /// Rule settings remain the configuration module's responsibility.
 use crate::rust_rule_settings::RustRuleSettings;
 /// Existing code-line and documentation checks remain the policy owners.
-use crate::rust_rules::{check_max_lines, check_rustdoc};
+use crate::rust_rules::{
+    check_max_lines,
+    check_rustdoc,
+};
 /// Reuse the current native parse and rules,
 ///  not copied policy implementations.
 use crate::rust_source::RustSource;

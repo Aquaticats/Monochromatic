@@ -13,9 +13,20 @@
 //! ```
 
 /// Import the shared invocation fixtures.
-use crate::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
+use crate::run_failure::{
+    FIX_REFUSED,
+    PROCESSING_FAILURE,
+};
 use crate::run_output::RunOutput;
-use crate::run_test_support::{ALL_RULES, CONFIG, codes, read, records, run, write};
+use crate::run_test_support::{
+    ALL_RULES,
+    CONFIG,
+    codes,
+    read,
+    records,
+    run,
+    write,
+};
 use crate::test_fs::Fixture;
 use std::path::Path;
 

@@ -10,8 +10,14 @@
 
 /// Import production checking and exact source/fix types.
 use super::reference_definitions;
-use crate::diagnostic::{Diagnostic, Severity};
-use crate::edits::{Fix, apply_fixes};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
+use crate::edits::{
+    Fix,
+    apply_fixes,
+};
 use crate::markdown_source::MarkdownSource;
 
 /// Parse an actual Markdown fixture before checking definitions.

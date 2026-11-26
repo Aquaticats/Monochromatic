@@ -13,15 +13,27 @@
 //! test('a cold cache skips', () => expect(runClosureStepWith(plans, cwd, false, stub.cargo).skips).toEqual([...]));
 //! ```
 
-use super::{ClosureOutcome, run_closure_step_at, run_closure_step_with};
+use super::{
+    ClosureOutcome,
+    run_closure_step_at,
+    run_closure_step_with,
+};
 use crate::closure_findings::RULE;
 use crate::{
     closure_driver::DriverSite,
     closure_manifest::PREREQUISITES_FILE,
-    closure_stub_support::{Scenario, scenario, stub_cargo},
+    closure_stub_support::{
+        Scenario,
+        scenario,
+        stub_cargo,
+    },
     diagnostic::Severity,
     run_plan::FilePlan,
-    run_test_support::{CONFIG, plan, write},
+    run_test_support::{
+        CONFIG,
+        plan,
+        write,
+    },
     test_fs::Fixture,
 };
 
@@ -36,7 +48,10 @@ const CONFIGURATION: &str = r#"[
 const SOURCE: &str = "fn a() -> bool {\n  run(|x| x)\n}\n";
 
 /// One cargo record for `src/lib.rs`.
-fn record(code: &str, start: u64) -> String {
+fn record(
+    code: &str,
+    start: u64,
+) -> String {
     return format!(
         r#"{{"reason": "compiler-message", "message": {{"code": {{"code": "{code}", "explanation": null}}, "level": "warning", "message": "a closure", "spans": [{{"file_name": "src/lib.rs", "is_primary": true, "byte_start": {start}, "byte_end": {end}, "line_start": 2, "column_start": 7}}], "children": []}}}}"#,
         end = start + 7
@@ -61,7 +76,10 @@ fn plans(fixture: &Fixture) -> Vec<FilePlan> {
 }
 
 /// Run the step with a scenario.
-fn run(fixture: &Fixture, stub: &Scenario) -> ClosureOutcome {
+fn run(
+    fixture: &Fixture,
+    stub: &Scenario,
+) -> ClosureOutcome {
     return run_closure_step_with(plans(fixture).as_slice(), &fixture.path, false, &stub.cargo);
 }
 
@@ -480,7 +498,10 @@ const COLD_DRIVER: [(&str, &str); 2] = [
 /// The facts of the machine for a stub `cargo`:
 /// a `rustup` that names one toolchain,
 /// and a driver directory and a scratch directory below the stub's scenario directory.
-fn driver_site(stub: &Scenario, rustup: &Scenario) -> DriverSite {
+fn driver_site(
+    stub: &Scenario,
+    rustup: &Scenario,
+) -> DriverSite {
     return DriverSite {
         rustup: rustup.cargo.clone(),
         drivers: Some(stub.directory.join("drivers")),
@@ -494,7 +515,10 @@ fn toolchain_stub() -> Scenario {
 }
 
 /// Install a driver for the toolchain that reports the given version line.
-fn install_driver(stub: &Scenario, version_line: &str) {
+fn install_driver(
+    stub: &Scenario,
+    version_line: &str,
+) {
     let directory = stub.directory.join("drivers").join("nightly-fixture");
     std::fs::create_dir_all(&directory).expect("driver directory");
     std::fs::hard_link(stub_cargo(), directory.join("dylint-driver")).expect("driver link");
@@ -502,7 +526,11 @@ fn install_driver(stub: &Scenario, version_line: &str) {
 }
 
 /// Run the step with explicit machine facts.
-fn run_at(fixture: &Fixture, stub: &Scenario, site: &DriverSite) -> ClosureOutcome {
+fn run_at(
+    fixture: &Fixture,
+    stub: &Scenario,
+    site: &DriverSite,
+) -> ClosureOutcome {
     return run_closure_step_at(
         plans(fixture).as_slice(),
         &fixture.path,

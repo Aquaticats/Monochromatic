@@ -10,11 +10,18 @@
 //! ```
 
 /// Import existing schema readers and validation instead of adding another configuration grammar.
-use crate::config_data::{key_text, text, validate_data};
+use crate::config_data::{
+    key_text,
+    text,
+    validate_data,
+};
 /// Import the configuration error type returned when a Rust rule setting is invalid.
 use crate::config_error::ConfigError;
 /// Import the validators that read the line limit and the rule table from configuration.
-use crate::configuration_rules::{line_limit, validate_rules};
+use crate::configuration_rules::{
+    line_limit,
+    validate_rules,
+};
 /// Import the diagnostic severity,
 ///  which intentionally has no Off variant.
 use crate::diagnostic::Severity;

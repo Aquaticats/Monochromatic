@@ -10,15 +10,28 @@
 //! ```
 
 /// Import production rule entry points and the actual grouped-fix applier.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::edits::apply_fixes;
 use crate::markdown_code::fenced_code_language;
-use crate::markdown_headings::{heading_increment, no_emphasis_as_heading, single_h1};
-use crate::markdown_links::{link_image_style, no_bare_urls};
+use crate::markdown_headings::{
+    heading_increment,
+    no_emphasis_as_heading,
+    single_h1,
+};
+use crate::markdown_links::{
+    link_image_style,
+    no_bare_urls,
+};
 use crate::markdown_source::MarkdownSource;
 
 /// Parse one exact source through the native adapter.
-fn document(source: &str, mdx: bool) -> MarkdownSource {
+fn document(
+    source: &str,
+    mdx: bool,
+) -> MarkdownSource {
     return MarkdownSource::new(
         String::from(if mdx { "input.mdx" } else { "input.md" }),
         String::from(source),
@@ -29,7 +42,10 @@ fn document(source: &str, mdx: bool) -> MarkdownSource {
 
 /// Apply only the findings' advertised fixes,
 ///  using the same atomic implementation as production.
-fn fixed(source: &str, findings: &[Diagnostic]) -> String {
+fn fixed(
+    source: &str,
+    findings: &[Diagnostic],
+) -> String {
     let mut fixes = Vec::new();
     for finding in findings {
         if let Some(fix) = &finding.fix {

@@ -11,12 +11,24 @@
 
 /// Import the real conversion,
 ///  shared diagnostics and syntax dispatcher.
-use super::{DEFAULT_MAX_LINES, LayoutRule, LineBudget, RustRuleSettings, rust_rule_settings};
-use crate::diagnostic::{Diagnostic, Severity};
+use super::{
+    DEFAULT_MAX_LINES,
+    LayoutRule,
+    LineBudget,
+    RustRuleSettings,
+    rust_rule_settings,
+};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::rust_dispatch::check_syntax_rules;
 use crate::rust_source::RustSource;
 /// Import the repository's exact JSONC parser.
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// Convert one owned fixture without replacing configuration validation.
 fn settings(source: &str) -> RustRuleSettings {
@@ -274,7 +286,11 @@ fn an_allow_list_that_names_no_file_is_an_error() {
         parse_jsonc(r#"{"rust/folder-uses-links":{"severity":"error","allow":""}}"#)
             .expect("JSONC fixture");
     let error = rust_rule_settings(&value).expect_err("an empty allow list is refused");
-    assert!(error.message.contains("must name the file"), "{}", error.message);
+    assert!(
+        error.message.contains("must name the file"),
+        "{}",
+        error.message
+    );
 }
 
 /// The layout checks take no option besides severity and the allow list.

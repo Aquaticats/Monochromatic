@@ -18,13 +18,33 @@
 /// Import the stream writer,
 ///  the output writer,
 ///  the panic-hook decision and the invocation entry under test.
-use super::{emit, run_process_with, silences_panics, write_outputs};
-use crate::{cli_options::CliOptions, run_finish::PROGRAM, run_output::RunOutput};
+use super::{
+    emit,
+    run_process_with,
+    silences_panics,
+    write_outputs,
+};
+use crate::{
+    cli_options::CliOptions,
+    run_finish::PROGRAM,
+    run_output::RunOutput,
+};
 use clap::Parser;
 use std::{
-    io::{ErrorKind, Read, Write},
-    path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    io::{
+        ErrorKind,
+        Read,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+        Stdio,
+    },
 };
 
 /// Environment variable that makes `panic_hook_child` run,
@@ -55,7 +75,10 @@ struct Stream {
 }
 
 /// Build a stream with the given failure behavior.
-fn stream(write_failure: Option<ErrorKind>, flush_failure: Option<ErrorKind>) -> Stream {
+fn stream(
+    write_failure: Option<ErrorKind>,
+    flush_failure: Option<ErrorKind>,
+) -> Stream {
     return Stream {
         written: Vec::<u8>::new(),
         write_failure,
@@ -74,7 +97,11 @@ impl Stream {
 }
 
 /// An output whose two streams carry text and whose status comes from the findings.
-fn output(stdout: &str, stderr: &str, exit_code: u8) -> RunOutput {
+fn output(
+    stdout: &str,
+    stderr: &str,
+    exit_code: u8,
+) -> RunOutput {
     return RunOutput {
         stdout: String::from(stdout),
         stderr: String::from(stderr),
@@ -86,7 +113,10 @@ fn output(stdout: &str, stderr: &str, exit_code: u8) -> RunOutput {
 impl Write for Stream {
     /// Record the bytes,
     ///  or fail with the configured error.
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    fn write(
+        &mut self,
+        buffer: &[u8],
+    ) -> std::io::Result<usize> {
         if let Some(kind) = self.write_failure {
             return Err(std::io::Error::from(kind));
         }
@@ -220,7 +250,11 @@ fn only_debug_runs_keep_the_default_panic_hook() {
 
 /// A runner that panics inside the invocation,
 ///  standing in for a defect that no known input reaches.
-fn panicking_runner(_options: &CliOptions, _cwd: &Path, _stdin: &mut dyn Read) -> RunOutput {
+fn panicking_runner(
+    _options: &CliOptions,
+    _cwd: &Path,
+    _stdin: &mut dyn Read,
+) -> RunOutput {
     panic!("planted runner panic");
 }
 

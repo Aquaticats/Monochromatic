@@ -11,13 +11,25 @@
 //! ```
 
 /// Import the finding model.
-use crate::diagnostic::{Diagnostic, Span};
+use crate::diagnostic::{
+    Diagnostic,
+    Span,
+};
 /// Import the dialect and construct names.
-use crate::shell_dialect::{Construct, ShellDialect};
+use crate::shell_dialect::{
+    Construct,
+    ShellDialect,
+};
 /// Import the typed settings the checks read.
-use crate::shell_rule_settings::{ShellBudget, ShellRuleSettings};
+use crate::shell_rule_settings::{
+    ShellBudget,
+    ShellRuleSettings,
+};
 /// Import the scan.
-use crate::shell_scan::{Hit, scan};
+use crate::shell_scan::{
+    Hit,
+    scan,
+};
 
 /// A zero-based line start and end of one code line,
 ///  excluding its newline.
@@ -38,7 +50,10 @@ struct CodeLine {
 /// ```ts
 /// function isCommentLine(trimmed: string, dialect: ShellDialect): boolean;
 /// ```
-fn is_comment_line(trimmed: &str, dialect: ShellDialect) -> bool {
+fn is_comment_line(
+    trimmed: &str,
+    dialect: ShellDialect,
+) -> bool {
     match dialect {
         ShellDialect::Cmd => {
             let lowered: String = trimmed.to_ascii_lowercase();
@@ -53,7 +68,10 @@ fn is_comment_line(trimmed: &str, dialect: ShellDialect) -> bool {
 
 /// Collect the non-blank,
 ///  non-comment physical lines of a run body.
-fn code_lines(source: &str, dialect: ShellDialect) -> Vec<CodeLine> {
+fn code_lines(
+    source: &str,
+    dialect: ShellDialect,
+) -> Vec<CodeLine> {
     let mut lines: Vec<CodeLine> = Vec::new();
     let mut start: usize = 0;
     // `split_inclusive` keeps each newline so byte offsets stay exact.

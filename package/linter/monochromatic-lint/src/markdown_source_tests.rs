@@ -10,10 +10,16 @@
 
 /// Import the production adapter and typed node decoders.
 use super::MarkdownSource;
-use satteri_ast::mdast::{MdastNodeType, decode_heading_data};
+use satteri_ast::mdast::{
+    MdastNodeType,
+    decode_heading_data,
+};
 
 /// Find a concrete parsed node while failing if the fixture did not exercise that syntax.
-fn node(document: &MarkdownSource, kind: MdastNodeType) -> u32 {
+fn node(
+    document: &MarkdownSource,
+    kind: MdastNodeType,
+) -> u32 {
     for id in document.all_nodes() {
         if document.kind(*id) == kind {
             return *id;

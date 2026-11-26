@@ -14,8 +14,14 @@
 
 /// Import the normalizer,
 ///  its rejection type and the config-level reader.
-use super::{LfsUrlRejection, lfs_object_base};
-use crate::markdown_lfs_config::{parse_lfs_config, read_lfs_object_base};
+use super::{
+    LfsUrlRejection,
+    lfs_object_base,
+};
+use crate::markdown_lfs_config::{
+    parse_lfs_config,
+    read_lfs_object_base,
+};
 use crate::test_fs::Fixture;
 /// Import the existing typed JSON decoder for the committed measured fixture.
 use serde::Deserialize;

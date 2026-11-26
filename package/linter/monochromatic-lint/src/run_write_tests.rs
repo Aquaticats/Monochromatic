@@ -13,9 +13,15 @@
 
 /// Import the operation under test and fixture helpers.
 use super::write_atomically;
-use crate::run_test_support::{read, write};
+use crate::run_test_support::{
+    read,
+    write,
+};
 use crate::test_fs::Fixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The sorted names of a directory's entries.
 fn entries(directory: &Path) -> Vec<String> {
@@ -46,7 +52,10 @@ fn mode(path: &Path) -> u32 {
 
 /// Set a file's permission bits.
 #[cfg(unix)]
-fn set_mode(path: &Path, bits: u32) {
+fn set_mode(
+    path: &Path,
+    bits: u32,
+) {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).expect("chmod");
 }

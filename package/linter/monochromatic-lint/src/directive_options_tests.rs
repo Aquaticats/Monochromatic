@@ -10,7 +10,10 @@
 //! ```
 
 /// Import the resolver and the accepted severity spellings.
-use super::{DirectiveOptions, UnusedDirectiveSeverity};
+use super::{
+    DirectiveOptions,
+    UnusedDirectiveSeverity,
+};
 use crate::diagnostic::Severity;
 
 /// Without either option nothing is reported.

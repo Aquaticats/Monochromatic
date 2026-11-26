@@ -13,7 +13,10 @@
 
 /// Import the writer under test and both parsers used to check it.
 use super::strict_json;
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// Parse JSONC and render it strictly.
 fn rendered(source: &str) -> String {

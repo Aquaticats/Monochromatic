@@ -12,15 +12,28 @@
 
 /// Import resolved declarations rather than spelling-based method catalogues.
 use ra_ap_hir::{
-    Adt, Crate, DisplayTarget, EnumVariant, GenericDef, GenericParam, Module, ModuleDef,
-    PathResolution, Semantics,
+    Adt,
+    Crate,
+    DisplayTarget,
+    EnumVariant,
+    GenericDef,
+    GenericParam,
+    Module,
+    ModuleDef,
+    PathResolution,
+    Semantics,
 };
 /// Import the database interface queried inside the existing attachment scope.
 use ra_ap_hir_ty::db::HirDatabase;
 /// Import the trait implementing generic_arg_list on both methods and path segments.
 use ra_ap_syntax::ast::HasGenericArgs;
 /// Import typed syntax views and the shared generic-argument accessor.
-use ra_ap_syntax::{AstNode, SyntaxKind, SyntaxNode, ast};
+use ra_ap_syntax::{
+    AstNode,
+    SyntaxKind,
+    SyntaxNode,
+    ast,
+};
 
 /// What:
 ///  Written arguments paired with the declaration that supplies their meaning.
@@ -102,7 +115,10 @@ fn variant_site(
 
 /// True when the parent path selects an enum variant,
 ///  which owns the combined enum/alias argument check.
-fn followed_by_variant(semantics: &Semantics<'_, dyn HirDatabase>, path: &ast::Path) -> bool {
+fn followed_by_variant(
+    semantics: &Semantics<'_, dyn HirDatabase>,
+    path: &ast::Path,
+) -> bool {
     let Some(parent): Option<SyntaxNode> = path.syntax().parent() else {
         return false;
     };
@@ -157,7 +173,11 @@ pub(crate) fn is_instantiation_path(path: &ast::Path) -> bool {
 
 /// Distinguish a required type/constant slot from lifetimes,
 ///  compiler-introduced slots and fixed defaults.
-fn is_required(database: &dyn HirDatabase, parameter: GenericParam, target: DisplayTarget) -> bool {
+fn is_required(
+    database: &dyn HirDatabase,
+    parameter: GenericParam,
+    target: DisplayTarget,
+) -> bool {
     if let GenericParam::TypeParam(ty) = parameter {
         return !ty.is_implicit(database) && ty.default(database).is_none();
     }
@@ -170,7 +190,10 @@ fn is_required(database: &dyn HirDatabase, parameter: GenericParam, target: Disp
 /// Count only explicit required type/constant parameters;
 ///  lifetimes,
 ///  implicit impl-Trait parameters and defaults are exempt.
-pub(crate) fn required_arguments(database: &dyn HirDatabase, definition: GenericDef) -> usize {
+pub(crate) fn required_arguments(
+    database: &dyn HirDatabase,
+    definition: GenericDef,
+) -> usize {
     let module: Module = definition.module(database);
     let krate: Crate = module.krate(database);
     let target: DisplayTarget = krate.to_display_target(database);

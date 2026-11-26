@@ -10,7 +10,11 @@
 //! ```
 
 /// Import the existing JSONL encoder and typed severity.
-use crate::diagnostic::{Diagnostic, Severity, render};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+    render,
+};
 
 /// Output controls independent of file discovery and rule execution.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -52,7 +56,10 @@ pub struct RunOutput {
 /// ```ts
 /// function exitStatus(findings: Diagnostic[], maxWarnings?: number): 0 | 1 | 2;
 /// ```
-pub fn exit_status(findings: &[Diagnostic], max_warnings: Option<usize>) -> u8 {
+pub fn exit_status(
+    findings: &[Diagnostic],
+    max_warnings: Option<usize>,
+) -> u8 {
     let mut warnings: usize = 0;
     let mut errors: bool = false;
     let mut processing_failure: bool = false;

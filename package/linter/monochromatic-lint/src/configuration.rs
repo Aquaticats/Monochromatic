@@ -11,13 +11,21 @@
 //! ```
 
 /// Import shared validation and the built-in rule schema.
-use crate::config_data::{key_text, strings, text, validate_data};
+use crate::config_data::{
+    key_text,
+    strings,
+    text,
+    validate_data,
+};
 /// Import the configuration error type that parsing and validation report failures with.
 use crate::config_error::ConfigError;
 /// Import the rule validator that runs after the block structure has been parsed.
 use crate::configuration_rules::validate_rules;
 /// Import the repository's parser and exact value representation.
-use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
+use monochromatic_jsonc_edit::{
+    JsoncValue,
+    parse_jsonc,
+};
 
 /// What:
 ///  One immutable configuration block in source order.

@@ -11,11 +11,17 @@
 
 /// Import real rule execution.
 use super::no_pipe_tables;
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 use crate::markdown_source::MarkdownSource;
 
 /// Parse a fixture in the caller's requested language mode.
-fn check(source: &str, mdx: bool) -> Vec<Diagnostic> {
+fn check(
+    source: &str,
+    mdx: bool,
+) -> Vec<Diagnostic> {
     let context: MarkdownSource =
         MarkdownSource::new(String::from("table.md"), String::from(source), mdx)
             .expect("table fixture");

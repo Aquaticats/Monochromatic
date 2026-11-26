@@ -12,7 +12,10 @@
 //! ```
 
 /// Import native paths.
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  The variable by which `libghostty-vt-sys` takes a prepared Ghostty source tree instead of cloning one.

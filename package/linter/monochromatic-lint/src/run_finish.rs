@@ -21,7 +21,11 @@ use crate::{
     cli_options::CliOptions,
     diagnostic::Diagnostic,
     run_modes::SetupError,
-    run_output::{OutputOptions, RunOutput, run_output},
+    run_output::{
+        OutputOptions,
+        RunOutput,
+        run_output,
+    },
     rust_file_engine::RustFileEngine,
     rust_manifest::WorkspacePreparation,
 };

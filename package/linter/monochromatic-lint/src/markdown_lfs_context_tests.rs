@@ -16,14 +16,25 @@
 
 /// Import the operations under test and their collaborators.
 use super::{
-    LfsImageContext, LfsImageRepo, LfsImageTarget, discover_lfs_image_repo, find_lfs_repo_root,
-    is_excluded, prepare_lfs_image_context,
+    LfsImageContext,
+    LfsImageRepo,
+    LfsImageTarget,
+    discover_lfs_image_repo,
+    find_lfs_repo_root,
+    is_excluded,
+    prepare_lfs_image_context,
 };
-use crate::markdown_lfs_patterns::{PathPatterns, lfs_tracked_patterns};
+use crate::markdown_lfs_patterns::{
+    PathPatterns,
+    lfs_tracked_patterns,
+};
 use crate::markdown_source::MarkdownSource;
 use crate::test_fs::Fixture;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
 
 /// Bytes of the tracked image fixture and their independently measured SHA-256.

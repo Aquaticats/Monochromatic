@@ -8,7 +8,11 @@
 //! test('finds lib, main and bin roots', () => expect(crateRootFiles(manifest)).toEqual([...]));
 //! ```
 
-use super::{crate_root_files, explicit_root_paths, path_value};
+use super::{
+    crate_root_files,
+    explicit_root_paths,
+    path_value,
+};
 use crate::layout_test_support::package_with;
 use std::path::PathBuf;
 

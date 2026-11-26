@@ -11,7 +11,10 @@
 //! ```
 
 /// Import actual findings and severities.
-use crate::diagnostic::{Diagnostic, Severity};
+use crate::diagnostic::{
+    Diagnostic,
+    Severity,
+};
 /// Import the disposable Cargo-backed fixture that runs the production semantic session.
 use crate::rust_semantic_test_support::SemanticFixture;
 
@@ -41,7 +44,10 @@ struct Case {
 }
 
 /// Compare the complete ordered message list and reject unavailable semantic information.
-fn assert_case(fixture: &mut SemanticFixture, case: &Case) {
+fn assert_case(
+    fixture: &mut SemanticFixture,
+    case: &Case,
+) {
     let findings: Vec<Diagnostic> = fixture.check(case.source, Severity::Warn);
     // Borrow each message; the findings own their strings for the whole comparison.
     let mut messages: Vec<&str> = Vec::<&str>::new();
