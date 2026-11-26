@@ -54,6 +54,9 @@ const COVERED_PREFIXES: &[&str] = &[
     "standards_review_",
     "commit_",
     "diagnostic_",
+    // The one queue mechanism both of the line queues above are made of
+    // (`foundation/lines_written_by_a_thread.rs`), which holds the lock its callers and its thread share.
+    "lines_written_",
     "slot_identity_",
     "per_slot_",
 ];
@@ -113,14 +116,12 @@ const INVENTORY: &[&str] = &[
     //  a landing records them for the record its commit became and the round that runs that record takes them, so two
     //  threads reach the list, and under it one entry is looked up, replaced or removed while nothing of it touches a disk.
     "service/service_push_programs_held_in_memory.rs",
-    // The lines waiting for the service's own log stream, and how many found no room:
-    //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
-    //  and under it one line is pushed or popped while the write runs outside it.
-    "service/service_log_lines_off_the_calling_thread.rs",
-    // The lines waiting for the diagnostic stream, and which line the stream has reached:
-    //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
-    //  and under it one line is pushed or popped while the write runs outside it.
-    "foundation/diagnostic_lines_off_the_calling_thread.rs",
+    // The lines of one queue waiting for the stream they are written to, how many found no room, and which line the
+    //  stream has reached: the diagnostic lines' queue and the service log's queue are this one mechanism
+    //  (`foundation/lines_written_by_a_thread.rs`), so one entry covers both. A caller hands a line and goes on while one
+    //  thread takes lines and waits on the stream, and under the lock one line is pushed or popped and one number is moved,
+    //  while the write itself, which may wait for the reader as long as the reader takes, runs outside it.
+    "foundation/lines_written_by_a_thread.rs",
     "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",

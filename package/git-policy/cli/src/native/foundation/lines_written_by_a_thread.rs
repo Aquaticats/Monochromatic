@@ -37,12 +37,32 @@ use std::sync::{Condvar, Mutex};
 /// The lines waiting for the stream.
 use std::collections::VecDeque;
 
-/// The queue of one process,
-/// and the condition its thread waits on.
-/// Both owners keep theirs as a `OnceLock` of this type,
-/// so the queue's own static,
-/// and the lock kept while a line is handed over,
-/// are visible where they are.
+/// What:
+///  The queue of one process,
+/// and the condition its thread waits on,
+///  as the value each owner keeps in its own `OnceLock`.
+/// Why:
+///   The queue, its thread and the callers that hand lines over all reach the same two values,
+/// so they travel as one type;
+///  each owner keeps its own,
+/// and neither reaches the other's.
+/// Lock kept:
+///  the lines waiting for this queue's stream,
+///  how many found no room,
+///  and which line the stream has reached,
+///  because a caller hands a line and goes on while one thread takes lines and waits on the stream,
+///  so the hand and the take are the two ends of one queue and neither may see the other's half.
+///  Under it one line is pushed or popped and one number is moved;
+///  the write itself,
+///  which may wait for the reader as long as the reader takes,
+///  runs outside it,
+///  and no Git process,
+///  no file and no other lock runs under it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SharedQueue = { lines: Pending[]; written: number; dropped: number; writer?: Writable };
+/// ```
 pub(crate) type SharedQueue = &'static (Mutex<Queue>, Condvar);
 
 /// What:

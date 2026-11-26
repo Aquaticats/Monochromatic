@@ -167,7 +167,14 @@ static QUEUE: OnceLock<SharedQueue> = OnceLock::new();
 /// The queue,
 /// started on the first line.
 fn queue() -> SharedQueue {
-    return QUEUE.get_or_init(|| start_the_queue(&THE_POLICY));
+    // What:     `get_or_init` makes the queue on the first line and answers the one the process keeps afterwards.
+    // Why:      A second start would give the process two threads writing two queues, so the queue is made once.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return QUEUE.value ??= startTheQueue(THE_POLICY);
+    // ```
+    return QUEUE.get_or_init(|| return start_the_queue(&THE_POLICY));
 }
 
 /// What:
