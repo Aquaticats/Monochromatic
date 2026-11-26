@@ -254,7 +254,8 @@ fn an_unreadable_identity_file_lets_the_command_go_on() {
 ///  and this file is read on the start of every wrapped command,
 ///  so one pipe at its name held every command with nothing said (issue 6415's shape,
 ///  `SPEC.md` "Every file this wrapper reads from its own record folders is opened as a plain file").
-///  A pipe is not the identity, so the answer is the same one any unreadable identity earns.
+///  A pipe is not the identity,
+///  so the answer is the same one any unreadable identity earns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

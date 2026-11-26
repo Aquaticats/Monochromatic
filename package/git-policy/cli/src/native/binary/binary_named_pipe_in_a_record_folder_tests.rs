@@ -35,7 +35,8 @@ use std::path::{
     PathBuf,
 };
 
-/// How long a command of these controls may run, in seconds.
+/// How long a command of these controls may run,
+/// in seconds.
 /// Why:
 ///  A healthy command here answers in milliseconds,
 ///  and a command that waits on a pipe never answers at all,
@@ -73,7 +74,8 @@ fn a_bounded_wrapped_command(
 /// What:
 ///  The words a command printed on its standard error.
 /// Why:
-///  A control reads the line the person meets, and standard error is where this program writes it.
+///  A control reads the line the person meets,
+///  and standard error is where this program writes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

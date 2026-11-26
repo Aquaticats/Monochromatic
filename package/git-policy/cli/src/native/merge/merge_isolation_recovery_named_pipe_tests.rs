@@ -10,7 +10,8 @@
 //!  so one pipe at `.git/monochromatic-git-policy-cli-merges/x.json` held every command
 //!  in that repository with nothing said.
 //!  Every file this program reads from its own record folders is opened as a plain file
-//!  (`SPEC.md`, "Every file this wrapper reads from its own record folders is opened as a plain file"),
+//!  (`SPEC.md`,
+//!  "Every file this wrapper reads from its own record folders is opened as a plain file"),
 //!  and this folder's records are one of them.
 //!  Each control plants the pipe where one of the folder's readers looks,
 //!  and fails at the bound `finished_within` keeps rather than holding the run.

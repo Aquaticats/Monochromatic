@@ -164,7 +164,8 @@ pub fn identity_from_text(text: &str) -> Result<LinkIdentity, String> {
 /// a pipe is then an identity this command cannot use,
 /// which the gate says and goes on from,
 /// the same answer any unreadable identity earns.
-///  A link is not followed, as for every record folder of this program's own:
+///  A link is not followed,
+///  as for every record folder of this program's own:
 /// the cut-over step writes the file through a temporary name and a rename,
 /// so the name always holds a plain file.
 ///

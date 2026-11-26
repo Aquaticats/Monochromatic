@@ -39,7 +39,8 @@ use crate::merge_isolation_recovery_steps::{
 };
 use crate::merge_isolation_take_aside_names::merge_key_of_a_record;
 /// What:
-///  The reader that opens a record as a plain file, and the bound it reads to.
+///  The reader that opens a record as a plain file,
+///  and the bound it reads to.
 /// Why:
 ///  Opening a pipe for reading waits for a writer that may never come,
 ///  and this folder's first read runs on the start of every wrapped command,

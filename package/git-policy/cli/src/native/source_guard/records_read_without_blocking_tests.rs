@@ -3,11 +3,22 @@
 //! `plain_file` (`read_plain_text`, `read_plain_file`, `open_plain_file`),
 //! which opens without blocking and refuses a handle that is not a plain file.
 //! Why:
-//!  A named pipe at a record's name holds a plain read for ever, because opening a pipe for reading waits for a writer that
-//!  may never come: a person, a test or a hostile checkout that leaves one in `pending`,
-//!  `failed`, `recovering`, `claimed`, `held`, a notice folder, the service's own notes or the merge record folder finds every
-//!  wrapped command stuck with nothing said, and so does one at the repository link identity file, which every command reads
-//!  first (issue 6415; the review of `e347be3115` held `git status` and `git worktree remove` the same way).
+//!  A named pipe at a record's name holds a plain read for ever,
+//!  because opening a pipe for reading waits for a writer that
+//!  may never come:
+//!  a person,
+//!  a test or a hostile checkout that leaves one in `pending`,
+//!  `failed`,
+//!  `recovering`,
+//!  `claimed`,
+//!  `held`,
+//!  a notice folder,
+//!  the service's own notes or this program's merge record folder finds every
+//!  wrapped command stuck with nothing said,
+//!  and so does one at the repository link identity file,
+//!  which every command reads
+//!  first (issue 6415;
+//!  the review of `e347be3115` held `git status` and `git worktree remove` the same way).
 //!  The folder names below are how a release file reaches those folders, so a module that reads one cannot avoid naming one,
 //!  and a new module that reads a record folder with `std::fs::read_to_string` or `File::open` fails this check.
 
@@ -213,7 +224,8 @@ fn the_scan_finds_a_planted_read_and_passes_a_plain_one() {
 ///  Both are read on the start of every wrapped command,
 ///  so a pipe at either name held every command in every repository,
 ///  and the guard's list of names must reach them or a new waiting read there passes unnoticed
-///  (the alpha.47 release pass, its Medium 1 and Low 6).
+///  (the alpha.47 release pass,
+///  its Medium 1 and Low 6).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
