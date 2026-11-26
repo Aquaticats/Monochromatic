@@ -140,6 +140,10 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
     if child > 0 {
         return AHolder { pid: child };
     }
+    // SAFETY: every one of these takes numbers and reads numbers; none touches memory of ours.
+    let (child_pid, parent, group, session_before): (libc::pid_t, libc::pid_t, libc::pid_t, libc::pid_t) =
+        unsafe { (libc::getpid(), libc::getppid(), libc::getpgid(0), libc::getsid(0)) };
+    eprintln!("HOLDER-ENTER pid={child_pid} ppid={parent} pgid={group} sid={session_before}");
     // SAFETY: `prctl` reads its four words and touches no memory of ours.
     let _death: libc::c_int = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
     // SAFETY: `getppid` takes no argument and reads one number.
@@ -176,10 +180,9 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
     // SAFETY: `getpid` takes no argument and reads one number; in this child it is the pid the parent knows.
     let mine: libc::pid_t = unsafe { libc::getpid() };
     // SAFETY: `getsid` reads one pid and writes nothing of ours.
+    // SAFETY: `getsid` reads one pid and writes nothing of ours.
     let now: libc::pid_t = unsafe { libc::getsid(0) };
-    let said: String = format!("HOLDER pid={mine} setsid={session} getsid={now} errno={}\n", std::io::Error::last_os_error());
-    // SAFETY: the bytes are this call's own and the descriptor is the child's inherited standard output.
-    let _written: libc::ssize_t = unsafe { libc::write(1, said.as_ptr().cast::<libc::c_void>(), said.len()) };
+    eprintln!("HOLDER-AFTER setsid={session} sid={now} pid={mine} errno={}", std::io::Error::last_os_error());
     assert_eq!(session, mine, "the holder's own session: {}", std::io::Error::last_os_error());
     match shape {
         AShape::NamespaceOfItsOwnAndShared => make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own"),
@@ -394,6 +397,7 @@ fn phase_path_holder(fixture: &Fixture, ignores_the_ask: bool) -> String {
     // The holder's own session must be outside the caller's, or this phase would measure the protected set instead.
     // SAFETY: `getsid` reads one pid and writes nothing of ours.
     let theirs: libc::pid_t = unsafe { libc::getsid(holder.pid) };
+    eprintln!("PHASE holder={} getsid(holder)={theirs}", holder.pid);
     assert_eq!(theirs, holder.pid, "the holder leads a session of its own");
     let control: String = match unmount_the_slot(slot.as_path()) {
         Ok(()) => String::from("accepted"),
