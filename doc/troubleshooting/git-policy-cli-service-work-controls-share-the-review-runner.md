@@ -16,10 +16,14 @@ which gave the `service::service_review` controls runners of their own.
 
 ## Symptom
 
-A threaded run of the module did not show it:
-`cargo test --locked --offline --lib --features test-only-switches landing::service_work:: -- --skip guest --skip _arm_tests`
-answered `test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 10567 filtered out; finished in 20.92s` on
-2026-11-26,
+A threaded run of the module
+(`landing::service_work::`,
+guest and arm tests skipped,
+default threads)
+did not show it:
+it answered
+`test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 10567 filtered out; finished in 20.92s`
+on 2026-11-26,
 and it did after the change too,
 because only two of those controls review and their reviews rarely meet in one moment.
 
@@ -112,8 +116,8 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10682 filtered out; 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10682 filtered out; finished in 0.10s
 ```
 
-and the module answered `test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 10567 filtered out;
-finished in 19.05s`.
+and the module answered
+`test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 10567 filtered out; finished in 19.05s`.
 
 ## What the guard is worth
 
