@@ -107,7 +107,10 @@ impl Harness {
     ) {
         let target = self.repo.path().join(path);
         std::fs::create_dir_all(target.parent().expect("a parent")).expect("directories");
-        let staging = target.with_file_name(format!("{}.staging", target.file_name().unwrap_or_default().to_string_lossy()));
+        let staging = target.with_file_name(format!(
+            "{}.staging",
+            target.file_name().unwrap_or_default().to_string_lossy()
+        ));
         std::fs::write(&staging, text).expect("write");
         std::fs::rename(&staging, &target).expect("rename");
     }
