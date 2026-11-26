@@ -1651,10 +1651,9 @@ URF:
 ### Verify on a throwaway, not against real state
 
 THR:
- State-mutating verification uses disposable fixtures (`mktemp -d`,
- throwaway worktree,
- container),
- never real or shared state,
+ State-mutating verification uses disposable fixtures,
+ including temporary `HOME` and browser profiles,
+ never real/shared state,
  even when idempotent;
  guard tests need allowed and rejected fixtures.
 

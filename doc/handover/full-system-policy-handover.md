@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-25T17:32:08-05:00
+## Status at 2026-11-26T02:02:59-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -203,6 +203,13 @@ Unprofiled development processes remain a residual risk.
   `local/aa-install` reads `cpu.max` under the user manager's `app.slice`.
   `local/apparmor_parser` gained DAC capabilities and read access to `~/temp/agent` for drafts.
   See `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "Thirteenth batch".
+- Separately on 2026-11-26, an AppArmor test-created `~/.mozilla/firefox` directory made all three
+  Firefox channels select fresh legacy profiles after restart.
+  Their real XDG profiles under `~/.config/mozilla/firefox` were intact.
+  The test/new directory was preserved under a backup name, the original index hashes stayed equal,
+  and the owner confirmed all three channels were back.
+  This was not an AVC and required no policy or cache change; see
+  `doc/troubleshooting/firefox-xdg-profiles-legacy-test-directory.md`.
 
 ## Current-boot evidence
 
@@ -418,8 +425,8 @@ Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-25T17-32-08-0500`.
-All 23
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T02-02-59-0500`.
+All 24
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
