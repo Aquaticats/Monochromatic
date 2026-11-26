@@ -736,7 +736,8 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
 /// ```ts
 /// syncCounts.take(); refreshWith(root, host, flushes); return syncCounts.take();
 /// ```
-/// The counts are the whole process's, because the rewrite jobs made them on threads of the pool,
+/// The counts are the whole process's,
+/// because the rewrite jobs made them on threads of the pool,
 /// so a control that reads them runs its body in a child of its own
 /// and never takes another control's syncs (`process_wide_state_child_test_support.rs`).
 fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCounts {

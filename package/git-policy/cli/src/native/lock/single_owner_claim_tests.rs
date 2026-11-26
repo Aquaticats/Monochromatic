@@ -490,8 +490,11 @@ fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCount
 /// A claim taken and given back on a thread that keeps its writes in memory makes no filesystem commit,
 /// and asks the shared step for both of them.
 /// The negative control below is what says the count can move.
-/// The count is the whole process's, so this control runs its body in a child of its own
-/// and never takes another control's syncs (`process_wide_state_child_test_support.rs`, issue 6496).
+/// The count is the whole process's,
+/// so this control runs its body in a child of its own
+/// and never takes another control's syncs
+/// (`process_wide_state_child_test_support.rs`,
+/// issue 6496).
 #[test]
 fn a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice() {
     if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(

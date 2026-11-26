@@ -46,7 +46,9 @@ fn thread_probe() {
 ///  The limit belongs to the whole process,
 ///  and a control that lowers it where a threaded run keeps its tests stops every other test's starts with
 ///  `EAGAIN` (issue 6496);
-///  the refusal is what makes such a control fail here, at its own first line, instead of in the rest of the run.
+///  the refusal is what makes such a control fail here,
+/// at its own first line,
+/// instead of in the rest of the run.
 #[test]
 #[should_panic(expected = "belongs to the whole process")]
 fn refusing_the_thread_limit_outside_the_child_is_refused() {
