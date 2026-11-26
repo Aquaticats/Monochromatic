@@ -102,11 +102,6 @@
 //!   removed as the last witness.
 //! - `removal_report.rs`:
 //!   the lines a finished removal prints.
-//! - `removal_origin_step.rs`:
-//!   the answers removal origin step holds.
-//! - `removal_settle_step.rs`:
-//!   the Git settle of one removal,
-//!   called only with the proof that this slot's clone is gone.
 //! - `unmount_request.rs`:
 //!   the removal intent and the verified answer.
 //! - `removal_entry.rs`:
@@ -114,6 +109,14 @@
 //!   intent,
 //!   unmount and plan take,
 //!   and every step of it that changes nothing.
+//! - `removal_completion_inputs.rs`:
+//!   everything one whole removal drives,
+//!   as named seams a control answers without a pool.
+//! - `removal_origin_step.rs`:
+//!   the answers removal origin step holds.
+//! - `removal_settle_step.rs`:
+//!   the Git settle of one removal,
+//!   called only with the proof that this slot's clone is gone.
 //! - `removal_destruction.rs`:
 //!   the deferred-origin check before every snapshot request,
 //!   the batch those requests destroy,
@@ -127,6 +130,12 @@
 //!   a fresh entry,
 //!   an adopted kept plan,
 //!   or the head-gone path.
+//! - `plan_names_and_states.rs`:
+//!   the plan's names and the state each one's history ends on.
+//! - `removal_completion_head_present.rs`:
+//!   the steps one removal takes while its clone still stands.
+//! - `removal_completion_head_gone.rs`:
+//!   the steps a removal takes when its plan's head word is already `gone`.
 //! - `removal_completion.rs`:
 //!   the whole order from the plan to the report.
 //!
@@ -146,6 +155,7 @@ pub mod plan_attempt_parse;
 pub mod plan_bounds;
 pub mod plan_lines;
 pub mod plan_name;
+pub mod plan_names_and_states;
 pub mod plan_parse;
 pub mod plan_publication;
 pub mod plan_reading;
@@ -153,6 +163,9 @@ pub mod plan_record;
 pub mod plan_refusal;
 pub mod plan_words;
 pub mod removal_completion;
+pub mod removal_completion_head_gone;
+pub mod removal_completion_head_present;
+pub mod removal_completion_inputs;
 pub mod removal_destruction;
 pub mod removal_entry;
 pub mod removal_head_destroy;
@@ -251,10 +264,8 @@ pub use plan_words::{
     SNAPSHOT_KIND,
     SnapshotOutcome,
 };
-pub use removal_completion::{
-    RemovalCompletion,
-    complete_the_removal,
-};
+pub use removal_completion::complete_the_removal;
+pub use removal_completion_inputs::RemovalCompletion;
 pub use removal_destruction::{
     DestructionUnderway,
     RemovalDestruction,

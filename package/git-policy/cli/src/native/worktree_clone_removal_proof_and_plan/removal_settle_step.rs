@@ -26,7 +26,7 @@ use crate::worktree_clone_managed_lock::recorded_lock_facts::{
     read_the_recorded_facts,
 };
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
-use crate::worktree_clone_removal_proof_and_plan::removal_completion::RemovalCompletion;
+use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::CloneAbsence;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::{
     SettleAnswer,

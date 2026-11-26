@@ -445,10 +445,6 @@ file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> 
 file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_unmount_answers.rs
 file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone.rs
 file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone_answers.rs
-file-uses src/native/worktree_clone_removal_proof_and_plan removal_completion.rs -> removal_origin_step.rs
-file-uses src/native/worktree_clone_removal_proof_and_plan removal_completion.rs -> removal_settle_step.rs
-file-uses src/native/worktree_clone_removal_proof_and_plan removal_origin_step.rs -> removal_completion.rs
-file-uses src/native/worktree_clone_removal_proof_and_plan removal_settle_step.rs -> removal_completion.rs
 file-uses src/native/worktree_clone_unmount unmount_record.rs -> unmount_turn.rs
 file-uses src/native/worktree_clone_unmount unmount_turn.rs -> unmount_record.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
