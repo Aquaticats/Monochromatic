@@ -2403,6 +2403,79 @@ fn layout_a_groups_own_file_use_that_closes_a_loop_is_reported() {
     );
 }
 
+/// `--config` reads an allow path from the working directory,
+///  which is also the base of that configuration's own file patterns,
+///  so the list is found where the run was started and not beside the configuration file.
+#[test]
+fn layout_a_config_allow_path_is_read_from_the_working_directory() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("pkg/src/lib.rs", "pub fn code_in_index() {}\nmod a;\n");
+    fixture.write("pkg/src/a.rs", "\n");
+    // The list at the working directory holds every finding this run makes.
+    fixture.write(
+        "folder.txt",
+        "index-item src/lib.rs function-code_in_index\nno-file-list src/lib.rs\nmissing-entry src/lib.rs a.rs\n",
+    );
+    // A list beside the configuration holds a line that tolerates nothing,
+    // so reading that one would fail the run.
+    fixture.write("nested/folder.txt", "no-top-doc src\n");
+    fixture.write(
+        "nested/config.jsonc",
+        r#"[{ "files": ["pkg/src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    let found: Run = run(
+        &fixture.path,
+        &["--config", "nested/config.jsonc", "--debug", "pkg/src"],
+        b"",
+    );
+    assert_eq!(
+        (found.status, found.stdout.as_str()),
+        (0, ""),
+        "{}",
+        found.stderr
+    );
+}
+
+/// A `file-uses` file word is read as written, backslash and all,
+///  because a file name is not a path and a key keeps its backslash too.
+#[cfg(unix)]
+#[test]
+fn layout_a_file_uses_line_names_a_file_with_a_backslash() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "pkg/Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write("pkg/src/lib.rs", "//! Index.\nmod a;\n");
+    // The attribute's source spells the backslash twice, and the file name holds it once.
+    fixture.write(
+        "pkg/src/a/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//! - `p.rs`: the p.\n//! - `x\\y.rs`: the backslash one.\n#[path = \"x\\\\y.rs\"] mod xy;\nmod p;\n",
+    );
+    fixture.write("pkg/src/a/p.rs", "pub struct X;\nuse super::xy::Y;\n");
+    fixture.write("pkg/src/a/x\\y.rs", "pub struct Y;\nuse super::p::X;\n");
+    fixture.write(
+        "pkg/monochromatic-lint.config.jsonc",
+        r#"[{ "files": ["src/**/*.rs"], "rules": { "rust/file-order-in-folder": { "severity": "error", "allow": "folder.txt" } } }]"#,
+    );
+    // Both uses of the loop are listed, and each line names the backslash file as written.
+    fixture.write(
+        "pkg/folder.txt",
+        "file-uses src/a p.rs -> x\\y.rs\nfile-uses src/a x\\y.rs -> p.rs\n",
+    );
+    let found: Run = run(&fixture.path.join("pkg"), &["--debug", "src"], b"");
+    assert_eq!(
+        (found.status, found.stdout.as_str()),
+        (0, ""),
+        "{}",
+        found.stderr
+    );
+}
+
 /// A module file a `#[path]` names outside the package is keyed by the walk from the package folder,
 ///  never by an absolute path,
 ///  so the line that tolerates its finding reads the same in every checkout.
