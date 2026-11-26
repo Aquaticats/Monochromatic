@@ -55,6 +55,38 @@ the member’s hold.
 429: {"type":"rate_limit_error","code":"concurrent_budget_exceeded","message":"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. Wait for a request to complete and retry. Your subscription is in overage with auto-renew off, so pay-as-you-go limits apply until it renews. Turn auto-renew back on to restore your account level's limits: https://docs.neuralwatt.com/billing/account-levels#overage-with-auto-renew-off","retry_strategy":{"type":"concurrent_drain","suggested_initial_delay_s":1,"max_delay_s":30,"backoff":"exponential","backoff_base":2,"jitter":true},"retryable":true,"context":{"budget":6,"in_flight":6,"model":"deepseek-ai/DeepSeek-V4.1-Flash","limit_type":"concurrent","tpm_window_tokens":0,"tpm_limit":5242880,"floor":5,"burst":6,"burst_shed":false}}
 ```
 
+## Transport failures the installed adapters report
+
+Captured on 2026-11-26 on this machine, node v26.13.1 with the undici it bundles, by driving the
+installed `openai-completions` and `openai-responses` adapters over real loopback sockets and over
+undici-shaped failures, then reading the terminal `errorMessage` the pool reads. Both adapters
+reported every text identically. The driving script is kept as
+`capture-transport-errors.ts` in the round folder of issue 6515's round
+(2026-11-26).
+
+Measured on a real socket or real resolver, so the shape is what Pi produces rather than a guess:
+
+- `Connection error.: connect ECONNREFUSED 127.0.0.1:<port>`, a closed loopback port. The port is
+  bound at capture time, so the suites replay `127.0.0.1:443` instead.
+- `Connection error.: read ECONNRESET`, a loopback server that accepted and closed without a byte.
+- `terminated: other side closed (UND_ERR_SOCKET)`, a loopback server that sent a 200 stream header
+  and destroyed the socket. The response hook saw status 200 and nothing was exposed to Pi.
+- `Connection error.: getaddrinfo ENOTFOUND no-such-host.invalid`, the host's own resolver.
+
+Reproduced from an undici-shaped fetch failure, because this host cannot make the transport raise
+them: a black-hole address answered `connect ENETUNREACH` here, and `EAI_AGAIN` needs a resolver
+that fails temporarily rather than denying a name.
+
+- `Request timed out.: Connect Timeout Error (attempted address: stand-in.example:443, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)`,
+  which is byte for byte the text the live failure of 2026-11-26 recorded, with the host and port
+  replaced. The wrapper sentence is the `openai` SDK's `APIConnectionTimeoutError` default
+  (`openai` 7.59.0 `core/error.mjs`), and the parenthesised code is Pi's `withCauseDetail`.
+- `Connection error.: getaddrinfo EAI_AGAIN no-such-host.invalid`.
+
+The suites replay all six from one fixture (`src/transport-failure-fixture.ts`), and
+`src/adapter-transport-failure.unit.test.ts` reads every text back from both adapters, so a change in
+Pi's formatting fails that suite rather than silently disabling the move.
+
 ## Texts taken from the installed Pi, with file and line
 
 These stand for Pi's own behaviour. The source is the installed build, not a capture; each line was
@@ -135,6 +167,12 @@ here so a reader never mistakes it for evidence.
   (`src/routing.unit.test.ts` `TERMINAL_ERRORS`): boundary: a failure is not a refusal unless it
   opens with a status, so a mention of 429, a timeout phrase, an overflow body and a number that
   begins with 429 all end the request at that member.
+- `400 Connection reset by an upstream proxy (ECONNRESET)` (`src/unreachable-member.unit.test.ts`
+  `REFUSAL_NAMING_A_CODE`): boundary: a member that answered with an HTTP refusal is not a member
+  that could not be reached, whatever its body names.
+- `Fixture answer cut short` (`src/unreachable-member.unit.test.ts`, the after-output case): the
+  text a member exposes before its connection dies. Boundary: a transport failure after output ends
+  the request at that member.
 - `Provider returned an error` (`src/routing.unit.test.ts`,
   `src/transient-refusal.unit.test.ts`): a failure whose text names no status. Boundary: the status
   the response hook exposes decides, and without one the text does.
