@@ -3141,11 +3141,66 @@ const TWO_ROUTE_USES: [&str; 5] = [
     "uses src/d -> src/g/c0",
 ];
 
+/// Write the smallest package the release pass made for this defect:
+///  a group's own file uses `x`, `x` reaches `g` by two routes,
+///  one directly and one through `a`.
+fn write_two_route_min(fixture: &Fixture) {
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("src/lib.rs", "mod a;\nmod g;\nmod x;\n");
+    fixture.write("src/g/mod.rs", "pub mod c0;\npub mod own;\n");
+    fixture.write("src/g/c0/mod.rs", "pub struct G;\n");
+    fixture.write("src/g/own.rs", "use crate::x::X;\n");
+    fixture.write("src/x/mod.rs", "pub mod f;\n");
+    fixture.write(
+        "src/x/f.rs",
+        "use crate::a::A;\nuse crate::g::c0::G;\npub struct X;\n",
+    );
+    fixture.write("src/a/mod.rs", "pub mod f;\n");
+    fixture.write("src/a/f.rs", "use crate::g::c0::G;\npub struct A;\n");
+    uses_link(&fixture.path, "src/x/uses/a", "../../a");
+    uses_link(&fixture.path, "src/x/uses/c0", "../../g/c0");
+    uses_link(&fixture.path, "src/a/uses/c0", "../../g/c0");
+}
+
+/// The shapes one `uses` line of the smallest loop writes.
+const TWO_ROUTE_MIN_USES: [&str; 3] = [
+    "uses src/x -> src/a",
+    "uses src/x -> src/g/c0",
+    "uses src/a -> src/g/c0",
+];
+
 /// A loop a group's own file closes is held by one line per use inside it,
 ///  so the keys of a tree's own run write the whole loop and a second run has nothing to report.
+///  Both the smallest tree the release pass made and the one that makes the longer route visible are run.
 #[cfg(unix)]
 #[test]
 fn layout_the_printed_keys_hold_an_own_file_loop_with_two_routes() {
+    let min: Fixture = Fixture::new();
+    write_two_route_min(&min);
+    let (min_keys, min_held): (Vec<String>, Run) = run_with_its_printed_keys(&min, "folder.txt");
+    assert!(
+        min_keys
+            .iter()
+            .any(|key| return key == "own-file-loop src/g -> src/x"),
+        "{min_keys:?}"
+    );
+    for key in TWO_ROUTE_MIN_USES {
+        assert!(
+            min_keys.iter().any(|printed| return printed == key),
+            "{key} missing in {min_keys:?}"
+        );
+    }
+    assert_eq!(
+        (min_held.status, min_held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        min_held.stdout,
+        min_held.stderr
+    );
     let fixture: Fixture = Fixture::new();
     write_two_route_loop(&fixture);
     fixture.write("folder.txt", "");
@@ -3592,6 +3647,18 @@ fn layout_a_loop_with_one_own_file_finding_off_the_list_keys_its_uses() {
         "{}",
         partial.stdout
     );
+    // A reported loop holds no use of its own: the uses inside it are the lines that record it,
+    // so none of them is a use that joins a loop the list tolerates.
+    let joining: usize = records(partial.stdout.as_str())
+        .iter()
+        .filter(|record| {
+            return record["message"]
+                .as_str()
+                .expect("message")
+                .contains("a tolerated loop may only lose uses");
+        })
+        .count();
+    assert_eq!(joining, 0, "{}", partial.stdout);
 }
 
 /// A loop that two groups' own files close reports one finding for each of them,
