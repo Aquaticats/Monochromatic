@@ -296,15 +296,18 @@ read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
   belongs to no pool of this table,
   so it adds no room here.
 
-The owner, 2026-11-26,
+The owner,
+2026-11-26,
 reading that five rounds ran at once because the qwen plan's room is 5:
 "Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself."
-So a run on a virtual selection is one run, never one run per member.
+So a run on a virtual selection is one run,
+never one run per member.
 It may start while the runs on that selection's members,
 which are the runs on the selection itself and the runs pinned to one member,
 are fewer than the room those members take together:
 45 with the table's limits of 2026-11-26,
-because the qwen plan's pool takes 5, `opencode-go` 20 and `neuralwatt-flex` 20.
+because the qwen plan's pool takes 5,
+`opencode-go` 20 and `neuralwatt-flex` 20.
 A closed member adds no room,
 and the runs already on it are still counted where they are,
 so they count in that total while the member itself takes no new run.
@@ -328,7 +331,8 @@ A refusal names each member pool with its count and the reason it takes no run n
 says how full its open members are together,
 names every member a caller closed and so left out of that total,
 and gives the setting that gives a pool room again.
-A run on the reviewer selection is counted the same way, from the same three pools.
+A run on the reviewer selection is counted the same way,
+from the same three pools.
 
 The member order is the plugin's,
 and this table carries a copy of it because the driver declares no dependency on that package,
@@ -343,7 +347,7 @@ It gets the largest wall factor of those members,
 because the run keeps one wall clock wherever its router lands.
 A run naming one pool directly is not this case:
 that pool's own room takes it,
-and, when the pool is a member of a virtual selection,
+and when the pool is a member of a virtual selection,
 that selection's members must have room together too.
 
 ### The room a new run needs

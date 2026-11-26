@@ -269,7 +269,9 @@ the audit found no correctness difference either way.
   The driver counts such a run once against the room those members have together,
   `VIRTUAL_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`,
   and starts it while the runs on them are fewer than that room:
-  the owner, 2026-11-26, after five rounds ran at once because Qwen's room is 5,
+  the owner,
+  2026-11-26,
+  after five rounds ran at once because Qwen's room is 5,
   "Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself."
 - **Standard Neuralwatt DeepSeek** (`--provider=neuralwatt --model=deepseek-v4.1-flash`) is closed,
   and no run names it.

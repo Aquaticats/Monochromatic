@@ -71,10 +71,12 @@ because the router has no single pool to report and moves a request on by itself
 So a virtual writer run then took a slot in each member at once,
 and the smallest member's room (Qwen's 5) bounded how many ran together.
 Since 2026-11-26T18:06:16-05:00 the driver counts such a run once against the room its open members have together
-(commit `c512a9f9f4`, unapproved and non-final;
+(commit `c512a9f9f4`,
+unapproved and non-final;
 the section "The virtual writer is not capped at its smallest member" records the change):
-the owner, reading that five rounds ran at once, said
-"Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself.",
+the owner,
+reading that five rounds ran at once,
+said "Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself.",
 so that room together (45 with the limits recorded here) bounds these runs,
 and a member's own room bounds only the runs pinned to it.
 The plugin's built `dist/` in the main checkout,
@@ -109,9 +111,12 @@ and both rounds it started ended on their first request with opencode-go's
 which the virtual writer moves on to flex because it comes before any output
 (`package/pi-plugin/rate-limit-fallback/README.md`).
 Starts through the driver's pool gate
-(`start-pi-run-when-a-pool-has-room.ts`, the batch list and the retrying start)
+(`start-pi-run-when-a-pool-has-room.ts`,
+the batch list and the retrying start)
 counted a virtual-writer run as a slot in every member and so stopped at Qwen's 5
-until commit `c512a9f9f4` (2026-11-26T18:06:16-05:00, unapproved and non-final),
+until commit `c512a9f9f4`
+(2026-11-26T18:06:16-05:00,
+unapproved and non-final),
 which counts such a run once against the room its open members have together
 (round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
 The count that decides now is the runs on a selection's members,
@@ -124,6 +129,8 @@ and a run pinned to one pool both needs that room and leaves the members' room t
 so a run that names no model of its own may be refused once the members together are full,
 although its own pool has room left.
 The reviewer selection follows the same rule.
-The tallies the driver prints carry one entry per pool, counting the runs pinned to it,
-and one per selection, as `rate-limit-fallback/writer 2/45 together`,
+The tallies the driver prints carry one entry per pool,
+counting the runs pinned to it,
+and one per selection,
+as `rate-limit-fallback/writer 2/45 together`,
 and a refusal says how full the members are together as well as what each member reads.
