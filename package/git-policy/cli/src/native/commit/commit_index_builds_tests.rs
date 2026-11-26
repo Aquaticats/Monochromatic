@@ -7,6 +7,11 @@
 //!   A record that says "kept" of a build that left every entry without stat data would send the next slow commit
 //!  after the wrong cause,
 //! so each way of building the index is run here and the built index is asked for its stat data.
+//!  The list of builds is one for the whole process,
+//!  which every build notes into and every timing record takes,
+//!  so each control that counts the builds of its own command runs its body in a child of its own
+//!  (`crate::process_wide_state_child_test_support`),
+//!  as issue 6509 found.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,43 +46,47 @@ use std::process::Command;
 /// The line `git ls-files --debug` prints for the modification time of an entry that was never refreshed.
 const UNSET_MODIFICATION_TIME: &str = "mtime: 0:0";
 
-/// The builds this process noted,
-/// which a control starts with none of.
-fn noted() -> Vec<IndexBuild> {
-    return drain_index_builds();
-}
-
 /// Builds are kept in the order they were noted,
 /// and taking them empties the list,
 /// so one record describes one command.
 #[test]
 fn each_build_is_noted_in_the_order_built_and_taken_once() {
-    assert_eq!(noted(), Vec::new(), "a control starts with no build");
-    note_index_build(IndexBuildKind::First, true);
-    note_index_build(IndexBuildKind::Retry, false);
-    note_index_build(IndexBuildKind::Retry, true);
-    let taken: Vec<IndexBuild> = noted();
-    assert_eq!(
-        taken,
-        vec![
-            IndexBuild {
-                kind: IndexBuildKind::First,
-                stat_data_kept: true
-            },
-            IndexBuild {
-                kind: IndexBuildKind::Retry,
-                stat_data_kept: false
-            },
-            IndexBuild {
-                kind: IndexBuildKind::Retry,
-                stat_data_kept: true
-            },
-        ]
-    );
-    assert_eq!(
-        noted(),
-        Vec::new(),
-        "the record takes the builds of its own command"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "each_build_is_noted_in_the_order_built_and_taken_once",
+        || {
+            assert_eq!(
+                drain_index_builds(),
+                Vec::new(),
+                "a control starts with no build"
+            );
+            note_index_build(IndexBuildKind::First, true);
+            note_index_build(IndexBuildKind::Retry, false);
+            note_index_build(IndexBuildKind::Retry, true);
+            let taken: Vec<IndexBuild> = drain_index_builds();
+            assert_eq!(
+                taken,
+                vec![
+                    IndexBuild {
+                        kind: IndexBuildKind::First,
+                        stat_data_kept: true
+                    },
+                    IndexBuild {
+                        kind: IndexBuildKind::Retry,
+                        stat_data_kept: false
+                    },
+                    IndexBuild {
+                        kind: IndexBuildKind::Retry,
+                        stat_data_kept: true
+                    },
+                ]
+            );
+            assert_eq!(
+                drain_index_builds(),
+                Vec::new(),
+                "the record takes the builds of its own command"
+            );
+        },
     );
 }
 
@@ -165,33 +174,40 @@ fn explicit_path<'selection>(
 /// and the built index does hold the cached entry.
 #[test]
 fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
-    let root: PathBuf = fixture("index-builds-kept");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
-    let named: [OsString; 1] = [OsString::from("b.txt")];
-    let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
-    initialize_commit_index(
-        &git_context(),
-        repo.as_path(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        &selection,
-    )
-    .expect("initialize");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::First,
-            stat_data_kept: true
-        }]
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_build_from_the_real_index_is_noted_as_keeping_the_stat_data",
+        || {
+            let root: PathBuf = fixture("index-builds-kept");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+            let named: [OsString; 1] = [OsString::from("b.txt")];
+            let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
+            initialize_commit_index(
+                &git_context(),
+                repo.as_path(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                &selection,
+            )
+            .expect("initialize");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::First,
+                    stat_data_kept: true
+                }]
+            );
+            let listing: String =
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+            assert!(
+                !listing.contains(UNSET_MODIFICATION_TIME),
+                "the build kept the stat data it reported: {listing}"
+            );
+            remove(root.as_path());
+        },
     );
-    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(
-        !listing.contains(UNSET_MODIFICATION_TIME),
-        "the build kept the stat data it reported: {listing}"
-    );
-    remove(root.as_path());
 }
 
 /// A build from the tree alone is noted as not keeping the stat data,
@@ -200,71 +216,85 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
 /// which is the whole worktree rather than the entries that moved.
 #[test]
 fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
-    let root: PathBuf = fixture("index-builds-tree-alone");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    // A mark the copy cannot carry makes the retry build the index from the tree alone (`seed_of_index_bytes`).
-    git(
-        repo.as_path(),
-        &["update-index", "--assume-unchanged", "--", "a.txt"],
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data",
+        || {
+            let root: PathBuf = fixture("index-builds-tree-alone");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            // A mark the copy cannot carry makes the retry build the index from the tree alone (`seed_of_index_bytes`).
+            git(
+                repo.as_path(),
+                &["update-index", "--assume-unchanged", "--", "a.txt"],
+            );
+            let tree: String = git_text(
+                repo.as_path(),
+                &["rev-parse", format!("{base}^{{tree}}").as_str()],
+            );
+            initialize_retry_index(
+                &git_context(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                tree.as_str(),
+            )
+            .expect("retry index");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::Retry,
+                    stat_data_kept: false
+                }]
+            );
+            let listing: String =
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+            assert!(
+                !listing.contains(UNSET_MODIFICATION_TIME),
+                "the refresh after the build records the stat data: {listing}"
+            );
+            remove(root.as_path());
+        },
     );
-    let tree: String = git_text(
-        repo.as_path(),
-        &["rev-parse", format!("{base}^{{tree}}").as_str()],
-    );
-    initialize_retry_index(
-        &git_context(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        tree.as_str(),
-    )
-    .expect("retry index");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::Retry,
-            stat_data_kept: false
-        }]
-    );
-    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(
-        !listing.contains(UNSET_MODIFICATION_TIME),
-        "the refresh after the build records the stat data: {listing}"
-    );
-    remove(root.as_path());
 }
 
 /// The same retry with an index it can copy is noted as keeping the stat data,
 /// so the two ways of building a retry index are told apart in the record.
 #[test]
 fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
-    let root: PathBuf = fixture("index-builds-retry-kept");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    let tree: String = git_text(
-        repo.as_path(),
-        &["rev-parse", format!("{base}^{{tree}}").as_str()],
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data",
+        || {
+            let root: PathBuf = fixture("index-builds-retry-kept");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            let tree: String = git_text(
+                repo.as_path(),
+                &["rev-parse", format!("{base}^{{tree}}").as_str()],
+            );
+            initialize_retry_index(
+                &git_context(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                tree.as_str(),
+            )
+            .expect("retry index");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::Retry,
+                    stat_data_kept: true
+                }]
+            );
+            let listing: String =
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+            assert!(
+                !listing.contains(UNSET_MODIFICATION_TIME),
+                "a copy of the real index keeps its stat data: {listing}"
+            );
+            remove(root.as_path());
+        },
     );
-    initialize_retry_index(
-        &git_context(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        tree.as_str(),
-    )
-    .expect("retry index");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::Retry,
-            stat_data_kept: true
-        }]
-    );
-    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(
-        !listing.contains(UNSET_MODIFICATION_TIME),
-        "a copy of the real index keeps its stat data: {listing}"
-    );
-    remove(root.as_path());
 }
 
 /// Run real Git against `index`,
@@ -426,31 +456,38 @@ fn whole_index(base: &str) -> IndexSelection<'_> {
 /// so it is noted as keeping the stat data the real index holds.
 #[test]
 fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
-    let root: PathBuf = fixture("index-builds-index-mode");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
-    initialize_commit_index(
-        &git_context(),
-        repo.as_path(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        &whole_index(base.as_str()),
-    )
-    .expect("initialize");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::First,
-            stat_data_kept: true
-        }]
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied",
+        || {
+            let root: PathBuf = fixture("index-builds-index-mode");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+            initialize_commit_index(
+                &git_context(),
+                repo.as_path(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                &whole_index(base.as_str()),
+            )
+            .expect("initialize");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::First,
+                    stat_data_kept: true
+                }]
+            );
+            let listing: String =
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+            assert!(
+                !listing.contains(UNSET_MODIFICATION_TIME),
+                "the copy holds the real index's stat data: {listing}"
+            );
+            remove(root.as_path());
+        },
     );
-    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(
-        !listing.contains(UNSET_MODIFICATION_TIME),
-        "the copy holds the real index's stat data: {listing}"
-    );
-    remove(root.as_path());
 }
 
 /// A repository nothing was ever staged in has no index to copy,
@@ -459,39 +496,45 @@ fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
 /// so a reader is never told a build kept what never existed.
 #[test]
 fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
-    let root: PathBuf = fixture("index-builds-no-index");
-    let repo: PathBuf = root.join("repo");
-    std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(
-        repo.as_path(),
-        &["init", "--quiet", "--initial-branch=main"],
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none",
+        || {
+            let root: PathBuf = fixture("index-builds-no-index");
+            let repo: PathBuf = root.join("repo");
+            std::fs::create_dir(repo.as_path()).expect("repository directory");
+            git(
+                repo.as_path(),
+                &["init", "--quiet", "--initial-branch=main"],
+            );
+            let indexes: CaptureIndexes = CaptureIndexes {
+                captured_index: repo.join(".git").join("captured.index"),
+                commit_index: repo.join(".git").join("commit.index"),
+                object_directory: repo.join(".git").join("objects"),
+            };
+            assert!(
+                !repo.join(".git").join("index").exists(),
+                "a repository nothing was staged in holds no index"
+            );
+            initialize_commit_index(
+                &git_context(),
+                repo.as_path(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                &whole_index("HEAD"),
+            )
+            .expect("initialize");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::First,
+                    stat_data_kept: false
+                }]
+            );
+            remove(root.as_path());
+        },
     );
-    let indexes: CaptureIndexes = CaptureIndexes {
-        captured_index: repo.join(".git").join("captured.index"),
-        commit_index: repo.join(".git").join("commit.index"),
-        object_directory: repo.join(".git").join("objects"),
-    };
-    assert!(
-        !repo.join(".git").join("index").exists(),
-        "a repository nothing was staged in holds no index"
-    );
-    initialize_commit_index(
-        &git_context(),
-        repo.as_path(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        &whole_index("HEAD"),
-    )
-    .expect("initialize");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::First,
-            stat_data_kept: false
-        }]
-    );
-    remove(root.as_path());
 }
 
 /// An index whose only marks are intent-to-add entries seeds a copy too,
@@ -499,84 +542,100 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
 /// and the reset drops the mark whose path the base does not hold.
 #[test]
 fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
-    let root: PathBuf = fixture("index-builds-intent");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
-    git(
-        repo.as_path(),
-        &["add", "--intent-to-add", "--", "added.txt"],
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data",
+        || {
+            let root: PathBuf = fixture("index-builds-intent");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            std::fs::write(repo.join("added.txt"), "new\n")
+                .expect("the file the person added with intent");
+            git(
+                repo.as_path(),
+                &["add", "--intent-to-add", "--", "added.txt"],
+            );
+            std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+            let named: [OsString; 1] = [OsString::from("b.txt")];
+            let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
+            initialize_commit_index(
+                &git_context(),
+                repo.as_path(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                &selection,
+            )
+            .expect("initialize");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::First,
+                    stat_data_kept: true
+                }]
+            );
+            let listing: String =
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+            assert!(
+                !listing.contains(UNSET_MODIFICATION_TIME),
+                "the copy holds the real index's stat data: {listing}"
+            );
+            assert_eq!(
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
+                String::new(),
+                "the reset drops the mark the base does not hold"
+            );
+            remove(root.as_path());
+        },
     );
-    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
-    let named: [OsString; 1] = [OsString::from("b.txt")];
-    let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
-    initialize_commit_index(
-        &git_context(),
-        repo.as_path(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        &selection,
-    )
-    .expect("initialize");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::First,
-            stat_data_kept: true
-        }]
-    );
-    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(
-        !listing.contains(UNSET_MODIFICATION_TIME),
-        "the copy holds the real index's stat data: {listing}"
-    );
-    assert_eq!(
-        debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
-        String::new(),
-        "the reset drops the mark the base does not hold"
-    );
-    remove(root.as_path());
 }
 
 /// A rebuild from an index that holds an intent-to-add entry is noted as keeping the stat data as well,
 /// which is the build a moved branch pays several times.
 #[test]
 fn a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_the_stat_data() {
-    let root: PathBuf = fixture("index-builds-intent-retry");
-    let (repo, indexes, base) = committed_repository(root.as_path());
-    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
-    git(
-        repo.as_path(),
-        &["add", "--intent-to-add", "--", "added.txt"],
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_the_stat_data",
+        || {
+            let root: PathBuf = fixture("index-builds-intent-retry");
+            let (repo, indexes, base) = committed_repository(root.as_path());
+            std::fs::write(repo.join("added.txt"), "new\n")
+                .expect("the file the person added with intent");
+            git(
+                repo.as_path(),
+                &["add", "--intent-to-add", "--", "added.txt"],
+            );
+            let tree: String = git_text(
+                repo.as_path(),
+                &["rev-parse", format!("{base}^{{tree}}").as_str()],
+            );
+            initialize_retry_index(
+                &git_context(),
+                repo.as_path(),
+                repo.join(".git").join("index").as_path(),
+                &indexes,
+                tree.as_str(),
+            )
+            .expect("retry index");
+            assert_eq!(
+                drain_index_builds(),
+                vec![IndexBuild {
+                    kind: IndexBuildKind::Retry,
+                    stat_data_kept: true
+                }]
+            );
+            let listing: String =
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+            assert!(
+                !listing.contains(UNSET_MODIFICATION_TIME),
+                "the copy holds the real index's stat data: {listing}"
+            );
+            assert_eq!(
+                debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
+                String::new(),
+                "the reset drops the mark the base does not hold"
+            );
+            remove(root.as_path());
+        },
     );
-    let tree: String = git_text(
-        repo.as_path(),
-        &["rev-parse", format!("{base}^{{tree}}").as_str()],
-    );
-    initialize_retry_index(
-        &git_context(),
-        repo.as_path(),
-        repo.join(".git").join("index").as_path(),
-        &indexes,
-        tree.as_str(),
-    )
-    .expect("retry index");
-    assert_eq!(
-        noted(),
-        vec![IndexBuild {
-            kind: IndexBuildKind::Retry,
-            stat_data_kept: true
-        }]
-    );
-    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
-    assert!(
-        !listing.contains(UNSET_MODIFICATION_TIME),
-        "the copy holds the real index's stat data: {listing}"
-    );
-    assert_eq!(
-        debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
-        String::new(),
-        "the reset drops the mark the base does not hold"
-    );
-    remove(root.as_path());
 }
