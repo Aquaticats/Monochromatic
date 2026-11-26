@@ -337,29 +337,29 @@ fn a_line_the_queue_could_not_take_is_counted_and_said_before_the_next() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_process_refused_the_writer_thread_says_which_limit_it_was_and_says_its_lines",
-    ) {
-        return;
-    }
-    let (mut reader, writer) = std::io::pipe().expect("a pipe");
-    give_the_thread(Box::new(writer));
-    let first: &str = "[warn] the line a process at its process limit would have lost\n";
-    let last: &str = "monochromatic-git-policy-cli: the line after it, which a queue no thread writes would also have lost\n";
-    write(first);
-    write(last);
-    let said: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
-    assert!(
-        said.contains("ulimit -u"),
-        "the refusal names the process limit that refused the thread, and not only the system's error: {said}"
-    );
-    assert!(
-        said.contains(first),
-        "the line said as the refusal is written where it is said: {said}"
-    );
-    assert!(
-        said.contains(last),
-        "the line said after the refusal is written where it is said too: {said}"
+        || {
+            let (mut reader, writer) = std::io::pipe().expect("a pipe");
+            give_the_thread(Box::new(writer));
+            let first: &str = "[warn] the line a process at its process limit would have lost\n";
+            let last: &str = "monochromatic-git-policy-cli: the line after it, which a queue no thread writes would also have lost\n";
+            write(first);
+            write(last);
+            let said: String = read_while_it_keeps_coming(&mut reader, Duration::from_millis(500));
+            assert!(
+                said.contains("ulimit -u"),
+                "the refusal names the process limit that refused the thread, and not only the system's error: {said}"
+            );
+            assert!(
+                said.contains(first),
+                "the line said as the refusal is written where it is said: {said}"
+            );
+            assert!(
+                said.contains(last),
+                "the line said after the refusal is written where it is said too: {said}"
+            );
+        },
     );
 }

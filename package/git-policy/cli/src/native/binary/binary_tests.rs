@@ -32,6 +32,11 @@ mod test_process_owner;
 #[path = "../testing/child_test_process.rs"]
 mod child_test_process;
 
+/// The one place a test body runs in a child under a chosen umask;
+/// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
+#[path = "../testing/umask_child_test_support.rs"]
+mod umask_child_test_support;
+
 /// The fixture lifecycle both test targets run on, written once and included here by `#[path]`
 /// as the unit tests include it.
 #[path = "../testing/fixture_support_shared_by_both_test_targets.rs"]

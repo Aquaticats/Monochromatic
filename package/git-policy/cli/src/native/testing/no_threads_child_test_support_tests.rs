@@ -5,7 +5,7 @@
 //! `thread_probe`,
 //! that tries to start one thread and prints whether it could.
 //! Why:
-//! `ran_in_child` starts it first in a child whose process limit is one;
+//! `run_the_body_where_no_thread_can_start` starts it first in a child whose process limit is one;
 //! if a thread still starts there,
 //! this user may exceed the limit,
 //! so the real test is skipped instead of proving nothing.

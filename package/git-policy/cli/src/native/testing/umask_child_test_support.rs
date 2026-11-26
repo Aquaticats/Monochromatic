@@ -2,15 +2,14 @@
 //! so no test changes the umask of a process other tests
 //! run in (the test binary runs tests on threads of one process under `cargo test`).
 //!
-//! A test calls `ran_in_child` first and returns when it says `true`:
-//! the parent has then started this same test in a child
-//! with the mask,
-//! and the child's success is the parent's assertion.
-//! In the child it says `false` and the test goes on.
+//! A test hands this file the body to run,
+//! and the body runs in a child whose file creation mask is the one the test chose:
+//! the parent starts this same test in that child, and the child's success is the parent's assertion.
+//! The parent never calls the body, so no caller holds an answer that can be read inverted.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (ranInChild(import.meta.url, 'a_test', 0o077)) return;
+//! runTheBodyUnderUmask(import.meta.url, 'a_test', 0o077, () => { /* the body */ });
 //! ```
 
 /// The request for one child of this test binary, its deadline, and the check that its one test passed.
@@ -25,30 +24,37 @@ use std::ffi::OsStr;
 const CHILD_VARIABLE: &str = "CLI_GIT_UMASK_CHILD";
 
 /// What:
-///  Whether this call ran the test in a child under `mask` (and asserted that it passed);
-///  `false` in the child itself,
-///  where the body follows.
-///  `module` is `module_path!()` of the test and `name` its function name.
+///  Runs `body` in a child of this test binary that starts under `mask`,
+///  and fails this call with the child's own words when that child's one test did not pass.
+///  `module` is `module_path!()` of the test,
+///  `name` its function name,
+///  `mask` the file creation mask the child runs under,
+///  and `body` what the test does.
 /// Why:
-///  A umask is one value for a whole process, so the mask is set between the child's `fork` and its `exec`
-///  and never in this process;
+///  A umask is one value for a whole process,
+///  so the mask is set between the child's `fork` and its `exec` and never in this process;
 ///  the child is the same test binary on this one test, and its pass is this control's whole assertion.
+///  The body is a closure the parent never calls, so no caller holds an answer that can be read inverted.
+/// Gotcha:
+///  Everything the body needs is made inside it, because nothing before this call runs in the child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ranInChild(module: string, name: string, mask: number): boolean {
-///   if (process.env.CHILD_VARIABLE) return false;
+/// function runTheBodyUnderUmask(module: string, name: string, mask: number, body: () => void): void {
+///   if (process.env.CHILD_VARIABLE) { body(); return; }
 ///   passed({ exactTest: `${module}::${name}`, environment: [[CHILD_VARIABLE, '1']], beforeTheExec: () => umask(mask) });
-///   return true;
 /// }
 /// ```
-pub(crate) fn ran_in_child(
+pub(crate) fn run_the_body_under_umask(
     module: &str,
     name: &str,
     mask: u32,
-) -> bool {
+    body: impl FnOnce(),
+) {
     if std::env::var_os(CHILD_VARIABLE).is_some() {
-        return false;
+        // The child is the process under the mask, so the body runs here and its panic is this child's failure.
+        body();
+        return;
     }
     // The crate's own name is the first segment of `module_path!()` and is not part of the name libtest answers to.
     let path: String = format!(
@@ -58,6 +64,7 @@ pub(crate) fn ran_in_child(
         })
     );
     let environment: [(&str, &OsStr); 1] = [(CHILD_VARIABLE, OsStr::new("1"))];
+    // The parent's whole assertion is this child's result, and a child that ran no test fails here.
     passed(ChildTest {
         exact_test: path.as_str(),
         environment: environment.as_slice(),
@@ -73,5 +80,4 @@ pub(crate) fn ran_in_child(
         })),
         ..ChildTest::default()
     });
-    return true;
 }

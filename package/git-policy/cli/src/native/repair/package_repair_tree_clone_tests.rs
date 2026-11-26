@@ -288,13 +288,13 @@ fn the_clone_threshold_is_the_measured_break_even() {
 /// is refused every thread.
 #[test]
 fn a_parallel_clone_where_no_thread_can_start_is_made_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_parallel_clone_where_no_thread_can_start_is_made_in_turn",
-    ) {
-        return;
-    }
-    parallel_and_serial_clones_agree();
+        || {
+            parallel_and_serial_clones_agree();
+        },
+    );
 }
 
 /// How long the control holds the places slow work may take,

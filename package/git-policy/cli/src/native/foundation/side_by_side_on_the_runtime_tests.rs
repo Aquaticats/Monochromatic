@@ -6,7 +6,7 @@
 //! and where no thread can start every item runs in turn.
 
 use super::*;
-use crate::no_threads_child_test_support::ran_in_child;
+use crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start;
 use crate::parallel_test_support::Rendezvous;
 use std::future::Future;
 use std::sync::Arc;
@@ -178,22 +178,24 @@ fn a_panicking_item_is_an_error_in_its_place() {
 /// The body runs in a child that is refused every thread.
 #[test]
 fn where_no_thread_can_start_every_item_runs_in_turn() {
-    if ran_in_child(
+    run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_every_item_runs_in_turn",
-    ) {
-        return;
-    }
-    let here: std::thread::ThreadId = std::thread::current().id();
-    let results: Vec<Result<(std::thread::ThreadId, bool), BlockingJobError>> = on_the_runtime(
-        run_all_side_by_side_on_the_runtime(vec![(), (), ()], where_the_job_ran),
+        || {
+            let here: std::thread::ThreadId = std::thread::current().id();
+            let results: Vec<Result<(std::thread::ThreadId, bool), BlockingJobError>> =
+                on_the_runtime(run_all_side_by_side_on_the_runtime(
+                    vec![(), (), ()],
+                    where_the_job_ran,
+                ));
+            for each in results {
+                let (ran_on, _inside): (std::thread::ThreadId, bool) = each
+                    .expect("the work of an item the system refused a thread for is done in turn");
+                assert_eq!(
+                    ran_on, here,
+                    "an item's work ran somewhere other than the task that waited for it, where no thread can start"
+                );
+            }
+        },
     );
-    for each in results {
-        let (ran_on, _inside): (std::thread::ThreadId, bool) =
-            each.expect("the work of an item the system refused a thread for is done in turn");
-        assert_eq!(
-            ran_on, here,
-            "an item's work ran somewhere other than the task that waited for it, where no thread can start"
-        );
-    }
 }

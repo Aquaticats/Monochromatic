@@ -25,10 +25,6 @@
 //! chmod('victim.txt', 0o600); await wrapped(['merge', '--no-edit', 'feature']); expect(mode('victim.txt')).toBe(gitWritesFor('victim.txt'));
 //! ```
 
-use super::child_test_process::{
-    ChildTest,
-    passed,
-};
 use super::commit::COMMIT_BOUND_SECONDS;
 use super::support::{
     Fixture,
@@ -41,64 +37,12 @@ use super::support::{
     repository,
     wrapper_first_path,
 };
+/// The one place a test body runs in a child under a chosen mask, written once for both test targets.
+use super::umask_child_test_support::run_the_body_under_umask;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// The environment variable that marks the child `ran_in_child` starts.
-const CHILD_VARIABLE: &str = "CLI_GIT_MERGE_MODE_CHILD";
-
-/// What:
-///  Whether this call ran the test in a child process under `mask`,
-///  and asserted that the child passed;
-///  `false` in the child itself,
-///  where the body follows.
-/// Why:
-///  A umask is one value for a whole process,
-///  and this harness runs many controls on the threads of one process,
-///  so a control that set it would decide the mode every other control's writes get.
-///  The child is the same test binary run with one test name,
-///  which is why this answer is `true` in the parent:
-///  the parent's assertion is the child's result.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ranInChild = (module, name, mask) => { if (process.env.CHILD) return false; const child = spawn(self, ['--exact', `${module}::${name}`, '--nocapture'], { env: { CHILD: '1' }, preExec: () => umask(mask) }); const said = run(child); assert(said.includes('1 passed')); return true; };
-/// ```
-fn ran_in_child(
-    module: &str,
-    name: &str,
-    mask: u32,
-) -> bool {
-    if std::env::var_os(CHILD_VARIABLE).is_some() {
-        return false;
-    }
-    // The crate's own name is the first segment of `module_path!()` and is not part of the name libtest answers to,
-    //  so it is dropped here as the library's own helper does.
-    let path: String = format!(
-        "{}::{name}",
-        module
-            .split_once("::")
-            .map_or(module, |(_, rest)| { return rest })
-    );
-    let environment: [(&str, &std::ffi::OsStr); 1] = [(CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
-    passed(ChildTest {
-        exact_test: path.as_str(),
-        environment: environment.as_slice(),
-        // What: a closure that sets the child's file creation mask between `fork` and `exec`.
-        // Why:  `umask` is async-signal-safe, which is the whole rule for that window.
-        before_the_exec: Some(Box::new(move || {
-            // SAFETY: `umask` only sets the file creation mask of the child between its fork and its exec.
-            unsafe {
-                libc::umask(mask as libc::mode_t);
-            }
-            return Ok(());
-        })),
-        ..ChildTest::default()
-    });
-    return true;
-}
 
 /// What the merge does to the file the person set a mode on.
 ///
@@ -365,39 +309,39 @@ fn an_edit_the_person_staged(
 /// ```
 #[test]
 fn a_merge_writes_the_mode_git_writes_over_the_private_mode_a_person_set() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_writes_the_mode_git_writes_over_the_private_mode_a_person_set",
         0o022,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-private");
-    let repo: PathBuf = diverged(&fixture, "private", WhatTheMergeDoes::Modify);
-    use std::os::unix::fs::PermissionsExt as _;
-    an_edit_the_person_staged(&fixture, repo.as_path());
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge lands: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-private");
+            let repo: PathBuf = diverged(&fixture, "private", WhatTheMergeDoes::Modify);
+            use std::os::unix::fs::PermissionsExt as _;
+            an_edit_the_person_staged(&fixture, repo.as_path());
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge lands: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            assert_eq!(
+                std::fs::read(repo.join(THE_FILE)).expect(THE_FILE),
+                ON_THE_FEATURE.as_bytes(),
+                "the merge's content stands at the path"
+            );
+            let written: Option<u32> = mode_at(repo.as_path(), THE_FILE);
+            let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_FILE);
+            assert_eq!(
+                written,
+                Some(gits),
+                "the file ends at the mode Git writes ({gits:o}), not the {written:?} it held: a mode Git does not record is not a merge's to keep"
+            );
+            remove(&fixture);
+        },
     );
-    assert_eq!(
-        std::fs::read(repo.join(THE_FILE)).expect(THE_FILE),
-        ON_THE_FEATURE.as_bytes(),
-        "the merge's content stands at the path"
-    );
-    let written: Option<u32> = mode_at(repo.as_path(), THE_FILE);
-    let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_FILE);
-    assert_eq!(
-        written,
-        Some(gits),
-        "the file ends at the mode Git writes ({gits:o}), not the {written:?} it held: a mode Git does not record is not a merge's to keep"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -416,39 +360,39 @@ fn a_merge_writes_the_mode_git_writes_over_the_private_mode_a_person_set() {
 /// ```
 #[test]
 fn a_merge_under_a_private_umask_writes_the_mode_git_writes() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_under_a_private_umask_writes_the_mode_git_writes",
         0o077,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-umask");
-    let repo: PathBuf = diverged(&fixture, "umask", WhatTheMergeDoes::Modify);
-    use std::os::unix::fs::PermissionsExt as _;
-    an_edit_the_person_staged(&fixture, repo.as_path());
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o640))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge lands: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-umask");
+            let repo: PathBuf = diverged(&fixture, "umask", WhatTheMergeDoes::Modify);
+            use std::os::unix::fs::PermissionsExt as _;
+            an_edit_the_person_staged(&fixture, repo.as_path());
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o640))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge lands: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            let written: Option<u32> = mode_at(repo.as_path(), THE_FILE);
+            let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_FILE);
+            assert_eq!(
+                written,
+                Some(gits),
+                "the file ends at the mode Git writes under this mask ({gits:o}), not {written:?}"
+            );
+            assert_eq!(
+                written.map(|bits| { return bits & RUNNABLE_BITS }),
+                Some(0),
+                "a merge of a plain entry writes no executable bit, whatever mask is set"
+            );
+            remove(&fixture);
+        },
     );
-    let written: Option<u32> = mode_at(repo.as_path(), THE_FILE);
-    let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_FILE);
-    assert_eq!(
-        written,
-        Some(gits),
-        "the file ends at the mode Git writes under this mask ({gits:o}), not {written:?}"
-    );
-    assert_eq!(
-        written.map(|bits| { return bits & RUNNABLE_BITS }),
-        Some(0),
-        "a merge of a plain entry writes no executable bit, whatever mask is set"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -473,39 +417,39 @@ fn a_merge_under_a_private_umask_writes_the_mode_git_writes() {
 /// ```
 #[test]
 fn a_merge_of_a_plain_entry_writes_no_executable_bit_for_a_mode_the_worktree_alone_holds() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_of_a_plain_entry_writes_no_executable_bit_for_a_mode_the_worktree_alone_holds",
         0o077,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-runnable");
-    let repo: PathBuf = diverged(&fixture, "runnable", WhatTheMergeDoes::Modify);
-    use std::os::unix::fs::PermissionsExt as _;
-    an_edit_the_person_staged(&fixture, repo.as_path());
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o700))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge lands: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-runnable");
+            let repo: PathBuf = diverged(&fixture, "runnable", WhatTheMergeDoes::Modify);
+            use std::os::unix::fs::PermissionsExt as _;
+            an_edit_the_person_staged(&fixture, repo.as_path());
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o700))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge lands: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            let written: Option<u32> = mode_at(repo.as_path(), THE_FILE);
+            let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_FILE);
+            assert_eq!(
+                written,
+                Some(gits),
+                "the file ends at the mode Git writes ({gits:o}), not the {written:?} the worktree held: Git records no such bit for this entry"
+            );
+            assert_eq!(
+                written.map(|bits| { return bits & RUNNABLE_BITS }),
+                Some(0),
+                "a plain entry stays unrunnable after a merge"
+            );
+            remove(&fixture);
+        },
     );
-    let written: Option<u32> = mode_at(repo.as_path(), THE_FILE);
-    let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_FILE);
-    assert_eq!(
-        written,
-        Some(gits),
-        "the file ends at the mode Git writes ({gits:o}), not the {written:?} the worktree held: Git records no such bit for this entry"
-    );
-    assert_eq!(
-        written.map(|bits| { return bits & RUNNABLE_BITS }),
-        Some(0),
-        "a plain entry stays unrunnable after a merge"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -525,39 +469,39 @@ fn a_merge_of_a_plain_entry_writes_no_executable_bit_for_a_mode_the_worktree_alo
 /// ```
 #[test]
 fn a_merge_that_moves_a_file_deletes_the_old_path_and_writes_the_mode_git_writes() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_that_moves_a_file_deletes_the_old_path_and_writes_the_mode_git_writes",
         0o022,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-rename");
-    let repo: PathBuf = diverged(&fixture, "rename", WhatTheMergeDoes::Rename);
-    use std::os::unix::fs::PermissionsExt as _;
-    an_edit_the_person_staged(&fixture, repo.as_path());
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge lands: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-rename");
+            let repo: PathBuf = diverged(&fixture, "rename", WhatTheMergeDoes::Rename);
+            use std::os::unix::fs::PermissionsExt as _;
+            an_edit_the_person_staged(&fixture, repo.as_path());
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge lands: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            assert_eq!(
+                mode_at(repo.as_path(), THE_FILE),
+                None,
+                "the path the merge moved away is gone, as it is with real Git"
+            );
+            let written: Option<u32> = mode_at(repo.as_path(), THE_NEW_NAME);
+            let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_NEW_NAME);
+            assert_eq!(
+                written,
+                Some(gits),
+                "the moved file carries the mode Git writes ({gits:o}), not {written:?}"
+            );
+            remove(&fixture);
+        },
     );
-    assert_eq!(
-        mode_at(repo.as_path(), THE_FILE),
-        None,
-        "the path the merge moved away is gone, as it is with real Git"
-    );
-    let written: Option<u32> = mode_at(repo.as_path(), THE_NEW_NAME);
-    let gits: u32 = the_mode_git_writes(&fixture, repo.as_path(), THE_NEW_NAME);
-    assert_eq!(
-        written,
-        Some(gits),
-        "the moved file carries the mode Git writes ({gits:o}), not {written:?}"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -577,32 +521,32 @@ fn a_merge_that_moves_a_file_deletes_the_old_path_and_writes_the_mode_git_writes
 /// ```
 #[test]
 fn a_merge_that_deletes_the_file_deletes_a_mode_the_person_set() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_that_deletes_the_file_deletes_a_mode_the_person_set",
         0o022,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-delete");
-    let repo: PathBuf = diverged(&fixture, "delete", WhatTheMergeDoes::Delete);
-    use std::os::unix::fs::PermissionsExt as _;
-    an_edit_the_person_staged(&fixture, repo.as_path());
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge lands: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-delete");
+            let repo: PathBuf = diverged(&fixture, "delete", WhatTheMergeDoes::Delete);
+            use std::os::unix::fs::PermissionsExt as _;
+            an_edit_the_person_staged(&fixture, repo.as_path());
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge lands: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            assert_eq!(
+                mode_at(repo.as_path(), THE_FILE),
+                None,
+                "the file the merge deletes is gone, with the mode a person set on it"
+            );
+            remove(&fixture);
+        },
     );
-    assert_eq!(
-        mode_at(repo.as_path(), THE_FILE),
-        None,
-        "the file the merge deletes is gone, with the mode a person set on it"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -623,57 +567,57 @@ fn a_merge_that_deletes_the_file_deletes_a_mode_the_person_set() {
 /// ```
 #[test]
 fn a_merge_that_conflicts_writes_the_markers_at_the_mode_git_writes() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_that_conflicts_writes_the_markers_at_the_mode_git_writes",
         0o022,
-    ) {
-        return;
-    }
-    use std::os::unix::fs::PermissionsExt as _;
-    let fixture: Fixture = fixture("merge-mode-conflict");
-    // Real Git's own answer, in a repository of the same shape, under the same mask.
-    let twin: PathBuf = diverged(&fixture, "conflict-real", WhatTheMergeDoes::Conflict);
-    std::fs::set_permissions(twin.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let gits_run: Observed = observe(
-        super::support::direct(&fixture)
-            .current_dir(twin.as_path())
-            .args(["merge", "--no-edit", "feature"]),
-        b"",
+        || {
+            use std::os::unix::fs::PermissionsExt as _;
+            let fixture: Fixture = fixture("merge-mode-conflict");
+            // Real Git's own answer, in a repository of the same shape, under the same mask.
+            let twin: PathBuf = diverged(&fixture, "conflict-real", WhatTheMergeDoes::Conflict);
+            std::fs::set_permissions(twin.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let gits_run: Observed = observe(
+                super::support::direct(&fixture)
+                    .current_dir(twin.as_path())
+                    .args(["merge", "--no-edit", "feature"]),
+                b"",
+            );
+            let gits: Option<u32> = mode_at(twin.as_path(), THE_FILE);
+            let repo: PathBuf = diverged(&fixture, "conflict", WhatTheMergeDoes::Conflict);
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                gits_run.code,
+                "the merge ends as real Git's ends ({}): {}",
+                String::from_utf8_lossy(gits_run.stderr.as_slice()),
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            assert_eq!(
+                ran.stdout, gits_run.stdout,
+                "the same words reach the person as with real Git"
+            );
+            let written_text: String = String::from_utf8_lossy(
+                std::fs::read(repo.join(THE_FILE))
+                    .expect(THE_FILE)
+                    .as_slice(),
+            )
+            .into_owned();
+            assert!(
+                written_text.contains("<<<<<<<"),
+                "the conflicted file holds both sides: {written_text}"
+            );
+            assert_eq!(
+                mode_at(repo.as_path(), THE_FILE),
+                gits,
+                "the conflicted file ends at the mode real Git writes, not the one the person set"
+            );
+            remove(&fixture);
+        },
     );
-    let gits: Option<u32> = mode_at(twin.as_path(), THE_FILE);
-    let repo: PathBuf = diverged(&fixture, "conflict", WhatTheMergeDoes::Conflict);
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        gits_run.code,
-        "the merge ends as real Git's ends ({}): {}",
-        String::from_utf8_lossy(gits_run.stderr.as_slice()),
-        String::from_utf8_lossy(ran.stderr.as_slice())
-    );
-    assert_eq!(
-        ran.stdout, gits_run.stdout,
-        "the same words reach the person as with real Git"
-    );
-    let written_text: String = String::from_utf8_lossy(
-        std::fs::read(repo.join(THE_FILE))
-            .expect(THE_FILE)
-            .as_slice(),
-    )
-    .into_owned();
-    assert!(
-        written_text.contains("<<<<<<<"),
-        "the conflicted file holds both sides: {written_text}"
-    );
-    assert_eq!(
-        mode_at(repo.as_path(), THE_FILE),
-        gits,
-        "the conflicted file ends at the mode real Git writes, not the one the person set"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -693,37 +637,37 @@ fn a_merge_that_conflicts_writes_the_markers_at_the_mode_git_writes() {
 /// ```
 #[test]
 fn a_merge_leaves_a_path_it_does_not_change_at_the_mode_the_person_set() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_leaves_a_path_it_does_not_change_at_the_mode_the_person_set",
         0o022,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-untouched");
-    let repo: PathBuf = diverged(&fixture, "untouched", WhatTheMergeDoes::AnotherPath);
-    use std::os::unix::fs::PermissionsExt as _;
-    an_edit_the_person_staged(&fixture, repo.as_path());
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge lands: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-untouched");
+            let repo: PathBuf = diverged(&fixture, "untouched", WhatTheMergeDoes::AnotherPath);
+            use std::os::unix::fs::PermissionsExt as _;
+            an_edit_the_person_staged(&fixture, repo.as_path());
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge lands: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            assert_eq!(
+                std::fs::read(repo.join(THE_FILE)).expect(THE_FILE),
+                ON_THE_BRANCH.as_bytes(),
+                "the merge writes nothing at the path"
+            );
+            assert_eq!(
+                mode_at(repo.as_path(), THE_FILE),
+                Some(0o600),
+                "the mode the person set on a path Git does not write stands"
+            );
+            remove(&fixture);
+        },
     );
-    assert_eq!(
-        std::fs::read(repo.join(THE_FILE)).expect(THE_FILE),
-        ON_THE_BRANCH.as_bytes(),
-        "the merge writes nothing at the path"
-    );
-    assert_eq!(
-        mode_at(repo.as_path(), THE_FILE),
-        Some(0o600),
-        "the mode the person set on a path Git does not write stands"
-    );
-    remove(&fixture);
 }
 
 /// What:
@@ -745,44 +689,44 @@ fn a_merge_leaves_a_path_it_does_not_change_at_the_mode_the_person_set() {
 /// ```
 #[test]
 fn a_merge_that_keeps_the_persons_edit_at_a_deleted_path_keeps_the_mode_they_set() {
-    if ran_in_child(
+    run_the_body_under_umask(
         module_path!(),
         "a_merge_that_keeps_the_persons_edit_at_a_deleted_path_keeps_the_mode_they_set",
         0o022,
-    ) {
-        return;
-    }
-    let fixture: Fixture = fixture("merge-mode-kept-edit");
-    let repo: PathBuf = diverged(&fixture, "kept-edit", WhatTheMergeDoes::Delete);
-    use std::os::unix::fs::PermissionsExt as _;
-    std::fs::write(
-        repo.join(THE_FILE),
-        format!("{ON_THE_BRANCH}{THE_PERSONS_LINE}"),
-    )
-    .expect(THE_FILE);
-    std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
-        .expect("the person's mode");
-    let ran: Observed = merge(&fixture, repo.as_path());
-    assert_eq!(
-        ran.code,
-        Some(0),
-        "the merge is made and their file named: {}",
-        String::from_utf8_lossy(ran.stderr.as_slice())
+        || {
+            let fixture: Fixture = fixture("merge-mode-kept-edit");
+            let repo: PathBuf = diverged(&fixture, "kept-edit", WhatTheMergeDoes::Delete);
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::write(
+                repo.join(THE_FILE),
+                format!("{ON_THE_BRANCH}{THE_PERSONS_LINE}"),
+            )
+            .expect(THE_FILE);
+            std::fs::set_permissions(repo.join(THE_FILE), std::fs::Permissions::from_mode(0o600))
+                .expect("the person's mode");
+            let ran: Observed = merge(&fixture, repo.as_path());
+            assert_eq!(
+                ran.code,
+                Some(0),
+                "the merge is made and their file named: {}",
+                String::from_utf8_lossy(ran.stderr.as_slice())
+            );
+            let kept: String = String::from_utf8_lossy(
+                std::fs::read(repo.join(THE_FILE))
+                    .unwrap_or_default()
+                    .as_slice(),
+            )
+            .into_owned();
+            assert!(
+                kept.contains(THE_PERSONS_LINE),
+                "their own line is still in the file they wrote: {kept:?}"
+            );
+            assert_eq!(
+                mode_at(repo.as_path(), THE_FILE),
+                Some(0o600),
+                "the bits they set on the entry that stands are theirs"
+            );
+            remove(&fixture);
+        },
     );
-    let kept: String = String::from_utf8_lossy(
-        std::fs::read(repo.join(THE_FILE))
-            .unwrap_or_default()
-            .as_slice(),
-    )
-    .into_owned();
-    assert!(
-        kept.contains(THE_PERSONS_LINE),
-        "their own line is still in the file they wrote: {kept:?}"
-    );
-    assert_eq!(
-        mode_at(repo.as_path(), THE_FILE),
-        Some(0o600),
-        "the bits they set on the entry that stands are theirs"
-    );
-    remove(&fixture);
 }

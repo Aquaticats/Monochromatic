@@ -491,68 +491,71 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
 /// because only a refused thread start puts a job in that queue.
 #[test]
 fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it() {
-    if !crate::no_threads_child_test_support::ran_in_child(
+    crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start(
         module_path!(),
         "a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it",
-    ) {
-        return;
-    }
-    // A runtime with workers of its own, and a fixture made by a Git that is allowed to start.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises");
-    crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime");
-    let (parent, root) = checkout_with_linked("index-could-not-be-started");
-    // Every thread this process starts is refused now, so each rewrite is queued and none can start.
-    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
-    let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let counter: Arc<AtomicUsize> = Arc::clone(&ran);
-    let rewrite: Arc<RewriteOne> = Arc::new(
-        move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
-            counter.fetch_add(1, Ordering::SeqCst);
-            return refresh_index_file_with(index, tree, options);
+        || {
+            // A runtime with workers of its own, and a fixture made by a Git that is allowed to start.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises");
+            crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime");
+            let (parent, root) = checkout_with_linked("index-could-not-be-started");
+            // Every thread this process starts is refused now, so each rewrite is queued and none can start.
+            crate::no_threads_child_test_support::refuse_threads_again()
+                .expect("the process limit falls");
+            let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let counter: Arc<AtomicUsize> = Arc::clone(&ran);
+            let rewrite: Arc<RewriteOne> = Arc::new(
+                move |index: &Path, tree: &Path, options: &RefreshOptions<'_>| {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    return refresh_index_file_with(index, tree, options);
+                },
+            );
+            let mut lines: Vec<String> = Vec::new();
+            let request: AllIndexes = AllIndexes {
+                root: root.clone(),
+                lock: IndexLock::Acquire,
+                references: Vec::new(),
+                host: LARGE_HOST,
+                flushes_to_disk: false,
+                rewrite,
+            };
+            let refused: MigrateError = refresh_all_indexes_with(&request, &mut |text: &str| {
+                lines.push(text.to_string());
+            })
+            .expect_err("a thread is refused for every rewrite");
+            assert_eq!(
+                ran.load(Ordering::SeqCst),
+                0,
+                "no rewrite ran before a thread was free"
+            );
+            let said: String = refused.to_string();
+            // A thread may start again: the pool's first new thread runs what it queued before anything else.
+            crate::no_threads_child_test_support::let_threads_start_again()
+                .expect("the process limit rises again");
+            let drained = crate::lazy_runtime::run_on_runtime(async {
+                return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(
+                    || (),
+                )
+                .await;
+            });
+            assert!(
+                matches!(drained, Ok(Ok(()))),
+                "the job that starts the pool's first thread ran: {drained:?}"
+            );
+            let ran_afterwards: usize = ran.load(Ordering::SeqCst);
+            let promised_unchanged: bool = said.contains("given up on before it could start");
+            assert!(
+                !promised_unchanged || ran_afterwards == 0,
+                "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
+            );
+            assert!(
+                promised_unchanged || said.contains("not known") || said.contains("will not run"),
+                "the report must say either that no rewrite could start or that the work it lost had not started: {said}"
+            );
+            remove(parent.as_path());
         },
     );
-    let mut lines: Vec<String> = Vec::new();
-    let request: AllIndexes = AllIndexes {
-        root: root.clone(),
-        lock: IndexLock::Acquire,
-        references: Vec::new(),
-        host: LARGE_HOST,
-        flushes_to_disk: false,
-        rewrite,
-    };
-    let refused: MigrateError = refresh_all_indexes_with(&request, &mut |text: &str| {
-        lines.push(text.to_string());
-    })
-    .expect_err("a thread is refused for every rewrite");
-    assert_eq!(
-        ran.load(Ordering::SeqCst),
-        0,
-        "no rewrite ran before a thread was free"
-    );
-    let said: String = refused.to_string();
-    // A thread may start again: the pool's first new thread runs what it queued before anything else.
-    crate::no_threads_child_test_support::let_threads_start_again()
-        .expect("the process limit rises again");
-    let drained = crate::lazy_runtime::run_on_runtime(async {
-        return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(|| ())
-            .await;
-    });
-    assert!(
-        matches!(drained, Ok(Ok(()))),
-        "the job that starts the pool's first thread ran: {drained:?}"
-    );
-    let ran_afterwards: usize = ran.load(Ordering::SeqCst);
-    let promised_unchanged: bool = said.contains("given up on before it could start");
-    assert!(
-        !promised_unchanged || ran_afterwards == 0,
-        "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
-    );
-    assert!(
-        promised_unchanged || said.contains("not known") || said.contains("will not run"),
-        "the report must say either that no rewrite could start or that the work it lost had not started: {said}"
-    );
-    remove(parent.as_path());
 }
 
 /// How long the control of the preparation waits for the refresh to give up on its own.

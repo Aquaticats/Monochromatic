@@ -3,17 +3,20 @@
 //! carry on where the system gives none (`Scope::spawn` panics there;
 //! a start that falls back runs the work in turn).
 //!
-//! A test calls `ran_in_child` first and returns when it says `true`:
-//! the parent has then started this same test in a child whose
-//! process limit is one,
-//! and the child's success is the parent's assertion.
-//! In the child it says `false` and the body follows.
+//! A test hands this file the body to run, and the body runs in a child whose process limit is one:
+//! the parent starts this same test in that child, and the child's success is the parent's assertion.
+//! The parent never calls the body.
+//! That is the whole reason the body travels as a closure instead of the test holding an answer:
+//! while this file answered a yes or no, two controls read the answer inverted
+//! (`if !ran_in_child(...) { return; }`),
+//! so the child returned at once and the parent ran the body written for a process at its limit,
+//! and every other test of that run failed with `EAGAIN` (`Resource temporarily unavailable`, issue 6494).
 //! Where the user may exceed the process limit the thread is not refused,
 //! so the parent says so and skips.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (ranInChild(import.meta.url, 'a_test')) return;
+//! runTheBodyWhereNoThreadCanStart(import.meta.url, 'a_test', () => { /* the body */ });
 //! ```
 
 /// The requests for the child of this test binary, its deadline and the check that its one test passed.
@@ -68,7 +71,7 @@ pub(crate) fn let_threads_start_again() -> std::io::Result<()> {
 
 /// What:
 ///  Refuse every thread this process starts,
-/// as the child of `ran_in_child` is refused.
+/// as the child of `run_the_body_where_no_thread_can_start` is refused.
 /// Why:
 ///  A control that first needs processes of its own (a Git fixture) can then put the refusal back
 /// for the part it measures.
@@ -108,38 +111,46 @@ fn set_process_limit(allowed: Option<u64>) -> std::io::Result<()> {
 /// it says whether a thread can start under the limit.
 /// It lives in a sidecar,
 /// as every test of the crate does;
-/// `ran_in_child` names it by its path there.
+/// this file names it by its path there.
 #[cfg(test)]
 #[path = "no_threads_child_test_support_tests.rs"]
 mod tests;
 
-/// Whether this call ran the test in a child with no thread to start (and asserted that it passed),
-/// or skipped because the user may
-/// exceed the process limit;
-/// `false` in the child itself,
-/// where the body follows.
-/// `module` is `module_path!()` of the test and `name`
-/// its function name.
+/// What:
+///  Runs `body` in a child of this test binary whose soft process limit is one,
+///  and fails this call with the child's own words when that child's one test did not pass.
+///  `module` is `module_path!()` of the test,
+///  `name` its function name,
+///  and `body` what the test does.
 /// Why:
-///  The probe comes first, because a run where a thread still starts under one process proves nothing about the
-///  fallback, and the control says so instead of passing.
+///  A soft process limit belongs to a whole process,
+///  and `cargo test` runs a crate's tests as threads of one process,
+///  so a body that lowers it where the run holds it makes every other test of that run fail with `EAGAIN`
+///  (`Resource temporarily unavailable`, issue 6494).
+///  The child is a process of its own, so the limit reaches nothing else.
+///  The body is a closure the parent never calls, so no caller holds an answer that can be read inverted.
+/// Gotcha:
+///  Everything the body needs is made inside it, because nothing before this call runs in the child;
+///  a `let` before the call is the parent's value and the child never sees it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ranInChild(module: string, name: string): boolean {
-///   if (process.env.CHILD_VARIABLE) return false;
+/// function runTheBodyWhereNoThreadCanStart(module: string, name: string, body: () => void): void {
+///   if (process.env.CHILD_VARIABLE) { body(); return; }
 ///   const probe = finished({ exactTest: `${module}::tests::thread_probe`, beforeTheExec: lowerLimit, stderr: 'ignore' });
-///   if (probe.stdout.includes('thread-started')) { log('skipped'); return true; }
-///   passed({ exactTest: `${module}::${name}`, beforeTheExec: lowerLimit });
-///   return true;
+///   if (probe.stdout.includes('thread-started')) { log('skipped'); return; }
+///   passed({ exactTest: `${module}::${name}`, environment: [[CHILD_VARIABLE, '1']], beforeTheExec: lowerLimit });
 /// }
 /// ```
-pub(crate) fn ran_in_child(
+pub(crate) fn run_the_body_where_no_thread_can_start(
     module: &str,
     name: &str,
-) -> bool {
+    body: impl FnOnce(),
+) {
     if std::env::var_os(CHILD_VARIABLE).is_some() {
-        return false;
+        // The child is the process under the limit, so the body runs here and its panic is this child's failure.
+        body();
+        return;
     }
     let strip = |full: &str| -> String {
         return full
@@ -161,14 +172,14 @@ pub(crate) fn ran_in_child(
     .expect("the thread probe ends within the deadline");
     if String::from_utf8_lossy(probe.stdout.as_slice()).contains("thread-started") {
         eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no thread start was refused");
-        return true;
+        return;
     }
     let path: String = format!("{}::{name}", strip(module));
+    // The parent's whole assertion is this child's result, and a child that ran no test fails here.
     passed(ChildTest {
         exact_test: path.as_str(),
         environment: environment.as_slice(),
         before_the_exec: Some(Box::new(apply_limit)),
         ..ChildTest::default()
     });
-    return true;
 }

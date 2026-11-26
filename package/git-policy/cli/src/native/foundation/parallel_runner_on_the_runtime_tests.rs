@@ -12,7 +12,7 @@ use crate::blocking_jobs_within_the_budget::{
     budgeted_blocking_jobs,
     hold_blocking_jobs_to,
 };
-use crate::no_threads_child_test_support::ran_in_child;
+use crate::no_threads_child_test_support::run_the_body_where_no_thread_can_start;
 use crate::parallel_runner::Event;
 use crate::parallel_test_support::{
     PATIENCE,
@@ -349,29 +349,29 @@ impl OrderedEvents<u64> for Nothing {
 /// the run says plainly that the items had not run when it answered.
 #[test]
 fn where_no_thread_can_start_the_run_is_a_plain_error() {
-    if ran_in_child(
+    run_the_body_where_no_thread_can_start(
         module_path!(),
         "where_no_thread_can_start_the_run_is_a_plain_error",
-    ) {
-        return;
-    }
-    let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let outcome = run_ending(
-        vec![1_u64, 2, 3],
-        3,
-        Arc::new(CountRuns {
-            ran: Arc::clone(&ran),
-        }),
-        &mut Nothing,
-    );
-    assert!(
-        matches!(outcome, Err(OrderedRunError::NoThreadToStart)),
-        "the run answered {outcome:?}"
-    );
-    assert_eq!(
-        ran.load(Ordering::SeqCst),
-        0,
-        "an item had run by the time the run answered, although no thread could start"
+        || {
+            let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+            let outcome = run_ending(
+                vec![1_u64, 2, 3],
+                3,
+                Arc::new(CountRuns {
+                    ran: Arc::clone(&ran),
+                }),
+                &mut Nothing,
+            );
+            assert!(
+                matches!(outcome, Err(OrderedRunError::NoThreadToStart)),
+                "the run answered {outcome:?}"
+            );
+            assert_eq!(
+                ran.load(Ordering::SeqCst),
+                0,
+                "an item had run by the time the run answered, although no thread could start"
+            );
+        },
     );
 }
 
