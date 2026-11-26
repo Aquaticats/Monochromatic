@@ -256,6 +256,12 @@ fn is_converting_of(
 /// and a serial run waits there until its patience ends.
 #[test]
 fn worktrees_are_converted_side_by_side() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "worktrees_are_converted_side_by_side",
+    ) {
+        return;
+    }
     let _room: usize = room_for("worktrees_are_converted_side_by_side", WORKTREES);
     let (parent, root) = checkout_with_worktrees("convert-parallel-overlap", WORKTREES);
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(WORKTREES));
@@ -292,6 +298,12 @@ fn worktrees_are_converted_side_by_side() {
 /// and its lines still come first.
 #[test]
 fn the_report_keeps_input_order_whichever_worktree_finishes_first() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_report_keeps_input_order_whichever_worktree_finishes_first",
+    ) {
+        return;
+    }
     // The first worktree waits for the other three while the run shows work, so all four must run at once, and the room
     //  this control takes makes that independent of the CPUs this machine has.
     // The first worktree waits inside its conversion for the other three, so it holds a place while it waits: the room is
@@ -548,6 +560,12 @@ fn busiest_of(
 /// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_budget_of_the_host_bounds_the_overlap",
+    ) {
+        return;
+    }
     let host: HostResources = HostResources {
         parallelism: 3,
         memory_available: None,
@@ -567,6 +585,12 @@ fn the_budget_of_the_host_bounds_the_overlap() {
 /// a host with room for one conversion converts one at a time.
 #[test]
 fn the_free_memory_of_the_host_bounds_the_overlap() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_free_memory_of_the_host_bounds_the_overlap",
+    ) {
+        return;
+    }
     let host: HostResources = HostResources {
         parallelism: WORKTREES * 8,
         memory_available: Some(CONVERSION_MEMORY),
@@ -577,6 +601,12 @@ fn the_free_memory_of_the_host_bounds_the_overlap() {
 /// The person's cap bounds the overlap on a host that allows more.
 #[test]
 fn jobs_caps_the_overlap() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "jobs_caps_the_overlap",
+    ) {
+        return;
+    }
     let cap: usize = 2;
     assert_eq!(
         busiest_of("convert-parallel-jobs", &LARGE_HOST, Some(cap), cap),
@@ -826,6 +856,12 @@ fn the_conversions_run_on_the_processs_runtime() {
 /// and a conversion run on a worker of the runtime instead would start at once.
 #[test]
 fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_conversions_take_places_of_the_processs_bound_on_blocking_jobs",
+    ) {
+        return;
+    }
     // One conversion proves it, and it is the only one that may run: the place this control holds is the process's
     //  only place, so four worktrees here would be four conversions one after another, which under the load of a whole
     //  suite can outlast the test watchdog (measured: 105 s in a suite, 1.1 s alone).
@@ -889,9 +925,15 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
 /// a run that had looked before it waited could not.
 #[test]
 fn what_a_run_covers_is_found_after_it_first_waits_rather_than_before() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "what_a_run_covers_is_found_after_it_first_waits_rather_than_before",
+    ) {
+        return;
+    }
     let (parent, root) =
         checkout_with_worktrees("convert-finds-targets-after-waiting", ONE_CONVERSION);
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(
+    crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(
         crate::parallel_test_support::ONE_PLACE,
     );
     let (holding, held) = std::sync::mpsc::channel::<()>();

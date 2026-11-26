@@ -235,6 +235,79 @@ and five threaded-only failures are filed and open:
 6486 (four `run_progress` controls read the shared test process) and
 6487 (the process-wide blocking room in `foundation`).
 
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6487-one-process-wide-room-for-blocking-jobs`:
+issue 6487 is fixed.
+The room a control gives a process,
+and the bound on blocking jobs it holds,
+are read by the one function a process
+plans with (`runtime_plan::workers_for_this_process`),
+so `budgeted_workers` and `plan_runtime` are functions of the host and limits a caller states again.
+Every control that sets either owns a child process of its own (`testing/process_wide_state_child_test_support.rs`),
+and the setters refuse anywhere else,
+naming the starter.
+`cargo test --locked --offline --lib --features test-only-switches foundation:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 394 passed; 0 failed; 8 ignored` at `3774b4a0cc`,
+from 335 passed,
+16 failed and a deadlock at `408abb6c0e`.
+Mechanisms 3a and 3g,
+and the queue and counters this item lists,
+lost their `foundation` sites to the same child
+and stay open where they reach other modules:
+`subvolume::subvolume_index_files::parallel_tests` fails 4 of 12 threaded,
+where `main`'s `e58ba6f078` fails 6 of 12,
+`service::service_server_connection_handling` fails 3 of 13 on both trees,
+and `worktree_copying/worktree_copy_lifecycle_tests.rs` keeps the sixth `skip_the_durability_syncs_here` site in the
+shared process.
+Status:
+incomplete,
+unapproved and not final;
+the owner declares completion.
+
+Round of 2026-11-26:
+6484 (two heartbeat controls share one manager switch) is fixed and merged,
+and that file's four statics are gone:
+each control writes the word its fake manager answers into the folder its own watch names as a session bus,
+which is the first form this item asks for ("give each test its own instance"),
+and `source_guard/heartbeat_controls_own_their_manager_switch_tests.rs` refuses a `static` in that file.
+The item's other sites stay as measured.
+
+issue 6486 is fixed and merged,
+the `run_progress` controls of the round above
+(`673512f65d`,
+four the issue names,
+and `c75f87c23a` for `the_look_sees_this_process_and_the_processes_it_started` beside them,
+which the first threaded run after the merge failed with 21 members before its child and 21 after it),
+each one reading its figures in a helper process of its own through `testing/helper_process_test_support.rs`,
+as 6478's descriptor-room control does,
+with one shared comparison that refuses a look where a task which is not the control's own moved,
+and three threaded-only failures are filed and open:
+6483,
+6485 and
+6487.
+
+Round of 2026-11-26,
+branch `fix/git-policy-cli-issue-6498-worktree-copy-control-turns-syncs-off-for-the-process`:
+issue 6498 is fixed,
+and mechanism 3a has no site left.
+The switch's last five callers in the tests
+(`worktree_copying/worktree_copy_lifecycle_tests.rs`) ran the control bodies that set it in the shared process,
+and `skip_the_durability_syncs_here` now refuses any process that is not a child of the control's own
+(`testing/process_wide_state_child_test_support.rs`),
+as the room and the bound do;
+the one control that is the refusal is `foundation::private_storage::tests::the_durability_switch_refuses_a_process_that_is_not_its_child`.
+Measured on this host,
+two controls of this item in one process with `--test-threads=1` and libtest's `-Z unstable-options --shuffle-seed`:
+`worktree_copying::worktree_copy::tests::a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`
+beside `foundation::private_storage::tests::directory_sync_needs_the_directory`
+answered `1 passed; 1 failed` at seed 1 and at seed 3,
+where the second control's refused `sync_directory` of a missing folder answered `Ok`,
+and `2 passed; 0 failed` at seeds 0 and 2;
+after the change seeds 1 and 3 answer `2 passed; 0 failed`.
+`cargo test --locked --offline --lib --features test-only-switches foundation:: -- --skip guest --skip _arm_tests`
+answered `test result: ok. 395 passed; 0 failed; 8 ignored`,
+and `worktree_copying::worktree_copy::` answered `test result: ok. 47 passed; 0 failed; 0 ignored`.
+
 Cost: this is the failure class the owner named ("tests that pass alone but fail in a threaded run").
 Seen failing: none of these specifically (the fixture failures of item 4 were seen); the rest is inferred from code.
 Fix: run each such body in a child of the test binary through the one helper of item 10;

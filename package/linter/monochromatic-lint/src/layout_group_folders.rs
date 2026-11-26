@@ -39,8 +39,6 @@ use crate::{
     layout_folder_index_files::{
         file_name,
         files_by_folder,
-        name_holds_space,
-        space_finding,
     },
     layout_folder_uses::{
         FolderUses,
@@ -112,11 +110,6 @@ fn shelf_findings(
         }
         for file in by_folder.get(group).into_iter().flatten() {
             if *file == index {
-                continue;
-            }
-            // A name holding a space cannot be written back into a key, so that name is the finding instead.
-            if name_holds_space(file) {
-                findings.push(space_finding(file, group, base));
                 continue;
             }
             findings.push(LayoutFinding {

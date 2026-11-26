@@ -131,6 +131,12 @@ fn remove_with(
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_entries_are_removed_side_by_side",
+    ) {
+        return;
+    }
     // The removals never take every place of the pool, so the control gives them the one they leave free on top: the
     //  place the round keeps for a client, which is the place the process keeps out of slow work as well.
     let _room: usize = room_for(
@@ -166,6 +172,12 @@ fn the_entries_are_removed_side_by_side() {
 /// and the others are removed.
 #[test]
 fn the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go",
+    ) {
+        return;
+    }
     let _room: usize = room_for(
         "the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go",
         ENTRIES,
@@ -213,6 +225,12 @@ fn the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go() {
 /// The host's budget bounds the overlap.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "the_budget_of_the_host_bounds_the_overlap",
+    ) {
+        return;
+    }
     let (root, held, manifest) = trash_with_entries("trash-entries-budget");
     let host: HostResources = HostResources {
         parallelism: 3,
@@ -409,6 +427,12 @@ impl Gate {
 /// ```
 #[test]
 fn a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client",
+    ) {
+        return;
+    }
     let _room: usize = room_for(
         "a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client",
         TWO_PLACES,

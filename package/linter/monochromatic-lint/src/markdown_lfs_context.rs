@@ -120,7 +120,7 @@ pub enum LfsImageTarget {
 ///  every value of `u64` but the largest.
 /// Why:
 ///  The rule reads one byte past the bound,
-///  so it can refuse an image that grew after the rule looked,
+///  so it can refuse an image that is over the bound,
 ///  and `u64::MAX + 1` has no answer:
 ///  a release build wraps it to zero, reads no byte at all and hashes empty input.
 ///  A configuration asking for more is refused when it loads,

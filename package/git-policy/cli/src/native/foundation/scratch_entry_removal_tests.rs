@@ -5,6 +5,11 @@
 //!  and one that removes a name it did not make,
 //!  or a tree a live command still owns,
 //!  would destroy work.
+//! Each control runs its body in a child process of its own:
+//!  the count of removals in flight and the record of those that did not finish belong to the whole process,
+//!  and a removal that outlasts its ceiling keeps working on its own thread after its caller is told
+//!  (`testing/process_wide_state_child_test_support.rs`,
+//!  issue 6487).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +25,9 @@ use super::{
 };
 /// Holding the process's places for blocking work to one,
 /// so a stalled removal has nowhere to go.
-use crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to;
+/// The setter refuses outside the child this control runs its body in,
+/// because the bound belongs to the whole process.
+use crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to;
 use crate::test_support::{
     fixture,
     remove,
@@ -42,6 +49,12 @@ use std::time::{
 /// and a removal that cannot finish within its ceiling is counted as unfinished.
 #[test]
 fn a_removal_says_what_became_of_it() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_removal_says_what_became_of_it",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("scratch-removal-outcomes");
     std::fs::create_dir_all(root.as_path()).expect("fixture");
     assert!(
@@ -127,6 +140,12 @@ const REMOVALS_A_PLACE_MUST_COME_BACK_BEFORE: usize = 1000;
 ///  `a_removal_reported_failed_has_given_its_place_back` states the same of a refused removal.
 #[test]
 fn a_removal_reported_finished_has_given_its_place_back() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_removal_reported_finished_has_given_its_place_back",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("scratch-removal-place-back");
     std::fs::create_dir_all(root.as_path()).expect("fixture");
     let held_before: usize = unfinished_removals();
@@ -157,6 +176,12 @@ fn a_removal_reported_finished_has_given_its_place_back() {
 ///  (`a_removal_reported_finished_has_given_its_place_back`).
 #[test]
 fn a_removal_reported_failed_has_given_its_place_back() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "a_removal_reported_failed_has_given_its_place_back",
+    ) {
+        return;
+    }
     let root: PathBuf = fixture("scratch-removal-refused-place-back");
     std::fs::create_dir_all(root.as_path()).expect("fixture");
     // A tree whose parent is sealed, so every removal of the tree is refused and the tree stays for the next attempt.
@@ -199,8 +224,14 @@ fn a_removal_reported_failed_has_given_its_place_back() {
 ///  and a place comes back when the thread that took it ends.
 #[test]
 fn removals_that_outlast_their_ceiling_hold_a_bounded_number_of_places() {
+    if crate::process_wide_state_child_test_support::started_within_a_child_of_its_own(
+        module_path!(),
+        "removals_that_outlast_their_ceiling_hold_a_bounded_number_of_places",
+    ) {
+        return;
+    }
     // One place, set before any blocking job of this process could have made the budget without the cap.
-    hold_blocking_jobs_to(1);
+    hold_the_blocking_jobs_to(1);
     let root: PathBuf = fixture("scratch-removal-places");
     let first: PathBuf = a_tree_of(root.as_path(), "first", 500);
     let second: PathBuf = a_tree_of(root.as_path(), "second", 500);

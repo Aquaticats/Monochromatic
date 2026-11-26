@@ -35,7 +35,6 @@ use crate::blocking_job::{
 };
 use crate::parallel_budget::HostResources;
 use crate::runtime_limits::RuntimeLimits;
-use crate::runtime_plan::budgeted_workers;
 use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
 use crate::the_place_of_one_blocking_job::{
     APlaceGivenBackWhenItEnds,
@@ -98,7 +97,16 @@ fn budget() -> &'static TheBudget {
 fn decide_the_budget() -> TheBudget {
     let host: HostResources = HostResources::read();
     let limits: RuntimeLimits = RuntimeLimits::read();
-    let allowed: usize = budgeted_workers(&host, &limits)
+    // What:     the places this process may hold: the workers this process gets (a control's room when it gave one),
+    //           no more than the cap it asked for, and at least one.
+    // Why:      the bound and the runtime's own width are one figure, taken from the one function that applies this
+    //           process's room to the host and limits it read.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const allowed = Math.max(1, Math.min(workersForThisProcess(host, limits), heldTo));
+    // ```
+    let allowed: usize = crate::runtime_plan::workers_for_this_process(&host, &limits)
         .min(HELD_TO.load(Ordering::SeqCst))
         .max(1);
     return TheBudget {
