@@ -333,10 +333,10 @@ async function entriesIn(folder: string,): Promise<readonly Dirent[]> {
  Reports the files the user manager loads although this package does not ship them.
 
  The user manager loads every unit file whose name matches this package's prefix, and
- every file in a drop-in folder of such a unit, whatever the install wrote; a unit file
- the package stopped shipping, or a drop-in somebody added, keeps acting beside the
+ every file in a drop-in folder of a unit it ships, whatever the install wrote; a unit
+ file the package stopped shipping, or a drop-in somebody added, keeps acting beside the
  current ones. Only the unit folder is searched: the watcher config is never loaded by
- name.
+ name, and a drop-in folder of a unit the package does not ship has no unit to act on.
 
  @param copies - the copies this package would make
 
@@ -396,23 +396,17 @@ async function unshippedProblems({
       };
     },);
   /**
-   Drop-in folders of the units this package names.
+   Drop-in folders of the units this package ships, which the user manager reads.
    */
-  const dropInFolders = entries
-    .filter(function isPackageDropInFolder(entry,) {
-      /**
-       Name of this entry inside the unit folder.
-       */
-      const {name} = entry;
-      return entry.isDirectory()
-        && name.startsWith(UNIT_NAME_PREFIX,)
-        && name.endsWith('.d',);
+  const dropInFolders = copies
+    .map(function targetPath(copy,) {
+      return copy.target;
     },)
-    .map(function dropInPath(entry,) {
-      return join(
-        unitFolder,
-        entry.name,
-      );
+    .filter(function isUnitFile(path,) {
+      return dirname(path,) === unitFolder;
+    },)
+    .map(function dropInPath(path,) {
+      return `${path}.d`;
     },);
   /**
    Extra files of every drop-in folder, read in parallel.

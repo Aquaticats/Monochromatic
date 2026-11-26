@@ -262,6 +262,24 @@ await describe({
       },
     },),
     it({
+      name: 'exits 2 and asks for a folder when --home names none',
+      fn: async function homeWithoutAFolder() {
+        /**
+         What the entry printed.
+         */
+        const result = await runCommand({
+          command: process.execPath,
+          args: [
+            INSTALL_ENTRY,
+            '--home=',
+          ],
+        },);
+        expect(result.exitCode,).toBe(2,);
+        expect(result.stderr,).toContain('--home needs a folder',);
+        expect(result.stderr,).toContain('usage: node ',);
+      },
+    },),
+    it({
       name: 'exits 2 and prints the usage line for an option it cannot use',
       fn: async function unusableOption() {
         await using home = await disposableHome();

@@ -278,8 +278,7 @@ await describe({
             await using home = await disposableHome();
             await installFiles({ sourceRoot: PACKAGE_ROOT, home: home.path, },);
             /**
-             A unit file left in the user manager's folder that this package stopped
-             shipping.
+             The stale unit file, which is the only file of that name the manager can load.
              */
             const stale = join(
               home.path,
@@ -287,6 +286,18 @@ await describe({
               'rclone-bisync-garage-old.service',
             );
             await writeFile(stale, '[Service]\nExecStart=/bin/true\n',);
+            /**
+             A drop-in folder beside that stale unit, which has no unit of this package to
+             act on.
+             */
+            const staleDropIn = join(
+              home.path,
+              UNIT_TARGET_FOLDER,
+              'rclone-bisync-garage-old.service.d',
+              '70-local.conf',
+            );
+            await mkdir(dirname(staleDropIn,), { recursive: true, },);
+            await writeFile(staleDropIn, '[Service]\nEnvironment=OLD=1\n',);
             /**
              Every problem the check reports.
              */
@@ -401,6 +412,51 @@ await describe({
               sourceRoot: packageRoot.path,
             },),).toEqual([],);
             expect(await readFile(source, 'utf8',),).toBe('[Service]\nExecStart=/bin/true\n',);
+          },
+        },),
+        it({
+          name: 'reports every copy missing, and no unshipped file, when nothing has been installed',
+          fn: async function nothingInstalled() {
+            await using home = await disposableHome();
+            /**
+             The copies the package would install.
+             */
+            const copies = await planCopies({ sourceRoot: PACKAGE_ROOT, home: home.path, },);
+            /**
+             Every problem the check reports.
+             */
+            const problems = await problemsIn({ home: home.path, },);
+            expect(problems,).toHaveLength(copies.length,);
+            expect(problems.every(function isMissing(problem,) {
+              return problem.startsWith('missing: ',);
+            },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'reports every copy missing, and no unshipped file, when the unit folder is a regular file',
+          fn: async function unitFolderIsAFile() {
+            await using home = await disposableHome();
+            /**
+             The user manager's folder, written as a regular file instead.
+             */
+            const unitFolder = join(
+              home.path,
+              UNIT_TARGET_FOLDER,
+            );
+            await mkdir(dirname(unitFolder,), { recursive: true, },);
+            await writeFile(unitFolder, 'not a folder\n',);
+            /**
+             The copies the package would install.
+             */
+            const copies = await planCopies({ sourceRoot: PACKAGE_ROOT, home: home.path, },);
+            /**
+             Every problem the check reports.
+             */
+            const problems = await problemsIn({ home: home.path, },);
+            expect(problems,).toHaveLength(copies.length,);
+            expect(problems.every(function isMissing(problem,) {
+              return problem.startsWith('missing: ',);
+            },),).toBe(true,);
           },
         },),
       ],
