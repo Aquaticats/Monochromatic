@@ -4,11 +4,18 @@ Companion to [`cli-git-source-layout-target-tree.md`](cli-git-source-layout-targ
 read that file first.
 Redone 2026-11-07 for the eight libraries,
 the test-folders library and the program crate.
-Generated from the table in [`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json)
-(key `target`),
-the file-to-file references of `main` at `f44d921e24` (2026-11-04T20:45:14-05:00) with the named changes
-applied,
-and the one line each file's own top doc gives.
+Generated from [`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json)
+(key `after_the_reformat`,
+which the 2026-11-26 rescan wrote;
+the 2026-11-07 rows are under key `target`),
+from `main` at `aba76005c3` (2026-11-26T02:00:00-05:00),
+and from the one line each file's own top doc gives.
+Regenerated 2026-11-26 by a script that reads those three things,
+so every tree below is a copy of the table and no line of it was edited by hand;
+the 2026-11-07 trees they replace described the files of `f44d921e24`.
+The 1581 files of today's tree are listed,
+and the 20 rows whose file a later split took away are listed where they were placed,
+with a line saying so.
 
 How to read one entry:
 the new file name,
@@ -21,16 +28,21 @@ and for a file in a library it says nothing about Git,
 so an explanation here that names Git is reworded when the file moves).
 Within a folder (or within `src/` for a crate with one folder) files are in the dependency order the top doc must list:
 every file uses only files above it.
-Files marked `NEW` are created by the changes of the main document.
-A `uses/` line lists the folders of the same crate that the folder uses.
-The program crate (`cli`) holds 74 folders;
+Files marked `NEW` are created by the changes of the main document;
+no file of today's tree carries the mark,
+because the changes that create files are still to do
+(section "Next",
+steps 1 to 3 of that list).
+A `uses/` line lists the folders of the same crate that the folder uses,
+as today's code uses them;
+
+a folder with no such line uses no other folder of its crate.
+The program crate (`cli`) holds 110 folders;
 the libraries sit at `package/<name>/core-rust` (open point "Where the libraries live and what they are named").
 
 This file does not yet list the tree of `disposable-test-folders` nor `main.rs` of the program crate;
 both follow from the main document
-(the test-folders library holds the Git-free half of `test_support` and its neighbours).
-Files added to `main` after the scan are not listed (section "The crate split",
-"Files of `main` added after the scan").
+(the test-folders library holds the Git-free half of `testing/` and its neighbours).
 
 ## The crates, bottom first
 
@@ -46,28 +58,34 @@ none.
 ```text
 package/dependent-version-bump-check/core-rust/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  dependent_version_content.rs  <- src/native/dependent_version/dependent_version_content.rs
-    The repository content the dependent-version planner reads, behind one small interface, and the two ways planning can ...
-  dependent_version_release.rs  <- src/native/dependent_version/dependent_version_release.rs
-    Patch-bump a plain `major.minor.patch` release version, and quote text the way `JSON.stringify` does.
-  dependent_version_graph.rs  <- src/native/dependent_version/dependent_version_graph.rs
-    Walk the workspace dependency graph from the packages whose version was raised and plan a patch bump for every ...
-  dependent_version_imports.rs  <- src/native/dependent_version/dependent_version_imports.rs
-    Decide whether source text imports a package or one of its subpaths. Why: A development dependency is bundled, and so ...
-  dependent_version_paths.rs  <- src/native/dependent_version/dependent_version_paths.rs
-    Which repository paths the dependent-version planner reads: workspace manifests, the registry configuration, and a ...
-  dependent_version_manifest.rs  <- src/native/dependent_version/dependent_version_manifest.rs
-    Read the facts a dependent bump needs from one `package.json`: its name, its version, and the workspace names it ...
-  dependent_version_states.rs  <- src/native/dependent_version/dependent_version_states.rs
-    Read every workspace manifest at the candidate state and at the base, and decide which packages' versions were raised.
+  dependent_version_plan.rs  <- src/native/dependent_version/dependent_version_plan.rs
+    Plan patch bumps for publishable dependents of packages whose version differs from the base, with ...
   dependent_version_bundled.rs  <- src/native/dependent_version/dependent_version_bundled.rs
-    Decide which development dependencies each dependent bundles, reading source only where an edge could carry a raised ...
+    Decide which development dependencies each dependent bundles, reading source only where an edge ...
+  dependent_version_graph.rs  <- src/native/dependent_version/dependent_version_graph.rs
+    Walk the workspace dependency graph from the packages whose version was raised and plan a patch ...
+  dependent_version_imports.rs  <- src/native/dependent_version/dependent_version_imports.rs
+    Decide whether source text imports a package or one of its subpaths.
   dependent_version_publishable.rs  <- src/native/dependent_version/dependent_version_publishable.rs
-    Read the publishable package names from the generated registry configuration (`package/config/pnpr/config.yaml`).
+    Read the publishable package names from the generated registry configuration ...
+  dependent_version_states.rs  <- src/native/dependent_version/dependent_version_states.rs
+    Read every workspace manifest at the candidate state and at the base, and decide which packages' ...
+  dependent_version_paths.rs  <- src/native/dependent_version/dependent_version_paths.rs
+    Which repository paths the dependent-version planner reads: workspace manifests, the registry ...
   dependent_version_text.rs  <- src/native/dependent_version/dependent_version_text.rs
     Rewrite the top-level `version` value in a manifest's text, leaving every other byte unchanged.
-  dependent_version_plan.rs  <- src/native/dependent_version/dependent_version_plan.rs
-    Plan patch bumps for publishable dependents of packages whose version differs from the base, with the exact manifest ...
+  dependent_version_manifest.rs  <- src/native/dependent_version/dependent_version_manifest.rs
+    Read the facts a dependent bump needs from one `package.json`: its name, its version, and the ...
+  dependent_version_content.rs  <- src/native/dependent_version/dependent_version_content.rs
+    The repository content the dependent-version planner reads, behind one small interface, and the two ...
+  dependent_version_release.rs  <- src/native/dependent_version/dependent_version_release.rs
+    Patch-bump a plain `major.minor.patch` release version, and quote text the way `JSON.stringify` ...
+  dependent_version_yaml.rs  <- src/native/dependent_version/dependent_version_yaml.rs
+    Read a block YAML document into the three node kinds a mapping, a sequence and a scalar need.
+  dependent_version_yaml_lines.rs  <- src/native/dependent_version/dependent_version_yaml_lines.rs
+    Read one line of block YAML: its indentation, the key before a colon, and the scalar after one.
+  dependent_version_yaml_lines_scalar.rs  <- src/native/dependent_version/dependent_version_yaml_lines_scalar.rs
+    The scalar a line holds after its key or its dash: single-quoted, double-quoted, and plain, with ...
 ```
 
 ### parallel-work-within-a-budget
@@ -82,12 +100,56 @@ none.
 ```text
 package/parallel-work-within-a-budget/core-rust/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  how_many_jobs_may_run_together.rs  <- src/native/foundation/parallel_budget.rs
-    How many workers a set of independent items may use together: the CPUs the process is allowed minus a margin, the ...
-  starting_a_job_on_a_helper_thread.rs  <- src/native/foundation/scoped_start.rs
-    Start a closure on a scoped thread, and run it on the calling thread when the system cannot start one.
+  call_catching_panics_awaiting.rs  <- src/native/foundation/call_catching_panics_awaiting.rs
+    Await a future and get a panic it raised during one of its polls as an error value, not as an ...
+  collected_elements_looked_at.rs  <- src/native/foundation/collected_elements_looked_at.rs
+    The collected elements a pass over unbounded input has looked at on this thread, counted for the ...
+  jobs_waiting_for_a_place.rs  <- src/native/foundation/jobs_waiting_for_a_place.rs
+    
+  parallel_runner_on_the_runtime_awaiting.rs  <- src/native/foundation/parallel_runner_on_the_runtime_awaiting.rs
+    Runs independent items as tasks of the process's runtime, one lane per task, and reports what they ...
+  parallel_runner_on_the_runtime.rs  <- src/native/foundation/parallel_runner_on_the_runtime.rs
+    Runs independent items as blocking jobs of the process's runtime, under the process's bound on ...
   running_jobs_side_by_side.rs  <- src/native/foundation/parallel_runner.rs
-    Runs independent items on a bounded number of threads and reports what they say and what they return in input order
+    Runs independent items on a bounded number of threads and reports what they say and what they ...
+  line_sink.rs  <- src/native/foundation/line_sink.rs
+    The place one line of progress goes, as a trait a struct can implement.
+  runtime_probe.rs  <- src/native/foundation/runtime_probe.rs
+    The test-only entry that builds the process's runtime and runs one blocking job, then prints what ...
+  lazy_runtime.rs  <- src/native/foundation/lazy_runtime.rs
+    The process's one tokio runtime, built on the first need and never before, sized from the budget ...
+  side_by_side_on_the_current_task.rs  <- src/native/foundation/side_by_side_on_the_current_task.rs
+    Run the futures a caller lends, beside each other, on the task that awaits them, give each answer ...
+  a_panic_that_ends_one_item.rs  <- src/native/foundation/a_panic_that_ends_one_item.rs
+    Await one item's work and keep a panic in it as that item's answer, so one item's failure ends that ...
+  side_by_side_on_the_runtime.rs  <- src/native/foundation/side_by_side_on_the_runtime.rs
+    Run independent items as jobs of the process's blocking pool, all of them beside each other or one ...
+  blocking_jobs_within_the_budget.rs  <- src/native/foundation/blocking_jobs_within_the_budget.rs
+    The most blocking jobs this process runs at once: one bound for the whole process, sized from the ...
+  blocking_job.rs  <- src/native/foundation/blocking_job.rs
+    Runs a blocking call on tokio's blocking pool and turns "the system gave no thread" into an error ...
+  runtime_plan.rs  <- src/native/foundation/runtime_plan.rs
+    How many worker threads and blocking-pool threads a runtime gets: the wrapper's budget for parallel ...
+  how_many_jobs_may_run_together.rs  <- src/native/foundation/parallel_budget.rs
+    How many workers a set of independent items may use together: the CPUs the process is allowed minus ...
+  runtime_limits.rs  <- src/native/foundation/runtime_limits.rs
+    The limits the system puts on a process that starts threads: how much address space is left under ...
+  side_by_side_threads.rs  <- src/native/foundation/side_by_side_threads.rs
+    Run jobs on scoped threads beside each other or beside the calling thread, where a job is a ...
+  starting_a_job_on_a_helper_thread.rs  <- src/native/foundation/scoped_start.rs
+    Start a job (a function and the state it reads) on a scoped thread, and run it on the calling ...
+  call_catching_panics.rs  <- src/native/foundation/call_catching_panics.rs
+    Call a function with its state and get the panic it raised as a value, not as an unwind.
+  the_claim_a_job_takes_before_running_it.rs  <- src/native/foundation/the_claim_a_job_takes_before_running_it.rs
+    A one-shot claim on the work of a job, taken either by the job before its first effect or by the ...
+  the_place_of_one_blocking_job.rs  <- src/native/foundation/the_place_of_one_blocking_job.rs
+    The place of the process's bound on blocking jobs that one job holds, shared between the frame that ...
+  time_spent_outside_the_phases.rs  <- src/native/foundation/time_spent_outside_the_phases.rs
+    The two costs a wrapped commit pays outside its phases, and the writer that measures one of them: ...
+  work_awaited_within_a_ceiling.rs  <- src/native/foundation/work_awaited_within_a_ceiling.rs
+    A blocking job run on a thread of its own, awaited for no longer than a ceiling.
+  worst_delay_seen_on_this_host.rs  <- src/native/foundation/worst_delay_seen_on_this_host.rs
+    The longest delay of a small file operation measured on this host, and the owner's multiple of it ...
 ```
 
 ### text-time-and-log-line-formats
@@ -105,21 +167,41 @@ none.
 ```text
 package/text-time-and-log-line-formats/core-rust/src/
   lib.rs  (index: one `mod` line per folder, no code, no re-exports)
-  text_time_and_records_written_like_javascript/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    utc_time_stamps_like_javascript.rs  <- src/native/foundation/iso_time.rs
-      UTC timestamps in the exact form of JavaScript's `Date.prototype.toISOString`
-    compact_json_records.rs  <- src/native/foundation/json_record.rs
-      Reading and writing the compact JSON records both wrappers share
-    text_operations_like_javascript.rs  <- src/native/foundation/js_text.rs
-      Text operations with the exact semantics of the JavaScript built-ins the incumbent
   lines_printed_for_the_person/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> text_time_and_records_written_like_javascript
+    uses/ -> how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, text_time_and_records_written_like_javascript
+    lines_written_by_a_thread.rs  <- src/native/foundation/lines_written_by_a_thread.rs
+      Lines a caller hands over and a thread of its own writes, so the caller never waits for a stream: ...
+    log_lines_appended_without_a_lock.rs  <- src/native/foundation/log_lines_appended_without_a_lock.rs
+      The one appender every log of the wrapper writes through: one `write` of a whole line or entry, and ...
+    log_generations_kept_to_a_bound.rs  <- src/native/foundation/log_generations_kept_to_a_bound.rs
+      The history of each log of the wrapper: where a rotated file goes, which generations may be ...
+    notice_stream_that_does_not_hold_its_writer.rs  <- src/native/foundation/notice_stream_that_does_not_hold_its_writer.rs
+      A stream of a command's notices that is written by a thread of its own, so the code that says its ...
     debug_and_warning_lines_on_standard_error.rs  <- src/native/foundation/diagnostic_log.rs
-      Line-oriented debug and warning diagnostics on standard error
+      Line-oriented debug and warning diagnostics on standard error, switched like the incumbent's ...
+    shared_notice_stream.rs  <- src/native/foundation/shared_notice_stream.rs
+      One stream of a command's notices, written by two threads: every line is rendered first, then ...
     quoting_bytes_for_a_shell_command.rs  <- src/native/worktree/shell_quote.rs
       Quoting of bytes that are printed inside a shell command for a person to copy and run.
+    standard_error_off_the_calling_thread.rs  <- src/native/foundation/standard_error_off_the_calling_thread.rs
+      This process's standard error as a stream whose every whole line is handed to the thread that ...
+    diagnostic_lines_off_the_calling_thread.rs  <- src/native/foundation/diagnostic_lines_off_the_calling_thread.rs
+      The wrapper's diagnostic lines on standard error, written by a thread of their own, and never a ...
+    standard_error_descriptor.rs  <- src/native/foundation/standard_error_descriptor.rs
+      The process's own standard error descriptor as a stream, written without Rust's shared ...
+  text_time_and_records_written_like_javascript/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    hexadecimal_of_bytes.rs  <- src/native/foundation/hexadecimal_of_bytes.rs
+      Bytes as lowercase hexadecimal digits, and the two digits of one byte.
+    utc_time_stamps_like_javascript.rs  <- src/native/foundation/iso_time.rs
+      UTC timestamps in the exact form of JavaScript's `Date.prototype.toISOString`: ...
+    text_operations_like_javascript.rs  <- src/native/foundation/js_text.rs
+      Text operations with the exact semantics of the JavaScript built-ins the incumbent applies to ...
+    compact_json_records.rs  <- src/native/foundation/json_record.rs
+      Reading and writing the compact JSON records both wrappers share, with the incumbent's `JSON.parse` ...
+    jsonc_member_text.rs  <- src/native/foundation/jsonc_member_text.rs
+      One text value inside one object of a JSONC document, read without deciding what the value means.
 ```
 
 ### safe-file-saving
@@ -136,22 +218,44 @@ Depends on crates:
 ```text
 package/safe-file-saving/core-rust/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  entries_of_one_open_folder.rs  <- src/native/foundation/entries_of_one_open_folder.rs
+    Opening one folder by path and holding it, then reading and listing the entries below it by their ...
   cleaning_up_a_path_by_its_text.rs  <- src/native/foundation/lexical_path.rs
     Lexical path normalization, the way Node's `path.resolve` does it.
+  path_bytes_in_records.rs  <- src/native/foundation/path_bytes_in_records.rs
+    A path written into a record as hexadecimal bytes, and the plain text record that a path was ...
   paths_as_exact_bytes.rs  <- src/native/policy/path_bytes.rs
-    Exact repository path bytes as the operating system takes them
-  random_names.rs  <- src/native/foundation/random_id.rs
-    Random identifiers in the layout of the incumbent's `randomUUID`
-  saving_private_files.rs  <- src/native/foundation/private_storage.rs
-    Private
+    Exact repository path bytes as the operating system takes them, and as text for messages.
+  private_storage_replacing_a_record.rs  <- src/native/foundation/private_storage_replacing_a_record.rs
+    Publishing a record over the one the same name already holds, in one rename, with or without making ...
+  private_storage_syncs_test_support.rs  <- src/native/foundation/private_storage_syncs_test_support.rs
+    Test-only records of the durability syncs `private_storage` makes, and the switch that makes them ...
+  publishing_entries_in_one_open_folder.rs  <- src/native/foundation/publishing_entries_in_one_open_folder.rs
+    Creating one entry below a folder the caller holds open, filling it, and publishing it under its ...
+  file_steps_that_report_why_they_failed.rs  <- src/native/transaction/recovery_files.rs
+    The small file operations the shadow, the pack keep files, the conclusion copies and the worktree ...
   why_a_file_step_failed.rs  <- src/native/transaction/recovery_error.rs
     The fail-closed failure of reading or recovering durable transaction state.
-  file_steps_that_report_why_they_failed.rs  <- src/native/transaction/recovery_files.rs
-    The small file operations the shadow, the pack keep files, the conclusion copies and the worktree installs share
+  rename_that_never_replaces.rs  <- src/native/foundation/rename_that_never_replaces.rs
+    The two renames that lose nothing: the one that never replaces an existing name, and the one that ...
   private_scratch_places.rs  <- src/native/foundation/scratch_location.rs
-    Where the wrapper keeps short-lived private files
+    Where the wrapper keeps short-lived private files: the per-user scratch directory ...
+  plain_file.rs  <- src/native/foundation/plain_file.rs
+    Reading a file only when it is a plain one: opened without blocking and without following a link, ...
+  random_names.rs  <- src/native/foundation/random_id.rs
+    Random identifiers in the layout of the incumbent's `randomUUID`: lock tokens and the unique names ...
+  scratch_entry_removal.rs  <- src/native/foundation/scratch_entry_removal.rs
+    How one scratch entry is removed, bounded so a device that stalls cannot hold a command.
+  saving_private_files.rs  <- src/native/foundation/private_storage.rs
+    Private, crash-safe file primitives shared by every durable record of the wrapper: exclusive ...
+  name_held_while_one_thread_publishes_it.rs  <- src/native/foundation/name_held_while_one_thread_publishes_it.rs
+    A claim, kept in memory and taken with one compare-and-swap, on a file name that a thread of this ...
+  scratch_location_privacy_proofs_test_support.rs  <- src/native/foundation/scratch_location_privacy_proofs_test_support.rs
+    The paths whose privacy a preparation proved to itself.
+  scratch_location_removal_targets_test_support.rs  <- src/native/foundation/scratch_location_removal_targets_test_support.rs
+    The names a control saw this module hand to a removal.
   questions_about_a_path_or_a_byte.rs  <- src/native/worktree/worktree_add_plan_path_questions.rs
-    Small questions about a path or a byte that the `git worktree add` plans ask: whether it is a slash, a link, a `..`
+    Small questions about a path or a byte that the `git worktree add` plans ask: whether it is a ...
 ```
 
 ### starting-and-watching-programs
@@ -171,49 +275,109 @@ package/starting-and-watching-programs/core-rust/src/
   lib.rs  (index: one `mod` line per folder, no code, no re-exports)
   starting_programs_catching_signals_and_keeping_their_output/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    how_a_child_program_ended.rs  <- NEW
-      How a child program ended (exit code or signal) and the plain value that says so, which the signal relay and the ...
+    uses/ -> clearing_leftover_reference_locks, how_long_the_program_waits_for_git_steps, running_git_push_until_it_ends_or_stalls, starting_git_and_describing_a_run, the_commit_command, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, watching_a_started_program_until_it_stops_making_progress, which_programs_are_running_and_since_when, lines_printed_for_the_person
+    captured_child_run_to_its_end.rs  <- src/native/process/captured_child_run_to_its_end.rs
+      Runs a command to its end and returns its status and output, the way `Command::output` does, with ...
+    how_a_child_program_ended.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    open_file_of_a_descriptor.rs  <- src/native/process/open_file_of_a_descriptor.rs
+      The device number and the inode of the file an open descriptor of a process refers to.
+    descriptor_record.rs  <- src/native/process/descriptor_record.rs
+      One descriptor's own record (`/proc/<pid>/fdinfo/<n>`), read only when the descriptor's kind is ...
+    open_file_of_a_descriptor_in_a_child.rs  <- src/native/process/open_file_of_a_descriptor_in_a_child.rs
+      The device and the inode of the file an open descriptor of another process refers to, read in a ...
     child_output_kept_in_files.rs  <- src/native/process/output_capture.rs
-      Output of a child process captured into two anonymous files instead of two pipes, and read back from the start ...
+      Output of a child process captured into two anonymous files instead of two pipes, and read back ...
+    signal_relay_descriptor.rs  <- src/native/process/signal_relay_descriptor.rs
+      The descriptor the signal relay sends through: made once for the process, pointed at the child that ...
+    signal_relay_relayed_child.rs  <- src/native/process/signal_relay_relayed_child.rs
+      A child this process started and handed to the signal relay: a signal a process sends to the ...
+    passing_signals_to_the_child.rs  <- src/native/process/signal_relay.rs
+      Catching `SIGINT`, `SIGTERM`, `SIGHUP` and `SIGQUIT` while the wrapper waits for a Git child, ...
+    child_awaited_until_it_exits_or_the_service_is_stopped.rs  <- src/native/process/child_awaited_until_it_exits_or_the_service_is_stopped.rs
+      Awaits an owned child's exit, or ends the child and says so when the service's stop is told first.
+    child_awaited_until_it_exits_the_stop_or_the_ceiling.rs  <- src/native/process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs
+      Waits for a child this path owns until that child ends, a stop of the service ends it, or the ...
+    child_number_told_at_start.rs  <- src/native/process/child_number_told_at_start.rs
+      The child a caller is waiting for, published the moment it starts: its number, and, when the caller ...
+    signal_relay_relayed_stop.rs  <- src/native/process/signal_relay_relayed_stop.rs
+      The stop signal this process relayed to a child, and the process the kernel named as its sender, ...
+    signal_relay_without_relay.rs  <- src/native/process/signal_relay_without_relay.rs
+      The guard of a system with no signal relay: it starts the child and waits for it, and publishes ...
+    signal_report.rs  <- src/native/process/signal_report.rs
+      What the kernel's own report of a signal says: whether a process sent it, and which process that ...
     starting_a_program_again_when_processes_run_out.rs  <- src/native/push/start_retry.rs
       Starting a child process again when the operating system refuses it for lack of processes.
-    passing_signals_to_the_child.rs  <- src/native/process/signal_relay.rs
-      Catching `SIGINT`, `SIGTERM`, `SIGHUP` and `SIGQUIT` while the wrapper waits for a Git child
-  which_programs_are_running_and_since_when/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    reading_the_output_of_a_holder_scan.rs  <- src/native/lock/index_lock_holder_parsers.rs
-      Parsers of the holder-scan output that is not `/proc`
-    programs_holding_a_file_open.rs  <- src/native/lock/index_lock_holders.rs
-      Processes holding a lock file open
-    telling_one_process_from_a_reused_number.rs  <- src/native/process/process_identity.rs
-      Process-birth identities
-    when_a_process_started.rs  <- src/native/process/process_start.rs
-      The wall-clock start time of a process
-    a_process_and_the_programs_below_it.rs  <- src/native/process/process_tree.rs
-      The processes below one process: found before it is stopped, and signalled afterwards, each only while it is still
-    which_programs_use_a_file_or_folder.rs  <- src/native/process/process_use.rs
-      The processes of this host that use a directory or a file
-    process_numbers_inside_nested_containers.rs  <- src/native/lock/stale_ref_lock_nested_numbers.rs
-      Which processes of the table carry a given process number inside a PID namespace nested in the reader's.
-    open_network_connections_and_bytes_sent.rs  <- src/native/push/tcp_sockets.rs
-      The TCP sockets of this machine that are connected, with the bytes each has sent and had acknowledged and the bytes ...
+    step_output_read_whole_through_pipes.rs  <- src/native/process/step_output_read_whole_through_pipes.rs
+      The output of a child that a caller started itself, read to the end through two pipes on the ...
+    child_awaited_through_a_pidfd.rs  <- src/native/process/child_awaited_through_a_pidfd.rs
+      A child started with the standard library and awaited on the tokio runtime through a pidfd (a file ...
+    child_waited_for_within_a_ceiling.rs  <- src/native/process/child_waited_for_within_a_ceiling.rs
+      A child waited for by the thread that owns it, with a ceiling, so a query that never answers is ...
+    member_signalled_through_its_pidfd.rs  <- src/native/process/member_signalled_through_its_pidfd.rs
+      Signalling one member of a process tree, through a descriptor opened while the number still named ...
   watching_a_started_program_until_it_stops_making_progress/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> starting_programs_catching_signals_and_keeping_their_output, which_programs_are_running_and_since_when
-    measuring_progress_of_a_program_and_what_it_started.rs  <- src/native/push/push_progress.rs
-      The progress of a push: whether the push and everything it started are at work, sampled at a small interval, and the
-    wait_notice_clock.rs  <- src/native/push/wait_progress.rs
-      The shared clock of every wait notice
-    watch_clock_marks_and_stopping.rs  <- src/native/push/child_watch_clock_marks_and_stopping.rs
-      What a child watch is made of below its public face: the terms a watch runs under, the marks the waiting thread sends
-    watch_step_limits_and_errors.rs  <- src/native/push/child_watch_step_bounds_and_errors.rs
-      How a watched step may be ended and the errors that say it was: the bound a step runs under, the error of a step ...
-    longest_quiet_gaps.rs  <- src/native/process/quiet_ledger.rs
-      The longest quiet gap of every Git step and every tool this process ran, kept until a timing record takes it.
+    uses/ -> clearing_leftover_reference_locks, how_long_the_program_waits_for_git_steps, landing_commits, running_git_push_until_it_ends_or_stalls, starting_git_and_describing_a_run, the_commit_command, running_independent_jobs_side_by_side, starting_programs_catching_signals_and_keeping_their_output, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    child_watch_one_shot_run.rs  <- src/native/push/child_watch_one_shot_run.rs
+      The one-shot run of a watched step: a command started with its output read whole through pipes, ...
+    child_watch_output_watched_on_the_runtime.rs  <- src/native/push/child_watch_output_watched_on_the_runtime.rs
+      The watched one-shot run of `child_watch.rs` for a caller that is itself a task of the runtime: the ...
     watching_a_child_program.rs  <- src/native/push/child_watch.rs
-      A watcher for a wait that blocks inside a read or a wait on a child process
+      A watcher for a wait that blocks inside a read or a wait on a child process: it prints a notice ...
+    child_watch_running_task.rs  <- src/native/push/child_watch_running_task.rs
+      The task a watch runs and the bound its end is given, with the refusal a control arms to stand in ...
+    watch_step_limits_and_errors.rs  <- src/native/push/child_watch_step_bounds_and_errors.rs
+      How a watched step may be ended and the errors that say it was: the bound a step runs under, the ...
+    child_watch_task_loop_and_notice.rs  <- src/native/push/child_watch_task_loop_and_notice.rs
+      The loop of a child watch's task and the writing of its notices: wait for the next mark or the next ...
+    watch_clock_marks_and_stopping.rs  <- src/native/push/child_watch_clock_marks_and_stopping.rs
+      What a child watch is made of below its public face: the terms a watch runs under, the marks the ...
+    stop_cause_and_words.rs  <- src/native/push/stop_cause_and_words.rs
+      The causes of a stop the wrapper gives a run, the report of one, which quiet window ended it, and ...
+    stop_of_the_service_noticed_by_its_children.rs  <- src/native/process/stop_of_the_service_noticed_by_its_children.rs
+      How a stop of the commit service reaches the Git processes it waits for: the signal handler records ...
+    stop_waits_while_a_member_cannot_be_interrupted.rs  <- src/native/process/stop_waits_while_a_member_cannot_be_interrupted.rs
+      When a stop that asked its tree to end may force the end: at the end of its grace when every member ...
+    stop_word.rs  <- src/native/process/stop_word.rs
+      A stop's signal and the process the kernel named as its sender, kept as one word.
+    stuck_children_reaped_when_the_kernel_lets_go.rs  <- src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs
+      The children this command stopped waiting for, gathered by a thread of their own, and what happens ...
     is_a_thread_at_work.rs  <- src/native/process/thread_quiet.rs
-      Whether one thread of this process is at work, judged with the signs the push meter reads for a child process, and the
+      Whether one thread of this process is at work, judged with the signs the push meter reads for a ...
+    measuring_progress_of_a_program_and_what_it_started.rs  <- src/native/push/push_progress.rs
+      The progress of a push: whether the push and everything it started are at work, sampled at a small ...
+    push_progress_meter.rs  <- src/native/push/push_progress_meter.rs
+      What one look at the push's tree finds: the bytes each process has moved and the processor time it ...
+    push_progress_signs.rs  <- src/native/push/push_progress_signs.rs
+      What one look at one process of a push found, and the identities a look at a tree's sockets works ...
+    longest_quiet_gaps.rs  <- src/native/process/quiet_ledger.rs
+      The longest quiet gap of every Git step and every tool this process ran, kept until a timing record ...
+    wait_after_the_stop_saying_the_kernel_holds_it.rs  <- src/native/process/wait_after_the_stop_saying_the_kernel_holds_it.rs
+      The wait for a step whose ceiling's `SIGKILL` did not end it: the step is reaped here, and while ...
+    wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs  <- src/native/process/wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs
+      A control's hold on the reap of a step past its stop.
+    wait_notice_clock.rs  <- src/native/push/wait_progress.rs
+      The shared clock of every wait notice: when the first line of a wait is due, how often it repeats, ...
+  which_programs_are_running_and_since_when/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_who_holds_a_lock_file, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    reading_the_output_of_a_holder_scan.rs  <- src/native/lock/index_lock_holder_parsers.rs
+      Parsers of the holder-scan output that is not `/proc`: `lsof -F pcDi` records and the Restart ...
+    programs_holding_a_file_open.rs  <- src/native/lock/index_lock_holders.rs
+      Processes holding a lock file open, found by device and inode: `/proc/<pid>/fd` on Linux, `lsof` on ...
+    when_a_process_started.rs  <- src/native/process/process_start.rs
+      The wall-clock start time of a process, with its resolution, for comparing a Git lock PID file's ...
+    telling_one_process_from_a_reused_number.rs  <- src/native/process/process_identity.rs
+      Process-birth identities: a string that names one process for its whole life and changes when its ...
+    a_process_and_the_programs_below_it.rs  <- src/native/process/process_tree.rs
+      The processes below one process: found before it is stopped, and signalled afterwards, each only ...
+    which_programs_use_a_file_or_folder.rs  <- src/native/process/process_use.rs
+      The processes of this host that use a directory or a file: a working directory or an open ...
+    process_numbers_inside_nested_containers.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    open_network_connections_and_bytes_sent.rs  <- src/native/push/tcp_sockets.rs
+      The TCP sockets of this machine that are connected, with the bytes each has sent and had ...
 ```
 
 ### fix-packages-after-copying-a-folder
@@ -233,28 +397,44 @@ Depends on crates:
 ```text
 package/fix-packages-after-copying-a-folder/core-rust/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  package_repair_cargo_concurrent.rs  <- src/native/repair/package_repair_cargo_concurrent.rs
-    Run one job for every item of a list on several threads, each item once, and give one result per item in item order.
-  package_repair_cargo_lock.rs  <- src/native/repair/package_repair_cargo_lock.rs
-    Reading `Cargo.lock` before a `cargo clean` and putting it back as it was afterwards.
-  package_repair_command.rs  <- src/native/repair/package_repair_command.rs
-    Starting one package-manager program for a worktree repair: finding it on a search path, running it in a directory ...
-  package_repair_request.rs  <- src/native/repair/package_repair_request.rs
-    What a repair of a new worktree reads and is asked: the person's switches, what the process offers, and the request
-  package_repair_cargo_workspaces.rs  <- src/native/repair/package_repair_cargo_workspaces.rs
-    The Cargo workspaces of a new worktree: what `cargo metadata --no-deps` says about one, the tracked manifests that
-  package_repair_report.rs  <- src/native/repair/package_repair_report.rs
-    What a worktree repair tells the person: one line when the repairs worked, and one plain line per repair that could ...
-  package_repair_tree_clone.rs  <- src/native/repair/package_repair_tree_clone.rs
-    Cloning one directory tree for a worktree repair: every file cloned (or copied when the filesystem cannot clone), ...
-  package_repair_cargo.rs  <- src/native/repair/package_repair_cargo.rs
-    The Cargo repair: for each Cargo workspace of a new worktree, clone the source workspace's build state when Cargo ...
-  package_repair_pnpm.rs  <- src/native/repair/package_repair_pnpm.rs
-    The pnpm repair: `pnpm install --offline --frozen-lockfile` in a new worktree whose `node_modules` was copied.
-  package_repair_toolchain.rs  <- src/native/repair/package_repair_toolchain.rs
-    The toolchain repair: when the launchers copied into a new worktree's `.cache/toolchain-launchers` still name another
   package_repair.rs  <- src/native/repair/package_repair.rs
-    The repair of a new worktree's package-manager state: after a rung filled the worktree and the ignored files were
+    The repair of a new worktree's package-manager state: after a rung filled the worktree and the ...
+  package_repair_cargo.rs  <- src/native/repair/package_repair_cargo.rs
+    The Cargo repair: for each Cargo workspace of a new worktree, `cargo clean --package <member>` for ...
+  package_repair_cargo_jobs.rs  <- src/native/repair/package_repair_cargo_jobs.rs
+    The jobs of the Cargo repair: the program and the bounds one run takes, the lookup of the program ...
+  package_repair_cargo_concurrent.rs  <- src/native/repair/package_repair_cargo_concurrent.rs
+    Run one job for every item of a list as tasks of the process's runtime, each item once, and give ...
+  package_repair_cargo_lock.rs  <- src/native/repair/package_repair_cargo_lock.rs
+    Reading `Cargo.lock` before a `cargo clean` and putting it back as it was afterwards, and keeping ...
+  package_repair_cargo_workspaces.rs  <- src/native/repair/package_repair_cargo_workspaces.rs
+    The Cargo workspaces of a new worktree: what `cargo metadata --no-deps` says about one, the tracked ...
+  package_repair_pnpm.rs  <- src/native/repair/package_repair_pnpm.rs
+    The pnpm repair: `pnpm install --offline --frozen-lockfile` in a new worktree whose `node_modules` ...
+  package_repair_toolchain.rs  <- src/native/repair/package_repair_toolchain.rs
+    The toolchain repair: when the launchers copied into a new worktree's `.cache/toolchain-launchers` ...
+  package_repair_toolchain_copy_removal.rs  <- src/native/repair/package_repair_toolchain_copy_removal.rs
+    The removal of the launcher records, and the launchers beside them, that this worktree's lock ...
+  package_repair_toolchain_install.rs  <- src/native/repair/package_repair_toolchain_install.rs
+    The toolchain repair itself: what a worktree's launcher records ask of it, the `mpm-shadow install ...
+  package_repair_report.rs  <- src/native/repair/package_repair_report.rs
+    What a worktree repair tells the person: one line when the repairs worked, and one plain line per ...
+  package_repair_request.rs  <- src/native/repair/package_repair_request.rs
+    What a repair of a new worktree reads and is asked: the person's switches, what the process offers, ...
+  package_repair_command.rs  <- src/native/repair/package_repair_command.rs
+    Starting one package-manager program for a worktree repair: finding it on a search path, running it ...
+  package_repair_start.rs  <- src/native/repair/package_repair_start.rs
+    The start of one package-manager program for a worktree repair: run off the runtime's workers and ...
+  package_repair_toolchain_launcher_records.rs  <- src/native/repair/package_repair_toolchain_launcher_records.rs
+    The launcher records of a worktree's launcher directory, read once: the records that name another ...
+  package_repair_toolchain_names_and_bounds.rs  <- src/native/repair/package_repair_toolchain_names_and_bounds.rs
+    The words and size bounds the toolchain repair reads, starts and prints with: the launcher ...
+  package_repair_toolchain_object_identity.rs  <- src/native/repair/package_repair_toolchain_object_identity.rs
+    The object a name holds, as device, inode, size and write time, and the two comparisons the repair ...
+  package_repair_touches_only_its_own_worktree.rs  <- src/native/repair/package_repair_touches_only_its_own_worktree.rs
+    Whether a directory a repair deletes from or writes in is inside the worktree it serves, once every ...
+  package_repair_tree_clone.rs  <- src/native/repair/package_repair_tree_clone.rs
+    Cloning one directory tree for a worktree repair: every file cloned (or copied when the filesystem ...
 ```
 
 ### linux-file-and-disk-calls
@@ -274,31 +454,47 @@ Depends on crates:
 ```text
 package/linux-file-and-disk-calls/core-rust/src/
   lib.rs  (index: one `mod` line per folder, no code, no re-exports)
-  which_disk_a_folder_is_on/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    why_a_disk_call_failed.rs  <- src/native/subvolume/fs_primitive_error.rs
-      The typed failure of one Linux filesystem primitive (`statfs`, a btrfs ioctl, `FICLONE`, `renameat2`)
-    which_kind_of_disk_a_folder_is_on.rs  <- src/native/subvolume/fs_kind.rs
-      Which kind of filesystem holds a path (btrfs, overlayfs, other), whether a directory is the root of a btrfs
-    mounted_disks_and_their_options.rs  <- src/native/subvolume/fs_mount_options.rs
-      The mount of a path read from `/proc/self/mountinfo`: its mount point, filesystem type, source and both option
   fast_copies_and_swaps_on_linux/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
     uses/ -> which_disk_a_folder_is_on
     btrfs_folder_copy_calls.rs  <- src/native/subvolume/fs_btrfs_ioctl.rs
-      The three btrfs ioctls the wrapper needs, called in process: create an empty subvolume, snapshot a subvolume
+      The btrfs ioctls the wrapper needs, called in process: create an empty subvolume, snapshot a ...
     cloning_file_data_and_swapping_paths.rs  <- src/native/subvolume/fs_clone_exchange.rs
-      Two more Linux primitives: clone a whole file's data blocks into another file (`FICLONE`), and swap two paths
+      Two more Linux primitives: clone a whole file's data blocks into another file (`FICLONE`), and swap ...
   file_operations_that_never_follow_a_link/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    file_operations_that_never_follow_a_link.rs  <- src/native/subvolume/fs_beneath.rs
-      Directory-relative file operations that never follow a symbolic link or cross a mount: open a directory, a file or a
-    emptying_a_held_folder_step_by_step.rs  <- src/native/subvolume/subvolume_remove_walk.rs
-      Empty a directory that is held open, one descriptor-relative step at a time, refusing every nested subvolume and mount
+    uses/ -> lines_about_worktrees_and_large_files, which_disk_a_folder_is_on, lines_printed_for_the_person
+    fs_beneath_directory_chain.rs  <- src/native/subvolume/fs_beneath_directory_chain.rs
+      The directories a path walk has already opened, kept as one chain from the root, so a walk over ...
+    fs_beneath_mount_facts.rs  <- src/native/subvolume/fs_beneath_mount_facts.rs
+      What a held descriptor says about the mount it is on and the path the kernel finds at it now: the ...
+    fs_beneath_walk_chain.rs  <- src/native/subvolume/fs_beneath_walk_chain.rs
+      The walk from a held directory down a chain of one-name hops, as every handle it opened or as the ...
+    fs_btrfs_test_support.rs  <- src/native/subvolume/fs_btrfs_test_support.rs
+      The fixture root that the controls of the btrfs primitives and of the subvolume migration need, and ...
     removing_a_folder_tree_after_making_folders_writable.rs  <- src/native/subvolume/subvolume_remove.rs
-      Remove a directory tree, making each directory the user owns writable on the way down, and never going into a nested
+      Remove a directory tree, making each directory the user owns writable on the way down, and never ...
+    subvolume_remove_around.rs  <- src/native/subvolume/subvolume_remove_around.rs
+      The look that finds every subvolume and mount point below a tree without changing it, and the pass ...
     removing_a_folder_tree_below_a_held_parent_folder.rs  <- src/native/worktree/worktree_trash_remove.rs
-      Remove a directory tree beneath a held parent directory: every directory is opened by one plain name below the handle ...
+      Remove a directory tree beneath a held parent directory: every directory is opened by one plain ...
+    emptying_a_held_folder_step_by_step.rs  <- src/native/subvolume/subvolume_remove_walk.rs
+      Empty a directory that is held open, one descriptor-relative step at a time, refusing every nested ...
+    file_operations_that_never_follow_a_link.rs  <- src/native/subvolume/fs_beneath.rs
+      Directory-relative file operations that never follow a symbolic link or cross a mount: open a ...
+    subvolume_remove_listing_test_support.rs  <- src/native/subvolume/subvolume_remove_listing_test_support.rs
+      The moment a removal has read a directory's entries and has not yet removed them, for a control ...
+  which_disk_a_folder_is_on/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> saving_files_so_a_crash_leaves_no_half_file
+    which_kind_of_disk_a_folder_is_on.rs  <- src/native/subvolume/fs_kind.rs
+      Which kind of filesystem holds a path (btrfs, overlayfs, ZFS, other), whether a directory is the ...
+    mounted_disks_and_their_options.rs  <- src/native/subvolume/fs_mount_options.rs
+      The mount of a path read from `/proc/self/mountinfo`: its mount point, filesystem type, source and ...
+    why_a_disk_call_failed.rs  <- src/native/subvolume/fs_primitive_error.rs
+      The typed failure of one Linux filesystem primitive (`statfs`, a btrfs ioctl, `FICLONE`, ...
+    fs_uuid_of_source.rs  <- src/native/subvolume/fs_uuid_of_source.rs
+      The filesystem UUID of the block device a mount names as its source, read from udev's ...
 ```
 
 ### talking-to-the-systemd-user-manager
@@ -313,10 +509,10 @@ none.
 ```text
 package/talking-to-the-systemd-user-manager/core-rust/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  systemd_dbus_wire_format.rs  <- src/native/service/systemd_dbus_wire_format.rs
-    The D-Bus wire format the client speaks to the user manager: how a method call is written (header fields, strings
   systemd_dbus.rs  <- src/native/service/systemd_dbus.rs
-    A minimal D-Bus client for the user session bus: authenticate as the current user, say `Hello`, and call methods of
+    A client of the user session bus, on `zbus` 6 and the process's runtime: connect, authenticate as ...
+  systemd_dbus_wire_format.rs  <- src/native/service/systemd_dbus_wire_format.rs
+    The D-Bus wire format the client speaks to the user manager: how a method call is written (header ...
 ```
 
 ### cli (the program)
@@ -340,1257 +536,3242 @@ Depends on crates:
 ```text
 package/git-policy/cli/src/
   lib.rs  (index: one `mod` line per folder, no code, no re-exports)
+  after_commit_work_of_the_service/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, finding_the_git_folders, git_settings_read_once, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, making_a_worktree_quickly, moving_kept_files_to_the_new_names, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, reading_git_settings_from_files, removing_a_linked_worktree, repairs_the_service_runs_for_a_new_worktree, reviewing_landed_commits_against_standards, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, stopping_the_program_at_a_named_step_for_tests, the_references_kept_for_unlanded_commits, the_service_program, the_snapshots_a_removal_takes_before_it_goes, uploading_large_files, what_happens_when_you_type_a_command, work_left_for_the_service_to_finish_later, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    service_claim_watch_note_within_a_ceiling.rs  <- src/native/landing/service_claim_watch_note_within_a_ceiling.rs
+      The note a landing writes for the service that starts next, written on a thread of its own and ...
+    service_claim_watch.rs  <- src/native/landing/service_claim_watch.rs
+      The Git directories whose after-commit work this service instance has been woken for, kept on disk ...
+    service_claim_watch_watched_repositories.rs  <- src/native/landing/service_claim_watch_watched_repositories.rs
+      What the notes of one claim watch say about the repositories they name, read without keeping ...
+    service_claim_watch_writing_a_note.rs  <- src/native/landing/service_claim_watch_writing_a_note.rs
+      Writing a note: the landing's own write for the service that starts next, and the store's write of ...
+    service_claim_watch_note_format.rs  <- src/native/landing/service_claim_watch_note_format.rs
+      One note of the claim watch written and read back: the words that say its format, the bound on how ...
+    service_claim_watch_whose_repository_it_is.rs  <- src/native/landing/service_claim_watch_whose_repository_it_is.rs
+      Whether a Git directory is the repository of the instance whose journal is being written, and the ...
+    service_hold_retry.rs  <- src/native/landing/service_hold_retry.rs
+      Runs a forwarded index writer again when real Git lost the race for the index to the commit ...
+    service_retry.rs  <- src/native/landing/service_retry.rs
+      The repositories the service must look at again, and when: those with a claim that another instance ...
+    service_review.rs  <- src/native/service/service_review.rs
+      The service's handler for a `review` work item: read the landed commit, ask the decision gateway, ...
+    service_work_drain_pushes_of_each_branch.rs  <- src/native/landing/service_work_drain_pushes_of_each_branch.rs
+      The push step of one round of the drain: the claimed pushes grouped by repository and branch, the ...
+    service_work_drains_a_snapshot_ahead.rs  <- src/native/landing/service_work_drains_a_snapshot_ahead.rs
+      The service's drain of the snapshots it makes ahead of the next add, as one step of a round.
+    service_work_drains_awaiting.rs  <- src/native/landing/service_work_drains_awaiting.rs
+      The drains of one directory and of the common directory of a bare repository, awaited by a caller ...
+    service_work_items_side_by_side.rs  <- src/native/landing/service_work_items_side_by_side.rs
+      Which items of one batch of the service's work run at once, how many of them, and what running them ...
+    service_work_run_round.rs  <- src/native/landing/service_work_run_round.rs
+      Runs one round of the service's work over several directories: hands each directory its due ...
+    service_round.rs  <- src/native/landing/service_round.rs
+      The drain of several repositories in one round of the service's after-commit work, side by side.
+    service_work_settling_a_verdict.rs  <- src/native/landing/service_work_settling_a_verdict.rs
+      What a drained push's verdict does to its records, to the retry plan, and to the person.
+    service_work_slow_lane.rs  <- src/native/landing/service_work_slow_lane.rs
+      The service's work that can take minutes: a lane of its own, one repository at a time, and inside ...
+    service_work.rs  <- src/native/landing/service_work.rs
+      The service's consumer of after-commit work: pending `push` and `maintenance` work items of one ...
+    service_work_branch_is_gone.rs  <- src/native/landing/service_work_branch_is_gone.rs
+      The notice for a push whose branch the person deleted: the refs that still hold its commit, and the ...
+    service_work_branch_questions.rs  <- src/native/landing/service_work_branch_questions.rs
+      The two questions the service's push asks a branch before it sends anything: whether the branch ...
+    service_work_common_directory.rs  <- src/native/landing/service_work_common_directory.rs
+      The common Git directory a service drain looks at, and whether it belongs to a repository with no ...
+    service_work_drain_pending_claims.rs  <- src/native/landing/service_work_drain_pending_claims.rs
+      Drains the pending items of one work directory as a task of the runtime: claims them under a lease, ...
+    service_claim_renewal_running.rs  <- src/native/landing/service_claim_renewal_running.rs
+      A running renewal of the claims one drain holds: the task that renames them every third of the ...
+    service_work_drain_deletes_subvolumes.rs  <- src/native/landing/service_work_drain_deletes_subvolumes.rs
+      The drain's step that deletes the subvolumes a removal renamed out of the person's way: every item ...
+    service_work_drain_waves_of_one_kind.rs  <- src/native/landing/service_work_drain_waves_of_one_kind.rs
+      The bodies a wave of one kind asks of its handler: the relink of a new worktree's package state, ...
+    service_work_push_environment.rs  <- src/native/landing/service_work_push_environment.rs
+      The environment every Git child of a service push receives, and the overlay the service adds to it.
+    service_work_settling_with_words.rs  <- src/native/landing/service_work_settling_with_words.rs
+      How one item whose kind answers with words rather than a push is settled: a skipped one is done and ...
+    service_work_storage_awaited.rs  <- src/native/landing/service_work_storage_awaited.rs
+      The storage steps of one drain of work, each a job of the process's blocking pool awaited by a task ...
+    service_work_handlers_replanning_and_acceptance.rs  <- src/native/landing/service_work_handlers_replanning_and_acceptance.rs
+      What the work of the commit service is made of: the kinds it runs, the handlers that run each kind, ...
+    service_claim_renewal.rs  <- src/native/landing/service_claim_renewal.rs
+      Keeps the lease of the claims one service instance holds fresh while it works, so a claim is taken ...
+  answering_questions_without_starting_git/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_the_git_folders, reading_and_writing_the_index_file_of_git, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, running_git_for_a_transaction, starting_git_and_describing_a_run, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    trying_in_process_answers_first.rs  <- src/native/repo_read/repo_read_hook.rs
+      The two places where the wrapper's Git runners try the in-process answers first.
+    answers_to_the_wrappers_own_git_queries.rs  <- src/native/repo_read/repo_read_query.rs
+      Answers, without a Git process, to the exact read-only Git command lines the wrapper itself issues: ...
+    quiet_diff_index_answer.rs  <- src/native/repo_read/repo_read_query_quiet.rs
+      The exit status of `git diff-index --cached --quiet <commit-or-HEAD> [-- <paths>]` without starting ...
+    reference_and_configuration_answers.rs  <- src/native/repo_read/repo_read_query_refs.rs
+      In-process answers for the reference and configuration command lines the wrapper issues: `config ...
+    query_request_answer_and_context.rs  <- src/native/repo_read/repo_read_query_request_answer_and_context.rs
+      What the in-process Git queries share: the request (`Query`), the answer (`Answer`), the parsed ...
+  asking_the_commit_service_to_save_a_commit/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, checking_the_repository_link, finding_the_git_folders, git_settings_read_once, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, reading_saved_commits_and_files, reading_the_bytes_a_commit_would_save, reviewing_landed_commits_against_standards, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, running_policies_and_settling_their_corrections, stopping_the_program_at_a_named_step_for_tests, the_commit_command, the_hidden_second_git_folder, the_record_and_the_lock_the_zfs_clone_route_keeps, the_service_program, the_settings_file_cli_git_config_jsonc, what_happens_when_you_type_a_command, work_left_for_the_service_to_finish_later, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, talking_to_the_systemd_user_manager, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    landed_summary.rs  <- src/native/landing/landed_summary.rs
+      The one summary line a landed commit prints, the way `git commit` prints it: `[<branch> <name>] ...
+    service_client_shadow_hand_out.rs  <- src/native/service/service_client_shadow_hand_out.rs
+      The question a commit asks its service before it builds anything: has a finished shadow been drawn ...
+    service_handoff.rs  <- src/native/landing/service_handoff.rs
+      The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service ...
+    service_client.rs  <- src/native/service/service_client.rs
+      The wrapper's side of a commit through the resident service: connect, wait honestly while the ...
+    service_client_interrupted.rs  <- src/native/service/service_client_interrupted.rs
+      The signals that end a commit while it waits for the commit service, and the flag they set for the ...
+    service_client_waiting_words.rs  <- src/native/service/service_client_waiting_words.rs
+      The words a waiting command is told about its own wait: the place the service named, or that it ...
+    service_client_wake.rs  <- src/native/service/service_client_wake.rs
+      The client's one-way message that work items were written for a repository, and its wait for the ...
+    service_client_reach_service.rs  <- src/native/service/service_client_reach_service.rs
+      Reaches the commit service: connects to its address, starts it through its unit when nothing ...
+    service_client_settings_and_watches.rs  <- src/native/service/service_client_settings_and_watches.rs
+      The settings of one client run (how it reaches the service, how long it waits, what it keeps fresh) ...
+    service_client_why_withdrawn.rs  <- src/native/service/service_client_why_withdrawn.rs
+      Why a request a commit sent is given up, and the failure that says what became of the commit.
+    service_pruned.rs  <- src/native/landing/service_pruned.rs
+      How a commit headed for the service notices that the content it prepared was removed from the ...
+    service_route.rs  <- src/native/landing/service_route.rs
+      How a commit reaches the resident service: already listening, or set up first by the wrapper.
+    service_provision.rs  <- src/native/service/service_provision.rs
+      The wrapper makes socket activation for a worktree's commit service exist the first time a commit ...
+    service_provision_earlier_service_retirement.rs  <- src/native/service/service_provision_earlier_service_retirement.rs
+      The retirement of the single service of the earlier releases: the user's own unit directory cleared ...
+    service_provision_instance_unloaded.rs  <- src/native/service/service_provision_instance_unloaded.rs
+      Drops the service manager's copy of one worktree's units, so that the next start reads the unit ...
+    service_client_listen_and_ask_to_retire.rs  <- src/native/service/service_client_listen_and_ask_to_retire.rs
+      The lowest steps of the client of the commit service: connecting to the service's address, reading ...
+    service_client_connect_within_a_bound.rs  <- src/native/service/service_client_connect_within_a_bound.rs
+      Connects to the commit service's address and gives up when the socket takes no connection within ...
+    service_provision_loaded_unit_texts.rs  <- src/native/service/service_provision_loaded_unit_texts.rs
+      The record, per unit instance, of the two unit texts the service manager last read for it, kept ...
+    service_provision_refusals_before_the_wait.rs  <- src/native/service/service_provision_refusals_before_the_wait.rs
+      The two states in which provisioning already knows that no service can answer this command, and ...
+    service_provision_host_and_manager.rs  <- src/native/service/service_provision_host_and_manager.rs
+      What provisioning knows about the machine and the manager it asks: the host's folders and programs, ...
+    service_provision_slow_manager_notice.rs  <- src/native/service/service_provision_slow_manager_notice.rs
+      The one line a commit prints when the service manager has not answered the provisioning of its ...
+    service_provision_unit_file_ownership_and_writes.rs  <- src/native/service/service_provision_unit_file_ownership_and_writes.rs
+      The checks and writes on the unit files of the commit service: which files carry the wrapper's ...
+    service_messages.rs  <- src/native/landing/service_messages.rs
+      Everything the wrapper tells the user when it cannot get a commit landed by the resident service, ...
+  attaching_a_zfs_clone_folder/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    (new folder of this round: The host half of the descriptor attach a ZFS clone mount goes through: the walk, the folder identities and the post-attach check.)
+    attach_the_clone.rs  <- src/native/worktree_clone_mount/attach_the_clone.rs
+      The product attach itself: the file-system context of a clone's dataset, its source, the create, ...
+    clone_slot_git_pointer.rs  <- src/native/worktree_clone_mount/clone_slot_git_pointer.rs
+      The first observation's read of the slot's `.git` pointer: a bounded, regular, no-follow file ...
+    misplaced_attach_rollback.rs  <- src/native/worktree_clone_mount/misplaced_attach_rollback.rs
+      The plan that takes down a mount which landed beside its slot, and the report a completed or a ...
+    attach_post_check.rs  <- src/native/worktree_clone_mount/attach_post_check.rs
+      The check that runs after an attach: whether the mount the attach made is the one the canonical ...
+    attached_mount_identity.rs  <- src/native/worktree_clone_mount/attached_mount_identity.rs
+      The mount of one folder as the route records it: the kernel's mount ID and its parent's, the mount ...
+    clone_slot_walk.rs  <- src/native/worktree_clone_mount/clone_slot_walk.rs
+      The walk from the pinned checkout to one clone slot, holding a descriptor for the checkout, the ...
+    parent_adoption_decision.rs  <- src/native/worktree_clone_mount/parent_adoption_decision.rs
+      The decision an administrator's `adopt-worktree-parent` mode makes: whether a `.claude/worktrees` ...
+    clone_slot_walk_refusals.rs  <- src/native/worktree_clone_mount/clone_slot_walk_refusals.rs
+      Why the walk from the pinned checkout to a clone slot stopped, why a held slot is not the one the ...
+    parent_adoption_facts.rs  <- src/native/worktree_clone_mount/parent_adoption_facts.rs
+      The shapes an adoption compares against: the owner, mode and ACLs a replacement must hold, and the ...
+    slot_identity_store.rs  <- src/native/worktree_clone_mount/slot_identity_store.rs
+      The folder that records one identity for the `.claude/worktrees` parent folder and one for each ...
+    slot_identity_store_reading.rs  <- src/native/worktree_clone_mount/slot_identity_store_reading.rs
+      Reading one record file below a held store folder, listing the folder's slot names, and removing ...
+    slot_identity_store_control.rs  <- src/native/worktree_clone_mount/slot_identity_store_control.rs
+      Whose the store folder and its records must be, which permission bits say another account could ...
+    slot_identity_store_records.rs  <- src/native/worktree_clone_mount/slot_identity_store_records.rs
+      One record file's grammar: the header line, the record kinds, a record's own encoding, and the ...
+    slot_identity_store_refusals.rs  <- src/native/worktree_clone_mount/slot_identity_store_refusals.rs
+      Why the slot identity store could not be read, written, or listed, and the sentence each cause ...
+    clone_folder_identity.rs  <- src/native/worktree_clone_mount/clone_folder_identity.rs
+      The identity of one folder as the ZFS worktree route records it: its device, inode, owning user, ...
+    clone_folder_identity_acl.rs  <- src/native/worktree_clone_mount/clone_folder_identity_acl.rs
+      The two ACLs of a folder, read through its descriptor in the kernel's own extended-attribute ...
+    slot_name.rs  <- src/native/worktree_clone_mount/slot_name.rs
+      What makes a name no plain slot name, the one rule the store, the walk and the per-slot claim share.
+  cancelling_a_zfs_clone_removal/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> attaching_a_zfs_clone_folder, proving_a_zfs_clone_may_be_removed, reading_the_datasets_zfs_mounts, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_root_modes_that_attach_and_unmount_zfs_clones, the_state_of_one_zfs_clone_slot, unmounting_a_zfs_clone_folder, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, which_programs_are_running_and_since_when, lines_printed_for_the_person
+    (new folder of this round: The manual way back from a removal that did not finish, and the state a removal restores when it cancels itself.)
+    the_cancel_command.rs  <- src/native/worktree_clone_removal_cancel/the_cancel_command.rs
+      The guarded `cancel-worktree-removal <slot>` command: the records' proof, the removal claim, the ...
+    cancel_arguments.rs  <- src/native/worktree_clone_removal_cancel/cancel_arguments.rs
+      The grammar of `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`: one positional ...
+    the_cancelled_removal.rs  <- src/native/worktree_clone_removal_cancel/the_cancelled_removal.rs
+      What a removal restores when it cancels itself, and what a forced removal's failure leaves: the ...
+    the_cancelling_sequence.rs  <- src/native/worktree_clone_removal_cancel/the_cancelling_sequence.rs
+      The order both actors share: one `mount` request under a fresh nonce, its verified answer, the ...
+    the_plan_it_leaves.rs  <- src/native/worktree_clone_removal_cancel/the_plan_it_leaves.rs
+      The one plan action a cancellation takes: remove a plan whose every name is still `planned` and ...
+    the_proof.rs  <- src/native/worktree_clone_removal_cancel/the_proof.rs
+      Which slot, which clone, and which records the command proves, in the design's own order: the ...
+    the_destroy_outcomes.rs  <- src/native/worktree_clone_removal_cancel/the_destroy_outcomes.rs
+      The destruction plan's tuples settled by the clone's live inventory: which snapshots the removal ...
+    the_removal_claim.rs  <- src/native/worktree_clone_removal_cancel/the_removal_claim.rs
+      The slot's claim as the cancel command sees it: the whole removal's own claim, taken through the ...
+    the_reversing_request.rs  <- src/native/worktree_clone_removal_cancel/the_reversing_request.rs
+      The one request that reverses a removal: a `mount` intent under a fresh nonce, the wait for its ...
+    cancel_refusal.rs  <- src/native/worktree_clone_removal_cancel/cancel_refusal.rs
+      Every state that prevents the cancel command, with its exit code and the sentence a person reads, ...
+    the_slot_mount.rs  <- src/native/worktree_clone_removal_cancel/the_slot_mount.rs
+      Where one clone stands, read from this process's mount table: at its slot, nowhere, elsewhere, or ...
+    the_staged_state.rs  <- src/native/worktree_clone_removal_cancel/the_staged_state.rs
+      The staging folder a cancellation meets: whether one stands, its `rmdir`-only settlement on the ...
+  checking_that_your_setup_works/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> git_settings_read_once, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, saving_copies_of_what_a_command_would_throw_away, the_settings_file_cli_git_config_jsonc, what_happens_when_you_type_a_command, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    doctor.rs  <- src/native/health/doctor.rs
+      `git monochromatic-git-policy-cli doctor`: list the traditional hooks a repository holds and the ...
+    doctor_config.rs  <- src/native/health/doctor_config.rs
+      What `git monochromatic-git-policy-cli doctor` reports from the configuration: the external hooks ...
+    doctor_filesystem.rs  <- src/native/health/doctor_filesystem.rs
+      The filesystem section of `git monochromatic-git-policy-cli doctor`: what the checkout Git named ...
+    checkout_layout.rs  <- src/native/health/checkout_layout.rs
+      How the checkout the doctor's filesystem section reports on is laid out, and the command that ...
+    doctor_fsmonitor.rs  <- src/native/health/doctor_fsmonitor.rs
+      The fsmonitor section of `git monochromatic-git-policy-cli doctor`: whether Git's own file-system ...
+    doctor_hook_entries.rs  <- src/native/health/doctor_hook_entries.rs
+      The entries of one hooks directory: which of them Git would run as a traditional hook, how the ...
+    lfs_shims.rs  <- src/native/health/lfs_shims.rs
+      The Git LFS shims a repository may hold: which files are exactly what git-lfs writes for its own ...
+  checking_the_repository_link/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> asking_the_commit_service_to_save_a_commit, what_each_git_command_accepts, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file
+    (new folder of this round: The Rust copy of the repository link check: whether the repository path is a usable link to the 860 drive right now.)
+    repository_link_doctor_line.rs  <- src/native/repository_link_check/repository_link_doctor_line.rs
+      The line `git monochromatic-git-policy-cli doctor` prints about the repository's link to the 860 ...
+    repository_link_gate.rs  <- src/native/repository_link_check/repository_link_gate.rs
+      The gate that asks the repository link check before a command touches the repository.
+    repository_link_check_walk.rs  <- src/native/repository_link_check/repository_link_check_walk.rs
+      The repository link check: phase `after` checks the link to the 860, phase `before` checks the real ...
+    repository_link_answer.rs  <- src/native/repository_link_check/repository_link_answer.rs
+      Every answer the repository link check can give, and the exit status of the Git wrapper's refusal.
+    repository_link_probe.rs  <- src/native/repository_link_check/repository_link_probe.rs
+      The filesystem questions the repository link check asks, and the probe that answers them from the ...
+    repository_move_freeze.rs  <- src/native/repository_link_check/repository_move_freeze.rs
+      Whether a repository move has frozen a repository, read from the move's own record: the freeze ...
+    repository_link_paths.rs  <- src/native/repository_link_check/repository_link_paths.rs
+      The paths an invocation names, and whether one lies under the repository link.
+    repository_link_identity.rs  <- src/native/repository_link_check/repository_link_identity.rs
+      The identity file `~/.config/monochromatic-dev/repository-link.json` and its reader.
+  checking_version_bumps_in_a_commit/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> putting_corrected_files_into_the_private_index, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, running_policies_and_settling_their_corrections, what_the_wrapper_asks_git_about_a_repository, planning_version_bumps_of_dependents
+    policy_dependent_version.rs  <- src/native/dependent_version/policy_dependent_version.rs
+      The `mono/dependent-version-bump` check: the native planner over the lifecycle's prepared candidate ...
+    policy_dependent_version_commit.rs  <- src/native/dependent_version/policy_dependent_version_commit.rs
+      The work the commit path of `mono/dependent-version-bump` does around the plan: the notes it ...
+    dependent_version_lifecycle.rs  <- src/native/dependent_version/dependent_version_lifecycle.rs
+      The dependent-version planner's view of a prepared candidate state: every tracked file of the ...
+    dependent_version_policy.rs  <- src/native/dependent_version/dependent_version_policy.rs
+      The decision of `mono/dependent-version-bump`: when to plan, and the findings a plan becomes.
+  cleaning_up_the_origin_of_a_zfs_clone/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> proving_a_zfs_clone_may_be_removed, removing_a_linked_worktree, taking_snapshots_for_the_zfs_clone_route, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, saving_files_so_a_crash_leaves_no_half_file
+    (new folder of this round: The record that carries an origin snapshot cleanup past the clone and the registration.)
+    origin_cleanup_look.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_look.rs
+      The look every worktree command makes at the origin cleanup folder: one listing, one read per ...
+    origin_cleanup_attempt.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_attempt.rs
+      One attempt at one origin cleanup record: prove the origin dataset and the origin snapshot by GUID, ...
+    origin_cleanup_lines.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_lines.rs
+      The lines the origin cleanup prints, and the rule that decides when a blocked record speaks.
+    origin_cleanup_publication.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_publication.rs
+      The origin cleanup folder's creation, the one write a removal or a failed add makes into it, and ...
+    origin_cleanup_reading.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_reading.rs
+      Where one repository's origin cleanup records live, the name grammar that tells a record from a ...
+    origin_cleanup_parse.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_parse.rs
+      Reading an origin cleanup record's bytes back: the header line, then the keys in the grammar's ...
+    origin_cleanup_record.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_record.rs
+      The origin cleanup record as a value: its identity lines, its state lines, the pool one destroy ...
+    origin_cleanup_bounds.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_bounds.rs
+      The byte bounds the origin cleanup record's reader enforces and its writer proves: the record's ...
+    origin_cleanup_refusal.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_refusal.rs
+      Why bytes are not an origin cleanup record, and the sentence a person reads about each.
+    origin_cleanup_words.rs  <- src/native/worktree_clone_origin_cleanup/origin_cleanup_words.rs
+      The words the origin cleanup record and its folder are made of: the header line, the fifteen keys ...
+  clearing_leftover_reference_locks/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, finding_the_git_folders, finding_who_holds_a_lock_file, holding_the_index_lock_for_the_commit_service, planning_a_worktree_add_and_what_git_made, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    clearing_locks_before_fetch_and_push.rs  <- src/native/lock/forwarded_lock_notice.rs
+      The clearing of stale reference locks for the person's own `git fetch` and `git push`, and the ...
+    words_about_reference_locks.rs  <- src/native/lock/stale_ref_lock_message.rs
+      The words the wrapper prints about reference locks: what it removed, what it left and why, and the ...
+    record_of_a_judged_reference_lock.rs  <- src/native/lock/stale_ref_lock_found.rs
+      The record of one judged reference lock, and the outcome of one clearing pass.
+    judging_one_reference_lock.rs  <- src/native/lock/stale_ref_lock_judge.rs
+      How one reference lock is judged: too new, held, stale on a proof, or unproven.
+    stale_ref_lock_judge_environment.rs  <- src/native/lock/stale_ref_lock_judge_environment.rs
+      What one judgement reads of the machine it runs on: when the machine booted, and the time a file ...
+    identity_of_a_lock_file_when_judged.rs  <- src/native/lock/stale_ref_lock_identity.rs
+      A file's identity at the moment it was judged: the removal checks that it is still that file.
+    names_of_reference_lock_files.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    setting_aside_and_removing_a_stale_lock.rs  <- src/native/lock/stale_ref_lock_retire.rs
+      Judge one candidate and, when it is proven stale, set it aside, check that it is the file that was ...
+    finding_reference_lock_files.rs  <- src/native/lock/stale_ref_lock_walk.rs
+      Which files below a Git directory are reference locks, and which files go with one.
+    clearing_all_stale_reference_locks.rs  <- src/native/lock/stale_ref_locks.rs
+      The reference locks a killed Git left behind: found, judged one by one, removed when their holder ...
+    locks_a_stopped_git_may_leave.rs  <- src/native/lock/stopped_git_locks.rs
+      The reference locks a stopped Git child may have left behind, judged and reported once the child ...
+  converting_a_linked_worktree/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> converting_the_main_checkout, copying_ignored_files_around_one_git_command, copying_ignored_files_into_a_stage, finding_the_real_git_program, is_the_worktree_clean, lines_about_worktrees_and_large_files, what_happens_when_you_type_a_command, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    worktree_convert_command.rs  <- src/native/worktree/worktree_convert_command.rs
+      `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: parse the options, find the ...
+    worktree_convert.rs  <- src/native/worktree/worktree_convert.rs
+      Convert one registered linked worktree that is an ordinary directory into a btrfs subvolume at the ...
+    worktree_convert_arguments.rs  <- src/native/worktree/worktree_convert_arguments.rs
+      The grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
+    worktree_convert_phases.rs  <- src/native/worktree/worktree_convert_phases.rs
+      The journaled phases of one worktree conversion: the claim on the stage, the copy and its proof, ...
+    worktree_convert_filled_stages.rs  <- src/native/worktree/worktree_convert_filled_stages.rs
+      What a conversion does about a stage container another command is filling below the tree it would ...
+    worktree_convert_leftover_stage_record.rs  <- src/native/worktree/worktree_convert_leftover_stage_record.rs
+      The record, beside a worktree, of the two objects one conversion may leave at ...
+    worktree_convert_remove.rs  <- src/native/worktree/worktree_convert_remove.rs
+      Remove the old tree of a conversion, but only the directory the journal recorded, pinned by a ...
+    worktree_convert_compare.rs  <- src/native/worktree/worktree_convert_compare.rs
+      A read-only comparison of the old tree of a conversion with the installed one: the first entry of ...
+    worktree_convert_unrecorded_stage.rs  <- src/native/worktree/worktree_convert_unrecorded_stage.rs
+      The empty stage a conversion created and did not record, and whether the object at the converting ...
+    worktree_convert_inspection.rs  <- src/native/worktree/worktree_convert_inspection.rs
+      The first look at a worktree a conversion might change: what its `.git` file names, and every ...
+    worktree_convert_journal.rs  <- src/native/worktree/worktree_convert_journal.rs
+      The journal of one conversion of a worktree into a subvolume.
+  converting_the_main_checkout/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> converting_a_linked_worktree, copying_ignored_files_into_a_stage, is_the_worktree_clean, moving_kept_files_to_the_new_names, reading_git_settings_from_files, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run, what_happens_when_you_type_a_command, fast_copies_and_swaps_on_linux, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, text_time_and_records_written_like_javascript
+    single_owner_claim.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    subvolume_file_write_steps_sync_counts_test_support.rs  <- src/native/subvolume/subvolume_file_write_steps_sync_counts_test_support.rs
+      Test-only counts of the durability syncs the migration's shared write steps made, and of the ones ...
+    subvolume_sync_copy_one_entry.rs  <- src/native/subvolume/subvolume_sync_copy_one_entry.rs
+      The copying of one source entry (a file, a symbolic link or a named pipe) into the destination, as ...
+    subvolume_test_support.rs  <- src/native/subvolume/subvolume_test_support.rs
+      The stand-in platform and the fixture checkouts of the subvolume migration controls.
+    subvolume_command.rs  <- src/native/subvolume/subvolume_command.rs
+      `git monochromatic-git-policy-cli migrate-to-subvolume`: find the repository's main checkout from ...
+    subvolume_migrate.rs  <- src/native/subvolume/subvolume_migrate.rs
+      Convert a main checkout into a btrfs subvolume at the same path, in process, resumably.
+    subvolume_rollback.rs  <- src/native/subvolume/subvolume_rollback.rs
+      Undo a migration (`--rollback`) and delete the old tree after a finished one (`--remove-old`), plus ...
+    subvolume_arguments.rs  <- src/native/subvolume/subvolume_arguments.rs
+      The grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`, the wrapper's command that ...
+    subvolume_index_refresh_of_every_worktree.rs  <- src/native/subvolume/subvolume_index_refresh_of_every_worktree.rs
+      The rewrite of the index of the checkout and of every linked worktree inside it, side by side ...
+    subvolume_index_files.rs  <- src/native/subvolume/subvolume_index_files.rs
+      The linked worktrees of a main checkout, found from `.git/worktrees/*/gitdir`, and the stat rewrite ...
+    subvolume_index_install_into_new_worktree.rs  <- src/native/subvolume/subvolume_index_install_into_new_worktree.rs
+      The install of a first index into a new worktree: written into `index.lock`, linked under the name ...
+    subvolume_index.rs  <- src/native/subvolume/subvolume_index.rs
+      The stat rewrite of a Git index: the bytes of an index file in, the bytes of the same index out, ...
+    subvolume_registered_worktrees.rs  <- src/native/subvolume/subvolume_registered_worktrees.rs
+      The linked worktrees of a main checkout, found from `.git/worktrees/*/gitdir`, and the ...
+    subvolume_rollback_identity.rs  <- src/native/subvolume/subvolume_rollback_identity.rs
+      Which directory a name holds, by identity, for the two steps that write into and exchange ...
+    subvolume_rollback_stage.rs  <- src/native/subvolume/subvolume_rollback_stage.rs
+      Which directory the rollback deletes as the migration's stage, and the refusal when that directory ...
+    subvolume_rollback_subvolume_removal.rs  <- src/native/subvolume/subvolume_rollback_subvolume_removal.rs
+      Removing a subvolume and every subvolume nested in it, deepest first, by the kernel's destroy call ...
+    subvolume_run.rs  <- src/native/subvolume/subvolume_run.rs
+      The state one migration command carries between its steps: the platform, the paths, the journal, ...
+    subvolume_pass_report.rs  <- src/native/subvolume/subvolume_pass_report.rs
+      The lines a tree pass says about what it could not carry into the destination, and about the ...
+    subvolume_preflight.rs  <- src/native/subvolume/subvolume_preflight.rs
+      The paths of one migration and the refusals that stop it before anything is created: every refusal ...
+    subvolume_entry_count.rs  <- src/native/subvolume/subvolume_entry_count.rs
+      The count of the entries under a checkout: every file, directory and link below its root, counted ...
+    subvolume_lock.rs  <- src/native/subvolume/subvolume_lock.rs
+      The index locks the migration holds: one `index.lock` file for the main index and one for the index ...
+    subvolume_journal.rs  <- src/native/subvolume/subvolume_journal.rs
+      The journal of a subvolume migration: a small JSON file beside the checkout that records which ...
+    subvolume_file_write_steps.rs  <- src/native/subvolume/subvolume_file_write_steps.rs
+      The file steps that the migration's writers share: write bytes and flush them to disk, flush a ...
+    subvolume_sync.rs  <- src/native/subvolume/subvolume_sync.rs
+      Make one directory tree match another, in process: copy what is missing or changed (cloning file ...
+    subvolume_sync_pass_state_and_checks.rs  <- src/native/subvolume/subvolume_sync_pass_state_and_checks.rs
+      The pieces every step of a tree sync shares: the options and the statistics, the work stack's ...
+    subvolume_anchor.rs  <- src/native/subvolume/subvolume_anchor.rs
+      An open directory used as the fixed point of every operation inside it: the directory is opened one ...
+    subvolume_error.rs  <- src/native/subvolume/subvolume_error.rs
+      The failure type of the subvolume migration and the test hook that simulates a kill.
+    subvolume_platform.rs  <- src/native/subvolume/subvolume_platform.rs
+      The operating-system operations the subvolume migration needs, behind one trait, and the Linux ...
+    subvolume_sync_attrs.rs  <- src/native/subvolume/subvolume_sync_attrs.rs
+      Copying the attributes of one directory entry onto its copy: owner, permission bits, access and ...
+  copying_ignored_files_around_one_git_command/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> converting_a_linked_worktree, converting_the_main_checkout, copying_ignored_files_into_a_stage, making_a_worktree_quickly, planning_a_worktree_add_and_what_git_made, proving_a_zfs_clone_may_be_removed, reading_the_datasets_zfs_mounts, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, starting_git_and_describing_a_run, the_record_and_the_lock_the_zfs_clone_route_keeps, the_state_of_one_zfs_clone_slot, the_zfs_kernel_gate, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, repairing_installed_packages, file_operations_that_never_follow_a_link, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    worktree_copy.rs  <- src/native/worktree_copying/worktree_copy.rs
+      The linked-worktree ignored-state copy around one forwarded Git invocation: the public entry point ...
+    worktree_copy_after_lock.rs  <- src/native/worktree_copying/worktree_copy_after_lock.rs
+      What is left to do once the ignored state of a new worktree is in place: hand the trash a snapshot ...
+    worktree_copy_after_refusal.rs  <- src/native/worktree_copying/worktree_copy_after_refusal.rs
+      What becomes of the destination after real Git refused a creating command: the folder this command ...
+    worktree_copy_owed_copy.rs  <- src/native/worktree_copying/worktree_copy_owed_copy.rs
+      The ignored-state copy an interrupted `git worktree add` still owes, made by the first command run ...
+    worktree_copy_interrupted_checkout.rs  <- src/native/worktree_copying/worktree_copy_interrupted_checkout.rs
+      The checkout an interrupted `git worktree add` never finished, finished by a command run in the ...
+    worktree_copy_owed_copy_notices.rs  <- src/native/worktree_copying/worktree_copy_owed_copy_notices.rs
+      Every line the pass that finishes an owed worktree copy prints: the one that names a copy owed into ...
+    worktree_copy_owed_copy_proofs.rs  <- src/native/worktree_copying/worktree_copy_owed_copy_proofs.rs
+      What must still hold before the pass that finishes an owed copy touches the disk: the destination ...
+    worktree_copy_owed_copy_source.rs  <- src/native/worktree_copying/worktree_copy_owed_copy_source.rs
+      Whether the worktree an interrupted add copies its ignored state from is still somewhere a worktree ...
+    worktree_copy_owed_taking.rs  <- src/native/worktree_copying/worktree_copy_owed_taking.rs
+      The marker one command takes in the journal root before it stages an owed copy, the removal of the ...
+    worktree_copy_publish_file.rs  <- src/native/worktree_copying/worktree_copy_publish_file.rs
+      The publication of one staged regular file at its destination name in one step: its bytes are ...
+    worktree_copy_repository_path.rs  <- src/native/worktree_copying/worktree_copy_repository_path.rs
+      The path vocabulary of the linked-worktree copy: the bytes of one repository-relative path, how its ...
+    worktree_copy_settling.rs  <- src/native/worktree_copying/worktree_copy_settling.rs
+      The settling of a staged copy against the source it was copied from: the passes that compare the ...
+    worktree_copy_stages_being_filled.rs  <- src/native/worktree_copying/worktree_copy_stages_being_filled.rs
+      The stage containers a live command is filling that stand below a tree, read from the claims beside ...
+    worktree_copy_swapped_add_settlement.rs  <- src/native/worktree_copying/worktree_copy_swapped_add_settlement.rs
+      The settlement of an add whose snapshot was swapped into the destination and whose command was ...
+    worktree_copy_symlink_target.rs  <- src/native/worktree_copying/worktree_copy_symlink_target.rs
+      The target a copied symbolic link must hold so that it names, at the new place the copy is ...
+    worktree_copy_synchronize.rs  <- src/native/worktree_copying/worktree_copy_synchronize.rs
+      The synchronization of one created worktree with its source's ignored state: the stage of that ...
+    worktree_copy_ceiling.rs  <- src/native/worktree_copying/worktree_copy_ceiling.rs
+      The longest one command spends finishing an ignored-state copy another command started, and the ...
+    worktree_copy_notices.rs  <- src/native/worktree_copying/worktree_copy_notices.rs
+      Whose destination a creating command's copy may write into: the answer, how it is read from the ...
+    worktree_copy_source_still_being_filled.rs  <- src/native/worktree_copying/worktree_copy_source_still_being_filled.rs
+      Whether one source worktree is itself the destination of an ignored-state copy that has not ...
+    worktree_copy_unreadable_records.rs  <- src/native/worktree_copying/worktree_copy_unreadable_records.rs
+      The records of an interrupted ignored-state copy that cannot be read: the command that finds one ...
+    worktree_copy_interrupted_add_settlement.rs  <- src/native/worktree_copying/worktree_copy_interrupted_add_settlement.rs
+      What recovery settles an interrupted `git worktree add` to: the record it keeps, the notice it ...
+    worktree_copy_unfilled_record.rs  <- src/native/worktree_copying/worktree_copy_unfilled_record.rs
+      The durable record that one worktree was left without part of its source's ignored state: written ...
+    worktree_copy_registration_naming.rs  <- src/native/worktree_copying/worktree_copy_registration_naming.rs
+      Which of a repository's registrations names one destination.
+    worktree_copy_unreadable_record_aside.rs  <- src/native/worktree_copying/worktree_copy_unreadable_record_aside.rs
+      Where a record of an interrupted copy that cannot be read is kept, and how it gets there: one ...
+    worktree_copy_unreadable_record_words.rs  <- src/native/worktree_copying/worktree_copy_unreadable_record_words.rs
+      The words one line says about a record of an interrupted copy that cannot be read: what the record ...
+    worktree_copy_vanished_entry.rs  <- src/native/worktree_copying/worktree_copy_vanished_entry.rs
+      Whether an entry a walk listed is still there when the walk reaches it, as the answer a walk of a ...
+    worktree_removal_of_a_bound_clone.rs  <- src/native/worktree_copying/worktree_removal_of_a_bound_clone.rs
+      The refusal of one `git worktree remove` of a slot a whole managed clone is bound to, mounted or ...
+  copying_ignored_files_into_a_stage/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> converting_a_linked_worktree, copying_ignored_files_around_one_git_command, making_a_worktree_quickly, names_this_release_and_the_one_before, planning_a_worktree_add_and_what_git_made, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, the_snapshots_a_removal_takes_before_it_goes, what_the_wrapper_asks_git_about_a_repository, who_owns_a_transaction_folder, fast_copies_and_swaps_on_linux, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    worktree_copy_git_steps.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    worktree_copy_recovery.rs  <- src/native/worktree_copying/worktree_copy_recovery.rs
+      Recovery of interrupted linked-worktree copies: every pending journal is resumed, completed, or ...
+    worktree_copy_registry.rs  <- src/native/worktree_copying/worktree_copy_registry.rs
+      The linked worktree a `git worktree add` registered at the destination its command line names: ...
+    worktree_copy_stage_claim_owed_copy_elsewhere.rs  <- src/native/worktree_copying/worktree_copy_stage_claim_owed_copy_elsewhere.rs
+      Whether the copy an interrupted add's record still owes has a future in a worktree other than the ...
+    worktree_copy_stage_claim_pointer_presence.rs  <- src/native/worktree_copying/worktree_copy_stage_claim_pointer_presence.rs
+      What a look at the destination's own pointer said: Git's pointer is there, it is not there, or the ...
+    worktree_copy_stage_claim_reaping.rs  <- src/native/worktree_copying/worktree_copy_stage_claim_reaping.rs
+      The judging of stage claims and their temporaries, and the removal of the stages that interrupted ...
+    worktree_copy_stage_claim.rs  <- src/native/worktree_copying/worktree_copy_stage_claim.rs
+      The durable claim on a stage container's name, written before the container exists, and the cleanup ...
+    worktree_copy_stage_claim_swept_files.rs  <- src/native/worktree_copying/worktree_copy_stage_claim_swept_files.rs
+      The two sweeps of the journal root that remove files rather than stages: the temporaries dead ...
+    worktree_copy_stage_reaping_proof_and_words.rs  <- src/native/worktree_copying/worktree_copy_stage_reaping_proof_and_words.rs
+      Whether the record of an object a stage's creation made proves the folder standing at the ...
+    worktree_copy_stage_entries_the_record_accounts_for.rs  <- src/native/worktree_copying/worktree_copy_stage_entries_the_record_accounts_for.rs
+      The first entry of a stage container that the record of the object its creation made cannot account ...
+    worktree_copy_stage_made_object.rs  <- src/native/worktree_copying/worktree_copy_stage_made_object.rs
+      The durable record of the object one stage's creation made: the container's path, its identity, and ...
+    worktree_copy_stage_snapshot_origin.rs  <- src/native/worktree_copying/worktree_copy_stage_snapshot_origin.rs
+      The evidence a command records before it makes a snapshot: the source subvolume the snapshot is ...
+    worktree_copy_transaction.rs  <- src/native/worktree_copying/worktree_copy_transaction.rs
+      One destination's journaled installation to an end, and the synchronization of every created ...
+    worktree_copy_install.rs  <- src/native/worktree_copying/worktree_copy_install.rs
+      Installation of one validated stage into a newly registered worktree: preflight of every existing ...
+    worktree_copy_install_log.rs  <- src/native/worktree_copying/worktree_copy_install_log.rs
+      The append-only install log inside one transaction's private stage: one synced JSON line per batch ...
+    worktree_copy_journal_removal.rs  <- src/native/worktree_copying/worktree_copy_journal_removal.rs
+      The removal of a finished or abandoned copy transaction's stage and journal.
+    worktree_copy_journal.rs  <- src/native/worktree_copying/worktree_copy_journal.rs
+      The durable journal of one destination's linked-worktree copy: private storage under ...
+    worktree_copy_journal_encoding_and_validation.rs  <- src/native/worktree_copying/worktree_copy_journal_encoding_and_validation.rs
+      The exact JSON encoding of one destination's linked-worktree copy journal, and the strict reading ...
+    worktree_copy_owner.rs  <- src/native/worktree_copying/worktree_copy_owner.rs
+      The process that owns one item of a copy transaction (a journal, a stage claim, a temporary file), ...
+    worktree_copy_rollback.rs  <- src/native/worktree_copying/worktree_copy_rollback.rs
+      Removal of the paths one failed installation created, child first, and only where the filesystem ...
+    worktree_copy_install_entry.rs  <- src/native/worktree_copying/worktree_copy_install_entry.rs
+      The exclusive creation of one destination entry from the private stage, the identity captured right ...
+    worktree_copy_compare.rs  <- src/native/worktree_copying/worktree_copy_compare.rs
+      Exact comparison of one manifest entry against the filesystem: its kind, its retained mode, its ...
+    worktree_copy_stage.rs  <- src/native/worktree_copying/worktree_copy_stage.rs
+      The private, validated copy of one source's ignored state, staged in a mode-`0700` directory beside ...
+    worktree_copy_stage_binding.rs  <- src/native/worktree_copying/worktree_copy_stage_binding.rs
+      The binding of one staged copy to the registration it was made for: recorded inside the stage ...
+    worktree_copy_stage_leaf_copying.rs  <- src/native/worktree_copying/worktree_copy_stage_leaf_copying.rs
+      The copying of a staged snapshot's files and links from the source into the stage, one worker per ...
+    worktree_copy_manifest.rs  <- src/native/worktree_copying/worktree_copy_manifest.rs
+      The deterministic, parent-first list of entries a copy transfers, read without following symbolic ...
+    worktree_copy_prune.rs  <- src/native/worktree_copying/worktree_copy_prune.rs
+      What a copy from a main checkout leaves out of the ignored state it hands over: caches, optionally ...
+    worktree_copy_selection.rs  <- src/native/worktree_copying/worktree_copy_selection.rs
+      Which source paths the linked-worktree copy selects: the ignored roots Git reports under the ...
+    worktree_copy_error.rs  <- src/native/worktree_copying/worktree_copy_error.rs
+      The one failure type of the linked-worktree ignored-state copy, with the complete user-facing ...
   environment_variables_for_git_children/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
     environment_variables_for_git_children.rs  <- src/native/invocation/child_environment.rs
-      The environment variables cli-git adds for every real Git it starts.
-  reading_git_settings_from_files/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children
-    configuration_file_text.rs  <- src/native/repo_read/repo_read_config_text.rs
-      A reader of Git configuration file text that gives the entries in file order, and gives up on any spelling it
-    configuration_scopes_scan.rs  <- src/native/repo_read/repo_read_config_scan.rs
-      The proof, from files alone, that no configuration scope Git reads for repository discovery sets `core.bare` or
-    merged_configuration_listing.rs  <- src/native/repo_read/repo_read_config_list.rs
-      The merged configuration listing of `git config --list -z --show-scope`, built in process from the system, global
-    kinds_of_configuration_values.rs  <- src/native/repo_read/repo_read_config_value_kinds.rs
-      The table of which configuration keys Git reads at startup and what kind of value each takes: the word lists, the key
-    typed_configuration_values.rs  <- src/native/repo_read/repo_read_config_typed.rs
-      The proof that every configuration value Git types at startup, in every scope the readers look at, is a value
+      The environment variables monochromatic-git-policy-cli adds for every real Git it starts.
   finding_the_git_folders/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, reading_git_settings_from_files
+    uses/ -> answering_questions_without_starting_git, converting_a_linked_worktree, environment_variables_for_git_children, hooks_a_repository_configures, reading_git_settings_from_files, the_words_meant_for_this_wrapper, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
     git_folder_roots.rs  <- src/native/repo_read/git_directory_roots.rs
-      The Git directories a command works in, found without starting Git: the Git directory and the common Git directory.
-    disk_and_directory_facts.rs  <- src/native/repo_read/repo_read_layout_disk_and_directory_facts.rs
-      Small facts about the disk and the directories a layout read needs: a small file's text, whether a directory holds the
-    environment_rules_of_repository_discovery.rs  <- src/native/repo_read/repo_read_layout_environment_rules.rs
-      The rules about the environment of a Git command: which `GIT_` variables can move repository discovery, which
+      The Git directories a command works in, found without starting Git: the Git directory and the ...
+    ref_name.rs  <- src/native/foundation/ref_name.rs
+      A reference name as the bytes Git printed it, and the spellings a person and a command line take it ...
     repository_location_without_git.rs  <- src/native/repo_read/repo_read_layout.rs
-      The repository location that `git rev-parse --path-format=absolute --is-bare-repository --git-dir --git-common-dir
-    location_with_options_left_out.rs  <- src/native/repo_read/repo_read_layout_without.rs
-      The layout reader's answer for an invocation with some global options and variables left out.
-  reading_and_writing_the_index_file_of_git/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    finding_bytes_in_a_slice.rs  <- src/native/index/index_byte_search.rs
-      Byte searches over a slice that the index readers share: where a byte first appears, how long a run of one byte is
-    cache_tree_extension.rs  <- src/native/index/index_cache_tree.rs
-      The `TREE` (cache-tree) index extension: read, written back byte for byte, and invalidated along a path
-    compressed_bitmaps.rs  <- src/native/index/index_ewah.rs
-      Git's EWAH compressed bitmap (`ewah/ewah_bitmap.c`, `ewah/ewah_io.c`): read from bytes, listed as bit positions
-    per_entry_flags.rs  <- src/native/index/index_flags.rs
-      A read of the per-entry flags of an index file that decide whether the index may seed an explicit-path commit
-    stat_fields_of_an_entry.rs  <- src/native/index/index_stat.rs
-      The nine 32-bit stat fields an index entry and the untracked-cache extension store, and the Git varint.
-    file_system_monitor_extension.rs  <- src/native/index/index_fsmonitor.rs
-      The `FSMN` (fsmonitor) index extension: the last-update token and the bitmap of entries not known to be unchanged
-    resolve_undo_extension.rs  <- src/native/index/index_resolve_undo.rs
-      The `REUC` (resolve-undo) index extension: read, recorded into when an unmerged entry leaves the index, written back
-    untracked_cache_extension.rs  <- src/native/index/index_untracked.rs
-      The `UNTR` (untracked cache) index extension as a tree of directories, and its invalidation along a path
-    reading_and_writing_the_untracked_cache.rs  <- src/native/index/index_untracked_io.rs
-      Reading and writing the `UNTR` index extension (`dir.c`: `read_untracked_extension`, `write_untracked_extension`).
-    the_whole_index_in_memory.rs  <- src/native/index/index_full.rs
-      The whole content of an index file the in-process index update changes: every entry with its stat data and flags, and ...
-    writing_the_whole_index.rs  <- src/native/index/index_full_write.rs
-      Writes a `FullIndex` as Git's `do_write_index` does for the plain case: the version Git picks, the entries, the kept
-  reading_saved_commits_and_files/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, reading_and_writing_the_index_file_of_git
-    byte_and_prefix_checks_for_short_names.rs  <- src/native/repo_read/object_abbreviation_byte_and_prefix_checks.rs
-      Three small checks on bytes and names that the object-name abbreviation uses: a NUL separator, a hexadecimal digit, ...
-    object_shapes_and_zlib.rs  <- src/native/repo_read/repo_read_object.rs
-      The shapes of a Git object read in process, object names as bytes and hexadecimal, and the zlib step.
-    reading_a_pack_file.rs  <- src/native/repo_read/repo_read_pack.rs
-      A reader of one Git pack: the version 2 index lookup by object name and the entry read, with `OFS_DELTA` and
-    the_object_database.rs  <- src/native/repo_read/repo_read_odb.rs
-      The object database of one repository read in process: loose objects, packs and alternates.
-    short_object_names.rs  <- src/native/repo_read/object_abbreviation.rs
-      The abbreviated name Git prints for an object (`git commit`'s `[main 30b2211]`, `git log --oneline`), computed in
-    trees_and_commits.rs  <- src/native/repo_read/repo_read_tree.rs
-      Trees and commits read in process: the entries of a tree, the flat list of a whole tree, and the header fields
-    difference_of_two_trees.rs  <- src/native/repo_read/repo_read_diff.rs
-      The difference between two sorted lists of tree-like entries (a flattened tree, an index), in Git's raw and
-    index_entries.rs  <- src/native/repo_read/repo_read_index.rs
-      The entries of an index file read in process, for versions 2, 3 and 4.
-    tree_against_index_difference.rs  <- src/native/repo_read/repo_read_tree_cached.rs
-      The part of a tree that differs from an index, found by walking the tree beside the index's cache-tree: a directory ...
-  state_shared_by_preparing_and_landing_a_commit/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    repository_state_of_a_transaction.rs  <- src/native/transaction/transaction_journal.rs
-      The values a commit's preparation and the service's landing share about the repository state they work on: the base
-  reading_branches_tags_and_markers/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_saved_commits_and_files, state_shared_by_preparing_and_landing_a_commit
-    operation_in_progress.rs  <- src/native/conflict/conflict_side_state.rs
-      Which operation is in progress in a worktree's Git directory
-    ref_file_answers.rs  <- src/native/repo_read/ref_files.rs
-      Reads of the files ref storage that answer a question without a Git process
-    refs_in_files.rs  <- src/native/repo_read/repo_read_refs.rs
-      The files ref storage read in process: one ref by exact name, the symbolic chain behind it, and the list of every ref.
-    proof_that_a_marker_names_nothing.rs  <- src/native/repo_read/sequencer_marker.rs
-      Proof, without a Git process, that a sequencer marker such as `MERGE_HEAD` names nothing.
+      The repository location that `git rev-parse --path-format=absolute --is-bare-repository --git-dir ...
+    common_directory_of_a_git_directory.rs  <- src/native/foundation/common_directory_of_a_git_directory.rs
+      The common Git directory a worktree's own Git directory belongs to: the directory its `commondir` ...
+    disk_and_directory_facts.rs  <- src/native/repo_read/repo_read_layout_disk_and_directory_facts.rs
+      Small facts about the disk and the directories a layout read needs: a small file's text, whether a ...
+    environment_rules_of_repository_discovery.rs  <- src/native/repo_read/repo_read_layout_environment_rules.rs
+      The rules about the environment of a Git command: which `GIT_` variables can move repository ...
+    location_with_options_left_out.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
   finding_the_real_git_program/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children
+    uses/ -> asking_the_commit_service_to_save_a_commit, environment_variables_for_git_children, the_words_meant_for_this_wrapper, what_happens_when_you_type_a_command, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person
     remembered_git_version.rs  <- src/native/invocation/git_version_cache.rs
-      A private, per-user cache of the text `git version` prints
-    deciding_if_a_path_is_real_git.rs  <- src/native/invocation/real_git_candidate.rs
-      Decide whether one PATH candidate is real Git
-    real_git_the_service_was_set_up_with.rs  <- src/native/invocation/real_git_record.rs
-      Read the real Git that the wrapper's commit service was set up with
-    the_one_resolution_of_real_git.rs  <- src/native/invocation/real_git_resolution.rs
-      The one resolution of the real Git that every start uses
+      A private, per-user cache of the text `git version` prints, keyed by the identity of the Git ...
     finding_the_real_git.rs  <- src/native/invocation/real_git.rs
       Find the real Git executable on PATH without ever selecting this wrapper.
+    the_one_resolution_of_real_git.rs  <- src/native/invocation/real_git_resolution.rs
+      The one resolution of the real Git that every start uses: the first real Git on `PATH`, otherwise ...
+    real_git_the_service_was_set_up_with.rs  <- src/native/invocation/real_git_record.rs
+      Read the real Git that the wrapper's commit service was set up with, from the unit file the wrapper ...
+    deciding_if_a_path_is_real_git.rs  <- src/native/invocation/real_git_candidate.rs
+      Decide whether one PATH candidate is real Git, a monochromatic-git-policy-cli wrapper, or unusable.
     marker_that_git_was_started_by_the_wrapper.rs  <- src/native/invocation/started_as_git.rs
-      The marker that every start of the real Git carries
-  reading_options_the_way_git_does/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    types_of_option_reading.rs  <- NEW
-      The plain types that the four option-reading files share (occurrence, error, spec, value, mode, arity).
-    option_values.rs  <- src/native/command/command_options_value.rs
-      Decide which bytes
-    long_options.rs  <- src/native/command/command_options_long.rs
-      Match one `--name[=value]` token against a Git option table as Git 2.56.0 does.
-    clusters_of_short_options.rs  <- src/native/command/command_options_short.rs
-      Read one `-abc` token as Git 2.56.0 reads a cluster of short options.
-    reading_a_command_line_option_by_option.rs  <- src/native/command/command_options.rs
-      Read one Git command's arguments the way Git 2.56.0 `parse-options.c` reads them.
-    questions_about_typed_options.rs  <- src/native/command/command_options_query.rs
-      Small read-only questions over a tokenized Git argument region.
-  spellings_that_switch_the_wrapper_off/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    escape_hatch_spellings.rs  <- src/native/invocation/escape_hatch.rs
-      The spellings of the wrapper-only escape hatches several modules share.
-  what_each_git_command_accepts/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_options_the_way_git_does, spellings_that_switch_the_wrapper_off
-    command_add.rs  <- src/native/command/command_add.rs
-      The complete `git add` option table of Git 2.56.0 and the bulk-staging facts read
-    command_branch_table.rs  <- src/native/command/command_branch_table.rs
-      The complete option table of `git branch` in Git 2.56.0.
-    command_branch_mode.rs  <- src/native/command/command_branch_mode.rs
-      Whether a tokenized `git branch` region creates a branch in Git 2.56.0.
-    command_checkout_table.rs  <- src/native/command/command_checkout_table.rs
-      The complete option tables of `git checkout` and `git switch` in Git 2.56.0.
-    command_branch_target.rs  <- src/native/command/command_branch_target.rs
-      Explicit creation and the remote-guess candidate of tokenized `git checkout` and
-    command_branch_create.rs  <- src/native/command/command_branch_create.rs
-      Branch-creation facts of `git branch`
-    command_clean.rs  <- src/native/command/command_clean.rs
-      The complete `git clean` option table of Git 2.56.0 and the deletion facts read
-    command_commit_table.rs  <- src/native/command/command_commit_table.rs
-      The complete option table of `git commit` in Git 2.56.0.
-    command_commit.rs  <- src/native/command/command_commit.rs
-      Facts about the arguments after `git commit`
-    command_config_table.rs  <- src/native/command/command_config_table.rs
-      The option groups of `git config` in Git 2.56.0
-    command_config.rs  <- src/native/command/command_config.rs
-      The form and file scope of a `git config` region
-    command_discard.rs  <- src/native/command/command_discard.rs
-      Which regions of `git checkout`
-    command_push.rs  <- src/native/command/command_push.rs
-      The complete `git push` option table of Git 2.56.0 and the facts read from it.
-    command_reset.rs  <- src/native/command/command_reset.rs
-      The complete `git reset` option table of Git 2.56.0 and the mode read from it.
-    command_stash_table.rs  <- src/native/command/command_stash_table.rs
-      The option tables of every `git stash` subcommand in Git 2.56.0.
-    command_stash.rs  <- src/native/command/command_stash.rs
-      Which `git stash` subcommand a region runs in Git 2.56.0
-    global_arguments.rs  <- src/native/invocation/global_arguments.rs
-      Locate Git 2.56.0 command boundaries without reconstructing native arguments.
-    command_status.rs  <- src/native/command/command_status.rs
-      The complete `git status` option table of Git 2.56.0
-    command_worktree.rs  <- src/native/command/command_worktree.rs
-      The one fact the wrapper needs about `git worktree`
-    git_builtins.rs  <- src/native/invocation/git_builtins.rs
-      The names of the commands built into Git 2.56.0
-  the_words_meant_for_this_wrapper/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_options_the_way_git_does, spellings_that_switch_the_wrapper_off, what_each_git_command_accepts
-    commands_that_ask_what_this_is.rs  <- src/native/invocation/announced_query.rs
-      Recognize the four top-level spellings after which the wrapper says it is not plain Git
-    which_worktree_a_command_targets.rs  <- src/native/invocation/effective_target.rs
-      Classify the worktree an invocation targets for worktree-enforcing policies.
-    names_of_the_built_in_policies.rs  <- src/native/policy/policy_registry.rs
-      The fixed registry of policies compiled into the native wrapper.
-    control_words_for_the_wrapper.rs  <- src/native/invocation/wrapper_controls.rs
-      The wrapper-only control tokens
-    removing_control_words_from_a_command.rs  <- src/native/invocation/wrapper_invocation.rs
-      Remove every wrapper control from one invocation
-  starting_git_and_describing_a_run/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, finding_the_real_git_program, the_words_meant_for_this_wrapper, what_each_git_command_accepts
-    starting_git_with_hooks_off.rs  <- src/native/invocation/hooks_off.rs
-      Start the real Git with every hook switched off.
-    starting_git_with_the_callers_arguments.rs  <- src/native/invocation/forwarding.rs
-      Start real Git with the caller's exact arguments
-    system_settings_file_of_git.rs  <- src/native/repo_read/git_system_config.rs
-      The system configuration file that one real Git executable reads when `GIT_CONFIG_SYSTEM` is not set
-    what_a_git_run_asks_and_answers.rs  <- src/native/transaction/transaction_git_request_and_reply_types.rs
-      The request that starts one real Git, the reply it gets back, and the failure that names the command
-    what_a_command_hands_back.rs  <- NEW
-      The two plain values a part hands to the top level instead of running or building them itself: a command to run next, ...
-    worktree_command_facts.rs  <- NEW
-      The plain facts about a worktree command that forwarding keeps: which worktree, whether it creates one, the add plan ...
-  answering_questions_without_starting_git/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, reading_and_writing_the_index_file_of_git, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, starting_git_and_describing_a_run
-    query_request_answer_and_context.rs  <- src/native/repo_read/repo_read_query_request_answer_and_context.rs
-      What the in-process Git queries share: the request (`Query`), the answer (`Answer`), the parsed command line ...
-    quiet_diff_index_answer.rs  <- src/native/repo_read/repo_read_query_quiet.rs
-      The exit status of `git diff-index --cached --quiet <commit-or-HEAD> [-- <paths>]` without starting Git: 0 when the ...
-    reference_and_configuration_answers.rs  <- src/native/repo_read/repo_read_query_refs.rs
-      In-process answers for the reference and configuration command lines the wrapper issues
-    answers_to_the_wrappers_own_git_queries.rs  <- src/native/repo_read/repo_read_query.rs
-      Answers, without a Git process, to the exact read-only Git command lines the wrapper itself issues
-    trying_in_process_answers_first.rs  <- src/native/repo_read/repo_read_hook.rs
-      The two places where the wrapper's Git runners try the in-process answers first.
-  how_long_the_program_waits_for_git_steps/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    kinds_of_git_step.rs  <- src/native/push/child_class.rs
-      The two kinds of Git step a commit starts for itself, and the quiet window and the notice grace of each.
-    current_step_record.rs  <- NEW
-      The step a Git run is in, written by the runner for the thread that runs it and read by the service to tell waiting ...
-    how_long_a_push_may_show_nothing.rs  <- src/native/push/push_deadline_and_patience_settings.rs
-      How long a push may show nothing before it is stopped: the environment variable that sets the deadline, its default
-    longest_waits.rs  <- src/native/service/wait_ceilings.rs
-      The longest the wrapper waits for each thing it waits for without a person at the keyboard, with the measurement or ...
-  who_owns_a_transaction_folder/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> how_long_the_program_waits_for_git_steps
-    process_numbers_in_other_containers.rs  <- src/native/process/pid_namespace.rs
-      The PID namespace an owner record names, and the rule for judging an owner that lives in another one.
-    owner_record_of_a_folder.rs  <- src/native/transaction/transaction_owner.rs
-      The owner record of one commit-transaction directory (`owner.json`
-  clearing_leftover_reference_locks/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, who_owns_a_transaction_folder
-    record_of_a_judged_reference_lock.rs  <- src/native/lock/stale_ref_lock_found.rs
-      The record of one judged reference lock, and the outcome of one clearing pass.
-    identity_of_a_lock_file_when_judged.rs  <- src/native/lock/stale_ref_lock_identity.rs
-      A file's identity at the moment it was judged: the removal checks that it is still that file.
-    names_of_reference_lock_files.rs  <- NEW
-      The suffixes and name rules of reference lock files and their pid files.
-    judging_one_reference_lock.rs  <- src/native/lock/stale_ref_lock_judge.rs
-      How one reference lock is judged: too new, held, stale on a proof, or unproven.
-    finding_reference_lock_files.rs  <- src/native/lock/stale_ref_lock_walk.rs
-      Which files below a Git directory are reference locks, and which files go with one.
-    setting_aside_and_removing_a_stale_lock.rs  <- src/native/lock/stale_ref_lock_retire.rs
-      Judge one candidate and, when it is proven stale, set it aside, check that it is the file that was judged, and remove ...
-    clearing_all_stale_reference_locks.rs  <- src/native/lock/stale_ref_locks.rs
-      The reference locks a killed Git left behind: found, judged one by one, removed when their holder is proven gone, and
-    clearing_locks_before_fetch_and_push.rs  <- src/native/lock/forwarded_lock_notice.rs
-      The clearing of stale reference locks for the person's own `git fetch` and `git push`, and the notice that goes before
-    words_about_reference_locks.rs  <- src/native/lock/stale_ref_lock_message.rs
-      The words the wrapper prints about reference locks: what it removed, what it left and why, and the exact command that
-    locks_a_stopped_git_may_leave.rs  <- src/native/lock/stopped_git_locks.rs
-      The reference locks a stopped Git child may have left behind, judged and reported once the child and what it started
-  recording_where_worktree_add_spent_its_time/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    where_worktree_add_spent_its_time.rs  <- src/native/worktree/add_timing.rs
-      The record of where one wrapped `git worktree add` spent its time, step by step, appended to a size-capped file in the
-  running_git_for_a_transaction/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, clearing_leftover_reference_locks, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, recording_where_worktree_add_spent_its_time, starting_git_and_describing_a_run, what_each_git_command_accepts
-    which_git_steps_run_again_or_end_early.rs  <- src/native/transaction/transaction_git_step_rerun_and_end_rules.rs
-      Which Git steps may be run again after the system refused a process, and which may be ended at a ceiling
-    how_long_a_git_step_is_waited_for.rs  <- src/native/transaction/transaction_git_step_bounds.rs
-      How long a Git step is waited for and what happens at the bound: ended at the class ceiling, never ended but left
-    running_git_for_a_transaction.rs  <- src/native/transaction/transaction_git.rs
-      Running real Git for transaction
-    the_git_command_a_forward_runs.rs  <- src/native/invocation/forwarded_command.rs
-      The Git command a forwarded invocation actually runs
-    running_a_read_only_git_query.rs  <- src/native/repo_read/git_metadata.rs
-      Run a read-only real-Git query and capture its output as raw bytes.
-    checking_the_real_git_version.rs  <- src/native/invocation/git_version.rs
-      The real Git version check
-  git_settings_read_once/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> running_git_for_a_transaction, starting_git_and_describing_a_run
-    which_parts_git_flushes_to_disk.rs  <- src/native/config/config_fsync.rs
-      Git's `core.fsync` value read into the set of components it flushes, and the value that keeps every component of a set
-    one_read_of_all_git_settings.rs  <- src/native/config/config_snapshot.rs
-      One read of the whole Git configuration (`git config --list -z --show-scope`), parsed here
+      The marker that every start of the real Git carries, and the check that stops a ...
   finding_who_holds_a_lock_file/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> clearing_leftover_reference_locks, finding_the_git_folders, holding_the_index_lock_for_the_commit_service, merging_without_touching_your_files, starting_git_and_describing_a_run, stopping_the_program_at_a_named_step_for_tests, the_words_meant_for_this_wrapper, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    abandoned_locks.rs  <- src/native/lock/abandoned_locks.rs
+      The pass a command makes over its repository's lock files: every lock file of the worktree's Git ...
+    abandoned_lock_words.rs  <- src/native/lock/abandoned_lock_words.rs
+      The two lines the person reads about a lock: the one that says what was cleared and why, and the ...
+    abandoned_lock_proving.rs  <- src/native/lock/abandoned_lock_proving.rs
+      The proof that one Git lock file is abandoned, and the one removal that acts on it.
     evidence_about_a_foreign_index_lock.rs  <- src/native/lock/index_lock_evidence.rs
-      Evidence about a foreign `index.lock` and the verdict it supports
+      Evidence about a foreign `index.lock` and the verdict it supports: proven alive, dead, or ...
+    index_lock_evidence_words.rs  <- src/native/lock/index_lock_evidence_words.rs
+      The sentences a lock's evidence is reported in: the line that names a holder proven alive, the line ...
+    index_lock_holder_words.rs  <- src/native/lock/index_lock_holder_words.rs
+      The words about a lock's holder that the wait lines are built from: the program of a live holder ...
+    index_lock_holders_accounts.rs  <- src/native/lock/index_lock_holders_accounts.rs
+      Which account owns one process of this host's process table.
     git_retry_schedule_for_lock_files.rs  <- src/native/lock/index_lock_wait.rs
-      Git's own lock-retry schedule: the backoff position, its next step, and the jittered wait it prescribes.
+      Git's own lock-retry schedule: the backoff position, its next step, and the jittered wait it ...
+    lock_birth_times.rs  <- src/native/lock/lock_birth_times.rs
+      When a lock file and the PID file beside it were born, as one read, with the arm a control uses to ...
+    lock_holder_record_reads.rs  <- src/native/lock/lock_holder_record_reads.rs
+      What the wrapper's records of the processes it started say about a lock's holder: the identity one ...
+  finding_who_holds_a_zfs_clone_folder/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> scanning_other_mount_namespaces, the_receipts_and_requests_of_a_clone_mount, which_disk_a_folder_is_on, text_time_and_records_written_like_javascript
+    (new folder of this round: The root handler answer to who holds a ZFS clone: the all-namespace scan and the holders it found.)
+    holder_scan_acceptance.rs  <- src/native/clone_holder_scan/holder_scan_acceptance.rs
+      Whether one result is the answer to the request the caller made: the same dataset GUID and the same ...
+    holder_scan_parse.rs  <- src/native/clone_holder_scan/holder_scan_parse.rs
+      Reading one holder scan's result back: the byte bound before any line, the version and kind, each ...
+    holder_scan_refusals.rs  <- src/native/clone_holder_scan/holder_scan_refusals.rs
+      Why a file is not a holder scan's result: it is past the parse's bound, its version or kind is ...
+    holder_scan_text.rs  <- src/native/clone_holder_scan/holder_scan_text.rs
+      The text one holder scan's result is written as: a version line, the dataset's GUID, the scan's own ...
+    holder_scan.rs  <- src/native/clone_holder_scan/holder_scan.rs
+      The root handler's all-namespace holder scan: group the live threads by mount namespace, read one ...
+    incomplete_reads.rs  <- src/native/clone_holder_scan/incomplete_reads.rs
+      Every read a holder scan could not complete: the `/proc` root it could not list, a thread whose ...
+    namespace_holder.rs  <- src/native/clone_holder_scan/namespace_holder.rs
+      One mount namespace that holds a clone: the kernel's own namespace identity, the task whose table ...
+    held_mounts.rs  <- src/native/clone_holder_scan/held_mounts.rs
+      One mount of a clone, as a holder's report names it: the kernel's mount id, the root within the ...
+  finishing_a_zfs_clone_removal/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> proving_a_zfs_clone_may_be_removed, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_root_modes_that_attach_and_unmount_zfs_clones, file_operations_that_never_follow_a_link, lines_printed_for_the_person
+    (new folder of this round: The finish pass that removes a destruction plan whose head is gone, settles the registration and releases the slot claim.)
+    pass_over_the_plans.rs  <- src/native/worktree_clone_removal_finish_pass/pass_over_the_plans.rs
+      The finish pass itself: one look at the destruction plan folder, every plan in it taken as far as ...
+    pass_on_one_plan.rs  <- src/native/worktree_clone_removal_finish_pass/pass_on_one_plan.rs
+      One plan through the finish pass: the head's word, the slot's claim, the gate and the pool's own ...
+    pass_done_lines.rs  <- src/native/worktree_clone_removal_finish_pass/pass_done_lines.rs
+      Every sentence the finish pass prints about a plan it removed, and about the records it removed ...
+    pass_refusal_lines.rs  <- src/native/worktree_clone_removal_finish_pass/pass_refusal_lines.rs
+      Every sentence the finish pass prints about a plan it left standing, and the one line it prints ...
+    the_pass_seams.rs  <- src/native/worktree_clone_removal_finish_pass/the_pass_seams.rs
+      Everything the finish pass reads and writes through, named as values so a control answers each ...
+    the_plans_binding.rs  <- src/native/worktree_clone_removal_finish_pass/the_plans_binding.rs
+      The list's step 12 for one plan: the binding that names this plan's clone read and compared, its ...
+    the_plans_file.rs  <- src/native/worktree_clone_removal_finish_pass/the_plans_file.rs
+      The list's step 13 for one plan: the plan's own file unlinked and proved gone, after the binding ...
+    the_plans_folder.rs  <- src/native/worktree_clone_removal_finish_pass/the_plans_folder.rs
+      The one look the finish pass takes at the destruction plan folder: one `stat` while the folder is ...
+    the_plans_registration.rs  <- src/native/worktree_clone_removal_finish_pass/the_plans_registration.rs
+      Whether a Git registration stands for one plan's clone, and the settle of that registration with ...
+    the_slots_claim.rs  <- src/native/worktree_clone_removal_finish_pass/the_slots_claim.rs
+      The per-slot claim the finish pass holds while it settles one plan's tail, and the answer it gives ...
+  finishing_what_an_earlier_commit_service_left_open/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, telling_whether_an_earlier_commit_service_still_runs, the_service_program
+    earlier_service_journal_adopted.rs  <- src/native/landing/earlier_service_journal_adopted.rs
+      Finish, when the person asks, the batches that the commit service of an earlier release left open ...
+    earlier_service_process_look.rs  <- src/native/landing/earlier_service_process_look.rs
+      The look that tells whether the commit service of an earlier release may still run, or may start, ...
+    earlier_service_look_paths.rs  <- src/native/landing/earlier_service_look_paths.rs
+      The questions about the file system that the look at an earlier commit service asks: the bytes that ...
+  fixing_markdown_in_process/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> how_long_the_program_waits_for_git_steps, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, running_policies_and_settling_their_corrections, the_settings_file_cli_git_config_jsonc, what_the_wrapper_asks_git_about_a_repository, running_independent_jobs_side_by_side, watching_a_started_program_until_it_stops_making_progress
+    markdown_linter.rs  <- src/native/markdown/markdown_linter.rs
+      The linter the executable gives `markdown/autofix`: `monochromatic-lint`, linked into the ...
+    markdown_linter_config.rs  <- src/native/markdown/markdown_linter_config.rs
+      The linter configuration the `markdown/autofix` policy hands `monochromatic-lint`: one block that ...
+    markdown_linter_guard.rs  <- src/native/markdown/markdown_linter_guard.rs
+      Run one job on a thread of its own and wait for it until it ends, or until the thread has shown no ...
+    policy_markdown.rs  <- src/native/markdown/policy_markdown.rs
+      The optional `markdown/autofix` policy: every Markdown candidate the lifecycle offers is passed ...
+    markdown_exclude.rs  <- src/native/markdown/markdown_exclude.rs
+      The `exclude` option of `markdown/autofix`: gitignore-syntax patterns, relative to the repository's ...
+    markdown_linter_output.rs  <- src/native/markdown/markdown_linter_output.rs
+      Read what one in-process `monochromatic-lint` fix run produced: the fixed source and the findings ...
+  git_settings_read_once/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> running_git_for_a_transaction, lines_printed_for_the_person
+    one_read_of_all_git_settings.rs  <- src/native/config/config_snapshot.rs
+      One read of the whole Git configuration (`git config --list -z --show-scope`), parsed here, and the ...
+    which_parts_git_flushes_to_disk.rs  <- src/native/config/config_fsync.rs
+      Git's `core.fsync` value read into the set of components it flushes, and the value that keeps every ...
+  holding_the_index_lock_for_the_commit_service/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_who_holds_a_lock_file, how_long_the_program_waits_for_git_steps, landing_commits, messages_between_the_wrapper_and_the_commit_service, sha_1_and_sha_256_of_bytes, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path, work_left_for_the_service_to_finish_later, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, which_programs_are_running_and_since_when, text_time_and_records_written_like_javascript
+    landing_state_carried_by_its_task.rs  <- src/native/landing/landing_state_carried_by_its_task.rs
+      The state one landing keeps while it runs, carried by the task (or the one thread, in the ...
+    attempts_and_waiting_for_the_index_lock.rs  <- src/native/landing/service_index_attempts.rs
+      The attempts and the wait of an acquisition of `index.lock`: placement tried again after each wake, ...
+    choosing_one_reclaimer_of_a_stale_lock.rs  <- src/native/landing/service_index_claim.rs
+      The claim chain: how one reclaimer at a time is chosen to remove a stale index lock, using only ...
+    holding_the_lock_after_it_is_placed.rs  <- src/native/landing/service_index_hold.rs
+      The service's hold on one index lock after it is placed: the check that the lock is still the ...
+    who_a_lock_holder_is.rs  <- src/native/landing/service_index_identity.rs
+      Who a marker's holder is: the identity this process writes into a marker, and the three answers a ...
+    lock_names_and_failures.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    is_the_lock_still_ours.rs  <- src/native/landing/service_index_ownership.rs
+      Whether the file at the path of an index lock is still the file this holder placed there, and the ...
+    putting_the_marked_file_in_place_as_the_lock.rs  <- src/native/landing/service_index_placement.rs
+      How the service puts its marked file in place as `index.lock`: the system calls it makes, the ...
+    marker_of_the_next_batch.rs  <- src/native/landing/service_index_prestage.rs
+      The markers of the next batches' index locks, created and written while the service lands the batch ...
+    removing_a_stale_index_lock.rs  <- src/native/landing/service_index_reclaim.rs
+      The removal of a stale index lock by one reclaimer at a time: the reclaimer opens the lock it will ...
+    service_index_refused_lock.rs  <- src/native/landing/service_index_refused_lock.rs
+      The service's memory of the one foreign `index.lock` that already outlasted a commit's wait: which ...
+    is_the_new_index_the_live_one.rs  <- src/native/landing/service_index_same.rs
+      Whether a new index file holds the bytes of the live one.
+    service_index_unheld_removal.rs  <- src/native/landing/service_index_unheld_removal.rs
+      The removal of an empty `index.lock` that no process holds and no Git lock PID file stands behind, ...
+    waiting_for_the_services_hold.rs  <- src/native/landing/service_index_wait.rs
+      The wait of a wrapped command that writes the index for the commit service's own hold on the index: ...
+    the_hold_on_the_index_lock.rs  <- src/native/landing/service_index_lock.rs
+      The service's hold on Git's own `index.lock` across a landing: taken first, by exclusive creation, ...
+    what_waiting_for_the_lock_found.rs  <- src/native/landing/service_index_found.rs
+      What an acquisition of the index lock found when it had to wait: the marker on the lock, how old ...
+    staging_files_of_the_lock.rs  <- src/native/landing/service_index_staging.rs
+      The staging files of an index lock: their names, their creation with the marker written, and the ...
+    marker_inside_the_held_lock.rs  <- src/native/landing/service_index_marker.rs
+      The marker the service writes into the `index.lock` it holds, and the questions asked of a marker ...
+    watching_the_lock_folder.rs  <- src/native/landing/service_index_watch.rs
+      The inotify watch on the directory of an index lock, and the reading of the events it delivers.
+  hooks_a_repository_configures/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> git_settings_read_once, how_long_the_program_waits_for_git_steps, names_this_release_and_the_one_before, running_policies_and_settling_their_corrections, starting_git_and_describing_a_run, the_hidden_second_git_folder, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    hooks_set_in_git_settings.rs  <- src/native/health/external_hooks.rs
+      The external hooks a repository configures (`hook.<name>.event` with `hook.<name>.command`), read ...
+    hooks_path_values.rs  <- src/native/health/hooks_path_values.rs
+      Pathnames as Git prints them: one answer with its one terminator removed, a pathname from the bytes ...
+    warning_about_hooks_in_the_hooks_folder.rs  <- src/native/health/traditional_hook_warning.rs
+      The non-blocking warning a wrapped commit prints when the configuration sets `core.hooksPath`.
+  how_long_the_program_waits_for_git_steps/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> clearing_leftover_reference_locks, messages_between_the_wrapper_and_the_commit_service, running_git_for_a_transaction, stopping_the_program_at_a_named_step_for_tests, the_commit_command, lines_printed_for_the_person
+    kinds_of_git_step.rs  <- src/native/push/child_class.rs
+      The two kinds of Git step a commit starts for itself, and the quiet window and the notice grace of ...
+    current_step_record.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    how_long_a_push_may_show_nothing.rs  <- src/native/push/push_deadline_and_patience_settings.rs
+      How long a push may show nothing before it is stopped: the environment variable that sets the ...
+    longest_waits.rs  <- src/native/service/wait_ceilings.rs
+      The longest the wrapper waits for each thing it waits for without a person at the keyboard, with ...
+  is_the_worktree_clean/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> converting_the_main_checkout, copying_ignored_files_into_a_stage, finding_the_git_folders, lines_about_worktrees_and_large_files, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run, file_operations_that_never_follow_a_link, running_independent_jobs_side_by_side, lines_printed_for_the_person
+    worktree_clean.rs  <- src/native/worktree/worktree_clean.rs
+      Whether a worktree is clean enough to be copied from, or removed without asking Git: no operation ...
+    worktree_clean_content_attributes.rs  <- src/native/worktree/worktree_clean_content_attributes.rs
+      The attribute files a content decision reads: where Git takes them from, how a `.gitattributes` ...
+    worktree_clean_tree_walk.rs  <- src/native/worktree/worktree_clean_tree_walk.rs
+      The walks of a worktree's tracked files against the index's recorded stat data, by metadata alone ...
+    worktree_clean_content.rs  <- src/native/worktree/worktree_clean_content.rs
+      The decision, by content and without a Git process, whether a tracked file that its index entry's ...
+    worktree_clean_content_attribute_sources.rs  <- src/native/worktree/worktree_clean_content_attribute_sources.rs
+      The environment and the attribute files a content check reads: where the system and global ...
+    worktree_attributes.rs  <- src/native/worktree/worktree_attributes.rs
+      Git's attribute-file lexer and pattern matcher over raw bytes, as far as a refusal needs them: ...
+    worktree_clean_untracked_scan.rs  <- src/native/worktree/worktree_clean_untracked_scan.rs
+      The one question the index of a worktree cannot answer: whether an untracked file is one Git ...
+    worktree_clean_stat_verdicts.rs  <- src/native/worktree/worktree_clean_stat_verdicts.rs
+      What a clean check says about one tracked file: the refusal types, one index entry's recorded stat ...
+  landing_commits/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, clearing_leftover_reference_locks, environment_variables_for_git_children, finding_the_git_folders, finding_who_holds_a_lock_file, git_settings_read_once, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, is_the_worktree_clean, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, reading_and_writing_the_index_file_of_git, reading_git_settings_from_files, reading_saved_commits_and_files, rerunning_a_merge_word_by_word, running_git_for_a_transaction, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, scanning_those_bytes_for_forbidden_strings, sending_log_entries_to_the_system_journal, settings_that_decide_how_the_index_is_read, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path, the_commit_command, the_hidden_second_git_folder, the_service_program, the_settings_file_cli_git_config_jsonc, waiting_for_the_index_lock_of_git, what_happens_when_you_type_a_command, work_left_for_the_service_to_finish_later, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    held_commit_settle.rs  <- src/native/landing/held_commit_settle.rs
+      Moving the branch of a held commit once nothing stands in the way, and finishing what a landing ...
+    held_commit_replay.rs  <- src/native/landing/held_commit_replay.rs
+      The change of a held commit put onto the branch as it is now, when that branch moved while the lock ...
+    held_commit_settle_outcomes.rs  <- src/native/landing/held_commit_settle_outcomes.rs
+      What became of one held commit when a settlement looked at it, and the line the service writes ...
+    housekeeping_of_one_round.rs  <- src/native/landing/housekeeping_of_one_round.rs
+      How long one round of the service's after-commit work may go on starting housekeeping, and what is ...
+    index_reset_support.rs  <- src/native/index/index_reset_support.rs
+      Fixtures that compare the in-process path reset with `git reset` on copies of one repository.
+    index_reset_file.rs  <- src/native/index/index_reset_file.rs
+      The landing's index update without a Git process: read the private index file, reset the commit's ...
+    index_reset.rs  <- src/native/index/index_reset.rs
+      `git reset <tree> -- <paths>` on an index held in memory: for every path the literal pathspecs ...
+    index_reset_path_names.rs  <- src/native/index/index_reset_path_names.rs
+      The names a tree entry may carry into the index: one path component Git's name checks with ...
+    index_reset_publish.rs  <- src/native/index/index_reset_publish.rs
+      How the in-process index update gets its result onto the landing's private index: the name of that ...
+    index_reset_tree.rs  <- src/native/index/index_reset_tree.rs
+      The tree questions an in-process path reset asks: a commit's root tree, the entries of that tree at ...
+    index_reset_worktree_stat.rs  <- src/native/index/index_reset_worktree_stat.rs
+      The stat data a landing may record for a path whose worktree file provably holds the bytes the ...
+    index_reset_worktree_stat_source.rs  <- src/native/index/index_reset_worktree_stat_source.rs
+      The choice the in-process index reset records and the trait behind it: the worktree's stat data ...
+    maintenance_run.rs  <- src/native/landing/maintenance_run.rs
+      Running automatic maintenance after a landing: one `git config` read for the maintenance keys (or ...
+    maintenance_decision.rs  <- src/native/landing/maintenance_decision.rs
+      The decision behind automatic maintenance after a landing: parsing `git config --null --get-regexp` ...
+    owed_index_repair.rs  <- src/native/landing/owed_index_repair.rs
+      What a commit does about the index entries a landed batch still owes: it records nothing about a ...
+    owed_index_entries.rs  <- src/native/landing/owed_index_entries.rs
+      How the repair reads Git's entry listings: one entry of a tree or one index, by its fixed fields ...
+    preparation_notice.rs  <- src/native/landing/preparation_notice.rs
+      The notices a commit's preparation prints on standard error, given to the standard error descriptor ...
+    scan_awaited_under_a_ceiling.rs  <- src/native/landing/scan_awaited_under_a_ceiling.rs
+      A scan of the processes run on the blocking pool and awaited for no longer than its ceiling.
+    service_captures.rs  <- src/native/landing/service_captures.rs
+      The service's memory of when the bytes of the commits it landed were captured, kept per worktree.
+    service_land.rs  <- src/native/landing/service_land.rs
+      The service's serialized step: land a batch of prepared commits on a branch, and finish the batches ...
+    service_land_batch_body.rs  <- src/native/landing/service_land_batch_body.rs
+      The landing itself: one batch of prepared commits written, journaled and moved onto a branch.
+    service_busy_step_record_on_this_thread.rs  <- src/native/service/service_busy_step_record_on_this_thread.rs
+      The record a thread keeps of the write it is inside when that write is never ended: which landing ...
+    service_busy.rs  <- src/native/service/service_busy.rs
+      What the commit service's one landing thread is doing, shared with the threads that talk to waiting ...
+    service_busy_answers_and_name_checks.rs  <- src/native/service/service_busy_answers_and_name_checks.rs
+      The shapes the landing board answers with (an early answer, a group admission, a naming, a ...
+    service_land_batch_import_stream_and_overlaps.rs  <- src/native/landing/service_land_batch_import_stream_and_overlaps.rs
+      The `fast-import` stream that makes one commit per request of a batch, the marks it exports, and ...
+    service_land_branch_move_transaction.rs  <- src/native/landing/service_land_branch_move_transaction.rs
+      The two command lines a landing writes for its branch: the question that reads the commit it names, ...
+    service_land_copy.rs  <- src/native/landing/service_land_copy.rs
+      The landing's private copy of the live index: a directory this landing made for itself beside the ...
+    service_land_finish.rs  <- src/native/landing/service_land_finish.rs
+      What follows the branch move of a landing and of a restart: the conclusion state and the index ...
+    owed_index_update.rs  <- src/native/landing/owed_index_update.rs
+      The record of an index update a landed batch still owes, written in the worktree's own Git ...
+    service_head.rs  <- src/native/landing/service_head.rs
+      Whether a worktree's head still names the branch a commit was prepared on.
+    service_land_finish_branch_questions.rs  <- src/native/landing/service_land_finish_branch_questions.rs
+      The branch questions a restart decides an open batch from: what `reference` holds, whether the ...
+    service_land_follow_index_reset.rs  <- src/native/landing/service_land_follow_index_reset.rs
+      The entries a landing installs in the worktree's index: the paths a commit changed, the pathspecs a ...
+    service_land_hold_a_batch.rs  <- src/native/landing/service_land_hold_a_batch.rs
+      What a landing does when a reference lock keeps its branch where it is: it publishes the record of ...
+    service_land_kept_commit.rs  <- src/native/landing/service_land_kept_commit.rs
+      What a recovery keeps of a batch whose branch does not show its commit: the commit itself, on ...
+    service_land_objects_of_batch.rs  <- src/native/landing/service_land_objects_of_batch.rs
+      The objects a batch lands: the commit Git built, checked for its parents and its objects, or the ...
+    service_land_record_the_batch.rs  <- src/native/landing/service_land_record_the_batch.rs
+      The record a landing puts in the journal before it moves a branch: what the batch is, where its ...
+    service_built_checks.rs  <- src/native/landing/service_built_checks.rs
+      The two questions the landing asks about a commit that Git built (a signed commit), answered from ...
+    service_land_git_steps_and_import_stream.rs  <- src/native/landing/service_land_git_steps_and_import_stream.rs
+      The Git steps of a landing and the text it feeds Git: running one step and telling a step ended at ...
+    service_land_follow.rs  <- src/native/landing/service_land_follow.rs
+      What the service's landing does once the branch has moved: the worktree's index entries of the ...
+    service_land_reference_lock.rs  <- src/native/landing/service_land_reference_lock.rs
+      What a landing does when its branch write is refused while the branch is still where the batch ...
+    service_land_reflog.rs  <- src/native/landing/service_land_reflog.rs
+      The reflog message a landing writes when it moves a branch: the kind of commit, Git's word for that ...
+    conclusion_state_copy.rs  <- src/native/landing/conclusion_state_copy.rs
+      The copy the service keeps of the conclusion state a landed commit removes, made when it writes the ...
+    service_land_requests_whose_client_is_gone.rs  <- src/native/landing/service_land_requests_whose_client_is_gone.rs
+      Which requests of a batch a landing still makes, given which of their clients went away before ...
+    service_land_settings.rs  <- src/native/landing/service_land_settings.rs
+      What a landing starts with: how many times its batch may be built again, and what it reads once ...
+    service_land_take_index_lock.rs  <- src/native/landing/service_land_take_index_lock.rs
+      Takes the index lock for a batch that is ready to land, notes the wait in the timing and the log, ...
+    service_land_side_reference_write.rs  <- src/native/landing/service_land_side_reference_write.rs
+      The write of one of a landing's own side references, and what the landing does with a commit whose ...
+    service_land_without_its_scratch_reference.rs  <- src/native/landing/service_land_without_its_scratch_reference.rs
+      The batch whose write of its own scratch reference was not proven: what the landing does with it, ...
+    service_land_outcomes.rs  <- src/native/landing/service_land_outcomes.rs
+      What became of one request of a batch, and the announcement a landing makes when none of its ...
+    service_landed_aftermath.rs  <- src/native/landing/service_landed_aftermath.rs
+      What a landed commit leaves the command to do: the result it returns, and the work after the ...
+    held_commit_words.rs  <- src/native/landing/held_commit_words.rs
+      What the wrapper says about a commit that a reference lock keeps off its branch: the answer the ...
+    held_commit_record.rs  <- src/native/landing/held_commit_record.rs
+      The record of a commit that a reference lock keeps off its branch: the branch and its two values, ...
+    service_branch_shows.rs  <- src/native/landing/service_branch_shows.rs
+      What the branch shows once the commit service went silent after a commit was prepared.
+    service_object_questions_left_to_git.rs  <- src/native/landing/service_object_questions_left_to_git.rs
+      The object questions a landing and its client ask Git when the in-process object reader declines ...
+    service_rules_precompile.rs  <- src/native/landing/service_rules_precompile.rs
+      The commit service compiles the repository's forbidden-strings rules into the shared cache on its ...
+    service_scratch_abandonment.rs  <- src/native/landing/service_scratch_abandonment.rs
+      Which commit scratch trees a later command removes, and which it leaves alone because the command ...
+    service_scratch_ref_marker_of_a_batch.rs  <- src/native/landing/service_scratch_ref_marker_of_a_batch.rs
+      The record a landing writes beside its batch before it puts the batch's commits on a reference, ...
+    service_scratch_ref_of_a_dropped_batch.rs  <- src/native/landing/service_scratch_ref_of_a_dropped_batch.rs
+      The names of the two side references a landing uses and of the reference a removal keeps a held ...
+    service_journal.rs  <- src/native/service/service_journal.rs
+      The resident service's journal: one file per batch of commits, with the one durable write the batch ...
+    service_journal_intent_text_and_parse.rs  <- src/native/service/service_journal_intent_text_and_parse.rs
+      The intent of a batch: the record of what a landing is about to do, written as `key=value` lines ...
+    service_land_context.rs  <- src/native/landing/service_land_context.rs
+      What the commit service needs to land a batch: how to run Git, where the journal lives, a test seam ...
+    service_land_start.rs  <- src/native/landing/service_land_start.rs
+      The witness of the live index file as the landing found it under the index lock, recorded in the ...
+    service_scratch_renewal.rs  <- src/native/landing/service_scratch_renewal.rs
+      The renewal that keeps a commit's scratch tree from aging out while the command that owns it is ...
+    side_reference_written_here.rs  <- src/native/landing/side_reference_written_here.rs
+      The reference that keeps a batch's commits reachable until its branch moves, ...
+    unreachable_git_dir_proven_gone.rs  <- src/native/landing/unreachable_git_dir_proven_gone.rs
+      What the filesystem proves about a Git directory the service can no longer resolve: that the ...
   lines_about_worktrees_and_large_files/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
     hiding_passwords_in_urls.rs  <- src/native/lfs/lfs_output_mask.rs
-      Hide the credentials inside URLs in the text the wrapper relays from `git-lfs`.
+      Hide every secret-shaped part of the URLs in the text the wrapper relays from `git-lfs` and from ...
     message_when_a_step_on_a_path_fails.rs  <- src/native/worktree/worktree_path_failure_message.rs
-      The one message shape the worktree commands give when a step on a path fails: `<path> <what> (<error>)`.
-  naming_the_service_of_one_worktree/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    service_instance.rs  <- src/native/service/service_instance.rs
-      Which commit service instance belongs to a worktree: a name made from the worktree's own Git directory, and the
-  sending_log_entries_to_the_system_journal/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    where_journal_entries_are_sent.rs  <- src/native/service/journald_native_socket_target.rs
-      The address the native journal entries are sent to: the journal's own socket, or a path or abstract name set by a ...
-    writing_to_the_system_journal.rs  <- src/native/service/journald_native.rs
-      The service's way into the journal: the native journal protocol over a datagram socket when the service's standard
-    journal_entry_from_the_wrapper.rs  <- src/native/service/client_journal.rs
-      One entry from the wrapper a person ran to the journal, as a datagram on the native socket, sent without waiting and
+      The one message shape the worktree commands give when a step on a path fails: `<path> <what> ...
   log_lines_of_the_commit_service/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> lines_about_worktrees_and_large_files, naming_the_service_of_one_worktree, recording_where_worktree_add_spent_its_time, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run
+    uses/ -> after_commit_work_of_the_service, finding_the_git_folders, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, landing_commits, lines_about_worktrees_and_large_files, messages_between_the_wrapper_and_the_commit_service, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path, the_commit_command, work_left_for_the_service_to_finish_later, running_independent_jobs_side_by_side, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person, text_time_and_records_written_like_javascript
     commit_timing.rs  <- src/native/commit/commit_timing.rs
-      The record of where one wrapped `git commit` spent its time
-    service_timing.rs  <- src/native/service/service_timing.rs
-      The lines the resident commit service writes to its log (standard error
+      The record of where one wrapped `git commit` spent its time, appended to a size-capped file in the ...
     inner_git_words.rs  <- src/native/worktree/inner_git_words.rs
-      Where the words of a Git run the wrapper or the service started on its own go, now that none of those runs carries
-  reviewing_landed_commits_against_standards/
+      Where the words of a Git run the wrapper or the service started on its own go, now that none of ...
+    service_journal_folder_of_an_instance.rs  <- src/native/service/service_journal_folder_of_an_instance.rs
+      Where a worktree's service keeps its journal: the folder the unit's `--journal` names, and the ...
+    service_journal_record_age.rs  <- src/native/service/service_journal_record_age.rs
+      How old the record of a batch that landed is, judged on the reading of the clocks the record itself ...
+    service_journal_restored_at_start.rs  <- src/native/service/service_journal_restored_at_start.rs
+      The plan of the pushes waiting for a new try and the repositories an earlier service was woken for, ...
+    service_timing.rs  <- src/native/service/service_timing.rs
+      The lines the resident commit service writes to its log (standard error, which the service manager ...
+    service_log_lines_off_the_calling_thread.rs  <- src/native/service/service_log_lines_off_the_calling_thread.rs
+      The service's log lines on standard error, written by a thread of their own, so no caller waits for ...
+    service_timing_capture_test_support.rs  <- src/native/service/service_timing_capture_test_support.rs
+      Test-only capture of the service's log entries: a control runs code and gets the entries it wrote ...
+  making_a_clone_of_a_worktree_with_zfs/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, starting_git_and_describing_a_run
-    review_gateway_credential.rs  <- src/native/service/service_review_key.rs
-      The gateway credential of the standards review as it travels from the wrapper to the service: a value that prints as
-    changed_line_spans_of_a_file.rs  <- src/native/standards_review/standards_review_patch.rs
-      Reading one file's changed new-side line spans out of a `git show --patch` text, so the review needs no
-    text_rules_of_the_review_log.rs  <- src/native/standards_review/standards_review_text.rs
-      The few text behaviors of the standards-review log that JavaScript defines and Rust does not share
-    which_commits_get_a_review.rs  <- src/native/standards_review/standards_review_input.rs
-      The pure part of the standards-review shadow run: which landed commits get an entry, and the capped model input
-    request_body_of_a_review.rs  <- src/native/standards_review/standards_review_request.rs
-      The Decisions API request body the standards-review shadow run sends, and the reading of the gateway's answer into
-    review_log_entries.rs  <- src/native/standards_review/standards_review_entry.rs
-      The log entries of the standards-review shadow run, rendered as the root `mise.toml` task `shadow-review` writes
-    adding_a_review_entry_to_the_log.rs  <- src/native/standards_review/standards_review_append.rs
-      How the service adds a review entry to the repository's live shadow log, which every worktree's service instance
-    the_one_https_call_of_a_review.rs  <- src/native/standards_review/standards_review_client.rs
-      The one HTTPS call of the standards-review shadow run, made in-process and ended only when it shows no sign of work.
-    running_a_review_end_to_end.rs  <- src/native/standards_review/standards_review_run.rs
-      The standards-review shadow run, end to end and in-process: classify the landed commit's names, read the commit
-    git_reads_of_a_review.rs  <- src/native/standards_review/standards_review_source.rs
-      The Git reads of the standards-review shadow run, in as few real-Git starts as the data allows: one `git show`
+    uses/ -> attaching_a_zfs_clone_folder, cancelling_a_zfs_clone_removal, converting_a_linked_worktree, converting_the_main_checkout, copying_ignored_files_around_one_git_command, copying_ignored_files_into_a_stage, finding_the_git_folders, is_the_worktree_clean, making_a_worktree_quickly, names_this_release_and_the_one_before, planning_a_worktree_add_and_what_git_made, proving_a_zfs_clone_may_be_removed, reading_the_datasets_zfs_mounts, running_git_for_a_transaction, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run, stopping_the_program_at_a_named_step_for_tests, the_doctor_report_of_the_zfs_route, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_root_modes_that_attach_and_unmount_zfs_clones, the_snapshots_a_removal_takes_before_it_goes, the_trash_a_worktree_removal_sets_aside, what_each_git_command_accepts, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, repairing_installed_packages, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    (new folder of this round: The execution half of the ZFS add route: from the claimed slot to a verified fill.)
+    add_route_run.rs  <- src/native/worktree_clone_add_route/add_route_run.rs
+      The ZFS add route's entry point and runner: the gate, the preflight, the claim and the record, the ...
+    add_preflight.rs  <- src/native/worktree_clone_add_route/add_preflight.rs
+      The route's preflight: everything A0 proves before the claim writes anything, and the sources it ...
+    add_grants.rs  <- src/native/worktree_clone_add_route/add_grants.rs
+      The account's effective ZFS delegation over the route's two datasets, read in the preflight and ...
+    add_plan_stop.rs  <- src/native/worktree_clone_add_route/add_plan_stop.rs
+      The stop one standing removal plan leaves the add, with the one command that ends the plan written ...
+    add_plan_clone_presence.rs  <- src/native/worktree_clone_add_route/add_plan_clone_presence.rs
+      The pool's answer about the clone one standing removal plan records: whether a child of the clone ...
+    add_route_steps.rs  <- src/native/worktree_clone_add_route/add_route_steps.rs
+      The add's steps after the claim, one per phase: the empty slot and its identity, Git's registration ...
+    add_fill.rs  <- src/native/worktree_clone_add_route/add_fill.rs
+      The fill: the frozen proof, the proof's phase marker, the clone's leave-outs, the private index, ...
+    add_exchange.rs  <- src/native/worktree_clone_add_route/add_exchange.rs
+      The pointer's exchange with the copied Git administration, and the trash entry that holds the ...
+    add_frozen_proof.rs  <- src/native/worktree_clone_add_route/add_frozen_proof.rs
+      The frozen proof: the clone's copied index and every tracked path compared with the capture taken ...
+    add_index.rs  <- src/native/worktree_clone_add_route/add_index.rs
+      The fill's index: the captured index written under a private name in the new worktree's ...
+    add_mount.rs  <- src/native/worktree_clone_add_route/add_mount.rs
+      The add's wait for the clone's mount, verified at the slot in the caller's own namespace.
+    add_route_git.rs  <- src/native/worktree_clone_add_route/add_route_git.rs
+      The Git runner the ZFS clone route's own restore steps start real Git through, with the variables ...
+    add_route_steps_slot_and_registration.rs  <- src/native/worktree_clone_add_route/add_route_steps_slot_and_registration.rs
+      The add's first two steps: the empty slot and the identity it is recorded with, and Git's ...
+    add_git_words.rs  <- src/native/worktree_clone_add_route/add_git_words.rs
+      The words the route's one Git invocation is given: the person's arguments with `--no-checkout`, ...
+    add_registration.rs  <- src/native/worktree_clone_add_route/add_registration.rs
+      The add's scan of `<common>/worktrees` after Git's own add: what each entry is, which of them is ...
+    add_route_steps_snapshot_and_capture.rs  <- src/native/worktree_clone_add_route/add_route_steps_snapshot_and_capture.rs
+      The add's third step: the frozen capture taken before the snapshot, the checkout snapshot, and the ...
+    add_capture_store.rs  <- src/native/worktree_clone_add_route/add_capture_store.rs
+      Where the capture and the proof's phase marker live, how they are published so a kill leaves either ...
+    add_capture_record.rs  <- src/native/worktree_clone_add_route/add_capture_record.rs
+      The capture's own record grammar: its header, its fixed lines, one line per tracked path, and a ...
+    add_capture.rs  <- src/native/worktree_clone_add_route/add_capture.rs
+      The frozen capture of a clean source the clone route proves its clone against: the index's bytes by ...
+    add_capture_tree.rs  <- src/native/worktree_clone_add_route/add_capture_tree.rs
+      One walk of many tracked paths below a held root: each path read one plain name at a time, its ...
+    add_route_steps_facts_and_refusal.rs  <- src/native/worktree_clone_add_route/add_route_steps_facts_and_refusal.rs
+      What every one of the add's steps is given and what each answers with: the fixed facts one add's ...
+    add_route_plan.rs  <- src/native/worktree_clone_add_route/add_route_plan.rs
+      The names one add's route chooses before anything is mutated: the slot's record name, the add's ...
+    add_route_gate.rs  <- src/native/worktree_clone_add_route/add_route_gate.rs
+      Which `git worktree add` the ZFS add route serves, and the facts the route then uses: the ...
+    add_source_the_restore_cannot_prove.rs  <- src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs
+      The reasons a main checkout cannot be the source of the clone this route fills, because the fill's ...
+    add_zfs.rs  <- src/native/worktree_clone_add_route/add_zfs.rs
+      The route's pool calls: the device opened behind the start-time gate, the identities of the ...
+  making_a_worktree_quickly/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, converting_the_main_checkout, copying_ignored_files_around_one_git_command, copying_ignored_files_into_a_stage, finding_the_git_folders, finding_the_real_git_program, git_settings_read_once, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, is_the_worktree_clean, lines_about_worktrees_and_large_files, log_lines_of_the_commit_service, moving_kept_files_to_the_new_names, planning_a_worktree_add_and_what_git_made, pushing_what_the_commit_service_saved, reading_and_writing_the_index_file_of_git, reading_git_settings_from_files, reading_saved_commits_and_files, recording_where_worktree_add_spent_its_time, removing_a_linked_worktree, running_git_for_a_transaction, saving_copies_of_what_a_command_would_throw_away, sending_log_entries_to_the_system_journal, sha_1_and_sha_256_of_bytes, spellings_that_switch_the_wrapper_off, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, the_snapshots_a_removal_takes_before_it_goes, the_trash_a_worktree_removal_sets_aside, what_the_wrapper_asks_git_about_a_repository, work_left_for_the_service_to_finish_later, fast_copies_and_swaps_on_linux, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    add_standing_notice.rs  <- src/native/worktree/add_standing_notice.rs
+      The line an add prints while it is still running, naming the step it is in and how long it has been ...
+    ladder_step_ceilings.rs  <- src/native/worktree/ladder_step_ceilings.rs
+      Which of the ladder's own Git steps has a ceiling, and which number that ceiling is.
+    worktree_audit.rs  <- src/native/worktree/worktree_audit.rs
+      The facts one audit line carries about a `git worktree remove`: the directory it names, whether the ...
+    worktree_clone_conversion_size_read_deadline.rs  <- src/native/worktree/worktree_clone_conversion_size_read_deadline.rs
+      The join's shipped deadline, and the control that shortens it for one thread.
+    worktree_clone_conversion_size_read_free.rs  <- src/native/worktree/worktree_clone_conversion_size_read_free.rs
+      The answered map of a size read an add will not use, and the thread that frees it, with the control ...
+    worktree_completion.rs  <- src/native/worktree/worktree_completion.rs
+      Bringing each added path's worktree copy to the landed bytes after a commit landed, with ...
+    worktree_completion_file_inspection.rs  <- src/native/worktree/worktree_completion_file_inspection.rs
+      The descriptor-bound look at one added path's worktree copy: its identity, whether it still holds ...
+    worktree_kept_notices.rs  <- src/native/worktree/worktree_kept_notices.rs
+      The record of a worktree a removal kept, and the rule for when a person reads it: the next wrapper ...
+    worktree_ladder.rs  <- src/native/worktree/worktree_ladder.rs
+      The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it, on ...
+    worktree_ladder_finish.rs  <- src/native/worktree/worktree_ladder_finish.rs
+      What the ladder does after real Git returned: bind the add to the directories Git made, the ...
+    worktree_dirty_restore.rs  <- src/native/worktree/worktree_dirty_restore.rs
+      The restore of a snapshot of a main checkout that had uncommitted changes: make the copy's index ...
+    worktree_finish_commands.rs  <- src/native/worktree/worktree_finish_commands.rs
+      The two commands a message prints for a worktree an interrupted `git worktree add` left: the one ...
+    worktree_ladder_finish_clones.rs  <- src/native/worktree/worktree_ladder_finish_clones.rs
+      The clone rung's serving step: the copies, the fence beside them, the index written under a name of ...
+    worktree_clone_partial.rs  <- src/native/worktree/worktree_clone_partial.rs
+      The clone rung for a source with uncommitted changes: clone every tracked path the proof settles, ...
+    worktree_clone.rs  <- src/native/worktree/worktree_clone.rs
+      Rung 2 of the cheap-worktree ladder: each tracked file of the clean source is cloned (`FICLONE`) ...
+    worktree_clone_partial_staged.rs  <- src/native/worktree/worktree_clone_partial_staged.rs
+      The second answer on the paths a partial clone takes: Git's own live listing of the paths the ...
+    worktree_clone_partial_tracked.rs  <- src/native/worktree/worktree_clone_partial_tracked.rs
+      The source's index, the tree of its `HEAD`, the paths Git writes, and the stat fields the new index ...
+    worktree_clone_partial_index.rs  <- src/native/worktree/worktree_clone_partial_index.rs
+      The index a partial clone installs: one entry for every path of the target tree, with the stat ...
+    worktree_clone_partial_split.rs  <- src/native/worktree/worktree_clone_partial_split.rs
+      Which tracked paths of a source with uncommitted changes a clone may still clone, and which of them ...
+    worktree_clone_slices.rs  <- src/native/worktree/worktree_clone_slices.rs
+      The slices of the clone rung: contiguous runs of the frozen entries, one job of the blocking pool ...
+    worktree_clone_entries.rs  <- src/native/worktree/worktree_clone_entries.rs
+      One run of the clone rung's entries: the entries a run owns, what it created, the stat fields it ...
+    worktree_clone_entry.rs  <- src/native/worktree/worktree_clone_entry.rs
+      One tracked entry of the clone rung: the clone of the file or link itself, with the checks that ...
+    worktree_clone_paths.rs  <- src/native/worktree/worktree_clone_paths.rs
+      The path of one frozen index entry and the places a clone run holds: the names a tracked path ...
+    worktree_ladder_finish_trash_record.rs  <- src/native/worktree/worktree_ladder_finish_trash_record.rs
+      Write the trash's record now that the worktree holding it is published, and answer what the ...
+    worktree_ladder_run.rs  <- src/native/worktree/worktree_ladder_run.rs
+      The ladder around one `git worktree add` on Linux: the choice of rung before real Git runs, and, ...
+    worktree_clone_conversion_beside_the_clone.rs  <- src/native/worktree/worktree_clone_conversion_beside_the_clone.rs
+      The clone conversion fence beside the clone (option B of ...
+    worktree_clone_conversion_fence_measurement_routes.rs  <- src/native/worktree/worktree_clone_conversion_fence_measurement_routes.rs
+      The measurement-only fences of a measurement build: option C (refuse the rung whenever a conversion ...
+    worktree_clone_conversion_size_read.rs  <- src/native/worktree/worktree_clone_conversion_size_read.rs
+      The conversion fence's one `git ls-tree` size read: the map every written path is proved by, the ...
+    worktree_clone_index.rs  <- src/native/worktree/worktree_clone_index.rs
+      The clone rung's index: the stat fields the clones recorded, by path, none for the paths the ...
+    worktree_kept_folders.rs  <- src/native/worktree/worktree_kept_folders.rs
+      The folder a taken worktree folder is kept in when the name it came from is taken, and the cleanup ...
+    worktree_ladder_target_tree_skip.rs  <- src/native/worktree/worktree_ladder_target_tree_skip.rs
+      The one read that lets a fast rung step aside before it claims an add's record or copies a file: ...
+    worktree_ladder_test_support.rs  <- src/native/worktree/worktree_ladder_test_support.rs
+      Fixtures shared by the controls of the cheap-worktree ladder: a main checkout that is a btrfs ...
+    worktree_clone_rung_limits.rs  <- src/native/worktree/worktree_clone_rung_limits.rs
+      The three limit rules of the clone rung: a source with changes whose clones would copy fewer bytes ...
+    worktree_clone_conversion_fence.rs  <- src/native/worktree/worktree_clone_conversion_fence.rs
+      The fence over a clone rung's bytes: which tracked paths the clones may carry, which paths Git must ...
+    worktree_change_a_rung_cannot_serve.rs  <- src/native/worktree/worktree_change_a_rung_cannot_serve.rs
+      One path the target tree of an add changes, and why a cheap rung cannot serve it: a path the ...
+    worktree_clone_conversion_decline.rs  <- src/native/worktree/worktree_clone_conversion_decline.rs
+      How many tracked paths a rule of their own converts, and the share of them past which the rung ...
+    worktree_clone_conversion_git_reads.rs  <- src/native/worktree/worktree_clone_conversion_git_reads.rs
+      How the conversion fence makes one Git run, and the two runs that read the blob sizes it decides ...
+    worktree_clone_conversion_rules.rs  <- src/native/worktree/worktree_clone_conversion_rules.rs
+      The decision, one tracked path at a time, whether a clone of the source's file may stand for the ...
+    worktree_landed_after_a_merge.rs  <- src/native/worktree/worktree_landed_after_a_merge.rs
+      The one place a merge that moved the branch hands the landed worktrees to the sweep.
+    worktree_landed_ignored_files.rs  <- src/native/worktree/worktree_landed_ignored_files.rs
+      The ignored entries of a worktree whose bytes nothing else in the repository holds.
+    worktree_ladder_target.rs  <- src/native/worktree/worktree_ladder_target.rs
+      What both rungs that fill a worktree themselves need to know about the target of a `git worktree ...
+    worktree_landed_removal_last_look.rs  <- src/native/worktree/worktree_landed_removal_last_look.rs
+      What a removal deletes beside the files Git keeps, and the sweep's last look that asks it again ...
+    worktree_landed_sweep_notice.rs  <- src/native/worktree/worktree_landed_sweep_notice.rs
+      The words one landed sweep prints, one line per worktree it removed, left, could not prove it made, ...
+    worktree_landed_removal.rs  <- src/native/worktree/worktree_landed_removal.rs
+      The removal of every wrapper-made worktree whose branch a merge just landed on the branch it ran in.
+    worktree_branch_reflog.rs  <- src/native/worktree/worktree_branch_reflog.rs
+      The commits a branch's own reflog says it moved between.
+    worktree_landed_registrations.rs  <- src/native/worktree/worktree_landed_registrations.rs
+      The linked worktrees a repository's common Git directory registers, with the branch each one has ...
+    worktree_move_source.rs  <- src/native/worktree/worktree_move_source.rs
+      The worktree one `git worktree move <worktree> <new-path>` renames, resolved the way Git resolves ...
+    worktree_operands.rs  <- src/native/worktree/worktree_operands.rs
+      The operands one `git worktree` subcommand was given, read the way Git's own option parser leaves ...
+    worktree_process_inside.rs  <- src/native/worktree/worktree_process_inside.rs
+      Whether any process on this machine is working in a folder, named by its process id, and what the ...
+    worktree_registration_proof.rs  <- src/native/worktree/worktree_registration_proof.rs
+      Whether a directory is one of this repository's linked worktrees, proved from the pointer and the ...
+    worktree_slow_route.rs  <- src/native/worktree/worktree_slow_route.rs
+      The plain sentence that tells a person why a `git worktree add` was not made as a snapshot, and the ...
+    worktree_snapshot.rs  <- src/native/worktree/worktree_snapshot.rs
+      The mechanics of rung 1 of the cheap-worktree ladder: a snapshot of the source subvolume taken at a ...
+    worktree_subvolume.rs  <- src/native/worktree/worktree_subvolume.rs
+      The empty btrfs subvolume the wrapper makes at the destination of a `git worktree add`, before real ...
+    worktree_trash.rs  <- src/native/worktree/worktree_trash.rs
+      The leave-out step of a snapshot of the main checkout: set aside the nested worktrees that are ...
+    worktree_snapshot_source.rs  <- src/native/worktree/worktree_snapshot_source.rs
+      Whether the creating worktree can be the source of a snapshot for a new worktree, decided before ...
+    worktree_clone_block_cloning.rs  <- src/native/worktree/worktree_clone_block_cloning.rs
+      The pool's block-cloning switch as the kernel reports it, and what the clone rung does when it ...
+    worktree_clone_domain.rs  <- src/native/worktree/worktree_clone_domain.rs
+      The clone domain of a reflink: whether two paths share data blocks, and why they do not.
+    worktree_trash_dispose.rs  <- src/native/worktree/worktree_trash_dispose.rs
+      The emptying of the trash a snapshot's leave-out made: what a trash is, how the commit service's ...
+    worktree_trash_entries.rs  <- src/native/worktree/worktree_trash_entries.rs
+      The removal of the entries a snapshot's leave-out moved into its trash, side by side.
+    idle_io_priority.rs  <- src/native/worktree/idle_io_priority.rs
+      Run one stretch of storage work at the lowest I/O priority Linux offers, and put the calling ...
+    worktree_trash_manifest.rs  <- src/native/worktree/worktree_trash_manifest.rs
+      What a snapshot's leave-out made and moved, with identities: the trash directory it created and ...
+  merging_text_by_line_and_by_word/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    word_merge.rs  <- src/native/merge/word_merge.rs
+      A three-way merge of text by line, and by word for the line regions that both sides changed, in ...
+    word_merge_invented_text.rs  <- src/native/merge/word_merge_invented_text.rs
+      Which text a word merge of one line region may not write: a word written twice in a row that no ...
+  merging_without_touching_your_files/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, finding_who_holds_a_lock_file, holding_the_index_lock_for_the_commit_service, log_lines_of_the_commit_service, merging_text_by_line_and_by_word, moving_kept_files_to_the_new_names, pushing_what_the_commit_service_saved, recovering_a_merge_that_was_cut_short, rerunning_a_merge_word_by_word, rules_about_where_a_command_may_run, running_git_for_a_transaction, running_policies_and_settling_their_corrections, sending_log_entries_to_the_system_journal, spellings_that_switch_the_wrapper_off, stopping_the_program_at_a_named_step_for_tests, waiting_for_the_index_lock_of_git, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, who_owns_a_transaction_folder, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    merge_isolation.rs  <- src/native/merge/merge_isolation.rs
+      A true `git merge <branch>` completed in isolation when the index holds staged changes that make ...
+    merge_isolation_a_directory_the_merge_replaces.rs  <- src/native/merge/merge_isolation_a_directory_the_merge_replaces.rs
+      A directory standing where the merge puts a file, and the words that stop the merge before anything ...
+    merge_isolation_a_special_file_the_merge_changes.rs  <- src/native/merge/merge_isolation_a_special_file_the_merge_changes.rs
+      A named pipe, a socket, or a device standing at a path a merge writes or deletes, and the words ...
+    merge_isolation_apply.rs  <- src/native/merge/merge_isolation_apply.rs
+      The writing half of an isolated merge: the merge tree, the merge commit, and the two-way update ...
+    merge_isolation_apply_moved.rs  <- src/native/merge/merge_isolation_apply_moved.rs
+      The carry of a merge that landed, its lines, and what the branch does if it moved while that carry ...
+    merge_isolation_apply_stops.rs  <- src/native/merge/merge_isolation_apply_stops.rs
+      What a step of an isolated merge that stopped means for the command's ending, and what a clear that ...
+    merge_isolation_apply_save.rs  <- src/native/merge/merge_isolation_apply_save.rs
+      The merge a command saves for a later one: its commit kept on a side ref, the record that names ...
+    merge_isolation_apply_findings.rs  <- src/native/merge/merge_isolation_apply_findings.rs
+      The words an isolated merge prints when it could not be finished now: a merge saved on a side ref ...
+    merge_isolation_carry_apply.rs  <- src/native/merge/merge_isolation_carry_apply.rs
+      How one merge carries a person's own work, path by path: putting the merge's paths back to the ...
+    merge_isolation_carry_landed.rs  <- src/native/merge/merge_isolation_carry_landed.rs
+      What Git's own two-way update left at each path a merge changes, as the file system named it at the ...
+    merge_isolation_carry_notice.rs  <- src/native/merge/merge_isolation_carry_notice.rs
+      The words a merge prints when it carries a person's own work across it: the files it merged by ...
+    merge_isolation_carry_kept_path.rs  <- src/native/merge/merge_isolation_carry_kept_path.rs
+      One path a carry kept whole: what stands at it now of the person's own work, what the merge made of ...
+    merge_isolation_carry_place.rs  <- src/native/merge/merge_isolation_carry_place.rs
+      Put one planned worktree write in place, or leave the path alone because what stands there is not ...
+    merge_isolation_carry_place_write.rs  <- src/native/merge/merge_isolation_carry_place_write.rs
+      The entry a carry's write makes: a file created as Git's own checkout creates one, a symbolic link, ...
+    merge_isolation_carry_plans.rs  <- src/native/merge/merge_isolation_carry_plans.rs
+      What one captured path's writes are, once the merge's change is known: the worktree side, through ...
+    merge_isolation_carry_layers.rs  <- src/native/merge/merge_isolation_carry_layers.rs
+      What one layer of one path the merge changes ends as once the person's own work is carried onto the ...
+    merge_isolation_carry_writes.rs  <- src/native/merge/merge_isolation_carry_writes.rs
+      What a carry writes, and the vocabulary of one step's writes: the index records of a batch, one ...
+    merge_isolation_dirty_paths.rs  <- src/native/merge/merge_isolation_dirty_paths.rs
+      The paths a merge that writes or deletes them would discard.
+    merge_isolation_editor.rs  <- src/native/merge/merge_isolation_editor.rs
+      The editor a merge from objects opens for its message: the file it reads, the program Git would ...
+    merge_isolation_editor_words.rs  <- src/native/merge/merge_isolation_editor_words.rs
+      The words of an editor command, made the way a POSIX shell makes them, with no shell started to do ...
+    merge_isolation_ignored_paths.rs  <- src/native/merge/merge_isolation_ignored_paths.rs
+      The paths the merge writes that an ignored untracked file of the person's stands at.
+    merge_isolation_index_reading.rs  <- src/native/merge/merge_isolation_index_reading.rs
+      The index read the way a merge's recovery needs it: the entries that differ from a commit, and how ...
+    merge_isolation_kept_copies_decisions.rs  <- src/native/merge/merge_isolation_kept_copies_decisions.rs
+      The one decision every command makes about a copy a merge kept beside a path: put it back, remove ...
+    merge_isolation_kept_copies_words.rs  <- src/native/merge/merge_isolation_kept_copies_words.rs
+      The lines a kept copy earns: one saying it stays where it is and what ends it, with the reason it ...
+    merge_isolation_kept_copies.rs  <- src/native/merge/merge_isolation_kept_copies.rs
+      The records of the copies of the person's own bytes a merge keeps beside a path: one file per copy ...
+    merge_isolation_marks_the_status_hides.rs  <- src/native/merge/merge_isolation_marks_the_status_hides.rs
+      The paths a merge changes whose edit Git's ordinary status does not show, because their index entry ...
+    merge_isolation_carry_reads.rs  <- src/native/merge/merge_isolation_carry_reads.rs
+      What a carry reads from the repository: one object's bytes in the form a checkout writes, the same ...
+    merge_isolation_carry.rs  <- src/native/merge/merge_isolation_carry.rs
+      The durable half of carrying a person's own work across a merge: reading what their worktree and ...
+    merge_isolation_merge_tree.rs  <- src/native/merge/merge_isolation_merge_tree.rs
+      The merge tree of an isolated merge: the merge computed from objects alone, and the word-level ...
+    merge_isolation_git_reads.rs  <- src/native/merge/merge_isolation_git_reads.rs
+      The questions an isolated merge asks Git and the terminal: the merge settings, the unsaved paths, ...
+    merge_isolation_report.rs  <- src/native/merge/merge_isolation_report.rs
+      The refusals of an isolated merge, as the finding events a caller reads, each naming the paths ...
+    merge_isolation_run_types.rs  <- src/native/merge/merge_isolation_run_types.rs
+      The values an isolated merge passes between its steps: the input, the outcome, the way a step gives ...
+    merge_isolation_take_asides.rs  <- src/native/merge/merge_isolation_take_asides.rs
+      The take of a worktree file a merge must replace or delete: its private name, the check that the ...
+    merge_isolation_carry_parts.rs  <- src/native/merge/merge_isolation_carry_parts.rs
+      The person's own work in the paths a merge changes: what the worktree held, what the index held, ...
+    merge_isolation_take_aside_names.rs  <- src/native/merge/merge_isolation_take_aside_names.rs
+      The private name a take gives a file it moves aside: a key for the file's own name, a key for the ...
+    merge_isolation_take_asides_proof.rs  <- src/native/merge/merge_isolation_take_asides_proof.rs
+      The proof that no program can write into a file whose last name is about to go.
+    merge_isolation_worktree_entry.rs  <- src/native/merge/merge_isolation_worktree_entry.rs
+      What stands at one worktree path, read once for the two answers a merge needs of it: the bytes a ...
+    merge_options.rs  <- src/native/merge/merge_options.rs
+      The shape of a `git merge` command line that the wrapper can complete in isolation, or the reason ...
+    pull_isolation.rs  <- src/native/merge/pull_isolation.rs
+      A `git pull` that merges, turned into the fetch it starts with and the `git merge FETCH_HEAD` it ...
+    merge_isolation_message.rs  <- src/native/merge/merge_isolation_message.rs
+      The text of an isolated merge's commit message and the name Git gives the merged commit in it.
+    pull_untracked_paths_in_the_way.rs  <- src/native/merge/pull_untracked_paths_in_the_way.rs
+      The files Git does not track that stand where a pull's move would write, copied beside the Git ...
+    pull_untracked_paths_in_the_way_kept_copies.rs  <- src/native/merge/pull_untracked_paths_in_the_way_kept_copies.rs
+      One entry a pull's branch move would remove, copied beside the Git directory before the failure is ...
   messages_between_the_wrapper_and_the_commit_service/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reviewing_landed_commits_against_standards
-    service_protocol_messages_and_name_checks.rs  <- src/native/service/service_protocol_messages_and_name_checks.rs
-      The messages between the wrapper and the resident commit service as typed values, and the checks on the names they ...
+    uses/ -> asking_the_commit_service_to_save_a_commit, finding_the_git_folders, how_long_the_program_waits_for_git_steps, names_this_release_and_the_one_before, reviewing_landed_commits_against_standards, the_hidden_second_git_folder, the_service_program, work_left_for_the_service_to_finish_later, saving_files_so_a_crash_leaves_no_half_file
+    service_messages_of_a_failure.rs  <- src/native/landing/service_messages_of_a_failure.rs
+      The word each failure of a commit goes by in the timing record.
+    service_messages_of_a_manager_that_did_not_answer.rs  <- src/native/landing/service_messages_of_a_manager_that_did_not_answer.rs
+      The words for a commit whose exchange with the user service manager ran out of its time, before ...
+    service_messages_of_a_platform.rs  <- src/native/landing/service_messages_of_a_platform.rs
+      The sentence a platform without a user service manager leaves a person, which every failure that ...
+    service_messages_of_a_service_that_stopped.rs  <- src/native/landing/service_messages_of_a_service_that_stopped.rs
+      The words for a commit whose service said nothing, stopped reading its request, or stopped ...
+    service_messages_of_a_start_that_cannot_come.rs  <- src/native/landing/service_messages_of_a_start_that_cannot_come.rs
+      The two sentences a commit reads when the commit service cannot answer this command at all, because ...
+    service_messages_of_a_wait_for_the_service.rs  <- src/native/landing/service_messages_of_a_wait_for_the_service.rs
+      The notices a commit prints while it waits for the commit service: where it stands, what the wait ...
+    service_messages_of_a_work_that_was_not_handed_over.rs  <- src/native/landing/service_messages_of_a_work_that_was_not_handed_over.rs
+      The failure a hand-off reports when work it left for the commit service could not be handed over, ...
+    service_messages_of_a_start_that_was_asked_and_did_not_come.rs  <- src/native/landing/service_messages_of_a_start_that_was_asked_and_did_not_come.rs
+      The words for a wait that ended without a greeting, built from two facts the wait kept: what the ...
+    service_messages_of_an_interrupted_commit.rs  <- src/native/landing/service_messages_of_an_interrupted_commit.rs
+      The words for a commit the person interrupted, both when the service confirmed that it gave the ...
+    service_protocol.rs  <- src/native/service/service_protocol.rs
+      The messages between the wrapper and the resident commit service, one JSON object per line.
     service_protocol_decode_lines_to_messages.rs  <- src/native/service/service_protocol_decode_lines_to_messages.rs
       Reads one line of the protocol as a client message or a service message, checking every field.
     service_protocol_encode_messages_to_lines.rs  <- src/native/service/service_protocol_encode_messages_to_lines.rs
       Writes a client message or a service message as one JSON object on one line.
-    service_protocol.rs  <- src/native/service/service_protocol.rs
-      The messages between the wrapper and the resident commit service, one JSON object per line.
-  sha_1_and_sha_256_of_bytes/
+    service_protocol_forgetting_programs.rs  <- src/native/service/service_protocol_forgetting_programs.rs
+      Reads the message that names the push records which can no longer run, so the service gives up the ...
+    service_protocol_messages_and_name_checks.rs  <- src/native/service/service_protocol_messages_and_name_checks.rs
+      The messages between the wrapper and the resident commit service as typed values, and the checks on ...
+    service_protocol_programs_of_a_request.rs  <- src/native/service/service_protocol_programs_of_a_request.rs
+      The programs and transport settings one request or wake carries, every name and value checked, read ...
+  moving_kept_files_to_the_new_names/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    sha_1_and_sha_256.rs  <- src/native/subvolume/subvolume_sha.rs
-      SHA-1 and SHA-256 of a byte string, written out in full.
-  stopping_the_program_at_a_named_step_for_tests/
+    uses/ -> finishing_what_an_earlier_commit_service_left_open, how_long_the_program_waits_for_git_steps, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    earlier_push_programs_record.rs  <- src/native/foundation/earlier_push_programs_record.rs
+      The record a wrapper of one unreleased branch wrote beside a worktree's Git directory, and the ...
+    kept_names_in_the_git_directories.rs  <- src/native/foundation/kept_names_in_the_git_directories.rs
+      Settle every file and folder this program keeps inside a repository's Git directories: each one an ...
+    earlier_name_moved_to_current_in_place.rs  <- src/native/foundation/earlier_name_moved_to_current_in_place.rs
+      Find where a file or folder the program keeps is today: under its current name, or, the first time ...
+    earlier_names_folded_into_current.rs  <- src/native/foundation/earlier_names_folded_into_current.rs
+      Fold the names an earlier release kept in a Git directory into the current names when both exist: ...
+    earlier_folder_entries_moved_into_current_folder.rs  <- src/native/foundation/earlier_folder_entries_moved_into_current_folder.rs
+      Move every entry of a folder an earlier release wrote (`cli-git`) into the folder under the current ...
+  names_this_release_and_the_one_before/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> how_long_the_program_waits_for_git_steps
-    fault_points_the_service_can_be_told_to_hit.rs  <- src/native/service/service_fault.rs
-      Test-only fault points of the resident service: `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the service with
-    phase_markers_for_crash_tests.rs  <- src/native/transaction/transaction_phase.rs
-      Test-only phase markers of the isolated merge and of a commit headed for the service, for crash and interleaving ...
-  syncing_files_off_the_waiting_path/
+    uses/ -> saving_files_so_a_crash_leaves_no_half_file
+    earlier_log_lines_added_to_current_log.rs  <- src/native/foundation/earlier_log_lines_added_to_current_log.rs
+      Add every byte of a log an earlier release wrote (`cli-git-commit-timing.jsonl`) to the log under ...
+    earlier_log_lines_journal_held_and_recorded.rs  <- src/native/foundation/earlier_log_lines_journal_held_and_recorded.rs
+      The journal of a log fold: the round it records (a place in the current log and a range of the ...
+    file_open_for_write_by_any_process.rs  <- src/native/foundation/file_open_for_write_by_any_process.rs
+      Tell whether any process on the machine has a file open for writing, with a read lease taken and ...
+    wrapper_names_old_and_new.rs  <- src/native/foundation/wrapper_names_old_and_new.rs
+      Every name this program answers to or keeps on disk, as a pair: the name of this release and the ...
+  naming_the_service_of_one_worktree/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> stopping_the_program_at_a_named_step_for_tests
-    syncs_off_the_waiting_path.rs  <- src/native/landing/service_durable.rs
-      Where the landing's own syncs wait: not on the path the person waits on, unless the landing publishes nothing.
-  holding_the_index_lock_for_the_commit_service/
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, landing_commits, log_lines_of_the_commit_service, names_this_release_and_the_one_before, pushing_what_the_commit_service_saved, the_service_program, work_left_for_the_service_to_finish_later, saving_files_so_a_crash_leaves_no_half_file, talking_to_the_systemd_user_manager, lines_printed_for_the_person
+    service_units_of_removed_worktrees.rs  <- src/native/service/service_units_of_removed_worktrees.rs
+      The commit service units of worktrees that no longer exist: the note that says which worktree a ...
+    service_instances_with_units_and_their_survey.rs  <- src/native/service/service_instances_with_units_and_their_survey.rs
+      Which instances have a unit or a journal, and the survey that sorts them into those whose worktree ...
+    service_files_of_a_stopped_instance.rs  <- src/native/service/service_files_of_a_stopped_instance.rs
+      The files an instance of the commit service keeps: the note that names its worktree beside the ...
+    service_instance.rs  <- src/native/service/service_instance.rs
+      Which commit service instance belongs to a worktree: a name made from the worktree's own Git ...
+  planning_a_worktree_add_and_what_git_made/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_who_holds_a_lock_file, how_long_the_program_waits_for_git_steps, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, sha_1_and_sha_256_of_bytes, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path
-    who_a_lock_holder_is.rs  <- src/native/landing/service_index_identity.rs
-      Who a marker's holder is
-    what_waiting_for_the_lock_found.rs  <- src/native/landing/service_index_found.rs
-      What an acquisition of the index lock found when it had to wait
-    lock_names_and_failures.rs  <- NEW
-      The names and failures the index-lock files share: lock path, announcements, failure of a hold, and the failure code ...
-    is_the_lock_still_ours.rs  <- src/native/landing/service_index_ownership.rs
-      Whether the file at the path of an index lock is still the file this holder placed there
-    watching_the_lock_folder.rs  <- src/native/landing/service_index_watch.rs
-      The inotify watch on the directory of an index lock
-    putting_the_marked_file_in_place_as_the_lock.rs  <- src/native/landing/service_index_placement.rs
-      How the service puts its marked file in place as `index.lock`
-    marker_inside_the_held_lock.rs  <- src/native/landing/service_index_marker.rs
-      The marker the service writes into the `index.lock` it holds
-    staging_files_of_the_lock.rs  <- src/native/landing/service_index_staging.rs
-      The staging files of an index lock
-    choosing_one_reclaimer_of_a_stale_lock.rs  <- src/native/landing/service_index_claim.rs
-      The claim chain: how one reclaimer at a time is chosen to remove a stale index lock, using only files placed whole ...
-    removing_a_stale_index_lock.rs  <- src/native/landing/service_index_reclaim.rs
-      The removal of a stale index lock by one reclaimer at a time: the reclaimer opens the lock it will judge, reads the ...
-    attempts_and_waiting_for_the_index_lock.rs  <- src/native/landing/service_index_attempts.rs
-      The attempts and the wait of an acquisition of `index.lock`
-    is_the_new_index_the_live_one.rs  <- src/native/landing/service_index_same.rs
-      Whether a new index file holds the bytes of the live one.
-    holding_the_lock_after_it_is_placed.rs  <- src/native/landing/service_index_hold.rs
-      The service's hold on one index lock after it is placed
-    marker_of_the_next_batch.rs  <- src/native/landing/service_index_prestage.rs
-      The marker of the next batch's index lock
-    the_hold_on_the_index_lock.rs  <- src/native/landing/service_index_lock.rs
-      The service's hold on Git's own `index.lock` across a landing: taken first, by exclusive creation, waited for without
-    waiting_for_the_services_hold.rs  <- src/native/landing/service_index_wait.rs
-      The wait of a wrapped command that writes the index for the commit service's own hold on the index: event-driven, ...
-  reading_the_bytes_a_commit_would_save/
+    uses/ -> copying_ignored_files_into_a_stage, git_settings_read_once, hooks_a_repository_configures, lines_about_worktrees_and_large_files, making_a_worktree_quickly, running_git_for_a_transaction, what_each_git_command_accepts, file_operations_that_never_follow_a_link, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    checkout_workers.rs  <- src/native/worktree/checkout_workers.rs
+      Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that ...
+    worktree_add_binding.rs  <- src/native/worktree/worktree_add_binding.rs
+      The binding of one `git worktree add` to the objects real Git made for it (the destination ...
+    worktree_add_plan.rs  <- src/native/worktree/worktree_add_plan.rs
+      The plan for one `git worktree add` the cheap-worktree ladder may serve: where the new worktree ...
+    worktree_add_option_table.rs  <- src/native/worktree/worktree_add_option_table.rs
+      The option table of `git worktree add`, and the rules that read it: which option a long word names, ...
+    worktree_added_by_the_wrapper.rs  <- src/native/worktree/worktree_added_by_the_wrapper.rs
+      The one record that says the wrapper made a linked worktree, and the reading of it.
+  proving_a_zfs_clone_may_be_removed/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, finding_the_git_folders, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, starting_git_and_describing_a_run
-    loading_many_files_through_one_git_process.rs  <- src/native/candidate/blob_batch.rs
-      Loading many blobs through one `git cat-file --batch`
-    failures_of_reading_candidates.rs  <- src/native/candidate/candidate_error.rs
-      The one failure type of the candidate layer
-    object_names_and_modes.rs  <- src/native/candidate/candidate_object.rs
-      The two Git vocabulary types every candidate carries
-    paths_per_git_command.rs  <- src/native/candidate/candidate_pathspec_chunk_size.rs
-      The number of paths one Git command of the candidate layer names at a time.
-    files_marked_not_text.rs  <- src/native/candidate/candidate_attribute.rs
-      Which candidate paths have their `text` Git attribute unset (`-text`, which the `binary` macro includes)
-    reading_a_cat_file_batch_reply.rs  <- src/native/candidate/candidate_batch.rs
-      Read one `git cat-file --batch` reply from a byte stream
-    git_runs_of_a_prediction.rs  <- src/native/candidate/candidate_prediction_git_runs.rs
-      The Git runs a candidate prediction makes: one captured command with its failure messages, and the path of the
-    private_copy_of_the_index.rs  <- src/native/candidate/candidate_private_index.rs
-      A private copy of the real index
-    reading_diff_records.rs  <- src/native/candidate/candidate_record.rs
-      Parse the NUL-delimited raw records of `git diff-index` and `git diff-tree`.
-    reading_stage_records.rs  <- src/native/candidate/candidate_stage.rs
-      Parse the NUL-delimited stage records of `git ls-files --stage -z`
-    one_long_lived_cat_file_process.rs  <- src/native/candidate/candidate_reader.rs
-      One long-lived `git cat-file --batch` process that answers every object read of an invocation.
-    one_candidate_version.rs  <- src/native/candidate/candidate_version.rs
-      An immutable candidate version
-    owner_of_candidate_versions.rs  <- src/native/candidate/candidate_store.rs
-      The per-invocation owner of candidate versions and candidate bytes.
-    candidates_that_need_a_private_index.rs  <- src/native/candidate/candidate_prediction.rs
-      The two candidate sources that need a private index
-    reading_tree_listings.rs  <- src/native/candidate/candidate_tree.rs
-      Parse the NUL-delimited records of `git ls-tree -r -z --full-tree <commit>`: every file of one commit with its mode ...
-    listings_of_one_commits_tree.rs  <- src/native/candidate/candidate_store_commit_listings.rs
-      The listings of one commit's tree, of the parents of a set of commits, and of a tree's blobs, as a second block
+    uses/ -> cleaning_up_the_origin_of_a_zfs_clone, finding_who_holds_a_zfs_clone_folder, removing_a_linked_worktree, scanning_other_mount_namespaces, taking_snapshots_for_the_zfs_clone_route, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_root_modes_that_attach_and_unmount_zfs_clones, unmounting_a_zfs_clone_folder, file_operations_that_never_follow_a_link, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, text_time_and_records_written_like_javascript
+    (new folder of this round: The removal-side half of the ZFS worktree plan: the lineage proof, the inventory and bookmark rule, and the persisted destruction plan.)
+    removal_completion.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_completion.rs
+      One removal from its plan to its end: the slot's per-slot claim at the order's first step, the ...
+    fresh_holder_scan.rs  <- src/native/worktree_clone_removal_proof_and_plan/fresh_holder_scan.rs
+      One fresh all-namespace holder scan, made immediately before a destroy request, as a seam the ...
+    removal_destruction.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_destruction.rs
+      What a removal does after its plan: the deferred-origin check before every snapshot request, the ...
+    removal_origin_step.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_origin_step.rs
+      The origin cleanup step of one removal: the record published before the first destroy, and the ...
+    removal_reading.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_reading.rs
+      One removal's proof, inventory and bookmark rule, run read-only, and the lines a command prints for ...
+    removal_report.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_report.rs
+      The report one finished removal prints: what it destroyed, what the checkout kept, what the origin ...
+    removal_records_end.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_records_end.rs
+      The removal's own records, removed after the settle proved the clone gone: the two inventories ...
+    removal_resume.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_resume.rs
+      Where a removal starts: a fresh entry when no plan stands, an adopted kept plan when one does and ...
+    removal_entry.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_entry.rs
+      One removal's entry, in the one order its proof, intent, unmount and plan take: read the add's ...
+    bookmark_rule.rs  <- src/native/worktree_clone_removal_proof_and_plan/bookmark_rule.rs
+      The project's decided bookmark rule, `A: Live or planned`: a bookmark passes when a live passing ...
+    lineage_proof.rs  <- src/native/worktree_clone_removal_proof_and_plan/lineage_proof.rs
+      The three checks a removal makes before its first delete: the live pool, clone and origin dataset ...
+    loss_names.rs  <- src/native/worktree_clone_removal_proof_and_plan/loss_names.rs
+      The list a removal prints before it requests the unmount: the slot, the clone dataset, and the ...
+    removal_identities.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_identities.rs
+      What the add recorded for one slot, read by the slot's name, as the identities a removal proves ...
+    removal_reads.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_reads.rs
+      The pool reads a removal's lineage proof makes, as one seam with one live implementation over the ...
+    removal_settle_step.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_settle_step.rs
+      The Git settle of one removal, called only with the proof that this slot's clone is gone.
+    removal_head_destroy.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_head_destroy.rs
+      The clone's own snapshots settled by their recorded GUIDs, the new own snapshot an amended plan ...
+    plan_publication.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_publication.rs
+      The plan folder's creation, and the one write a removal makes into it: the record staged beside its ...
+    plan_reading.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs
+      The two-stage read of one destruction plan: the header, then the file's own length and the attempt ...
+    plan_parse.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_parse.rs
+      The parse a plan's two-stage read calls: the header region into the plan's fields, and the attempt ...
+    plan_attempt_parse.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_attempt_parse.rs
+      One attempt region of a destruction plan, read into one line per attempt: its seven pieces, the ...
+    plan_lines.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_lines.rs
+      The one line reader both halves of a plan's parse share: one line of a region, without its newline, ...
+    plan_name.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_name.rs
+      The two name shapes a destruction plan's values rest on: a dataset's name and a snapshot's.
+    removal_inventory.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_inventory.rs
+      The clone's live inventory: every snapshot and bookmark of the clone's dataset, by kind, name, ...
+    plan_record.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_record.rs
+      The destruction plan as a value: its header's fields, its attempt lines, the first write a removal ...
+    canonical_decimal.rs  <- src/native/worktree_clone_removal_proof_and_plan/canonical_decimal.rs
+      The canonical decimal spelling a destruction plan's numbers take: unsigned 64-bit values with no ...
+    plan_bounds.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_bounds.rs
+      The byte bounds a destruction plan's reader enforces and its writer proves: the header's 10,130 ...
+    plan_words.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_words.rs
+      The words a destruction plan's lines are made of: the header line, the eighteen keys in the order ...
+    removal_settle.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_settle.rs
+      The Git settle of one removal: the managed lock released with the destruction proof, the matching ...
+    removal_slot_claim.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_slot_claim.rs
+      The per-slot claim a whole removal holds: taken before its first read, held through every destroy ...
+    started_moment.rs  <- src/native/worktree_clone_removal_proof_and_plan/started_moment.rs
+      The moment a removal started, as the destruction plan's `started=` field writes it: an ISO 8601 ...
+    unmount_request.rs  <- src/native/worktree_clone_removal_proof_and_plan/unmount_request.rs
+      The removal's `unmount` intent and the answer that proves it: one fresh nonce, the durable property ...
+    removal_stop.rs  <- src/native/worktree_clone_removal_proof_and_plan/removal_stop.rs
+      Why a removal stopped before its first delete: each check that refused, the objects it named, and ...
+    plan_refusal.rs  <- src/native/worktree_clone_removal_proof_and_plan/plan_refusal.rs
+      Why some bytes are not a destruction plan this build reads, and the sentence a person reads about ...
+  pushing_what_the_commit_service_saved/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, clearing_leftover_reference_locks, finding_the_git_folders, git_settings_read_once, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, moving_kept_files_to_the_new_names, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, recovering_a_merge_that_was_cut_short, rerunning_a_merge_word_by_word, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, the_service_program, uploading_large_files, who_owns_a_transaction_folder, work_left_for_the_service_to_finish_later, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    pushing_a_landed_commit.rs  <- src/native/push/auto_push.rs
+      The commit service's push of a landed commit's branch: which push runs, what its output shows, and ...
+    auto_push_awaiting.rs  <- src/native/push/auto_push_awaiting.rs
+      The automatic push of a landed commit's branch as a task of the runtime: the same plan, the same ...
+    publishing_after_the_remote_moved.rs  <- src/native/push/auto_push_reconcile.rs
+      Publishing a landed commit when the remote branch advanced after the commit landed, from a command ...
+    auto_push_reconcile_awaiting.rs  <- src/native/push/auto_push_reconcile_awaiting.rs
+      The reconcile of a rejected push: the one loop that fetches the remote tip, merges it into the ...
+    moving_the_local_branch_after_a_reconcile.rs  <- src/native/push/auto_push_reconcile_branch_advance.rs
+      The move of the local branch after the merge was pushed: the fast-forward, the record that guards ...
+    paths_a_dirty_worktree_holds.rs  <- src/native/push/auto_push_dirty_paths.rs
+      The paths a dirty worktree has uncommitted work in, the paths a fast-forward would change, and the ...
+    the_merge_commit_of_a_reconcile.rs  <- src/native/push/auto_push_reconcile_merge_commit.rs
+      The merge commit of a reconcile: the merge of the remote tip and the local tip computed in the ...
+    auto_push_reconcile_plan.rs  <- src/native/push/auto_push_reconcile_plan.rs
+      What one reconcile run integrates, where it publishes the merge, how it words every line it prints, ...
+    handing_a_push_to_the_commit_service.rs  <- src/native/push/auto_push_trigger.rs
+      Hands a push to the commit service after a command other than `git commit` added commits to the ...
+    blocked_commit_questions.rs  <- src/native/push/blocked_commit_questions.rs
+      The questions about a repository's history that decide where the automatic push stops, in the two ...
+    blocked_commit_lines.rs  <- src/native/push/blocked_commit_lines.rs
+      The lines a command prints about a branch the automatic push stops short of, and the words of a ...
+    held_push_commit_on_the_remote.rs  <- src/native/landing/held_push_commit_on_the_remote.rs
+      Whether Git's own record of a branch's remote says a held push's commit has reached it.
+    held_push_holder_and_verdict.rs  <- src/native/landing/held_push_holder_and_verdict.rs
+      The two facts a held push record carries besides the work item itself: which command will decide ...
+    held_push_release_wakes_the_service.rs  <- src/native/landing/held_push_release_wakes_the_service.rs
+      The wake a command gives the commit service when it releases a held push by itself: the record ...
+    matching_push_delivered_the_recorded_branch.rs  <- src/native/push/matching_push_delivered_the_recorded_branch.rs
+      Whether a push Git reported as failed published the recorded branch all the same, because ...
+    record_of_a_failed_backup_push.rs  <- src/native/push/push_failure_notice.rs
+      The record of a backup push that failed after its commit was saved, and the rule for when the ...
+    push_failure_notice_machine_output.rs  <- src/native/push/push_failure_notice_machine_output.rs
+      Whether a Git command's output is read by a program, so that no failure notice may be shown to it ...
+    push_failure_notice_reports.rs  <- src/native/push/push_failure_notice_reports.rs
+      The record of what a push that succeeded did, for the person, and the name it is kept under.
+    file_name_of_one_branch.rs  <- src/native/push/auto_push_branch_key.rs
+      The reversible, flat, case-insensitive-safe file name of one branch's push files.
+    push_failure_notice_shown_then_removed.rs  <- src/native/push/push_failure_notice_shown_then_removed.rs
+      One record of a failed backup push as a command holds it before it shows it: the words for the ...
+    push_failure_notice_claimed_by_one_command.rs  <- src/native/push/push_failure_notice_claimed_by_one_command.rs
+      The name one command holds a notice's record under while it shows it, who may take such a name ...
+    push_failure_notice_words.rs  <- src/native/push/push_failure_notice_words.rs
+      The words a found record becomes: the text of a failed backup push, of a push that did not finish, ...
+    push_held_back_by_a_blocked_commit.rs  <- src/native/push/push_held_back_by_a_blocked_commit.rs
+      Where the automatic push of a branch must stop, and the words a command says about it, when a ...
+    push_record_of_a_moved_branch.rs  <- src/native/landing/push_record_of_a_moved_branch.rs
+      The push record a command that moves a branch leaves, and the hand-off that wakes the service to ...
+    retrying_a_stopped_push.rs  <- src/native/push/push_retry.rs
+      The service's own retry of a push it stopped or that failed: the pause before each new try, and the ...
+    push_retry_cause_line.rs  <- src/native/push/push_retry_cause_line.rs
+      The first line of a push's output that gives a reason for its failure.
+    push_retry_failure.rs  <- src/native/push/push_retry_failure.rs
+      What a failed push's own words mean for the service's retry: whether the failure can pass at all, ...
+    retry_plans_on_disk.rs  <- src/native/push/push_retry_store.rs
+      The retry plan on disk: one small file per branch whose push waits for a new try, in a directory of ...
+    push_tracking_ref_repair.rs  <- src/native/push/push_tracking_ref_repair.rs
+      The branch's remote-tracking reference, brought up to date with what a successful push delivered, ...
+    words_and_limits_of_a_reconcile.rs  <- src/native/push/auto_push_reconcile_basics_and_limits.rs
+      The words, limits and small Git steps that the reconcile of a rejected push shares: the line ...
+    where_a_plain_push_would_send_a_branch.rs  <- src/native/push/auto_push_destination.rs
+      Where a plain `git push` of one named branch would send it, decided from the configuration and the ...
+    what_configured_refspecs_make_of_a_branch.rs  <- src/native/push/auto_push_refspec_judging.rs
+      The reading of a configured push refspec and the judgement of what the refspecs make of one branch: ...
+    log_of_push_trigger_decisions.rs  <- src/native/push/push_trigger_log.rs
+      The record of every decision of the push trigger after a command that adds commits: handed over, or ...
+    stop_of_a_push_and_sweep_of_its_locks.rs  <- src/native/push/stop_of_a_push_and_sweep_of_its_locks.rs
+      The stop of a running push (ask, wait the grace, kill, collect) and the sweep of the lock files a ...
   putting_corrected_files_into_the_private_index/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_the_bytes_a_commit_would_save, running_git_for_a_transaction
+    uses/ -> copying_ignored_files_into_a_stage, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, the_built_in_policies
     putting_corrections_into_the_private_index.rs  <- src/native/policy/direct_fix_install.rs
-      Install the corrections a converged `git cli-git fix` settled on into the
-  rules_that_add_flags_to_a_command/
+      Install the corrections a converged `git monochromatic-git-policy-cli fix` settled on into the ...
+  reading_and_writing_the_index_file_of_git/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_options_the_way_git_does, what_each_git_command_accepts
-    rule_add_names_explicitly.rs  <- src/native/command/rule_add_explicit.rs
-      Pure decision of the add-explicit policy
-    adding_words_to_a_command_line.rs  <- src/native/command/rule_argument_rewrite.rs
-      The shared result and builder of fixed transforms that add tokens to a command line.
-    rule_push_all_or_nothing.rs  <- src/native/command/rule_atomic_push.rs
-      The pure decision of the atomic-push transform
-    rule_status_hints.rs  <- src/native/command/rule_status_hints.rs
-      The pure decision of the status-hints transform
-  what_the_wrapper_asks_git_about_a_repository/
+    per_entry_flags.rs  <- src/native/index/index_flags.rs
+      A read of the per-entry flags of an index file that decide whether the index may seed an ...
+    writing_the_whole_index.rs  <- src/native/index/index_full_write.rs
+      Writes a `FullIndex` as Git's `do_write_index` does for the plain case: the version Git picks, the ...
+    the_whole_index_in_memory.rs  <- src/native/index/index_full.rs
+      The whole content of an index file the in-process index update changes: every entry with its stat ...
+    cache_tree_extension.rs  <- src/native/index/index_cache_tree.rs
+      The `TREE` (cache-tree) index extension: read, written back byte for byte, and invalidated along a ...
+    file_system_monitor_extension.rs  <- src/native/index/index_fsmonitor.rs
+      The `FSMN` (fsmonitor) index extension: the last-update token and the bitmap of entries not known ...
+    resolve_undo_extension.rs  <- src/native/index/index_resolve_undo.rs
+      The `REUC` (resolve-undo) index extension: read, recorded into when an unmerged entry leaves the ...
+    reading_and_writing_the_untracked_cache.rs  <- src/native/index/index_untracked_io.rs
+      Reading and writing the `UNTR` index extension (`dir.c`: `read_untracked_extension`, ...
+    compressed_bitmaps.rs  <- src/native/index/index_ewah.rs
+      Git's EWAH compressed bitmap (`ewah/ewah_bitmap.c`, `ewah/ewah_io.c`): read from bytes, listed as ...
+    untracked_cache_extension.rs  <- src/native/index/index_untracked.rs
+      The `UNTR` (untracked cache) index extension as a tree of directories, and its invalidation along a ...
+    finding_bytes_in_a_slice.rs  <- src/native/index/index_byte_search.rs
+      Byte searches over a slice that the index readers share: where a byte first appears, how long a run ...
+    stat_fields_of_an_entry.rs  <- src/native/index/index_stat.rs
+      The nine 32-bit stat fields an index entry and the untracked-cache extension store, and the Git ...
+  reading_branches_tags_and_markers/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, finding_the_git_folders, running_git_for_a_transaction, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper
-    asking_git_which_worktree_this_is.rs  <- src/native/worktree/worktree_identity.rs
-      Ask real Git which repository and worktree an invocation selects.
-    asking_git_where_the_repository_is.rs  <- src/native/repo_read/repository_location.rs
-      Ask real Git
-    answer_shapes_built_from_a_repository_layout.rs  <- src/native/repo_read/repo_read_adapter.rs
-      The shapes the wrapper's existing queries answer with, built from an in-process `RepoLayout`.
-    where_the_real_index_lives.rs  <- src/native/landing/landing_location.rs
-      Where a forwarded command's real index lives
+    uses/ -> finding_the_git_folders, reading_saved_commits_and_files, state_shared_by_preparing_and_landing_a_commit, saving_files_so_a_crash_leaves_no_half_file
+    operation_in_progress.rs  <- src/native/conflict/conflict_side_state.rs
+      Which operation is in progress in a worktree's Git directory, and which paths the index marks as ...
+    refs_in_files.rs  <- src/native/repo_read/repo_read_refs.rs
+      The files ref storage read in process: one ref by exact name, the symbolic chain behind it, and the ...
+    proof_that_a_marker_names_nothing.rs  <- src/native/repo_read/sequencer_marker.rs
+      Proof, without a Git process, that a sequencer marker such as `MERGE_HEAD` names nothing.
+    ref_file_answers.rs  <- src/native/repo_read/ref_files.rs
+      Reads of the files ref storage that answer a question without a Git process, and refuse to answer ...
+  reading_git_settings_from_files/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, starting_git_and_describing_a_run, saving_files_so_a_crash_leaves_no_half_file
+    merged_configuration_listing.rs  <- src/native/repo_read/repo_read_config_list.rs
+      The merged configuration listing of `git config --list -z --show-scope`, built in process from the ...
+    typed_configuration_values.rs  <- src/native/repo_read/repo_read_config_typed.rs
+      The proof that every configuration value Git types at startup, in every scope the readers look at, ...
+    configuration_scopes_scan.rs  <- src/native/repo_read/repo_read_config_scan.rs
+      The proof, from files alone, that no configuration scope Git reads for repository discovery sets ...
+    configuration_file_text.rs  <- src/native/repo_read/repo_read_config_text.rs
+      A reader of Git configuration file text that gives the entries in file order, and gives up on any ...
+    kinds_of_configuration_values.rs  <- src/native/repo_read/repo_read_config_value_kinds.rs
+      The table of which configuration keys Git reads at startup and what kind of value each takes: the ...
+  reading_options_the_way_git_does/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    long_options.rs  <- src/native/command/command_options_long.rs
+      Match one `--name[=value]` token against a Git option table as Git 2.56.0 does.
+    command_options_long_resolution.rs  <- src/native/command/command_options_long_resolution.rs
+      Which row of a Git option table one long token names, how the token is written and where an ...
+    questions_about_typed_options.rs  <- src/native/command/command_options_query.rs
+      Small read-only questions over a tokenized Git argument region.
+    reading_a_command_line_option_by_option.rs  <- src/native/command/command_options.rs
+      Read one Git command's arguments the way Git 2.56.0 `parse-options.c` reads them.
+    clusters_of_short_options.rs  <- src/native/command/command_options_short.rs
+      Read one `-abc` token as Git 2.56.0 reads a cluster of short options.
+    types_of_option_reading.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    option_values.rs  <- src/native/command/command_options_value.rs
+      Decide which bytes, if any, are the value of one matched Git option.
+  reading_saved_commits_and_files/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_the_git_folders, reading_and_writing_the_index_file_of_git, reading_git_settings_from_files, running_git_for_a_transaction, saving_files_so_a_crash_leaves_no_half_file, text_time_and_records_written_like_javascript
+    short_object_names.rs  <- src/native/repo_read/object_abbreviation.rs
+      The abbreviated name Git prints for an object (`git commit`'s `[main 30b2211]`, `git log ...
+    byte_and_prefix_checks_for_short_names.rs  <- src/native/repo_read/object_abbreviation_byte_and_prefix_checks.rs
+      Three small checks on bytes and names that the object-name abbreviation uses: a NUL separator, a ...
+    index_entries.rs  <- src/native/repo_read/repo_read_index.rs
+      The entries of an index file read in process, for versions 2, 3 and 4.
+    repo_read_main_worktree.rs  <- src/native/repo_read/repo_read_main_worktree.rs
+      Ask real Git which worktree of a repository is the main checkout, in one query.
+    tree_against_index_difference.rs  <- src/native/repo_read/repo_read_tree_cached.rs
+      The part of a tree that differs from an index, found by walking the tree beside the index's ...
+    difference_of_two_trees.rs  <- src/native/repo_read/repo_read_diff.rs
+      The difference between two sorted lists of tree-like entries (a flattened tree, an index), in Git's ...
+    trees_and_commits.rs  <- src/native/repo_read/repo_read_tree.rs
+      Trees and commits read in process: the entries of a tree, the flat list of a whole tree, and the ...
+    the_object_database.rs  <- src/native/repo_read/repo_read_odb.rs
+      The object database of one repository read in process: loose objects, packs and alternates.
+    reading_a_pack_file.rs  <- src/native/repo_read/repo_read_pack.rs
+      A reader of one Git pack: the version 2 index lookup by object name and the entry read, with ...
+    object_shapes_and_zlib.rs  <- src/native/repo_read/repo_read_object.rs
+      The shapes of a Git object read in process, object names as bytes and hexadecimal, and the zlib ...
+  reading_the_bytes_a_commit_would_save/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> copying_ignored_files_into_a_stage, finding_the_git_folders, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, saving_copies_of_what_a_command_would_throw_away, starting_git_and_describing_a_run, what_each_git_command_accepts, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress
+    loading_many_files_through_one_git_process.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    candidates_that_need_a_private_index.rs  <- src/native/candidate/candidate_prediction.rs
+      The two candidate sources that need a private index: what `git add` would stage, and the worktree ...
+    files_marked_not_text.rs  <- src/native/candidate/candidate_attribute.rs
+      Which candidate paths have their `text` Git attribute unset (`-text`, which the `binary` macro ...
+    git_runs_of_a_prediction.rs  <- src/native/candidate/candidate_prediction_git_runs.rs
+      The Git runs a candidate prediction makes: one captured command with its failure messages, and the ...
+    private_copy_of_the_index.rs  <- src/native/candidate/candidate_private_index.rs
+      A private copy of the real index, in its own directory beside it, removed when the copy is dropped.
+    listings_of_one_commits_tree.rs  <- src/native/candidate/candidate_store_commit_listings.rs
+      The listings of one commit's tree, of the parents of a set of commits, and of a tree's blobs, as a ...
+    paths_per_git_command.rs  <- src/native/candidate/candidate_pathspec_chunk_size.rs
+      The number of paths one Git command of the candidate layer names at a time.
+    owner_of_candidate_versions.rs  <- src/native/candidate/candidate_store.rs
+      The per-invocation owner of candidate versions and candidate bytes.
+    one_long_lived_cat_file_process.rs  <- src/native/candidate/candidate_reader.rs
+      One long-lived `git cat-file --batch` process that answers every object read of an invocation.
+    reading_a_cat_file_batch_reply.rs  <- src/native/candidate/candidate_batch.rs
+      Read one `git cat-file --batch` reply from a byte stream, with no process involved.
+    reading_stage_records.rs  <- src/native/candidate/candidate_stage.rs
+      Parse the NUL-delimited stage records of `git ls-files --stage -z`, find the paths one staging ...
+    reading_tree_listings.rs  <- src/native/candidate/candidate_tree.rs
+      Parse the NUL-delimited records of `git ls-tree -r -z --full-tree <commit>`: every file of one ...
+    one_candidate_version.rs  <- src/native/candidate/candidate_version.rs
+      An immutable candidate version: the paths one Git state changes, each with its identity, mode and ...
+    reading_diff_records.rs  <- src/native/candidate/candidate_record.rs
+      Parse the NUL-delimited raw records of `git diff-index` and `git diff-tree`.
+    failures_of_reading_candidates.rs  <- src/native/candidate/candidate_error.rs
+      The one failure type of the candidate layer, with a closed list of causes.
+    object_names_and_modes.rs  <- src/native/candidate/candidate_object.rs
+      The two Git vocabulary types every candidate carries: an object name and a file mode.
+  reading_the_datasets_zfs_mounts/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> attaching_a_zfs_clone_folder, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file
+    (new folder of this round: The ZFS datasets this process mount table shows mounted, and the design names the route finds the checkout by.)
+    mounted_dataset_refusal.rs  <- src/native/zfs_mounted_dataset/mounted_dataset_refusal.rs
+      Why a design name found no dataset, or found several, and the words a person reads for each.
+    the_designs_datasets_in_the_mount_table.rs  <- src/native/zfs_mounted_dataset/the_designs_datasets_in_the_mount_table.rs
+      The three dataset names the design fixes, and the lookups that find the checkout, the container and ...
+    mounted_dataset_instance.rs  <- src/native/zfs_mounted_dataset/mounted_dataset_instance.rs
+      One row of this process's mount table that is a ZFS dataset's mount, and the reader that answers ...
+  recording_where_worktree_add_spent_its_time/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> making_a_worktree_quickly, messages_between_the_wrapper_and_the_commit_service, names_this_release_and_the_one_before, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    where_worktree_add_spent_its_time.rs  <- src/native/worktree/add_timing.rs
+      The record of where one wrapped `git worktree add` spent its time, step by step, appended to a ...
+  recovering_a_merge_that_was_cut_short/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_the_git_folders, finding_who_holds_a_lock_file, holding_the_index_lock_for_the_commit_service, log_lines_of_the_commit_service, merging_without_touching_your_files, names_this_release_and_the_one_before, running_git_for_a_transaction, stopping_the_program_at_a_named_step_for_tests, waiting_for_the_index_lock_of_git, who_owns_a_transaction_folder, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    merge_isolation_recovery.rs  <- src/native/merge/merge_isolation_recovery.rs
+      
+    merge_isolation_moved.rs  <- src/native/merge/merge_isolation_moved.rs
+      The settling of an isolated merge whose branch moved while the merge was prepared or applied: what ...
+    merge_isolation_recovery_carry.rs  <- src/native/merge/merge_isolation_recovery_carry.rs
+      The person's own work a merge carries, across the two moves the recovery of a merge can make: the ...
+    merge_isolation_recovery_complete.rs  <- src/native/merge/merge_isolation_recovery_complete.rs
+      Finishing a merge from its record: the install of the index entries and the files, then the branch ...
+    merge_isolation_recovery_cleanup.rs  <- src/native/merge/merge_isolation_recovery_cleanup.rs
+      What recovery writes to the records and side refs of a merge it settled, and the refusal that says ...
+    merge_isolation_recovery_install.rs  <- src/native/merge/merge_isolation_recovery_install.rs
+      Writing the merge into the index and the worktree, path by path and file by file, and what it does ...
+    merge_isolation_recovery_index_lock.rs  <- src/native/merge/merge_isolation_recovery_index_lock.rs
+      Whether the recovery of an interrupted merge may write the index now: the wait a merge that has ...
+    merge_isolation_recovery_notice.rs  <- src/native/merge/merge_isolation_recovery_notice.rs
+      The line that tells the person what recovery did to a merge whose owner is gone.
+    merge_isolation_recovery_reads.rs  <- src/native/merge/merge_isolation_recovery_reads.rs
+      What recovery reads to decide whose checkout this is and whether a merge began: the branch `HEAD` ...
+    merge_isolation_recovery_records.rs  <- src/native/merge/merge_isolation_recovery_records.rs
+      The intent records a recovery walks: the one record of a merge whose process died, whoever may ...
+    merge_isolation_recovery_steps.rs  <- src/native/merge/merge_isolation_recovery_steps.rs
+      The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved ...
+    merge_isolation_changes.rs  <- src/native/merge/merge_isolation_changes.rs
+      The raw tree differences between the two commits of an isolated merge, and the state of a worktree ...
+    merge_isolation_journal.rs  <- src/native/merge/merge_isolation_journal.rs
+      The durable intent record of an isolated merge: the commit it created, the branch value it expects, ...
+  relaying_what_git_writes_while_a_typed_command_runs/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> how_long_the_program_waits_for_git_steps, reading_options_the_way_git_does, starting_git_and_describing_a_run, uploading_large_files, what_each_git_command_accepts, starting_programs_catching_signals_and_keeping_their_output
+    (new folder of this round: The relay a typed network command gets when ssh carries its remote: Git with its error stream on a terminal, the bytes relayed, and the sentence that names the next step.)
+    git_error_stream_relayed_as_it_arrives.rs  <- src/native/invocation/typed_network_command_relay/git_error_stream_relayed_as_it_arrives.rs
+      Run one Git child whose standard error the wrapper relays as it arrives, keeping a bounded tail for ...
+    a_terminal_the_child_writes_its_error_stream_to.rs  <- src/native/invocation/typed_network_command_relay/a_terminal_the_child_writes_its_error_stream_to.rs
+      The pseudo-terminal a typed network command's standard error is written to, when the wrapper's own ...
+    the_options_before_the_remote.rs  <- src/native/invocation/typed_network_command_relay/the_options_before_the_remote.rs
+      The first of a typed command's words that is not an option, read with Git's own option table for ...
+    the_relayed_bytes.rs  <- src/native/invocation/typed_network_command_relay/the_relayed_bytes.rs
+      The bytes a relayed child writes to its standard error: read as they arrive, written to this ...
+    the_remote_a_typed_command_names.rs  <- src/native/invocation/typed_network_command_relay/the_remote_a_typed_command_names.rs
+      Which typed command the person wrote, the remote URL Git would use for it, and whether ssh carries ...
+    the_sentence_after_the_refusal.rs  <- src/native/invocation/typed_network_command_relay/the_sentence_after_the_refusal.rs
+      The sentence a typed network command prints after Git's own words when OpenSSH refused the ...
+    a_target_the_sentence_may_name.rs  <- src/native/invocation/typed_network_command_relay/a_target_the_sentence_may_name.rs
+      The host a remote URL names as the person typed it, and the words an `ssh` command needs to connect ...
+  removing_a_clone_the_kernel_will_not_release/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_who_holds_a_zfs_clone_folder, the_receipts_and_requests_of_a_clone_mount, unmounting_a_zfs_clone_folder, which_disk_a_folder_is_on, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, which_programs_are_running_and_since_when, text_time_and_records_written_like_javascript
+    (new folder of this round: The forced arm of a clone removal: who the caller is, which holders a forced removal spares or ends, and every word it answers with.)
+    forced_receipt.rs  <- src/native/worktree_clone_forced_removal/forced_receipt.rs
+      The receipt a forced removal files for its own answer, and the filing itself beside the scan file ...
+    holder_endings.rs  <- src/native/worktree_clone_forced_removal/holder_endings.rs
+      What this build may do to each kind of holder, the round that showed the ending works, and the ...
+    holder_scan_file.rs  <- src/native/worktree_clone_forced_removal/holder_scan_file.rs
+      How root's holder scan reaches the account's wrapper: the second root-owned file beside the ...
+    namespace_owner.rs  <- src/native/worktree_clone_forced_removal/namespace_owner.rs
+      The read that names the user namespace owning a mount namespace, and the comparison with the ...
+    removal_progress_file.rs  <- src/native/worktree_clone_forced_removal/removal_progress_file.rs
+      The progress file the handler advances while the forced act lives, and the reads the wrapper makes ...
+    started_by_the_service_manager.rs  <- src/native/worktree_clone_forced_removal/started_by_the_service_manager.rs
+      The refusal of a `--force` removal the service manager started: how the manager is recognised as a ...
+    the_copy_taken_out_of_a_namespace.rs  <- src/native/worktree_clone_forced_removal/the_copy_taken_out_of_a_namespace.rs
+      The act on one holder namespace's copy: the structural stage that proves the copy and makes way 7's ...
+    descriptor_calls.rs  <- src/native/worktree_clone_forced_removal/descriptor_calls.rs
+      The descriptor-relative calls the act and the progress file make: opening a directory, opening and ...
+    holder_preflight.rs  <- src/native/worktree_clone_forced_removal/holder_preflight.rs
+      The reads a forced removal makes before it ends anything, the refusal each unusable answer is, and ...
+    caller_chain_walk.rs  <- src/native/worktree_clone_forced_removal/caller_chain_walk.rs
+      The walk from the command that asked for a forced removal to the first process, the two checks ...
+    caller_property.rs  <- src/native/worktree_clone_forced_removal/caller_property.rs
+      The two clone-local properties a forced removal writes before its intent, what each value says, and ...
+    mount_namespace_child.rs  <- src/native/worktree_clone_forced_removal/mount_namespace_child.rs
+      The child that enters one mount namespace and runs one piece of the act there, and the report it ...
+    receiver_closure.rs  <- src/native/worktree_clone_forced_removal/receiver_closure.rs
+      The mounts an unmount reaches: the seed the design takes from the parent mount, the closure over ...
+    recorded_handle.rs  <- src/native/worktree_clone_forced_removal/recorded_handle.rs
+      The handle the add records of the slot's underlay before a clone is mounted, the two calls that ...
+    the_refusal_sentences.rs  <- src/native/worktree_clone_forced_removal/the_refusal_sentences.rs
+      The sentences a forced removal prints, other than the service-manager one: a holder of the caller's ...
+    the_acts_journal_lines.rs  <- src/native/worktree_clone_forced_removal/the_acts_journal_lines.rs
+      The handler's journal lines for one forced act: what each blocker's end was, what each propagation ...
+    blocker_end.rs  <- src/native/worktree_clone_forced_removal/blocker_end.rs
+      The signal stage: `SIGTERM` to every blocker, a wait for it to leave, then `SIGKILL` to the ...
+    forced_arm_numbers.rs  <- src/native/worktree_clone_forced_removal/forced_arm_numbers.rs
+      The waits a forced removal would need and their values, which are none: the wait between `SIGTERM` ...
+    process_session_record.rs  <- src/native/worktree_clone_forced_removal/process_session_record.rs
+      One process's record as the kernel prints it, the five fields a forced removal reads from it, and ...
+    forced_removal_words.rs  <- src/native/worktree_clone_forced_removal/forced_removal_words.rs
+      Every word the forced arm writes or answers: the seven refusals the receipt's failed step and the ...
+  removing_a_linked_worktree/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, converting_a_linked_worktree, converting_the_main_checkout, finding_the_git_folders, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, is_the_worktree_clean, landing_commits, lines_about_worktrees_and_large_files, making_a_worktree_quickly, merging_without_touching_your_files, messages_between_the_wrapper_and_the_commit_service, moving_kept_files_to_the_new_names, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, planning_a_worktree_add_and_what_git_made, pushing_what_the_commit_service_saved, running_git_for_a_transaction, sha_1_and_sha_256_of_bytes, the_hidden_second_git_folder, the_record_and_the_lock_the_zfs_clone_route_keeps, the_references_kept_for_unlanded_commits, the_root_modes_that_attach_and_unmount_zfs_clones, the_service_program, the_snapshots_a_removal_takes_before_it_goes, the_words_meant_for_this_wrapper, work_left_for_the_service_to_finish_later, fast_copies_and_swaps_on_linux, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, which_programs_are_running_and_since_when, talking_to_the_systemd_user_manager, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    origin_refusal_answers.rs  <- src/native/worktree_removal_deferred_origin_check/origin_refusal_answers.rs
+      The answers each cause gives without printing anything: the step word a receipt files it under, the ...
+    origin_refusal_words.rs  <- src/native/worktree_removal_deferred_origin_check/origin_refusal_words.rs
+      The three forms of a refusal's message, the state sentence each is allowed to claim, and the ways ...
+    origin_refusal_causes.rs  <- src/native/worktree_removal_deferred_origin_check/origin_refusal_causes.rs
+      The part of a refusal's message that names the cause, its object and its field, and the two mark ...
+    origin_verdict.rs  <- src/native/worktree_removal_deferred_origin_check/origin_verdict.rs
+      The one function a removal calls before the first snapshot request and again before the head ...
+    origin_refusal.rs  <- src/native/worktree_removal_deferred_origin_check/origin_refusal.rs
+      Why a removal of a ZFS worktree clone stopped at one of the check's refusal points: each cause as a ...
+    origin_mark.rs  <- src/native/worktree_removal_deferred_origin_check/origin_mark.rs
+      The deferred-destroy mark of one dataset or snapshot: the one property the kernel computes for it, ...
+    planned_origin.rs  <- src/native/worktree_removal_deferred_origin_check/planned_origin.rs
+      The identities a removal planned for its clone and its origin, and the answer a plan that does not ...
+    origin_refusals.rs  <- src/native/worktree_removal_deferred_origin_check/origin_refusals.rs
+      Why a removal of a ZFS worktree clone stopped at one of the check's refusal points: each cause as ...
+    removal_history.rs  <- src/native/worktree_removal_deferred_origin_check/removal_history.rs
+      The loss a removal's own record already holds, and the one sentence every refusal of this folder ...
+    worktree_removal_clears_the_ahead_pool.rs  <- src/native/worktree/worktree_removal_clears_the_ahead_pool.rs
+      The pools of snapshots the wrapper made ahead of an add, and every pool a clear took and a kill ...
+    worktree_removal_goes_around_a_foreign_volume.rs  <- src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs
+      The removal that goes around a subvolume or a mount point it did not make: the words it says on the ...
+    worktree_removal_interrupted_destroy.rs  <- src/native/worktree/worktree_removal_interrupted_destroy.rs
+      Finish the removal of a worktree whose files a destroy already took and whose registration it did ...
+    worktree_removal_leavings_a_command_queues_again.rs  <- src/native/worktree/worktree_removal_leavings_a_command_queues_again.rs
+      The look every command of a repository makes at the subvolumes its removals renamed aside: the ...
+    worktree_removal_finishes_an_interrupted_destroy.rs  <- src/native/worktree/worktree_removal_finishes_an_interrupted_destroy.rs
+      Finishing the removal a record names once its destroy happened, and saying what could not be ...
+    worktree_removal_rescue_removal_state.rs  <- src/native/worktree/worktree_removal_rescue_removal_state.rs
+      Whether the worktree a removal snapshot was taken for is gone, refused, or still on its way, judged ...
+    worktree_removal_stops_units.rs  <- src/native/worktree/worktree_removal_stops_units.rs
+      Stops the commit service units of a worktree when the wrapper has removed that worktree: the ...
+    worktree_removal_takes_its_pending_deletions.rs  <- src/native/worktree/worktree_removal_takes_its_pending_deletions.rs
+      The subvolumes this program left inside a worktree for its commit service to delete, moved out of ...
+    worktree_remove.rs  <- src/native/worktree/worktree_remove.rs
+      The removal of a clean linked worktree that is a btrfs subvolume, by one subvolume destroy call and ...
+    worktree_removal_holds_the_worktree.rs  <- src/native/worktree/worktree_removal_holds_the_worktree.rs
+      The directories one removal holds open from before the proof of cleanliness to the destroy, the ...
+    worktree_remove_around.rs  <- src/native/worktree/worktree_remove_around.rs
+      The half of a removal that goes around a subvolume or a mount point it did not make: the record a ...
+    worktree_removal_around_begun.rs  <- src/native/worktree/worktree_removal_around_begun.rs
+      The record a removal writes before its pass empties a worktree around a volume it did not make, so ...
+    worktree_remove_hand_over.rs  <- src/native/worktree/worktree_remove_hand_over.rs
+      The removal of a worktree's subvolume handed to the commit service, and the service's own delete of ...
+    worktree_removal_clears_the_pool.rs  <- src/native/worktree/worktree_removal_clears_the_pool.rs
+      Taking the shadow pool of a worktree with the removal of that worktree: the folder the resident ...
+    worktree_removal_held_commits.rs  <- src/native/worktree/worktree_removal_held_commits.rs
+      The commit a reference lock holds in a linked worktree, before a command that may remove that ...
+    worktree_removal_leaves_a_subvolume_for_the_service.rs  <- src/native/worktree/worktree_removal_leaves_a_subvolume_for_the_service.rs
+      One subvolume this program made, moved out of a tree that is being removed and recorded for the ...
+    worktree_removal_leaving_that_outlives_its_record.rs  <- src/native/worktree/worktree_removal_leaving_that_outlives_its_record.rs
+      The record of one leaving a removal makes: the directory its subvolume is renamed aside to, written ...
+    worktree_removal_only_deletions.rs  <- src/native/worktree/worktree_removal_only_deletions.rs
+      What Git reports about a worktree: nothing at all, entries missing from it, or something else.
+    worktree_removal_second_look.rs  <- src/native/worktree/worktree_removal_second_look.rs
+      The proof that a removal may go, made again immediately before the destruction.
+    worktree_removal_rescue.rs  <- src/native/worktree/worktree_removal_rescue.rs
+      What happens to the unshown push-failure notices and the unfinished backup pushes of a linked ...
+    worktree_removal_snapshot_promotion.rs  <- src/native/worktree/worktree_removal_snapshot_promotion.rs
+      Turn what a removal snapshot kept into notices any worktree shows: its notices and the record of ...
+    worktree_remove_last_look.rs  <- src/native/worktree/worktree_remove_last_look.rs
+      The question a removal's caller asks again as the removal runs, immediately before anything is ...
+    worktree_remove_notices.rs  <- src/native/worktree/worktree_remove_notices.rs
+      The four lines a removal that destroyed a subvolume prints, and the one place that chooses between ...
+    worktree_remove_outcome.rs  <- src/native/worktree/worktree_remove_outcome.rs
+      How one attempt to remove a worktree ended, and what each ending needs of the caller.
+    worktree_remove_plan.rs  <- src/native/worktree/worktree_remove_plan.rs
+      The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy: the one ...
+    worktree_remove_reports.rs  <- src/native/worktree/worktree_remove_reports.rs
+      The reports a removal can end with: the command that forgets a registration whose directory is ...
+    worktree_remove_registry.rs  <- src/native/worktree/worktree_remove_registry.rs
+      Which registration of the invoking repository a worktree directory belongs to, and whether Git ...
+  repairing_the_links_of_a_zfs_clone/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> reading_the_datasets_zfs_mounts, removing_a_linked_worktree, the_pointer_a_prune_keeps, the_record_and_the_lock_the_zfs_clone_route_keeps, the_state_of_one_zfs_clone_slot, the_zfs_kernel_gate
+    (new folder of this round: The report of a damaged link between a worktree and its Git registration.)
+    live_link_report.rs  <- src/native/worktree_clone_link_repair/live_link_report.rs
+      One slot as a wrapper command meets it: the state the slot is in, the report of the slot, its ...
+    repair_report.rs  <- src/native/worktree_clone_link_repair/repair_report.rs
+      The report of one damaged link: what was found, which copy of the pointer was read, what is kept, ...
+  repairs_the_service_runs_for_a_new_worktree/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, converting_a_linked_worktree, finding_the_git_folders, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, making_a_worktree_quickly, planning_a_worktree_add_and_what_git_made, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, sha_1_and_sha_256_of_bytes, the_commit_command, the_service_program, the_trash_a_worktree_removal_sets_aside, the_words_meant_for_this_wrapper, work_left_for_the_service_to_finish_later, repairing_installed_packages, file_operations_that_never_follow_a_link, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The repairing of a new worktree package state that the add hands to the commit service instead of waiting for it.)
+    package_repair_cargo_hand_over.rs  <- src/native/repair/package_repair_cargo_hand_over.rs
+      The hand-over of the filling of a new worktree's build directories to the commit service, and the ...
+    package_repair_prewarm_job.rs  <- src/native/repair/package_repair_prewarm_job.rs
+      Fill the Cargo build directories a new worktree's record asks for, inside the commit service, after ...
+    package_repair_prewarm_job_filling.rs  <- src/native/repair/package_repair_prewarm_job_filling.rs
+      The three steps of one workspace's filling: clone the source's build directory into the staging ...
+    package_repair_prewarm_job_names.rs  <- src/native/repair/package_repair_prewarm_job_names.rs
+      The names one filling of a workspace works in, and the proof they are this job's: the staging name ...
+    package_repair_prewarm.rs  <- src/native/repair/package_repair_prewarm.rs
+      Hand the filling of a new worktree's Cargo build directories to the commit service instead of ...
+    package_repair_prewarm_job_staged_state.rs  <- src/native/repair/package_repair_prewarm_job_staged_state.rs
+      The add's own move of a worktree's copied build state: the staging name it is moved to in one ...
+    package_repair_relink_job.rs  <- src/native/repair/package_repair_relink_job.rs
+      Relink the copied package state of a new worktree inside the commit service, after the add that ...
+    package_repair_relink_job_worktree_proof.rs  <- src/native/repair/package_repair_relink_job_worktree_proof.rs
+      What a delayed relink proves about the worktree its record names, before it starts that record's ...
+    package_repair_relink_notice.rs  <- src/native/repair/package_repair_relink_notice.rs
+      The notice a relink leaves for the person when the commit service gives the record up, and the ...
+    package_repair_relink.rs  <- src/native/repair/package_repair_relink.rs
+      Hand the relinking of a new worktree's copied package state to the commit service instead of ...
+    package_repair_relink_failure.rs  <- src/native/repair/package_repair_relink_failure.rs
+      Why a relink's last try failed, kept beside the work records until the record settles or the person ...
+  replaying_changes_onto_new_commits/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, rerunning_a_merge_word_by_word, running_git_for_a_transaction, the_hidden_second_git_folder, what_happens_when_you_type_a_command, running_independent_jobs_side_by_side
+    replay_merge.rs  <- src/native/shadow/replay_merge.rs
+      The merge step of one replay: the tree from `git merge-tree --write-tree` of the prepared change ...
+    replay_reverse_apply_test_support.rs  <- src/native/shadow/replay_reverse_apply_test_support.rs
+      Batched Git work for the seeded differential run of the strict reverse check: every case's base and ...
+    replay_subsumption.rs  <- src/native/shadow/replay_subsumption.rs
+      Subsumption before replay's three-way merge: the per-path rules, and the synthetic merge base that ...
+    replay_capture_order.rs  <- src/native/shadow/replay_capture_order.rs
+      The capture-order decision for one shared path of a replay.
+    replay_subsumption_text.rs  <- src/native/shadow/replay_subsumption_text.rs
+      The text half of replay's subsumption: which regular-file paths hold prepared bytes that already ...
+    replay_containment.rs  <- src/native/shadow/replay_containment.rs
+      The context-tolerant half of replay's subsumption: whether each prepared change is the landed ...
+    replay_reverse_apply.rs  <- src/native/shadow/replay_reverse_apply.rs
+      The exact emulation of `git apply --reverse --check` for one text file: the subsumption test that ...
+    replay_patch.rs  <- src/native/shadow/replay_patch.rs
+      The unified-diff parser that replay's subsumption reads: `git diff-tree -p` output over ...
+    replay_shared_paths.rs  <- src/native/shadow/replay_shared_paths.rs
+      The paths both the prepared commit and the landed history changed since the preparation base, with ...
+    replay_shadow.rs  <- src/native/shadow/replay_shadow.rs
+      Running real Git against the shadow repository for replay: the shadow selection, an optional ...
+  rerunning_a_merge_word_by_word/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, finding_the_git_folders, merging_text_by_line_and_by_word, merging_without_touching_your_files, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, what_happens_when_you_type_a_command, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person
+    merge_second_pass_git_lines.rs  <- src/native/merge/merge_second_pass_git_lines.rs
+      The merge of one candidate file: the line merge Git makes with `--zdiff3`, then the word pass on ...
+    merge_second_pass_line_regions.rs  <- src/native/merge/merge_second_pass_line_regions.rs
+      How the line merge Git makes with `--zdiff3` is cut into the text Git settled and the regions it ...
+    merge_second_pass_report.rs  <- src/native/merge/merge_second_pass_report.rs
+      The words that list a merged part, the journal entry for a merged file, and the sentence that says ...
+    merge_second_pass_worktree.rs  <- src/native/merge/merge_second_pass_worktree.rs
+      The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped ...
+    merge_second_pass_tree.rs  <- src/native/merge/merge_second_pass_tree.rs
+      The word-level second pass for a merge computed from objects: given the tree `git merge-tree` wrote ...
+    merge_second_pass_worktree_install.rs  <- src/native/merge/merge_second_pass_worktree_install.rs
+      Writing the files the word-level second pass merged after a forwarded command: the stage that marks ...
+    merge_second_pass_worktree_unchanged.rs  <- src/native/merge/merge_second_pass_worktree_unchanged.rs
+      What the word-level second pass will not replace: the index stages and the worktree file of every ...
+    merge_second_pass_worktree_words.rs  <- src/native/merge/merge_second_pass_worktree_words.rs
+      The sentences the word-level second pass ends a stopped operation with: what it staged, what is ...
+    word_level_second_pass.rs  <- src/native/merge/merge_second_pass.rs
+      The word-level second pass over the files a Git merge left conflicted: which conflicted files may ...
+    merge_second_pass_conflicts.rs  <- src/native/merge/merge_second_pass_conflicts.rs
+      The conflicted files of a merge tree: the three stages of a path, the conflict they make, and the ...
+    merge_second_pass_finish.rs  <- src/native/merge/merge_second_pass_finish.rs
+      The finish after the word-level second pass resolved every conflicted file of a merge, rebase, ...
+    merge_second_pass_finish_stops.rs  <- src/native/merge/merge_second_pass_finish_stops.rs
+      Which options of a merge, a pull, a cherry-pick or a revert make the finish stop where Git would ...
+    merge_second_pass_git_runner.rs  <- src/native/merge/merge_second_pass_git_runner.rs
+      How the word-level second pass starts Git: what a start gave back, the thing that runs a start, and ...
+  reviewing_landed_commits_against_standards/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, running_independent_jobs_side_by_side, watching_a_started_program_until_it_stops_making_progress, text_time_and_records_written_like_javascript
+    adding_a_review_entry_to_the_log.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    running_a_review_end_to_end.rs  <- src/native/standards_review/standards_review_run.rs
+      The standards-review shadow run, end to end and in-process: classify the landed commit's names, ...
+    review_gateway_credential.rs  <- src/native/service/service_review_key.rs
+      The gateway credential of the standards review as it travels from the wrapper to the service: a ...
+    the_one_https_call_of_a_review.rs  <- src/native/standards_review/standards_review_client.rs
+      The one HTTPS call of the standards-review shadow run, made in-process on `hyper` and the process's ...
+    standards_review_client_name_lookup_on_the_blocking_pool.rs  <- src/native/standards_review/standards_review_client_name_lookup_on_the_blocking_pool.rs
+      The name lookup of the standards-review call, run on the blocking pool through `run_blocking_job`.
+    review_log_entries.rs  <- src/native/standards_review/standards_review_entry.rs
+      The log entries of the standards-review shadow run, rendered as the root `mise.toml` task ...
+    request_body_of_a_review.rs  <- src/native/standards_review/standards_review_request.rs
+      The Decisions API request body the standards-review shadow run sends, and the reading of the ...
+    git_reads_of_a_review.rs  <- src/native/standards_review/standards_review_source.rs
+      The Git reads of the standards-review shadow run, in as few real-Git starts as the data allows: one ...
+    which_commits_get_a_review.rs  <- src/native/standards_review/standards_review_input.rs
+      The pure part of the standards-review shadow run: which landed commits get an entry, and the capped ...
+    changed_line_spans_of_a_file.rs  <- src/native/standards_review/standards_review_patch.rs
+      Reading one file's changed new-side line spans out of a `git show --patch` text, so the review ...
+    text_rules_of_the_review_log.rs  <- src/native/standards_review/standards_review_text.rs
+      The few text behaviors of the standards-review log that JavaScript defines and Rust does not share: ...
   rules_about_what_a_commit_may_contain/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_options_the_way_git_does, rules_that_add_flags_to_a_command, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository
+    uses/ -> reading_options_the_way_git_does, rules_that_add_flags_to_a_command, what_each_git_command_accepts
     why_a_push_scope_is_unknown.rs  <- src/native/push/manual_push_cause.rs
       Why a manual push's scope could not be established, as a cause the hint is chosen by.
+    rule_commit_only_what_was_named.rs  <- src/native/commit/rule_commit_only.rs
+      The pure decision of the commit-only transform: insert `-o` after `git commit`, or say why not.
     is_the_index_the_same_as_head.rs  <- src/native/commit/rule_commit_index.rs
       The pure core of the index-against-`HEAD` check used by the commit-only transform.
     messages_of_the_commit_only_rule.rs  <- src/native/commit/rule_commit_only_message.rs
       The user-facing diagnostics of the commit-only transform.
-    rule_commit_only_what_was_named.rs  <- src/native/commit/rule_commit_only.rs
-      The pure decision of the commit-only transform
+    rule_commit_region_git_refuses.rs  <- src/native/commit/rule_commit_region_git_refuses.rs
+      Which forms of `git commit` real Git refuses before it makes any commit, decided from the options ...
     is_a_merge_or_rebase_in_progress.rs  <- src/native/commit/rule_commit_sequencer.rs
-      The pure core of the "is a merge
+      The pure core of the "is a merge, cherry-pick or revert awaiting its commit" check.
   rules_about_where_a_command_may_run/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, reading_options_the_way_git_does, spellings_that_switch_the_wrapper_off, the_words_meant_for_this_wrapper, what_each_git_command_accepts
+    uses/ -> reading_options_the_way_git_does, rules_that_add_flags_to_a_command, running_git_for_a_transaction, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, spellings_that_switch_the_wrapper_off, the_words_meant_for_this_wrapper, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository
+    rule_abort_messages.rs  <- src/native/command/rule_abort_messages.rs
+      The plain-language texts of the abort and skip guard: which command is refused, each path it would ...
+    rule_abort_operation.rs  <- src/native/command/rule_abort_operation.rs
+      The pure core of "which operation does this abort form undo, and does that operation wait right ...
     rule_branch_worktree_only.rs  <- src/native/command/rule_branch_worktree.rs
-      Pure decision of the branch-worktree-only policy
+      Pure decision of the branch-worktree-only policy: a new branch starts in its own linked worktree, ...
+    rule_clean_interactive_nested_repositories.rs  <- src/native/command/rule_clean_interactive_nested_repositories.rs
+      Keeping the nested Git repositories a clean would delete out of an interactive clean's menu, by ...
+    rule_keep_ignored_files.rs  <- src/native/command/rule_keep_ignored_files.rs
+      The pure decision of the ignored-files transform: add `--no-overwrite-ignore` to a `checkout` or ...
+    rule_linked_worktree_only.rs  <- src/native/command/rule_linked_worktree.rs
+      Pure decision of the linked-worktree-only policy: commands that can discard uncommitted state never ...
     rejection_texts_of_the_linked_worktree_rule.rs  <- src/native/command/rule_linked_worktree_messages.rs
-      The rejection texts of the linked-worktree policy: outside any worktree, in the main worktree, and in a
+      The rejection texts of the linked-worktree policy: outside any worktree, in the main worktree, and ...
+    rule_linked_worktree_nested_repository_messages.rs  <- src/native/command/rule_linked_worktree_nested_repository_messages.rs
+      The notice that names where a clean's nested Git repository went, and the rejection when it could ...
+    rule_repository_stash.rs  <- src/native/command/rule_repository_stash.rs
+      The question "does this repository hold a stash entry?" as one Git query and its reading.
+    rule_require_root.rs  <- src/native/command/rule_require_root.rs
+      Pure decision of the require-root policy: commands run from the repository root.
+    rule_shared_remote_messages.rs  <- src/native/command/rule_shared_remote_messages.rs
+      The rejection text of the shared-remote-settings refusal: a command that would change the remote ...
+    rule_shared_remote.rs  <- src/native/command/rule_shared_remote.rs
+      Pure decision of the shared-remote-settings refusal: whether a command changes remote settings ...
     does_this_worktree_hold_uncommitted_state.rs  <- src/native/command/rule_worktree_dirty.rs
       The question "does this worktree hold uncommitted state?" as one Git query and its reading.
-    rule_linked_worktree_only.rs  <- src/native/command/rule_linked_worktree.rs
-      Pure decision of the linked-worktree-only policy
-    rule_require_root.rs  <- src/native/command/rule_require_root.rs
-      Pure decision of the require-root policy
-  the_settings_file_cli_git_config_jsonc/
+  rules_that_add_flags_to_a_command/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> the_words_meant_for_this_wrapper, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository
-    rejected_settings.rs  <- src/native/config/config_error.rs
-      The one failure type for rejected `cli-git.config.jsonc` content or files.
-    typed_readers_over_json_values.rs  <- src/native/config/config_values.rs
-      Typed readers over parsed JSONC values
-    discarded_copies_settings.rs  <- src/native/conflict/config_discarded.rs
-      The `discardedCopies` section of `cli-git.config.jsonc`: how long and how much the folder of saved copies of ...
-    typed_settings.rs  <- src/native/config/config_schema.rs
-      The typed settings a validated `cli-git.config.jsonc` produces
-    checking_the_markdown_policy_options.rs  <- src/native/config/config_policies_markdown.rs
-      Validation of the options object of the `markdown/autofix` policy and of its `rules` list.
-    the_rules_file_option.rs  <- src/native/config/config_rules_file.rs
-      The `rulesFile` option of `security/forbidden-strings`
-    checking_the_policies_section.rs  <- src/native/config/config_policies.rs
-      Validation of the `policies` section and of each policy's options.
-    turning_settings_text_into_typed_settings.rs  <- src/native/config/config_parse.rs
-      Turn `cli-git.config.jsonc` text into validated typed settings.
-    finding_and_reading_the_settings_file.rs  <- src/native/config/config_file.rs
-      Find and read `cli-git.config.jsonc` at a repository root.
-    deciding_how_to_load_settings.rs  <- src/native/config/config_loading.rs
-      Policy-configuration loading decisions before expensive policy initialization.
-    settings_of_the_worktree_a_command_runs_in.rs  <- src/native/config/invocation_config.rs
-      Load the policy configuration of the worktree one invocation runs in
-  scanning_those_bytes_for_forbidden_strings/
+    uses/ -> reading_options_the_way_git_does, what_each_git_command_accepts
+    rule_add_names_explicitly.rs  <- src/native/command/rule_add_explicit.rs
+      Pure decision of the add-explicit policy: `git add` names the paths it stages.
+    rule_push_all_or_nothing.rs  <- src/native/command/rule_atomic_push.rs
+      The pure decision of the atomic-push transform: insert `--atomic` after `git push` unless the ...
+    rule_status_hints.rs  <- src/native/command/rule_status_hints.rs
+      The pure decision of the status-hints transform: insert `-c advice.statusHints=false` before `git ...
+    adding_words_to_a_command_line.rs  <- src/native/command/rule_argument_rewrite.rs
+      The shared result and builder of fixed transforms that add tokens to a command line.
+  running_git_for_a_transaction/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> putting_corrected_files_into_the_private_index, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, the_settings_file_cli_git_config_jsonc
-    the_forbidden_strings_scanner.rs  <- src/native/candidate/scanner_adapter.rs
-      The repository's forbidden-strings scanner
-    which_rules_files_the_scanner_loads.rs  <- src/native/candidate/scanner_selection.rs
-      Which rules files the scanner loads
-    content_the_parent_commit_already_has.rs  <- src/native/candidate/candidate_known_content.rs
-      Which candidates hold content that a parent commit's tree already holds
-    scanning_one_version.rs  <- src/native/candidate/scanner_run.rs
-      Scan every eligible candidate of one version through the loaded scanner.
-    failure_codes_of_scanning.rs  <- src/native/candidate/scanner_failure_code.rs
-      Which engine failure code each failure of the candidate and scanner layers carries.
+    uses/ -> answering_questions_without_starting_git, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, landing_commits, recording_where_worktree_add_spent_its_time, saving_copies_of_what_a_command_would_throw_away, starting_git_and_describing_a_run, what_each_git_command_accepts, what_happens_when_you_type_a_command, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    the_git_command_a_forward_runs.rs  <- src/native/invocation/forwarded_command.rs
+      The Git command a forwarded invocation actually runs, after ordinary alias expansion.
+    running_a_read_only_git_query.rs  <- src/native/repo_read/git_metadata.rs
+      Run a read-only real-Git query and capture its output as raw bytes.
+    checking_the_real_git_version.rs  <- src/native/invocation/git_version.rs
+      The real Git version check, run once per invocation before work that depends on Git's behavior: a ...
+    transaction_git_awaiting.rs  <- src/native/transaction/transaction_git_awaiting.rs
+      Running real Git for a caller that is itself a task of the runtime: the same command, the same ...
+    running_git_for_a_transaction.rs  <- src/native/transaction/transaction_git.rs
+      Running real Git for transaction, recovery and landing work: captured output, an optional private ...
+    transaction_git_step_about_to_start.rs  <- src/native/transaction/transaction_git_step_about_to_start.rs
+      A Git step of a transaction at the moment before it starts: its child command, the words that name ...
+    how_long_a_git_step_is_waited_for.rs  <- src/native/transaction/transaction_git_step_bounds.rs
+      How long a Git step is waited for and what happens at the bound: ended at the class ceiling, never ...
+    which_git_steps_run_again_or_end_early.rs  <- src/native/transaction/transaction_git_step_rerun_and_end_rules.rs
+      Which Git steps may be run again after the system refused a process, and which may be ended at a ...
+    transaction_step_durations.rs  <- src/native/transaction/transaction_step_durations.rs
+      The Git steps a command or a landing started, each with the program and subcommand, when it began ...
+    git_step_arguments.rs  <- src/native/transaction/git_step_arguments.rs
+      The arguments of one Git step that ran long, named so that a slow record explains itself, with ...
+  running_git_push_until_it_ends_or_stalls/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, clearing_leftover_reference_locks, finding_the_git_folders, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, pushing_what_the_commit_service_saved, starting_git_and_describing_a_run, the_service_program, work_left_for_the_service_to_finish_later, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    pushing_until_it_ends_or_stalls.rs  <- src/native/push/bounded_push.rs
+      Run the auto-push's real `git push` (and its fetch and Git LFS upload) until it ends, or stops ...
+    waiting_for_a_push_to_end.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    one_git_query_that_ends_when_idle.rs  <- src/native/push/bounded_query.rs
+      Run one read-only Git query that is ended only when it shows no sign of work, with separate output ...
+    bounded_query_input.rs  <- src/native/push/bounded_query_input.rs
+      The thread that gives a second-pass command its request, how far it got, and the two bounds it runs ...
+    one_push_attempt_and_its_failure.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    push_limit_held_for_an_ordering.rs  <- src/native/push/push_limit_held_for_an_ordering.rs
+      Where a control says which ordering must have happened before a run's limit may be reached by ...
+    clearing_locks_around_a_push.rs  <- src/native/lock/push_lock_clearing.rs
+      The wrapper's own fetch and push, run after the reference locks of a killed Git in their repository ...
+    push_minimum_rate.rs  <- src/native/push/push_minimum_rate.rs
+      The least traffic a push's connection to its remote may carry and still count as progress: the ...
+    push_server_naming.rs  <- src/native/push/push_server_naming.rs
+      The server a push waits for, named from the command's own destination, so the wait and the stop ...
+    push_wait_until_done.rs  <- src/native/push/push_wait_until_done.rs
+      The wait of a bounded push: it ends when the run ends, and otherwise when the run stops showing ...
+    push_without_its_transport.rs  <- src/native/push/push_without_its_transport.rs
+      The words a service push stops with when the transport settings of the command that asked for it ...
+    running_one_push_at_a_time.rs  <- src/native/push/auto_push_single_flight.rs
+      The service's Git for a push: the real Git, its working directory and environment, the command ...
+    how_to_change_the_push_deadline.rs  <- src/native/push/push_deadline_advice.rs
+      The words that tell a person how to change the push deadline, for the program that is running the ...
   running_policies_and_settling_their_corrections/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, finding_the_git_folders, how_long_the_program_waits_for_git_steps, putting_corrected_files_into_the_private_index, reading_options_the_way_git_does, reading_the_bytes_a_commit_would_save, rules_about_what_a_commit_may_contain, rules_about_where_a_command_may_run, rules_that_add_flags_to_a_command, running_git_for_a_transaction, scanning_those_bytes_for_forbidden_strings, starting_git_and_describing_a_run, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, what_the_wrapper_asks_git_about_a_repository
+    uses/ -> finding_the_git_folders, moving_kept_files_to_the_new_names, putting_corrected_files_into_the_private_index, reading_branches_tags_and_markers, reading_options_the_way_git_does, reading_saved_commits_and_files, reading_the_bytes_a_commit_would_save, rules_about_what_a_commit_may_contain, rules_about_where_a_command_may_run, rules_that_add_flags_to_a_command, running_git_for_a_transaction, scanning_those_bytes_for_forbidden_strings, starting_git_and_describing_a_run, the_commit_command, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, what_each_git_command_accepts, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, saving_files_so_a_crash_leaves_no_half_file, text_time_and_records_written_like_javascript
+    may_a_fix_change_an_unselected_file.rs  <- src/native/dependent_version/policy_added_path.rs
+      Whether a commit or a direct fix may change a tracked file it did not select, the `patch-conflict` ...
+    content_offered_to_policies.rs  <- src/native/policy/policy_content.rs
+      What one lifecycle offers the content policies, and the candidates it prepared for them, read once ...
+    repeating_a_pass_until_it_settles.rs  <- src/native/policy/policy_convergence.rs
+      The bounded loop that repeats a whole policy pass after corrections changed the candidate content, ...
+    fixed_changes_to_a_command.rs  <- src/native/policy/policy_transforms.rs
+      The fixed argument transforms of a forwarded command, in their fixed order: atomic push, ...
+    repository_facts_policies_need.rs  <- src/native/repo_read/repository_facts.rs
+      The repository facts policies and fixed transforms need, behind one small interface, with the ...
+    repository_facts_abort_discard.rs  <- src/native/repo_read/repository_facts_abort_discard.rs
+      What one abort form would discard besides the operation's own state, read from real Git's own ...
+    repository_facts_abort_discard_record.rs  <- src/native/repo_read/repository_facts_abort_discard_record.rs
+      The record of the commit an abort restores, read from the file Git's own implementation reads.
+    repository_facts_abort_discard_worktree_entries.rs  <- src/native/repo_read/repository_facts_abort_discard_worktree_entries.rs
+      Whether the worktree still holds an entry at a path a listing named.
+    repository_facts_ignored_files.rs  <- src/native/repo_read/repository_facts_ignored_files.rs
+      The ignored-and-tracked fact of the real-Git provider: the worktree's ignored files whose paths a ...
+    repository_facts_staged_entries.rs  <- src/native/repo_read/repository_facts_staged_entries.rs
+      The listed paths whose staged content an abort would discard, whether or not the worktree still ...
+    repository_facts_staged_selection.rs  <- src/native/repo_read/repository_facts_staged_selection.rs
+      What one `git add` selects, counted from real Git's own listings.
+    repository_facts_untracked_files.rs  <- src/native/repo_read/repository_facts_untracked_files.rs
+      The untracked-and-tracked fact of the real-Git provider: the worktree's untracked files whose paths ...
+    work_not_ported_yet.rs  <- src/native/policy/unported.rs
+      The work of the installed monochromatic-git-policy-cli that this executable does not do yet, as one ...
+    running_policies_in_order.rs  <- src/native/policy/policy_engine.rs
+      Run shipped policies in registry order for one lifecycle point and settle the outcome: which events ...
+    events_of_a_policy_pass.rs  <- src/native/policy/policy_events.rs
+      The events one policy pass produces, and their JSON Lines rendering.
     messages_as_json_lines.rs  <- src/native/policy/diagnostics.rs
       Render wrapper diagnostics as the JSONL events callers already parse.
     hints_after_a_finding.rs  <- src/native/policy/event_hints.rs
-      The hint that follows a finding, an engine failure or a warn-unsafe notice: a guess at what the person was
+      The hint that follows a finding, an engine failure or a warn-unsafe notice: a guess at what the ...
     repository_path_in_an_event.rs  <- src/native/policy/event_path.rs
-      A repository path as an event reports it
-    may_a_fix_change_an_unselected_file.rs  <- src/native/dependent_version/policy_added_path.rs
-      Whether a direct fix may change a tracked file it did not select, and the `patch-conflict` message when it may not.
+      A repository path as an event reports it: readable text, and the exact bytes as well when those ...
     points_at_which_policies_run.rs  <- src/native/policy/policy_trigger.rs
-      The lifecycle points at which policies run
-    events_of_a_policy_pass.rs  <- src/native/policy/policy_events.rs
-      The events one policy pass produces
-    running_policies_in_order.rs  <- src/native/policy/policy_engine.rs
-      Run shipped policies in registry order for one lifecycle point and settle the
-    repository_facts_policies_need.rs  <- src/native/repo_read/repository_facts.rs
-      The repository facts policies and fixed transforms need
-    content_offered_to_policies.rs  <- src/native/policy/policy_content.rs
-      What one lifecycle offers the content policies
-    repeating_a_pass_until_it_settles.rs  <- src/native/policy/policy_convergence.rs
-      The bounded loop that repeats a whole policy pass after corrections changed the
-    fixed_changes_to_a_command.rs  <- src/native/policy/policy_transforms.rs
-      The fixed argument transforms of a forwarded command
-    work_not_ported_yet.rs  <- src/native/policy/unported.rs
-      The work of the installed cli-git that this executable does not do yet
-  work_left_for_the_service_to_finish_later/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> log_lines_of_the_commit_service
-    claim_time.rs  <- src/native/landing/claim_time.rs
-      A reading of the clocks a claim's lease is judged by: the machine and the boot the host is in, the host's monotonic ...
-    work_item_state_directories_and_claim_names.rs  <- src/native/landing/work_item_state_directories_and_claim_names.rs
-      The folders an item moves through (`pending`, `claimed`, `recovering`, `done`, `failed`), the names of the claim files
-    work_item.rs  <- src/native/landing/work_item.rs
-      The durable work-item record: a small file in the Git directory that says "this landed object needs this
-    work_item_recovery.rs  <- src/native/landing/work_item_recovery.rs
-      The recovery half of the work-item record
-  asking_the_commit_service_to_save_a_commit/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, git_settings_read_once, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, naming_the_service_of_one_worktree, reading_saved_commits_and_files, reading_the_bytes_a_commit_would_save, recording_where_worktree_add_spent_its_time, reviewing_landed_commits_against_standards, running_git_for_a_transaction, running_policies_and_settling_their_corrections, starting_git_and_describing_a_run, stopping_the_program_at_a_named_step_for_tests, the_settings_file_cli_git_config_jsonc, work_left_for_the_service_to_finish_later
-    landed_summary.rs  <- src/native/landing/landed_summary.rs
-      The one summary line a landed commit prints, the way `git commit` prints it: `[<branch> <name>] <subject>`, with
-    service_client_listen_and_ask_to_retire.rs  <- src/native/service/service_client_listen_and_ask_to_retire.rs
-      The lowest steps of the client of the commit service: connecting to the service's address, reading one line as a ...
-    service_messages.rs  <- src/native/landing/service_messages.rs
-      Everything the wrapper tells the user when it cannot get a commit landed by the resident service, and the notices
-    service_provision_unit_file_ownership_and_writes.rs  <- src/native/service/service_provision_unit_file_ownership_and_writes.rs
-      The checks and writes on the unit files of the commit service: which files carry the wrapper's marker, whether any
-    service_provision.rs  <- src/native/service/service_provision.rs
-      The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it: it writes
-    service_client_settings_and_watches.rs  <- src/native/service/service_client_settings_and_watches.rs
-      The settings of one client run (how it reaches the service, how long it waits, what it keeps fresh) and the watch it ...
-    service_client_reach_service.rs  <- src/native/service/service_client_reach_service.rs
-      Reaches the commit service: connects to its address, starts it through its unit when nothing answers, and waits for a
-    service_client.rs  <- src/native/service/service_client.rs
-      The wrapper's side of a commit through the resident service: connect, wait honestly while the operating system
-    service_handoff.rs  <- src/native/landing/service_handoff.rs
-      The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service landed and wake
-    service_pruned.rs  <- src/native/landing/service_pruned.rs
-      How a commit headed for the service notices that the content it prepared was removed from the repository before it
-    service_route.rs  <- src/native/landing/service_route.rs
-      How a commit reaches the resident service: already listening, or set up first by the wrapper.
-  running_git_push_until_it_ends_or_stalls/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, clearing_leftover_reference_locks, finding_the_git_folders, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, starting_git_and_describing_a_run
-    one_push_attempt_and_its_failure.rs  <- NEW
-      One push attempt and the failure of a push that ran alone.
-    how_to_change_the_push_deadline.rs  <- src/native/push/push_deadline_advice.rs
-      The words that tell a person how to change the push deadline, for the program that is running the push.
-    waiting_for_a_push_to_end.rs  <- NEW
-      Waiting for a push child to end, ending it, and the one bounded push run.
-    one_git_query_that_ends_when_idle.rs  <- src/native/push/bounded_query.rs
-      Run one read-only Git query that is ended only when it shows no sign of work, with separate output streams.
-    running_one_push_at_a_time.rs  <- src/native/push/auto_push_single_flight.rs
-      The service's Git for a push: the real Git, its working directory and environment, the command builder, the
-    clearing_locks_around_a_push.rs  <- src/native/lock/push_lock_clearing.rs
-      The wrapper's own fetch and push, run after the reference locks of a killed Git in their repository have been judged
-    pushing_until_it_ends_or_stalls.rs  <- src/native/push/bounded_push.rs
-      Run the auto-push's real `git push` (and its fetch and Git LFS upload) until it ends, or stops showing any sign of ...
-  the_hidden_second_git_folder/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, git_settings_read_once, log_lines_of_the_commit_service, reading_branches_tags_and_markers, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, what_the_wrapper_asks_git_about_a_repository
-    empty_tree.rs  <- src/native/shadow/empty_tree.rs
-      The object name of the empty tree under each object format Git supports
-    capture_invocation.rs  <- src/native/commit/capture_invocation.rs
-      The transaction facts recorded before any Git mutation
-    shadow_git.rs  <- src/native/shadow/shadow_git.rs
-      Git commands run against a transaction's shadow repository
-    conclusion_cleanup.rs  <- src/native/commit/conclusion_cleanup.rs
-      Native conclusion cleanup reproduced in the owning worktree's Git directory after a
-    conclusion_copy.rs  <- src/native/commit/conclusion_copy.rs
-      The merge, cherry-pick and revert conclusion state copied into the shadow at preparation
-    shadow_config.rs  <- src/native/shadow/shadow_config.rs
-      The shadow repository's `config` file, written by cli-git itself
-    shadow_links.rs  <- src/native/shadow/shadow_links.rs
-      Links every non-private entry of the real common Git directory into a shadow repository
-    shadow_refs.rs  <- src/native/shadow/shadow_refs.rs
-      The shadow ref store: a snapshot of every real ref
-    shadow_skeleton.rs  <- src/native/shadow/shadow_skeleton.rs
-      The files and directories of an empty bare repository on the files ref backend, created in-process.
-    shadow_create.rs  <- src/native/shadow/shadow_create.rs
-      Creates the shadow repository of one published transaction
+      The lifecycle points at which policies run, which shipped policy runs at which point, and which ...
   saving_copies_of_what_a_command_would_throw_away/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, messages_between_the_wrapper_and_the_commit_service, reading_branches_tags_and_markers, reading_options_the_way_git_does, reading_saved_commits_and_files, recording_where_worktree_add_spent_its_time, rules_about_where_a_command_may_run, running_git_for_a_transaction, starting_git_and_describing_a_run, the_hidden_second_git_folder, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, what_each_git_command_accepts
+    uses/ -> finding_the_git_folders, how_long_the_program_waits_for_git_steps, messages_between_the_wrapper_and_the_commit_service, moving_kept_files_to_the_new_names, names_this_release_and_the_one_before, reading_branches_tags_and_markers, reading_options_the_way_git_does, reading_saved_commits_and_files, rules_about_where_a_command_may_run, running_git_for_a_transaction, running_policies_and_settling_their_corrections, the_hidden_second_git_folder, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository, file_operations_that_never_follow_a_link, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    abort_recheck.rs  <- src/native/conflict/abort_recheck.rs
+      The second measurement of an abort or a skip, made immediately before the wrapper hands the command ...
+    abort_discard_guard.rs  <- src/native/conflict/abort_discard_guard.rs
+      The linked-worktree policy's carve-out for the abort and skip forms (`git merge --abort`, `git ...
     autostash_carry.rs  <- src/native/conflict/autostash_carry.rs
-      Carrying back what Git's apply of a merge's autostash left in the commit's scratch repository when the apply ...
-    command_conflict_side.rs  <- src/native/conflict/command_conflict_side.rs
-      Which `git checkout` and `git restore` command lines take one side of a conflicted file
+      Carrying back what Git's apply of a merge's autostash left in the commit's scratch repository when ...
     conflict_markers.rs  <- src/native/conflict/conflict_markers.rs
-      Which committed files still hold conflict marker lines, read from the committed content, and the one line that tells a
-    conflict_side_decision.rs  <- src/native/conflict/conflict_side_decision.rs
-      Whether every token of a command line names a conflicted file
+      Which committed files still hold conflict marker lines, read from the committed content, and the ...
+    conflict_side_decision.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    conflict_side_guard.rs  <- src/native/conflict/conflict_side_guard.rs
+      The linked-worktree policy's reading of a `git checkout` or `git restore` command line that would ...
+    command_conflict_side.rs  <- src/native/conflict/command_conflict_side.rs
+      Which `git checkout` and `git restore` command lines take one side of a conflicted file, and the ...
     conflict_side_modes.rs  <- src/native/conflict/conflict_side_modes.rs
-      The pathspec modes and the pathspec magic that make a conflict-side line unreadable to the guard
-    conflict_side_notice.rs  <- src/native/conflict/conflict_side_notice.rs
-      The plain-language notices of a conflict-side command
-    conflict_side_source.rs  <- src/native/conflict/conflict_side_source.rs
-      Finding the worktree file a conflict-side command is about to replace
+      The pathspec modes and the pathspec magic that make a pathspec name a set of files, and the ...
+    conflict_side_notice.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    discard_audit_generations.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    discard_audit_record.rs  <- src/native/conflict/discard_audit_record.rs
+      Everything one audit record states, and its line as JSON.
+    discarded_nested_repository.rs  <- src/native/conflict/discarded_nested_repository.rs
+      Moving the nested Git repositories a clean would delete beside the audit log, before Git runs.
     conflict_sides.rs  <- src/native/conflict/conflict_sides.rs
-      The saved copy of each file a conflict-side command replaces
+      The saved copy of each file a command that discards the person's own work replaces, and the one ...
+    conflict_side_source.rs  <- src/native/conflict/conflict_side_source.rs
+      Finding the worktree file a conflict-side command is about to replace, and copying it.
+    discarded_prune.rs  <- src/native/conflict/discarded_prune.rs
+      The bound on `<common git dir>/monochromatic-git-policy-cli/discarded/`: copies older than a number ...
     discard_audit.rs  <- src/native/conflict/discard_audit.rs
-      The append-only record of every command form that can discard uncommitted state: rejected, allowed because the
+      The append-only record of every command form that can discard uncommitted state: rejected, allowed ...
+    discard_audit_facts.rs  <- src/native/conflict/discard_audit_facts.rs
+      The named facts one audit record carries beside the fields every record has, as the JSON object ...
+    discard_audit_pins.rs  <- src/native/conflict/discard_audit_pins.rs
+      Whether one audit generation names a saved copy of a conflicted file that still exists, which is ...
+    discarded_prune_audit_line.rs  <- src/native/conflict/discarded_prune_audit_line.rs
+      The audit line one removed directory of saved copies leaves: the outcome, the reason, the limit, ...
+    discarded_prune_plan.rs  <- src/native/conflict/discarded_prune_plan.rs
+      Which saved-copy directories a pass removes, and why: the ones past the age limit, then the oldest ...
     discarded_prune_limits.rs  <- src/native/conflict/discarded_prune_limits.rs
-      The two limits of the folder of saved copies, their defaults, and the reading of a size such as `256m`.
-    discarded_store_records.rs  <- src/native/conflict/discarded_store_records.rs
-      The plain values the descriptor-based reader of the folder of saved copies hands around: which directory was seen
+      The two limits of the folder of saved copies, their defaults, and the reading of a size such as ...
+    discarded_report.rs  <- src/native/conflict/discarded_report.rs
+      What the folder of saved conflict copies holds (`Report`) and the text the doctor prints for it, ...
+    discarded_prune_problems.rs  <- src/native/conflict/discarded_prune_problems.rs
+      What can go wrong in a pass over the folder of saved copies, the words that say it, and the listing ...
     discarded_prune_stamps.rs  <- src/native/conflict/discarded_prune_stamps.rs
       The time stamps in the names of saved-copy directories, and the entry that carries one.
-    discarded_prune_plan.rs  <- src/native/conflict/discarded_prune_plan.rs
-      Which saved-copy directories a pass removes, and why: the ones past the age limit, then the oldest until the folder ...
-    discarded_prune_audit_line.rs  <- src/native/conflict/discarded_prune_audit_line.rs
-      The audit line one removed directory of saved copies leaves: the outcome, the reason, the limit, the sizes and the ...
-    discarded_prune_problems.rs  <- src/native/conflict/discarded_prune_problems.rs
-      What can go wrong in a pass over the folder of saved copies, the words that say it, and the listing that carries both.
     discarded_store.rs  <- src/native/conflict/discarded_store.rs
-      The folder of saved copies (`<common git dir>/cli-git/discarded`) opened once without following a link, and every
-    discarded_prune.rs  <- src/native/conflict/discarded_prune.rs
-      The bound on `<common git dir>/cli-git/discarded/`: copies older than a number of days are removed, and the folder is
-    conflict_side_guard.rs  <- src/native/conflict/conflict_side_guard.rs
-      The linked-worktree policy's carve-out for conflicted files
-    discard_audit_generations.rs  <- src/native/conflict/discard_audit_generations.rs
-      The history of `cli-git-audit.jsonl`: where a rotated file goes, which generations may be removed, and the pass that
+      The folder of saved copies (`<common git dir>/monochromatic-git-policy-cli/discarded`) opened once ...
+    discarded_store_records.rs  <- src/native/conflict/discarded_store_records.rs
+      The plain values the descriptor-based reader of the folder of saved copies hands around: which ...
+  scanning_other_mount_namespaces/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> attaching_a_zfs_clone_folder, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file
+    (new folder of this round: The mount-namespace read the wrapper scans share: live tasks by namespace, one mountinfo read per namespace, and the match to one ZFS source.)
+    namespace_table_reads.rs  <- src/native/mount_namespace_scan/namespace_table_reads.rs
+      One mount namespace's table read: one thread tried at a time until one answers, in the order that ...
+    mount_namespace_tasks.rs  <- src/native/mount_namespace_scan/mount_namespace_tasks.rs
+      Every live thread of one `/proc` root, grouped by the mount namespace the kernel says the thread is ...
+    zfs_source_mounts.rs  <- src/native/mount_namespace_scan/zfs_source_mounts.rs
+      Which mounts of one table are mounts of one exact ZFS dataset: the filesystem type `zfs` and the ...
+  scanning_those_bytes_for_forbidden_strings/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> putting_corrected_files_into_the_private_index, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, running_policies_and_settling_their_corrections, the_settings_file_cli_git_config_jsonc
+    failure_codes_of_scanning.rs  <- src/native/candidate/scanner_failure_code.rs
+      Which engine failure code each failure of the candidate and scanner layers carries.
+    scanning_one_version.rs  <- src/native/candidate/scanner_run.rs
+      Scan every eligible candidate of one version through the loaded scanner.
+    content_the_parent_commit_already_has.rs  <- src/native/candidate/candidate_known_content.rs
+      Which candidates hold content that a parent commit's tree already holds, found by exact blob object ...
+    which_rules_files_the_scanner_loads.rs  <- src/native/candidate/scanner_selection.rs
+      Which rules files the scanner loads, and which candidates it is given.
+    the_forbidden_strings_scanner.rs  <- src/native/candidate/scanner_adapter.rs
+      The repository's forbidden-strings scanner, linked in and loaded once per invocation.
+  sending_log_entries_to_the_system_journal/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> stopping_the_program_at_a_named_step_for_tests, lines_printed_for_the_person
+    journal_entry_from_the_wrapper.rs  <- src/native/service/client_journal.rs
+      One entry from the wrapper a person ran to the journal, as a datagram on the native socket, sent ...
+    writing_to_the_system_journal.rs  <- src/native/service/journald_native.rs
+      The service's way into the journal: the native journal protocol over a datagram socket when the ...
+    where_journal_entries_are_sent.rs  <- src/native/service/journald_native_socket_target.rs
+      The address the native journal entries are sent to: the journal's own socket, or a path or abstract ...
   settings_that_decide_how_the_index_is_read/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
     uses/ -> reading_git_settings_from_files
     index_extension_settings.rs  <- src/native/index/index_settings.rs
-      The configuration that decides what Git does to the extensions of an index it reads and writes, and whether the
-  waiting_for_the_index_lock_of_git/
+      The configuration that decides what Git does to the extensions of an index it reads and writes, and ...
+  settling_the_records_of_a_zfs_clone/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_who_holds_a_lock_file, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper
-    waiting_for_any_programs_hold_on_the_index_lock.rs  <- src/native/lock/index_holder_wait.rs
-      The wait of a command that is about to change the checkout for any program's hold on Git's `index.lock`: the commit
-    does_a_command_write_the_index.rs  <- src/native/lock/index_writer_commands.rs
-      Whether a resolved forwarded command writes the real index.
-  landing_commits/
+    uses/ -> cleaning_up_the_origin_of_a_zfs_clone, proving_a_zfs_clone_may_be_removed, reading_the_datasets_zfs_mounts, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_root_modes_that_attach_and_unmount_zfs_clones, the_state_of_one_zfs_clone_slot, file_operations_that_never_follow_a_link
+    (new folder of this round: The settling command a state names and this release does not have yet.)
+    settling_command.rs  <- src/native/worktree_clone_record_settling/settling_command.rs
+      The settling command's one entry: the reads the design orders, the two modes and the refusal, and ...
+    settling_lines.rs  <- src/native/worktree_clone_record_settling/settling_lines.rs
+      The lines the settling command prints: the slot and the record it confirmed, what each read ...
+    settling_absence.rs  <- src/native/worktree_clone_record_settling/settling_absence.rs
+      What the pool answers about the recorded clone's existence, read by its name and by its GUID under ...
+    settling_record.rs  <- src/native/worktree_clone_record_settling/settling_record.rs
+      The binding record the settling command acts on: its reading, the identities a removal compares, ...
+    settling_removals.rs  <- src/native/worktree_clone_record_settling/settling_removals.rs
+      The removals themselves, run in the order `settling_steps` states and proved gone one by one.
+    settling_request.rs  <- src/native/worktree_clone_record_settling/settling_request.rs
+      The three values the settling command's grammar carries, read from its arguments: the slot, the ...
+    settling_slot.rs  <- src/native/worktree_clone_record_settling/settling_slot.rs
+      What stands at one slot and at the registration its record names: the `.git` pointer's words, the ...
+    settling_standing_records.rs  <- src/native/worktree_clone_record_settling/settling_standing_records.rs
+      The two records that may stand beside a slot's binding: an origin cleanup record and a destruction ...
+    settling_refusal.rs  <- src/native/worktree_clone_record_settling/settling_refusal.rs
+      Every way the settling command stops without settling, and the sentence a person reads.
+    settling_steps.rs  <- src/native/worktree_clone_record_settling/settling_steps.rs
+      The two orders the settling command removes records in, as data a control reads without watching ...
+    settling_words.rs  <- src/native/worktree_clone_record_settling/settling_words.rs
+      The words the settling command reads and prints: its two flags, the placeholders a printed line ...
+  sha_1_and_sha_256_of_bytes/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, finding_the_git_folders, git_settings_read_once, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, naming_the_service_of_one_worktree, reading_and_writing_the_index_file_of_git, reading_git_settings_from_files, reading_saved_commits_and_files, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, saving_copies_of_what_a_command_would_throw_away, sending_log_entries_to_the_system_journal, settings_that_decide_how_the_index_is_read, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path, the_hidden_second_git_folder, waiting_for_the_index_lock_of_git
-    index_reset.rs  <- src/native/index/index_reset.rs
-      `git reset <tree> -- <paths>` on an index held in memory: for every path the literal pathspecs name, the entries of ...
-    index_reset_publish.rs  <- src/native/index/index_reset_publish.rs
-      How the in-process index update gets its result onto the landing's private index: the name of that index, a temporary ...
-    index_reset_tree.rs  <- src/native/index/index_reset_tree.rs
-      The tree questions an in-process path reset asks: a commit's root tree, the entries of that tree at or below given
-    service_land_copy.rs  <- src/native/landing/service_land_copy.rs
-      The landing's private copy of the live index: a directory this landing made for itself beside the live index, holding ...
-    index_reset_file.rs  <- src/native/index/index_reset_file.rs
-      The landing's index update without a Git process: read the private index file, reset the commit's paths to the commit
-    maintenance_decision.rs  <- src/native/landing/maintenance_decision.rs
-      The decision behind automatic maintenance after a landing
-    maintenance_run.rs  <- src/native/landing/maintenance_run.rs
-      Running automatic maintenance after a landing
-    service_built_checks.rs  <- src/native/landing/service_built_checks.rs
-      The two questions the landing asks about a commit that Git built (a signed commit), answered from the object store ...
-    service_busy_answers_and_name_checks.rs  <- src/native/service/service_busy_answers_and_name_checks.rs
-      The shapes the landing board answers with (an early answer, a group admission, a naming, a decision) and the checks ...
-    service_journal_intent_text_and_parse.rs  <- src/native/service/service_journal_intent_text_and_parse.rs
-      The intent of a batch: the record of what a landing is about to do, written as `key=value` lines and read back, with ...
-    service_land_start.rs  <- src/native/landing/service_land_start.rs
-      The witness of the live index file as the landing found it under the index lock, recorded in the journal, and the ...
-    service_journal.rs  <- src/native/service/service_journal.rs
-      The resident service's journal: one file per batch of commits, with the one durable write the batch needs, and the
-    service_busy.rs  <- src/native/service/service_busy.rs
-      What the commit service's one landing thread is doing, shared with the threads that talk to waiting clients: the ...
-    service_busy_step_record_on_this_thread.rs  <- src/native/service/service_busy_step_record_on_this_thread.rs
-      The record a thread keeps of the write it is inside when that write is never ended: which landing board the thread
-    service_captures.rs  <- src/native/landing/service_captures.rs
-      The service's memory of when the bytes of the commits it landed were captured, kept per worktree.
-    service_head.rs  <- src/native/landing/service_head.rs
-      Whether a worktree's head still names the branch a commit was prepared on.
-    service_land_context.rs  <- src/native/landing/service_land_context.rs
-      What the commit service needs to land a batch: how to run Git, where the journal lives, a test seam and the lock ...
-    service_land_follow.rs  <- src/native/landing/service_land_follow.rs
-      What the service's landing does once the branch has moved: the worktree's index entries of the commit's paths and the
-    service_land_finish.rs  <- src/native/landing/service_land_finish.rs
-      What follows the branch move of a landing and of a restart: the conclusion state and the index update, and the ...
-    service_land_git_steps_and_import_stream.rs  <- src/native/landing/service_land_git_steps_and_import_stream.rs
-      The Git steps of a landing and the text it feeds Git: running one step and telling a step ended at its ceiling from ...
-    service_land_objects_of_batch.rs  <- src/native/landing/service_land_objects_of_batch.rs
-      The objects a batch lands: the commit Git built, checked for its parents and its objects, or the commits ...
-    service_land_take_index_lock.rs  <- src/native/landing/service_land_take_index_lock.rs
-      Takes the index lock for a batch that is ready to land, notes the wait in the timing and the log, and cleans up when ...
-    service_land.rs  <- src/native/landing/service_land.rs
-      The service's serialized step: land a batch of prepared commits on a branch, and finish the batches a killed
-  converting_the_main_checkout/
+    sha_1_and_sha_256.rs  <- src/native/subvolume/subvolume_sha.rs
+      SHA-1 and SHA-256 of a byte string, from the published `sha1` and `sha2` crates.
+  spellings_that_switch_the_wrapper_off/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> how_long_the_program_waits_for_git_steps, reading_git_settings_from_files, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run, who_owns_a_transaction_folder
-    subvolume_error.rs  <- src/native/subvolume/subvolume_error.rs
-      The failure type of the subvolume migration and the test hook that simulates a kill.
-    single_owner_claim.rs  <- src/native/lock/single_owner_claim.rs
-      The right of one running command to work on one item (a worktree being converted, a checkout being migrated), held
-    subvolume_anchor.rs  <- src/native/subvolume/subvolume_anchor.rs
-      An open directory used as the fixed point of every operation inside it: the directory is opened one component at
-    subvolume_arguments.rs  <- src/native/subvolume/subvolume_arguments.rs
-      The grammar of `git cli-git migrate-to-subvolume`, the wrapper's command that converts the main checkout into a
-    subvolume_index.rs  <- src/native/subvolume/subvolume_index.rs
-      The stat rewrite of a Git index: the bytes of an index file in, the bytes of the same index out, with the stat
-    subvolume_file_write_steps.rs  <- src/native/subvolume/subvolume_file_write_steps.rs
-      Two file steps that the migration's writers share: write bytes and flush them to disk, and flush a directory.
-    subvolume_index_install_into_new_worktree.rs  <- src/native/subvolume/subvolume_index_install_into_new_worktree.rs
-      The install of a first index into a new worktree: written into `index.lock`, linked under the name `index` without
-    subvolume_journal.rs  <- src/native/subvolume/subvolume_journal.rs
-      The journal of a subvolume migration: a small JSON file beside the checkout that records which steps finished
-    subvolume_lock.rs  <- src/native/subvolume/subvolume_lock.rs
-      The index locks the migration holds: one `index.lock` file for the main index and one for the index of each linked
-    subvolume_index_files.rs  <- src/native/subvolume/subvolume_index_files.rs
-      The linked worktrees of a main checkout, found from `.git/worktrees/*/gitdir`, and the stat rewrite applied to the
-    subvolume_platform.rs  <- src/native/subvolume/subvolume_platform.rs
-      The operating-system operations the subvolume migration needs, behind one trait, and the Linux implementation
-    subvolume_entry_count.rs  <- src/native/subvolume/subvolume_entry_count.rs
-      The count of the entries under a checkout: every file, directory and link below its root, counted once each.
-    subvolume_preflight.rs  <- src/native/subvolume/subvolume_preflight.rs
-      The paths of one migration and the refusals that stop it before anything is created: every refusal names its cause
-    subvolume_sync_attrs.rs  <- src/native/subvolume/subvolume_sync_attrs.rs
-      Copying the attributes of one directory entry onto its copy: owner, permission bits, access and modification
-    subvolume_sync_pass_state_and_checks.rs  <- src/native/subvolume/subvolume_sync_pass_state_and_checks.rs
-      The pieces every step of a tree sync shares: the options and the statistics, the work stack's entries, the open ...
-    subvolume_sync.rs  <- src/native/subvolume/subvolume_sync.rs
-      Make one directory tree match another, in process: copy what is missing or changed (cloning file data where the
-    subvolume_run.rs  <- src/native/subvolume/subvolume_run.rs
-      The state one migration command carries between its steps: the platform, the paths, the journal, the progress
-    subvolume_migrate.rs  <- src/native/subvolume/subvolume_migrate.rs
-      Convert a main checkout into a btrfs subvolume at the same path, in process, resumably.
-    subvolume_rollback.rs  <- src/native/subvolume/subvolume_rollback.rs
-      Undo a migration (`--rollback`) and delete the old tree after a finished one (`--remove-old`), plus the removal of
-    subvolume_command.rs  <- src/native/subvolume/subvolume_command.rs
-      `git cli-git migrate-to-subvolume`: find the repository's main checkout from the working directory, run the
-    subvolume_sync_copy_one_entry.rs  <- src/native/subvolume/subvolume_sync_copy_one_entry.rs
-      The copying of one source entry (a file, a symbolic link or a named pipe) into the destination, as methods of `Pass`.
-  planning_a_worktree_add_and_what_git_made/
+    escape_hatch_spellings.rs  <- src/native/invocation/escape_hatch.rs
+      The spellings of the wrapper-only escape hatches several modules share.
+  starting_git_and_describing_a_run/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> git_settings_read_once, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, starting_git_and_describing_a_run, what_each_git_command_accepts
-    checkout_workers.rs  <- src/native/worktree/checkout_workers.rs
-      Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that does it.
-    worktree_add_binding.rs  <- src/native/worktree/worktree_add_binding.rs
-      The binding of one `git worktree add` to the objects real Git made for it (the destination directory and the
-    worktree_add_plan.rs  <- src/native/worktree/worktree_add_plan.rs
-      The plan for one `git worktree add` the cheap-worktree ladder may serve: where the new worktree goes and where in
-  copying_ignored_files_into_a_stage/
+    uses/ -> environment_variables_for_git_children, finding_the_real_git_program, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, saving_copies_of_what_a_command_would_throw_away, what_each_git_command_accepts, what_happens_when_you_type_a_command, starting_programs_catching_signals_and_keeping_their_output, lines_printed_for_the_person
+    external_git_command.rs  <- src/native/invocation/external_git_command.rs
+      Whether Git reaches an executable named `git-<word>` before it looks for an alias of that word.
+    starting_git_with_the_callers_arguments.rs  <- src/native/invocation/forwarding.rs
+      Start real Git with the caller's exact arguments, streams and environment.
+    git_command_name.rs  <- src/native/lock/git_command_name.rs
+      Whether a process's command name is Git's, or one of its helpers'.
+    git_report_answers.rs  <- src/native/commit/git_report_answers.rs
+      The answers of one `git rev-parse` report: one answer with its terminator removed, the answers of a ...
+    git_step_failure.rs  <- src/native/commit/git_step_failure.rs
+      The last Git step of this process that failed, with the status it exited with, kept until a ...
+    system_settings_file_of_git.rs  <- src/native/repo_read/git_system_config.rs
+      The system configuration file that one real Git executable reads when `GIT_CONFIG_SYSTEM` is not ...
+    starting_git_with_hooks_off.rs  <- src/native/invocation/hooks_off.rs
+      Start the real Git with every hook switched off, and with Git's file-watching monitor switched off ...
+    what_a_git_run_asks_and_answers.rs  <- src/native/transaction/transaction_git_request_and_reply_types.rs
+      The request that starts one real Git, the reply it gets back, and the failure that names the ...
+    what_a_command_hands_back.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    worktree_command_facts.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+  state_shared_by_preparing_and_landing_a_commit/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> planning_a_worktree_add_and_what_git_made, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper, who_owns_a_transaction_folder
-    worktree_copy_error.rs  <- src/native/worktree_copying/worktree_copy_error.rs
-      The one failure type of the linked-worktree ignored-state copy
-    worktree_copy_prune.rs  <- src/native/worktree_copying/worktree_copy_prune.rs
-      What a copy from a main checkout leaves out of the ignored state it hands over
-    worktree_copy_selection.rs  <- src/native/worktree_copying/worktree_copy_selection.rs
-      Which source paths the linked-worktree copy selects
-    worktree_copy_manifest.rs  <- src/native/worktree_copying/worktree_copy_manifest.rs
-      The deterministic, parent-first list of entries a copy transfers
-    worktree_copy_compare.rs  <- src/native/worktree_copying/worktree_copy_compare.rs
-      Exact comparison of one manifest entry against the filesystem
-    worktree_copy_git_steps.rs  <- NEW
-      The plain description of a Git step, its status and its runner that the copy and the ladder both use.
-    worktree_copy_stage_leaf_copying.rs  <- src/native/worktree_copying/worktree_copy_stage_leaf_copying.rs
-      The copying of a staged snapshot's files and links from the source into the stage, one worker per slice of the ...
-    worktree_copy_install_entry.rs  <- src/native/worktree_copying/worktree_copy_install_entry.rs
-      The exclusive creation of one destination entry from the private stage
-    worktree_copy_rollback.rs  <- src/native/worktree_copying/worktree_copy_rollback.rs
-      Removal of the paths one failed installation created
-    worktree_copy_install.rs  <- src/native/worktree_copying/worktree_copy_install.rs
-      Installation of one validated stage into a newly registered worktree
-    worktree_copy_journal_encoding_and_validation.rs  <- src/native/worktree_copying/worktree_copy_journal_encoding_and_validation.rs
-      The exact JSON encoding of one destination's linked-worktree copy journal, and the strict reading and validation of ...
-    worktree_copy_owner.rs  <- src/native/worktree_copying/worktree_copy_owner.rs
-      The process that owns one item of a copy transaction (a journal, a stage claim, a temporary file), written into the
-    worktree_copy_stage.rs  <- src/native/worktree_copying/worktree_copy_stage.rs
-      The private, validated copy of one source's ignored state
-    worktree_copy_journal.rs  <- src/native/worktree_copying/worktree_copy_journal.rs
-      The durable journal of one destination's linked-worktree copy
-    worktree_copy_install_log.rs  <- src/native/worktree_copying/worktree_copy_install_log.rs
-      The append-only install log inside one transaction's private stage
-    worktree_copy_journal_removal.rs  <- src/native/worktree_copying/worktree_copy_journal_removal.rs
-      The removal of a finished or abandoned copy transaction's stage and journal.
-    worktree_copy_stage_claim.rs  <- src/native/worktree_copying/worktree_copy_stage_claim.rs
-      The durable claim on a stage container's name, written before the container exists
-    worktree_copy_stage_claim_reaping.rs  <- src/native/worktree_copying/worktree_copy_stage_claim_reaping.rs
-      The judging of stage claims and their temporaries, and the removal of the stages that interrupted copies and ...
-    worktree_copy_transaction.rs  <- src/native/worktree_copying/worktree_copy_transaction.rs
-      One destination's journaled installation to an end, and the synchronization of every created worktree.
-    worktree_copy_recovery.rs  <- src/native/worktree_copying/worktree_copy_recovery.rs
-      Recovery of interrupted linked-worktree copies: every pending journal is resumed, completed, or discarded
-    worktree_copy_registry.rs  <- src/native/worktree_copying/worktree_copy_registry.rs
-      The linked worktree a `git worktree add` registered at the destination its command line names
-  is_the_worktree_clean/
+    uses/ -> finding_the_git_folders
+    repository_state_of_a_transaction.rs  <- src/native/transaction/transaction_journal.rs
+      The values a commit's preparation and the service's landing share about the repository state they ...
+  stopping_the_program_at_a_named_step_for_tests/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> converting_the_main_checkout, finding_the_git_folders, lines_about_worktrees_and_large_files, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, sha_1_and_sha_256_of_bytes, starting_git_and_describing_a_run
-    worktree_attributes.rs  <- src/native/worktree/worktree_attributes.rs
-      Git's attribute-file lexer and pattern matcher over raw bytes, as far as a refusal needs them: which lines of an
-    worktree_clean_stat_verdicts.rs  <- src/native/worktree/worktree_clean_stat_verdicts.rs
-      What a clean check says about one tracked file: the refusal types, one index entry's recorded stat data, and the ...
-    worktree_clean_content_attribute_sources.rs  <- src/native/worktree/worktree_clean_content_attribute_sources.rs
-      The environment and the attribute files a content check reads: where the system and global attributes files are, what
-    worktree_clean_content.rs  <- src/native/worktree/worktree_clean_content.rs
-      The decision, by content and without a Git process, whether a tracked file that its index entry's stat data cannot
-    worktree_clean_tree_walk.rs  <- src/native/worktree/worktree_clean_tree_walk.rs
-      The walks of a worktree's tracked files against the index's recorded stat data, by metadata alone or by content for ...
-    worktree_clean.rs  <- src/native/worktree/worktree_clean.rs
-      Whether a worktree is clean enough to be copied from, or removed without asking Git: no operation in progress, an
-  making_a_worktree_quickly/
+    uses/ -> how_long_the_program_waits_for_git_steps, lines_printed_for_the_person
+    fault_points_the_service_can_be_told_to_hit.rs  <- src/native/service/service_fault.rs
+      Test-only fault points of the resident service: `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the ...
+    service_fault_hooks_test_support.rs  <- src/native/service/service_fault_hooks_test_support.rs
+      Test-only hooks of the service's fault points: a control sets code to run, or a step to fail, at a ...
+    the_answer_a_control_states.rs  <- src/native/foundation/the_answer_a_control_states.rs
+      An answer a control states for the jobs its own thread asks the blocking pool for, so the two ...
+    phase_markers_for_crash_tests.rs  <- src/native/transaction/transaction_phase.rs
+      Test-only phase markers of the isolated merge, of a commit headed for the service and of the ...
+    test_only_switches.rs  <- src/native/foundation/test_only_switches.rs
+      The one read every test-only switch of this crate goes through: the value a `CLI_GIT_TEST_ONLY_*` ...
+  syncing_files_off_the_waiting_path/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> asking_the_commit_service_to_save_a_commit, converting_the_main_checkout, copying_ignored_files_into_a_stage, finding_the_git_folders, git_settings_read_once, how_long_the_program_waits_for_git_steps, is_the_worktree_clean, lines_about_worktrees_and_large_files, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, planning_a_worktree_add_and_what_git_made, reading_saved_commits_and_files, reading_the_bytes_a_commit_would_save, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, the_words_meant_for_this_wrapper, work_left_for_the_service_to_finish_later
-    worktree_snapshot_source.rs  <- src/native/worktree/worktree_snapshot_source.rs
-      Whether the creating worktree can be the source of a snapshot for a new worktree, decided before real Git runs, and
-    worktree_clone.rs  <- src/native/worktree/worktree_clone.rs
-      Rung 2 of the cheap-worktree ladder: each tracked file of the clean source is cloned (`FICLONE`) into the new worktree
-    worktree_completion_file_inspection.rs  <- src/native/worktree/worktree_completion_file_inspection.rs
-      The descriptor-bound look at one added path's worktree copy: its identity, whether it still holds the original bytes, ...
-    worktree_completion.rs  <- src/native/worktree/worktree_completion.rs
-      Bringing each added path's worktree copy to the landed bytes after a commit landed
-    worktree_ladder_target.rs  <- src/native/worktree/worktree_ladder_target.rs
-      What both rungs that fill a worktree themselves need to know about the target of a `git worktree add` once real Git
-    worktree_dirty_restore.rs  <- src/native/worktree/worktree_dirty_restore.rs
-      The restore of a snapshot of a main checkout that had uncommitted changes: make the copy's index and files equal the
-    worktree_slow_route.rs  <- src/native/worktree/worktree_slow_route.rs
-      The plain sentence that tells a person why a `git worktree add` was not made as a snapshot, and the places it goes
-    worktree_subvolume.rs  <- src/native/worktree/worktree_subvolume.rs
-      The empty btrfs subvolume the wrapper makes at the destination of a `git worktree add`, before real Git runs, and
-    worktree_ladder_run.rs  <- src/native/worktree/worktree_ladder_run.rs
-      The ladder around one `git worktree add` on Linux: the choice of rung before real Git runs, and, after it
-    worktree_ladder.rs  <- src/native/worktree/worktree_ladder.rs
-      The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it, on Linux; on other
-    worktree_trash_manifest.rs  <- src/native/worktree/worktree_trash_manifest.rs
-      What a snapshot's leave-out made and moved, with identities: the trash directory it created and each directory it
-    worktree_trash_entries.rs  <- src/native/worktree/worktree_trash_entries.rs
-      The removal of the entries a snapshot's leave-out moved into its trash, side by side.
-    worktree_trash_dispose.rs  <- src/native/worktree/worktree_trash_dispose.rs
-      The disposal of the trash a snapshot's leave-out made: hand it to the commit service as a work item, or empty it here ...
-    worktree_trash.rs  <- src/native/worktree/worktree_trash.rs
-      The leave-out step of a snapshot of the main checkout: set aside the nested worktrees that are ordinary directories
-    worktree_snapshot.rs  <- src/native/worktree/worktree_snapshot.rs
-      The mechanics of rung 1 of the cheap-worktree ladder: a snapshot of the source subvolume taken at a stage name beside
-    worktree_ladder_finish.rs  <- src/native/worktree/worktree_ladder_finish.rs
-      What the ladder does after real Git returned: bind the add to the directories Git made, the snapshot rung's steps ...
-  recovering_a_merge_that_was_cut_short/
+    uses/ -> holding_the_index_lock_for_the_commit_service, stopping_the_program_at_a_named_step_for_tests, running_independent_jobs_side_by_side
+    syncs_off_the_waiting_path.rs  <- src/native/landing/service_durable.rs
+      Where the landing's own syncs wait: not on the path the person waits on, unless the landing ...
+    service_durable_syncs.rs  <- src/native/landing/service_durable_syncs.rs
+      The syncs one landing of a commit made, as its answer states them: what each was for and how long ...
+  taking_snapshots_for_the_zfs_clone_route/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> log_lines_of_the_commit_service, running_git_for_a_transaction, starting_git_and_describing_a_run, who_owns_a_transaction_folder
-    merge_isolation_changes.rs  <- src/native/merge/merge_isolation_changes.rs
-      The raw tree differences between the two commits of an isolated merge, and the state of a worktree path
-    merge_isolation_journal.rs  <- src/native/merge/merge_isolation_journal.rs
-      The durable intent record of an isolated merge: the commit it created, the branch value it expects, and the
-    merge_isolation_recovery_steps.rs  <- src/native/merge/merge_isolation_recovery_steps.rs
-      The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved take: where
-    merge_isolation_moved.rs  <- src/native/merge/merge_isolation_moved.rs
-      The settling of an isolated merge whose branch moved while the merge was prepared or applied: what the merge had begun
-    merge_isolation_recovery.rs  <- src/native/merge/merge_isolation_recovery.rs
-      Recovery of an isolated merge whose process died: discard it when it never touched the worktree or the index
-  merging_text_by_line_and_by_word/
+    (new folder of this round: The verified snapshot set a clone removal destroys, sent as one request when it fits a caller budget.)
+    snapshot_batch_plan.rs  <- src/native/worktree_clone_snapshot_batch/snapshot_batch_plan.rs
+      The requests a verified snapshot set becomes: no request for an empty set, one when the whole set ...
+    request_budget.rs  <- src/native/worktree_clone_snapshot_batch/request_budget.rs
+      The largest encoded request input one snapshot-destroy request may carry, as the caller passes it ...
+    snapshot_batch_send.rs  <- src/native/worktree_clone_snapshot_batch/snapshot_batch_send.rs
+      One planned chunk sent as its own `ZFS_IOC_DESTROY_SNAPS` request, through the wrapper's existing ...
+    snapshot_batch_answer.rs  <- src/native/worktree_clone_snapshot_batch/snapshot_batch_answer.rs
+      Read one request's answer as the outcome of every name it submitted, with the kernel's per-name ...
+    snapshot_batch_outcome.rs  <- src/native/worktree_clone_snapshot_batch/snapshot_batch_outcome.rs
+      What one snapshot-destroy request did, kept whole: every submitted name's outcome in request order, ...
+    snapshot_destroy_request.rs  <- src/native/worktree_clone_snapshot_batch/snapshot_destroy_request.rs
+      The one `ZFS_IOC_DESTROY_SNAPS` request a verified snapshot set becomes, its exact encoded input ...
+    request_refusal.rs  <- src/native/worktree_clone_snapshot_batch/request_refusal.rs
+      Why a verified snapshot set is not submitted at all: a name larger than the whole budget, a name ...
+    snapshot_name_outcome.rs  <- src/native/worktree_clone_snapshot_batch/snapshot_name_outcome.rs
+      What one snapshot-destroy request did to one submitted name: `destroyed`, `refused` with the ...
+  telling_whether_an_earlier_commit_service_still_runs/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    word_merge.rs  <- src/native/merge/word_merge.rs
-      A three-way merge of text by line, and by word for the line regions that both sides changed, in process.
-  rerunning_a_merge_word_by_word/
+    uses/ -> lines_about_worktrees_and_large_files
+    earlier_service_command_line_read.rs  <- src/native/landing/earlier_service_command_line_read.rs
+      What one process of the process table says about itself: the command line the look at an earlier ...
+    earlier_service_unsure_program.rs  <- src/native/landing/earlier_service_unsure_program.rs
+      The description of one running program that the look for the commit service of an earlier release ...
+  the_account_companion_of_the_zfs_add/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, finding_the_git_folders, merging_text_by_line_and_by_word, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, waiting_for_the_index_lock_of_git
-    merge_second_pass_conflicts.rs  <- src/native/merge/merge_second_pass_conflicts.rs
-      The conflicted files of a merge tree: the three stages of a path, the conflict they make, and the reading of `git ...
-    merge_second_pass_git_runner.rs  <- src/native/merge/merge_second_pass_git_runner.rs
-      How the word-level second pass starts Git: what a start gave back, the thing that runs a start, and the one that runs ...
-    word_level_second_pass.rs  <- src/native/merge/merge_second_pass.rs
-      The word-level second pass over the files a Git merge left conflicted: which conflicted files may be re-merged, their
-    merge_second_pass_finish_stops.rs  <- src/native/merge/merge_second_pass_finish_stops.rs
-      Which options of a merge, a pull, a cherry-pick or a revert make the finish stop where Git would stop, and the ...
-    merge_second_pass_finish.rs  <- src/native/merge/merge_second_pass_finish.rs
-      The finish after the word-level second pass resolved every conflicted file of a merge, rebase, cherry-pick, revert or ...
-    merge_second_pass_tree.rs  <- src/native/merge/merge_second_pass_tree.rs
-      The word-level second pass for a merge computed from objects: given the tree `git merge-tree` wrote and the stages of
-    merge_second_pass_worktree.rs  <- src/native/merge/merge_second_pass_worktree.rs
-      The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped with a conflict
+    uses/ -> stopping_the_program_at_a_named_step_for_tests, the_root_start_probe, saving_files_so_a_crash_leaves_no_half_file, watching_a_started_program_until_it_stops_making_progress
+    (new folder of this round: The account companion of the ZFS add route: the user-namespace check the add runs before its first write, with its deadline and its printed skip and refusals.)
+    companion_parent.rs  <- src/native/account_companion/companion_parent.rs
+      One companion run, as the add's preflight makes it: the scratch directory, the buffers, the fork ...
+    companion_child.rs  <- src/native/account_companion/companion_child.rs
+      The companion's child: its own process group and parent-death signal, its descriptor sweep, every ...
+    companion_child_attach.rs  <- src/native/account_companion/companion_child_attach.rs
+      The companion's descriptor attach onto its own slot, the mount facts read back after it, and the ...
+    companion_child_controls.rs  <- src/native/account_companion/companion_child_controls.rs
+      The four refusal controls the companion runs inside the tree it owns, each of which must refuse and ...
+    companion_child_tree.rs  <- src/native/account_companion/companion_child_tree.rs
+      The scratch tree the companion's child owns inside its own tmpfs: the slot, the move target and the ...
+    companion_deadline.rs  <- src/native/account_companion/companion_deadline.rs
+      The bound the companion's parent puts on its child, and the margin that covers the range its ...
+    companion_descriptor_calls.rs  <- src/native/account_companion/companion_descriptor_calls.rs
+      The descriptor calls the companion's child makes: the no-crossing walk, the file-system context of ...
+    companion_lines.rs  <- src/native/account_companion/companion_lines.rs
+      What one companion run means for the add, and the lines a person reads: the skip, the failed arm, ...
+    companion_mount_calls.rs  <- src/native/account_companion/companion_mount_calls.rs
+      The mount calls the companion's child makes inside its own namespaces: the private propagation of ...
+    companion_mount_table.rs  <- src/native/account_companion/companion_mount_table.rs
+      The mount facts the companion reads back: one descriptor's mount ID from the kernel's own `fdinfo`, ...
+    companion_records.rs  <- src/native/account_companion/companion_records.rs
+      One step's record on the companion child's status pipe, its fixed byte layout, and the parent's ...
+    companion_file_calls.rs  <- src/native/account_companion/companion_file_calls.rs
+      The file and mount calls the companion's child makes: opening and writing the two mapping files, ...
+    companion_scratch.rs  <- src/native/account_companion/companion_scratch.rs
+      The run's scratch directory under the account's runtime directory: the folder the caller resolves, ...
+    companion_process_calls.rs  <- src/native/account_companion/companion_process_calls.rs
+      The process calls the companion's parent makes: the pipe, the fork with its bounded retry, the ...
+    companion_settings.rs  <- src/native/account_companion/companion_settings.rs
+      The three settings the skip line prints, as this host answers them.
+    companion_test_switch.rs  <- src/native/account_companion/companion_test_switch.rs
+      The one test-only switch the companion reads, and the test deadline beside it.
+    companion_buffers.rs  <- src/native/account_companion/companion_buffers.rs
+      Every name and every line the companion's child writes, built in the parent before the fork.
+    companion_steps.rs  <- src/native/account_companion/companion_steps.rs
+      The account companion's steps, in the order its child runs them, the word each step is named by, ...
+    companion_calls.rs  <- src/native/account_companion/companion_calls.rs
+      The calls the companion's child makes, the word each is named by, and the one value a failed call ...
+  the_boot_units_that_reconcile_zfs_clones/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> the_root_modes_that_attach_and_unmount_zfs_clones
+    (new folder of this round: The boot and shutdown units of the ZFS route, and the gate that reconciles clone mounts once the checkout is ready.)
+    boot_unit_install_plan.rs  <- src/native/checkout_boot_units/boot_unit_install_plan.rs
+      Every file a setup run writes for the boot and shutdown route, in the order it writes them.
+    boot_gate_unit_text.rs  <- src/native/checkout_boot_units/boot_gate_unit_text.rs
+      The gate's own unit text, the stop-failure drop-in beside it, and the provider drop-in that asks ...
+    nested_dataset_unit_text.rs  <- src/native/checkout_boot_units/nested_dataset_unit_text.rs
+      One unit per dataset whose mountpoint lies inside the checkout: the unit that mounts it only after ...
+    propagation_unit_text.rs  <- src/native/checkout_boot_units/propagation_unit_text.rs
+      The propagation service and the mount drop-in that starts it: two files whose pair asks the gate to ...
+    boot_unit_facts.rs  <- src/native/checkout_boot_units/boot_unit_facts.rs
+      The values a setup run fills into the unit texts, and one file of the install plan: where it is ...
+    boot_unit_names.rs  <- src/native/checkout_boot_units/boot_unit_names.rs
+      Every name and path the boot and shutdown units are installed under, the owner's two time bounds, ...
+    unit_file_text.rs  <- src/native/checkout_boot_units/unit_file_text.rs
+      The shape every file of this folder is written in: one comment naming the file's own path, its INI ...
+  the_built_in_policies/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> checking_the_repository_link, copying_ignored_files_into_a_stage, making_a_worktree_quickly, putting_corrected_files_into_the_private_index, reading_the_bytes_a_commit_would_save, rules_about_where_a_command_may_run, running_git_for_a_transaction, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, scanning_those_bytes_for_forbidden_strings, sha_1_and_sha_256_of_bytes, the_list_of_checks_every_commit_runs, the_service_program, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, what_each_git_command_accepts, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, who_owns_a_transaction_folder, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    direct_fix_install_attributes_reading.rs  <- src/native/policy/direct_fix_install_attributes_reading.rs
+      The calls that read what a file carries outside its bytes: the list of names, one value, and the ...
+    direct_fix_install_journal_sweep.rs  <- src/native/policy/direct_fix_install_journal_sweep.rs
+      The sweep of the journals an interrupted fix left: what it removes, what it keeps and names, and ...
+    direct_fix_install_judging.rs  <- src/native/policy/direct_fix_install_judging.rs
+      What a name holds, and whether it holds exactly what an install put there or found there.
+    direct_fix_install_messages.rs  <- src/native/policy/direct_fix_install_messages.rs
+      The sentences a direct fix's install reports: every failure and every journal it keeps.
+    direct_fix_install_journal.rs  <- src/native/policy/direct_fix_install_journal.rs
+      The durable record of one correction a fix is installing: a directory inside the Git directory that ...
+    direct_fix_install_writes.rs  <- src/native/policy/direct_fix_install_writes.rs
+      The file-system primitives a direct fix installs with: the swap that puts a corrected file in place ...
+    direct_fix_install_attributes.rs  <- src/native/policy/direct_fix_install_attributes.rs
+      The extended attributes a file carries outside its bytes: reading them from the file a fix ...
+    policy_branch_worktree.rs  <- src/native/policy/policy_branch_worktree.rs
+      The branch-worktree-only check: a new branch starts in its own linked worktree, not in the current ...
+    policy_catalog_specifiers.rs  <- src/native/policy/policy_catalog_specifiers.rs
+      The optional `mono/catalog-specifiers` policy: every dependency in a tracked `package.json` is ...
+    policy_final_newline.rs  <- src/native/policy/policy_final_newline.rs
+      The built-in `final-newline` policy: a non-empty UTF-8 text file without NUL bytes must end with ...
+    policy_forbidden_strings.rs  <- src/native/policy/policy_forbidden_strings.rs
+      The optional `security/forbidden-strings` policy: scan every candidate's exact bytes and pathname ...
+    policy_linked_worktree.rs  <- src/native/policy/policy_linked_worktree.rs
+      The linked-worktree-only policy as the engine runs it: the guarded forms, the two forms that are ...
+    policy_audited.rs  <- src/native/policy/policy_audited.rs
+      The two commands the wrapper records and never refuses: `git worktree remove`, and `git branch ...
+    policy_linked_worktree_nested_repositories.rs  <- src/native/policy/policy_linked_worktree_nested_repositories.rs
+      Keeping every nested Git repository a clean in a linked worktree would delete, and the one place a ...
+    policy_root_context.rs  <- src/native/policy/policy_root_context.rs
+      The optional `mono/forbidden-root-context` policy: a `CONTEXT.md` file at the repository's top ...
+  the_commit_command/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, environment_variables_for_git_children, finding_the_git_folders, fixing_markdown_in_process, git_settings_read_once, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, making_a_worktree_quickly, messages_between_the_wrapper_and_the_commit_service, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, putting_corrected_files_into_the_private_index, reading_and_writing_the_index_file_of_git, reading_options_the_way_git_does, reading_saved_commits_and_files, reading_the_bytes_a_commit_would_save, recording_where_worktree_add_spent_its_time, replaying_changes_onto_new_commits, rerunning_a_merge_word_by_word, rules_about_what_a_commit_may_contain, rules_about_where_a_command_may_run, rules_that_add_flags_to_a_command, running_git_for_a_transaction, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, scanning_those_bytes_for_forbidden_strings, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, stopping_the_program_at_a_named_step_for_tests, the_built_in_policies, the_hidden_second_git_folder, the_list_of_checks_every_commit_runs, the_service_program, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, uploading_large_files, what_each_git_command_accepts, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    commit_accounting.rs  <- src/native/commit/commit_accounting.rs
+      The two figures that say whether a commit's timing record can answer a question about a slow ...
+    commit_command.rs  <- src/native/commit/commit_command.rs
+      The `git commit` command of the native wrapper: the preparation and landing through the resident ...
+    commit_form_refusal_from_git.rs  <- src/native/commit/commit_form_refusal_from_git.rs
+      The question real Git is asked about a form of `git commit` this wrapper refuses, and what the ...
+    commit_reach_trace.rs  <- src/native/commit/commit_reach_trace.rs
+      What reaching a commit service cost the client: the connection attempts, the waits for a start, the ...
+    commit_stop_reason.rs  <- src/native/commit/commit_stop_reason.rs
+      Why one wrapped commit did not land, as the timing record states it: the policy that refused the ...
+    held_commit_settle_move.rs  <- src/native/landing/held_commit_settle_move.rs
+      The one branch write of a settlement, and what the batch owes around it.
+    native_commit_waiting_notice_control_window.rs  <- src/native/commit/native_commit_waiting_notice_control_window.rs
+      A control's window on the notice:
+    post_commit.rs  <- src/native/commit/post_commit.rs
+      The post-commit policy gate over a landed commit's own changes.
+    scratch_step_look_below_control_window.rs  <- src/native/commit/scratch_step_look_below_control_window.rs
+      A control's statements about one look at the step and the programs below it: which process the ...
+    service_commit.rs  <- src/native/landing/service_commit.rs
+      The commit command's path through the resident service: prepare the commit in this process (private ...
+    service_commit_after_a_failure.rs  <- src/native/landing/service_commit_after_a_failure.rs
+      What a commit does when the service answered without landing it: the words for content a prune ...
+    service_commit_after_a_moved_branch.rs  <- src/native/landing/service_commit_after_a_moved_branch.rs
+      What a commit does when the service answers that the branch moved under it: which attempts are ...
+    service_commit_fitting_request.rs  <- src/native/landing/service_commit_fitting_request.rs
+      Whether the request the embedded route would send fits the one line the service reads, and the ...
+    service_commit_line_reissued.rs  <- src/native/landing/service_commit_line_reissued.rs
+      The command line a commit Git built is built again with once its editor has run and the branch ...
+    service_commit_looking_for_what_landed.rs  <- src/native/landing/service_commit_looking_for_what_landed.rs
+      Looks for the commit a request that was already sent to the commit service made, for a bounded ...
+    service_commit_rebuild_ceiling.rs  <- src/native/landing/service_commit_rebuild_ceiling.rs
+      How long a commit whose branch moved under its build is built again, and the line that says so at ...
+    service_commit_request_of.rs  <- src/native/landing/service_commit_request_of.rs
+      The request one attempt of a commit sends to the service: the amended commit landing as a new one, ...
+    service_amend_replayed.rs  <- src/native/landing/service_amend_replayed.rs
+      The commit an amend makes when the branch moved while the amend was prepared: its own author, ...
+    service_commit_requests_and_landing_report.rs  <- src/native/landing/service_commit_requests_and_landing_report.rs
+      The pieces of a service commit that need no loop: the request for a commit Git built, the request ...
+    service_commit_input_notes_and_embedded_commit.rs  <- src/native/landing/service_commit_input_notes_and_embedded_commit.rs
+      The small steps of a service commit: the arguments after the subcommand, the name of a switched ...
+    facts_of_the_commit_an_amend_replaces.rs  <- src/native/landing/service_amend.rs
+      The facts of the commit an amend replaces, read once from the repository: its parents, its first ...
+    service_commit_saved_message.rs  <- src/native/landing/service_commit_saved_message.rs
+      Keeping the message a person typed when the commit it belonged to cannot be made.
+    service_commit_tree_ownership.rs  <- src/native/landing/service_commit_tree_ownership.rs
+      Which end of a commit's scratch tree a submitted request leaves it to.
+    service_commit_waiting_notices.rs  <- src/native/landing/service_commit_waiting_notices.rs
+      One submission of a prepared commit whose waiting notices are written away from this command's ...
+    service_message.rs  <- src/native/landing/service_message.rs
+      The message and the identities of a commit the service lands, made from the command line the way ...
+    service_commit_args.rs  <- src/native/landing/service_commit_args.rs
+      Which `git commit` command lines the resident service lands, and the message such a line stands for.
+    service_native.rs  <- src/native/landing/service_native.rs
+      The commits real Git builds for the commit service: an editor, a signature, and every command line ...
+    commit_args.rs  <- src/native/commit/commit_args.rs
+      Argument transforms of native preparation: the normalised `commit` argument region, the split of ...
+    commit_args_token_bytes.rs  <- src/native/commit/commit_args_token_bytes.rs
+      One token of a commit command line, read as the bytes it is: its option name, its cluster letters ...
+    commit_build_part_durations.rs  <- src/native/commit/commit_build_part_durations.rs
+      How long each stretch of a commit's build phase held no Git child, by name, kept until the commit's ...
+    commit_preparation.rs  <- src/native/commit/commit_preparation.rs
+      Native `git commit` in the shadow repository against the private commit index, the prepared commit ...
+    native_commit_waiting_notice.rs  <- src/native/commit/native_commit_waiting_notice.rs
+      The waiting notice and the ceiling of the commit Git builds in the scratch repository: while that ...
+    scratch_step_ceiling_stop.rs  <- src/native/commit/scratch_step_ceiling_stop.rs
+      What the ceiling of the scratch `git commit` does when it comes: ends the step it watches and what ...
+    scratch_step_look_below.rs  <- src/native/commit/scratch_step_look_below.rs
+      One look at the step the commit waits for and at the processes below it: their numbers, names, ...
+    scratch_step_held_by_the_kernel.rs  <- src/native/commit/scratch_step_held_by_the_kernel.rs
+      The two lines a commit prints about a step the kernel holds in a call a signal cannot end: the one ...
+    scratch_step_notice_line.rs  <- src/native/commit/scratch_step_notice_line.rs
+      The line a commit prints while it waits for the `git commit` of its scratch repository: what the ...
+    scratch_step_programs_below.rs  <- src/native/commit/scratch_step_programs_below.rs
+      The programs one look of the waiting notice saw below the step of the scratch `git commit`, and the ...
+    scratch_step_stop_record.rs  <- src/native/commit/scratch_step_stop_record.rs
+      The record of one stop of the scratch `git commit`, taken whole from the enforcer of its ceiling ...
+    scratch_commit_step.rs  <- src/native/commit/scratch_commit_step.rs
+      What the waiting notice of the scratch `git commit` saw while the step ran, one entry per build, ...
+    scratch_step_stop_words.rs  <- src/native/commit/scratch_step_stop_words.rs
+      The words of a stop: what ended, after how long, why this long, what became of the person's work, ...
+    scratch_step_stall_decided_once.rs  <- src/native/commit/scratch_step_stall_decided_once.rs
+      The one decision two enforcers of a step's ceiling make together: whether that ceiling stands aside ...
+    service_commit_args_editor_opening.rs  <- src/native/landing/service_commit_args_editor_opening.rs
+      Whether a `commit` command line opens an editor: the long options that never decide it, the options ...
+    service_prepare.rs  <- src/native/landing/service_prepare.rs
+      The preparation of a commit that goes through the resident service: the private index, the ...
+    commit_convergence.rs  <- src/native/commit/commit_convergence.rs
+      The commit path's bounded policy convergence over the private commit index: each changed pass ...
+    commit_prepare_part_durations.rs  <- src/native/commit/commit_prepare_part_durations.rs
+      How long each stretch of a commit's preparation held no Git child, and how much of it a Git child ...
+    commit_worktree_records.rs  <- src/native/commit/commit_worktree_records.rs
+      The worktree completion records a landed commit owes the worktree: selected final-newline ...
+    private_index_stage.rs  <- src/native/commit/private_index_stage.rs
+      Write one corrected file into the private commit index: its bytes as a blob, then the index entry ...
+    service_prepare_changes_config_and_pathspec_steps.rs  <- src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs
+      The smaller steps of a service preparation: the changes a commit makes, whether the configuration ...
+    commit_conclusion.rs  <- src/native/commit/commit_conclusion.rs
+      The events of a settled commit with the fix summary the policies' corrections earned.
+    commit_index.rs  <- src/native/commit/commit_index.rs
+      The private commit index of one transaction: its timestamp-preserving copies of the real index, its ...
+    commit_index_builds.rs  <- src/native/commit/commit_index_builds.rs
+      How each build of a commit's private index was made, and whether it kept the real index's cached ...
+    commit_index_copying.rs  <- src/native/commit/commit_index_copying.rs
+      The decision of whether an index may seed an explicit-path commit, and the copy a reset to a tree ...
+    commit_index_bytes.rs  <- src/native/commit/commit_index_bytes.rs
+      The one read of an index file that every private copy of a commit is written from: the bytes it ...
+    commit_index_stat_refresh.rs  <- src/native/commit/commit_index_stat_refresh.rs
+      The refresh of an index's stat data: the private commit index's, which the scratch commit reads, ...
+    commit_index_stat_staleness.rs  <- src/native/commit/commit_index_stat_staleness.rs
+      The question whether an index still records the stat data its worktree has, answered in process.
+    commit_no_change.rs  <- src/native/commit/commit_no_change.rs
+      The normalization-only commit: a correction whose complete intended tree equals the recorded base ...
+    native_commit_configuration.rs  <- src/native/commit/native_commit_configuration.rs
+      The configuration native `git commit` reads that decides what it writes, the file in the commit's ...
+    prepare_work_spans.rs  <- src/native/commit/prepare_work_spans.rs
+      The named steps of a preparation's own work, each with how often it ran, the whole of its time and ...
+    service_prepare_own_git_steps.rs  <- src/native/landing/service_prepare_own_git_steps.rs
+      The two Git steps the preparation starts itself, with the face a caller on a thread asks and the ...
+    service_prepare_selection_refusals.rs  <- src/native/landing/service_prepare_selection_refusals.rs
+      The findings a preparation ends with when the selection the command line itself makes cannot be ...
+    commit_named_ignored_files.rs  <- src/native/commit/commit_named_ignored_files.rs
+      The named files of an explicit-path commit that Git will not add because an ignore rule matches ...
+    commit_staged_deletions.rs  <- src/native/commit/commit_staged_deletions.rs
+      The commit-only finding for a staged deletion that an explicit-path commit cannot record because ...
+    commit_selection_staging.rs  <- src/native/commit/commit_selection_staging.rs
+      The worktree paths an explicit-path commit stages into its private index: which selected elements ...
+    commit_index_selection.rs  <- src/native/commit/commit_index_selection.rs
+      The selection a commit names: the choices that shape its private index, the `git add` arguments of ...
+    commit_pathspec_matching_nothing.rs  <- src/native/commit/commit_pathspec_matching_nothing.rs
+      The refusal of an explicit-path commit whose pathspec matches no path Git can stage, read from the ...
+    commit_staged_additions.rs  <- src/native/commit/commit_staged_additions.rs
+      The staged additions an explicit-path commit must carry into its private index, and the ...
+    service_prepare_unmerged_staging.rs  <- src/native/landing/service_prepare_unmerged_staging.rs
+      The staging start that puts every unmerged file's working copy into the commit's own index.
+    service_replay.rs  <- src/native/landing/service_replay.rs
+      The retry of a commit the service sent back because a path it names changed on the branch since its ...
+    private_index_request.rs  <- src/native/commit/private_index_request.rs
+      The private index and object store a commit's preparation reads and writes, and the Git request ...
+    service_prepare_ready_shapes.rs  <- src/native/landing/service_prepare_ready_shapes.rs
+      The shapes a service preparation hands back: the scratch directory that removes itself, what a ...
+    service_replay_capture_order.rs  <- src/native/landing/service_replay_capture_order.rs
+      The capture-order decision of every shared path of a replay, read from one walk over the landed ...
+    service_replay_conclusion.rs  <- src/native/landing/service_replay_conclusion.rs
+      The refusal of a conclusion whose operation another command ended while the commit was prepared.
+    commit_transaction.rs  <- src/native/commit/commit_transaction.rs
+      The values every commit of the service route shares: the invocation, how it can stop, what it came ...
+    commit_facts.rs  <- src/native/commit/commit_facts.rs
+      The repository facts of a commit transaction: every rule fact is read from the real repository, and ...
+    service_replay_line_text.rs  <- src/native/landing/service_replay_line_text.rs
+      Small text steps of the replay of captured changes: whether a line of Git's output is empty.
+    service_replay_path_and_line_text.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+  the_dataset_the_checkout_sits_on/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    (new folder of this round: The immutable covered entry of the checkout underlay, and the verdict a boot takes before it attaches a clone.)
+    underlay_entry_verdict.rs  <- src/native/checkout_underlay_entry/underlay_entry_verdict.rs
+      The three answers a boot takes from one reading of the covered entry: protected, unprotected with ...
+    underlay_entry_read.rs  <- src/native/checkout_underlay_entry/underlay_entry_read.rs
+      What the kernel says about the entry at the checkout path and about its parent: the entry's device, ...
+  the_doctor_report_of_sanoid_coverage/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> the_root_modes_that_attach_and_unmount_zfs_clones
+    (new folder of this round: The sanoid.conf sections that cover home recursively, their exclusions, and doctor comparison of them.)
+    coverage_checks.rs  <- src/native/health/sanoid_coverage/coverage_checks.rs
+      The comparison of one machine's measured dataset tree and its `sanoid.conf` against the coverage ...
+    coverage_finding.rs  <- src/native/health/sanoid_coverage/coverage_finding.rs
+      One drift the coverage comparison found: the field that failed, what was measured against what the ...
+    coverage_words.rs  <- src/native/health/sanoid_coverage/coverage_words.rs
+      The sentences a coverage finding's correction prints: the text to add, the value to change, the ...
+    sanoid_conf_reading.rs  <- src/native/health/sanoid_coverage/sanoid_conf_reading.rs
+      A reading of a `sanoid.conf` text: its sections in file order, each setting with the line it stands ...
+    space_guard_scope.rs  <- src/native/health/sanoid_coverage/space_guard_scope.rs
+      The report of what the space guard can actually prune, measured from its configured dataset, the ...
+    decided_coverage.rs  <- src/native/health/sanoid_coverage/decided_coverage.rs
+      The coverage the project decided: the home dataset snapshotted recursively, the template it keeps, ...
+    measured_dataset_tree.rs  <- src/native/health/sanoid_coverage/measured_dataset_tree.rs
+      The dataset tree one machine measured: each dataset's name, its mount point and its ...
+    sanoid_section.rs  <- src/native/health/sanoid_coverage/sanoid_section.rs
+      One section of `sanoid.conf`, one setting inside it, the words sanoid reads a toggle as, and the ...
+  the_doctor_report_of_the_zfs_route/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> attaching_a_zfs_clone_folder, proving_a_zfs_clone_may_be_removed, removing_a_linked_worktree, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_root_modes_that_attach_and_unmount_zfs_clones, the_state_of_one_zfs_clone_slot, unmounting_a_zfs_clone_folder, which_disk_a_folder_is_on
+    (new folder of this round: The checks the ZFS route adds to doctor: the device, ABI and dataset facts, the checkout mount and the snapshot directories.)
+    route_checks.rs  <- src/native/health/doctor_zfs_route/route_checks.rs
+      Every check plan step 18 adds, answered once from one set of facts and returned in report order.
+    binding_record_checks.rs  <- src/native/health/doctor_zfs_route/binding_record_checks.rs
+      The binding record one managed slot's add wrote, as the lines a person reads: the phase, the claim, ...
+    blocked_removal_checks.rs  <- src/native/health/doctor_zfs_route/blocked_removal_checks.rs
+      The blocked-removal state one clone stands in: the `unmount` intent that stands on it, the ...
+    clone_origin_checks.rs  <- src/native/health/doctor_zfs_route/clone_origin_checks.rs
+      The origin each living clone names, and the state of its deferred-destroy mark: the origin dataset ...
+    clone_retention_checks.rs  <- src/native/health/doctor_zfs_route/clone_retention_checks.rs
+      What one clone and its own snapshots retain, in named ZFS accounting fields: each object's `used`, ...
+    clone_snapshot_checks.rs  <- src/native/health/doctor_zfs_route/clone_snapshot_checks.rs
+      The clone's own snapshots, read from the pool, beside the states the destruction plan records for ...
+    clone_state_checks.rs  <- src/native/health/doctor_zfs_route/clone_state_checks.rs
+      What one managed slot is, for the ZFS section of `doctor`'s report: the clone mounted at its slot, ...
+    delegation_checks.rs  <- src/native/health/doctor_zfs_route/delegation_checks.rs
+      The account's effective delegation over the route's datasets, including the grants an ancestor ...
+    delegation_reply.rs  <- src/native/health/doctor_zfs_route/delegation_reply.rs
+      The kernel's delegation reply and the grant model it becomes: who a grant names, how widely it ...
+    holder_checks.rs  <- src/native/health/doctor_zfs_route/holder_checks.rs
+      The namespaces that hold a clone, read from the all-namespace scan's result.
+    identity_checks.rs  <- src/native/health/doctor_zfs_route/identity_checks.rs
+      The recorded parent and slot identities against the live folders, naming the failing field or path ...
+    later_step_checks.rs  <- src/native/health/doctor_zfs_route/later_step_checks.rs
+      Every check plan step 18 lists that a later step builds, answered unknown with the step that builds ...
+    managed_lock_checks.rs  <- src/native/health/doctor_zfs_route/managed_lock_checks.rs
+      The line one managed clone slot's Git lock prints: the wrapper's verified lock, its cut-short twin, ...
+    mount_checks.rs  <- src/native/health/doctor_zfs_route/mount_checks.rs
+      The checkout's own mount, its propagation, the caller's visibility and every dataset mounted under ...
+    registration_checks.rs  <- src/native/health/doctor_zfs_route/registration_checks.rs
+      The Git registration one managed slot's record names: the complete registration Git lists the ...
+    removal_plan_checks.rs  <- src/native/health/doctor_zfs_route/removal_plan_checks.rs
+      The destruction plan one removal leaves for one clone, as the line a person reads: the moment it ...
+    snapshot_directory_checks.rs  <- src/native/health/doctor_zfs_route/snapshot_directory_checks.rs
+      The `snapdir` of the checkout dataset and of the clone container, each reported where it is not ...
+    staging_folder_checks.rs  <- src/native/health/doctor_zfs_route/staging_folder_checks.rs
+      The staging folders a removal leaves under the account's cache, and the propagation of the private ...
+    handler_checks.rs  <- src/native/health/doctor_zfs_route/handler_checks.rs
+      The one executable the route's root modes run as, its installation, its root-owned configuration, ...
+    store_listing.rs  <- src/native/health/doctor_zfs_route/store_listing.rs
+      The slot identity store's folder listing as plan step 18 reports it: the entry count beside the ...
+    store_staging_removal.rs  <- src/native/health/doctor_zfs_route/store_staging_removal.rs
+      The one removal plan step 18 performs: the two known staging forms a killed writer left in the slot ...
+    zfs_checks.rs  <- src/native/health/doctor_zfs_route/zfs_checks.rs
+      The checks plan step 18 runs before anything else: `/dev/zfs` and the account's open of it, the ...
+    check_outcome.rs  <- src/native/health/doctor_zfs_route/check_outcome.rs
+      What one `doctor` check answered: a pass with what it read, a finding naming the failing field or ...
+  the_hidden_second_git_folder/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> asking_the_commit_service_to_save_a_commit, finding_the_git_folders, git_settings_read_once, landing_commits, log_lines_of_the_commit_service, names_this_release_and_the_one_before, reading_branches_tags_and_markers, running_git_for_a_transaction, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, the_commit_command, the_service_program, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    shadow_create.rs  <- src/native/shadow/shadow_create.rs
+      Creates the shadow repository of one published transaction: an empty bare repository, its config ...
+    conclusion_copy.rs  <- src/native/commit/conclusion_copy.rs
+      The merge, cherry-pick and revert conclusion state copied into the shadow at preparation, and into ...
+    conclusion_cleanup.rs  <- src/native/commit/conclusion_cleanup.rs
+      Native conclusion cleanup reproduced in the owning worktree's Git directory after a merge, ...
+    shadow_create_init.rs  <- src/native/shadow/shadow_create_init.rs
+      The `git init` that makes a reftable shadow's tables, and what a start the ceiling ends or the ...
+    shadow_create_private_storage.rs  <- src/native/shadow/shadow_create_private_storage.rs
+      The shadow's own directories and files, made private to the account: the parent directories a ...
+    shadow_create_template.rs  <- src/native/shadow/shadow_create_template.rs
+      The facts a shadow repository is made from, resolved once, and the bytes of the shadow's `config` ...
+    capture_invocation.rs  <- src/native/commit/capture_invocation.rs
+      The transaction facts recorded before any Git mutation: the repository layout, the symbolic `HEAD` ...
+    empty_tree.rs  <- src/native/shadow/empty_tree.rs
+      The object name of the empty tree under each object format Git supports, known without asking Git.
+    shadow_config.rs  <- src/native/shadow/shadow_config.rs
+      The shadow repository's `config` file, written by monochromatic-git-policy-cli itself, and the ...
+    shadow_drawn.rs  <- src/native/shadow/shadow_drawn.rs
+      The finished shadows the resident service draws out of the pool ahead of the commits that ask for ...
+    shadow_init_attempts.rs  <- src/native/shadow/shadow_init_attempts.rs
+      What a shadow creation records for its controls as it starts one `init` attempt: how many attempts ...
+    shadow_pool.rs  <- src/native/shadow/shadow_pool.rs
+      The pool of finished shadow repositories a commit can take instead of making one: where it lives, ...
+    shadow_pool_member.rs  <- src/native/shadow/shadow_pool_member.rs
+      What a finished shadow in the pool must be for this invocation to take it: the tree a creation ...
+    shadow_links.rs  <- src/native/shadow/shadow_links.rs
+      Links the entries of the real common Git directory a commit's shadow reads into a shadow ...
+    shadow_ref_write.rs  <- src/native/shadow/shadow_ref_write.rs
+      The shadow ref store: the snapshot of every real ref as one `packed-refs` file, the private target ...
+    shadow_git.rs  <- src/native/shadow/shadow_git.rs
+      Git commands run against a transaction's shadow repository, and its location and removal.
+    shadow_refs.rs  <- src/native/shadow/shadow_refs.rs
+      The real refs a shadow's ref store is written from: every ref of the worktree at invocation, read ...
+    shadow_skeleton.rs  <- src/native/shadow/shadow_skeleton.rs
+      The files and directories of an empty bare repository on the files ref backend, created in-process.
+  the_list_of_checks_every_commit_runs/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> checking_version_bumps_in_a_commit, fixing_markdown_in_process, putting_corrected_files_into_the_private_index, rules_about_where_a_command_may_run, rules_that_add_flags_to_a_command, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, the_built_in_policies, the_words_meant_for_this_wrapper, uploading_large_files, what_happens_when_you_type_a_command, what_the_wrapper_asks_git_about_a_repository
+    fixing_files_in_place_command.rs  <- src/native/policy/direct_fix.rs
+      `git monochromatic-git-policy-cli fix`: run policy passes over the selected files, apply the ...
+    one_complete_policy_pass.rs  <- src/native/policy/policy_pass.rs
+      One complete policy pass over the shipped policies: the built-in policies, then the fixed argument ...
+    the_list_of_shipped_checks.rs  <- src/native/policy/policy_checks.rs
+      The shipped policies as the engine sees them: one check per policy, built from the pure rule cores ...
+  the_pointer_a_prune_keeps/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> hooks_a_repository_configures, reading_the_datasets_zfs_mounts, the_record_and_the_lock_the_zfs_clone_route_keeps, the_state_of_one_zfs_clone_slot, file_operations_that_never_follow_a_link, saving_files_so_a_crash_leaves_no_half_file
+    (new folder of this round: The underlay pointer the add keeps for a worktree prune, and the pass a prune runs before it goes.)
+    prune_guard.rs  <- src/native/worktree_clone_prune_pointer/prune_guard.rs
+      The pass one `git worktree prune` runs over the wrapper's own records before Git starts: every ...
+    link_facts.rs  <- src/native/worktree_clone_prune_pointer/link_facts.rs
+      Every fact a damaged link is judged from, read once: the record's slot and registration, whether ...
+    pointer_restore.rs  <- src/native/worktree_clone_prune_pointer/pointer_restore.rs
+      The one write that puts the recorded pointer back at a slot, whole and by one rename, and the ...
+    pointer_state.rs  <- src/native/worktree_clone_prune_pointer/pointer_state.rs
+      What one slot's `.git` pointer says against the bytes the add recorded: intact, different, absent, ...
+    prune_removes_nothing.rs  <- src/native/worktree_clone_prune_pointer/prune_removes_nothing.rs
+      Whether one `git worktree prune` removes nothing: a dry run by Git's own reading of its own ...
+  the_receipts_and_requests_of_a_clone_mount/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> the_zfs_kernel_gate, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The protocol between the account wrapper and the root-run clone-mount handler: the mount intent, the receipts and the readiness record.)
+    clone_mount_intent_write.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_intent_write.rs
+      The wrapper's side of the durable request: the property payload one intent is written as, the ...
+    clone_mount_readiness_admission.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_readiness_admission.rs
+      Why an attach is not admitted, and the one comparison that decides it: this boot, this pool and ...
+    clone_mount_readiness_file.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_readiness_file.rs
+      Where one boot's readiness lives and how it is written: a root-owned `0755` directory under `/run`, ...
+    clone_mount_readiness_parse.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_readiness_parse.rs
+      Reading one readiness record: the byte bound before any line, the exact key at each line, the state ...
+    clone_mount_readiness.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_readiness.rs
+      The readiness record one boot's handler publishes: the boot, the pool, the checkout and the sweep, ...
+    clone_mount_sweep_nonce.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_sweep_nonce.rs
+      The clone-local sweep nonce: its text, its parse, and the reading that separates a nudge from an ...
+    mount_request_wait.rs  <- src/native/worktree_clone_mount_protocol/mount_request_wait.rs
+      The wrapper's wait for the receipt that answers one request: the standing of a receipt it finds, ...
+    clone_mount_receipts_folder.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_receipts_folder.rs
+      The directory the root handler files clone-mount results in: its path and modes, the file each ...
+    clone_mount_receipt_parse.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_receipt_parse.rs
+      Reading one receipt file's text: the byte bound before any line, the exact key at each line, each ...
+    clone_mount_receipts_folder_calls.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_receipts_folder_calls.rs
+      The descriptor-relative calls the receipts folder makes: opening the directory and a receipt, ...
+    clone_mount_receipts_folder_refusals.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_receipts_folder_refusals.rs
+      Why the results directory or one receipt could not be used: the directory's ownership and mode, the ...
+    clone_mount_receipt.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_receipt.rs
+      The result the root handler files for one clone: the dataset GUID the file is named by, the ...
+    clone_mount_intent.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_intent.rs
+      The durable mount intent of one clone: its grammar, its text, and the reading that separates a ...
+    clone_mount_receipt_refusals.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_receipt_refusals.rs
+      Why a file is not a receipt this route wrote: the byte bound, the line count, a key at the wrong ...
+    dataset_guid.rs  <- src/native/worktree_clone_mount_protocol/dataset_guid.rs
+      A dataset's canonical numeric GUID: the only name a clone-mount receipt is filed under, and the ...
+    local_user_property.rs  <- src/native/worktree_clone_mount_protocol/local_user_property.rs
+      One local user property of a dataset, read from the reply OpenZFS gives for a property: a nested ...
+    request_nonce.rs  <- src/native/worktree_clone_mount_protocol/request_nonce.rs
+      The 32-lowercase-hex-digit nonce both the intent and the nudge carry: its parse, its fresh value ...
+    clone_mount_property_names.rs  <- src/native/worktree_clone_mount_protocol/clone_mount_property_names.rs
+      The two user properties the clone-mount route reads and writes, the version word their values begin ...
+    root_owned_directory.rs  <- src/native/worktree_clone_mount_protocol/root_owned_directory.rs
+      The root-owned directory a `/run` record lives in: made when it is absent, given its designed mode, ...
+  the_record_and_the_lock_the_zfs_clone_route_keeps/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> attaching_a_zfs_clone_folder, finding_the_real_git_program, finishing_what_an_earlier_commit_service_left_open, hooks_a_repository_configures, names_this_release_and_the_one_before, reading_the_datasets_zfs_mounts, removing_a_linked_worktree, the_state_of_one_zfs_clone_slot, file_operations_that_never_follow_a_link, saving_files_so_a_crash_leaves_no_half_file
+    (new folder of this round: The registration half of the ZFS add route: the claim and durable binding record, the snapshot inventories, and the managed Git lock.)
+    lock_classification.rs  <- src/native/worktree_clone_managed_lock/lock_classification.rs
+      The one function `doctor` and the removal call to tell the wrapper's managed Git lock from a ...
+    lock_release.rs  <- src/native/worktree_clone_managed_lock/lock_release.rs
+      The one release of a managed Git lock, open only to the registration-cleanup step and only when it ...
+    clone_destruction_proof.rs  <- src/native/worktree_clone_managed_lock/clone_destruction_proof.rs
+      The proof that the clone one record names is gone, as a value only this module can make.
+    lock_installation.rs  <- src/native/worktree_clone_managed_lock/lock_installation.rs
+      Write the managed Git lock again when it is gone.
+    lock_state_words.rs  <- src/native/worktree_clone_managed_lock/lock_state_words.rs
+      The sentences `doctor` prints for each state of a slot's managed Git lock.
+    lock_state.rs  <- src/native/worktree_clone_managed_lock/lock_state.rs
+      The states one slot's Git lock can be in, and the three answers a caller acts on.
+    managed_move_refusal.rs  <- src/native/worktree_clone_move_refusal/managed_move_refusal.rs
+      The refusal of one `git worktree move` that would rename a managed clone's slot, mounted or not, ...
+    plan_folder_read.rs  <- src/native/worktree_clone_binding_record/plan_folder_read.rs
+      The add's read of the removal's destruction-plan folder: it finds the plan that names the clone the ...
+    add_state_commands.rs  <- src/native/worktree_clone_binding_record/add_state_commands.rs
+      The one command that is true for an add state a resume meets, and the sentence a refusal prints.
+    record_publication.rs  <- src/native/worktree_clone_binding_record/record_publication.rs
+      Publishing the binding and the two inventories, and reading them back with the refusals a reader ...
+    binding_inventory_parse.rs  <- src/native/worktree_clone_binding_record/binding_inventory_parse.rs
+      Reading one inventory's bytes as the file its name says it is.
+    binding_inventory.rs  <- src/native/worktree_clone_binding_record/binding_inventory.rs
+      One inventory of a dataset's snapshots and bookmarks: the grammar the two inventory files share, ...
+    binding_parse.rs  <- src/native/worktree_clone_binding_record/binding_parse.rs
+      Reading one binding record's bytes into [`BindingRecord`], or refusing them by line and field.
+    binding_field_set.rs  <- src/native/worktree_clone_binding_record/binding_field_set.rs
+      The fields one binding parse has read so far, each still optional until the whole record answers, ...
+    binding_record.rs  <- src/native/worktree_clone_binding_record/binding_record.rs
+      The add's durable binding record: its fields, which of them a phase proves, and the bytes its ...
+    record_refusal.rs  <- src/native/worktree_clone_binding_record/record_refusal.rs
+      Why a byte sequence is not a record of this grammar, naming the line or the field that decided it, ...
+    registration_finding.rs  <- src/native/worktree_clone_managed_lock/registration_finding.rs
+      Find the one `worktrees/<name>` entry a slot's add made, by the names Git could derive from the ...
+    registration_entry_reading.rs  <- src/native/worktree_clone_managed_lock/registration_entry_reading.rs
+      Read one `worktrees/<name>` entry as the facts the add's finder decides from.
+    lock_and_pointer_readings.rs  <- src/native/worktree_clone_managed_lock/lock_and_pointer_readings.rs
+      The two reads the managed Git lock's states rest on: a registration's `locked` file, and a slot's ...
+    registration_proof_two_facts.rs  <- src/native/worktree_clone_managed_lock/registration_proof_two_facts.rs
+      The two-fact proof that a registration belongs to a slot whose pointer may be gone.
+    dataset_guid_reads.rs  <- src/native/worktree_clone_managed_lock/dataset_guid_reads.rs
+      The pool read the mounted arm of the two-fact proof compares a record's `cloneGuid=` with.
+    lexical_path_resolution.rs  <- src/native/worktree_clone_managed_lock/lexical_path_resolution.rs
+      One path with `.` dropped and `..` resolved against the components before it, and nothing read from ...
+    recorded_lock_facts.rs  <- src/native/worktree_clone_managed_lock/recorded_lock_facts.rs
+      The facts the managed lock's proof needs, read from a slot's binding record whatever else that ...
+    binding_bound.rs  <- src/native/worktree_clone_binding_record/binding_bound.rs
+      The byte bounds of the binding and the inventory records, each computed from the kernel limits the ...
+    binding_record_fields.rs  <- src/native/worktree_clone_managed_lock/binding_record_fields.rs
+      The field lines of a slot's binding record, read whatever phase the record stands at, and the ...
+    binding_encoding.rs  <- src/native/worktree_clone_binding_record/binding_encoding.rs
+      The four encodings the binding and its inventories write: a path as the lowercase hexadecimal of ...
+    binding_words.rs  <- src/native/worktree_clone_binding_record/binding_words.rs
+      The fixed words of the add's binding record: the header line, the eight phases, the seven settle ...
+    reading_a_bounded_file.rs  <- src/native/worktree_clone_managed_lock/reading_a_bounded_file.rs
+      One bounded, no-follow read of a file this route does not own, as its bytes, as absence, or as the ...
+    registration_home.rs  <- src/native/worktree_clone_binding_record/registration_home.rs
+      Where the add's claim and binding records live, the four name forms that folder holds, and the plan ...
+    registration_recipe.rs  <- src/native/worktree_clone_binding_record/registration_recipe.rs
+      The order that clears an incomplete registration Git's add left, and the one write that completes a ...
+    registration_removals.rs  <- src/native/worktree_clone_binding_record/registration_removals.rs
+      The removals the recipe makes below held descriptors: a file or a tree, the ref store's files ...
+    registration_resume.rs  <- src/native/worktree_clone_binding_record/registration_resume.rs
+      What the add's resume does with one `worktrees` entry, and with a listing that holds none for its ...
+    lock_words.rs  <- src/native/worktree_clone_binding_record/lock_words.rs
+      The lock sentence the add writes into Git's `locked` file, and the comparison that proves one is ...
+    registration_finder.rs  <- src/native/worktree_clone_binding_record/registration_finder.rs
+      Which `worktrees/<name>` entries belong to one slot's add, which row of the design's states each ...
+  the_references_kept_for_unlanded_commits/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, environment_variables_for_git_children, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, names_this_release_and_the_one_before, running_git_for_a_transaction, stopping_the_program_at_a_named_step_for_tests, what_happens_when_you_type_a_command, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The references the wrapper writes to keep a commit reachable, and the pruning that keeps them from accumulating.)
+    kept_reference_command.rs  <- src/native/kept_references/kept_reference_command.rs
+      `git monochromatic-git-policy-cli kept-references`: the command that lists the kept references of ...
+    kept_reference_listing.rs  <- src/native/kept_references/kept_reference_listing.rs
+      The text `git monochromatic-git-policy-cli kept-references` prints: every kept reference the ...
+    kept_reference_log.rs  <- src/native/kept_references/kept_reference_log.rs
+      The line one pruned kept reference leaves in the repository's log, where that log is, and how it is ...
+    kept_reference_pass.rs  <- src/native/kept_references/kept_reference_pass.rs
+      The pass that prunes a repository's kept references: what one reading of them makes of the limits, ...
+    kept_reference_pass_answers.rs  <- src/native/kept_references/kept_reference_pass_answers.rs
+      The answers one pass gives about a repository's kept references: the reasons a reference is pruned, ...
+    kept_reference_limits.rs  <- src/native/kept_references/kept_reference_limits.rs
+      The three values a kept reference is judged by: how old it may become, how many bytes the objects ...
+    kept_reference_record.rs  <- src/native/kept_references/kept_reference_record.rs
+      What the wrapper recorded beside a kept reference when it wrote the reference: when, which commit, ...
+    kept_reference_words.rs  <- src/native/kept_references/kept_reference_words.rs
+      The words a span of time is printed in: the age of one kept reference, and a limit the release ...
+    kept_references_reading.rs  <- src/native/kept_references/kept_references_reading.rs
+      One reading of a repository's kept references: which of them there are, what each names, which of ...
+    kept_reference_name.rs  <- src/native/kept_references/kept_reference_name.rs
+      Which reference names count as a kept commit, and the batch and the form each carries.
+  the_root_modes_that_attach_and_unmount_zfs_clones/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> attaching_a_zfs_clone_folder, finding_who_holds_a_zfs_clone_folder, names_this_release_and_the_one_before, reading_the_datasets_zfs_mounts, scanning_other_mount_namespaces, the_receipts_and_requests_of_a_clone_mount, the_root_start_probe, the_settings_file_cli_git_config_jsonc, the_zfs_kernel_gate, unmounting_a_zfs_clone_folder, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The root modes of the one wrapper executable, and the sweep that attaches and unmounts the standing clone mounts.)
+    handler_mode_dispatch.rs  <- src/native/worktree_clone_mount_handler/handler_mode_dispatch.rs
+      The one command line of the root-run clone-mount handler: read the arguments as a mode, run that ...
+    adopt_worktree_parent_mode.rs  <- src/native/worktree_clone_mount_handler/adopt_worktree_parent_mode.rs
+      The administrator's `adopt-worktree-parent` mode: the walk from the pinned checkout to the ...
+    attaching_sweep_mode.rs  <- src/native/worktree_clone_mount_handler/attaching_sweep_mode.rs
+      The clone-mount sweep: what ZED's own start runs when it hands the program no argument, and what ...
+    boot_reconcile_mode.rs  <- src/native/worktree_clone_mount_handler/boot_reconcile_mode.rs
+      The boot unit's reconciliation: the start-time compatibility gate the dispatch ran, this boot's ...
+    holder_scan_mode.rs  <- src/native/worktree_clone_mount_handler/holder_scan_mode.rs
+      The `holder-scan` mode: read one dataset's GUID, run the all-namespace holder scan of it under a ...
+    mount_path_descendant_mode.rs  <- src/native/worktree_clone_mount_handler/mount_path_descendant_mode.rs
+      The `mount-path-descendant` mode: the recorded checkout, one nested dataset's own mountpoint ...
+    mount_path_descendant_mode_properties.rs  <- src/native/worktree_clone_mount_handler/mount_path_descendant_mode_properties.rs
+      What an explicit mount of one dataset is refused by, and what attributes it is asked for: the ...
+    mount_path_descendant_mode_refusals.rs  <- src/native/worktree_clone_mount_handler/mount_path_descendant_mode_refusals.rs
+      Why the `mount-path-descendant` mode mounted nothing: one variant per cause, each naming the ...
+    record_checkout_mode.rs  <- src/native/worktree_clone_mount_handler/record_checkout_mode.rs
+      The `record-checkout` mode: the checkout's own mount, its dataset's name and GUID, the container ...
+    handler_mode_arguments.rs  <- src/native/worktree_clone_mount_handler/handler_mode_arguments.rs
+      The words one invocation of the root modes is read as: no argument at all for the clone-mount sweep ...
+    handler_mode_argument_refusals.rs  <- src/native/worktree_clone_mount_handler/handler_mode_argument_refusals.rs
+      Why one invocation could not be read as a mode: one variant per cause, naming the argument a person ...
+    handler_mode_words.rs  <- src/native/worktree_clone_mount_handler/handler_mode_words.rs
+      The words one invocation of the root modes is read as: the mode words, the options each mode takes, ...
+    record_checkout_mode_record_file.rs  <- src/native/worktree_clone_mount_handler/record_checkout_mode_record_file.rs
+      The checkout record as the file it is: the read that refuses a file or a folder another account ...
+    record_checkout_mode_record.rs  <- src/native/worktree_clone_mount_handler/record_checkout_mode_record.rs
+      What the checkout record holds and why the mode recorded nothing: the record's version and the ...
+    root_mode_caller.rs  <- src/native/worktree_clone_mount_handler/root_mode_caller.rs
+      The refusal a root mode answers a caller that is not root with: the mode's own name, what the ...
+    handler_install_paths.rs  <- src/native/worktree_clone_mount_handler/handler_install_paths.rs
+      The paths one root-owned build serves: the root-owned regular file every root mode and every unit ...
+    root_mode_names.rs  <- src/native/worktree_clone_mount_handler/root_mode_names.rs
+      The one module that decides which start is a root-mode start: the ZED history event's own file ...
+    shutdown_unmount_mode.rs  <- src/native/worktree_clone_mount_handler/shutdown_unmount_mode.rs
+      The shutdown unit's verified unmount: withdraw readiness, close admission to new attaches, and ...
+    mode_awaiting_its_step.rs  <- src/native/worktree_clone_mount_handler/mode_awaiting_its_step.rs
+      The refusal of a mode whose step has not landed yet: the mode's own name, what it will do, the unit ...
+    standing_mount_source_call_refusal.rs  <- src/native/worktree_clone_mount_handler/standing_mount_source_call_refusal.rs
+      The seccomp filter a control installs so the mount-source call answers nothing, and the statement a ...
+    sweep_configuration_refusal.rs  <- src/native/worktree_clone_mount_handler/sweep_configuration_refusal.rs
+      Why the sweep has no names to act on, and the words a person reads for each cause.
+    sweep_one_clone_answers.rs  <- src/native/worktree_clone_mount_handler/sweep_one_clone_answers.rs
+      What one clone's turn answers and files once its reading is decided: the refusal that files a ...
+    sweep_preconditions.rs  <- src/native/worktree_clone_mount_handler/sweep_preconditions.rs
+      What the sweep and the boot reconciliation check before any attach: this boot's identifier, the ...
+    sweep_checkout_mount.rs  <- src/native/worktree_clone_mount_handler/sweep_checkout_mount.rs
+      The checkout's own mount, as the handler reads it from the kernel's table: the dataset the checkout ...
+    sweep_configuration.rs  <- src/native/worktree_clone_mount_handler/sweep_configuration.rs
+      The names the clone-mount sweep acts on: the checkout dataset whose snapshots its clones are made ...
+    sweep_run.rs  <- src/native/worktree_clone_mount_handler/sweep_run.rs
+      One whole sweep run: every immediate child of the pinned parent, one turn of `sweep_one_clone` for ...
+    sweep_one_clone.rs  <- src/native/worktree_clone_mount_handler/sweep_one_clone.rs
+      One clone's whole turn of the sweep: read what the dataset says, verify it, read its durable ...
+    per_slot_root_claim.rs  <- src/native/worktree_clone_mount_handler/per_slot_root_claim.rs
+      The per-slot claim every root handler takes before it reads a clone's desired state and acts on it: ...
+    sweep_attach_step.rs  <- src/native/worktree_clone_mount_handler/sweep_attach_step.rs
+      The attach step one clone goes through: the walk from the checkout to the slot, the answer a slot ...
+    sweep_first_attach.rs  <- src/native/worktree_clone_mount_handler/sweep_first_attach.rs
+      When a sweep takes this boot's `first-attach` name and what it writes there: after the key check ...
+    sweep_standing_mounts.rs  <- src/native/worktree_clone_mount_handler/sweep_standing_mounts.rs
+      How one sweep answers whether a clone's own mount already stands at its slot: one read of the ...
+    sweep_standing_mount_source.rs  <- src/native/worktree_clone_mount_handler/sweep_standing_mount_source.rs
+      One mount's own source, asked of the kernel by the mount's unique number.
+    sweep_unmount_answers.rs  <- src/native/worktree_clone_mount_handler/sweep_unmount_answers.rs
+      The dataset GUID read and the refusal answer the unmount arm needs.
+    sweep_clone_check.rs  <- src/native/worktree_clone_mount_handler/sweep_clone_check.rs
+      The checks one immediate child of the pinned parent passes before the sweep attaches it: the slot ...
+    sweep_dataset_facts.rs  <- src/native/worktree_clone_mount_handler/sweep_dataset_facts.rs
+      What one dataset the sweep reached says about itself: its name, its own GUID, its object-set type, ...
+    sweep_dataset_reader.rs  <- src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs
+      The reads one sweep makes of the pool: one dataset's identity and properties, and the immediate ...
+  the_root_start_probe/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> reading_the_datasets_zfs_mounts, stopping_the_program_at_a_named_step_for_tests, the_settings_file_cli_git_config_jsonc, the_zfs_kernel_gate, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, text_time_and_records_written_like_javascript
+    (new folder of this round: The root start probe: its nine arms, the private namespace and scratch tmpfs they run in, and the record the mode writes under /run.)
+    first_attach_record.rs  <- src/native/start_probe/first_attach_record.rs
+      The `first-attach` file the start-probe design gives plan step 8: this boot's first real clone ...
+    probe_mode.rs  <- src/native/start_probe/probe_mode.rs
+      The `start-probe` mode: the fingerprint, the started record, the worker and the holder, the one ...
+    probe_holder_control.rs  <- src/native/start_probe/probe_holder_control.rs
+      The mode's own holder child: starting it, reading its two step lines, stopping it and reaping it.
+    probe_holder.rs  <- src/native/start_probe/probe_holder.rs
+      Arm 6: the mode's own child that unshares a mount namespace of its own, makes it private and ...
+    probe_mode_words.rs  <- src/native/start_probe/probe_mode_words.rs
+      The mode's own words and readings: its verdict line, the line it says when it could not start, the ...
+    probe_record.rs  <- src/native/start_probe/probe_record.rs
+      The text of the probe's record: `v1` and one fixed key per line, the fingerprint, the time, the ...
+    probe_fingerprint.rs  <- src/native/start_probe/probe_fingerprint.rs
+      What the record pins about the machine and the build it ran on: the kernel's release, the loaded ...
+    probe_status_drain.rs  <- src/native/start_probe/probe_status_drain.rs
+      The status pipes' bytes folded into the report: every whole line a child wrote, the first line the ...
+    probe_report.rs  <- src/native/start_probe/probe_report.rs
+      What the probe's status lines add up to: each arm's outcome, the first failing step, the step that ...
+    probe_test_switch.rs  <- src/native/start_probe/probe_test_switch.rs
+      The one test-only switch the probe reads and what it can ask for: the probe disabled for the timing ...
+    probe_worker.rs  <- src/native/start_probe/probe_worker.rs
+      The probe's worker: arms 1 to 5, the two scan passes around the holder, arm 8's fork and its ...
+    probe_attach_arm.rs  <- src/native/start_probe/probe_attach_arm.rs
+      Arm 4's attach and arm 5's read-back: the context, the source, the read-only options, the exclusive ...
+    probe_attach_verify.rs  <- src/native/start_probe/probe_attach_verify.rs
+      Arm 5's read-back after the move: the placed mount's ID, filesystem, source and flags from the ...
+    probe_configuration.rs  <- src/native/start_probe/probe_configuration.rs
+      The two names the probe acts on: the dataset whose `ready` snapshot is the source, and the checkout ...
+    probe_configuration_refusal.rs  <- src/native/start_probe/probe_configuration_refusal.rs
+      Why the probe could not tell its source or its checkout, and the closed word the record carries for ...
+    probe_mount_verify.rs  <- src/native/start_probe/probe_mount_verify.rs
+      What the attach arm's own read-back must show: the mount's ID, the `zfs` filesystem, the exact ...
+    probe_namespace_scan.rs  <- src/native/start_probe/probe_namespace_scan.rs
+      Arm 7's scan: every mount namespace of this PID namespace that lists the probe's exact ZFS source, ...
+    probe_record_files.rs  <- src/native/start_probe/probe_record_files.rs
+      Where the probe's record lives and how it is written: a root-owned directory of mode `0755` under ...
+    probe_source_name.rs  <- src/native/start_probe/probe_source_name.rs
+      The dataset-name rule the probe's source passes: the bytes one component may hold, the name's ...
+    probe_unmount_child.rs  <- src/native/start_probe/probe_unmount_child.rs
+      Arm 8's second process: the child that moves the mount from the slot to the move target and ...
+    probe_child_prelude.rs  <- src/native/start_probe/probe_child_prelude.rs
+      What a child does to itself before it runs its steps: join a process group of its own, ask for a ...
+    probe_deadline.rs  <- src/native/start_probe/probe_deadline.rs
+      The one bound the mode puts on its worker and holder: the deadline's value, the margin over the ...
+    probe_descriptor_calls.rs  <- src/native/start_probe/probe_descriptor_calls.rs
+      The descriptor attach's calls: the file-system context, its source and options, the exclusive ...
+    probe_pipe_lines.rs  <- src/native/start_probe/probe_pipe_lines.rs
+      The bytes a child writes and a parent reads on a pipe: one whole status line, a non-blocking drain, ...
+    probe_processes.rs  <- src/native/start_probe/probe_processes.rs
+      The processes the probe runs beside itself: the fork, one pipe pair per child, the child's process ...
+    probe_status_line.rs  <- src/native/start_probe/probe_status_line.rs
+      One status line a probe child writes when a step ends: the arm, the step, the answer, the errno's ...
+    probe_arms.rs  <- src/native/start_probe/probe_arms.rs
+      The nine arms of the root start probe and every step inside them, in the order the worker runs them.
+    probe_line_refusal.rs  <- src/native/start_probe/probe_line_refusal.rs
+      Why a status line on a probe pipe could not be read.
+    probe_status_prefix.rs  <- src/native/start_probe/probe_status_prefix.rs
+      The word every status line begins with.
+    probe_walk_arm.rs  <- src/native/start_probe/probe_walk_arm.rs
+      Arm 2's reads over the trees the probe owns: the no-crossing walk to the slot and the identity it ...
+    probe_mount_calls.rs  <- src/native/start_probe/probe_mount_calls.rs
+      The namespace, propagation, scratch-tmpfs, unmount and mount-table calls the probe's arms make.
+    probe_open_beneath.rs  <- src/native/start_probe/probe_open_beneath.rs
+      One directory opened beneath a held one, with the four resolution refusals the wrapper's walk uses: ...
+    probe_call_error.rs  <- src/native/start_probe/probe_call_error.rs
+      One failed call of the probe: the call's name and the errno it answered.
+    probe_errno_names.rs  <- src/native/start_probe/probe_errno_names.rs
+      The closed sets a status line's errno and reason words come from.
+  the_service_program/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, environment_variables_for_git_children, finding_the_git_folders, finding_the_real_git_program, finishing_what_an_earlier_commit_service_left_open, holding_the_index_lock_for_the_commit_service, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path, telling_whether_an_earlier_commit_service_still_runs, the_hidden_second_git_folder, the_words_meant_for_this_wrapper, work_left_for_the_service_to_finish_later, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, talking_to_the_systemd_user_manager, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    service_is_gone_after_a_stop.rs  <- src/native/service/service_is_gone_after_a_stop.rs
+      Whether a stopped commit service's processes are gone, which is what lets the journal it writes be ...
+    the_service_as_a_mode_of_the_program.rs  <- src/native/service/service_main.rs
+      The resident commit service as a mode of the one executable: `monochromatic-git-policy-cli ...
+    service_plans_of_a_gone_repository.rs  <- src/native/service/service_plans_of_a_gone_repository.rs
+      The pushes a commit service owes a repository that no longer exists: the retry plan of each branch ...
+    service_server_own_worktree_question.rs  <- src/native/service/service_server_own_worktree_question.rs
+      The question the serving loop asks about the worktree whose units are its own: is it still there.
+    last_words_when_a_signal_ends_the_service.rs  <- src/native/service/service_signal.rs
+      The service's last line when a signal ends it: the service manager stops a unit with `SIGTERM`, and ...
+    service_unit_folders_and_the_worktree_of_an_instance.rs  <- src/native/service/service_unit_folders_and_the_worktree_of_an_instance.rs
+      The two folders every question about an instance's units is asked of, which worktree a unit ...
+    service_warm_request.rs  <- src/native/service/service_warm_request.rs
+      The client's one-way request to a commit service that already runs: compile this repository's ...
+    service_address_of_a_worktree.rs  <- src/native/service/service_address_of_a_worktree.rs
+      The address of one worktree's commit service: a socket file under the user's runtime directory when ...
+    earlier_unix_sockets_that_listen.rs  <- src/native/service/earlier_unix_sockets_that_listen.rs
+      Whether a socket of an earlier release's unit listens, and whether a socket of a given name ...
+    service_server.rs  <- src/native/service/service_server.rs
+      The resident service's loop: accept connections, queue requests in arrival order, land what is ...
+    service_own_socket_of_a_retire_that_served_nothing.rs  <- src/native/service/service_own_socket_of_a_retire_that_served_nothing.rs
+      Stops this service's own socket when the service was retired before it served anything.
+    service_scratch_release_removal.rs  <- src/native/service/service_scratch_release_removal.rs
+      The removal of a commit's scratch directory once the landing that read it is over.
+    service_server_accept_connections_as_tasks.rs  <- src/native/service/service_server_accept_connections_as_tasks.rs
+      The service's acceptor of connections: one task that accepts and starts a task per connection.
+    service_server_connection_handling.rs  <- src/native/service/service_server_connection_handling.rs
+      Handles one client connection of the commit service: reads the request line within the read ...
+    service_scratch_trees_of_queued_requests.rs  <- src/native/service/service_scratch_trees_of_queued_requests.rs
+      The commit scratch trees the requests this service holds still name.
+    service_server_land_group.rs  <- src/native/service/service_server_land_group.rs
+      Lands one group of queued requests as a batch and answers each client: settles open batches first, ...
+    service_repository_scratch_sweep.rs  <- src/native/service/service_repository_scratch_sweep.rs
+      The collection of the repository scratch directory, run beside the service's landing loop instead ...
+    service_server_land_group_answer_log.rs  <- src/native/service/service_server_land_group_answer_log.rs
+      What one batch's answer says about that batch: the times every request of it shares, the figures a ...
+    service_server_land_group_owed_pushes.rs  <- src/native/service/service_server_land_group_owed_pushes.rs
+      What a batch of landings owes, and takes before its branch moves: the record of its index update ...
+    service_push_programs_held_in_memory.rs  <- src/native/service/service_push_programs_held_in_memory.rs
+      The programs a push the commit service runs finds, and the transport that push speaks through, ...
+    service_server_queue_types_and_send.rs  <- src/native/service/service_server_queue_types_and_send.rs
+      The shapes the commit service's connection threads and landing thread pass between them (a queued ...
+    service_reply.rs  <- src/native/service/service_reply.rs
+      The service's side of one waiting client: the queue of messages the landing thread answers with, ...
+    service_server_shutdown_after_a_stop.rs  <- src/native/service/service_server_shutdown_after_a_stop.rs
+      The service's own shutdown: a task of the runtime that waits for the stop handler's wake, tells ...
+    service_runtime_build_report.rs  <- src/native/service/service_runtime_build_report.rs
+      The one place that says how the service's own runtime was built, the status and the words a task ...
+    service_server_socket_binding.rs  <- src/native/service/service_server_socket_binding.rs
+      Gets the listening socket of the commit service: the one the service manager passed in, or a socket ...
+    service_server_work_loop.rs  <- src/native/service/service_server_work_loop.rs
+      The loop of the commit service's after-commit work asked by a caller outside the runtime: it waits ...
+    service_server_work_loop_awaiting.rs  <- src/native/service/service_server_work_loop_awaiting.rs
+      The loop of the commit service's after-commit work as a task of the runtime, and the storage steps ...
+    service_queue_received_on_the_runtime.rs  <- src/native/service/service_queue_received_on_the_runtime.rs
+      The wait of a thread on a queue the runtime owns: one item, the end of the wait at its bound, or ...
+    service_shadow_draw.rs  <- src/native/service/service_shadow_draw.rs
+      The service's own stock of finished shadows drawn ahead of the commits that ask for one: the draw ...
+    service_shadow_pool_fill.rs  <- src/native/service/service_shadow_pool_fill.rs
+      The creation of a finished shadow the resident service runs ahead of a commit, from the facts of a ...
+    service_warm_request_control_window.rs  <- src/native/service/service_warm_request_control_window.rs
+      The one instant of the warm request a control may take hold of: the moment the look at the ...
+  the_settings_file_cli_git_config_jsonc/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> names_this_release_and_the_one_before, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, the_words_meant_for_this_wrapper, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository, saving_files_so_a_crash_leaves_no_half_file
+    deciding_how_to_load_settings.rs  <- src/native/config/config_loading.rs
+      Policy-configuration loading decisions before expensive policy initialization.
+    file_only_root_may_write.rs  <- src/native/foundation/file_only_root_may_write.rs
+      Reading one file this program's own account alone may write: opened without following a link, then ...
+    handler_configuration_keys.rs  <- src/native/foundation/handler_configuration_keys.rs
+      The keys the root-owned handler configuration holds, in the one place the wrapper and the root ...
+    settings_of_the_worktree_a_command_runs_in.rs  <- src/native/config/invocation_config.rs
+      Load the policy configuration of the worktree one invocation runs in, and render the events ...
+    finding_and_reading_the_settings_file.rs  <- src/native/config/config_file.rs
+      Find and read `monochromatic-git-policy-cli.config.jsonc` at a repository root.
+    turning_settings_text_into_typed_settings.rs  <- src/native/config/config_parse.rs
+      Turn `monochromatic-git-policy-cli.config.jsonc` text into validated typed settings.
+    discarded_copies_settings.rs  <- src/native/conflict/config_discarded.rs
+      The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`: how long and how much ...
+    checking_the_policies_section.rs  <- src/native/config/config_policies.rs
+      Validation of the `policies` section and of each policy's options.
+    checking_the_markdown_policy_options.rs  <- src/native/config/config_policies_markdown.rs
+      Validation of the options object of the `markdown/autofix` policy and of its `rules` list.
+    the_rules_file_option.rs  <- src/native/config/config_rules_file.rs
+      The `rulesFile` option of `security/forbidden-strings`: which files in the repository hold the ...
+    typed_settings.rs  <- src/native/config/config_schema.rs
+      The typed settings a validated `monochromatic-git-policy-cli.config.jsonc` produces, with defaults.
+    typed_readers_over_json_values.rs  <- src/native/config/config_values.rs
+      Typed readers over parsed JSONC values, each naming the key it rejects.
+    rejected_settings.rs  <- src/native/config/config_error.rs
+      The one failure type for rejected `monochromatic-git-policy-cli.config.jsonc` content or files.
+    unix_socket_connect_within_a_deadline.rs  <- src/native/foundation/unix_socket_connect_within_a_deadline.rs
+      A connection to a unix socket that is made within one deadline, or nothing.
+  the_snapshots_a_removal_takes_before_it_goes/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, converting_the_main_checkout, finding_the_git_folders, how_long_the_program_waits_for_git_steps, is_the_worktree_clean, lines_about_worktrees_and_large_files, making_a_worktree_quickly, messages_between_the_wrapper_and_the_commit_service, planning_a_worktree_add_and_what_git_made, reading_saved_commits_and_files, recording_where_worktree_add_spent_its_time, removing_a_linked_worktree, running_git_for_a_transaction, sha_1_and_sha_256_of_bytes, what_each_git_command_accepts, work_left_for_the_service_to_finish_later, fast_copies_and_swaps_on_linux, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The snapshots a worktree removal takes before it goes, kept until the removal finishes or gives up.)
+    worktree_snapshot_ahead_claim.rs  <- src/native/worktree/worktree_snapshot_ahead_claim.rs
+      What one add does with the snapshots the commit service made ahead of it: prove the newest ...
+    worktree_snapshot_ahead_job.rs  <- src/native/worktree/worktree_snapshot_ahead_job.rs
+      The commit service's own snapshot of a source root, made in the folder an add makes its stage in, ...
+    worktree_snapshot_ahead.rs  <- src/native/worktree/worktree_snapshot_ahead.rs
+      The snapshots the wrapper makes ahead of an add, and the add's claim of one instead of a snapshot ...
+    worktree_snapshot_index_step.rs  <- src/native/worktree/worktree_snapshot_index_step.rs
+      The index step of the snapshot rung: compare the copy with the source's index (settling by content ...
+    worktree_snapshot_placeholders.rs  <- src/native/worktree/worktree_snapshot_placeholders.rs
+      The empty folders a snapshot holds where its source holds a nested subvolume it did not carry, ...
+    worktree_snapshot_source_changed_paths.rs  <- src/native/worktree/worktree_snapshot_source_changed_paths.rs
+      What Git's status lists as changed or untracked in a worktree: how many paths, the first, and ...
+  the_state_of_one_zfs_clone_slot/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> reading_the_datasets_zfs_mounts, the_receipts_and_requests_of_a_clone_mount, the_record_and_the_lock_the_zfs_clone_route_keeps, the_zfs_kernel_gate, file_operations_that_never_follow_a_link, lines_printed_for_the_person
+    (new folder of this round: What one worktree-clone slot is, read without changing anything.)
+    slot_state_live_read.rs  <- src/native/worktree_clone_slot_state/slot_state_live_read.rs
+      The reads that fill one slot's readings from the running machine: the binding record under the ...
+    slot_state_report.rs  <- src/native/worktree_clone_slot_state/slot_state_report.rs
+      One slot's report: its name, the state it is in, the dataset and pool its record names, the ...
+    slot_state_evidence.rs  <- src/native/worktree_clone_slot_state/slot_state_evidence.rs
+      What the readings of one slot saw, one line per source: the binding record, the Git registration, ...
+    slot_state_next_actions.rs  <- src/native/worktree_clone_slot_state/slot_state_next_actions.rs
+      The two sentences a slot's report is made of: what the readings saw, and the one thing that is safe ...
+    slot_state_classification.rs  <- src/native/worktree_clone_slot_state/slot_state_classification.rs
+      The one state one slot is in, decided from the binding record, the removal's plan, the clone's ...
+    slot_state_readings.rs  <- src/native/worktree_clone_slot_state/slot_state_readings.rs
+      The readings one slot's state is decided from, each naming the source it came from: the binding ...
+    slot_state_mounts.rs  <- src/native/worktree_clone_slot_state/slot_state_mounts.rs
+      What one process's mount table says about a slot and about the clone dataset a binding record ...
+    watch_rebinding.rs  <- src/native/worktree_clone_watch_rebinding/watch_rebinding.rs
+      Whether a watch opened before a clone's mount still sees the tree, and the sentence that names the ...
+  the_trash_a_worktree_removal_sets_aside/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, copying_ignored_files_into_a_stage, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, making_a_worktree_quickly, messages_between_the_wrapper_and_the_commit_service, pushing_what_the_commit_service_saved, running_git_for_a_transaction, stopping_the_program_at_a_named_step_for_tests, work_left_for_the_service_to_finish_later, file_operations_that_never_follow_a_link, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The trash a worktree removal sets aside, its manifest, its ignore rule, and the pass that empties it.)
+    worktree_trash_dispose_awaiting.rs  <- src/native/worktree/worktree_trash_dispose_awaiting.rs
+      The service's handler for a trash work item, awaited by a caller that is itself a task of the ...
+    worktree_trash_exclude_line.rs  <- src/native/worktree/worktree_trash_exclude_line.rs
+      The repository's own exclude line that keeps a standing trash out of every `git add --all`, ...
+    worktree_trash_ignore_rule.rs  <- src/native/worktree/worktree_trash_ignore_rule.rs
+      Whether Git ignores the place a snapshot's trash would be made at in one worktree.
+    worktree_trash_set_aside.rs  <- src/native/worktree/worktree_trash_set_aside.rs
+      The trash directory one snapshot's leave-out made and holds open, the one the stand-in step puts a ...
+    worktree_trash_set_aside_entries.rs  <- src/native/worktree/worktree_trash_set_aside_entries.rs
+      The entries a snapshot's leave-out sets aside, and the checks and sweeps it applies to them: ...
+    worktree_trash_unaccounted.rs  <- src/native/worktree/worktree_trash_unaccounted.rs
+      What every later command in a worktree says about the trash of that worktree: which directory ...
+    worktree_trash_hand_over.rs  <- src/native/worktree/worktree_trash_hand_over.rs
+      Hand the directories a snapshot's leave-out set aside to the commit service, as one durable work ...
+    worktree_trash_own_manifest.rs  <- src/native/worktree/worktree_trash_own_manifest.rs
+      The manifest a trash carries inside itself, what it proves, and how a later pass reads it.
+  the_words_meant_for_this_wrapper/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, reading_options_the_way_git_does, spellings_that_switch_the_wrapper_off, starting_git_and_describing_a_run, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository
+    commands_that_ask_what_this_is.rs  <- src/native/invocation/announced_query.rs
+      Recognize the four top-level spellings after which the wrapper says it is not plain Git ...
+    which_worktree_a_command_targets.rs  <- src/native/invocation/effective_target.rs
+      Classify the worktree an invocation targets for worktree-enforcing policies.
+    start_directory.rs  <- src/native/foundation/start_directory.rs
+      The directory a command was started in, read from the process where the command begins and handed ...
+    removing_control_words_from_a_command.rs  <- src/native/invocation/wrapper_invocation.rs
+      Remove every wrapper control from one invocation, before and after the subcommand, and say how the ...
+    control_words_for_the_wrapper.rs  <- src/native/invocation/wrapper_controls.rs
+      The wrapper-only control tokens, what each one means, and their removal from the arguments that ...
+    names_of_the_built_in_policies.rs  <- src/native/policy/policy_registry.rs
+      The fixed registry of policies compiled into the native wrapper.
+  the_zfs_kernel_gate/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    (new folder of this round: The start-time ZFS compatibility gate the root-run handler runs before its first ioctl.)
+    gate_words.rs  <- src/native/zfs_compatibility_gate/gate_words.rs
+      The words a caller and `doctor` print for a verdict: the compatible line naming the module, its ...
+    gate_verdict.rs  <- src/native/zfs_compatibility_gate/gate_verdict.rs
+      The check itself: the qualified target, the device, the identity read, the binding's layout ...
+    gate_target.rs  <- src/native/zfs_compatibility_gate/gate_target.rs
+      The one target the managed route is qualified for, and the refusal every other target gets before ...
+    module_identity.rs  <- src/native/zfs_compatibility_gate/module_identity.rs
+      The loaded module's identity: its release string, its source version, its build ID note, and each ...
+    gate_paths.rs  <- src/native/zfs_compatibility_gate/gate_paths.rs
+      The six paths one compatibility check reads, and the live set the gate's one caller uses.
+  unmounting_a_zfs_clone_folder/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> copying_ignored_files_into_a_stage, file_operations_that_never_follow_a_link, which_disk_a_folder_is_on, saving_files_so_a_crash_leaves_no_half_file, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    (new folder of this round: The unmount half of the ZFS clone route: the staging folder, the record beside it, and the identity comparisons that guard it.)
+    staged_unmount.rs  <- src/native/worktree_clone_unmount/staged_unmount.rs
+      The unmount of a staged mount from the descriptor a process holds, and the later sweep that holds ...
+    staging_cleanup.rs  <- src/native/worktree_clone_unmount/staging_cleanup.rs
+      The wrapper's cleanup of one staging folder: the claim read, the dead-owner test, the folder's ...
+    staging_claim.rs  <- src/native/worktree_clone_unmount/staging_claim.rs
+      The staging claim one repository keeps for each folder the wrapper made, its own place beside the ...
+    unmount_record.rs  <- src/native/worktree_clone_unmount/unmount_record.rs
+      The record a removal writes before its first bind, and the shape checks the staging folder must ...
+    staged_record_reading.rs  <- src/native/worktree_clone_unmount/staged_record_reading.rs
+      The order the staged-folder record is judged in: the boot id first and on its own, the handle ...
+    unmount_turn.rs  <- src/native/worktree_clone_unmount/unmount_turn.rs
+      One removal's unmount turn: the checks, the staging folder and its record, the bind and its ...
+    reattach.rs  <- src/native/worktree_clone_unmount/reattach.rs
+      The checked move of a staged clone back to its slot: the slot opened without crossing anything, its ...
+    unmount_checks.rs  <- src/native/worktree_clone_unmount/unmount_checks.rs
+      The identity comparisons the unmount makes before any move: the reopened slot's mount id, device, ...
+    slot_walk_calls.rs  <- src/native/worktree_clone_unmount/slot_walk_calls.rs
+      The walks and dataset reads the unmount turn needs: reopening the recorded parent, opening the ...
+    staging_calls.rs  <- src/native/worktree_clone_unmount/staging_calls.rs
+      The kernel calls the unmount route makes: the bind of the staging folder, its propagation change, ...
+    staged_folder_record.rs  <- src/native/worktree_clone_unmount/staged_folder_record.rs
+      The staged-folder record: one JSON object per clone GUID beside its staging folder, holding the ...
+    staged_folder_identity.rs  <- src/native/worktree_clone_unmount/staged_folder_identity.rs
+      The five fields the route records for a staging folder: device, inode, birth time, owner and mode, ...
+    staged_folder_error.rs  <- src/native/worktree_clone_unmount/staged_folder_error.rs
+      Why a record or a staging folder's identity could not be read, written or compared.
+    staging_folder_name.rs  <- src/native/worktree_clone_unmount/staging_folder_name.rs
+      The one name a removal's staging folder, its record and its claim carry, all derived from the ...
+    user_cache_pin.rs  <- src/native/worktree_clone_unmount/user_cache_pin.rs
+      The pin of the `user-cache` mount, the account's passwd home it is reached from, and the check that ...
   uploading_large_files/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> finding_the_git_folders, git_settings_read_once, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, reading_branches_tags_and_markers, reading_saved_commits_and_files, running_git_push_until_it_ends_or_stalls, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper, what_each_git_command_accepts
-    is_a_blob_a_large_file_pointer.rs  <- src/native/lfs/lfs_pointer.rs
-      Whether a blob is a Git LFS pointer, decided the way `git-lfs` 3.8.1 decides it when it scans a push.
-    large_files_found_in_the_commits_to_push.rs  <- src/native/lfs/lfs_pointer_scan.rs
-      The LFS objects a push introduces, found in process: the pointer blobs that the commits to be pushed add.
-    when_a_push_needs_the_large_file_upload.rs  <- src/native/lfs/lfs_pre_push.rs
-      When a push needs the Git LFS upload, and the texts the parent prints around it.
-    settings_the_upload_plan_reads.rs  <- src/native/lfs/lfs_upload_settings.rs
-      The configuration the Git LFS upload plan reads, and the answers derived from it: the default remote, the branch
-    what_the_large_file_upload_sends.rs  <- src/native/lfs/lfs_upload_plan.rs
-      What the Git LFS upload before a push sends: the destinations `git lfs push` takes and the refs whose objects it
+    uses/ -> clearing_leftover_reference_locks, environment_variables_for_git_children, finding_the_git_folders, git_settings_read_once, lines_about_worktrees_and_large_files, pushing_what_the_commit_service_saved, reading_branches_tags_and_markers, reading_saved_commits_and_files, running_git_push_until_it_ends_or_stalls, starting_git_and_describing_a_run, the_commit_command, the_service_program, what_each_git_command_accepts, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, watching_a_started_program_until_it_stops_making_progress, lines_printed_for_the_person
+    push_preceded_by_large_file_upload.rs  <- src/native/lfs/lfs_bounded_push.rs
+      Run one bounded `git push` of the auto-push, preceded by the Git LFS upload when the repository has ...
+    large_file_step_before_a_typed_push.rs  <- src/native/lfs/lfs_interactive.rs
+      The Git LFS step before a push the caller typed: the pre-check, the plan and the upload, with the ...
     exact_large_files_a_push_introduces.rs  <- src/native/lfs/lfs_object_plan.rs
-      Narrow an upload plan from "scan these refs with `git-lfs`" to the exact objects the push introduces, decided in
+      Narrow an upload plan from "scan these refs with `git-lfs`" to the exact objects the push ...
+    large_files_found_in_the_commits_to_push.rs  <- src/native/lfs/lfs_pointer_scan.rs
+      The LFS objects a push introduces, found in process: the pointer blobs that the commits to be ...
+    is_a_blob_a_large_file_pointer.rs  <- src/native/lfs/lfs_pointer.rs
+      Whether a blob is a Git LFS pointer, decided the way `git-lfs` 3.8.1 decides it when it scans a ...
     can_the_large_file_upload_start.rs  <- src/native/lfs/lfs_push_precheck.rs
       The check, before anything starts, that the Git LFS upload a push is about to run can start.
     running_the_large_file_upload.rs  <- src/native/lfs/lfs_upload.rs
-      The parent's run of the Git LFS upload before a push: `git-lfs push <remote> <refs>` as one child it owns.
-    push_preceded_by_large_file_upload.rs  <- src/native/lfs/lfs_bounded_push.rs
-      Run one bounded `git push` of the auto-push, preceded by the Git LFS upload when the repository has one.
-    large_file_step_before_a_typed_push.rs  <- src/native/lfs/lfs_interactive.rs
-      The Git LFS step before a push the caller typed: the pre-check, the plan and the upload, with the caller's streams.
-  pushing_what_the_commit_service_saved/
+      The parent's run of the Git LFS upload before a push: `git-lfs push <remote> <refs>` as one child ...
+    lfs_upload_explanations.rs  <- src/native/lfs/lfs_upload_explanations.rs
+      The words a person reads about a Git LFS upload: the explanation after a failure, a stop, a refusal ...
+    lfs_program_search.rs  <- src/native/lfs/lfs_program_search.rs
+      The folders a push's children find their programs in, where that list came from, and the refusal ...
+    what_the_large_file_upload_sends.rs  <- src/native/lfs/lfs_upload_plan.rs
+      What the Git LFS upload before a push sends: the destinations `git lfs push` takes and the refs ...
+    lfs_upload_plan_arguments.rs  <- src/native/lfs/lfs_upload_plan_arguments.rs
+      What the arguments of a `git push` and the configuration decide about an upload, before any ...
+    when_a_push_needs_the_large_file_upload.rs  <- src/native/lfs/lfs_pre_push.rs
+      When a push needs the Git LFS upload, and the texts the parent prints around it.
+    lfs_command_line_configuration.rs  <- src/native/lfs/lfs_command_line_configuration.rs
+      The Git configuration a push carries on its command line: the pairs `-c` and `--config-env` name, ...
+    lfs_upload_plan_awaiting.rs  <- src/native/lfs/lfs_upload_plan_awaiting.rs
+      The upload plan awaited by a caller that is itself a task of the runtime: the same questions, the ...
+    lfs_destination_confirms_tracking_refs.rs  <- src/native/lfs/lfs_destination_confirms_tracking_refs.rs
+      Whether this clone's tracking refs for a remote describe the server a push goes to, decided from ...
+    lfs_upload_refspecs.rs  <- src/native/lfs/lfs_upload_refspecs.rs
+      The refs one refspec names: the source it reads, the pattern it expands, and the listing both faces ...
+    settings_the_upload_plan_reads.rs  <- src/native/lfs/lfs_upload_settings.rs
+      The configuration the Git LFS upload plan reads, and the answers derived from it: the default ...
+  waiting_for_the_index_lock_of_git/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, finding_the_git_folders, git_settings_read_once, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, naming_the_service_of_one_worktree, reading_branches_tags_and_markers, reading_git_settings_from_files, reading_saved_commits_and_files, recording_where_worktree_add_spent_its_time, recovering_a_merge_that_was_cut_short, rerunning_a_merge_word_by_word, running_git_push_until_it_ends_or_stalls, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, uploading_large_files, who_owns_a_transaction_folder, work_left_for_the_service_to_finish_later
-    what_configured_refspecs_make_of_a_branch.rs  <- src/native/push/auto_push_refspec_judging.rs
-      The reading of a configured push refspec and the judgement of what the refspecs make of one branch: which remote names
-    where_a_plain_push_would_send_a_branch.rs  <- src/native/push/auto_push_destination.rs
-      Where a plain `git push` of one named branch would send it, decided from the configuration and the local refs
-    words_and_limits_of_a_reconcile.rs  <- src/native/push/auto_push_reconcile_basics_and_limits.rs
-      The words, limits and small Git steps that the reconcile of a rejected push shares: the line prefixes, the attempt
-    paths_a_dirty_worktree_holds.rs  <- src/native/push/auto_push_dirty_paths.rs
-      The paths a dirty worktree has uncommitted work in, the paths a fast-forward would change, and the overlap
-    moving_the_local_branch_after_a_reconcile.rs  <- src/native/push/auto_push_reconcile_branch_advance.rs
-      The move of the local branch after the merge was pushed: the fast-forward, the record that guards it, the check that
-    the_merge_commit_of_a_reconcile.rs  <- src/native/push/auto_push_reconcile_merge_commit.rs
-      The merge commit of a reconcile: the merge of the remote tip and the local tip computed in the object store (with the
-    publishing_after_the_remote_moved.rs  <- src/native/push/auto_push_reconcile.rs
-      Publishing a landed commit when the remote branch advanced after the commit landed
-    pushing_a_landed_commit.rs  <- src/native/push/auto_push.rs
-      The commit service's push of a landed commit's branch: which push runs, what its output shows
-    file_name_of_one_branch.rs  <- src/native/push/auto_push_branch_key.rs
-      The reversible, flat, case-insensitive-safe file name of one branch's push files.
-    log_of_push_trigger_decisions.rs  <- src/native/push/push_trigger_log.rs
-      The record of every decision of the push trigger after a command that adds commits
-    handing_a_push_to_the_commit_service.rs  <- src/native/push/auto_push_trigger.rs
-      Hands a push to the commit service after a command other than `git commit` added commits to the branch: a merge, a
-    record_of_a_failed_backup_push.rs  <- src/native/push/push_failure_notice.rs
-      The record of a backup push that failed after its commit was saved, and the rule for when the wrapper shows it
-    retry_plans_on_disk.rs  <- src/native/push/push_retry_store.rs
-      The retry plan on disk: one small file per branch whose push waits for a new try, in a directory of the service ...
-    retrying_a_stopped_push.rs  <- src/native/push/push_retry.rs
-      The service's own retry of a push it stopped or that failed: the pause before each new try, the list of branches ...
-  after_commit_work_of_the_service/
+    uses/ -> finding_who_holds_a_lock_file, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, what_each_git_command_accepts, watching_a_started_program_until_it_stops_making_progress, which_programs_are_running_and_since_when
+    waiting_for_any_programs_hold_on_the_index_lock.rs  <- src/native/lock/index_holder_wait.rs
+      The wait of a command that is about to change the checkout for any program's hold on Git's ...
+    does_a_command_write_the_index.rs  <- src/native/lock/index_writer_commands.rs
+      Whether a resolved forwarded command writes the real index.
+  what_each_git_command_accepts/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, git_settings_read_once, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, making_a_worktree_quickly, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, reading_git_settings_from_files, reviewing_landed_commits_against_standards, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, uploading_large_files, work_left_for_the_service_to_finish_later
-    service_claim_renewal.rs  <- src/native/landing/service_claim_renewal.rs
-      Keeps the lease of the claims one service instance holds fresh while it works, so a claim is taken over only when its ...
-    service_claim_watch.rs  <- src/native/landing/service_claim_watch.rs
-      The Git directories whose after-commit work this service instance has been woken for, kept on disk in the instance's ...
-    service_hold_retry.rs  <- src/native/landing/service_hold_retry.rs
-      Runs a forwarded index writer again when real Git lost the race for the index to the commit service, instead of ...
-    service_retry.rs  <- src/native/landing/service_retry.rs
-      The repositories the service must look at again, and when: those with a claim that another instance holds and that ...
-    service_review.rs  <- src/native/service/service_review.rs
-      The service's handler for a `review` work item: read the landed commit, ask the decision gateway, and append the
-    service_work_handlers_replanning_and_acceptance.rs  <- src/native/landing/service_work_handlers_replanning_and_acceptance.rs
-      What the work of the commit service is made of: the kinds it runs, the handlers that run each kind, which records are
-    service_work_drain_pending_claims.rs  <- src/native/landing/service_work_drain_pending_claims.rs
-      Drains the pending items of one work directory: claims them under a lease, settles the unacceptable ones, groups the ...
-    service_work.rs  <- src/native/landing/service_work.rs
-      The service's consumer of after-commit work: pending `push` and `maintenance` work items of one repository are
-    service_round.rs  <- src/native/landing/service_round.rs
-      The drain of several repositories in one round of the service's after-commit work, side by side.
-    service_work_run_round.rs  <- src/native/landing/service_work_run_round.rs
-      Runs one round of the service's work over several directories: hands each directory its due retries, drains them side ...
-  hooks_a_repository_configures/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> git_settings_read_once, starting_git_and_describing_a_run, the_settings_file_cli_git_config_jsonc
-    hooks_set_in_git_settings.rs  <- src/native/health/external_hooks.rs
-      The external hooks a repository configures (`hook.<name>.event` with `hook.<name>.command`), read from the
-    warning_about_hooks_in_the_hooks_folder.rs  <- src/native/health/traditional_hook_warning.rs
-      The non-blocking warning a wrapped commit prints when the configuration sets `core.hooksPath`.
-  checking_that_your_setup_works/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> git_settings_read_once, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, running_git_for_a_transaction, saving_copies_of_what_a_command_would_throw_away, starting_git_and_describing_a_run, the_settings_file_cli_git_config_jsonc
-    doctor_config.rs  <- src/native/health/doctor_config.rs
-      What `git cli-git doctor` reports from the configuration: the external hooks Git configuration defines, and the
-    doctor_fsmonitor.rs  <- src/native/health/doctor_fsmonitor.rs
-      The fsmonitor section of `git cli-git doctor`: whether Git's own file-system monitor (`core.fsmonitor`) is off, and
-    doctor.rs  <- src/native/health/doctor.rs
-      `git cli-git doctor`: list the traditional hooks a repository holds and the external hooks its Git
-    doctor_filesystem.rs  <- src/native/health/doctor_filesystem.rs
-      The filesystem section of `git cli-git doctor`: what the repository's main checkout sits on (btrfs subvolume
-  checking_version_bumps_in_a_commit/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> putting_corrected_files_into_the_private_index, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, running_policies_and_settling_their_corrections, the_settings_file_cli_git_config_jsonc, what_the_wrapper_asks_git_about_a_repository
-    dependent_version_lifecycle.rs  <- src/native/dependent_version/dependent_version_lifecycle.rs
-      The dependent-version planner's view of a prepared candidate state: every tracked file of the private index, its ...
-    dependent_version_policy.rs  <- src/native/dependent_version/dependent_version_policy.rs
-      The decision of `mono/dependent-version-bump`: when to plan, and the findings a plan becomes.
-    policy_dependent_version.rs  <- src/native/dependent_version/policy_dependent_version.rs
-      The `mono/dependent-version-bump` check
-  converting_a_linked_worktree/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> converting_the_main_checkout, is_the_worktree_clean, lines_about_worktrees_and_large_files
-    worktree_convert_journal.rs  <- src/native/worktree/worktree_convert_journal.rs
-      The journal of one conversion of a worktree into a subvolume.
-    worktree_convert_inspection.rs  <- src/native/worktree/worktree_convert_inspection.rs
-      The first look at a worktree a conversion might change: what its `.git` file names, and every reason the conversion ...
-    worktree_convert_compare.rs  <- src/native/worktree/worktree_convert_compare.rs
-      A read-only comparison of the old tree of a conversion with the installed one: the first entry of the old tree that ...
-    worktree_convert_remove.rs  <- src/native/worktree/worktree_convert_remove.rs
-      Remove the old tree of a conversion, but only the directory the journal recorded, pinned by a descriptor from the ...
-    worktree_convert_phases.rs  <- src/native/worktree/worktree_convert_phases.rs
-      The journaled phases of one worktree conversion: the claim on the stage, the copy and its proof, the swap, the index
-    worktree_convert.rs  <- src/native/worktree/worktree_convert.rs
-      Convert one registered linked worktree that is an ordinary directory into a btrfs subvolume at the same path
-    worktree_convert_arguments.rs  <- src/native/worktree/worktree_convert_arguments.rs
-      The grammar of `git cli-git convert-worktree-to-subvolume`.
-    worktree_convert_command.rs  <- src/native/worktree/worktree_convert_command.rs
-      `git cli-git convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on ...
-  copying_ignored_files_around_one_git_command/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> copying_ignored_files_into_a_stage, making_a_worktree_quickly, recording_where_worktree_add_spent_its_time, running_git_for_a_transaction, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper
-    worktree_copy.rs  <- src/native/worktree_copying/worktree_copy.rs
-      The linked-worktree ignored-state copy around one forwarded Git invocation: the public entry point the
-  fixing_markdown_in_process/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> how_long_the_program_waits_for_git_steps, reading_the_bytes_a_commit_would_save, running_git_for_a_transaction, running_policies_and_settling_their_corrections, the_settings_file_cli_git_config_jsonc, what_the_wrapper_asks_git_about_a_repository
-    markdown_exclude.rs  <- src/native/markdown/markdown_exclude.rs
-      The `exclude` option of `markdown/autofix`
-    markdown_linter_config.rs  <- src/native/markdown/markdown_linter_config.rs
-      The linter configuration the `markdown/autofix` policy hands `monochromatic-lint`
-    markdown_linter_guard.rs  <- src/native/markdown/markdown_linter_guard.rs
-      Run one job on a thread of its own and wait for it until it ends, or until the thread has shown no sign of work for a
-    markdown_linter_output.rs  <- src/native/markdown/markdown_linter_output.rs
-      Read what one in-process `monochromatic-lint` fix run produced
-    policy_markdown.rs  <- src/native/markdown/policy_markdown.rs
-      The optional `markdown/autofix` policy
-    markdown_linter.rs  <- src/native/markdown/markdown_linter.rs
-      The linter the executable gives `markdown/autofix`
-  merging_without_touching_your_files/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, holding_the_index_lock_for_the_commit_service, log_lines_of_the_commit_service, pushing_what_the_commit_service_saved, recovering_a_merge_that_was_cut_short, rerunning_a_merge_word_by_word, running_git_for_a_transaction, running_policies_and_settling_their_corrections, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, stopping_the_program_at_a_named_step_for_tests, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, waiting_for_the_index_lock_of_git, who_owns_a_transaction_folder
-    merge_isolation_message.rs  <- src/native/merge/merge_isolation_message.rs
-      The text of an isolated merge's commit message and the name Git gives the merged commit in it.
-    merge_options.rs  <- src/native/merge/merge_options.rs
-      The shape of a `git merge` command line that the wrapper can complete in isolation, or the reason it cannot.
-    merge_isolation_run_types.rs  <- src/native/merge/merge_isolation_run_types.rs
-      The values an isolated merge passes between its steps: the input, the outcome, the way a step gives up, the settings ...
-    merge_isolation_git_reads.rs  <- src/native/merge/merge_isolation_git_reads.rs
-      The questions an isolated merge asks Git and the terminal: the merge settings, the unsaved paths, the fetch head, and ...
-    merge_isolation_report.rs  <- src/native/merge/merge_isolation_report.rs
-      The refusals of an isolated merge, as the finding events a caller reads, each naming the paths involved and
-    merge_isolation_apply.rs  <- src/native/merge/merge_isolation_apply.rs
-      The writing half of an isolated merge: the merge tree, the merge commit, and the two-way update that applies it to ...
-    merge_isolation.rs  <- src/native/merge/merge_isolation.rs
-      A true `git merge <branch>` completed in isolation when the index holds staged changes that make native Git
-    pull_isolation.rs  <- src/native/merge/pull_isolation.rs
-      A `git pull` that merges, turned into the fetch it starts with and the `git merge FETCH_HEAD` it ends with, so the ...
-  removing_a_linked_worktree/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> is_the_worktree_clean, lines_about_worktrees_and_large_files, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, starting_git_and_describing_a_run, work_left_for_the_service_to_finish_later
-    worktree_removal_rescue.rs  <- src/native/worktree/worktree_removal_rescue.rs
-      What happens to the unshown push-failure notices and the unfinished backup pushes of a linked worktree when Git ...
-    worktree_remove_registry.rs  <- src/native/worktree/worktree_remove_registry.rs
-      Which registration of the invoking repository a worktree directory belongs to, and whether Git would pick that same
-    worktree_remove.rs  <- src/native/worktree/worktree_remove.rs
-      The removal of a clean linked worktree that is a btrfs subvolume, by one subvolume destroy call and the
-    worktree_remove_plan.rs  <- src/native/worktree/worktree_remove_plan.rs
-      The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy: the one directory it ...
-  replaying_changes_onto_new_commits/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, reading_the_bytes_a_commit_would_save, rerunning_a_merge_word_by_word, running_git_for_a_transaction, starting_git_and_describing_a_run, the_hidden_second_git_folder
-    replay_capture_order.rs  <- src/native/shadow/replay_capture_order.rs
-      The capture-order decision for one shared path of a replay.
-    replay_patch.rs  <- src/native/shadow/replay_patch.rs
-      The unified-diff parser that replay's subsumption reads
-    replay_containment.rs  <- src/native/shadow/replay_containment.rs
-      The context-tolerant half of replay's subsumption
-    replay_merge.rs  <- src/native/shadow/replay_merge.rs
-      The merge step of one replay: the tree from `git merge-tree --write-tree` of the prepared change onto the landed tip.
-    replay_reverse_apply.rs  <- src/native/shadow/replay_reverse_apply.rs
-      The exact emulation of `git apply --reverse --check` for one text file
-    replay_shadow.rs  <- src/native/shadow/replay_shadow.rs
-      Running real Git against the shadow repository for replay
-    replay_shared_paths.rs  <- src/native/shadow/replay_shared_paths.rs
-      The paths both the prepared commit and the landed history changed since the preparation base
-    replay_subsumption_text.rs  <- src/native/shadow/replay_subsumption_text.rs
-      The text half of replay's subsumption
-    replay_subsumption.rs  <- src/native/shadow/replay_subsumption.rs
-      Subsumption before replay's three-way merge
-  the_built_in_policies/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> reading_the_bytes_a_commit_would_save, running_policies_and_settling_their_corrections, scanning_those_bytes_for_forbidden_strings, the_settings_file_cli_git_config_jsonc, what_the_wrapper_asks_git_about_a_repository
-    policy_catalog_specifiers.rs  <- src/native/policy/policy_catalog_specifiers.rs
-      The optional `mono/catalog-specifiers` policy
-    policy_final_newline.rs  <- src/native/policy/policy_final_newline.rs
-      The built-in `final-newline` policy
-    policy_forbidden_strings.rs  <- src/native/policy/policy_forbidden_strings.rs
-      The optional `security/forbidden-strings` policy
-    policy_root_context.rs  <- src/native/policy/policy_root_context.rs
-      The optional `mono/forbidden-root-context` policy
-  the_list_of_checks_every_commit_runs/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> checking_version_bumps_in_a_commit, fixing_markdown_in_process, putting_corrected_files_into_the_private_index, rules_about_where_a_command_may_run, rules_that_add_flags_to_a_command, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, the_built_in_policies, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, what_the_wrapper_asks_git_about_a_repository
-    one_complete_policy_pass.rs  <- src/native/policy/policy_pass.rs
-      One complete policy pass over the shipped policies
-    fixing_files_in_place_command.rs  <- src/native/policy/direct_fix.rs
-      `git cli-git fix`
-    the_list_of_shipped_checks.rs  <- src/native/policy/policy_checks.rs
-      The shipped policies as the engine sees them
-  the_commit_command/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> answering_questions_without_starting_git, asking_the_commit_service_to_save_a_commit, environment_variables_for_git_children, fixing_markdown_in_process, git_settings_read_once, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, making_a_worktree_quickly, messages_between_the_wrapper_and_the_commit_service, putting_corrected_files_into_the_private_index, reading_and_writing_the_index_file_of_git, reading_options_the_way_git_does, reading_the_bytes_a_commit_would_save, replaying_changes_onto_new_commits, rerunning_a_merge_word_by_word, rules_about_what_a_commit_may_contain, rules_about_where_a_command_may_run, running_git_for_a_transaction, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, scanning_those_bytes_for_forbidden_strings, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, state_shared_by_preparing_and_landing_a_commit, stopping_the_program_at_a_named_step_for_tests, the_built_in_policies, the_hidden_second_git_folder, the_list_of_checks_every_commit_runs, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, uploading_large_files, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository, work_left_for_the_service_to_finish_later
-    commit_args.rs  <- src/native/commit/commit_args.rs
-      Argument transforms of native preparation
-    commit_facts.rs  <- src/native/commit/commit_facts.rs
-      The repository facts of a commit transaction
-    commit_transaction.rs  <- src/native/commit/commit_transaction.rs
-      The values every commit of the service route shares: the invocation, how it can stop, what it came to, the selection
-    post_commit.rs  <- src/native/commit/post_commit.rs
-      The post-commit policy gate over a landed commit's own changes.
-    private_index_request.rs  <- src/native/commit/private_index_request.rs
-      The private index and object store a commit's preparation reads and writes, and the Git request that selects them.
-    service_commit_args_editor_opening.rs  <- src/native/landing/service_commit_args_editor_opening.rs
-      Whether a `commit` command line opens an editor: the long options that never decide it, the options that take a ...
-    service_commit_args.rs  <- src/native/landing/service_commit_args.rs
-      Which `git commit` command lines the resident service lands, and the message such a line stands for.
-    service_message.rs  <- src/native/landing/service_message.rs
-      The message and the identities of a commit the service lands, made from the command line the way native
-    facts_of_the_commit_an_amend_replaces.rs  <- src/native/landing/service_amend.rs
-      The facts of the commit an amend replaces, read once from the repository: its parents, its first parent's tree
-    service_commit_input_notes_and_embedded_commit.rs  <- src/native/landing/service_commit_input_notes_and_embedded_commit.rs
-      The small steps of a service commit: the arguments after the subcommand, the name of a switched branch, the standard ...
-    service_prepare_ready_shapes.rs  <- src/native/landing/service_prepare_ready_shapes.rs
-      The shapes a service preparation hands back: the scratch directory that removes itself, what a preparation came to
-    service_commit_requests_and_landing_report.rs  <- src/native/landing/service_commit_requests_and_landing_report.rs
-      The pieces of a service commit that need no loop: the request for a commit Git built, the request for a commit the ...
-    commit_preparation.rs  <- src/native/commit/commit_preparation.rs
-      Native `git commit` in the shadow repository against the private commit index
-    service_native.rs  <- src/native/landing/service_native.rs
-      The commits real Git builds for the commit service: an editor, a signature, and every command line the service does
-    commit_conclusion.rs  <- src/native/commit/commit_conclusion.rs
-      The events of a settled commit with the fix summary the policies' corrections earned.
-    private_index_stage.rs  <- src/native/commit/private_index_stage.rs
-      Write one corrected file into the private commit index: its bytes as a blob
-    commit_convergence.rs  <- src/native/commit/commit_convergence.rs
-      The commit path's bounded policy convergence over the private commit index
-    commit_index_copying.rs  <- src/native/commit/commit_index_copying.rs
-      The copying of the real index into a private index: a copy that keeps the source's timestamps, the check of
-    commit_staged_additions.rs  <- src/native/commit/commit_staged_additions.rs
-      The staged additions an explicit-path commit must carry into its private index, and the pathspec-file reader
-    commit_index.rs  <- src/native/commit/commit_index.rs
-      The private commit index of one transaction
-    commit_staged_deletions.rs  <- src/native/commit/commit_staged_deletions.rs
-      The commit-only finding for a staged deletion that an explicit-path commit cannot record because the path is
-    commit_worktree_records.rs  <- src/native/commit/commit_worktree_records.rs
-      The worktree completion records a landed commit owes the worktree: selected final-newline corrections.
-    commit_no_change.rs  <- src/native/commit/commit_no_change.rs
-      The normalization-only commit: a correction whose complete intended tree equals the recorded base ends without an ...
-    service_prepare_changes_config_and_pathspec_steps.rs  <- src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs
-      The smaller steps of a service preparation: the changes a commit makes, whether the configuration needs native Git, ...
-    service_replay_path_and_line_text.rs  <- src/native/landing/service_replay_path_and_line_text.rs
-      Small text steps of the replay of captured changes: a path as Latin-1 text and back, and whether a line of Git's ...
-    service_replay.rs  <- src/native/landing/service_replay.rs
-      The retry of a commit the service sent back because a path it names changed on the branch since its base: the change
-    service_prepare.rs  <- src/native/landing/service_prepare.rs
-      The preparation of a commit that goes through the resident service: the private index, the selection UI, the policies
-    service_commit.rs  <- src/native/landing/service_commit.rs
-      The commit command's path through the resident service: prepare the commit in this process (private index
-    commit_command.rs  <- src/native/commit/commit_command.rs
-      The `git commit` command of the native wrapper: the preparation and landing through the resident service, the settled
-  the_service_program/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> after_commit_work_of_the_service, environment_variables_for_git_children, finding_the_real_git_program, holding_the_index_lock_for_the_commit_service, how_long_the_program_waits_for_git_steps, landing_commits, log_lines_of_the_commit_service, messages_between_the_wrapper_and_the_commit_service, naming_the_service_of_one_worktree, pushing_what_the_commit_service_saved, recording_where_worktree_add_spent_its_time, running_git_push_until_it_ends_or_stalls, sending_log_entries_to_the_system_journal, starting_git_and_describing_a_run, stopping_the_program_at_a_named_step_for_tests, syncing_files_off_the_waiting_path, work_left_for_the_service_to_finish_later
-    service_reply.rs  <- src/native/service/service_reply.rs
-      The service's side of one waiting client: the queue of messages the landing thread answers with, and the loop that ...
-    service_server_queue_types_and_send.rs  <- src/native/service/service_server_queue_types_and_send.rs
-      The shapes the commit service's connection threads and landing thread pass between them (a queued request, the key ...
-    service_server_connection_handling.rs  <- src/native/service/service_server_connection_handling.rs
-      Handles one client connection of the commit service: reads the request line within the read timeout, checks who
-    service_server_land_group.rs  <- src/native/service/service_server_land_group.rs
-      Lands one group of queued requests as a batch and answers each client: settles open batches first, answers repeats and
-    service_server_socket_binding.rs  <- src/native/service/service_server_socket_binding.rs
-      Gets the listening socket of the commit service: the one the service manager passed in, or a socket bound at a path.
-    service_server_work_loop.rs  <- src/native/service/service_server_work_loop.rs
-      The loop of the commit service's work thread: it waits for wakes and due retries, runs a round of repository work for ...
-    service_server.rs  <- src/native/service/service_server.rs
-      The resident service's loop: accept connections, queue requests in arrival order, land what is queued as a batch
-    last_words_when_a_signal_ends_the_service.rs  <- src/native/service/service_signal.rs
-      The service's last line when a signal ends it
-    the_service_as_a_mode_of_the_program.rs  <- src/native/service/service_main.rs
-      The resident commit service as a mode of the one executable: `cli-git-native cli-git service run <options>`.
-  working_out_what_a_typed_push_would_send/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> environment_variables_for_git_children, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, pushing_what_the_commit_service_saved, reading_options_the_way_git_does, reading_the_bytes_a_commit_would_save, rules_about_what_a_commit_may_contain, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, starting_git_and_describing_a_run, uploading_large_files, what_each_git_command_accepts
-    reading_dry_run_push_output.rs  <- src/native/push/manual_push_porcelain.rs
-      The parser of `git push --dry-run --porcelain` output, which tells the manual-push probe what a push would send.
-    one_pushed_ref_and_query_limits.rs  <- src/native/push/manual_push_update_and_query_limits.rs
-      The public update of one pushed reference and the limits on how many queries of a push probe run side by side.
-    what_a_dry_run_push_would_send.rs  <- src/native/push/manual_push_probe.rs
-      The authoritative ref updates a `git push` would send, discovered by a dry-run push whose report Git writes itself.
-    commits_a_push_newly_publishes.rs  <- src/native/push/manual_push_range.rs
-      The commits a push newly publishes, relative to what each destination remote already has.
-    scope_of_one_typed_push.rs  <- src/native/push/manual_push_lifecycle.rs
-      The manual-push candidate scope of one `git push`: the commits and trees the destination lacks.
-    typed_push_that_lost_a_race.rs  <- src/native/push/push_stacking.rs
-      An explicit `git push` that lost a race: the commits that landed on the remote since the local base are merged in
-    push_of_a_merge_that_integrated_a_lost_race.rs  <- src/native/push/stacked_merge_push.rs
-      The push of a merge that integrated a lost race, planned and run inside the running wrapper.
+    uses/ -> reading_git_settings_from_files, reading_options_the_way_git_does, running_git_for_a_transaction, saving_copies_of_what_a_command_would_throw_away, spellings_that_switch_the_wrapper_off, file_operations_that_never_follow_a_link, saving_files_so_a_crash_leaves_no_half_file
+    branch_delete_audit.rs  <- src/native/command/branch_delete_audit.rs
+      The facts one audit line carries about a deleted branch: its name, the commit it pointed at, and ...
+    command_add.rs  <- src/native/command/command_add.rs
+      The complete `git add` option table of Git 2.56.0 and the bulk-staging facts read from it.
+    command_branch_create.rs  <- src/native/command/command_branch_create.rs
+      Branch-creation facts of `git branch`, `git checkout` and `git switch` regions, read as Git 2.56.0 ...
+    command_branch_delete.rs  <- src/native/command/command_branch_delete.rs
+      Which branches a `git branch` region deletes.
+    command_branch_mode.rs  <- src/native/command/command_branch_mode.rs
+      Whether a tokenized `git branch` region creates a branch in Git 2.56.0.
+    command_branch_table.rs  <- src/native/command/command_branch_table.rs
+      The complete option table of `git branch` in Git 2.56.0.
+    command_branch_target.rs  <- src/native/command/command_branch_target.rs
+      Explicit creation and the remote-guess candidate of tokenized `git checkout` and `git switch` ...
+    command_clean.rs  <- src/native/command/command_clean.rs
+      The complete `git clean` option table of Git 2.56.0 and the deletion facts read from it.
+    command_clean_nested_repositories.rs  <- src/native/command/command_clean_nested_repositories.rs
+      The nested Git repositories a clean's own dry run says it would delete.
+    command_commit.rs
+      (the file this row names was split away since 2026-11-07; the rescan section places what replaced it)
+    command_commit_table.rs  <- src/native/command/command_commit_table.rs
+      The complete option table of `git commit` in Git 2.56.0.
+    command_config.rs  <- src/native/command/command_config.rs
+      The form and file scope of a `git config` region, read as Git 2.56.0 reads it.
+    command_config_table.rs  <- src/native/command/command_config_table.rs
+      The option groups of `git config` in Git 2.56.0, one constant per group.
+    command_push.rs  <- src/native/command/command_push.rs
+      The complete `git push` option table of Git 2.56.0 and the facts read from it.
+    command_remote.rs  <- src/native/command/command_remote.rs
+      The subcommand of a `git remote` region, read as Git 2.56.0 reads it.
+    command_remote_table.rs  <- src/native/command/command_remote_table.rs
+      The option table of `git remote` in Git 2.56.0, which holds the one option Git reads before a ...
+    command_reset.rs  <- src/native/command/command_reset.rs
+      The complete `git reset` option table of Git 2.56.0 and the mode read from it.
+    command_stash.rs  <- src/native/command/command_stash.rs
+      Which `git stash` subcommand a region runs in Git 2.56.0, and where wrapper-only flags sit in it.
+    command_stash_table.rs  <- src/native/command/command_stash_table.rs
+      The option tables of every `git stash` subcommand in Git 2.56.0.
+    command_status.rs  <- src/native/command/command_status.rs
+      The complete `git status` option table of Git 2.56.0, the machine-readable fact read from it, and ...
+    command_worktree.rs  <- src/native/command/command_worktree.rs
+      The one fact the wrapper needs about `git worktree`: whether the invocation changes worktree ...
+    command_discard.rs  <- src/native/command/command_discard.rs
+      Which regions of `git checkout`, `git switch`, `git restore`, `git rm`, `git mv`, `git ...
+    command_checkout_table.rs  <- src/native/command/command_checkout_table.rs
+      The complete option tables of `git checkout` and `git switch` in Git 2.56.0.
+    git_builtins.rs  <- src/native/invocation/git_builtins.rs
+      The names of the commands built into Git 2.56.0, and the test "is this word one of them".
+    global_arguments_pathspec_modes.rs  <- src/native/invocation/global_arguments_pathspec_modes.rs
+      The pathspec-mode options of a global prefix: which of them the caller wrote, and what the prefix ...
+    global_arguments.rs  <- src/native/invocation/global_arguments.rs
+      Locate Git 2.56.0 command boundaries without reconstructing native arguments.
   what_happens_when_you_type_a_command/
     mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, checking_that_your_setup_works, clearing_leftover_reference_locks, converting_a_linked_worktree, converting_the_main_checkout, copying_ignored_files_around_one_git_command, copying_ignored_files_into_a_stage, environment_variables_for_git_children, finding_the_git_folders, finding_the_real_git_program, git_settings_read_once, holding_the_index_lock_for_the_commit_service, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, merging_without_touching_your_files, planning_a_worktree_add_and_what_git_made, pushing_what_the_commit_service_saved, reading_options_the_way_git_does, reading_the_bytes_a_commit_would_save, recovering_a_merge_that_was_cut_short, removing_a_linked_worktree, rerunning_a_merge_word_by_word, rules_about_what_a_commit_may_contain, rules_about_where_a_command_may_run, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, scanning_those_bytes_for_forbidden_strings, starting_git_and_describing_a_run, the_commit_command, the_list_of_checks_every_commit_runs, the_service_program, the_settings_file_cli_git_config_jsonc, the_words_meant_for_this_wrapper, uploading_large_files, waiting_for_the_index_lock_of_git, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository, working_out_what_a_typed_push_would_send
+    uses/ -> after_commit_work_of_the_service, asking_the_commit_service_to_save_a_commit, checking_that_your_setup_works, checking_the_repository_link, clearing_leftover_reference_locks, converting_a_linked_worktree, converting_the_main_checkout, copying_ignored_files_around_one_git_command, copying_ignored_files_into_a_stage, environment_variables_for_git_children, finding_the_git_folders, finding_the_real_git_program, finding_who_holds_a_lock_file, finishing_what_an_earlier_commit_service_left_open, git_settings_read_once, holding_the_index_lock_for_the_commit_service, hooks_a_repository_configures, how_long_the_program_waits_for_git_steps, landing_commits, making_a_worktree_quickly, merging_without_touching_your_files, moving_kept_files_to_the_new_names, names_this_release_and_the_one_before, naming_the_service_of_one_worktree, planning_a_worktree_add_and_what_git_made, pushing_what_the_commit_service_saved, reading_options_the_way_git_does, reading_the_bytes_a_commit_would_save, reading_the_datasets_zfs_mounts, recovering_a_merge_that_was_cut_short, removing_a_linked_worktree, repairing_the_links_of_a_zfs_clone, repairs_the_service_runs_for_a_new_worktree, rerunning_a_merge_word_by_word, rules_about_what_a_commit_may_contain, rules_about_where_a_command_may_run, running_git_for_a_transaction, running_git_push_until_it_ends_or_stalls, running_policies_and_settling_their_corrections, saving_copies_of_what_a_command_would_throw_away, scanning_those_bytes_for_forbidden_strings, starting_git_and_describing_a_run, telling_whether_an_earlier_commit_service_still_runs, the_built_in_policies, the_commit_command, the_hidden_second_git_folder, the_list_of_checks_every_commit_runs, the_pointer_a_prune_keeps, the_references_kept_for_unlanded_commits, the_service_program, the_settings_file_cli_git_config_jsonc, the_trash_a_worktree_removal_sets_aside, the_words_meant_for_this_wrapper, uploading_large_files, waiting_for_the_index_lock_of_git, what_each_git_command_accepts, what_the_wrapper_asks_git_about_a_repository, working_out_what_a_typed_push_would_send, repairing_installed_packages, file_operations_that_never_follow_a_link, running_independent_jobs_side_by_side, saving_files_so_a_crash_leaves_no_half_file, starting_programs_catching_signals_and_keeping_their_output, talking_to_the_systemd_user_manager, lines_printed_for_the_person
+    alias_value.rs  <- src/native/invocation/alias_value.rs
+      The value of a Git alias, split the way Git splits it, from the variables of `git config --null ...
+    chain_starts_record.rs  <- src/native/invocation/chain_starts_record.rs
+      The marker the last wrapper start wrote for its Git, carried in a small memory file whose ...
+    deciding_what_one_git_command_does.rs  <- src/native/invocation/entry.rs
+      Decide what one `git` invocation of the native wrapper does, and perform it.
+    entry_forward_action_planning.rs  <- src/native/invocation/entry_forward_action_planning.rs
+      Plans what a forwarded Git command does once the wrapper has stripped its own controls: plain ...
+    entry_push_stacking_and_lfs_upload.rs  <- src/native/invocation/entry_push_stacking_and_lfs_upload.rs
+      Turns a plain forward of a push into a stacked push or a push that uploads Git LFS objects first, ...
+    entry_repository_link_stop.rs  <- src/native/invocation/entry_repository_link_stop.rs
+      The stop of an invocation that names the repository through a link to the 860 drive that does not ...
+    entry_run_forwarded_actions.rs  <- src/native/invocation/entry_run_forwarded_actions.rs
+      Runs a forwarded Git command under the index-writer coordination, finishes a settled forward, runs ...
+    entry_rules_text_change_warm.rs  <- src/native/invocation/entry_rules_text_change_warm.rs
+      After a forwarded command that moves the worktree to other files (`merge`, `pull`, `checkout`, ...
+    entry_zfs_slot_commands.rs  <- src/native/invocation/entry_zfs_slot_commands.rs
+      What one forwarded Git command does when it meets a managed clone's slot: the refusal of a move, ...
+    exit_report_written.rs  <- src/native/invocation/exit_report_written.rs
+      The end of a command that stops without running the caller's request: its report on standard output ...
+    index_writer_forward.rs  <- src/native/lock/index_writer_forward.rs
+      Running a forwarded index writer as a child of the wrapper: wait for the commit service's own hold ...
+    deciding_what_a_cli_git_command_does.rs  <- src/native/invocation/management.rs
+      Decide what one `git monochromatic-git-policy-cli ...` invocation does.
+    management_action_notes.rs  <- src/native/invocation/management_action_notes.rs
+      The notes the doctor's action gains on standard error: the commit service units of worktrees that ...
+    management_direct_commands.rs  <- src/native/invocation/management_direct_commands.rs
+      The direct commands of the `monochromatic-git-policy-cli` namespace that run in this process (`git ...
+    management_arguments.rs  <- src/native/invocation/management_arguments.rs
+      The grammar of `git monochromatic-git-policy-cli <command>`, the wrapper's own management namespace.
+    management_selection.rs  <- src/native/invocation/management_selection.rs
+      The `--policy` selection of a direct `git monochromatic-git-policy-cli check` or `fix`: the names ...
+    management_service_stop_units_of_removed_worktrees.rs  <- src/native/invocation/management_service_stop_units_of_removed_worktrees.rs
+      `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees`: stops, when the person ...
+    management_service_settle_earlier_batches.rs  <- src/native/invocation/management_service_settle_earlier_batches.rs
+      `git monochromatic-git-policy-cli service settle-earlier-batches`: finishes, when the person asks, ...
+    management_service_repository_selection.rs  <- src/native/invocation/management_service_repository_selection.rs
+      Which repository the service commands (`monochromatic-git-policy-cli service ...`) mean: the global ...
+    message_when_the_program_panics.rs  <- src/native/invocation/panic_notice.rs
+      The panic hook of the executable: one line naming where an internal error happened, never its ...
+    repository_selection.rs  <- src/native/invocation/repository_selection.rs
+      The global options that select the repository one invocation works on, as the arguments that name ...
+    start_marker.rs  <- src/native/invocation/start_marker.rs
+      The marker every start of the real Git carries: its value, the way it is read back, and the one ...
+    worktree_copy_forward.rs  <- src/native/worktree_copying/worktree_copy_forward.rs
+      Running a forwarded Git command through the linked-worktree ignored-state copy: which invocations ...
+    deciding_what_a_wrapped_command_does.rs  <- src/native/invocation/wrapped_command.rs
+      Decide what one wrapped Git command does once real Git is known: forward it, possibly rewritten, or ...
     the_decision_one_command_ends_in.rs  <- src/native/invocation/action.rs
       The decision one wrapper invocation ends in.
-    worktree_copy_forward.rs  <- src/native/worktree_copying/worktree_copy_forward.rs
-      Running a forwarded Git command through the linked-worktree ignored-state copy
-    entry_forward_action_planning.rs  <- src/native/invocation/entry_forward_action_planning.rs
-      Plans what a forwarded Git command does once the wrapper has stripped its own controls
-    entry_push_stacking_and_lfs_upload.rs  <- src/native/invocation/entry_push_stacking_and_lfs_upload.rs
-      Turns a plain forward of a push into a stacked push or a push that uploads Git LFS objects first, and adds the
-    index_writer_forward.rs  <- src/native/lock/index_writer_forward.rs
-      Running a forwarded index writer as a child of the wrapper
-    entry_run_forwarded_actions.rs  <- src/native/invocation/entry_run_forwarded_actions.rs
-      Runs a forwarded Git command under the index-writer coordination, finishes a settled forward, and writes to the
-    management_arguments.rs  <- src/native/invocation/management_arguments.rs
-      The grammar of `git cli-git <command>`
-    management_selection.rs  <- src/native/invocation/management_selection.rs
-      The `--policy` selection of a direct `git cli-git check` or `fix`
+    lfs_install_arguments.rs  <- src/native/invocation/lfs_install_arguments.rs
+      The `--skip-repo` the wrapper adds to `git lfs install` inside a repository, and the notice that ...
+    lfs_install_request.rs  <- src/native/invocation/lfs_install_request.rs
+      One `git lfs install` read from the words after its `install` word: the destination flags it sets, ...
     first_step_of_a_command.rs  <- src/native/invocation/startup_gate.rs
-      The startup step of a wrapped, read-only or direct command: settle an isolated merge whose process died, stop on a
-    management_direct_commands.rs  <- src/native/invocation/management_direct_commands.rs
-      The direct commands of the `cli-git` namespace that run in this process (`git cli-git <command> ...`)
-    management_service_repository_selection.rs  <- src/native/invocation/management_service_repository_selection.rs
-      Which repository the service commands (`cli-git service ...`) mean: the global options name it, or Git is asked for
-    deciding_what_a_cli_git_command_does.rs  <- src/native/invocation/management.rs
-      Decide what one `git cli-git ...` invocation does.
+      The startup step of a wrapped, read-only or direct command: settle an isolated merge whose process ...
     wrapped_command_notices_snapshots_and_manual_push.rs  <- src/native/invocation/wrapped_command_notices_snapshots_and_manual_push.rs
-      Steps of a wrapped command that do not decide its ending: the escape-hatch use record, the push failure notices
-    deciding_what_a_wrapped_command_does.rs  <- src/native/invocation/wrapped_command.rs
-      Decide what one wrapped Git command does once real Git is known
-    deciding_what_one_git_command_does.rs  <- src/native/invocation/entry.rs
-      Decide what one `git` invocation of the native wrapper does
-    message_when_the_program_panics.rs  <- src/native/invocation/panic_notice.rs
-      The panic hook of the executable
+      Steps of a wrapped command that do not decide its ending: the escape-hatch use record, the push ...
+    guarded_forwarded_command.rs  <- src/native/invocation/guarded_forwarded_command.rs
+      The guarded decision about the command a forwarded invocation really runs, ordinary Git alias ...
+  what_the_wrapper_asks_git_about_a_repository/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> finding_the_git_folders, rules_about_what_a_commit_may_contain, running_git_for_a_transaction, starting_git_and_describing_a_run, saving_files_so_a_crash_leaves_no_half_file
+    where_the_real_index_lives.rs  <- src/native/landing/landing_location.rs
+      Where a forwarded command's real index lives: two `git rev-parse` runs that report the git ...
+    answer_shapes_built_from_a_repository_layout.rs  <- src/native/repo_read/repo_read_adapter.rs
+      The shapes the wrapper's existing queries answer with, built from an in-process `RepoLayout`.
+    asking_git_where_the_repository_is.rs  <- src/native/repo_read/repository_location.rs
+      Ask real Git, in one query, which repository an invocation selects and where inside its worktree ...
+    asking_git_which_worktree_this_is.rs  <- src/native/worktree/worktree_identity.rs
+      Ask real Git which repository and worktree an invocation selects.
+  who_owns_a_transaction_folder/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> clearing_leftover_reference_locks, how_long_the_program_waits_for_git_steps, which_programs_are_running_and_since_when, lines_printed_for_the_person, text_time_and_records_written_like_javascript
+    owner_record_of_a_folder.rs  <- src/native/transaction/transaction_owner.rs
+      The owner record of one commit-transaction directory (`owner.json`, schema version 2) and the ...
+    process_numbers_in_other_containers.rs  <- src/native/process/pid_namespace.rs
+      The PID namespace an owner record names, and the rule for judging an owner that lives in another ...
+  work_left_for_the_service_to_finish_later/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> after_commit_work_of_the_service, log_lines_of_the_commit_service, pushing_what_the_commit_service_saved, sha_1_and_sha_256_of_bytes, the_commit_command, the_record_and_the_lock_the_zfs_clone_route_keeps, the_references_kept_for_unlanded_commits, saving_files_so_a_crash_leaves_no_half_file, text_time_and_records_written_like_javascript
+    claim_time_machine_id_test_support.rs  <- src/native/landing/claim_time_machine_id_test_support.rs
+      Test-only machine ID: a control gives its thread a machine ID in place of the host's, so the ...
+    service_handoff_queued_push_words.rs  <- src/native/landing/service_handoff_queued_push_words.rs
+      The words a waiting push record is named with: that the push has not been made, the bound a running ...
+    work_item_enqueue.rs  <- src/native/landing/work_item_enqueue.rs
+      Writing one producer's record, or a round of them, to the queue, and finding what is already there.
+    work_item_holding.rs  <- src/native/landing/work_item_holding.rs
+      The three steps of a work item whose producer has not approved it yet: hold it where nothing drains ...
+    work_item_queued_ids.rs  <- src/native/landing/work_item_queued_ids.rs
+      The ids the queue still owes work for: every record in `pending`, `claimed`, `recovering` and ...
+    work_item_recovery.rs  <- src/native/landing/work_item_recovery.rs
+      The recovery half of the work-item record: the claims whose lease ran out go back to `pending` (or ...
+    work_item.rs  <- src/native/landing/work_item.rs
+      The durable work-item record: a small file in the Git directory that says "this landed object needs ...
+    work_item_ids_and_names.rs  <- src/native/landing/work_item_ids_and_names.rs
+      The digest a push's id carries for its branch, and what may follow the kind in an id.
+    work_item_kinds_and_their_names.rs  <- src/native/landing/work_item_kinds_and_their_names.rs
+      The kinds of work a landed object can ask for, and the names that pick a consumer's handler.
+    work_item_state_directories_and_claim_names.rs  <- src/native/landing/work_item_state_directories_and_claim_names.rs
+      The folders an item moves through (`pending`, `claimed`, `recovering`, `done`, `failed`), the names ...
+    claim_time.rs  <- src/native/landing/claim_time.rs
+      A reading of the clocks a claim's lease is judged by: the machine and the boot the host is in, the ...
+  working_out_what_a_typed_push_would_send/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> environment_variables_for_git_children, finding_the_real_git_program, how_long_the_program_waits_for_git_steps, lines_about_worktrees_and_large_files, pushing_what_the_commit_service_saved, reading_options_the_way_git_does, reading_the_bytes_a_commit_would_save, rules_about_what_a_commit_may_contain, running_git_push_until_it_ends_or_stalls, starting_git_and_describing_a_run, the_words_meant_for_this_wrapper, uploading_large_files, what_each_git_command_accepts, what_happens_when_you_type_a_command, running_independent_jobs_side_by_side, starting_programs_catching_signals_and_keeping_their_output, lines_printed_for_the_person
+    scope_of_one_typed_push.rs  <- src/native/push/manual_push_lifecycle.rs
+      The manual-push candidate scope of one `git push`: the commits and trees the destination lacks.
+    commits_a_push_newly_publishes.rs  <- src/native/push/manual_push_range.rs
+      The commits a push newly publishes, relative to what each destination remote already has.
+    manual_push_range_published_tips.rs  <- src/native/push/manual_push_range_published_tips.rs
+      What the remote has already published, read from the commits a prior destination value names and ...
+    typed_push_that_lost_a_race.rs  <- src/native/push/push_stacking.rs
+      An explicit `git push` that lost a race: the commits that landed on the remote since the local base ...
+    what_a_dry_run_push_would_send.rs  <- src/native/push/manual_push_probe.rs
+      The authoritative ref updates a `git push` would send, discovered by a dry-run push whose report ...
+    reading_dry_run_push_output.rs  <- src/native/push/manual_push_porcelain.rs
+      The parser of `git push --dry-run --porcelain` output, which tells the manual-push probe what a ...
+    manual_push_probe_arguments.rs  <- src/native/push/manual_push_probe_arguments.rs
+      The Git arguments of the manual-push probe's dry-run push, and the destination locations it ...
+    manual_push_probe_error.rs  <- src/native/push/manual_push_probe_error.rs
+      Why the probe of a manual push could not establish the updates Git would push, and what Git itself ...
+    one_pushed_ref_and_query_limits.rs  <- src/native/push/manual_push_update_and_query_limits.rs
+      The public update of one pushed reference and the limits on how many queries of a push probe run ...
+    push_of_a_merge_that_integrated_a_lost_race.rs  <- src/native/push/stacked_merge_push.rs
+      The push of a merge that integrated a lost race, planned and run inside the running wrapper.
 ```
