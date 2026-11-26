@@ -330,6 +330,7 @@ fn the_forced_act_guest_arm_tests() {
     assert!(asked.contains("unmount=accepted"), "the host's unmount is accepted once no task holds the clone: {asked}");
     assert!(asked.contains("destroy=gone"), "the head destroy answers gone: {asked}");
     assert!(asked.contains("caller-job=alive"), "the caller's session's other job lived through the act: {asked}");
+    assert!(asked.contains("ms="), "the phase's own timing is in the line: {asked}");
 
     // Phase 2: the same, for a holder that ignores the ask and is killed after the wait.
     let killed: String = in_a_private_namespace("path-holder-killed", &|| return phase_path_holder(&fixture, true));
@@ -341,31 +342,38 @@ fn the_forced_act_guest_arm_tests() {
     // Phase 3: way 8, in place by the add's handle, in the shape systemd leaves a unit's parent.
     let way8: String = in_a_private_namespace("namespace-way8-systemd-shape", &|| return phase_way_8(&fixture));
     println!("{way8}");
-    assert!(way8.contains("route=in-place-by-the-handle"), "the preflight's closure allows way 8 here: {way8}");
+    assert!(way8.contains("parent=shared"), "the holder's parent shares with a group of its own: {way8}");
     assert!(way8.contains("holders-copy=gone") && way8.contains("hosts-copy=stays"), "way 8 takes the holder's copy and leaves the host's: {way8}");
     assert!(way8.contains("holder=alive"), "the holder's own process is not ended by way 8: {way8}");
+    assert!(way8.contains("unmount=accepted") && way8.contains("destroy=gone"), "the host's unmount and the head destroy follow: {way8}");
 
     // Phase 4: the peer shape, where the closure names the host as a receiver and the act falls to way 7.
     let peer: String = in_a_private_namespace("namespace-way8-peer-sent-to-way7", &|| return phase_peer(&fixture));
     println!("{peer}");
-    assert!(peer.contains("way-eight=false"), "the closure names the host as an outside receiver: {peer}");
+    assert!(peer.contains("way-eight=false") && peer.contains("outside=the-host"), "the closure names the host as an outside receiver: {peer}");
     assert!(peer.contains("route=slave-move-and-unmount"), "so the act takes way 7: {peer}");
+    assert!(peer.contains("parent-after=slave"), "the parent is a slave of its former group: {peer}");
     assert!(peer.contains("holders-copy=gone") && peer.contains("hosts-copy=stays"), "way 7 takes the holder's copy and leaves the host's: {peer}");
+    assert!(peer.contains("directory=removed"), "way 7's directory is removed: {peer}");
 
     // Phase 5: way 7 where the holder's parent shares with no group of its own.
     let repaired: String = in_a_private_namespace("namespace-way7-repaired", &|| return phase_way_7(&fixture, false));
     println!("{repaired}");
     assert!(repaired.contains("parent-before=private") && repaired.contains("way-eight=false"), "a private parent seeds no group, so the act takes way 7: {repaired}");
+    assert!(repaired.contains("route=slave-move-and-unmount"), "and the route is way 7: {repaired}");
     assert!(repaired.contains("parent-after=private"), "way 7's slave change on a private parent reads as private, which is way 3 there: {repaired}");
+    assert!(repaired.contains("holders-copy=gone") && repaired.contains("hosts-copy=stays"), "the copy goes and the host's stays: {repaired}");
     assert!(repaired.contains("directory=removed"), "way 7's directory is removed after the unmount: {repaired}");
+    assert!(repaired.contains("destroy=gone"), "the head destroy answers gone: {repaired}");
 
     // Phase 6: way 7 with the checkout shared, so the parent is a peer of the host's.
     let shared: String = in_a_private_namespace("namespace-way7-shared", &|| return phase_way_7(&fixture, true));
     println!("{shared}");
     assert!(shared.contains("parent-before=slave"), "the holder's parent is a slave of the host's group: {shared}");
     assert!(shared.contains("parent-after=slave"), "it stays a slave of that group after the change: {shared}");
-    assert!(shared.contains("hosts-copy=stays"), "the host's own copy stays: {shared}");
+    assert!(shared.contains("hosts-copy=stays") && shared.contains("holders-copy=gone"), "the holder's copy goes and the host's stays: {shared}");
     assert!(shared.contains("directory=removed"), "way 7's directory is removed after the unmount: {shared}");
+    assert!(shared.contains("destroy=gone"), "the head destroy answers gone: {shared}");
 
     // Phase 7: a holder in a user namespace of its own is refused before any signal.
     let locked: String = in_a_private_namespace("locked-holder-refused", &|| return phase_locked(&fixture));
@@ -373,6 +381,9 @@ fn the_forced_act_guest_arm_tests() {
     assert!(locked.contains("owner=another"), "the read names a user namespace of its own: {locked}");
     assert!(locked.contains("way8=holder-locked") && locked.contains("way7=holder-locked"), "both ways are refused with the design's word: {locked}");
     assert!(locked.contains("holders-copy=stays"), "nothing was unmounted: {locked}");
+    assert!(locked.contains("destroy-before=refused"), "the head destroy is refused while the locked copy stands: {locked}");
+    assert!(locked.contains("destroy-after=gone"), "and it answers gone once the holder ended: {locked}");
+    assert!(locked.contains("caller-job=alive"), "the caller's session's other job lived through it: {locked}");
 
     println!("{}", phase_line("arm-finished", &[("phases", "7"), ("result", "every-phase-held")]));
     fixture.teardown();
