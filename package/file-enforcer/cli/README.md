@@ -133,6 +133,31 @@ which the server uses.
   the schema default and the `harper-ls.excludePatterns` key are fixed in the rule,
   carried over from the retired TypeScript policy.
 
+## The `json-keys` kind
+
+`json-keys` is built into the engine rather than linked from another crate,
+so the binary needs no library for it.
+`file-enforcer.config.jsonc` owns every `package/*/*/package.json` repository object and homepage link through it,
+so the pre-transfer owner cannot come back to generated metadata (issue 1124).
+What a `check` run says about one manifest:
+
+- `drift-content` when the manifest still names the pre-transfer owner or lacks the directory and homepage the
+  rule derives from where the file sits.
+- `manifest-shape` when `repository` is there but is not an object (a string,
+  `null`,
+  an array,
+  a number or a boolean),
+  naming the file and the value it holds.
+  `write` then changes nothing in that manifest,
+  because appending a homepage beside a repository the rule never made current is exactly how the old owner
+  survived.
+- `manifest-invalid`,
+  `not-utf8` or `file-too-large` when the rule cannot read the manifest;
+  the message says what the parser accepts and the other rules still run.
+
+`tests/binary.rs` runs the built binary over a manifest carrying the pre-transfer URL and over one whose
+`repository` is a string.
+
 ## Output
 
 Standard output is JSON lines only,

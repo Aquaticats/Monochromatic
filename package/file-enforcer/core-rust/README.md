@@ -237,7 +237,33 @@ neither written nor checked.
   so member order,
   indentation and unowned members survive and a conforming file is not rewritten.
   A member the manifest does not have is added as the last member of the object its path addresses;
-  a path whose parent is not an object is left alone.
+  the added line takes the file's own line ending (CRLF when the file holds one) and the indentation unit of
+  its first indented line,
+  so a CRLF or tab-indented manifest keeps its layout.
+  A member whose parent the manifest does not have is left alone.
+  A parent that is there and is not an object (a `repository` written as a string,
+  `null` or an array) is a `manifest-shape` finding that names the file and the value it holds:
+  `check` fails and no other member of that manifest is added,
+  because the rule would otherwise append a `homepage` beside a repository it never made current
+  (issue 1124).
+  A repeated key answers as its last occurrence for every path below it,
+  so an edit never lands in a copy an earlier duplicate shadows.
+  A manifest the rule cannot read or parse is a finding of its own
+  (`manifest-invalid`,
+  `file-too-large`,
+  `not-utf8`,
+  `io-failure`),
+  naming the file,
+  and the run keeps planning the other manifests and the other rules;
+  a run with any finding publishes nothing.
+  The `manifest-invalid` message says what the parser accepts:
+  `//` and `/* */` comments,
+  trailing commas,
+  and one UTF-8 byte-order mark at the start of the file,
+  which the rule keeps outside the parsed text and puts back before a write.
+  A manifest over 64 KiB is refused by name rather than read:
+  the largest of this repository's 245 matched manifests on 2026-11-26 is 4324 bytes,
+  and the rule parses a manifest once per edit.
 - `mise-path-list`:
   a Mise config listing the existing non-empty directories matching the globs.
 
@@ -323,3 +349,17 @@ never `$XDG_RUNTIME_DIR`.
 - The `JsonSchema` derive and `serde_json::json!` trip the repository's `disallowed_methods` lint;
   see
   [`doc/troubleshooting/schemars-derive-trips-disallowed-methods.md`](../../../doc/troubleshooting/schemars-derive-trips-disallowed-methods.md).
+- `json-keys` adds a member on a line of its own,
+  so a member written on the same line as its object's last member (an inline or minified manifest) gains one
+  line break:
+  the added member takes the object's indentation plus one unit,
+  or two spaces when no line of the file is indented.
+- `json-keys` adds the member after the last one,
+  so a comment between that member's value and the closing brace moves to the added member's line.
+  The owned manifests are strict JSON,
+  which carries no comments.
+- `json-keys` inserts a member before a closing brace that has a space in front of it (`{ }` gains `{ ` plus a
+  new line),
+  because every byte outside an owned member is kept as it is.
+- `json-keys` parses a manifest once per edit,
+  so a manifest at the 64 KiB bound costs that many parses of its own size.
