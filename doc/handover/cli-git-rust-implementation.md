@@ -442,9 +442,9 @@ One scope's build peaked at 7,080 MiB on 2026-11-25,
 which sizes how many rounds compile at once,
 and the guest memory a round holds is what
 `doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` measures.
-A start that waits on memory names its test:
-stall not rising (`avg10` at or under `avg60`) and `MemFree` plus the ARC above `c_min` at least one
-build's measured peak.
+No start or merge check waits on memory or on a spacing between starts:
+the coordinator had applied both, and the owner, 2026-11-26: "I didn't tell you to apply the 3 minutes apart and memory test rules."
+The only start rule is the owner's 64 rounds at once.
 No synthetic load is made to force a wait
 (`AGENTS.md`'s NLG).
 
