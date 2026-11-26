@@ -635,7 +635,9 @@ and `ok. 474 passed; 0 failed` in each of two runs after it;
 the modules answered
 `commit::commit_index_builds::tests` `ok. 11 passed` (from `4 passed; 7 failed`),
 `commit::commit_prepare_part_durations::tests` `ok. 5 passed` (from `3 passed; 2 failed`),
-`commit::commit_build_part_durations::tests` `ok. 5 passed` (from `ok. 5 passed`, red only beside other modules),
+`commit::commit_build_part_durations::tests` `ok. 5 passed`;
+it answered `ok. 5 passed` alone before the change and failed only beside other modules,
+so its count did not move,
 `commit::commit_preparation::tests` `ok. 23 passed` (from `21 passed; 2 failed`),
 `commit::native_commit_waiting_notice::tests` `ok. 19 passed` (the `19 passed` of `main` plus the window),
 `transaction::transaction_step_durations::tests` `ok. 6 passed`,

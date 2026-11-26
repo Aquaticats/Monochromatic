@@ -98,7 +98,8 @@ The commit's four figure ledgers are the same shape
 (`commit/commit_index_builds.rs`,
 `commit/commit_prepare_part_durations.rs`,
 `commit/commit_build_part_durations.rs` and
-`transaction/transaction_step_durations.rs`, which `step_time_between` reads while a stretch is open),
+`transaction/transaction_step_durations.rs`,
+which `step_time_between` reads while a stretch is open),
 so a control that counts its own command's figures runs its body in a child of its own,
 and one that names any of them without one fails
 `source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
