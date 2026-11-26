@@ -774,6 +774,7 @@ fn worktree_creation_and_aliases_are_forwarded_from_every_location() {
             git_dir: PathBuf::from("/b.git"),
         },
         prefix: Vec::<u8>::new(),
+        common_directory_outside_a_worktree: None,
     };
     for location in [linked, bare] {
         for values in [

@@ -56,6 +56,8 @@ pub fn location_of(layout: &RepoLayout) -> RepositoryLocation {
     return RepositoryLocation {
         identity,
         prefix: layout.prefix.clone(),
+        // A layout is only read for a worktree, so no command that stands in a Git directory has one.
+        common_directory_outside_a_worktree: None,
     };
 }
 

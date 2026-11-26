@@ -131,15 +131,19 @@ pub fn parse_remove_plan(
 ///  A command naming two operands names no one worktree,
 ///  and Git answers it with its own usage;
 ///  the refusal leaves that form to Git.
+///  The start directory is optional because Git's own match against the
+///  registered paths needs none:
+///  a spelling whose global options the caller does not serve can still name a
+///  worktree by a name the registry knows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseRemovalTarget(args: string[], subcommandIndex: number, start: string, commonDir?: string): string | undefined;
+/// function parseRemovalTarget(args: string[], subcommandIndex: number, start?: string, commonDir?: string): string | undefined;
 /// ```
 pub fn parse_removal_target(
     arguments: &[OsString],
     subcommand_index: usize,
-    start: &Path,
+    start: Option<&Path>,
     common_dir: Option<&Path>,
 ) -> Option<PathBuf> {
     if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree"
@@ -163,7 +167,7 @@ pub fn parse_removal_target(
     {
         return Some(target);
     }
-    let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
+    let target: PathBuf = std::fs::canonicalize(start?.join(operand)).ok()?;
     return target.is_dir().then_some(target);
 }
 

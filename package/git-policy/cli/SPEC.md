@@ -1292,6 +1292,14 @@ without a global option other than `-C`,
 and with an existing parent directory of the destination.
 Any other form is Git's own,
 unchanged.
+A refusal of a bound slot's removal or move is not the ladder:
+those read the global options Git's own table lists,
+`-c`,
+`--no-optional-locks`,
+`--git-dir` and
+`-C <a Git directory>` included,
+so no spelling hides the slot from one
+("Removal of a ZFS worktree clone").
 The ladder takes no lock:
 every name it uses (the stage,
 the claim,
@@ -5467,6 +5475,18 @@ whatever options the command carries:
 every spelling Git accepts is read for the worktree it names,
 `-f -f` included,
 because that is the spelling Git's own lock message suggests.
+The global options before `worktree` are read the same way,
+by Git's own table of them:
+`-c`,
+`--no-optional-locks`,
+`--git-dir` and
+`-C <a Git directory>` change nothing about where the operand lies,
+so a refusal skips none of them,
+and a command started inside a repository's Git directory reads that directory's
+records,
+which Git still names although the command stands in no worktree.
+Only the ladder's own steps keep the shorter list of globals they serve
+("Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS").
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
@@ -5507,6 +5527,9 @@ any unique prefix of it,
 and the `--no-` form of it,
 with the last of them typed deciding.
 The pass reads no pool and writes no record.
+A prune started inside the repository's Git directory (`git -C <repository>/.git worktree prune`)
+is the same pass over that directory: Git names the repository although the command stands in no worktree,
+and the registrations it would drop are the ones the records name.
 
 The repair report says what a damaged link can and cannot restore,
 in five states:
