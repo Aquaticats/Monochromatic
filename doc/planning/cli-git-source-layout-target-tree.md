@@ -7876,8 +7876,11 @@ in order:
     one branch per target folder,
     after step 9 so the helpers are final and after the harness rounds in flight,
     because every sidecar it edits is renamed by step 7 and every wait helper it uses moves in step 9.
-13. The program crate is what is left:
+13. `refactor/git-policy-cli-split-program-leftovers`:
     step 11,
+    the program crate as what is left,
+    run after the last lift:
+    no step of it can start before a library is lifted,
     its `Cargo.toml` keeps the binary,
     the one test target and the release profile and loses the libraries' dependencies.
 
