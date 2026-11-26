@@ -522,7 +522,7 @@ fn json_keys_refuses_a_manifest_over_its_size_bound_by_name() {
     assert_eq!(code1, 1, "{events1:?}");
     let messages: Vec<&str> = events1
         .iter()
-        .filter(|event| return event.code == "manifest-too-large")
+        .filter(|event| return event.code == "file-too-large")
         .map(|event| return event.message.as_str())
         .collect();
     assert_eq!(messages.len(), 1, "{events1:?}");
@@ -530,6 +530,7 @@ fn json_keys_refuses_a_manifest_over_its_size_bound_by_name() {
         messages[0].contains("package/x/big/package.json"),
         "{messages:?}"
     );
+    assert!(messages[0].contains("65536"), "{messages:?}");
 }
 
 #[test]
