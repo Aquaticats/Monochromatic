@@ -16,6 +16,18 @@
 //! is held by the test or by a signal,
 //! or has finished must not be.
 
+/// What:
+///  `ChildTest` is the request for one child of this test binary that runs one named test,
+///  and `passed` starts it, waits for it with a deadline, and fails the caller with everything the child said when its
+///  one test did not pass.
+/// Why:
+///  The kill registry the controls below ask their questions of is one value the whole process shares,
+///  so the controls that ask about all of it run their body where nothing else planted a record,
+///  and this crate starts such a child in one place only.
+use super::child_test_process::{
+    ChildTest,
+    passed,
+};
 use super::supervisor::{
     CPU_BUDGET,
     Judge,
@@ -1235,20 +1247,108 @@ fn a_registered_command_stays_watched() {
     remove(&made);
 }
 
+/// What:
+///  `CLI_GIT_SUPERVISOR_REGISTRY_CHILD` is the name of the variable that marks the child `ran_in_a_registry_of_its_own`
+///  starts, and the one thing that tells that child from the process that started it.
+/// Why:
+///  A child that did not know it was one would start another child of its own and never run the control's body.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REGISTRY_CHILD_VARIABLE = 'CLI_GIT_SUPERVISOR_REGISTRY_CHILD';
+/// ```
+const REGISTRY_CHILD_VARIABLE: &str = "CLI_GIT_SUPERVISOR_REGISTRY_CHILD";
+
+/// What:
+///  `fn child_path(name: &str) -> String` is the name libtest answers to for the control `name` of this file:
+///  the module's own path without the crate's first segment, and the control's name after it.
+/// Why:
+///  `--exact` matches this text and nothing else,
+///  and a name that matches no test ends successfully while running nothing,
+///  so the child that `ran_in_a_registry_of_its_own` starts needs the path and not the function's bare name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const childPath = (name) => `${modulePath().split('::').slice(1).join('::')}::${name}`;
+/// ```
+fn child_path(name: &str) -> String {
+    let module: &str = module_path!();
+    // What:     the module path without its first segment, which is this crate's own name.
+    // Why:      libtest names the tests of a test binary from the module path alone, so the crate's segment is dropped.
+    let without_crate: &str = module.split_once("::").map_or(module, |(_, rest)| {
+        return rest;
+    });
+    return format!("{without_crate}::{name}");
+}
+
+/// What:
+///  `fn ran_in_a_registry_of_its_own(name: &str) -> bool` starts this same control in a child process of this test
+///  binary, where the kill registry holds nothing but what that control plants, and asserts that the child's one test
+///  passed.
+///  It answers `true` in the process that started the child, whose body then returns,
+///  and `false` in the child itself, where the body goes on.
+/// Why:
+///  The registry `plant_kill`, `unclaimed_kill` and `kill_to_abort` read is one value the whole process shares,
+///  and a crate's tests run as threads of that process,
+///  so a control that asks a question about every record reads the records the other controls planted meanwhile:
+///  two controls of a threaded run failed with each other's message (issue 6485).
+///  A child of its own holds that registry alone,
+///  so the record its question answers with is the one the control planted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ranInARegistryOfItsOwn(name) {
+///   if (process.env.CHILD) return false;
+///   passed({ exactTest: childPath(name), environment: [[CHILD, '1']] });
+///   return true;
+/// }
+/// ```
+fn ran_in_a_registry_of_its_own(name: &str) -> bool {
+    if std::env::var_os(REGISTRY_CHILD_VARIABLE).is_some() {
+        return false;
+    }
+    let path: String = child_path(name);
+    let environment: [(&str, &std::ffi::OsStr); 1] =
+        [(REGISTRY_CHILD_VARIABLE, std::ffi::OsStr::new("1"))];
+    passed(ChildTest {
+        exact_test: path.as_str(),
+        environment: environment.as_slice(),
+        ..ChildTest::default()
+    });
+    return true;
+}
+
+/// What:
+///  `UNCLAIMED_CONTROL_KILL` is the message the control
+///  `a_kill_nobody_claimed_is_found_after_the_grace_only` plants in its registry and reads back.
+/// Why:
+///  A message the control's own name is in can never be mistaken for a record another control planted,
+///  which is how the same message in two controls hid the cause of issue 6485.
+const UNCLAIMED_CONTROL_KILL: &str = "the planted kill of the unclaimed control";
+
 /// A kill nobody has claimed is found once the grace has passed,
 /// and not before;
 /// a claimed one never is.
+/// Its own record is the registry's only one,
+/// because the questions it asks cover every record there,
+/// so its body runs in a child process of this test binary.
 #[test]
 fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
+    if ran_in_a_registry_of_its_own("a_kill_nobody_claimed_is_found_after_the_grace_only") {
+        return;
+    }
     let at: Instant = Instant::now();
-    plant_kill(i32::MAX - 7, "the planted kill", at);
+    plant_kill(i32::MAX - 7, UNCLAIMED_CONTROL_KILL, at);
     assert_eq!(unclaimed_kill(at, UNCLAIMED_GRACE), None, "not yet");
     assert_eq!(
         unclaimed_kill(at + UNCLAIMED_GRACE, UNCLAIMED_GRACE),
-        Some(String::from("the planted kill"))
+        Some(String::from(UNCLAIMED_CONTROL_KILL))
     );
     let claimed: u32 = u32::try_from(i32::MAX - 7).expect("positive");
-    assert_eq!(take_kill(claimed), Some(String::from("the planted kill")));
+    assert_eq!(
+        take_kill(claimed),
+        Some(String::from(UNCLAIMED_CONTROL_KILL))
+    );
     assert_eq!(
         unclaimed_kill(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
         None,
@@ -1256,17 +1356,33 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
     );
 }
 
+/// What:
+///  `OCCUPIED_CONTROL_KILL` is the message the control
+///  `a_kill_a_thread_is_occupied_with_is_not_what_aborts_the_process` plants in its registry and reads back.
+/// Why:
+///  A message the control's own name is in can never be mistaken for a record another control planted,
+///  which is how the same message in two controls hid the cause of issue 6485.
+const OCCUPIED_CONTROL_KILL: &str = "the planted kill of the occupied control";
+
 /// A kill whose command a thread of this process is occupied with is never what aborts the process,
 /// however much time has passed:
 /// a wait claims that kill as soon as this host schedules its thread,
 /// and a kill whose ending is still going on cannot be claimed at all until the ending is over.
 /// Neither is how much wall time has passed.
 /// A kill nothing is occupied with is, once the grace has passed.
+/// Its own record is the registry's only one,
+/// because the question it asks covers every record there,
+/// so its body runs in a child process of this test binary.
 #[test]
 fn a_kill_a_thread_is_occupied_with_is_not_what_aborts_the_process() {
+    if ran_in_a_registry_of_its_own(
+        "a_kill_a_thread_is_occupied_with_is_not_what_aborts_the_process",
+    ) {
+        return;
+    }
     let at: Instant = Instant::now();
     let pid: i32 = i32::MAX - 6;
-    plant_kill(pid, "the planted kill", at);
+    plant_kill(pid, OCCUPIED_CONTROL_KILL, at);
     let numbered: u32 = u32::try_from(pid).expect("positive");
     let waiting: Occupied = waiting_for(numbered);
     assert_eq!(
@@ -1284,10 +1400,13 @@ fn a_kill_a_thread_is_occupied_with_is_not_what_aborts_the_process() {
     std::mem::drop(ending);
     assert_eq!(
         kill_to_abort(at + UNCLAIMED_GRACE * 2, UNCLAIMED_GRACE),
-        Some(String::from("the planted kill")),
+        Some(String::from(OCCUPIED_CONTROL_KILL)),
         "no thread is occupied with the kill, so the process aborts with its message"
     );
-    assert_eq!(take_kill(numbered), Some(String::from("the planted kill")));
+    assert_eq!(
+        take_kill(numbered),
+        Some(String::from(OCCUPIED_CONTROL_KILL))
+    );
 }
 
 /// How much longer than the grace the ending of a command takes in the control below,
@@ -1298,8 +1417,14 @@ const SLOW_ENDING_EXTRA: Duration = Duration::from_millis(500);
 /// not from the moment the supervisor began
 /// to end it:
 /// a tree that is slow to end on a starved host must not leave the test less than the whole grace.
+/// Its own record is the registry's only one,
+/// because the question it asks covers every record there,
+/// so its body runs in a child process of this test binary.
 #[test]
 fn the_grace_to_claim_a_kill_starts_when_the_ending_is_over() {
+    if ran_in_a_registry_of_its_own("the_grace_to_claim_a_kill_starts_when_the_ending_is_over") {
+        return;
+    }
     let mut command: Command = Command::new("/bin/sleep");
     command.arg("60");
     let mut child: Child = spawn_owned(&mut command).expect("sleep starts");

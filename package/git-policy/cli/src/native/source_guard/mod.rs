@@ -68,6 +68,12 @@ mod no_self_invocation_tests;
 #[path = "no_test_changes_the_process_directory_tests.rs"]
 mod no_test_changes_the_process_directory_tests;
 
+/// The ban on a control asking a question about the whole kill registry in the process the run holds:
+/// such a control starts a child of its own first, whose registry no other control planted in.
+#[cfg(test)]
+#[path = "supervisor_registry_questions_in_a_child_process_tests.rs"]
+mod supervisor_registry_questions_in_a_child_process_tests;
+
 /// The ban on a release file reading a test-only switch itself:
 /// every such value is taken through `foundation/test_only_switches.rs`,
 /// whose read a release build does not hold.
