@@ -889,11 +889,10 @@ in `monochromatic-lint.config.jsonc`'s `layout-zfs-request-to-openzfs-kernel-dev
 Neither rule is on repo-wide,
 so no other package's layout is checked by them;
 a repo-wide rollout would surface the existing packages and stays a separate decision.
-`package/git-policy/cli` follows on branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`,
-in a `layout-git-policy-cli` block that this checkout's root configuration does not hold yet,
+`package/git-policy/cli` is switched on by the `layout-git-policy-cli` block of the same configuration,
 with the two lists described under "The allow list a rule may take".
 `doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md` records that decision,
-the lists' regeneration against the branch's own `main`,
+the lists' regeneration against `main` before they landed,
 and why a folder's links are written only once its uses no longer loop.
 
 #### What the rule checks
@@ -935,6 +934,9 @@ so a finding is never reported twice.
   a use a folder loop already holds,
   which the loop checks report;
   and a use of an entry whose own code never reaches the group.
+  The walk back runs once for each group whose own file holds a use,
+  and each walk reads every use of the package once,
+  so the cost follows the uses a package holds, not the square of them.
   Every such finding is keyed `own-file-loop <group> -> <used folder>`,
   so a tree that already holds one can record it on a list,
   and no `uses` link is owed for any of these uses.
@@ -1306,10 +1308,16 @@ Every key names exactly one finding:
   `nested-group`,
   `below-uses`,
   `summary-missing` or `summary-extra`.
+  `own-file-loop` is the word of the one loop finding a list can hold.
 - A key about a file or a folder writes its path relative to the package folder,
   and the package folder itself is written `.`,
   so `no-top-doc .` and `missing-link . -> sub` name it,
-  and no key ends in the space a list reader trims away.
+  and no key ends in the space a list reader trims away:
+  a module file or folder whose name ends in a space, a tab or another character the reader trims
+  is refused before any check,
+  with one `core/processing-failure` that spells that character and names the file.
+  A top doc entry is read without the whitespace at the end of its backticks,
+  so an entry written `x.rs ` names the file `x.rs` and no key carries that space.
   A module file outside the package,
   which a `#[path]` attribute can declare,
   is written by the walk from the package folder:
@@ -1358,9 +1366,13 @@ and the list's own record of today's findings is the only thing that does:
   so no round can record a new loop edge:
   the use is removed,
   or that loop is untangled first.
-- A loop finding carries no key,
+- A loop finding of folders, entries or files carries no key,
   and neither does the use added inside a tolerated loop,
   so no entry can tolerate either.
+  The one exception is a use written in a group's own file,
+  which no `uses` line records:
+  its finding is keyed `own-file-loop <group> -> <used folder>`,
+  so a tree that already holds one puts that line on the list.
 
 What a hand-written line can and cannot hide:
 
@@ -1375,6 +1387,8 @@ What a hand-written line can and cannot hide:
   so no line recorded from `--debug` can hold one,
   and only a hand-written `uses` line for every use of that loop can,
   which the point above already covers.
+  A use written in a group's own file is the exception above,
+  and its line is the one a round writes.
 
 Which package a list belongs to is the rule's file,
 so the two rules of a crate take two lists.
@@ -1490,6 +1504,36 @@ and every other line stays as it is.
   is refused with the largest accepted value in the message,
   which costs no list line.
 
+#### How a list written before alpha.14 maps
+
+A tree that holds one of these shapes needs one regeneration,
+and every other line stays as it is.
+
+- A use written in a group's own file that makes its group and another entry use each other
+  now carries the key `own-file-loop <group> -> <used folder>`,
+  because every finding of a rule on the day it lands goes on the list.
+  A tree that holds one adds that line,
+  and a tree that holds none adds nothing.
+  A loop that two own-file uses close is two findings,
+  one for each of the two uses.
+- A glob in a file that two `mod` lines declare is reported when it resolves in either or both
+  of the file's module contexts,
+  so a tree whose glob resolved in only one context gains a finding,
+  and the answer no longer depends on which `mod` line stands first.
+  `main`'s 39 Rust packages hold no such glob,
+  so the lists a lock bump regenerates gain no line.
+- A module file or folder whose name ends in whitespace is refused with one `core/processing-failure`,
+  so the keys its findings carried are gone and the file is renamed rather than recorded.
+- A top doc entry with whitespace before its closing backtick names the file without that whitespace,
+  so a `foreign-name` or `listed-twice` line written for such an entry is dead.
+- The own-file walk back runs once for each group whose own file holds a use,
+  where alpha.13 ran it once for each such use.
+  On a package of 2,000 folders whose one group's own file uses all of them,
+  alpha.13 took 24.0 seconds and this release 0.98 seconds,
+  while the same graph with an empty own file took 1.3 and 1.2 seconds
+  (one run of each, 2026-11-26),
+  so the walk now costs what reading the graph costs.
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
@@ -1527,10 +1571,15 @@ and every other line stays as it is.
 - A folder whose name holds a space can be reported but not tolerated:
   `missing-link src/a b -> src/c` is a key line,
   while `uses src/a b -> src/c` cannot be read as four words.
-  Only a module file name is refused with `space-in-file-name`,
+  Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
-  a tab or a no-break space in a module file name is keyed as written,
+  a tab or a no-break space inside a module file name is keyed as written,
   and no `file-uses` line can name that file either.
+  A root file, such as `src/bin/my tool.rs`, is no module file of a folder,
+  so it gets no such finding,
+  and its own keys hold its name as written, which a line reads.
+  A name that ends in a space, a tab or another character the list reader trims is refused before any check,
+  because no key could end in that character.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.
@@ -1576,11 +1625,12 @@ The package's own `lint:monochromatic-lint` task runs the repository linter over
 with the root `monochromatic-lint.config.jsonc`,
 so `mise run //package/git-policy/cli:lint` and the repository's `mise run lint`
 check whatever that configuration selects.
-On `main` it selects the layout rules for `package/zfs/request-to-openzfs-kernel-device` alone,
-so the wrapper's crate meets its per-file rules there and no layout rule.
-Branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list` adds a `layout-git-policy-cli` block
+It selects the layout rules for `package/zfs/request-to-openzfs-kernel-device`,
+and its `layout-git-policy-cli` block selects them for `package/git-policy/cli`
 with the crate's two lists,
-and from that merge both commands check the crate's layout.
+so both commands check the crate's per-file rules and its layout.
+The block came from branch `chore/git-policy-cli-layout-rules-on-with-a-shrinking-allow-list`,
+which merged on 2026-11-25.
 The package's container gate (`native:test:container`) runs neither rule,
 because it runs Clippy and the test suite and never the repository linter,
 so a round that only runs the gate does not meet the layout rules;
