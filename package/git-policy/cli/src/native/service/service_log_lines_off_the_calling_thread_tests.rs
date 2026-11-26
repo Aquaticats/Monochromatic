@@ -3,7 +3,8 @@
 //! the queue is bounded and says how many lines it dropped.
 //!
 //! These controls need one process per test:
-//!  the queue, its thread and the stream they write are one for the process,
+//!  the queue,
+//! its thread and the stream they write are one for the process,
 //! `give_the_thread` puts a control's stream in the one place they write,
 //!  `queued()` and `dropped_so_far()` read the one queue every control of the run hands lines to,
 //!  and a control whose reader goes
@@ -39,7 +40,8 @@ use std::time::{
 ///  The most times its own bound a wait the end of a process makes may take
 ///  before a control calls it a wait that did not end.
 /// Why:
-///  The end of a process answers at its bound, so a measurement of that answer is the bound itself:
+///  The end of a process answers at its bound,
+/// so a measurement of that answer is the bound itself:
 ///  measured on 2026-11-26 on this host over five runs of each control,
 ///  a stream nobody drains answered the end at 250.0549 to 250.0567 ms of its 250 ms bound.
 ///  The rest is the room this host has to leave the thread that ends the wait unrun while other sessions build,
@@ -61,8 +63,10 @@ const AN_UNTAKEN_LINE_S_WAIT_AT_MOST_TIMES_ITS_BOUND: u32 = 5;
 ///  The fraction of the bound a write to a stream whose reader is gone must answer within,
 ///  as the bound divided by this number.
 /// Why:
-///  No wait brings a reader back, so the answer is the failing write and nothing else:
-///  measured on 2026-11-26 on this host over five runs, it took 34.25 to 54.529 microseconds,
+///  No wait brings a reader back,
+/// so the answer is the failing write and nothing else:
+///  measured on 2026-11-26 on this host over five runs,
+/// it took 34.25 to 54.529 microseconds,
 ///  which is under a nine-hundredth of the bound,
 ///  so a fifth of the bound tells an answer given at once from one that waited for the reader.
 #[cfg(target_os = "linux")]

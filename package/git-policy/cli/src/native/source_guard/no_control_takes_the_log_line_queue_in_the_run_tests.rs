@@ -17,7 +17,8 @@
 //!  and each of the six passed alone in a process of its own (issue 6521).
 //!  A probe of that run logged four controls giving the one queue a stream in one process,
 //!  and one control's line taking ticket 5 after the four lines of the others.
-//!  The container gate starts each test in a process of its own, so the gate cannot show it.
+//!  The container gate starts each test in a process of its own,
+//! so the gate cannot show it.
 //!  A control that starts `run_the_body_in_a_child_of_its_own` first asks its question in a child of the test
 //!  binary,
 //!  whose queue holds nothing but what that control handed it
