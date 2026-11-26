@@ -82,7 +82,10 @@ impl LauncherHistory {
     /// Why:
     ///       The bound applies per push,
     /// so the history never exceeds the capacity.
-    pub fn push(&mut self, update: LauncherUpdate) {
+    pub fn push(
+        &mut self,
+        update: LauncherUpdate,
+    ) {
         // What:     `if self.updates.len() == LAUNCHER_HISTORY_CAPACITY { pop_front(); }`.
         //           Drop the oldest entry before the append would exceed the bound.
         // Why:      The history is a window over the most recent updates.
@@ -101,7 +104,7 @@ impl LauncherHistory {
     ///       The `launcher` command reports the current state of the most recent update.
     #[must_use]
     pub fn latest(&self) -> Option<&LauncherUpdate> {
-        return self.updates.back()
+        return self.updates.back();
     }
 
     /// Returns up to `count` of the newest updates,
@@ -114,12 +117,15 @@ impl LauncherHistory {
     ///       `launcher-log` prints the recent window in arrival order so a test can compare
     ///  it with the sequence it emitted.
     #[must_use]
-    pub fn last_n(&self, count: usize) -> Vec<&LauncherUpdate> {
+    pub fn last_n(
+        &self,
+        count: usize,
+    ) -> Vec<&LauncherUpdate> {
         // What:     `let skip = self.updates.len().saturating_sub(count);`. How many of the
         //           oldest entries fall outside the window.
         // Why:      `saturating_sub` keeps a short history from underflowing.
         let skip = self.updates.len().saturating_sub(count);
-        return self.updates.iter().skip(skip).collect()
+        return self.updates.iter().skip(skip).collect();
     }
 
     /// Removes every stored update.

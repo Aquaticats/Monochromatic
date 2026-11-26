@@ -38,10 +38,19 @@
 use smithay::{
     backend::renderer::damage::OutputDamageTracker,
     output::Mode,
-    reexports::{wayland_server::DisplayHandle, winit::dpi::LogicalSize},
-    utils::{Physical, Size},
+    reexports::{
+        wayland_server::DisplayHandle,
+        winit::dpi::LogicalSize,
+    },
+    utils::{
+        Physical,
+        Size,
+    },
     wayland::{
-        fractional_scale::{with_fractional_scale, FractionalScaleManagerState},
+        fractional_scale::{
+            FractionalScaleManagerState,
+            with_fractional_scale,
+        },
         viewporter::ViewporterState,
     },
 };
@@ -72,7 +81,10 @@ use crate::{
     handler::xdg_shell::reconfigure_fullscreen,
     protocol::Response,
     render::send_frame_callbacks,
-    screen_geometry::{OutputScale, ScreenGeometry},
+    screen_geometry::{
+        OutputScale,
+        ScreenGeometry,
+    },
     state::Compositor,
 };
 
@@ -129,10 +141,17 @@ impl ScreenState {
     /// ```ts
     /// static new(display, geometry): ScreenState { ... }
     /// ```
-    pub fn new(display: &DisplayHandle, geometry: ScreenGeometry) -> Self {
+    pub fn new(
+        display: &DisplayHandle,
+        geometry: ScreenGeometry,
+    ) -> Self {
         let fractional_scale = FractionalScaleManagerState::new::<Compositor>(display);
         let viewporter = ViewporterState::new::<Compositor>(display);
-        return Self { geometry, _fractional_scale: fractional_scale, _viewporter: viewporter };
+        return Self {
+            geometry,
+            _fractional_scale: fractional_scale,
+            _viewporter: viewporter,
+        };
     }
 }
 
@@ -161,7 +180,10 @@ impl ScreenState {
 /// ```ts
 /// function apply(state: Compositor, target: ScreenGeometry): void { ... } // throws a string
 /// ```
-pub fn apply(state: &mut Compositor, target: ScreenGeometry) -> Result<(), String> {
+pub fn apply(
+    state: &mut Compositor,
+    target: ScreenGeometry,
+) -> Result<(), String> {
     // What:     `state.backend.window()` borrows the winit window; `.scale_factor()` is the
     //           parent output's scale (the host's, unrelated to `target.scale`).
     // Why:      The parent sizes windows in its own logical pixels.
@@ -214,7 +236,9 @@ pub fn apply(state: &mut Compositor, target: ScreenGeometry) -> Result<(), Strin
     let previous = state.screen.geometry;
     set_mode(state, exact, target.scale != previous.scale, target.scale);
     state.screen.geometry = target;
-    if target.logical_width != previous.logical_width || target.logical_height != previous.logical_height {
+    if target.logical_width != previous.logical_width
+        || target.logical_height != previous.logical_height
+    {
         reconfigure_fullscreen(state);
     }
     tell_surfaces_scale(state);
@@ -275,8 +299,16 @@ pub fn apply(state: &mut Compositor, target: ScreenGeometry) -> Result<(), Strin
 ///  and `xdg_output.logical_size`
 ///           from `change_current_state`;
 ///  the damage tracker is rebuilt for the new size.
-fn set_mode(state: &mut Compositor, framebuffer: Size<i32, Physical>, scale_changed: bool, scale: OutputScale) {
-    let mode = Mode { size: framebuffer, refresh: OUTPUT_REFRESH_MHZ };
+fn set_mode(
+    state: &mut Compositor,
+    framebuffer: Size<i32, Physical>,
+    scale_changed: bool,
+    scale: OutputScale,
+) {
+    let mode = Mode {
+        size: framebuffer,
+        refresh: OUTPUT_REFRESH_MHZ,
+    };
     // What:     `None` leaves the scale as it is; `Some(...)` sets and announces a new one.
     // Why:      Resending an unchanged scale would wake every client's scale watcher for nothing.
     //
@@ -288,7 +320,9 @@ fn set_mode(state: &mut Compositor, framebuffer: Size<i32, Physical>, scale_chan
     if scale_changed {
         announced = Some(scale.advertised());
     }
-    state.output.change_current_state(Some(mode), None, announced, None);
+    state
+        .output
+        .change_current_state(Some(mode), None, announced, None);
     state.output.set_preferred(mode);
     state.damage_tracker = OutputDamageTracker::from_output(&state.output);
 }
@@ -352,12 +386,18 @@ fn tell_surfaces_scale(state: &Compositor) {
 /// ```ts
 /// function switchScale(state, scale): Response { ... }
 /// ```
-pub fn switch_scale(state: &mut Compositor, scale: OutputScale) -> Response {
+pub fn switch_scale(
+    state: &mut Compositor,
+    scale: OutputScale,
+) -> Response {
     let current = state.screen.geometry;
     if scale == current.scale {
         return Response::OkWith("unchanged".to_string());
     }
-    let target = ScreenGeometry { scale, ..current };
+    let target = ScreenGeometry {
+        scale,
+        ..current
+    };
     match apply(state, target) {
         Ok(()) => return Response::OkWith("changed".to_string()),
         Err(message) => return Response::Err(message),
@@ -374,8 +414,16 @@ pub fn switch_scale(state: &mut Compositor, scale: OutputScale) -> Response {
 ///       The framebuffer becomes `width x height` times the scale,
 ///  applied at once rather
 ///           than after a parent event that a locked host session never sends.
-pub fn resize(state: &mut Compositor, width: i32, height: i32) -> Response {
-    let target = ScreenGeometry { logical_width: width, logical_height: height, scale: state.screen.geometry.scale };
+pub fn resize(
+    state: &mut Compositor,
+    width: i32,
+    height: i32,
+) -> Response {
+    let target = ScreenGeometry {
+        logical_width: width,
+        logical_height: height,
+        scale: state.screen.geometry.scale,
+    };
     match apply(state, target) {
         Ok(()) => return Response::Ok,
         Err(message) => return Response::Err(message),
@@ -396,18 +444,29 @@ pub fn resize(state: &mut Compositor, width: i32, height: i32) -> Response {
 ///  The host's own scale is never adopted as the
 ///           nested scale,
 ///  so captures do not depend on which host output shows the window.
-pub fn parent_resized(state: &mut Compositor, size: Size<i32, Physical>) {
+pub fn parent_resized(
+    state: &mut Compositor,
+    size: Size<i32, Physical>,
+) {
     // What:     `after_parent_resize` returns the current geometry when the parent's window is
     //           within the parent's scale of the requested physical size.
     // Why:      Our own `apply` asked for this size (rounded up to the parent's pixel grid), so
     //           that echo, and the first resize event of a fresh window, must not change the
     //           exact size a test asked for.
     let parent_scale = state.backend.window().scale_factor();
-    let target = state.screen.geometry.after_parent_resize((size.w, size.h), parent_scale);
+    let target = state
+        .screen
+        .geometry
+        .after_parent_resize((size.w, size.h), parent_scale);
     if target == state.screen.geometry {
         return;
     }
-    tracing::info!(width = size.w, height = size.h, parent_scale, "parent compositor resized the nested window");
+    tracing::info!(
+        width = size.w,
+        height = size.h,
+        parent_scale,
+        "parent compositor resized the nested window"
+    );
     // What:     `if let Err(message) = ...` runs the block only for the failure variant.
     // Why:      A target derived from this framebuffer fits it, so failure means the parent
     //           changed the size again meanwhile; keep the mode equal to what is drawn.

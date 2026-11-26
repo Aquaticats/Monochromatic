@@ -23,7 +23,10 @@
 use anyhow::Result;
 /// The renderer trait that binds the legacy `wl_drm` path,
 /// and the display handle.
-use smithay::{backend::renderer::ImportEgl, reexports::wayland_server::DisplayHandle};
+use smithay::{
+    backend::renderer::ImportEgl,
+    reexports::wayland_server::DisplayHandle,
+};
 /// Log the legacy acceleration path.
 use tracing::info;
 
@@ -32,10 +35,16 @@ use tracing::info;
 /// the headless backend types,
 /// and the state carrier.
 use crate::{
-    backend_parts::{build_dmabuf, build_output},
+    backend_parts::{
+        build_dmabuf,
+        build_output,
+    },
     cli::Config,
     gpu_device::open_gpu,
-    render_backend::{HeadlessBackend, RenderBackend},
+    render_backend::{
+        HeadlessBackend,
+        RenderBackend,
+    },
     screen_geometry::ScreenGeometry,
     state::BackendPieces,
 };
@@ -57,7 +66,10 @@ use crate::{
 /// ```ts
 /// function initHeadlessBackend(displayHandle, config): BackendPieces { ... }
 /// ```
-pub fn init_headless_backend(display_handle: &DisplayHandle, config: &Config) -> Result<BackendPieces> {
+pub fn init_headless_backend(
+    display_handle: &DisplayHandle,
+    config: &Config,
+) -> Result<BackendPieces> {
     let geometry = ScreenGeometry {
         logical_width: config.width,
         logical_height: config.height,
@@ -74,13 +86,16 @@ pub fn init_headless_backend(display_handle: &DisplayHandle, config: &Config) ->
     let mut renderer = opened.renderer;
 
     let output = build_output(display_handle, geometry);
-    let (dmabuf_state, dmabuf_global, dmabuf_feedback) = build_dmabuf(display_handle, &mut renderer)?;
+    let (dmabuf_state, dmabuf_global, dmabuf_feedback) =
+        build_dmabuf(display_handle, &mut renderer)?;
 
     // What:     The legacy `wl_drm` acceleration path; the surfaceless display may not offer it.
     // Why:      dmabuf v4 is the route in headless mode, so a failure here is only logged.
     match renderer.bind_wl_display(display_handle) {
         Ok(()) => info!("headless: EGL hardware-acceleration (wl_drm) enabled"),
-        Err(error) => info!(%error, "headless: wl_drm acceleration is not offered; clients use dmabuf"),
+        Err(error) => {
+            info!(%error, "headless: wl_drm acceleration is not offered; clients use dmabuf")
+        }
     }
 
     return Ok(BackendPieces {
@@ -95,5 +110,5 @@ pub fn init_headless_backend(display_handle: &DisplayHandle, config: &Config) ->
         dmabuf_global,
         dmabuf_feedback,
         geometry,
-    })
+    });
 }

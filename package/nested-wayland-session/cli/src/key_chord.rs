@@ -46,14 +46,16 @@ pub struct Chord {
 /// ```
 fn split_spec(spec: &str) -> Result<(Vec<&str>, &str), String> {
     if spec.is_empty() {
-        return Err("key requires a name".to_string())
+        return Err("key requires a name".to_string());
     }
     let (head, target) = if spec == "+" {
         ("", "+")
     } else if let Some(prefix) = spec.strip_suffix("++") {
         (prefix, "+")
     } else if spec.ends_with('+') {
-        return Err(format!("key chord {spec} ends with a separator; write the plus key as ++"))
+        return Err(format!(
+            "key chord {spec} ends with a separator; write the plus key as ++"
+        ));
     } else {
         match spec.rsplit_once('+') {
             Some((modifiers, last)) => (modifiers, last),
@@ -66,7 +68,7 @@ fn split_spec(spec: &str) -> Result<(Vec<&str>, &str), String> {
             modifiers.push(name);
         }
     }
-    return Ok((modifiers, target))
+    return Ok((modifiers, target));
 }
 
 /// Parse a chord spec.
@@ -98,7 +100,9 @@ pub fn parse_chord(spec: &str) -> Result<Chord, String> {
             None => return Err(format!("unknown key: {name}")),
         }
     }
-    return Ok(Chord { keys })
+    return Ok(Chord {
+        keys,
+    });
 }
 
 /// What:

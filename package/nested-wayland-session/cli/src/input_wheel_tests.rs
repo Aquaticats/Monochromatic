@@ -1,6 +1,9 @@
 //! Unit tests for the notch conversion.
 
-use super::{notches_to_v120, V120_PER_NOTCH};
+use super::{
+    V120_PER_NOTCH,
+    notches_to_v120,
+};
 
 /// Whole notches are 120 units each,
 ///  with the sign kept.

@@ -66,18 +66,18 @@ impl GpuChoice {
     /// ```
     pub fn parse(text: &str) -> Result<Self, String> {
         if text == "auto" {
-            return Ok(Self::Auto)
+            return Ok(Self::Auto);
         }
         if text == "software" {
-            return Ok(Self::Software)
+            return Ok(Self::Software);
         }
         if text.starts_with('/') {
-            return Ok(Self::RenderNode(PathBuf::from(text)))
+            return Ok(Self::RenderNode(PathBuf::from(text)));
         }
         return Err(format!(
             "--gpu takes auto, software, or the absolute path of a DRM render node such as /dev/dri/renderD128, got: {text}. \
              Run the tool with --list-gpus to see the render nodes and the software renderer this host offers"
-        ))
+        ));
     }
 
     /// Whether the person named a device,
@@ -89,7 +89,7 @@ impl GpuChoice {
     ///       An explicit choice never falls back,
     ///  and the hosted child's environment is pinned to it.
     pub fn is_explicit(&self) -> bool {
-        return !matches!(self, Self::Auto)
+        return !matches!(self, Self::Auto);
     }
 
     /// The text of the choice as the person would type it.
@@ -105,7 +105,7 @@ impl GpuChoice {
             Self::Auto => "auto".to_string(),
             Self::Software => "software".to_string(),
             Self::RenderNode(path) => path.to_string_lossy().into_owned(),
-        }
+        };
     }
 }
 
@@ -133,12 +133,15 @@ pub enum Attempt {
 /// Names the attempt in a failure list.
 impl fmt::Display for Attempt {
     /// Write the attempt as the failure list names it.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         return match self {
             Self::MesaDefault => write!(formatter, "Mesa's default render node"),
             Self::RenderNode(path) => write!(formatter, "render node {}", path.display()),
             Self::Software => write!(formatter, "the software renderer (llvmpipe)"),
-        }
+        };
     }
 }
 
@@ -197,7 +200,10 @@ pub struct Selected<T> {
 /// plan({ kind: 'auto' }, ['/dev/dri/renderD129', '/dev/dri/renderD128'])
 /// // => [mesaDefault, node(D128), node(D129), software]
 /// ```
-pub fn plan(choice: &GpuChoice, hardware_nodes: &[PathBuf]) -> Vec<Attempt> {
+pub fn plan(
+    choice: &GpuChoice,
+    hardware_nodes: &[PathBuf],
+) -> Vec<Attempt> {
     match choice {
         GpuChoice::Software => return vec![Attempt::Software],
         GpuChoice::RenderNode(path) => return vec![Attempt::RenderNode(path.clone())],
@@ -209,7 +215,7 @@ pub fn plan(choice: &GpuChoice, hardware_nodes: &[PathBuf]) -> Vec<Attempt> {
     let mut attempts = vec![Attempt::MesaDefault];
     attempts.extend(nodes.into_iter().map(Attempt::RenderNode));
     attempts.push(Attempt::Software);
-    return attempts
+    return attempts;
 }
 
 /// The reason Mesa's default device is not accepted as the GPU.
@@ -231,9 +237,9 @@ pub fn default_device_rejection(is_software: bool) -> Option<String> {
         return Some(
             "Mesa chose the software rasterizer for its default device, which means it found no render node it can use"
                 .to_string(),
-        )
+        );
     }
-    return None
+    return None;
 }
 
 /// Try the attempts in order and stop at the first that works.
@@ -253,11 +259,20 @@ pub fn select<T>(
     let mut failures = Vec::new();
     for attempt in attempts {
         match open(attempt) {
-            Ok(value) => return Ok(Selected { attempt: attempt.clone(), value, failures }),
-            Err(reason) => failures.push(Failure { attempt: attempt.clone(), reason }),
+            Ok(value) => {
+                return Ok(Selected {
+                    attempt: attempt.clone(),
+                    value,
+                    failures,
+                });
+            }
+            Err(reason) => failures.push(Failure {
+                attempt: attempt.clone(),
+                reason,
+            }),
         }
     }
-    return Err(failures)
+    return Err(failures);
 }
 
 /// The error text when no device could be opened.
@@ -274,11 +289,17 @@ pub fn select<T>(
 /// ```ts
 /// failureMessage({ kind: 'software' }, [{ attempt: software, reason: 'no software device' }], listing)
 /// ```
-pub fn failure_message(choice: &GpuChoice, failures: &[Failure], offered: &str) -> String {
+pub fn failure_message(
+    choice: &GpuChoice,
+    failures: &[Failure],
+    offered: &str,
+) -> String {
     let mut text = String::new();
     match choice {
         GpuChoice::Auto => {
-            text.push_str("--headless could not open any GPU or the software renderer. Tried, in order:");
+            text.push_str(
+                "--headless could not open any GPU or the software renderer. Tried, in order:",
+            );
             for failure in failures {
                 text.push_str(&format!("\n  {}: {}", failure.attempt, failure.reason));
             }
@@ -288,13 +309,16 @@ pub fn failure_message(choice: &GpuChoice, failures: &[Failure], offered: &str) 
                 Some(failure) => failure.reason.as_str(),
                 None => "no device was tried",
             };
-            text.push_str(&format!("--gpu {} cannot be used: {reason}", explicit.label()));
+            text.push_str(&format!(
+                "--gpu {} cannot be used: {reason}",
+                explicit.label()
+            ));
         }
     }
     text.push_str(&format!(
         "\nChoices: auto, software, or a render node. {offered}\nAn explicit --gpu choice never falls back to another device; only auto does"
     ));
-    return text
+    return text;
 }
 
 /// What the hosted child's environment must say so it renders on the compositor's device.
@@ -324,11 +348,15 @@ pub struct ChildGpuEnvironment {
 /// Why:
 ///       `auto` without a fallback is the behavior headless had before the option;
 ///  a pinned device must hold for the child too.
-pub fn child_environment(choice: &GpuChoice, software: bool, fell_back: bool) -> ChildGpuEnvironment {
+pub fn child_environment(
+    choice: &GpuChoice,
+    software: bool,
+    fell_back: bool,
+) -> ChildGpuEnvironment {
     return ChildGpuEnvironment {
         software,
         pin_device: choice.is_explicit() || fell_back || software,
-    }
+    };
 }
 
 /// The variables to set (`Some`) or remove (`None`) on the child command.
@@ -337,7 +365,9 @@ pub fn child_environment(choice: &GpuChoice, software: bool, fell_back: bool) ->
 ///      `pub fn child_variables(environment: ChildGpuEnvironment) -> Vec<(&'static str, Option<&'static str>)>`.
 /// Why:
 ///       One list the spawn code applies and the tests read.
-pub fn child_variables(environment: ChildGpuEnvironment) -> Vec<(&'static str, Option<&'static str>)> {
+pub fn child_variables(
+    environment: ChildGpuEnvironment
+) -> Vec<(&'static str, Option<&'static str>)> {
     let mut variables = Vec::new();
     if environment.software {
         variables.push(("LIBGL_ALWAYS_SOFTWARE", Some("1")));
@@ -345,7 +375,7 @@ pub fn child_variables(environment: ChildGpuEnvironment) -> Vec<(&'static str, O
     if environment.pin_device {
         variables.push(("DRI_PRIME", None));
     }
-    return variables
+    return variables;
 }
 
 /// The device a session renders on,
@@ -388,7 +418,7 @@ impl GpuReport {
             self.choice,
             if self.fell_back { "yes" } else { "no" },
             self.renderer,
-        )
+        );
     }
 }
 

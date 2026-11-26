@@ -14,14 +14,23 @@ use std::future::Future;
 use futures_util::StreamExt;
 /// Imports the zbus client types this module wraps.
 use zbus::{
+    Connection,
+    DynamicType,
+    Message,
     connection::Builder,
-    names::{BusName, InterfaceName, MemberName},
+    names::{
+        BusName,
+        InterfaceName,
+        MemberName,
+    },
     proxy::SignalStream,
-    Connection, DynamicType, Message,
 };
 
 /// Imports the bound shared with the compositor's own steps.
-use crate::bus_step_bound::{block_on_bounded, BUS_STEP_BOUND};
+use crate::bus_step_bound::{
+    BUS_STEP_BOUND,
+    block_on_bounded,
+};
 
 /// Connects to the bus at `address` with the method-call bound set,
 ///  failing after one step bound.
@@ -38,7 +47,12 @@ use crate::bus_step_bound::{block_on_bounded, BUS_STEP_BOUND};
 ///  the bus does not answer within the bound,
 ///  or authentication fails.
 pub fn connect(address: &str) -> anyhow::Result<Connection> {
-    return block_on_bounded("connecting a test client", Builder::address(address).method_timeout(BUS_STEP_BOUND).build());
+    return block_on_bounded(
+        "connecting a test client",
+        Builder::address(address)
+            .method_timeout(BUS_STEP_BOUND)
+            .build(),
+    );
 }
 
 /// Runs `work` on the calling thread and returns its result.
@@ -66,7 +80,12 @@ impl<'a> Proxy<'a> {
     /// # Errors
     ///
     /// Fails on an invalid name or path.
-    pub fn new<D, P, I>(connection: &Connection, destination: D, path: P, interface: I) -> zbus::Result<Self>
+    pub fn new<D, P, I>(
+        connection: &Connection,
+        destination: D,
+        path: P,
+        interface: I,
+    ) -> zbus::Result<Self>
     where
         D: TryInto<BusName<'a>>,
         D::Error: Into<zbus::Error>,
@@ -76,7 +95,9 @@ impl<'a> Proxy<'a> {
         I::Error: Into<zbus::Error>,
     {
         let inner = zbus::block_on(zbus::Proxy::new(connection, destination, path, interface))?;
-        return Ok(Self { inner });
+        return Ok(Self {
+            inner,
+        });
     }
 
     /// Calls `method` and returns its reply.
@@ -85,7 +106,11 @@ impl<'a> Proxy<'a> {
     ///
     /// Fails with the bus error,
     ///  or with `ErrorKind::TimedOut` after the connection's method bound.
-    pub fn call<'m, M, B, R>(&self, method: M, body: &B) -> zbus::Result<R>
+    pub fn call<'m, M, B, R>(
+        &self,
+        method: M,
+        body: &B,
+    ) -> zbus::Result<R>
     where
         M: TryInto<MemberName<'m>>,
         M::Error: Into<zbus::Error>,
@@ -100,7 +125,11 @@ impl<'a> Proxy<'a> {
     /// # Errors
     ///
     /// Fails when the call cannot be sent.
-    pub fn call_noreply<'m, M, B>(&self, method: M, body: &B) -> zbus::Result<()>
+    pub fn call_noreply<'m, M, B>(
+        &self,
+        method: M,
+        body: &B,
+    ) -> zbus::Result<()>
     where
         M: TryInto<MemberName<'m>>,
         M::Error: Into<zbus::Error>,
@@ -114,13 +143,18 @@ impl<'a> Proxy<'a> {
     /// # Errors
     ///
     /// Fails when the match rule cannot be registered.
-    pub fn receive_signal<'m, M>(&self, signal: M) -> zbus::Result<SignalIterator<'m>>
+    pub fn receive_signal<'m, M>(
+        &self,
+        signal: M,
+    ) -> zbus::Result<SignalIterator<'m>>
     where
         M: TryInto<MemberName<'m>>,
         M::Error: Into<zbus::Error>,
     {
         let stream = zbus::block_on(self.inner.receive_signal(signal))?;
-        return Ok(SignalIterator { stream });
+        return Ok(SignalIterator {
+            stream,
+        });
     }
 }
 

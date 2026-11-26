@@ -17,13 +17,19 @@
 /// Imports the owned path for the log file and the child process types.
 use std::{
     path::PathBuf,
-    process::{Command, ExitCode},
+    process::{
+        Command,
+        ExitCode,
+    },
     sync::Arc,
     time::Instant,
 };
 
 /// Imports the error channel.
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
 /// Imports the library pieces the nested session already uses.
 use nested_wayland_session::{
@@ -32,7 +38,10 @@ use nested_wayland_session::{
     notification_mode::NotificationMode,
     plasma_services::PlasmaServices,
     private_bus::PrivateBus,
-    protocol::{NotificationCommand, Response},
+    protocol::{
+        NotificationCommand,
+        Response,
+    },
 };
 
 /// The grammar,
@@ -70,12 +79,19 @@ fn parse(args: &[String]) -> Result<Invocation> {
             "--notifications" => {
                 position += 1;
                 mode = NotificationMode::parse(args.get(position).context(USAGE)?)?;
-                anyhow::ensure!(mode.serves_notifications(), "--notifications none serves nothing to record; {USAGE}");
+                anyhow::ensure!(
+                    mode.serves_notifications(),
+                    "--notifications none serves nothing to record; {USAGE}"
+                );
             }
             "--" => {
                 let command = args[position + 1..].to_vec();
                 anyhow::ensure!(!command.is_empty(), "the command is missing; {USAGE}");
-                return Ok(Invocation { log: log.context(USAGE)?, mode, command });
+                return Ok(Invocation {
+                    log: log.context(USAGE)?,
+                    mode,
+                    command,
+                });
             }
             other => anyhow::bail!("unknown argument {other}; {USAGE}"),
         }
@@ -96,20 +112,31 @@ fn record(invocation: Invocation) -> Result<i32> {
     let bus = Arc::new(PrivateBus::start().context("starting the private session bus")?);
     let services = PlasmaServices::start(invocation.mode, Arc::clone(&bus), Instant::now())
         .context("starting the recording notification service")?;
-    let (program, arguments) = invocation.command.split_first().context("the command is missing")?;
+    let (program, arguments) = invocation
+        .command
+        .split_first()
+        .context("the command is missing")?;
     let ran = Command::new(program)
         .args(arguments)
         .env("DBUS_SESSION_BUS_ADDRESS", bus.address())
         .env_remove("XDG_RUNTIME_DIR")
         .status();
     let status = with_message(ran, format_args!("running {program}"))?;
-    let text = match control_notification::run(services.as_ref(), &NotificationCommand::Log { count: usize::MAX }) {
+    let text = match control_notification::run(
+        services.as_ref(),
+        &NotificationCommand::Log {
+            count: usize::MAX,
+        },
+    ) {
         Response::OkWith(records) => records,
         Response::Ok => String::new(),
         Response::Err(message) => anyhow::bail!("reading the notification log: {message}"),
     };
     let written = std::fs::write(&invocation.log, text);
-    with_message(written, format_args!("writing {}", invocation.log.display()))?;
+    with_message(
+        written,
+        format_args!("writing {}", invocation.log.display()),
+    )?;
     return Ok(status.code().unwrap_or(1));
 }
 

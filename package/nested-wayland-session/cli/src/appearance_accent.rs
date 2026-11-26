@@ -12,11 +12,21 @@ use anyhow::Result;
 
 /// Imports the items this module uses from `super`.
 use super::{
-    accent_variant, AppearancePortal, SwitchOutcome, ACCENT_COLOR_KEY, APPEARANCE_NAMESPACE, NOT_SERVED,
-    PORTAL_OBJECT_PATH, SETTINGS_INTERFACE, SETTING_CHANGED_SIGNAL,
+    ACCENT_COLOR_KEY,
+    APPEARANCE_NAMESPACE,
+    AppearancePortal,
+    NOT_SERVED,
+    PORTAL_OBJECT_PATH,
+    SETTING_CHANGED_SIGNAL,
+    SETTINGS_INTERFACE,
+    SwitchOutcome,
+    accent_variant,
 };
 /// Imports `AccentColor` from `crate::accent_color`.
-use crate::{accent_color::AccentColor, bus_step_bound::block_on_bounded};
+use crate::{
+    accent_color::AccentColor,
+    bus_step_bound::block_on_bounded,
+};
 
 /// Switching the accent color a hosted toolkit reads.
 impl AppearancePortal {
@@ -38,7 +48,10 @@ impl AppearancePortal {
     /// Why:
     ///       The portal defines `SettingChanged` as emitted when a setting changes,
     ///  and a refused change must leave the served value as it was.
-    pub fn set_accent_color(&self, color: AccentColor) -> Result<SwitchOutcome> {
+    pub fn set_accent_color(
+        &self,
+        color: AccentColor,
+    ) -> Result<SwitchOutcome> {
         if !self.serves_accent_color() {
             anyhow::bail!("the private appearance portal was started without --accent-color");
         }
@@ -55,7 +68,11 @@ impl AppearancePortal {
                 PORTAL_OBJECT_PATH,
                 SETTINGS_INTERFACE,
                 SETTING_CHANGED_SIGNAL,
-                &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY, accent_variant(color)),
+                &(
+                    APPEARANCE_NAMESPACE,
+                    ACCENT_COLOR_KEY,
+                    accent_variant(color),
+                ),
             ),
         );
         // A change nobody was told about is not a change: restore the old color so a retry emits again.

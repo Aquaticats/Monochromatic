@@ -11,30 +11,57 @@
 
 /// Error context for device setup,
 /// and the result type of `open_gpu`.
-use anyhow::{bail, Result};
+use anyhow::{
+    Result,
+    bail,
+};
 /// Device identity,
 /// the render node type,
 /// and the EGL objects behind a renderer.
 use smithay::backend::{
-    drm::{DrmNode, NodeType},
-    egl::{native::EGLSurfacelessDisplay, EGLContext, EGLDevice, EGLDisplay},
-    renderer::gles::{ffi, GlesRenderer},
+    drm::{
+        DrmNode,
+        NodeType,
+    },
+    egl::{
+        EGLContext,
+        EGLDevice,
+        EGLDisplay,
+        native::EGLSurfacelessDisplay,
+    },
+    renderer::gles::{
+        GlesRenderer,
+        ffi,
+    },
 };
 /// Read sysfs for the PCI id and the kernel driver,
 /// and the environment for the diagnostic hint.
 use std::{
     ffi::CStr,
     os::raw::c_char,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 /// Record every attempt and its outcome.
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
 /// The pure decisions,
 /// and the report and child environment they produce.
 use crate::gpu_choice::{
-    child_environment, default_device_rejection, failure_message, plan, select, Attempt, ChildGpuEnvironment,
-    GpuChoice, GpuReport,
+    Attempt,
+    ChildGpuEnvironment,
+    GpuChoice,
+    GpuReport,
+    child_environment,
+    default_device_rejection,
+    failure_message,
+    plan,
+    select,
 };
 
 /// Error text that is built only on failure.
@@ -84,9 +111,11 @@ fn read_renderer_string(gl: &ffi::Gles2) -> String {
     // the returned pointer is a NUL-terminated string owned by the driver and copied here.
     let pointer = unsafe { gl.GetString(ffi::RENDERER) } as *const c_char;
     if pointer.is_null() {
-        return "unknown".to_string()
+        return "unknown".to_string();
     }
-    return unsafe { CStr::from_ptr(pointer) }.to_string_lossy().into_owned()
+    return unsafe { CStr::from_ptr(pointer) }
+        .to_string_lossy()
+        .into_owned();
 }
 
 /// The GL renderer string of a context,
@@ -105,14 +134,17 @@ pub fn renderer_name(renderer: &mut GlesRenderer) -> String {
             warn!(%error, "could not read GL_RENDERER");
             "unknown".to_string()
         }
-    }
+    };
 }
 
 /// Create a GLES renderer on an EGL display.
 fn renderer_on(display: &EGLDisplay) -> Result<GlesRenderer, String> {
     let context = failed_text(EGLContext::new(display), "creating the EGL context failed")?;
     // SAFETY: the context is fresh, not current on another thread, and this thread is its only user.
-    return failed_text(unsafe { GlesRenderer::new(context) }, "creating the GLES renderer failed")
+    return failed_text(
+        unsafe { GlesRenderer::new(context) },
+        "creating the GLES renderer failed",
+    );
 }
 
 /// Every EGL device,
@@ -121,18 +153,18 @@ fn enumerate_devices() -> Result<Vec<EGLDevice>, String> {
     return failed_text(
         EGLDevice::enumerate().map(Iterator::collect),
         "EGL device enumeration is unavailable",
-    )
+    );
 }
 
 /// The render node path of a hardware device.
 fn render_path(device: &EGLDevice) -> Option<PathBuf> {
     if device.is_software() {
-        return None
+        return None;
     }
     return match device.try_get_render_node() {
         Ok(Some(node)) => node.dev_path_with_type(NodeType::Render),
         Ok(None) | Err(_) => device.render_device_path().ok(),
-    }
+    };
 }
 
 /// The render nodes of the hardware devices EGL lists.
@@ -143,18 +175,19 @@ fn hardware_nodes() -> Vec<PathBuf> {
             info!(%reason, "no render node list for the auto fallback");
             Vec::new()
         }
-    }
+    };
 }
 
 /// A hint about the environment variables that change which devices Mesa lists.
 fn environment_hint() -> String {
-    let forced = matches!(std::env::var_os("LIBGL_ALWAYS_SOFTWARE"), Some(value) if !value.is_empty());
+    let forced =
+        matches!(std::env::var_os("LIBGL_ALWAYS_SOFTWARE"), Some(value) if !value.is_empty());
     if forced {
         return " The environment sets LIBGL_ALWAYS_SOFTWARE, which makes Mesa list only the software device; \
                  unset it to use a GPU."
-            .to_string()
+            .to_string();
     }
-    return String::new()
+    return String::new();
 }
 
 /// Open the surfaceless platform's device whatever it is.
@@ -164,9 +197,15 @@ fn open_mesa_default_any() -> Result<Opened, String> {
         unsafe { EGLDisplay::new(EGLSurfacelessDisplay) },
         "opening the surfaceless EGL display failed",
     )?;
-    let device = failed_text(EGLDevice::device_for_display(&display), "querying the EGL device failed")?;
+    let device = failed_text(
+        EGLDevice::device_for_display(&display),
+        "querying the EGL device failed",
+    )?;
     let renderer = renderer_on(&display)?;
-    return Ok(Opened { renderer, device })
+    return Ok(Opened {
+        renderer,
+        device,
+    });
 }
 
 /// Open the device Mesa's surfaceless platform picks,
@@ -174,9 +213,9 @@ fn open_mesa_default_any() -> Result<Opened, String> {
 fn open_mesa_default() -> Result<Opened, String> {
     let opened = open_mesa_default_any()?;
     if let Some(reason) = default_device_rejection(opened.device.is_software()) {
-        return Err(reason)
+        return Err(reason);
     }
-    return Ok(opened)
+    return Ok(opened);
 }
 
 /// Open one EGL device through `EGL_EXT_platform_device`.
@@ -187,7 +226,10 @@ fn open_device(device: EGLDevice) -> Result<Opened, String> {
         "opening an EGL display on the device failed",
     )?;
     let renderer = renderer_on(&display)?;
-    return Ok(Opened { renderer, device })
+    return Ok(Opened {
+        renderer,
+        device,
+    });
 }
 
 /// Whether an EGL device's render node is the given DRM node.
@@ -199,7 +241,10 @@ fn open_device(device: EGLDevice) -> Result<Opened, String> {
 /// Why:
 ///       Enumeration order is not node order,
 ///  so the device for a named node is found by its number.
-fn device_renders_on(device: &EGLDevice, node: &DrmNode) -> bool {
+fn device_renders_on(
+    device: &EGLDevice,
+    node: &DrmNode,
+) -> bool {
     match device.try_get_render_node() {
         Ok(Some(candidate)) => return candidate.dev_id() == node.dev_id(),
         Ok(None) | Err(_) => return false,
@@ -219,14 +264,23 @@ fn device_renders_on(device: &EGLDevice, node: &DrmNode) -> bool {
 fn open_render_node(path: &Path) -> Result<Opened, String> {
     let node = match DrmNode::from_path(path) {
         Ok(node) => node,
-        Err(error) => return Err(format!("{} is not a DRM device node ({error})", path.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} is not a DRM device node ({error})",
+                path.display()
+            ));
+        }
     };
     if node.ty() != NodeType::Render {
         let hint = match node.dev_path_with_type(NodeType::Render) {
             Some(render) => format!("; use its render node {}", render.display()),
             None => String::new(),
         };
-        return Err(format!("{} is a {} node, not a render node{hint}", path.display(), node.ty()))
+        return Err(format!(
+            "{} is a {} node, not a render node{hint}",
+            path.display(),
+            node.ty()
+        ));
     }
     let devices = enumerate_devices()?;
     let mut found = None;
@@ -241,9 +295,9 @@ fn open_render_node(path: &Path) -> Result<Opened, String> {
             "EGL lists no device for {}, so Mesa cannot render on it.{}",
             path.display(),
             environment_hint(),
-        ))
+        ));
     };
-    return open_device(device)
+    return open_device(device);
 }
 
 /// Open the CPU rasterizer device.
@@ -254,9 +308,9 @@ fn open_software() -> Result<Opened, String> {
                 return Err(
                     "EGL lists no software device (EGL_MESA_device_software); Mesa's llvmpipe is not installed or is disabled"
                         .to_string(),
-                )
+                );
             };
-            return open_device(device)
+            return open_device(device);
         }
         Err(reason) => {
             // Without enumeration the surfaceless platform is the only door;
@@ -264,9 +318,11 @@ fn open_software() -> Result<Opened, String> {
             info!(%reason, "software device: trying the surfaceless platform instead");
             let opened = open_mesa_default_any()?;
             if !opened.device.is_software() {
-                return Err(format!("{reason}; Mesa's default device is a GPU, not the software renderer"))
+                return Err(format!(
+                    "{reason}; Mesa's default device is a GPU, not the software renderer"
+                ));
             }
-            return Ok(opened)
+            return Ok(opened);
         }
     }
 }
@@ -283,7 +339,7 @@ fn open_and_log_attempt(attempt: &Attempt) -> Result<Opened, String> {
         Ok(_) => info!(%attempt, "headless: device attempt succeeded"),
         Err(reason) => info!(%attempt, %reason, "headless: device attempt failed"),
     }
-    return outcome
+    return outcome;
 }
 
 /// Perform one attempt.
@@ -292,13 +348,13 @@ fn open_attempt(attempt: &Attempt) -> Result<Opened, String> {
         Attempt::MesaDefault => open_mesa_default(),
         Attempt::RenderNode(path) => open_render_node(path),
         Attempt::Software => open_software(),
-    }
+    };
 }
 
 /// The device text of a report.
 fn device_text(device: &EGLDevice) -> String {
     if device.is_software() {
-        return "software".to_string()
+        return "software".to_string();
     }
     match render_path(device) {
         Some(path) => return path.to_string_lossy().into_owned(),
@@ -351,7 +407,9 @@ pub fn open_gpu(choice: &GpuChoice) -> Result<OpenedGpu> {
         );
     }
     if software {
-        warn!("headless: the EGL device is a software rasterizer, not a GPU; clients render on the CPU");
+        warn!(
+            "headless: the EGL device is a software rasterizer, not a GPU; clients render on the CPU"
+        );
     }
     if selected.attempt == Attempt::MesaDefault {
         info!(
@@ -383,7 +441,7 @@ pub fn open_gpu(choice: &GpuChoice) -> Result<OpenedGpu> {
         renderer: opened.renderer,
         child_environment: child_environment(choice, software, fell_back),
         report,
-    })
+    });
 }
 
 /// The key `--list-gpus` sorts devices by:
@@ -395,7 +453,7 @@ pub fn open_gpu(choice: &GpuChoice) -> Result<OpenedGpu> {
 /// Why:
 ///       `sort_by_key` takes it by path instead of a closure.
 fn listing_order_key(device: &EGLDevice) -> (bool, Option<PathBuf>) {
-    return (device.is_software(), render_path(device))
+    return (device.is_software(), render_path(device));
 }
 
 /// One line describing a device for `--list-gpus`.
@@ -422,7 +480,7 @@ fn list_line(device: EGLDevice) -> String {
     return match open_device(device) {
         Ok(mut opened) => format!("{line} renderer={}", renderer_name(&mut opened.renderer)),
         Err(reason) => format!("{line} unusable: {reason}"),
-    }
+    };
 }
 
 /// The devices this host offers,
@@ -446,7 +504,7 @@ fn devices_text() -> String {
         }
         Err(reason) => lines.push(format!("devices: {reason}")),
     }
-    return lines.join("\n")
+    return lines.join("\n");
 }
 
 /// The text `--list-gpus` prints.
@@ -461,11 +519,14 @@ fn devices_text() -> String {
 pub fn list_gpus() -> String {
     let mut text = devices_text();
     match open_gpu(&GpuChoice::Auto) {
-        Ok(opened) => text.push_str(&format!("\nauto uses: {} ({})", opened.report.device, opened.report.renderer)),
+        Ok(opened) => text.push_str(&format!(
+            "\nauto uses: {} ({})",
+            opened.report.device, opened.report.renderer
+        )),
         Err(error) => {
             info!(%error, "auto found no device while listing");
             text.push_str("\nauto uses: nothing, see the lines above");
         }
     }
-    return text
+    return text;
 }

@@ -8,7 +8,11 @@
 //! Each function here takes the `format_args!` value (or a literal prefix) and builds the text only on the failing arm.
 
 /// The formatting types the functions take as their message arguments.
-use std::fmt::{Arguments, Debug, Display};
+use std::fmt::{
+    Arguments,
+    Debug,
+    Display,
+};
 
 /// What:
 ///      `pub(crate) fn with_message<T, E>(result: Result<T, E>, message: Arguments<'_>) -> anyhow::Result<T>`.
@@ -23,7 +27,10 @@ use std::fmt::{Arguments, Debug, Display};
 /// ```ts
 /// function withMessage<T>(run: () => T, message: () => string): T { try { return run(); } catch (e) { throw wrap(e, message()); } }
 /// ```
-pub fn with_message<T, E: Into<anyhow::Error>>(result: Result<T, E>, message: Arguments<'_>) -> anyhow::Result<T> {
+pub fn with_message<T, E: Into<anyhow::Error>>(
+    result: Result<T, E>,
+    message: Arguments<'_>,
+) -> anyhow::Result<T> {
     match result {
         Ok(value) => return Ok(value),
         Err(error) => return Err(error.into().context(message.to_string())),
@@ -42,7 +49,10 @@ pub fn with_message<T, E: Into<anyhow::Error>>(result: Result<T, E>, message: Ar
 /// ```ts
 /// function optionOrError<T>(value: T | null, message: () => string): T { if (value === null) throw new Error(message()); return value; }
 /// ```
-pub fn option_or_error<T>(option: Option<T>, message: Arguments<'_>) -> anyhow::Result<T> {
+pub fn option_or_error<T>(
+    option: Option<T>,
+    message: Arguments<'_>,
+) -> anyhow::Result<T> {
     match option {
         Some(value) => return Ok(value),
         None => return Err(anyhow::Error::msg(message.to_string())),
@@ -61,7 +71,10 @@ pub fn option_or_error<T>(option: Option<T>, message: Arguments<'_>) -> anyhow::
 /// ```ts
 /// function optionOrText<T>(value: T | null, message: () => string): T { if (value === null) throw message(); return value; }
 /// ```
-pub fn option_or_text<T>(option: Option<T>, message: Arguments<'_>) -> Result<T, String> {
+pub fn option_or_text<T>(
+    option: Option<T>,
+    message: Arguments<'_>,
+) -> Result<T, String> {
     match option {
         Some(value) => return Ok(value),
         None => return Err(message.to_string()),
@@ -80,7 +93,10 @@ pub fn option_or_text<T>(option: Option<T>, message: Arguments<'_>) -> Result<T,
 /// ```ts
 /// function resultOrText<T>(run: () => T, message: () => string): T { try { return run(); } catch { throw message(); } }
 /// ```
-pub fn result_or_text<T, E>(result: Result<T, E>, message: Arguments<'_>) -> Result<T, String> {
+pub fn result_or_text<T, E>(
+    result: Result<T, E>,
+    message: Arguments<'_>,
+) -> Result<T, String> {
     match result {
         Ok(value) => return Ok(value),
         Err(_) => return Err(message.to_string()),
@@ -100,7 +116,10 @@ pub fn result_or_text<T, E>(result: Result<T, E>, message: Arguments<'_>) -> Res
 /// ```ts
 /// function failedText<T>(run: () => T, what: string): T { try { return run(); } catch (e) { throw `${what}: ${e}`; } }
 /// ```
-pub fn failed_text<T, E: Display>(result: Result<T, E>, what: &str) -> Result<T, String> {
+pub fn failed_text<T, E: Display>(
+    result: Result<T, E>,
+    what: &str,
+) -> Result<T, String> {
     match result {
         Ok(value) => return Ok(value),
         Err(error) => return Err(format!("{what}: {error}")),
@@ -118,7 +137,10 @@ pub fn failed_text<T, E: Display>(result: Result<T, E>, what: &str) -> Result<T,
 /// ```ts
 /// function failedError<T>(run: () => T, what: string): T { try { return run(); } catch (e) { throw new Error(`${what}: ${e}`); } }
 /// ```
-pub fn failed_error<T, E: Display>(result: Result<T, E>, what: &str) -> anyhow::Result<T> {
+pub fn failed_error<T, E: Display>(
+    result: Result<T, E>,
+    what: &str,
+) -> anyhow::Result<T> {
     match result {
         Ok(value) => return Ok(value),
         Err(error) => return Err(anyhow::anyhow!("{what}: {error}")),
@@ -136,7 +158,10 @@ pub fn failed_error<T, E: Display>(result: Result<T, E>, what: &str) -> anyhow::
 /// ```ts
 /// function failedDebugError<T>(run: () => T, what: string): T { try { return run(); } catch (e) { throw new Error(`${what}: ${inspect(e)}`); } }
 /// ```
-pub fn failed_debug_error<T, E: Debug>(result: Result<T, E>, what: &str) -> anyhow::Result<T> {
+pub fn failed_debug_error<T, E: Debug>(
+    result: Result<T, E>,
+    what: &str,
+) -> anyhow::Result<T> {
     match result {
         Ok(value) => return Ok(value),
         Err(error) => return Err(anyhow::anyhow!("{what}: {error:?}")),
