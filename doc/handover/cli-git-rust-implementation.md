@@ -132,10 +132,11 @@ Rounds started before that decision run on flex.
   one window each, `issue-<number>-<words>`.
 - Debt ledger item 19, window `fixed-length-lists-become-slices`.
 - The Ubuntu 24.04 `setgroups` skip and its `doctor` line, window `ubuntu-setgroups-skip-and-doctor-line`.
-- The linter's `alpha.13` Sonnet release pass,
-  on the detached worktree `monochromatic-lint-alpha-13-release-review` at the release commit `e58ba6f078`,
-  its report to `~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`;
-  a fix round follows for the findings that earn one.
+- The linter's `alpha.14` fixes for the `alpha.13` release pass
+  (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
+  a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
+  window `monochromatic-lint-alpha-13-release-pass-fixes`, on Qwen;
+  then the `alpha.14` release, its Sonnet release pass and the lock bump.
 - The virtual writer with Qwen first,
   window `virtual-writer-qwen-first`,
   starting on flex behind its launch delay.
