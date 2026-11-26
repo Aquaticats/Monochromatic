@@ -174,8 +174,13 @@ fn hold(shape: AShape, checkout: &Path, slot: &Path, ignores_the_ask: bool) -> A
         make_the_checkout_shared(checkout).expect("the holder makes its own checkout a group of its own");
     }
     // The working directory is this forked child's own and never the crate's test process's, so the call is the
-    // kernel's and not the library call the crate forbids anywhere.
-    let inside: std::ffi::CString = std::ffi::CString::new(slot.as_os_str().as_encoded_bytes()).expect("no NUL in the slot path");
+    // kernel's and not the library call the crate forbids anywhere. A namespace holder keeps the copy in its mount
+    // namespace only, so only a session holder works inside the clone.
+    let working: &Path = match shape {
+        AShape::SessionOfItsOwn => slot,
+        AShape::NamespaceOfItsOwn | AShape::NamespaceOfItsOwnAndShared | AShape::UserNamespaceOfItsOwn => Path::new("/"),
+    };
+    let inside: std::ffi::CString = std::ffi::CString::new(working.as_os_str().as_encoded_bytes()).expect("no NUL in the path");
     // SAFETY: the path is this call's own and outlives it; the child becomes a holder whose working directory is the
     // clone, which is exactly what a path holder holds.
     let moved: libc::c_int = unsafe { libc::chdir(inside.as_ptr()) };
@@ -576,12 +581,20 @@ fn phase_locked(fixture: &Fixture) -> String {
     let owner: NamespaceOwner = read_the_owner(Path::new(format!("/proc/{}/ns/mnt", holder.pid).as_str())).expect("the holder's namespace owner is read");
     fields.push(("owner", if owner.locked() { "another" } else { "ours" }));
     let (copy, _theirs, _ours, _receivers) = a_copy_in_the_holder(fixture, checkout.as_path(), slot.as_path(), &holder, &handle);
+    // Way 8's structural stage only opens the handle, which a locked namespace still allows; its unmount is where the
+    // kernel refuses, so the phase takes the copy out and reports the word that stopped it.
     let way8: String = match make_the_way_ready(Route::InPlaceByTheHandle, &copy) {
-        Ok(_ready) => String::from("accepted"),
+        Ok(ready) => match take_the_copy_out(&ready, &copy) {
+            Ok(_taken) => String::from("accepted"),
+            Err(refusal) => String::from(refusal.word.word()),
+        },
         Err(refusal) => String::from(refusal.word.word()),
     };
     let way7: String = match make_the_way_ready(Route::SlaveMoveAndUnmount, &copy) {
-        Ok(_ready) => String::from("accepted"),
+        Ok(ready) => match take_the_copy_out(&ready, &copy) {
+            Ok(_taken) => String::from("accepted"),
+            Err(refusal) => String::from(refusal.word.word()),
+        },
         Err(refusal) => String::from(refusal.word.word()),
     };
     fields.push(("way8", way8.as_str()));

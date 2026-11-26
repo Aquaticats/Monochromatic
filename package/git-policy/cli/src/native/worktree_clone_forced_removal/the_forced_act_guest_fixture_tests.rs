@@ -172,14 +172,14 @@ impl Fixture {
 
     /// What:
     ///  Destroy a clone a finished phase left and make this phase's own,
-    ///  with no mount point of its own,
+    ///  on the legacy mount point one `mount -t zfs` call names,
     ///  so the one mount the phase makes stands for the clone.
     /// Why:
     ///  A phase's last act is the head destroy,
     ///  and a later phase must stand on the same snapshot with a fresh clone.
     pub(crate) fn a_fresh_clone(&self) {
         let _gone: (bool, String) = self.ask("zfs", &["destroy", "-r", self.clone().as_str()]);
-        self.run("zfs", &["clone", "-o", "mountpoint=none", format!("{}@origin", self.checkout()).as_str(), self.clone().as_str()]);
+        self.run("zfs", &["clone", "-o", "mountpoint=legacy", format!("{}@origin", self.checkout()).as_str(), self.clone().as_str()]);
     }
 }
 
