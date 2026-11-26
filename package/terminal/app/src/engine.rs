@@ -11,7 +11,10 @@
 /// ```ts
 /// import { Terminal, RenderState } from "libghostty-vt";
 /// ```
-use libghostty_vt::{RenderState, Terminal};
+use libghostty_vt::{
+    RenderState,
+    Terminal,
+};
 
 /// What:
 ///      `use libghostty_vt::render::{CellIterator, RowIterator};` imports
@@ -23,7 +26,10 @@ use libghostty_vt::{RenderState, Terminal};
 /// ```ts
 /// import { RowIterator, CellIterator } from "libghostty-vt/render";
 /// ```
-use libghostty_vt::render::{CellIterator, RowIterator};
+use libghostty_vt::render::{
+    CellIterator,
+    RowIterator,
+};
 
 /// What:
 ///      `use libghostty_vt::style::{RgbColor, Underline};` imports Ghostty
@@ -38,7 +44,10 @@ use libghostty_vt::render::{CellIterator, RowIterator};
 /// ```ts
 /// import type { RgbColor, Underline } from "libghostty-vt/style";
 /// ```
-use libghostty_vt::style::{RgbColor, Underline};
+use libghostty_vt::style::{
+    RgbColor,
+    Underline,
+};
 
 /// What:
 ///      `use libghostty_vt::terminal::ScrollViewport;` imports the row-scroll
@@ -66,9 +75,12 @@ use libghostty_vt::terminal::ScrollViewport;
 /// ```
 use crate::{
     error::TerminalError,
-    render::{TerminalCell, TerminalSnapshot},
-    scroll::map_pixel_scroll,
+    render::{
+        TerminalCell,
+        TerminalSnapshot,
+    },
     scroll::ScrollMapping,
+    scroll::map_pixel_scroll,
 };
 
 // What:     `#[derive(Clone, Copy, Debug, PartialEq)]` generates value behavior
@@ -199,7 +211,7 @@ impl ViewportGeometry {
             rows,
             cell_width_px: safe_cell_width_px,
             cell_height_px: safe_cell_height_px,
-        }
+        };
     }
 }
 
@@ -416,7 +428,7 @@ impl TerminalEngine {
             cell_iterator: CellIterator::new()?,
             viewport_top_row: 0,
             geometry,
-        })
+        });
     }
 
     /// What:
@@ -435,7 +447,10 @@ impl TerminalEngine {
     /// this.terminal.vtWrite(bytes);
     /// this.viewportTopRow = this.terminal.scrollbackRows();
     /// ```
-    pub fn feed(&mut self, bytes: &[u8]) -> Result<(), TerminalError> {
+    pub fn feed(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<(), TerminalError> {
         // What:     `self.terminal.vt_write(bytes)` parses untrusted VT bytes.
         // Why:      This updates screen, cursor, style, and scrollback state.
         //
@@ -471,7 +486,7 @@ impl TerminalEngine {
         // ```ts
         // return;
         // ```
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -484,7 +499,10 @@ impl TerminalEngine {
     /// ```ts
     /// this.terminal.resize(geometry.cols, geometry.rows, geometry.cellWidthPx, geometry.cellHeightPx);
     /// ```
-    pub fn resize(&mut self, geometry: ViewportGeometry) -> Result<(), TerminalError> {
+    pub fn resize(
+        &mut self,
+        geometry: ViewportGeometry,
+    ) -> Result<(), TerminalError> {
         // What:     `if self.geometry == geometry { return Ok(()); }` exits early
         //           when no cell count or cell metric changed.
         // Why:      Slint may emit duplicate resize notifications.
@@ -522,7 +540,7 @@ impl TerminalEngine {
         }
         // What:     `Ok(())` returns success after the resize.
         // Why:      Match the method's `Result` return type.
-        return Ok(())
+        return Ok(());
     }
 
     /// What:
@@ -537,7 +555,7 @@ impl TerminalEngine {
         let rows = self.terminal.scrollback_rows()?;
         // What:     `Ok(rows)` wraps the count in a successful `Result`.
         // Why:      The method promised `Result` for error propagation.
-        return Ok(rows)
+        return Ok(rows);
     }
 
     /// What:
@@ -561,7 +579,7 @@ impl TerminalEngine {
         self.set_viewport_top_row(mapping.whole_row_offset)?;
         // What:     `Ok(mapping)` returns the same mapping to the caller.
         // Why:      Slint status can show fractional pixels and row offset.
-        return Ok(mapping)
+        return Ok(mapping);
     }
 
     /// What:
@@ -706,7 +724,7 @@ impl TerminalEngine {
             cell_width_px: self.geometry.cell_width_px,
             cell_height_px: self.geometry.cell_height_px,
             title,
-        })
+        });
     }
 
     /// What:
@@ -717,7 +735,10 @@ impl TerminalEngine {
     ///  Bottom,
     ///  or Delta,
     ///  not direct absolute set.
-    fn set_viewport_top_row(&mut self, target_top_row: usize) -> Result<(), TerminalError> {
+    fn set_viewport_top_row(
+        &mut self,
+        target_top_row: usize,
+    ) -> Result<(), TerminalError> {
         // What:     `let max_top_row = ...` fetches the bottom offset.
         // Why:      Absolute row requests must clamp to current scrollback size.
         let max_top_row = self.terminal.scrollback_rows()?;
@@ -749,7 +770,7 @@ impl TerminalEngine {
         self.viewport_top_row = target;
         // What:     `Ok(())` returns success.
         // Why:      The helper has completed the row scroll.
-        return Ok(())
+        return Ok(());
     }
 }
 
@@ -769,9 +790,9 @@ fn resolve_inverse(
     // What:     `if inverse { ... } else { ... }` returns one tuple or the other.
     // Why:      SGR inverse means foreground and background trade places.
     if inverse {
-        return (background, foreground)
+        return (background, foreground);
     } else {
-        return (foreground, background)
+        return (foreground, background);
     }
 }
 
@@ -788,7 +809,7 @@ fn should_copy_cell(
     // What:     `!text.is_empty() || background.is_some() || inverse` combines three
     //           visibility reasons. `Option::is_some` checks for a present value.
     // Why:      Text, explicit backgrounds, and inverse blanks all need drawing.
-    return !text.is_empty() || background.is_some() || inverse
+    return !text.is_empty() || background.is_some() || inverse;
 }
 
 /// What:
