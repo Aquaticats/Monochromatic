@@ -5,7 +5,10 @@
 //!  a grant wider than the design scopes it and the two commands that narrow it,
 //!  a lineage-changing grant,
 //!  a permission given to everyone,
-//!  and a grant reached through a named set.
+//!  a creation-time grant of a forbidden permission,
+//!  a forbidden permission inside a named set the account can hold,
+//!  a forbidden permission reached through a set inside a set,
+//!  and a route permission reached through a named set.
 //! Why:
 //!  The removal's threat boundary is this set,
 //!  so a control changes one grant of the decided shape and reads the answer
@@ -17,7 +20,7 @@
 //! ```
 
 use super::{DelegationFacts, Grant, Inheritance, Who, check_delegation, grants_of};
-use crate::health::doctor_zfs_route::route_test_facts::{ACCOUNT, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation, healthy_grants};
+use crate::health::doctor_zfs_route::route_test_facts::{ACCOUNT, ACCOUNT_GROUP, CHECKOUT_DATASET, CONTAINER_DATASET, grant, healthy_delegation, healthy_grants};
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 
 /// The dataset above both the checkout and the clone container,
@@ -185,14 +188,99 @@ fn a_permission_given_to_everyone_is_a_finding() {
     assert!(detail.contains(CONTAINER_DATASET), "{detail}");
 }
 
-/// A named set leaves the effective delegation unproved.
+/// A route permission the account holds through a named set leaves the
+/// effective delegation unproved,
+/// and the reason names the set, the permission and the command that takes the
+/// permission out of the set.
 #[test]
-fn a_named_set_leaves_the_delegation_unknown() {
-    let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, "destroy", Who::NamedSet(String::from("backup")), Inheritance::Descendants));
+fn a_named_set_the_account_holds_leaves_the_delegation_unknown() {
+    let mut facts: DelegationFacts = healthy_delegation();
+    facts.grants.push(grant(CONTAINER_DATASET, "@backup", Who::User(ACCOUNT), Inheritance::Local));
+    facts.grants.push(grant(CONTAINER_DATASET, "destroy", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
     let super::CheckOutcome::Unknown { reason } = check_delegation(&facts) else {
-        panic!("a named set leaves the answer unknown");
+        panic!("a held named set leaves the answer unknown");
     };
-    assert!(reason.contains("backup"), "{reason}");
+    assert!(reason.contains("@backup"), "{reason}");
+    assert!(reason.contains("destroy"), "the permission is named: {reason}");
+    assert!(reason.contains(&format!("zfs unallow -s @backup destroy {CONTAINER_DATASET}")), "the command that removes it is named: {reason}");
+}
+
+/// A set definition that no holder in the reply grants the account still
+/// leaves the route's permissions unproved,
+/// and the reason says that no holder grants it.
+#[test]
+fn a_named_set_no_holder_grants_leaves_the_route_permissions_unproved() {
+    let facts: DelegationFacts = with_grant(grant(CONTAINER_DATASET, "destroy", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
+    let super::CheckOutcome::Unknown { reason } = check_delegation(&facts) else {
+        panic!("a set definition leaves the route's permissions unproved");
+    };
+    assert!(reason.contains("@backup"), "{reason}");
+    assert!(reason.contains("no holder"), "{reason}");
+}
+
+/// A creation-time grant is one the kernel copies onto every dataset its
+/// creator makes below the dataset that carries it,
+/// and the account creates the route's clones below the container,
+/// so the grant is a finding naming the permission and the `zfs unallow -c`
+/// command that clears it.
+#[test]
+fn a_creation_time_grant_of_a_forbidden_permission_is_a_finding() {
+    for dataset in [CHECKOUT_DATASET, CONTAINER_DATASET] {
+        let facts: DelegationFacts = with_grant(grant(dataset, "mountpoint", Who::Create, Inheritance::NotApplicable));
+        let outcome: super::CheckOutcome = check_delegation(&facts);
+        let super::CheckOutcome::Finding { field, detail } = outcome else {
+            panic!("a creation-time `mountpoint` on `{dataset}` is a finding: {outcome:?}");
+        };
+        assert_eq!(field, "permission", "{dataset}");
+        assert!(detail.contains("mountpoint"), "{detail}");
+        assert!(detail.contains(&format!("zfs unallow -c mountpoint {dataset}")), "{detail}");
+    }
+}
+
+/// A named set's members are in the reply under the set's own who key,
+/// so a forbidden permission inside a set the account can hold is a finding
+/// naming the set, the permission and the command that takes the permission
+/// out of the set,
+/// whichever holder hands the set over.
+#[test]
+fn a_forbidden_permission_in_a_named_set_the_account_can_hold_is_a_finding() {
+    let holders: [(Who, Inheritance, &str); 4] = [
+        (Who::User(ACCOUNT), Inheritance::Local, "the account's own grant"),
+        (Who::Group(ACCOUNT_GROUP), Inheritance::Descendants, "a grant to one of the account's groups"),
+        (Who::Everyone, Inheritance::Local, "a grant to everyone"),
+        (Who::Create, Inheritance::NotApplicable, "a creation-time set grant"),
+    ];
+    for (holder, inheritance, words) in holders {
+        let mut facts: DelegationFacts = healthy_delegation();
+        facts.grants.push(grant(CONTAINER_DATASET, "@backup", holder, inheritance));
+        facts.grants.push(grant(CONTAINER_DATASET, "mountpoint", Who::NamedSet(String::from("@backup")), Inheritance::NotApplicable));
+        let outcome: super::CheckOutcome = check_delegation(&facts);
+        let super::CheckOutcome::Finding { field, detail } = outcome else {
+            panic!("{words} hands the account a set holding `mountpoint`: {outcome:?}");
+        };
+        assert_eq!(field, "permission", "{words}");
+        assert!(detail.contains("@backup"), "{words}: {detail}");
+        assert!(detail.contains("mountpoint"), "{words}: {detail}");
+        assert!(detail.contains(&format!("zfs unallow -s @backup mountpoint {CONTAINER_DATASET}")), "{words}: {detail}");
+    }
+}
+
+/// A set inside a held set is expanded as the kernel expands it before it
+/// judges a permission,
+/// so a forbidden permission two sets deep is still named with its command.
+#[test]
+fn a_forbidden_permission_reached_through_a_nested_set_is_a_finding() {
+    let mut facts: DelegationFacts = healthy_delegation();
+    facts.grants.push(grant(CONTAINER_DATASET, "@outer", Who::User(ACCOUNT), Inheritance::Local));
+    facts.grants.push(grant(CONTAINER_DATASET, "@inner", Who::NamedSet(String::from("@outer")), Inheritance::NotApplicable));
+    facts.grants.push(grant(CONTAINER_DATASET, "mountpoint", Who::NamedSet(String::from("@inner")), Inheritance::NotApplicable));
+    let outcome: super::CheckOutcome = check_delegation(&facts);
+    let super::CheckOutcome::Finding { field, detail } = outcome else {
+        panic!("a set inside a held set hands `mountpoint` over: {outcome:?}");
+    };
+    assert_eq!(field, "permission");
+    assert!(detail.contains("@inner"), "{detail}");
+    assert!(detail.contains(&format!("zfs unallow -s @inner mountpoint {CONTAINER_DATASET}")), "{detail}");
 }
 
 /// The decided grants are the ones the design names,
