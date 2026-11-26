@@ -230,7 +230,7 @@ fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
 fn the_hatch_after_the_subcommand_runs_each_form() {
     let fixture: Fixture = fixture("discard-hatch");
     let repo: PathBuf = dirty_repository(&fixture);
-    for command in GuardedCommand::ALL {
+    for &command in GuardedCommand::ALL {
         for arguments in hatch_invocations(command) {
             let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
             assert!(

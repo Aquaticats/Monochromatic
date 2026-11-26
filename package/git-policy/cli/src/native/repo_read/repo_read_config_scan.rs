@@ -30,12 +30,12 @@ use std::path::{
 const INCLUDE_DEPTH_LIMIT: usize = 10;
 
 /// The keys whose presence in any file makes the location reader decline.
-const DISCOVERY_KEYS: [&str; 2] = ["core.bare", "core.worktree"];
+const DISCOVERY_KEYS: &[&str] = &["core.bare", "core.worktree"];
 
 /// The keys whose presence in any file makes the content readers decline (listings,
 /// cached diffs,
 /// `show`).
-const CONTENT_KEYS: [&str; 11] = [
+const CONTENT_KEYS: &[&str] = &[
     "diff.relative",
     "core.ignorecase",
     "core.precomposeunicode",

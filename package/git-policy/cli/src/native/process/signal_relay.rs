@@ -125,12 +125,12 @@ pub fn is_process_sender(_code: c_int) -> bool {
 /// Sender codes that mean a process sent the signal,
 /// on Linux.
 #[cfg(target_os = "linux")]
-const PROCESS_SENDER_CODES: [c_int; 3] = [libc::SI_USER, libc::SI_QUEUE, libc::SI_TKILL];
+const PROCESS_SENDER_CODES: &[c_int] = &[libc::SI_USER, libc::SI_QUEUE, libc::SI_TKILL];
 
 /// Sender codes that mean a process sent the signal,
 /// on other Unix systems.
 #[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
-const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
+const PROCESS_SENDER_CODES: &[c_int] = &[libc::SI_USER, libc::SI_QUEUE];
 
 /// What:
 ///  The signals the guard catches and relays.
@@ -142,7 +142,7 @@ const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
 /// const CAUGHT = ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'] as const;
 /// ```
 #[cfg(unix)]
-pub const RELAYED_SIGNALS: [c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
+pub const RELAYED_SIGNALS: &[c_int] = &[libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
 ///  Whether a child is published to the handler:
@@ -494,7 +494,7 @@ impl SignalGuard {
         }
         // `mut` lets each installed disposition be recorded as it is replaced.
         let mut saved: Vec<(c_int, libc::sigaction)> = Vec::with_capacity(RELAYED_SIGNALS.len());
-        for signal in RELAYED_SIGNALS {
+        for &signal in RELAYED_SIGNALS {
             match install_one(signal) {
                 Ok(Some(previous)) => saved.push((signal, previous)),
                 Ok(None) => {}

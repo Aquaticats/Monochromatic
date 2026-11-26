@@ -28,7 +28,7 @@ use std::ffi::OsString;
 /// only the forms the wrapper runs may be run again (`may_be_rerun`).
 ///  `init` is not run again in place at all:
 /// its one form is ended at a ceiling and restarted in a fresh directory (`may_be_ended`).
-const RERUNNABLE: [&str; 15] = [
+const RERUNNABLE: &[&str] = &[
     "rev-parse",
     "for-each-ref",
     "ls-files",
@@ -156,7 +156,7 @@ fn symbolic_ref_may_be_rerun(
 ///  `merge_file_reads_only` accepts a `merge-file` only when every option is one of these;
 ///  `--marker-size` is here because it changes the markers and no file,
 ///  and `-L` because its value is a label.
-const MERGE_FILE_READ_OPTIONS: [&str; 12] = [
+const MERGE_FILE_READ_OPTIONS: &[&str] = &[
     "--stdout",
     "-p",
     "--object-id",
@@ -203,7 +203,7 @@ const MERGE_FILE_READ_OPTIONS: [&str; 12] = [
 ///  has nothing to cut here (`doc/planning/cli-git-no-unbounded-waits.md`,
 /// "The cut experiment").
 fn merge_file_reads_only(words: &Words<'_>) -> bool {
-    if !words.only_options(&MERGE_FILE_READ_OPTIONS) {
+    if !words.only_options(MERGE_FILE_READ_OPTIONS) {
         return false;
     }
     let prints: bool = words.has("--stdout") || words.has("-p");
@@ -305,7 +305,7 @@ pub(crate) fn may_be_rerun(request: &GitRequest) -> bool {
 /// and the cut experiment ran the wrapper's own stream and found a marks lock file a cut left behind that the
 ///  second run could not pass,
 /// so it is never ended.
-const READS_AND_OBJECT_WRITERS: [&str; 15] = [
+const READS_AND_OBJECT_WRITERS: &[&str] = &[
     "rev-list",
     "merge-base",
     "log",

@@ -42,7 +42,7 @@ pub const CAPTURE_HEADER: &str =
     "# monochromatic-git-policy-cli zfs worktree add capture, version 2";
 
 /// The keys the fixed part writes, in the order it writes them.
-pub const CAPTURE_FIXED_KEYS: [&str; 11] = [
+pub const CAPTURE_FIXED_KEYS: &[&str] = &[
     "nonce",
     "repository",
     "source",

@@ -24,7 +24,7 @@ use std::path::{
 /// the marker its units carry now,
 /// and the descriptions the
 ///  units of earlier releases carried.
-pub const OWN_MARKERS: [&str; 4] = [
+pub const OWN_MARKERS: &[&str] = &[
     "(monochromatic-git-policy-cli-unit)",
     "(cli-git-unit)",
     "Description=Commit service socket for the git wrapper",

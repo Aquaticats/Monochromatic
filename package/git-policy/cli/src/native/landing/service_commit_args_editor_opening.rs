@@ -17,7 +17,7 @@
 
 use std::ffi::OsString;
 /// Long options with no value that never decide whether an editor opens.
-pub(crate) const NEUTRAL_LONG: [&str; 15] = [
+pub(crate) const NEUTRAL_LONG: &[&str] = &[
     "--quiet",
     "--no-verify",
     "--only",
@@ -36,7 +36,7 @@ pub(crate) const NEUTRAL_LONG: [&str; 15] = [
 ];
 
 /// Long options with a value that never decide whether an editor opens.
-pub(crate) const NEUTRAL_VALUE_LONG: [&str; 7] = [
+pub(crate) const NEUTRAL_VALUE_LONG: &[&str] = &[
     "--author",
     "--date",
     "--trailer",

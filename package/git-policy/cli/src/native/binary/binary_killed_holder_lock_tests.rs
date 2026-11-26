@@ -67,7 +67,7 @@ const HOLD_PATIENCE: Duration = Duration::from_secs(60);
 
 /// The lock files a killed command can leave,
 /// each with the PID file Git writes beside it under `core.lockfilePid`.
-const EVERY_LOCK: [&str; 6] = [
+const EVERY_LOCK: &[&str] = &[
     "index.lock",
     "HEAD.lock",
     "shallow.lock",

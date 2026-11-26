@@ -36,8 +36,8 @@ use std::ffi::OsString;
 /// function booleanValue(text: string): boolean | undefined
 /// ```
 fn boolean_value(text: &str) -> Option<bool> {
-    const TRUE_VALUES: [&str; 6] = ["1", "t", "T", "TRUE", "true", "True"];
-    const FALSE_VALUES: [&str; 6] = ["0", "f", "F", "FALSE", "false", "False"];
+    const TRUE_VALUES: &[&str] = &["1", "t", "T", "TRUE", "true", "True"];
+    const FALSE_VALUES: &[&str] = &["0", "f", "F", "FALSE", "false", "False"];
     if TRUE_VALUES.contains(&text) {
         return Some(true);
     }
@@ -51,7 +51,7 @@ fn boolean_value(text: &str) -> Option<bool> {
 /// so a `=value` after one of them is a value `strconv.ParseBool` reads.
 /// `--file` (`:99`) is the one string option and takes a path instead,
 /// and `--help` is cobra's own.
-const BOOLEAN_OPTIONS: [&str; 7] = [
+const BOOLEAN_OPTIONS: &[&str] = &[
     "force",
     "local",
     "manual",
@@ -68,7 +68,7 @@ const BOOLEAN_OPTIONS: [&str; 7] = [
 ///
 /// `--file` and `--system` have no short form,
 /// so no short option here takes anything but a boolean.
-const BOOLEAN_LETTERS: [char; 5] = ['f', 'l', 'w', 's', 'm'];
+const BOOLEAN_LETTERS: &[char] = &['f', 'l', 'w', 's', 'm'];
 
 /// What:
 ///  The help flag cobra adds to every command,

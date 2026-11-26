@@ -297,7 +297,7 @@ pub fn refusal_controls(
             };
         },
     )?;
-    match open_beneath_components(&root, [REFUSAL_TREE, BOUND_NAME, "slot"]) {
+    match open_beneath_components(&root, &[REFUSAL_TREE, BOUND_NAME, "slot"]) {
         Ok(_) => {
             return Err(WalkFailure::Control {
                 control: "crossing",
@@ -408,7 +408,7 @@ fn bound_slot_of(scratch: &Path) -> PathBuf {
 ///  the first refusal.
 fn open_beneath_components(
     root: &std::fs::File,
-    components: [&str; 3],
+    components: &[&str],
 ) -> Result<(), Option<i32>> {
     let mut held: std::fs::File = root
         .try_clone()

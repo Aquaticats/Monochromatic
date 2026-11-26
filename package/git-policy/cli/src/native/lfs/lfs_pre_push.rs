@@ -40,11 +40,11 @@ pub const SWITCH_NAME: &str = "cli-git-lfs-pre-push";
 pub const LFS_PROGRAM: &str = "git-lfs";
 
 /// Key prefixes whose presence means the repository is set up for Git LFS.
-const LFS_KEY_PREFIXES: [&str; 2] = ["filter.lfs.", "lfs."];
+const LFS_KEY_PREFIXES: &[&str] = &["filter.lfs.", "lfs."];
 
 /// Scopes that describe the machine or the account,
 /// not this repository.
-const MACHINE_SCOPES: [&str; 2] = ["system", "global"];
+const MACHINE_SCOPES: &[&str] = &["system", "global"];
 
 /// What:
 ///  Whether a configuration entry of this repository,
@@ -397,7 +397,7 @@ pub fn failed_message(status: &str) -> String {
 /// ```ts
 /// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'too many authentication attempts'];
 /// ```
-const LOGIN_NEEDED: [&str; 5] = [
+const LOGIN_NEEDED: &[&str] = &[
     // Git's own words from `prompt.c`, with terminal prompts off.
     "terminal prompts disabled",
     // Git's credential prompt when no askpass program and no terminal answer.
@@ -720,7 +720,7 @@ const CERTIFICATE_WORD: &str = "certificate";
 /// and of those three levels alone (`log.c` at `V_10_6_P2` lines 371 to 382);
 /// a line an error,
 /// a log or a fatal refusal printed on standard error carries no prefix at all.
-const OPENSSH_DEBUG_LINE_PREFIXES: [&str; 3] = ["debug1: ", "debug2: ", "debug3: "];
+const OPENSSH_DEBUG_LINE_PREFIXES: &[&str] = &["debug1: ", "debug2: ", "debug3: "];
 
 /// The words of OpenSSH's sentence for a host key this machine has none of while the account asks for strict checking
 /// (`check_host_key`'s `HOST_NEW` case,

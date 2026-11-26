@@ -72,10 +72,10 @@ use crate::command_options_long_resolution::long_option_takes_next_token;
 
 /// Global options that redirect native Git away from the shadow repository,
 /// so they are dropped.
-const REDIRECTING_VALUE_OPTIONS: [&str; 3] = ["-C", "--git-dir", "--work-tree"];
+const REDIRECTING_VALUE_OPTIONS: &[&str] = &["-C", "--git-dir", "--work-tree"];
 
 /// Global options that consume the next token as their value.
-const VALUE_TAKING_GLOBAL_OPTIONS: [&str; 7] = [
+const VALUE_TAKING_GLOBAL_OPTIONS: &[&str] = &[
     "-c",
     "-C",
     "--git-dir",
@@ -227,8 +227,8 @@ pub fn split_commit_invocation(
     while index < globals.len() {
         let token: &[u8] = argument_bytes(globals[index].as_os_str());
         let name: &[u8] = global_name(token);
-        let separated: bool = is_one_of(token, &VALUE_TAKING_GLOBAL_OPTIONS);
-        if is_one_of(name, &REDIRECTING_VALUE_OPTIONS) || token == b"--bare" {
+        let separated: bool = is_one_of(token, VALUE_TAKING_GLOBAL_OPTIONS);
+        if is_one_of(name, REDIRECTING_VALUE_OPTIONS) || token == b"--bare" {
             if separated {
                 index += 1;
             }

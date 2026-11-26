@@ -243,7 +243,7 @@ impl Fields {
                 });
             }
         }
-        for key in BINDING_KEYS_IN_ORDER {
+        for &key in BINDING_KEYS_IN_ORDER {
             let Some(proving) = phase_that_proves(key) else {
                 continue;
             };

@@ -23,7 +23,7 @@ use crate::merge_second_pass::{
 };
 
 /// The stages in the order `update-index --index-info` takes them back.
-const STAGE_NUMBERS: [u8; 3] = [1, 2, 3];
+const STAGE_NUMBERS: &[u8] = &[1, 2, 3];
 
 /// The records that put a conflict's stages back into the index:
 /// remove the path,

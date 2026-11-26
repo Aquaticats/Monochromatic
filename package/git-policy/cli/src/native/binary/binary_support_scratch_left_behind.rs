@@ -32,8 +32,8 @@ const POLL: std::time::Duration = std::time::Duration::from_millis(20);
 ///  the wrapper writes that when it keeps the text a person typed,
 ///  nothing removes it,
 ///  and the command's own message names the file it is in.
-const REMOVED_BY_THE_WRAPPER: [&str; 2] =
-    ["monochromatic-git-policy-cli-service-", "cli-git-service-"];
+const REMOVED_BY_THE_WRAPPER: &[&str] =
+    &["monochromatic-git-policy-cli-service-", "cli-git-service-"];
 
 /// What:
 ///  Everything the wrapper would have removed and did not,

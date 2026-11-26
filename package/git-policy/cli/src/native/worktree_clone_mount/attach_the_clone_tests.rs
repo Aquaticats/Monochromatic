@@ -33,7 +33,7 @@ const ABSENT_FILE_SYSTEM: &str = "monochromatic-no-such-filesystem";
 /// The two errnos `fsopen` can answer here:
 /// the account's lack of mount authority,
 /// and a type no module registers.
-const FSOPEN_ERRNOS: [i32; 2] = [libc::EPERM, libc::ENODEV];
+const FSOPEN_ERRNOS: &[i32] = &[libc::EPERM, libc::ENODEV];
 
 /// One fixture folder of this control's own,
 /// removed however the control ends.

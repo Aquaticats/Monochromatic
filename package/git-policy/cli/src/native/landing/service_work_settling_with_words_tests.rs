@@ -150,7 +150,7 @@ fn drained(queued: &Queued) {
         CLAIM_LEASE,
         Renewal::Timed,
         &mut replanning,
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
     ))
     .expect("the pending drain runs");
@@ -426,7 +426,7 @@ fn drained_once(
         CLAIM_LEASE,
         Renewal::Timed,
         &mut replanning,
-        &SERVICE_KINDS,
+        SERVICE_KINDS,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
     ))
     .expect("the pending drain runs");

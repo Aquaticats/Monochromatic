@@ -83,7 +83,7 @@ const TAG: &str = "pullIsolation";
 
 /// Files and directories of the Git directory that show another operation is in progress;
 /// native Git's pull reports those.
-const IN_PROGRESS_MARKERS: [&str; 6] = [
+const IN_PROGRESS_MARKERS: &[&str] = &[
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
     "REVERT_HEAD",
@@ -94,7 +94,7 @@ const IN_PROGRESS_MARKERS: [&str; 6] = [
 
 /// The options of `git pull` that go to its merge as typed (`builtin/pull.c`,
 /// `run_merge`).
-const MERGE_OPTIONS: [&str; 17] = [
+const MERGE_OPTIONS: &[&str] = &[
     "--no-edit",
     "--edit",
     "--ff",
@@ -116,7 +116,7 @@ const MERGE_OPTIONS: [&str; 17] = [
 
 /// The options of `git pull` that go to its fetch as typed (`builtin/pull.c`,
 /// `run_fetch`).
-const FETCH_OPTIONS: [&str; 13] = [
+const FETCH_OPTIONS: &[&str] = &[
     "--all",
     "--prune",
     "-p",
@@ -133,13 +133,13 @@ const FETCH_OPTIONS: [&str; 13] = [
 ];
 
 /// The options that go to both halves (`argv_push_verbosity`).
-const SHARED_OPTIONS: [&str; 4] = ["-q", "--quiet", "-v", "--verbose"];
+const SHARED_OPTIONS: &[&str] = &["-q", "--quiet", "-v", "--verbose"];
 
 /// The settings that make the wrapper leave the pull to native Git:
 /// they add steps this does not mirror (a stash around the
 /// pull,
 /// the update of submodules after it).
-const NATIVE_ONLY_SETTINGS: [&str; 3] = [
+const NATIVE_ONLY_SETTINGS: &[&str] = &[
     "pull.autostash",
     "submodule.recurse",
     "fetch.recursesubmodules",

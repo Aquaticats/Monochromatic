@@ -54,7 +54,7 @@ const REFTABLE_TABLES_LOCK: &str = "reftable/tables.list.lock";
 
 /// The files a Git directory locks for its references,
 /// whichever backend it keeps them in.
-const REFERENCE_LOCKS: [&str; 3] = [PACKED_LOCK, "HEAD.lock", REFTABLE_TABLES_LOCK];
+const REFERENCE_LOCKS: &[&str] = &[PACKED_LOCK, "HEAD.lock", REFTABLE_TABLES_LOCK];
 
 /// A reference lock and the Git directory it was found below.
 #[derive(Clone, Debug, Eq, PartialEq)]

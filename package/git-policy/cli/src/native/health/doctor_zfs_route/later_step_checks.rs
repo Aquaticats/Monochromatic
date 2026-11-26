@@ -56,7 +56,7 @@ pub enum LaterStep {
 
 impl LaterStep {
     /// Every later-step check the report answers.
-    pub const ALL: [LaterStep; 5] = [
+    pub const ALL: &[LaterStep] = &[
         LaterStep::CancelCommand,
         LaterStep::BootProtection,
         LaterStep::ServiceUnit,

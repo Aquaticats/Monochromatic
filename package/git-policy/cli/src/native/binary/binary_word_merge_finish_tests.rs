@@ -61,7 +61,7 @@ use std::path::{
 const SECOND_ADJACENT: &str = "md1c";
 
 /// The state files and directories an unfinished operation leaves in the Git directory.
-const STATE: [&str; 6] = [
+const STATE: &[&str] = &[
     "MERGE_HEAD",
     "CHERRY_PICK_HEAD",
     "REVERT_HEAD",
@@ -141,7 +141,7 @@ fn run_with_editor(
 /// and the part line.
 #[test]
 fn each_operation_is_finished_like_a_clean_run() {
-    for stop in STOPS {
+    for &stop in STOPS {
         let fixture: Fixture = fixture(format!("finish-{stop:?}").to_lowercase().as_str());
         let repo: PathBuf = prepared(&fixture, stop, &[ADJACENT]);
         let before: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
@@ -285,7 +285,7 @@ fn a_finish_that_cannot_reach_the_commit_service_names_what_changed() {
 /// its later state is the resolved text of the input.)
 #[test]
 fn a_part_that_does_not_resolve_keeps_the_stop_for_every_operation() {
-    for stop in STOPS.into_iter().filter(|stop| {
+    for stop in STOPS.iter().copied().filter(|stop| {
         return !matches!(stop, Stop::Revert);
     }) {
         let fixture: Fixture = fixture(format!("finish-stays-{stop:?}").to_lowercase().as_str());
@@ -1354,7 +1354,7 @@ fn events_in(log: &Path) -> Vec<String> {
 /// 1133 and 1966).
 #[test]
 fn user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run() {
-    for stop in STOPS {
+    for &stop in STOPS {
         let finished_fixture: Fixture =
             fixture(format!("finish-hooks-{stop:?}").to_lowercase().as_str());
         let finished_repo: PathBuf = prepared(&finished_fixture, stop, &[ADJACENT]);

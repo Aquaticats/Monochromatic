@@ -23,7 +23,7 @@ use std::os::unix::ffi::OsStrExt as _;
 
 /// The three options the route adds to the person's add,
 /// in the order Git reads them.
-pub const ROUTE_OPTIONS: [&str; 2] = ["--no-checkout", "--lock"];
+pub const ROUTE_OPTIONS: &[&str] = &["--no-checkout", "--lock"];
 
 /// The words a person may give that the route's own invocation takes for itself,
 /// as Git spells them before any `=<value>`.

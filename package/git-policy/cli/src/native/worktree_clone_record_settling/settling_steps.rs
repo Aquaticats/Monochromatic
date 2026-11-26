@@ -81,7 +81,7 @@ impl SettlingStep {
 
 /// The order a slot with no checkout begun takes,
 /// which is the design's own list.
-pub const WHEN_NO_CHECKOUT_HAS_BEGUN: [SettlingStep; 7] = [
+pub const WHEN_NO_CHECKOUT_HAS_BEGUN: &[SettlingStep] = &[
     SettlingStep::TheLostLock,
     SettlingStep::TheRegistrationRecipe,
     SettlingStep::ThePlan,
@@ -94,7 +94,7 @@ pub const WHEN_NO_CHECKOUT_HAS_BEGUN: [SettlingStep; 7] = [
 /// The order a slot with a checkout begun takes:
 /// the records alone,
 /// with the registration and the slot left for `git worktree remove`.
-pub const WHEN_A_CHECKOUT_HAS_BEGUN: [SettlingStep; 5] = [
+pub const WHEN_A_CHECKOUT_HAS_BEGUN: &[SettlingStep] = &[
     SettlingStep::ThePlan,
     SettlingStep::TheOriginInventory,
     SettlingStep::TheCloneInventory,
@@ -121,8 +121,8 @@ pub fn the_steps(
     }: TheOrderFacts
 ) -> Vec<SettlingStep> {
     let whole: &[SettlingStep] = match checkout_begun {
-        true => WHEN_A_CHECKOUT_HAS_BEGUN.as_slice(),
-        false => WHEN_NO_CHECKOUT_HAS_BEGUN.as_slice(),
+        true => WHEN_A_CHECKOUT_HAS_BEGUN,
+        false => WHEN_NO_CHECKOUT_HAS_BEGUN,
     };
     return whole
         .iter()

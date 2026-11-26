@@ -39,7 +39,7 @@ const ROOM_SWEPT: usize = 8;
 /// How many descriptors are left free for the pidfd in the sweep of the pidfd's own limit:
 /// none (the open fails),
 /// one (it works).
-const FREE_FOR_THE_PIDFD: [usize; 2] = [0, 1];
+const FREE_FOR_THE_PIDFD: &[usize] = &[0, 1];
 
 /// What the open descriptors are,
 /// for a failure message.
@@ -109,7 +109,7 @@ fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
     warm_runtime();
     let baseline: usize = open_descriptors();
     let mut seen: Vec<(usize, bool)> = Vec::new();
-    for free in FREE_FOR_THE_PIDFD {
+    for &free in FREE_FOR_THE_PIDFD {
         let before = set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
         let child: std::process::Child = quick_child(3).expect("a start with room");
         let held: Vec<std::fs::File> = leave_free(free);

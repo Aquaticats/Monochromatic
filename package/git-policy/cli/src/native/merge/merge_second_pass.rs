@@ -124,13 +124,13 @@ pub const LARGEST_STAGE_BYTES: u64 = LARGEST_BLOB_BYTES as u64;
 
 /// The modes of a plain file,
 /// with and without the executable bit.
-const PLAIN_FILE_MODES: [u32; 2] = [0o100_644, 0o100_755];
+const PLAIN_FILE_MODES: &[u32] = &[0o100_644, 0o100_755];
 
 /// The values of the `merge` attribute that leave the text merge to Git's own algorithm:
 /// none given,
 /// `merge` set,
 /// `text`.
-const TEXT_MERGE_VALUES: [&str; 3] = ["unspecified", "set", "text"];
+const TEXT_MERGE_VALUES: &[&str] = &["unspecified", "set", "text"];
 
 /// The fields `git check-attr -z` prints for each answer:
 /// the path,

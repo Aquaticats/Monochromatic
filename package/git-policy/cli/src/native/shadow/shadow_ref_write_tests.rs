@@ -1026,7 +1026,7 @@ struct StoreKind {
 /// "the reader is not Git on input the fixtures never held",
 /// so every kind of store a repository can hold is named here,
 /// and the ones no fixture can build on this machine are named in the report instead.
-const STORE_KINDS: [StoreKind; 21] = [
+const STORE_KINDS: &[StoreKind] = &[
     StoreKind {
         name: "packed",
         reading: Reading::InProcess,
@@ -1402,7 +1402,7 @@ fn the_reader_answers_every_kind_of_store_as_git_does_or_declines() {
     let mut declined: usize = 0;
     let mut refused_by_git: usize = 0;
     for kind in STORE_KINDS {
-        let (cwd, sources, reading) = build_store(root.as_path(), &kind);
+        let (cwd, sources, reading) = build_store(root.as_path(), kind);
         let recording: PathBuf = root.join(format!("recording-of-{}", kind.name));
         std::fs::create_dir_all(recording.as_path()).expect("a recording directory");
         let (context, log) = recording_context(recording.as_path());

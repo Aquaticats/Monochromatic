@@ -56,7 +56,7 @@ const DECIMAL_DIGITS_LIMIT: usize = 9;
 
 /// Keys the maintenance decision reads,
 /// spelled as `git config --list` prints them.
-pub const MAINTENANCE_KEYS: [&str; 4] = [
+pub const MAINTENANCE_KEYS: &[&str] = &[
     "maintenance.auto",
     "maintenance.autodetach",
     "gc.auto",
@@ -738,7 +738,7 @@ impl ConfigSnapshot {
     /// ```
     pub fn maintenance_records(&self) -> Option<BTreeMap<String, String>> {
         let mut records: BTreeMap<String, String> = BTreeMap::new();
-        for key in MAINTENANCE_KEYS {
+        for &key in MAINTENANCE_KEYS {
             match self.last_converted(key, canonical_bool_or_int) {
                 Lookup::Unset => {}
                 Lookup::Found(text) => {

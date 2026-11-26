@@ -163,7 +163,7 @@ pub struct MalformedStat;
 
 /// Linux process states of a process that has exited:
 ///  zombie and dead.
-const EXITED_LINUX_STATES: [&str; 2] = ["Z", "X"];
+const EXITED_LINUX_STATES: &[&str] = &["Z", "X"];
 
 /// Index of the start-time field among the fields after the command name:
 ///  field 22 is the

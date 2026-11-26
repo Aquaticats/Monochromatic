@@ -67,8 +67,7 @@ static READING: AtomicI32 = AtomicI32::new(-1);
 ///  A `SIGKILL` cannot be caught at all;
 ///  its request is dropped by the service when the connection closes
 ///  (`service_server_land_group.rs`).
-const WATCHED: [std::os::raw::c_int; 4] =
-    [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
+const WATCHED: &[std::os::raw::c_int] = &[libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
 ///  The watched signals whose caller's own `SIG_IGN` the wait leaves in place:
@@ -90,7 +89,7 @@ const WATCHED: [std::os::raw::c_int; 4] =
 ///  a shell that ignores the interrupt for a background job while a person still means a Ctrl-C to end the command
 ///  is what the wait answered before this branch,
 /// and that is a question of its own.
-const KEPT_IGNORED: [std::os::raw::c_int; 2] = [libc::SIGHUP, libc::SIGQUIT];
+const KEPT_IGNORED: &[std::os::raw::c_int] = &[libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
 ///  Notes the stop the person asked for,
@@ -255,7 +254,7 @@ pub(crate) struct StopWatch {
 pub(crate) fn watch_for_a_stop() -> StopWatch {
     STOP.store(0, Ordering::SeqCst);
     let mut previous: Vec<(std::os::raw::c_int, libc::sigaction)> = Vec::new();
-    for signal in WATCHED {
+    for &signal in WATCHED {
         // SAFETY: a null new action only reads what is in place, into this local.
         let mut before: libc::sigaction = unsafe { std::mem::zeroed() };
         let read: std::os::raw::c_int =
